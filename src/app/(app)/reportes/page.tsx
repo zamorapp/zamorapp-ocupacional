@@ -9,7 +9,7 @@ import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { opciones } from "@/lib/listas";
-import { indicadoresAusentismo, obtenerReporte, resolverPeriodo, resumenEjecutivo } from "@/lib/reportes";
+import { indicadoresAusentismo, indicesCovenin, obtenerAccidentalidad, obtenerReporte, resolverPeriodo, resumenEjecutivo } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Reportes" };
@@ -40,9 +40,10 @@ function Indicador({ titulo, valor, detalle, estado }: { titulo: string; valor: 
 export default async function Reportes({ searchParams }: Props) {
   const [q, sesion, empresaId, empresas] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas()]);
   const periodo = resolverPeriodo(q.p, q.desde, q.hasta);
-  const [r, listas] = await Promise.all([
+  const [r, listas, acc] = await Promise.all([
     sesion.demo ? null : obtenerReporte(empresaId, periodo),
     opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud"]),
+    sesion.demo ? null : obtenerAccidentalidad(empresaId, periodo),
   ]);
   const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
@@ -104,6 +105,39 @@ export default async function Reportes({ searchParams }: Props) {
           {r.poblacion.total > 0 && r.poblacion.total < 10 && (
             <p className="rounded-md bg-aviso/10 px-4 py-2 text-sm">Población menor a 10 trabajadores: los índices tienen baja comparabilidad.</p>
           )}
+
+
+          {acc && (() => {
+            const ix = indicesCovenin(acc);
+            const v = (n: number | null) => (n === null ? "—" : n.toLocaleString("es-VE"));
+            return (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Accidentalidad (COVENIN 474)</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    {[
+                      ["IFN", v(ix.ifn), "Con tiempo perdido"],
+                      ["IFB", v(ix.ifb), "Lesiones totales"],
+                      ["IS", v(ix.is), "Severidad"],
+                      ["TIEO", v(ix.tieo), "Enfermedad ocupacional"],
+                      ["Declaradas a tiempo", ix.aTiempo === null ? "—" : `${ix.aTiempo} %`, `${acc.por_declarar} por declarar`],
+                      ["HHT", acc.hht.toLocaleString("es-VE"), `${acc.meses_con_horas} meses${acc.hay_estimado ? " · estimado" : ""}`],
+                    ].map(([t, n, d]) => (
+                      <div key={t} className="rounded-lg border p-3">
+                        <div className="text-xs text-muted-foreground">{t}</div>
+                        <div className="text-xl font-semibold">{n}</div>
+                        <div className="text-xs text-muted-foreground">{d}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {acc.accidentes} accidentes ({acc.con_tiempo_perdido} con tiempo perdido) · {acc.incidentes} incidentes · {acc.enfermedades} enfermedades · {acc.dias_perdidos} días perdidos y {acc.dias_cargados} cargados. Índices por millón de horas hombre.
+                    {acc.hht === 0 && " Carga las horas trabajadas en la página de la empresa para calcular los índices."}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <Card>
             <CardHeader><CardTitle className="text-base">Resumen ejecutivo</CardTitle></CardHeader>

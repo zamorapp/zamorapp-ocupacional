@@ -71,3 +71,19 @@ export async function renombrarDependencia(empresaId: string, id: string, nombre
   revalidatePath(`/empresas/${empresaId}`);
   return { ok: true, mensaje: "" };
 }
+
+export async function guardarHoras(
+  empresaId: string,
+  filas: { mes: string; horas: number | null; trabajadores: number | null; metodo: "nomina" | "estimado" }[],
+): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const registros = filas
+    .filter((f) => f.horas !== null && f.horas >= 0)
+    .map((f) => ({ org_id: c.sesion.orgId!, empresa_id: empresaId, mes: f.mes, horas: f.horas!, trabajadores: f.trabajadores, metodo: f.metodo }));
+  if (!registros.length) return { ok: false, mensaje: "No hay horas para guardar." };
+  const { error } = await c.supabase.from("horas_trabajadas").upsert(registros, { onConflict: "empresa_id,mes" });
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath(`/empresas/${empresaId}`);
+  return { ok: true, mensaje: `${registros.length} meses guardados.` };
+}

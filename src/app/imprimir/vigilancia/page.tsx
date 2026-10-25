@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
 import { opciones } from "@/lib/listas";
-import { indicadoresAusentismo, obtenerReporte, resolverPeriodo, resumenEjecutivo } from "@/lib/reportes";
+import { indicadoresAusentismo, indicesCovenin, obtenerAccidentalidad, obtenerReporte, resolverPeriodo, resumenEjecutivo } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../barra";
@@ -44,7 +44,7 @@ export default async function Vigilancia({ searchParams }: Props) {
   const sesion = await obtenerSesion();
   const periodo = resolverPeriodo(q.p, q.desde, q.hasta);
   const empresaId = q.empresa || null;
-  const [r, empresas, listas, org] = await Promise.all([
+  const [r, empresas, listas, org, acc] = await Promise.all([
     obtenerReporte(empresaId, periodo),
     listarEmpresas(),
     opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud"]),
@@ -53,6 +53,7 @@ export default async function Vigilancia({ searchParams }: Props) {
       const s = await crearClienteServidor();
       return (await s.from("organizaciones").select("nombre, rif, direccion, telefono").eq("id", sesion.orgId).single()).data;
     })(),
+    obtenerAccidentalidad(empresaId, periodo),
   ]);
   const nombre = (l: string) => Object.fromEntries(listas[l].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
@@ -131,7 +132,23 @@ export default async function Vigilancia({ searchParams }: Props) {
           </div>
         </Bloque>
 
-        <Bloque titulo="5. Exámenes y aptitud">
+        {acc && (() => {
+          const ix = indicesCovenin(acc);
+          const v = (n: number | null) => (n === null ? "sin HHT" : n.toLocaleString("es-VE"));
+          return (
+            <Bloque titulo="5. Accidentalidad (COVENIN 474)">
+              <p>
+                {acc.accidentes} accidentes ({acc.con_tiempo_perdido} con tiempo perdido) · {acc.incidentes} incidentes · {acc.enfermedades} enfermedades ocupacionales · {acc.dias_perdidos} días perdidos · {acc.dias_cargados} días cargados
+              </p>
+              <p>
+                <b>IFN</b> {v(ix.ifn)} · <b>IFB</b> {v(ix.ifb)} · <b>IS</b> {v(ix.is)} · <b>TIEO</b> {v(ix.tieo)} · HHT {acc.hht.toLocaleString("es-VE")} ({acc.hay_estimado ? "estimadas: trabajadores × 8 h × días hábiles" : "según nómina"})
+                {ix.aTiempo !== null && <> · Declaraciones en 24 h: {ix.aTiempo} %</>}
+              </p>
+            </Bloque>
+          );
+        })()}
+
+        <Bloque titulo="6. Exámenes y aptitud">
           <Tabla columnas={["Clasificación", "Casos"]} filas={Object.entries(r.aptitud).map(([k, n]) => [aptitudes[k] ?? k, n])} />
           {r.consultas.sanos > 0 && <p className="mt-1">{r.consultas.sanos} trabajadores evaluados sin patología según protocolo.</p>}
         </Bloque>

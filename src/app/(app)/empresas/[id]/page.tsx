@@ -6,12 +6,13 @@ import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarEmpresas } from "@/lib/empresas";
 import { opciones } from "@/lib/listas";
-import { estructuraEmpresa } from "@/lib/puestos";
+import { estructuraEmpresa, horasEmpresa } from "@/lib/puestos";
 import { claveRiesgo, GRUPOS, nivelRiesgo, riesgoMaximo } from "@/lib/puestos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { FormEmpresa } from "../nueva-empresa";
 import { Dependencias } from "./dependencias";
+import { HorasTrabajadas } from "./horas-trabajadas";
 import { EditorPuesto } from "./editor-puesto";
 
 export const metadata: Metadata = { title: "Empresa" };
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function EmpresaDetalle({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sesion = await obtenerSesion();
-  const [empresas, estructura, listas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"])]);
+  const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
   const empresa = empresas.find((e) => e.id === id);
   if (!empresa) notFound();
   const { dependencias, puestos } = estructura;
@@ -46,11 +47,17 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
         {esAdmin && <FormEmpresa habilitado empresa={empresa} />}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
-          <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <Card className="h-fit">
+            <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
+            <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
+          </Card>
+          <Card className="h-fit">
+            <CardHeader><CardTitle className="text-base">Horas hombre trabajadas</CardTitle></CardHeader>
+            <CardContent><HorasTrabajadas empresaId={id} inicial={horas} trabajadoresActuales={empresa.trabajadores} editable={editaPuestos} /></CardContent>
+          </Card>
+        </div>
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">

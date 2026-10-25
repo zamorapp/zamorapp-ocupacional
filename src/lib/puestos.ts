@@ -46,3 +46,19 @@ export async function estructuraEmpresa(empresaId: string): Promise<{ dependenci
   }));
   return { dependencias, puestos };
 }
+
+export type MesHorasDatos = { mes: string; horas: number | null; trabajadores: number | null; metodo: "nomina" | "estimado" };
+
+// Últimos 12 meses (incluye el actual) con las horas cargadas o vacías
+export async function horasEmpresa(empresaId: string): Promise<MesHorasDatos[]> {
+  const hoy = new Date();
+  const meses = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1)).toISOString().slice(0, 10));
+  if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(empresaId)) return meses.map((mes) => ({ mes, horas: null, trabajadores: null, metodo: "estimado" }));
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("horas_trabajadas").select("mes, horas, trabajadores, metodo").eq("empresa_id", empresaId).gte("mes", meses[11]);
+  const porMes = new Map((data ?? []).map((h) => [h.mes as string, h]));
+  return meses.map((mes) => {
+    const h = porMes.get(mes);
+    return { mes, horas: h ? Number(h.horas) : null, trabajadores: h?.trabajadores ?? null, metodo: (h?.metodo as MesHorasDatos["metodo"]) ?? "estimado" };
+  });
+}
