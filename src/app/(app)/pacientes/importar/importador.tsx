@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { EMPRESAS_DEMO } from "@/lib/demo";
+import { importarPacientes } from "../acciones";
 import { COLUMNAS_PLANTILLA, type FilaImportada, leerCSV, validarFilas } from "@/lib/importar";
 import { fecha } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
@@ -21,19 +22,22 @@ function descargarPlantilla() {
   URL.revokeObjectURL(url);
 }
 
-export function Importador({ cedulasExistentes }: { cedulasExistentes: string[] }) {
+type Props = { cedulasExistentes: string[]; empresas: { id: string; nombre: string }[]; empresaInicial: string };
+
+export function Importador({ cedulasExistentes, empresas, empresaInicial }: Props) {
   const entrada = useRef<HTMLInputElement>(null);
-  const [empresa, setEmpresa] = useState(EMPRESAS_DEMO[0].rif);
+  const [empresa, setEmpresa] = useState(empresaInicial);
   const [archivo, setArchivo] = useState<string | null>(null);
   const [filas, setFilas] = useState<FilaImportada[]>([]);
   const [faltantes, setFaltantes] = useState<string[]>([]);
   const [leyendo, setLeyendo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
-  const [importados, setImportados] = useState<number | null>(null);
+  const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  const [guardando, iniciar] = useTransition();
 
   async function procesar(f: File) {
     setLeyendo(true);
-    setImportados(null);
+    setResultado(null);
     setArchivo(f.name);
     try {
       let celdas: unknown[][];
@@ -66,7 +70,7 @@ export function Importador({ cedulasExistentes }: { cedulasExistentes: string[] 
               <Select value={empresa} onValueChange={setEmpresa}>
                 <SelectTrigger className="h-11! w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {EMPRESAS_DEMO.map((e) => <SelectItem key={e.rif} value={e.rif}>{e.nombre}</SelectItem>)}
+                  {empresas.map((e) => <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -130,10 +134,11 @@ export function Importador({ cedulasExistentes }: { cedulasExistentes: string[] 
         </div>
       )}
 
-      {importados !== null && (
-        <div className="flex items-center gap-3 rounded-lg border border-ok/30 bg-ok/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="size-5 shrink-0 text-ok" />
-          {importados} pacientes listos. En modo demo no se guardan; con Supabase conectado quedarán en el expediente.
+      {resultado && (
+        <div className={cn("flex items-center gap-3 rounded-lg border px-4 py-3 text-sm", resultado.ok ? "border-ok/30 bg-ok/10" : "border-alerta/30 bg-alerta/10")}>
+          {resultado.ok ? <CheckCircle2 className="size-5 shrink-0 text-ok" /> : <XCircle className="size-5 shrink-0 text-alerta" />}
+          {resultado.mensaje}
+          {resultado.ok && <Link href="/pacientes" className="ml-auto font-medium text-primary hover:underline">Ver pacientes</Link>}
         </div>
       )}
 
@@ -144,7 +149,12 @@ export function Importador({ cedulasExistentes }: { cedulasExistentes: string[] 
             <span className="font-medium">{filas.length} filas</span>
             <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok">{validas.length} válidas</span>
             {conError > 0 && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-medium text-alerta">{conError} con errores</span>}
-            <Button className="ml-auto" disabled={validas.length === 0} onClick={() => setImportados(validas.length)}>
+            <Button
+              className="ml-auto"
+              disabled={validas.length === 0 || guardando || resultado?.ok}
+              onClick={() => iniciar(async () => setResultado(await importarPacientes(empresa, validas)))}
+            >
+              {guardando && <Loader2 className="animate-spin" />}
               Importar {validas.length} válidas
             </Button>
           </div>

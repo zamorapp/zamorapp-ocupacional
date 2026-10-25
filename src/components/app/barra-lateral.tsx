@@ -6,7 +6,7 @@ import { APP_NOMBRE } from "@/lib/config";
 import { SECCIONES } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 
-export function BarraLateral({ alNavegar }: { alNavegar?: () => void }) {
+export function BarraLateral({ organizacion, alNavegar }: { organizacion: string; alNavegar?: () => void }) {
   const ruta = usePathname();
   return (
     <div className="flex h-full flex-col">
@@ -35,7 +35,7 @@ export function BarraLateral({ alNavegar }: { alNavegar?: () => void }) {
         })}
       </nav>
       <div className="m-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        TIPURO SERVI MEDIC
+        {organizacion}
         <br />
         Proveedor de salud ocupacional
       </div>

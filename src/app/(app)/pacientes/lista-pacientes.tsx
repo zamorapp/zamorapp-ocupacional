@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, Search, UserPlus, Users } from "lucide-react";
+import { FileSpreadsheet, Search, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,9 +27,11 @@ function normalizar(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-.\s]/g, "").toLowerCase();
 }
 
-export function ListaPacientes({ trabajadores }: { trabajadores: Trabajador[] }) {
+type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode };
+
+export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) {
   const router = useRouter();
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(busquedaInicial);
   const [empresa, setEmpresa] = useState(TODAS);
   const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(TODAS);
 
@@ -56,9 +58,7 @@ export function ListaPacientes({ trabajadores }: { trabajadores: Trabajador[] })
           <Button variant="outline" asChild>
             <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
           </Button>
-          <Button disabled title="Disponible al conectar Supabase">
-            <UserPlus /> Nuevo paciente
-          </Button>
+          {nuevo}
         </div>
       </div>
 
@@ -93,7 +93,9 @@ export function ListaPacientes({ trabajadores }: { trabajadores: Trabajador[] })
         {filtrados.length === 0 ? (
           <div className="grid place-items-center gap-2 py-16 text-center text-muted-foreground">
             <Users className="size-8" />
-            Ningún trabajador coincide con la búsqueda.
+            {trabajadores.length === 0
+              ? "Aún no hay pacientes. Regístralos uno a uno o importa la nómina desde Excel."
+              : "Ningún trabajador coincide con la búsqueda."}
           </div>
         ) : (
           <Table>
@@ -124,7 +126,7 @@ export function ListaPacientes({ trabajadores }: { trabajadores: Trabajador[] })
                     <div className="truncate">{t.empresa}</div>
                     <div className="truncate text-xs text-muted-foreground">{t.cargo}</div>
                   </TableCell>
-                  <TableCell className="hidden tabular-nums lg:table-cell">{edad(t.fechaNacimiento)}</TableCell>
+                  <TableCell className="hidden tabular-nums lg:table-cell">{edad(t.fechaNacimiento) ?? "—"}</TableCell>
                   <TableCell>
                     {t.aptitud ? (
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_APTITUD[t.aptitud])}>

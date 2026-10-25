@@ -1,0 +1,61 @@
+import "server-only";
+import { supabaseConfigurado } from "@/lib/config";
+import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
+import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
+import { listarTrabajadores } from "@/lib/pacientes-datos";
+
+export type DatosPanel = {
+  indicadores: { titulo: string; valor: string; detalle: string; estado: Estado }[];
+  alertas: { texto: string; sujeto: string; plazo: string; estado: Estado; href?: string }[];
+  agenda: typeof AGENDA_DEMO;
+  aptitud: typeof APTITUD_DEMO;
+  vacio: boolean;
+};
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+
+export async function datosPanel(): Promise<DatosPanel> {
+  if (!supabaseConfigurado) {
+    return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vacio: false };
+  }
+
+  const [empresas, trabajadores] = await Promise.all([listarEmpresas(), listarTrabajadores()]);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+
+  const activos = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
+  const enReposo = trabajadores.filter((t) => t.estado === "reposo").length;
+  const vencidos = activos.filter((t) => t.proximoExamen && t.proximoExamen < hoy);
+  const porVencer = activos.filter((t) => t.proximoExamen && t.proximoExamen >= hoy && t.proximoExamen <= en30);
+  const alDia = activos.filter((t) => t.proximoExamen && t.proximoExamen >= hoy).length;
+  const sinEvaluar = trabajadores.filter((t) => !t.aptitud && t.estado !== "egresado" && t.estado !== "inactivo");
+  const cobertura = activos.length ? Math.round((alDia / activos.length) * 100) : 0;
+
+  const indicadores: DatosPanel["indicadores"] = [
+    { titulo: "Trabajadores activos", valor: String(activos.length), detalle: plural(empresas.length, "empresa cliente", "empresas clientes"), estado: "ok" },
+    { titulo: "Exámenes periódicos al día", valor: activos.length ? `${cobertura} %` : "—", detalle: "Meta 95 %", estado: cobertura >= 95 ? "ok" : cobertura >= 80 ? "aviso" : "alerta" },
+    { titulo: "Sin evaluación médica", valor: String(sinEvaluar.length), detalle: "Sin aptitud registrada", estado: sinEvaluar.length ? "aviso" : "ok" },
+    { titulo: "En reposo", valor: String(enReposo), detalle: "Trabajadores ausentes hoy", estado: enReposo ? "aviso" : "ok" },
+  ];
+
+  const alertas: DatosPanel["alertas"] = [];
+  if (vencidos.length) alertas.push({ texto: "Exámenes periódicos vencidos", sujeto: plural(vencidos.length, "trabajador", "trabajadores"), plazo: "Vencidos", estado: "alerta", href: "/pacientes" });
+  if (porVencer.length) alertas.push({ texto: "Exámenes que vencen en 30 días", sujeto: plural(porVencer.length, "trabajador", "trabajadores"), plazo: "Programar", estado: "aviso", href: "/pacientes" });
+  const aspirantes = sinEvaluar.filter((t) => t.estado === "aspirante").length;
+  if (aspirantes) alertas.push({ texto: "Aspirantes esperando evaluación pre-empleo", sujeto: plural(aspirantes, "aspirante", "aspirantes"), plazo: "Pendiente", estado: "aviso", href: "/pacientes" });
+  for (const e of empresas) {
+    const faltan = datosLegalesFaltantes(e);
+    if (faltan.length) alertas.push({ texto: "Datos legales incompletos", sujeto: `${e.razonSocial}: ${faltan.join(", ")}`, plazo: "Informe trimestral", estado: "aviso", href: "/empresas" });
+  }
+
+  const cuenta = (c: string) => trabajadores.filter((t) => t.aptitud === c).length;
+  const aptitud = [
+    { clase: "Elegible", cantidad: cuenta("elegible"), color: "bg-ok" },
+    { clase: "Con restricciones", cantidad: cuenta("elegible_con_restricciones"), color: "bg-aviso" },
+    { clase: "No elegible", cantidad: cuenta("no_elegible"), color: "bg-alerta" },
+    { clase: "Espera resultados", cantidad: cuenta("espera_resultados"), color: "bg-primary/60" },
+    { clase: "Diferido", cantidad: cuenta("diferido"), color: "bg-muted-foreground/40" },
+  ];
+
+  return { indicadores, alertas, agenda: [], aptitud, vacio: empresas.length === 0 };
+}

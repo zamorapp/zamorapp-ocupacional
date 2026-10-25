@@ -15,8 +15,8 @@ import {
   edad,
   fecha,
   iniciales,
-  obtenerTrabajador,
 } from "@/lib/pacientes";
+import { obtenerTrabajador } from "@/lib/pacientes-datos";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ id: string }> };
@@ -47,9 +47,9 @@ export default async function FichaPaciente({ params }: Props) {
           <div className="min-w-56 flex-1">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t.nombres} {t.apellidos}</h1>
             <p className="text-sm text-muted-foreground">
-              <span className="font-mono">{t.cedula}</span> · Historia {t.historia} · {edad(t.fechaNacimiento)} años · {t.sexo === "F" ? "Femenino" : "Masculino"}
+              <span className="font-mono">{t.cedula}</span> · Historia {t.historia}{edad(t.fechaNacimiento) !== null && ` · ${edad(t.fechaNacimiento)} años`}{t.sexo && ` · ${t.sexo === "F" ? "Femenino" : "Masculino"}`}
             </p>
-            <p className="mt-1 truncate text-sm">{t.cargo} · {t.empresa}</p>
+            <p className="mt-1 truncate text-sm">{[t.cargo, t.empresa].filter(Boolean).join(" · ")}</p>
           </div>
           <div className="flex flex-col items-start gap-1 sm:items-end">
             <span className="text-xs text-muted-foreground">Aptitud vigente</span>
@@ -90,7 +90,7 @@ export default async function FichaPaciente({ params }: Props) {
                 ["Grupo sanguíneo", t.grupoSanguineo],
                 ["Lateralidad", t.lateralidad],
                 ["Teléfono", t.telefono],
-                ["Correo", t.correo || "—"],
+                ["Correo", t.correo],
               ]} />
             </CardContent>
           </Card>
@@ -114,7 +114,7 @@ export default async function FichaPaciente({ params }: Props) {
               <Datos filas={[
                 ["Empresa", t.empresa],
                 ["Dependencia", t.dependencia],
-                ["Cargo", t.cargo],
+                ["Cargo", t.cargo || null],
                 ["Turno", t.turno],
                 ["Ingreso", fecha(t.fechaIngreso)],
               ]} />
@@ -167,13 +167,13 @@ export default async function FichaPaciente({ params }: Props) {
   );
 }
 
-function Datos({ filas }: { filas: [string, string][] }) {
+function Datos({ filas }: { filas: [string, string | null][] }) {
   return (
     <dl className="divide-y text-sm">
       {filas.map(([k, v]) => (
         <div key={k} className="flex justify-between gap-4 py-2 first:pt-0 last:pb-0">
           <dt className="text-muted-foreground">{k}</dt>
-          <dd className="text-right font-medium">{v}</dd>
+          <dd className="text-right font-medium">{v || "—"}</dd>
         </div>
       ))}
     </dl>

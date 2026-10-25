@@ -16,18 +16,18 @@ export type Trabajador = {
   cedula: string;
   nombres: string;
   apellidos: string;
-  sexo: "F" | "M";
-  fechaNacimiento: string; // aaaa-mm-dd
+  sexo: "F" | "M" | null;
+  fechaNacimiento: string | null; // aaaa-mm-dd
   empresa: string;
-  dependencia: string;
+  dependencia: string | null;
   cargo: string;
-  tipoPaciente: string;
+  tipoPaciente: string | null;
   fechaIngreso: string | null;
-  turno: string;
-  grupoSanguineo: string;
-  lateralidad: string;
-  telefono: string;
-  correo: string;
+  turno: string | null;
+  grupoSanguineo: string | null;
+  lateralidad: string | null;
+  telefono: string | null;
+  correo: string | null;
   estado: EstadoTrabajador;
   aptitud: Aptitud | null;
   aptitudFecha: string | null;
@@ -68,7 +68,8 @@ export const GRUPOS_RIESGO = [
   ["psicosocial", "Psicosocial"],
 ] as const;
 
-export function edad(fechaNacimiento: string, hoy = new Date()) {
+export function edad(fechaNacimiento: string | null, hoy = new Date()) {
+  if (!fechaNacimiento) return null;
   const n = new Date(fechaNacimiento + "T00:00:00");
   let e = hoy.getFullYear() - n.getFullYear();
   const m = hoy.getMonth() - n.getMonth();
@@ -105,14 +106,6 @@ export const TRABAJADORES_DEMO: Trabajador[] = [
   { ...base, id: "t9", historia: 1009, cedula: "V-11369258", nombres: "Gladys Margarita", apellidos: "Fernández Ochoa", sexo: "F", fechaNacimiento: "1971-02-11", empresa: "Clínica Santa Inés", dependencia: "Limpieza", cargo: "Camarera", tipoPaciente: "Obrero", fechaIngreso: "2005-05-16",grupoSanguineo: "O+", estado: "egresado", aptitud: "elegible", aptitudFecha: "2026-09-29", proximoExamen: null, riesgos: { quimico: ["Desinfectantes"], biologico: ["Desechos hospitalarios"] } },
   { ...base, id: "t10", historia: 1010, cedula: "V-28963147", nombres: "Andrés Felipe", apellidos: "Sánchez Mendoza", sexo: "M", fechaNacimiento: "2002-06-19", empresa: "Alimentos del Centro, C.A.", dependencia: "Mantenimiento", cargo: "Pasante de mantenimiento", tipoPaciente: "Pasante", fechaIngreso: "2026-09-01", grupoSanguineo: "A+", estado: "activo", aptitud: "diferido", aptitudFecha: "2026-08-28", proximoExamen: "2026-11-15", riesgos: { mecanico: ["Trabajo en alturas"], fisico: ["Electricidad"] } },
 ];
-
-export async function listarTrabajadores(): Promise<Trabajador[]> {
-  return TRABAJADORES_DEMO;
-}
-
-export async function obtenerTrabajador(id: string): Promise<Trabajador | null> {
-  return TRABAJADORES_DEMO.find((t) => t.id === id) ?? null;
-}
 
 export const CONSULTAS_DEMO: Record<string, { fecha: string; motivo: string; tipo: string; medico: string; aptitud: Aptitud | null }[]> = {
   t2: [

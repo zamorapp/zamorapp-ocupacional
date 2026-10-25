@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Bell, Building2, ChevronDown, LogOut, Menu, Search, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -14,13 +14,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { EMPRESAS_DEMO } from "@/lib/demo";
 import { BarraLateral } from "./barra-lateral";
-import { salir } from "./acciones";
+import { elegirEmpresa, salir } from "./acciones";
 
-export function Encabezado() {
+type Props = {
+  usuario: { nombre: string; rol: string; demo: boolean };
+  empresas: { id: string; nombre: string; trabajadores: number }[];
+  empresaActiva: string | null;
+  organizacion: string;
+};
+
+function iniciales(nombre: string) {
+  const p = nombre.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p.length > 2 ? p[2][0] : p[1]?.[0] ?? "")).toUpperCase();
+}
+
+export function Encabezado({ usuario, empresas, empresaActiva, organizacion }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [empresa, setEmpresa] = useState("Todas las empresas");
+  const [, iniciar] = useTransition();
+  const actual = empresas.find((e) => e.id === empresaActiva)?.nombre ?? "Todas las empresas";
+  const cambiar = (id: string | null) => iniciar(() => elegirEmpresa(id));
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
@@ -32,7 +45,7 @@ export function Encabezado() {
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetTitle className="sr-only">Menú</SheetTitle>
-          <BarraLateral alNavegar={() => setMenuAbierto(false)} />
+          <BarraLateral organizacion={organizacion} alNavegar={() => setMenuAbierto(false)} />
         </SheetContent>
       </Sheet>
 
@@ -40,20 +53,25 @@ export function Encabezado() {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="max-w-56 justify-start gap-2">
             <Building2 className="text-primary" />
-            <span className="truncate">{empresa}</span>
+            <span className="truncate">{actual}</span>
             <ChevronDown className="ml-auto opacity-60" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel>Empresa activa</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => setEmpresa("Todas las empresas")}>Todas las empresas</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {EMPRESAS_DEMO.map((e) => (
-            <DropdownMenuItem key={e.rif} onSelect={() => setEmpresa(e.nombre)}>
+          <DropdownMenuItem onSelect={() => cambiar(null)}>Todas las empresas</DropdownMenuItem>
+          {empresas.length > 0 && <DropdownMenuSeparator />}
+          {empresas.map((e) => (
+            <DropdownMenuItem key={e.id} onSelect={() => cambiar(e.id)}>
               <span className="truncate">{e.nombre}</span>
               <span className="ml-auto text-xs text-muted-foreground">{e.trabajadores}</span>
             </DropdownMenuItem>
           ))}
+          {empresas.length === 0 && (
+            <DropdownMenuItem asChild>
+              <Link href="/empresas" className="text-primary">Registrar la primera empresa</Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -62,28 +80,29 @@ export function Encabezado() {
         <input
           type="search"
           placeholder="Buscar por cédula, nombre o cargo…"
-          className="h-10 w-full rounded-lg border bg-card pl-9 pr-14 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") window.location.href = `/pacientes?q=${encodeURIComponent(e.currentTarget.value)}`;
+          }}
+          className="h-10 w-full rounded-lg border bg-card pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border bg-muted px-1.5 text-[11px] text-muted-foreground">Ctrl K</kbd>
       </label>
 
-      <Button variant="ghost" size="icon" className="relative ml-auto md:ml-0" aria-label="Avisos">
+      <Button variant="ghost" size="icon" className="ml-auto md:ml-0" aria-label="Avisos">
         <Bell />
-        <span className="absolute right-2 top-2 size-2 rounded-full bg-alerta" />
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             <Avatar className="size-9">
-              <AvatarFallback className="bg-primary/10 font-medium text-primary">CE</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 font-medium text-primary">{iniciales(usuario.nombre)}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuLabel>
-            <div className="font-medium">Cesar Enrique</div>
-            <div className="text-xs font-normal text-muted-foreground">Gerente médico</div>
+            <div className="truncate font-medium">{usuario.nombre}</div>
+            <div className="text-xs font-normal text-muted-foreground">{usuario.rol}{usuario.demo && " · modo demo"}</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
