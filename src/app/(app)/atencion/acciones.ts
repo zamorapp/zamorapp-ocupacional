@@ -39,7 +39,7 @@ export async function buscarPacientes(texto: string): Promise<PacienteEncontrado
 }
 
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta
-export async function iniciarConsulta(trabajadorId: string, motivoId?: string): Promise<Resultado> {
+export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
   const supabase = await crearClienteServidor();
@@ -76,6 +76,10 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string): 
     .select("id")
     .single();
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no tiene acceso clínico. Pide al administrador que te lo active en Usuarios." : error.message };
+  // Si viene de la cola, la cita queda "en consulta" y enlazada
+  if (citaId) {
+    await supabase.from("citas").update({ estado: "en_consulta", consulta_id: data.id }).eq("id", citaId);
+  }
   redirect(`/atencion/${data.id}`);
 }
 
@@ -191,6 +195,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       await supabase.from("trabajadores").update({ estado: "reposo" }).eq("id", actual.trabajador_id);
     }
   }
+
+  if (cerrar) await supabase.from("citas").update({ estado: "atendido" }).eq("consulta_id", d.id);
 
   revalidatePath("/", "layout");
   return { ok: true, mensaje: cerrar ? "Consulta cerrada." : "Guardado." };

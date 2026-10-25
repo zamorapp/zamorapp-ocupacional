@@ -97,11 +97,11 @@ export default async function Panel() {
           </CardHeader>
           <CardContent className="px-0">
             {datos.agenda.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-muted-foreground">No hay citas para hoy. La agenda llega con el módulo de Atención médica.</p>
+              <p className="px-6 py-8 text-center text-sm text-muted-foreground">No hay citas para hoy. Agéndalas en Atención médica.</p>
             ) : (
               <ul className="divide-y">
                 {datos.agenda.map((c) => (
-                  <li key={c.hora} className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50">
+                  <li key={c.hora + c.paciente} className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50">
                     <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{c.paciente}</div>

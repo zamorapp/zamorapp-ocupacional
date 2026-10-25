@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
+import { hoyVE, listarCitas } from "@/lib/citas";
 import { listarEventos } from "@/lib/eventos";
 import { plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { listarTrabajadores } from "@/lib/pacientes-datos";
@@ -21,7 +22,7 @@ export async function datosPanel(): Promise<DatosPanel> {
     return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vacio: false };
   }
 
-  const [empresas, trabajadores, eventos] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true })]);
+  const [empresas, trabajadores, eventos, citas] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true }), listarCitas(hoyVE())]);
   const hoy = new Date().toISOString().slice(0, 10);
   const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
 
@@ -67,5 +68,10 @@ export async function datosPanel(): Promise<DatosPanel> {
     { clase: "Diferido", cantidad: cuenta("diferido"), color: "bg-muted-foreground/40" },
   ];
 
-  return { indicadores, alertas, agenda: [], aptitud, vacio: empresas.length === 0 };
+  const ESTADO_CITA: Record<string, string> = { citado: "Citado", en_espera: "En espera", en_consulta: "En consulta", atendido: "Atendido" };
+  const agenda = citas
+    .filter((c) => ESTADO_CITA[c.estado])
+    .map((c) => ({ hora: c.hora ?? "—", paciente: c.paciente, motivo: c.motivo ?? "Sin motivo", empresa: c.empresa, estado: ESTADO_CITA[c.estado] }));
+
+  return { indicadores, alertas, agenda, aptitud, vacio: empresas.length === 0 };
 }
