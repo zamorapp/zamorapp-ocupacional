@@ -86,3 +86,12 @@ export async function trabajadoresPorCedula(cedulas: string[]): Promise<Record<s
   }
   return salida;
 }
+
+// Confirma una solicitud de la empresa, opcionalmente con otra fecha u hora
+export async function confirmarSolicitud(id: string, fecha: string, hora: string | null): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ estado: "citado", fecha, hora: hora || null }).eq("id", id);
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}

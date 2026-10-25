@@ -159,7 +159,8 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     const correo = texto(datos, "correo");
     const rol = texto(datos, "rol") as Rol | null;
     if (!correo || !rol) return { ok: false, mensaje: "Escribe el correo y elige el rol." };
-    const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol });
+    const empresas = datos.getAll("empresas").map(String).filter(Boolean);
+    const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol, p_empresas: empresas.length ? empresas : null });
     if (error) return { ok: false, mensaje: error.message };
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");

@@ -1,5 +1,6 @@
 import {
   Building2,
+  CalendarClock,
   FileText,
   HardHat,
   LayoutDashboard,
@@ -19,7 +20,7 @@ export type Seccion = {
   clinico?: boolean; // solo personal de salud
 };
 
-// Las 7 áreas de la barra lateral (especificación, sección 13)
+// Áreas de la barra lateral del servicio médico (especificación, sección 13)
 export const SECCIONES: Seccion[] = [
   { href: "/panel", titulo: "Inicio", icono: LayoutDashboard, descripcion: "Alertas, agenda y cumplimiento" },
   { href: "/pacientes", titulo: "Pacientes", icono: Users, descripcion: "Expediente único del trabajador, importación desde Excel" },
@@ -31,3 +32,13 @@ export const SECCIONES: Seccion[] = [
   { href: "/documentos", titulo: "Documentos", icono: FileText, descripcion: "Constancias, reposos e informes emitidos" },
   { href: "/configuracion", titulo: "Configuración", icono: Settings, descripcion: "Usuarios, roles y listas configurables" },
 ];
+
+// Portal de empresas (RR. HH. y gerentes de la empresa cliente)
+export const SECCIONES_EMPRESA: Seccion[] = [
+  { href: "/portal", titulo: "Inicio", icono: CalendarClock, descripcion: "Citas, evaluaciones y avisos" },
+  { href: "/pacientes", titulo: "Trabajadores", icono: Users, descripcion: "Nómina y aptitud vigente" },
+  { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Reporte de accidentes e incidentes" },
+];
+
+// Rutas que puede abrir un usuario de empresa
+export const RUTAS_EMPRESA = ["/portal", "/pacientes", "/accidentes"];

@@ -16,7 +16,9 @@ function iniciales(texto: string) {
   return texto.split(/[\s@.]+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
-export function GestionUsuarios({ miembros, yo, esAdmin }: { miembros: Miembro[]; yo: string; esAdmin: boolean }) {
+export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros: Miembro[]; yo: string; esAdmin: boolean; empresas: { id: string; nombre: string }[] }) {
+  const [rolNuevo, setRolNuevo] = useState<Rol>("medico");
+  const nombreEmpresa = new Map(empresas.map((e) => [e.id, e.nombre]));
   const [estado, accion, enviando] = useActionState(agregarUsuario, null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
@@ -34,9 +36,21 @@ export function GestionUsuarios({ miembros, yo, esAdmin }: { miembros: Miembro[]
           <CardContent>
             <form action={accion} className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
               <Campo id="correo" etiqueta="Correo con el que creó su cuenta" type="email" required />
-              <CampoSelect id="rol" etiqueta="Rol" defaultValue="medico">
+              <CampoSelect id="rol" etiqueta="Rol" value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value as Rol)}>
                 {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </CampoSelect>
+              {rolNuevo === "gerente_empresa" && (
+                <div className="sm:col-span-3">
+                  <p className="mb-1.5 text-sm font-medium">Empresas a las que tendrá acceso (portal)</p>
+                  <div className="flex flex-wrap gap-3">
+                    {empresas.map((e) => (
+                      <label key={e.id} className="flex items-center gap-1.5 text-sm">
+                        <input type="checkbox" name="empresas" value={e.id} className="size-4 accent-[var(--primary)]" /> {e.nombre}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Button type="submit" disabled={enviando} className="h-10">
                 {enviando ? <Loader2 className="animate-spin" /> : <UserPlus />} Agregar
               </Button>
@@ -60,7 +74,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin }: { miembros: Miembro[]
               </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
-                <div className="truncate text-sm text-muted-foreground">{m.correo}</div>
+                <div className="truncate text-sm text-muted-foreground">{m.correo}{m.rol === "gerente_empresa" && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
               </div>
               {esAdmin ? (
                 <>

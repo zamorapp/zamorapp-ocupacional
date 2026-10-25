@@ -6,15 +6,21 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return NextResponse.next();
 
-  let respuesta = NextResponse.next({ request });
+  // La ruta viaja a las páginas para decidir qué puede ver cada rol (portal de empresas)
+  const encabezados = new Headers(request.headers);
+  encabezados.set("x-ruta", request.nextUrl.pathname);
+  const seguir = () => NextResponse.next({ request: { headers: encabezados } });
+
+  if (!url || !key) return seguir();
+
+  let respuesta = seguir();
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (lista) => {
         lista.forEach(({ name, value }) => request.cookies.set(name, value));
-        respuesta = NextResponse.next({ request });
+        respuesta = seguir();
         lista.forEach(({ name, value, options }) => respuesta.cookies.set(name, value, options));
       },
     },

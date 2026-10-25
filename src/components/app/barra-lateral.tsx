@@ -3,20 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { APP_NOMBRE } from "@/lib/config";
-import { SECCIONES } from "@/lib/navegacion";
+import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 
-export function BarraLateral({ organizacion, alNavegar }: { organizacion: string; alNavegar?: () => void }) {
+type Props = { organizacion: string; portal?: boolean; alNavegar?: () => void };
+
+export function BarraLateral({ organizacion, portal = false, alNavegar }: Props) {
   const ruta = usePathname();
+  const secciones = portal ? SECCIONES_EMPRESA : SECCIONES;
   return (
     <div className="flex h-full flex-col">
-      <Link href="/panel" onClick={alNavegar} className="flex h-16 items-center gap-3 px-5">
+      <Link href={portal ? "/portal" : "/panel"} onClick={alNavegar} className="flex h-16 items-center gap-3 px-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icono.svg" alt="" className="size-8 rounded-lg" />
         <span className="font-semibold tracking-tight">{APP_NOMBRE}</span>
       </Link>
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {SECCIONES.map(({ href, titulo, icono: Icono }) => {
+        {secciones.map(({ href, titulo, icono: Icono }) => {
           const activa = ruta === href || ruta.startsWith(href + "/");
           return (
             <Link
@@ -37,7 +40,7 @@ export function BarraLateral({ organizacion, alNavegar }: { organizacion: string
       <div className="m-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
         {organizacion}
         <br />
-        Proveedor de salud ocupacional
+        {portal ? "Portal de empresas" : "Proveedor de salud ocupacional"}
       </div>
     </div>
   );

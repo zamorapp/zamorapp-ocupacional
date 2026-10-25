@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { hoyVE, listarCitas } from "@/lib/citas";
+import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
 import { NuevaCita } from "./nueva-cita";
 import { NuevaConsulta } from "./nueva-consulta";
+import { Solicitudes } from "./solicitudes";
 
 export const metadata: Metadata = { title: "Atención médica" };
 export const dynamic = "force-dynamic";
@@ -35,10 +36,11 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const hoy = hoyVE();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const [consultas, citas, listas] = await Promise.all([
+  const [consultas, citas, listas, solicitudes] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta"]),
+    sesion.demo ? [] : listarSolicitudes(),
   ]);
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
@@ -63,6 +65,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <ShieldAlert className="size-5 text-amber-600" /> Conecta Supabase para registrar citas y consultas.
         </div>
       )}
+
+      <Solicitudes solicitudes={solicitudes} />
 
       {/* Cola de atención del día */}
       <section className="space-y-3">

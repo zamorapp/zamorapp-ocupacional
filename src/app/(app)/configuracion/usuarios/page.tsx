@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { supabaseConfigurado } from "@/lib/config";
 import { obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { listarEmpresas } from "@/lib/empresas";
 import { Volver } from "../volver";
 import { GestionUsuarios } from "./gestion-usuarios";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
-export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean };
+export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null };
 
 export default async function Usuarios() {
-  const sesion = await obtenerSesion();
+  const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas()]);
   let miembros: Miembro[] = [];
   if (supabaseConfigurado && !sesion.demo) {
     const supabase = await crearClienteServidor();
@@ -26,7 +27,7 @@ export default async function Usuarios() {
           Cada persona crea su cuenta en la pantalla de ingreso; luego la agregas aquí con su rol. La historia clínica solo la ven médico, enfermería y gerente médico.
         </p>
       </div>
-      <GestionUsuarios miembros={miembros} yo={sesion.usuarioId} esAdmin={!sesion.demo && sesion.rol === "administrador"} />
+      <GestionUsuarios empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} miembros={miembros} yo={sesion.usuarioId} esAdmin={!sesion.demo && sesion.rol === "administrador"} />
     </div>
   );
 }

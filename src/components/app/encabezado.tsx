@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Bell, Building2, ChevronDown, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { Building2, ChevronDown, LogOut, Menu, Search, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
+import { Notificaciones } from "./notificaciones";
 import { elegirEmpresa, salir } from "./acciones";
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
   empresas: { id: string; nombre: string; trabajadores: number }[];
   empresaActiva: string | null;
   organizacion: string;
+  portal?: boolean;
 };
 
 function iniciales(nombre: string) {
@@ -29,7 +31,7 @@ function iniciales(nombre: string) {
   return ((p[0]?.[0] ?? "") + (p.length > 2 ? p[2][0] : p[1]?.[0] ?? "")).toUpperCase();
 }
 
-export function Encabezado({ usuario, empresas, empresaActiva, organizacion }: Props) {
+export function Encabezado({ usuario, empresas, empresaActiva, organizacion, portal = false }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [, iniciar] = useTransition();
   const actual = empresas.find((e) => e.id === empresaActiva)?.nombre ?? "Todas las empresas";
@@ -45,7 +47,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion }: P
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetTitle className="sr-only">Menú</SheetTitle>
-          <BarraLateral organizacion={organizacion} alNavegar={() => setMenuAbierto(false)} />
+          <BarraLateral organizacion={organizacion} portal={portal} alNavegar={() => setMenuAbierto(false)} />
         </SheetContent>
       </Sheet>
 
@@ -87,9 +89,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion }: P
         />
       </label>
 
-      <Button variant="ghost" size="icon" className="ml-auto md:ml-0" aria-label="Avisos">
-        <Bell />
-      </Button>
+      <Notificaciones />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

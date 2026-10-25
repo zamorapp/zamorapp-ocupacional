@@ -68,8 +68,12 @@ export default async function FichaPaciente({ params }: Props) {
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
           <div className="flex w-full gap-2 xl:w-auto">
-            <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
-            <Button variant="outline" asChild className="flex-1 xl:flex-none"><Link href="/documentos"><FileText /> Documentos</Link></Button>
+            {sesion.rol !== "gerente_empresa" && (
+              <>
+                <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
+                <Button variant="outline" asChild className="flex-1 xl:flex-none"><Link href="/documentos"><FileText /> Documentos</Link></Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

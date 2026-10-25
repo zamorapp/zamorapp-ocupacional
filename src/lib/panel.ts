@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
-import { hoyVE, listarCitas } from "@/lib/citas";
+import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
 import { listarEventos } from "@/lib/eventos";
 import { plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { listarTrabajadores } from "@/lib/pacientes-datos";
@@ -23,6 +23,7 @@ export async function datosPanel(): Promise<DatosPanel> {
   }
 
   const [empresas, trabajadores, eventos, citas] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true }), listarCitas(hoyVE())]);
+  const solicitudes = await listarSolicitudes();
   const hoy = new Date().toISOString().slice(0, 10);
   const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
 
@@ -42,6 +43,9 @@ export async function datosPanel(): Promise<DatosPanel> {
   ];
 
   const alertas: DatosPanel["alertas"] = [];
+  if (solicitudes.length) {
+    alertas.push({ texto: "Solicitudes de cita de empresas", sujeto: `${solicitudes.length} por confirmar`, plazo: "Responder", estado: "aviso", href: "/atencion" });
+  }
   // Plazos legales de accidentes y enfermedades: primero, porque vencen en horas
   for (const ev of eventos) {
     for (const p of [plazoDeclaracion(ev), plazoInformeNt02(ev)]) {

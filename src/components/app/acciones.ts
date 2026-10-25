@@ -21,3 +21,22 @@ export async function elegirEmpresa(id: string | null) {
   else almacen.delete(COOKIE_EMPRESA);
   revalidatePath("/", "layout");
 }
+
+export type Notificacion = { id: string; titulo: string; texto: string | null; enlace: string | null; leida: boolean; creadoEn: string };
+
+export async function misNotificaciones(): Promise<Notificacion[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase
+    .from("notificaciones")
+    .select("id, titulo, texto, enlace, leida, creado_en")
+    .order("creado_en", { ascending: false })
+    .limit(30);
+  return (data ?? []).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en }));
+}
+
+export async function marcarLeidas(ids: string[]) {
+  if (!supabaseConfigurado || !ids.length) return;
+  const supabase = await crearClienteServidor();
+  await supabase.from("notificaciones").update({ leida: true }).in("id", ids);
+}
