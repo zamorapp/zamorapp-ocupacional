@@ -9,6 +9,15 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
+export type DiagnosticoEncontrado = { cie10: string; descripcion: string; usos: number };
+
+export async function buscarDiagnosticos(texto: string): Promise<DiagnosticoEncontrado[]> {
+  if (texto.trim().length < 2) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.rpc("buscar_diagnosticos", { p_texto: texto, p_limite: 15 });
+  return (data ?? []) as DiagnosticoEncontrado[];
+}
+
 export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string };
 
 export async function buscarPacientes(texto: string): Promise<PacienteEncontrado[]> {
@@ -111,6 +120,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       recomendaciones_trabajador: d.recomendacionesTrabajador || null,
       observacion_privada: d.observacionPrivada || null,
       autoriza_paciente: d.autorizaPaciente,
+      sano: d.sano,
       ...(cerrar ? { estado: "cerrada", hora_cierre: new Date().toISOString() } : {}),
     })
     .eq("id", d.id);
@@ -118,7 +128,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
 
   // Diagnósticos: se reemplazan completos
   await supabase.from("diagnosticos").delete().eq("consulta_id", d.id);
-  const diags = d.diagnosticos.filter((x) => x.descripcion.trim());
+  const diags = d.sano ? [] : d.diagnosticos.filter((x) => x.descripcion.trim());
   if (diags.length) {
     const { error: e } = await supabase.from("diagnosticos").insert(
       diags.map((x, i) => ({

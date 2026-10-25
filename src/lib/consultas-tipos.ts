@@ -60,6 +60,7 @@ export type DatosConsulta = {
   recomendacionesTrabajador: string;
   observacionPrivada: string;
   autorizaPaciente: boolean;
+  sano: boolean;
 };
 
 export function imc(peso?: string, talla?: string) {

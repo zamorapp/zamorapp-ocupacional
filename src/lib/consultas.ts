@@ -141,6 +141,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       recomendacionesTrabajador: c.recomendaciones_trabajador ?? "",
       observacionPrivada: c.observacion_privada ?? "",
       autorizaPaciente: c.autoriza_paciente,
+      sano: c.sano ?? false,
     },
   };
 }

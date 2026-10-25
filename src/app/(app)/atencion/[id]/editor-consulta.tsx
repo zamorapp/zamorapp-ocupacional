@@ -25,6 +25,7 @@ import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
+import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { TextosFrecuentes } from "./textos-frecuentes";
 
 type Props = {
@@ -188,7 +189,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
             <TabsTrigger value="antecedentes">Antecedentes</TabsTrigger>
             <TabsTrigger value="examen">Examen</TabsTrigger>
             <TabsTrigger value="paraclinicos">Paraclínicos{d.paraclinicos.length > 0 && ` (${d.paraclinicos.length})`}</TabsTrigger>
-            <TabsTrigger value="diagnostico">Diagnóstico{d.diagnosticos.length > 0 && ` (${d.diagnosticos.length})`}</TabsTrigger>
+            <TabsTrigger value="diagnostico">Diagnóstico{d.sano ? " · sano" : d.diagnosticos.length > 0 && ` (${d.diagnosticos.length})`}</TabsTrigger>
             <TabsTrigger value="aptitud">Aptitud</TabsTrigger>
             {mostrarTratamiento && <TabsTrigger value="tratamiento">Tratamiento y reposo</TabsTrigger>}
             <TabsTrigger value="conclusiones">Conclusiones</TabsTrigger>
@@ -392,15 +393,48 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
 
           {/* ── Diagnóstico ── */}
           <TabsContent value="diagnostico" className="mt-4 space-y-4">
+            <Card className={cn("gap-0 py-4", d.sano && "border-ok/50 bg-ok/5")}>
+              <CardContent className="px-6">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={d.sano}
+                    onChange={(e) => {
+                      const sano = e.target.checked;
+                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !confirm("Se quitarán los diagnósticos escritos. ¿Continuar?")) return;
+                      setD((x) => ({
+                        ...x,
+                        sano,
+                        diagnosticos: sano ? [] : x.diagnosticos,
+                        aptitud: sano && !x.aptitud.clasificacion ? { ...x.aptitud, clasificacion: "elegible" } : x.aptitud,
+                      }));
+                    }}
+                    className="mt-0.5 size-5 accent-[var(--primary)]"
+                  />
+                  <span>
+                    <span className="font-medium">Trabajador sano</span>
+                    <span className="block text-sm text-muted-foreground">
+                      De acuerdo con los protocolos de evaluación clínica ocupacional, no presenta patología al momento de la evaluación.
+                    </span>
+                  </span>
+                </label>
+              </CardContent>
+            </Card>
+            {!d.sano && (
             <Seccion
               titulo="Diagnósticos (CIE-10)"
               accion={<Button type="button" size="sm" variant="outline" onClick={() => set("diagnosticos", [...d.diagnosticos, { cie10: "", descripcion: "", sistema: "", origen: "comun", principal: d.diagnosticos.length === 0 }])}><Plus /> Agregar</Button>}
             >
-              {d.diagnosticos.length === 0 && <p className="text-sm text-muted-foreground">Sin diagnósticos. Para un trabajador sano no agregues ninguno.</p>}
+              {d.diagnosticos.length === 0 && <p className="text-sm text-muted-foreground">Sin diagnósticos. Pulsa Agregar y escribe parte del nombre o del código.</p>}
               {d.diagnosticos.map((x, i) => (
-                <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[6rem_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                  <Input value={x.cie10} placeholder="CIE-10" className="h-9 font-mono uppercase" onChange={(e) => actualizarDiag(i, { cie10: e.target.value })} />
-                  <Input value={x.descripcion} placeholder="Diagnóstico" className="h-9" onChange={(e) => actualizarDiag(i, { descripcion: e.target.value })} />
+                <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <BuscadorDiagnostico
+                    cie10={x.cie10}
+                    descripcion={x.descripcion}
+                    autoFocus={!x.descripcion}
+                    onElegir={(v) => actualizarDiag(i, v)}
+                    onEscribir={(descripcion) => actualizarDiag(i, { descripcion, cie10: "" })}
+                  />
                   <select value={x.sistema} onChange={(e) => actualizarDiag(i, { sistema: e.target.value })} className={cn(SELECT, "h-9")}>
                     <option value="">Aparato o sistema</option>
                     {listas.sistema_organico.map((s) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
@@ -409,7 +443,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                     {(Object.keys(ETIQUETA_ORIGEN) as Origen[]).map((o) => <option key={o} value={o}>{ETIQUETA_ORIGEN[o]}</option>)}
                   </select>
                   <button type="button" className="justify-self-end text-muted-foreground hover:text-destructive" onClick={() => set("diagnosticos", d.diagnosticos.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                  {i === 0 && <span className="text-xs text-muted-foreground sm:col-span-5">Diagnóstico principal</span>}
+                  {i === 0 && <span className="text-xs text-muted-foreground sm:col-span-4">Diagnóstico principal</span>}
                 </div>
               ))}
               {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
@@ -418,6 +452,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                 </p>
               )}
             </Seccion>
+            )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
               {d.interconsultas.length === 0 && <p className="text-sm text-muted-foreground">Sin interconsultas.</p>}
               {d.interconsultas.map((x, i) => (
