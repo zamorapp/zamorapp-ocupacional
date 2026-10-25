@@ -3,32 +3,9 @@ import { redirect } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-export type Rol =
-  | "administrador"
-  | "gerente_medico"
-  | "medico"
-  | "enfermeria"
-  | "recepcion"
-  | "coordinador_sst"
-  | "gerente_empresa"
-  | "supervisor"
-  | "delegado_prevencion"
-  | "trabajador"
-  | "auditor";
+import { type Rol } from "@/lib/sesion-roles";
 
-export const ETIQUETA_ROL: Record<Rol, string> = {
-  administrador: "Administrador",
-  gerente_medico: "Gerente médico",
-  medico: "Médico",
-  enfermeria: "Enfermería",
-  recepcion: "Recepción",
-  coordinador_sst: "Coordinador SST",
-  gerente_empresa: "Gerente de empresa",
-  supervisor: "Supervisor",
-  delegado_prevencion: "Delegado de prevención",
-  trabajador: "Trabajador",
-  auditor: "Auditor",
-};
+export { ETIQUETA_ROL, type Rol } from "@/lib/sesion-roles";
 
 export type Sesion = {
   demo: boolean;

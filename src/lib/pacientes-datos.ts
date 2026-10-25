@@ -105,6 +105,12 @@ export async function cedulasRegistradas(): Promise<string[]> {
 export async function listarTiposPaciente(): Promise<{ id: string; nombre: string }[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("lista_items").select("id, nombre").eq("lista", "tipo_paciente").eq("activo", true).order("orden");
+  const { data } = await supabase
+    .from("lista_items")
+    .select("id, nombre")
+    .eq("lista", "tipo_paciente")
+    .eq("activo", true)
+    .not("org_id", "is", null)
+    .order("orden");
   return data ?? [];
 }

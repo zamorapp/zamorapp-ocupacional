@@ -56,6 +56,23 @@ async function resolverCatalogos(supabase: Supabase, orgId: string, empresaId: s
   };
 }
 
+// Tipo de paciente por nombre ("Empleado", "Obrero"…); si no existe en la lista se agrega
+async function resolverTiposPaciente(supabase: Supabase, orgId: string, nombres: string[]) {
+  const clave = (s: string) => s.trim().toLowerCase();
+  const mapa = new Map<string, string>();
+  const { data } = await supabase.from("lista_items").select("id, nombre").eq("org_id", orgId).eq("lista", "tipo_paciente");
+  for (const t of data ?? []) mapa.set(clave(t.nombre), t.id);
+  const nuevos = [...new Set(nombres.map((n) => n.trim()))].filter((n) => !mapa.has(clave(n)));
+  if (nuevos.length) {
+    const { data: creados } = await supabase
+      .from("lista_items")
+      .insert(nuevos.map((nombre, i) => ({ lista: "tipo_paciente", org_id: orgId, nombre, orden: 100 + i })))
+      .select("id, nombre");
+    for (const t of creados ?? []) mapa.set(clave(t.nombre), t.id);
+  }
+  return (n: string) => (n ? mapa.get(clave(n)) ?? null : null);
+}
+
 export async function crearPaciente(_: Resultado | null, datos: FormData): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
@@ -122,6 +139,7 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
       validas.map((f) => f.dependencia).filter(Boolean),
       validas.map((f) => f.cargo).filter(Boolean),
     );
+    const tipos = await resolverTiposPaciente(supabase, sesion.orgId, validas.map((f) => f.tipoPaciente).filter(Boolean));
     const registros = validas.map((f) => ({
       org_id: sesion.orgId!,
       empresa_id: empresaId,
@@ -133,6 +151,14 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
       fecha_ingreso: f.fechaIngreso || null,
       dependencia_id: cat.dependencia(f.dependencia || null),
       puesto_id: cat.puesto(f.cargo || null),
+      direccion: f.direccion || null,
+      telefono: f.telefono || null,
+      correo: f.correo || null,
+      lugar_nacimiento: f.lugarNacimiento || null,
+      ficha: f.ficha || null,
+      turno: f.turno || null,
+      tipo_paciente_id: tipos(f.tipoPaciente),
+      estado: f.estado as "activo",
     }));
     let guardados = 0;
     for (let i = 0; i < registros.length; i += 500) {

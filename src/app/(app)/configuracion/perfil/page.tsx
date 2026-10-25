@@ -1,0 +1,34 @@
+import type { Metadata } from "next";
+import { supabaseConfigurado } from "@/lib/config";
+import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { Volver } from "../volver";
+import { FormPerfil } from "./form-perfil";
+
+export const metadata: Metadata = { title: "Mi perfil" };
+
+export default async function Perfil() {
+  const sesion = await obtenerSesion();
+  let perfil = null;
+  if (supabaseConfigurado && !sesion.demo) {
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase
+      .from("perfiles")
+      .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel")
+      .eq("id", sesion.usuarioId)
+      .maybeSingle();
+    perfil = data;
+  }
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Volver />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Mi perfil profesional</h1>
+        <p className="text-muted-foreground">
+          {sesion.correo} · {sesion.rol ? ETIQUETA_ROL[sesion.rol] : "Sin rol"}. Estos datos salen en constancias, reposos y récipes.
+        </p>
+      </div>
+      <FormPerfil perfil={perfil} editable={!sesion.demo} />
+    </div>
+  );
+}

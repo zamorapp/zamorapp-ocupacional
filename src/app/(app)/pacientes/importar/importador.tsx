@@ -12,7 +12,7 @@ import { COLUMNAS_PLANTILLA, type FilaImportada, leerCSV, validarFilas } from "@
 import { fecha } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 
-const EJEMPLO = ["V-12345678", "María", "Pérez", "F", "15/03/1990", "Operadora", "Producción", "01/10/2026"];
+const EJEMPLO = ["12345678", "MARIA", "PEREZ", "15/03/1990", "F", "Av. Principal", "", "", "04140000000", "correo@ejemplo.com", "Venezuela", "Maturin", "01/10/2026", "OPERADORA", "0", "001", "Empleado", "Diurno", "EMPRESA, C.A", "PRODUCCION", "Activo"];
 
 function descargarPlantilla() {
   const csv = "﻿" + [COLUMNAS_PLANTILLA, EJEMPLO].map((f) => f.join(";")).join("\r\n");
@@ -77,7 +77,7 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
             <div className="space-y-2 text-sm">
               <p className="font-medium">Columnas</p>
               <p className="text-muted-foreground">
-                Obligatorias: <b className="text-foreground">Cédula, Nombres, Apellidos</b>. Opcionales: Sexo, Fecha de nacimiento, Cargo, Dependencia, Fecha de ingreso.
+                Usa tu formato <b className="text-foreground">MATRIZ REGISTRO SISTEMA</b> tal cual. Obligatorias: CEDULA, NOMBRE, APELLIDO; el resto (cargo, dependencia, tipo de paciente, turno, teléfonos, STATUS…) se toma si viene.
               </p>
               <Button variant="link" className="h-auto p-0" onClick={descargarPlantilla}>
                 <Download /> Descargar plantilla
