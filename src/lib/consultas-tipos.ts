@@ -4,7 +4,7 @@ import type { Aptitud } from "@/lib/pacientes";
 export type FilaExamen = { clave: string; nombre: string; valor: string; normal: string };
 export type Paraclinico = { id: string; nombre: string; grupo: string | null; resultado: string };
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
-export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string };
+export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string };
 export type Interconsulta = { especialidad: string; motivo: string };
 export type Habito = { clave: string; nombre: string; valor: string };
 export type Antecedente = { id: string; nombre: string; grupo: string | null; observacion: string };

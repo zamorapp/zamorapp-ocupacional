@@ -43,7 +43,7 @@ export async function datosPanel(): Promise<DatosPanel> {
   if (porVencer.length) alertas.push({ texto: "Exámenes que vencen en 30 días", sujeto: plural(porVencer.length, "trabajador", "trabajadores"), plazo: "Programar", estado: "aviso", href: "/pacientes" });
   const aspirantes = sinEvaluar.filter((t) => t.estado === "aspirante").length;
   if (aspirantes) alertas.push({ texto: "Aspirantes esperando evaluación pre-empleo", sujeto: plural(aspirantes, "aspirante", "aspirantes"), plazo: "Pendiente", estado: "aviso", href: "/pacientes" });
-  for (const e of empresas) {
+  for (const e of empresas.filter((x) => !x.ignorarAlertaLegal)) {
     const faltan = datosLegalesFaltantes(e);
     if (faltan.length) alertas.push({ texto: "Datos legales incompletos", sujeto: `${e.razonSocial}: ${faltan.join(", ")}`, plazo: "Informe trimestral", estado: "aviso", href: "/empresas" });
   }

@@ -134,7 +134,7 @@ Familiares: ${resumenAntecedentes(c.antecedentes).familiares}`}
       </Bloque>
       {c.tratamiento.length > 0 && (
         <Bloque titulo="Tratamiento">
-          {c.tratamiento.map((m) => [m.medicina, m.concentracion, m.presentacion, m.dosis, m.via, m.frecuencia, m.duracion].filter(Boolean).join(" · ")).join("\n")}
+          {c.tratamiento.map((m) => [m.medicina, m.concentracion, m.presentacion, m.dosis, m.via, m.frecuencia, m.duracion, m.observacion].filter(Boolean).join(" · ")).join("\n")}
           {c.indicaciones && `\n${c.indicaciones}`}
         </Bloque>
       )}
@@ -182,7 +182,7 @@ export function Recipe({ d }: { d: DatosDocumento }) {
           {meds.map((x, i) => `${i + 1}. ${x.medicina} ${x.concentracion} · ${x.presentacion}`).join("\n")}
         </MitadRecipe>
         <MitadRecipe d={d} titulo="Indicaciones">
-          {meds.map((x, i) => `${i + 1}. ${x.medicina}: ${x.dosis} ${x.via.toLowerCase()} ${x.frecuencia.toLowerCase()} por ${x.duracion}`).join("\n")}
+          {meds.map((x, i) => `${i + 1}. ${x.medicina}: ${x.dosis} vía ${x.via.toLowerCase()} ${x.frecuencia.toLowerCase()} por ${x.duracion.toLowerCase()}${x.observacion ? `. ${x.observacion}` : ""}`).join("\n")}
           {d.datos.indicaciones && `\n\n${d.datos.indicaciones}`}
         </MitadRecipe>
       </div>

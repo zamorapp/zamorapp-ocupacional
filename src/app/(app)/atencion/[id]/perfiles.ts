@@ -5,7 +5,7 @@ import type { Item } from "@/lib/listas";
 const clave = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
 // «Fila: valor» por línea. Las filas que no existen en la plantilla se agregan al final.
-export function aplicarPerfilExamen(filas: FilaExamen[], texto: string): FilaExamen[] {
+export function aplicarPerfilExamen(filas: FilaExamen[], texto: string, comoNormal = false): FilaExamen[] {
   const nuevas = [...filas];
   for (const linea of texto.split("\n")) {
     const i = linea.indexOf(":");
@@ -13,8 +13,9 @@ export function aplicarPerfilExamen(filas: FilaExamen[], texto: string): FilaExa
     const nombre = linea.slice(0, i).trim();
     const valor = linea.slice(i + 1).trim();
     const j = nuevas.findIndex((f) => clave(f.nombre) === clave(nombre) || clave(f.clave) === clave(nombre));
-    if (j >= 0) nuevas[j] = { ...nuevas[j], valor };
-    else nuevas.push({ clave: `extra-${clave(nombre)}`, nombre, valor, normal: "" });
+    // comoNormal: el texto pasa a ser el valor normal de la fila (no se resalta como alterado)
+    if (j >= 0) nuevas[j] = { ...nuevas[j], valor, ...(comoNormal ? { normal: valor } : {}) };
+    else nuevas.push({ clave: `extra-${clave(nombre)}`, nombre, valor, normal: comoNormal ? valor : "" });
   }
   return nuevas;
 }
@@ -31,3 +32,17 @@ export function aplicarPerfilParaclinicos(actuales: Paraclinico[], texto: string
 }
 
 export const examenesDePerfil = (texto: string | null) => (texto ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+
+// Indicación preestablecida de una medicina: líneas «campo: valor» en el texto del vademécum
+export function indicacionPreestablecida(texto: string | null): Record<string, string> {
+  const salida: Record<string, string> = {};
+  for (const linea of (texto ?? "").split("\n")) {
+    const i = linea.indexOf(":");
+    if (i > 0) salida[linea.slice(0, i).trim().toLowerCase()] = linea.slice(i + 1).trim();
+  }
+  return salida;
+}
+
+// Etiqueta única para elegir en la lista: "Paracetamol 500 mg"
+export const etiquetaMedicina = (nombre: string, texto: string | null) =>
+  [nombre, indicacionPreestablecida(texto).concentracion].filter(Boolean).join(" ");

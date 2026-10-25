@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, Building2, Users } from "lucide-react";
+import { Building2, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
 import { obtenerSesion } from "@/lib/sesion";
-import { NuevaEmpresa } from "./nueva-empresa";
+import { AlertaLegal } from "./alerta-legal";
+import { FormEmpresa } from "./nueva-empresa";
 
 export const metadata: Metadata = { title: "Empresas" };
 
 export default async function Empresas() {
   const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas()]);
   const total = empresas.reduce((s, e) => s + e.trabajadores, 0);
+  const esAdmin = !sesion.demo && sesion.rol === "administrador";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -19,7 +21,7 @@ export default async function Empresas() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Empresas</h1>
           <p className="text-muted-foreground">{empresas.length} empresas clientes · {total} trabajadores</p>
         </div>
-        <NuevaEmpresa habilitado={!sesion.demo && sesion.rol === "administrador"} />
+        <FormEmpresa habilitado={esAdmin} />
       </div>
 
       {empresas.length === 0 ? (
@@ -51,12 +53,8 @@ export default async function Empresas() {
                     </Link>
                     {e.municipio && <span className="text-muted-foreground">{e.municipio}</span>}
                   </div>
-                  {faltan.length > 0 && !sesion.demo && (
-                    <div className="flex gap-2 rounded-md bg-aviso/15 px-3 py-2 text-xs">
-                      <AlertTriangle className="size-4 shrink-0 text-amber-600" />
-                      Falta para el informe trimestral: {faltan.join(", ")}.
-                    </div>
-                  )}
+                  {!sesion.demo && <AlertaLegal empresaId={e.id} faltan={faltan} ignorada={e.ignorarAlertaLegal} editable={esAdmin} />}
+                  {esAdmin && <div className="-mb-2 flex justify-end"><FormEmpresa habilitado empresa={e} /></div>}
                 </CardContent>
               </Card>
             );

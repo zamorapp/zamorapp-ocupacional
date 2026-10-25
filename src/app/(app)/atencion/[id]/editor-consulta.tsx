@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
 import { BotonesDocumentos } from "@/components/app/botones-documentos";
 import { Antecedentes } from "./antecedentes";
-import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil } from "./perfiles";
+import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { TextosFrecuentes } from "./textos-frecuentes";
 
@@ -62,6 +62,22 @@ function Texto({ etiqueta, valor, onChange, filas = 3, placeholder }: { etiqueta
   );
 }
 
+// Botón de examen normal (perfil con código "normal") y menú con los demás perfiles
+function AccionesExamen({ perfiles, etiquetaNormal, onAplicar }: { perfiles: Item[]; etiquetaNormal: string; onAplicar: (texto: string, comoNormal: boolean) => void }) {
+  const normal = perfiles.find((p) => p.codigo === "normal");
+  const otros = perfiles.filter((p) => p !== normal);
+  return (
+    <div className="flex items-center gap-2">
+      {normal?.texto && (
+        <Button type="button" size="sm" variant="outline" className="h-8 border-ok/50 text-ok hover:bg-ok/10 hover:text-ok" onClick={() => onAplicar(normal.texto!, true)}>
+          <CheckCircle2 /> {etiquetaNormal}
+        </Button>
+      )}
+      <ElegirPerfil items={otros} onElegir={(t) => onAplicar(t, false)} />
+    </div>
+  );
+}
+
 function ElegirPerfil({ items, onElegir }: { items: Item[]; onElegir: (texto: string) => void }) {
   if (!items.length) return null;
   return (
@@ -86,16 +102,17 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
       {filas.map((f, i) => {
         const alterado = f.valor.trim() !== f.normal.trim();
         return (
-          <div key={f.clave} className={cn("grid grid-cols-[10rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5", alterado && "bg-aviso/10")}>
-            <span className="text-sm">{f.nombre}</span>
-            <input
+          <div key={f.clave} className={cn("grid grid-cols-[8.5rem_minmax(0,1fr)_auto] items-start gap-3 px-3 py-1.5", alterado && "bg-aviso/10")}>
+            <span className="pt-1.5 text-sm">{f.nombre}</span>
+            <textarea
+              rows={1}
               value={f.valor}
               disabled={bloqueado}
               onChange={(e) => onChange(filas.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)))}
-              className={cn("h-8 w-full rounded border-0 bg-transparent px-2 text-sm outline-none focus:bg-card focus:ring-1 focus:ring-primary", alterado && "font-medium")}
+              className={cn("field-sizing-content min-h-8 w-full resize-none rounded border-0 bg-transparent px-2 py-1.5 text-sm leading-snug outline-none focus:bg-card focus:ring-1 focus:ring-primary", alterado && "font-medium")}
             />
             {alterado ? (
-              <button type="button" disabled={bloqueado} title="Volver a normal" className="text-muted-foreground hover:text-foreground" onClick={() => onChange(filas.map((x, j) => (j === i ? { ...x, valor: x.normal } : x)))}>
+              <button type="button" disabled={bloqueado} title="Volver a normal" className="pt-2 text-muted-foreground hover:text-foreground" onClick={() => onChange(filas.map((x, j) => (j === i ? { ...x, valor: x.normal } : x)))}>
                 <RotateCcw className="size-3.5" />
               </button>
             ) : <span className="size-3.5" />}
@@ -324,10 +341,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
               )}
             </Seccion>
             <div className="grid gap-4 lg:grid-cols-2">
-              <Seccion titulo="Examen funcional" accion={<ElegirPerfil items={listas.perfil_examen_funcional} onElegir={(t) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t))} />}>
+              <Seccion titulo="Examen funcional" accion={<AccionesExamen perfiles={listas.perfil_examen_funcional} etiquetaNormal="Funcional normal" onAplicar={(t, normal) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t, normal))} />}>
                 <TablaExamen filas={d.examenFuncional} onChange={(f) => set("examenFuncional", f)} bloqueado={bloqueado} />
               </Seccion>
-              <Seccion titulo="Examen físico" accion={<ElegirPerfil items={listas.perfil_examen_fisico} onElegir={(t) => set("examenFisico", aplicarPerfilExamen(d.examenFisico, t))} />}>
+              <Seccion titulo="Examen físico" accion={<AccionesExamen perfiles={listas.perfil_examen_fisico} etiquetaNormal="Evaluación física normal" onAplicar={(t, normal) => set("examenFisico", aplicarPerfilExamen(d.examenFisico, t, normal))} />}>
                 <TablaExamen filas={d.examenFisico} onChange={(f) => set("examenFisico", f)} bloqueado={bloqueado} />
               </Seccion>
             </div>
@@ -553,13 +570,35 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
             <TabsContent value="tratamiento" className="mt-4 space-y-4">
               <Seccion
                 titulo="Tratamiento"
-                accion={<Button type="button" size="sm" variant="outline" onClick={() => set("tratamiento", [...d.tratamiento, { medicina: "", concentracion: "", presentacion: "", dosis: "", frecuencia: "", duracion: "", via: "" }])}><Plus /> Medicina</Button>}
+                accion={<Button type="button" size="sm" variant="outline" onClick={() => set("tratamiento", [...d.tratamiento, { medicina: "", concentracion: "", presentacion: "", dosis: "", frecuencia: "", duracion: "", via: "", observacion: "" }])}><Plus /> Medicina</Button>}
               >
-                <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={m.nombre} />)}</datalist>
+                <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
                 {d.tratamiento.map((m, i) => (
                   <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
-                    <Input list="medicinas" value={m.medicina} placeholder="Principio activo (DCI)" className="h-9" onChange={(e) => actualizarMed(i, { medicina: e.target.value })} />
+                    <Input
+                      list="medicinas"
+                      value={m.medicina}
+                      placeholder="Principio activo (DCI)"
+                      className="h-9"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        // Si elige del vademécum, se llenan los parámetros preestablecidos (editables)
+                        const it = listas.medicina.find((x) => etiquetaMedicina(x.nombre, x.texto) === v);
+                        if (!it) return actualizarMed(i, { medicina: v });
+                        const pre = indicacionPreestablecida(it.texto);
+                        actualizarMed(i, {
+                          medicina: it.nombre,
+                          concentracion: pre.concentracion ?? "",
+                          presentacion: pre.presentacion ?? "",
+                          via: pre.via ?? "",
+                          dosis: pre.dosis ?? "",
+                          frecuencia: pre.frecuencia ?? "",
+                          duracion: pre.duracion ?? "",
+                          observacion: pre.observacion ?? "",
+                        });
+                      }}
+                    />
                     <Input value={m.concentracion ?? ""} placeholder="Concentración" className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
                     {([["presentacion", listas.presentacion_medicina, "Presentación"], ["via", listas.via_administracion, "Vía"], ["frecuencia", listas.frecuencia_dosis, "Frecuencia"], ["duracion", listas.duracion_tratamiento, "Duración"]] as const).map(([k, items, ph]) => (
                       <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
@@ -569,6 +608,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                     ))}
                     <Input value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
                     <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("tratamiento", d.tratamiento.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
+                    <Input value={m.observacion ?? ""} placeholder="Observación (ej. después de las comidas)" className="h-8 sm:col-span-8" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
                   </div>
                 ))}
                 <Texto etiqueta="Otras indicaciones" valor={d.indicaciones} onChange={(v) => set("indicaciones", v)} filas={2} />

@@ -8,7 +8,9 @@ export type Empresa = {
   rif: string;
   nil: string | null;
   actividad: string | null;
+  estado: string | null;
   municipio: string | null;
+  direccion: string | null;
   telefono: string | null;
   correo: string | null;
   servicioSst: string | null;
@@ -16,6 +18,7 @@ export type Empresa = {
   psstRegistro: string | null;
   trabajadores: number;
   activa: boolean;
+  ignorarAlertaLegal: boolean;
 };
 
 export async function listarEmpresas(): Promise<Empresa[]> {
@@ -26,7 +29,9 @@ export async function listarEmpresas(): Promise<Empresa[]> {
       rif: e.rif,
       nil: null,
       actividad: null,
+      estado: null,
       municipio: null,
+      direccion: null,
       telefono: null,
       correo: null,
       servicioSst: null,
@@ -34,12 +39,13 @@ export async function listarEmpresas(): Promise<Empresa[]> {
       psstRegistro: null,
       trabajadores: e.trabajadores,
       activa: true,
+      ignorarAlertaLegal: false,
     }));
   }
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, razon_social, rif, nil, actividad_economica, municipio, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, trabajadores(count)")
+    .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, trabajadores(count)")
     .order("razon_social");
   if (error) throw error;
   return (data ?? []).map((e) => ({
@@ -48,7 +54,9 @@ export async function listarEmpresas(): Promise<Empresa[]> {
     rif: e.rif,
     nil: e.nil,
     actividad: e.actividad_economica,
+    estado: e.estado,
     municipio: e.municipio,
+    direccion: e.direccion,
     telefono: e.telefono,
     correo: e.correo,
     servicioSst: e.servicio_sst_tipo,
@@ -56,6 +64,7 @@ export async function listarEmpresas(): Promise<Empresa[]> {
     psstRegistro: e.psst_fecha_registro,
     trabajadores: (e.trabajadores as unknown as { count: number }[])[0]?.count ?? 0,
     activa: e.activa,
+    ignorarAlertaLegal: e.ignorar_alerta_legal,
   }));
 }
 
