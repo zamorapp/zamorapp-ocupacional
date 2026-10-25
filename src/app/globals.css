@@ -129,3 +129,16 @@
     @apply bg-background text-foreground;
   }
 }
+/* Documentos impresos (constancia, reposo, informe, récipe) */
+@page {
+  size: letter;
+  margin: 12mm;
+}
+@media print {
+  body {
+    background: white;
+  }
+  .hoja {
+    break-after: page;
+  }
+}

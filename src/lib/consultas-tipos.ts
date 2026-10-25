@@ -4,7 +4,7 @@ import type { Aptitud } from "@/lib/pacientes";
 export type FilaExamen = { clave: string; nombre: string; valor: string; normal: string };
 export type Paraclinico = { id: string; nombre: string; grupo: string | null; resultado: string };
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
-export type Medicamento = { medicina: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string };
+export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string };
 export type Interconsulta = { especialidad: string; motivo: string };
 export type Habito = { clave: string; nombre: string; valor: string };
 export type Antecedente = { id: string; nombre: string; grupo: string | null; observacion: string };
@@ -84,4 +84,15 @@ export function clasificarImc(v: number | null) {
 export function taAlterada(ta?: string) {
   const m = String(ta ?? "").match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
   return m ? Number(m[1]) >= 140 || Number(m[2]) >= 90 : false;
+}
+
+// Texto para historia e informes
+export function resumenAntecedentes(valor: Antecedente[]) {
+  const linea = (a: Antecedente) => [a.nombre, a.observacion].filter(Boolean).join(": ");
+  const p = valor.filter((a) => a.grupo !== "familiar" && a.nombre.trim());
+  const f = valor.filter((a) => a.grupo === "familiar" && a.nombre.trim());
+  return {
+    personales: p.length ? p.map(linea).join("; ") : "No refiere antecedentes personales.",
+    familiares: f.length ? f.map(linea).join("; ") : "No refiere antecedentes familiares.",
+  };
 }

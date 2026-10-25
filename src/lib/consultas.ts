@@ -17,6 +17,8 @@ export type ResumenConsulta = {
   cedula: string;
   empresa: string;
   aptitud: Aptitud | null;
+  tieneReposo: boolean;
+  tieneTratamiento: boolean;
 };
 
 type FilaResumen = {
@@ -30,6 +32,8 @@ type FilaResumen = {
   trabajadores: { nombres: string; apellidos: string; cedula: string } | null;
   empresas: { razon_social: string } | null;
   aptitudes: { clasificacion: Aptitud }[] | { clasificacion: Aptitud } | null;
+  reposos: { id: string }[] | null;
+  tratamiento: unknown[] | null;
 };
 
 const hora = (iso: string) =>
@@ -40,7 +44,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("consultas")
-    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion)")
+    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion), reposos(id), tratamiento")
     .order("fecha", { ascending: false })
     .order("hora_inicio", { ascending: false })
     .limit(opciones.limite ?? 200);
@@ -66,6 +70,8 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
       cedula: c.trabajadores?.cedula ?? "",
       empresa: c.empresas?.razon_social ?? "",
       aptitud: apt?.clasificacion ?? null,
+      tieneReposo: (c.reposos ?? []).length > 0,
+      tieneTratamiento: (c.tratamiento ?? []).length > 0,
     };
   });
 }

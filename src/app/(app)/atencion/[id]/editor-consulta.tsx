@@ -25,6 +25,8 @@ import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
+import { BotonesDocumentos } from "@/components/app/botones-documentos";
+import { Antecedentes } from "./antecedentes";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { TextosFrecuentes } from "./textos-frecuentes";
 
@@ -177,6 +179,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
             </div>
           )}
         </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Documentos:</span>
+          {cambios ? (
+            <span>guarda los cambios para emitirlos</span>
+          ) : (
+            <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} compacto />
+          )}
+        </div>
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok" : "text-destructive")}>{aviso.mensaje}</p>
         )}
@@ -250,36 +260,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
           {/* ── Antecedentes y hábitos ── */}
           <TabsContent value="antecedentes" className="mt-4 grid gap-4 lg:grid-cols-2">
             <Seccion titulo="Antecedentes médicos">
-              <div className="space-y-2">
-                {listas.antecedente_medico.map((a) => {
-                  const marcado = d.antecedentes.find((x) => x.id === a.id);
-                  return (
-                    <div key={a.id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-                      <label className="flex w-56 items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(marcado)}
-                          onChange={(e) =>
-                            set("antecedentes", e.target.checked
-                              ? [...d.antecedentes, { id: a.id, nombre: a.nombre, grupo: a.grupo, observacion: "" }]
-                              : d.antecedentes.filter((x) => x.id !== a.id))
-                          }
-                          className="size-4 accent-[var(--primary)]"
-                        />
-                        {a.nombre}
-                      </label>
-                      {marcado && (
-                        <Input
-                          value={marcado.observacion}
-                          placeholder="Observación"
-                          className="h-8"
-                          onChange={(e) => set("antecedentes", d.antecedentes.map((x) => (x.id === a.id ? { ...x, observacion: e.target.value } : x)))}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <Antecedentes items={listas.antecedente_medico} valor={d.antecedentes} onChange={(v) => set("antecedentes", v)} />
             </Seccion>
             <Seccion titulo="Hábitos">
               <div className="space-y-2">
@@ -530,13 +511,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
             <TabsContent value="tratamiento" className="mt-4 space-y-4">
               <Seccion
                 titulo="Tratamiento"
-                accion={<Button type="button" size="sm" variant="outline" onClick={() => set("tratamiento", [...d.tratamiento, { medicina: "", presentacion: "", dosis: "", frecuencia: "", duracion: "", via: "" }])}><Plus /> Medicina</Button>}
+                accion={<Button type="button" size="sm" variant="outline" onClick={() => set("tratamiento", [...d.tratamiento, { medicina: "", concentracion: "", presentacion: "", dosis: "", frecuencia: "", duracion: "", via: "" }])}><Plus /> Medicina</Button>}
               >
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={m.nombre} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
                 {d.tratamiento.map((m, i) => (
-                  <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto]">
+                  <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
                     <Input list="medicinas" value={m.medicina} placeholder="Principio activo (DCI)" className="h-9" onChange={(e) => actualizarMed(i, { medicina: e.target.value })} />
+                    <Input value={m.concentracion ?? ""} placeholder="Concentración" className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
                     {([["presentacion", listas.presentacion_medicina, "Presentación"], ["via", listas.via_administracion, "Vía"], ["frecuencia", listas.frecuencia_dosis, "Frecuencia"], ["duracion", listas.duracion_tratamiento, "Duración"]] as const).map(([k, items, ph]) => (
                       <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
                         <option value="">{ph}</option>
