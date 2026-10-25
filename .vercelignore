@@ -1,0 +1,10 @@
+/node_modules
+/.next
+/.next-build
+/.next-prod
+/.next-dev
+/.env
+/.env.local
+/.claude
+/supabase
+/scripts
