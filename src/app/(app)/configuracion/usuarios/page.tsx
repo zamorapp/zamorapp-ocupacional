@@ -7,7 +7,7 @@ import { GestionUsuarios } from "./gestion-usuarios";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
-export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean };
+export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean };
 
 export default async function Usuarios() {
   const sesion = await obtenerSesion();

@@ -21,8 +21,10 @@ export function GestionUsuarios({ miembros, yo, esAdmin }: { miembros: Miembro[]
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
 
-  const actualizar = (m: Miembro, rol: Rol, activo: boolean) =>
-    iniciar(async () => setAviso(await cambiarRol(m.id, rol, activo)));
+  const actualizar = (m: Miembro, cambio: Partial<Pick<Miembro, "rol" | "activo" | "acceso_clinico">>) => {
+    const n = { ...m, ...cambio };
+    iniciar(async () => setAviso(await cambiarRol(m.id, n.rol, n.activo, n.acceso_clinico)));
+  };
 
   return (
     <div className="space-y-4">
@@ -64,12 +66,16 @@ export function GestionUsuarios({ miembros, yo, esAdmin }: { miembros: Miembro[]
                 <>
                   <select
                     value={m.rol}
-                    onChange={(e) => actualizar(m, e.target.value as Rol, m.activo)}
+                    onChange={(e) => actualizar(m, { rol: e.target.value as Rol })}
                     className="h-9 rounded-md border bg-transparent px-2 text-sm"
                   >
                     {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                  <Button variant="ghost" size="sm" onClick={() => actualizar(m, m.rol, !m.activo)}>
+                  <label className="flex items-center gap-1.5 text-sm" title="Puede abrir historias clínicas">
+                    <input type="checkbox" checked={m.acceso_clinico || ["medico", "enfermeria", "gerente_medico"].includes(m.rol)} disabled={["medico", "enfermeria", "gerente_medico"].includes(m.rol)} onChange={(e) => actualizar(m, { acceso_clinico: e.target.checked })} className="size-4 accent-[var(--primary)]" />
+                    Clínico
+                  </label>
+                  <Button variant="ghost" size="sm" onClick={() => actualizar(m, { activo: !m.activo })}>
                     {m.activo ? "Desactivar" : "Activar"}
                   </Button>
                 </>

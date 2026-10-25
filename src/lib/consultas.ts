@@ -1,0 +1,146 @@
+import "server-only";
+import { supabaseConfigurado } from "@/lib/config";
+import type { DatosConsulta, EstadoConsulta } from "@/lib/consultas-tipos";
+import { empresaActivaId } from "@/lib/empresa-activa";
+import type { Aptitud } from "@/lib/pacientes";
+import { crearClienteServidor } from "@/lib/supabase/server";
+
+export type ResumenConsulta = {
+  id: string;
+  fecha: string;
+  hora: string;
+  estado: EstadoConsulta;
+  tipo: string;
+  motivo: string | null;
+  trabajadorId: string;
+  paciente: string;
+  cedula: string;
+  empresa: string;
+  aptitud: Aptitud | null;
+};
+
+type FilaResumen = {
+  id: string;
+  fecha: string;
+  hora_inicio: string;
+  estado: EstadoConsulta;
+  tipo: string;
+  trabajador_id: string;
+  motivo: { nombre: string } | null;
+  trabajadores: { nombres: string; apellidos: string; cedula: string } | null;
+  empresas: { razon_social: string } | null;
+  aptitudes: { clasificacion: Aptitud }[] | { clasificacion: Aptitud } | null;
+};
+
+const hora = (iso: string) =>
+  new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
+
+export async function listarConsultas(opciones: { desde?: string; trabajadorId?: string; limite?: number } = {}): Promise<ResumenConsulta[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  let q = supabase
+    .from("consultas")
+    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion)")
+    .order("fecha", { ascending: false })
+    .order("hora_inicio", { ascending: false })
+    .limit(opciones.limite ?? 200);
+  if (opciones.desde) q = q.gte("fecha", opciones.desde);
+  if (opciones.trabajadorId) q = q.eq("trabajador_id", opciones.trabajadorId);
+  else {
+    const empresa = await empresaActivaId();
+    if (empresa) q = q.eq("empresa_id", empresa);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data ?? []) as unknown as FilaResumen[]).map((c) => {
+    const apt = Array.isArray(c.aptitudes) ? c.aptitudes[0] : c.aptitudes;
+    return {
+      id: c.id,
+      fecha: c.fecha,
+      hora: hora(c.hora_inicio),
+      estado: c.estado,
+      tipo: c.tipo,
+      motivo: c.motivo?.nombre ?? null,
+      trabajadorId: c.trabajador_id,
+      paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
+      cedula: c.trabajadores?.cedula ?? "",
+      empresa: c.empresas?.razon_social ?? "",
+      aptitud: apt?.clasificacion ?? null,
+    };
+  });
+}
+
+export type ConsultaCompleta = {
+  datos: DatosConsulta;
+  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  medico: string | null;
+};
+
+export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | null> {
+  if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const supabase = await crearClienteServidor();
+  const { data: c } = await supabase.from("consultas").select("*").eq("id", id).maybeSingle();
+  if (!c) return null;
+
+  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }] = await Promise.all([
+    supabase.from("trabajadores").select("id, nombres, apellidos, cedula, sexo, fecha_nacimiento, empresas(razon_social), puestos(nombre, riesgos)").eq("id", c.trabajador_id).maybeSingle(),
+    supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
+    supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
+    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10").eq("consulta_id", id).maybeSingle(),
+    c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+
+  const tr = t as unknown as {
+    id: string; nombres: string; apellidos: string; cedula: string; sexo: string | null; fecha_nacimiento: string | null;
+    empresas: { razon_social: string } | null; puestos: { nombre: string; riesgos: Record<string, string[]> } | null;
+  } | null;
+  const nac = tr?.fecha_nacimiento ? new Date(tr.fecha_nacimiento) : null;
+  const edad = nac ? Math.floor((Date.now() - nac.getTime()) / (365.25 * 864e5)) : null;
+
+  return {
+    medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,
+    trabajador: {
+      id: c.trabajador_id,
+      nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
+      cedula: tr?.cedula ?? "",
+      edad,
+      sexo: tr?.sexo ?? null,
+      empresa: tr?.empresas?.razon_social ?? "",
+      cargo: tr?.puestos?.nombre ?? "",
+      riesgos: tr?.puestos?.riesgos ?? {},
+    },
+    datos: {
+      id: c.id,
+      estado: c.estado,
+      fecha: c.fecha,
+      tipo: c.tipo,
+      motivoId: c.motivo_id,
+      motivoTexto: c.motivo_texto ?? "",
+      enfermedadActual: c.enfermedad_actual ?? "",
+      antecedentes: c.antecedentes ?? [],
+      habitos: Array.isArray(c.habitos) ? c.habitos : [],
+      signos: c.signos_vitales ?? {},
+      examenFuncional: c.examen_funcional ?? [],
+      examenFisico: c.examen_fisico ?? [],
+      paraclinicos: c.paraclinicos ?? [],
+      diagnosticos: (diags ?? []).map((d) => ({ ...d, sistema: d.sistema ?? "" })),
+      aptitud: {
+        clasificacion: apt?.clasificacion ?? "",
+        observacion: apt?.observacion ?? "",
+        limitaciones: apt?.limitaciones ?? [],
+        vigenteHasta: apt?.vigente_hasta ?? "",
+      },
+      tratamiento: c.tratamiento ?? [],
+      indicaciones: c.indicaciones ?? "",
+      interconsultas: c.interconsultas ?? [],
+      reposo: rep
+        ? { activo: true, causa: rep.causa, ente: rep.ente_emisor, desde: rep.desde, hasta: rep.hasta, cie10: rep.cie10 ?? "" }
+        : { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: c.fecha, hasta: c.fecha, cie10: "" },
+      conclusiones: c.conclusiones ?? "",
+      recomendacionesEmpresa: c.recomendaciones_empresa ?? "",
+      recomendacionesTrabajador: c.recomendaciones_trabajador ?? "",
+      observacionPrivada: c.observacion_privada ?? "",
+      autorizaPaciente: c.autoriza_paciente,
+    },
+  };
+}

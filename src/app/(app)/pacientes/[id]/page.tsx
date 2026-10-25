@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, ClipboardPlus, FileText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CalendarClock, FileText, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,10 @@ import {
   iniciales,
 } from "@/lib/pacientes";
 import { obtenerTrabajador } from "@/lib/pacientes-datos";
+import { listarConsultas } from "@/lib/consultas";
+import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
+import { obtenerSesion } from "@/lib/sesion";
+import { BotonConsulta } from "./boton-consulta";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ id: string }> };
@@ -29,7 +33,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function FichaPaciente({ params }: Props) {
   const t = await obtenerTrabajador((await params).id);
   if (!t) notFound();
-  const consultas = CONSULTAS_DEMO[t.id] ?? [];
+  const sesion = await obtenerSesion();
+  const consultas = sesion.demo
+    ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud }))
+    : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud }));
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
 
   return (
@@ -61,7 +68,7 @@ export default async function FichaPaciente({ params }: Props) {
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
           <div className="flex w-full gap-2 xl:w-auto">
-            <Button asChild className="flex-1 xl:flex-none"><Link href="/atencion"><ClipboardPlus /> Nueva consulta</Link></Button>
+            <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
             <Button variant="outline" asChild className="flex-1 xl:flex-none"><Link href="/documentos"><FileText /> Documentos</Link></Button>
           </div>
         </CardContent>
@@ -147,11 +154,12 @@ export default async function FichaPaciente({ params }: Props) {
             ) : (
               <ul className="divide-y">
                 {consultas.map((c) => (
-                  <li key={c.fecha + c.motivo} className="flex flex-wrap items-center gap-4 px-5 py-3">
+                  <li key={c.id} className="relative flex flex-wrap items-center gap-4 px-5 py-3 transition hover:bg-muted/40">
+                    {!c.demo && <Link href={`/atencion/${c.id}`} className="absolute inset-0" aria-label="Abrir consulta" />}
                     <span className="w-24 font-mono text-sm text-muted-foreground">{fecha(c.fecha)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{c.motivo}</div>
-                      <div className="text-xs text-muted-foreground">{c.tipo} · {c.medico}</div>
+                      <div className="text-xs capitalize text-muted-foreground">{c.tipo} · {c.detalle}</div>
                     </div>
                     {c.aptitud && (
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_APTITUD[c.aptitud])}>{ETIQUETA_APTITUD[c.aptitud]}</span>

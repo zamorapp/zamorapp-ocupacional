@@ -166,14 +166,14 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
   }
 }
 
-export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean): Promise<Resultado> {
+export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, accesoClinico: boolean): Promise<Resultado> {
   try {
     const { sesion, supabase } = await contexto(["administrador"]);
     const { data: m } = await supabase.from("miembros").select("usuario_id").eq("id", miembroId).maybeSingle();
     if (m?.usuario_id === sesion.usuarioId && (rol !== "administrador" || !activo)) {
       return { ok: false, mensaje: "No puedes quitarte a ti mismo el rol de administrador." };
     }
-    const { error } = await supabase.from("miembros").update({ rol, activo }).eq("id", miembroId);
+    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
     if (error) throw error;
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };
