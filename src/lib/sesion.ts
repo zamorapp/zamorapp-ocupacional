@@ -27,34 +27,51 @@ const SESION_DEMO: Sesion = {
   rol: "gerente_medico",
 };
 
+// Perfil, organización y rol cambian muy poco: se guardan en memoria del servidor 2 minutos
+// para no consultar Supabase en cada pantalla. Se invalidan al editar perfil, rol u organización.
+type Datos = Omit<Sesion, "demo" | "usuarioId" | "correo">;
+const MEMORIA = new Map<string, { datos: Datos; vence: number }>();
+const DURACION = 2 * 60 * 1000;
+
+export function invalidarSesion(usuarioId?: string) {
+  if (usuarioId) MEMORIA.delete(usuarioId);
+  else MEMORIA.clear();
+}
+
 // Usuario, organización y rol de quien navega. Se calcula una vez por petición.
 export const obtenerSesion = cache(async (): Promise<Sesion> => {
   if (!supabaseConfigurado) return SESION_DEMO;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
+  // getClaims verifica el token localmente con la clave pública del proyecto (sin ir al servidor)
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) redirect("/login");
+  const usuarioId = claims.sub;
+  const correo = (claims.email as string | undefined) ?? "";
+
+  const guardado = MEMORIA.get(usuarioId);
+  if (guardado && guardado.vence > Date.now()) return { demo: false, usuarioId, correo, ...guardado.datos };
 
   const [{ data: perfil }, { data: miembro }] = await Promise.all([
-    supabase.from("perfiles").select("nombre_completo").eq("id", data.user.id).maybeSingle(),
+    supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
       .from("miembros")
       .select("org_id, rol, organizaciones(nombre)")
-      .eq("usuario_id", data.user.id)
+      .eq("usuario_id", usuarioId)
       .eq("activo", true)
       .limit(1)
       .maybeSingle(),
   ]);
 
   const org = miembro?.organizaciones as unknown as { nombre: string } | null;
-  return {
-    demo: false,
-    usuarioId: data.user.id,
-    nombre: perfil?.nombre_completo || data.user.email || "",
-    correo: data.user.email ?? "",
+  const datos: Datos = {
+    nombre: perfil?.nombre_completo || correo,
     orgId: miembro?.org_id ?? null,
     organizacion: org?.nombre ?? "Sin organización",
     rol: (miembro?.rol as Rol) ?? null,
   };
+  MEMORIA.set(usuarioId, { datos, vence: Date.now() + DURACION });
+  return { demo: false, usuarioId, correo, ...datos };
 });
 
 export function primerNombre(nombre: string) {

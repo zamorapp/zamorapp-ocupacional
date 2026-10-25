@@ -20,13 +20,16 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims valida el token localmente (clave pública ES256 en caché) y refresca la sesión si vence;
+  // evita una ida y vuelta al servidor de Supabase en cada pantalla.
+  const { data } = await supabase.auth.getClaims();
+  const conSesion = Boolean(data?.claims?.sub);
   const enLogin = request.nextUrl.pathname.startsWith("/login");
 
-  if (!data.user && !enLogin) {
+  if (!conSesion && !enLogin) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (data.user && enLogin) {
+  if (conSesion && enLogin) {
     return NextResponse.redirect(new URL("/panel", request.url));
   }
   return respuesta;

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { obtenerSesion, type Rol } from "@/lib/sesion";
+import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -118,6 +118,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       .update({ nombre, rif: texto(datos, "rif"), direccion: texto(datos, "direccion"), telefono: texto(datos, "telefono"), correo: texto(datos, "correo"), ajustes })
       .eq("id", sesion.orgId!);
     if (error) throw error;
+    invalidarSesion();
     revalidatePath("/", "layout");
     return { ok: true, mensaje: "Datos de la organización guardados." };
   } catch (e) {
@@ -143,6 +144,7 @@ export async function guardarPerfil(_: Resultado | null, datos: FormData): Promi
       })
       .eq("id", sesion.usuarioId);
     if (error) throw error;
+    invalidarSesion();
     revalidatePath("/", "layout");
     return { ok: true, mensaje: "Perfil guardado." };
   } catch (e) {
@@ -159,6 +161,7 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     if (!correo || !rol) return { ok: false, mensaje: "Escribe el correo y elige el rol." };
     const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol });
     if (error) return { ok: false, mensaje: error.message };
+    invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
   } catch (e) {
@@ -175,6 +178,7 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     }
     const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
     if (error) throw error;
+    invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };
   } catch (e) {
