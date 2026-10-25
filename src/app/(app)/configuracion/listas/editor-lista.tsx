@@ -22,7 +22,35 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   causa_reposo: "Tipo (reposo / permiso)",
 };
 
-function Formulario({ lista, item, alTerminar }: { lista: string; item: Item | null; alTerminar: () => void }) {
+type Motivo = { codigo: string; nombre: string };
+
+// Elige uno o varios motivos; se guardan como códigos separados por coma en "grupo"
+function SelectorMotivos({ motivos, inicial }: { motivos: Motivo[]; inicial: string }) {
+  const [elegidos, setElegidos] = useState<string[]>(inicial.split(",").map((x) => x.trim()).filter(Boolean));
+  return (
+    <div className="sm:col-span-3">
+      <input type="hidden" name="grupo" value={elegidos.join(",")} />
+      <p className="mb-1.5 text-sm font-medium">Sugerir en estos motivos <span className="font-normal text-muted-foreground">(ninguno = en todos)</span></p>
+      <div className="flex flex-wrap gap-1.5">
+        {motivos.map((m) => {
+          const activo = elegidos.includes(m.codigo);
+          return (
+            <button
+              key={m.codigo}
+              type="button"
+              onClick={() => setElegidos(activo ? elegidos.filter((x) => x !== m.codigo) : [...elegidos, m.codigo])}
+              className={cn("rounded-full border px-2.5 py-1 text-xs transition", activo ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/50")}
+            >
+              {m.nombre}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item: Item | null; motivos: Motivo[]; alTerminar: () => void }) {
   const [estado, accion, enviando] = useActionState(guardarItem, null);
   useEffect(() => {
     if (estado?.ok) alTerminar();
@@ -35,7 +63,11 @@ function Formulario({ lista, item, alTerminar }: { lista: string; item: Item | n
       {item && <input type="hidden" name="id" value={item.id} />}
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
       <Campo id="codigo" etiqueta="Código" defaultValue={item?.codigo ?? ""} />
-      <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
+      {lista.startsWith("recomendacion_") ? (
+        <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
+      ) : (
+        <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
+      )}
       {conTexto ? (
         <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3} className="sm:col-span-3" />
       ) : (
@@ -50,7 +82,10 @@ function Formulario({ lista, item, alTerminar }: { lista: string; item: Item | n
   );
 }
 
-export function EditorLista({ lista, items, editable }: { lista: Lista; items: Item[]; editable: boolean }) {
+export function EditorLista({ lista, items, editable, motivos }: { lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[] }) {
+  const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
+  const etiquetaGrupo = (g: string) =>
+    lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ") : g;
   const [editando, setEditando] = useState<string | "nuevo" | null>(null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
@@ -86,7 +121,7 @@ export function EditorLista({ lista, items, editable }: { lista: Lista; items: I
       </div>
 
       {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
-      {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} alTerminar={() => setEditando(null)} />}
+      {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alTerminar={() => setEditando(null)} />}
 
       {visibles.length === 0 && editando !== "nuevo" && (
         <p className="px-5 py-12 text-center text-sm text-muted-foreground">Esta lista está vacía.</p>
@@ -95,14 +130,14 @@ export function EditorLista({ lista, items, editable }: { lista: Lista; items: I
       <ul className="divide-y">
         {visibles.map((item, i) =>
           editando === item.id ? (
-            <li key={item.id}><Formulario lista={lista.codigo} item={item} alTerminar={() => setEditando(null)} /></li>
+            <li key={item.id}><Formulario lista={lista.codigo} item={item} motivos={motivos} alTerminar={() => setEditando(null)} /></li>
           ) : (
             <li key={item.id} className={cn("group flex items-start gap-3 px-5 py-3", !item.activo && "opacity-50")}>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{item.nombre}</span>
                   {item.codigo && <span className="rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground">{item.codigo}</span>}
-                  {item.grupo && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{item.grupo}</span>}
+                  {item.grupo && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{etiquetaGrupo(item.grupo)}</span>}
                   {!item.activo && <span className="text-xs text-muted-foreground">inactivo</span>}
                 </div>
                 {item.texto && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{item.texto}</p>}

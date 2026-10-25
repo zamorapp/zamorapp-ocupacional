@@ -13,7 +13,9 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
   const listas = await listarListas(sesion.orgId);
   const porCodigo = new Map(listas.map((x) => [x.codigo, x]));
   const actual = porCodigo.get(l ?? "") ?? porCodigo.get("motivo_consulta") ?? listas[0];
-  const items = actual ? await itemsDeLista(sesion.orgId, actual.codigo) : [];
+  const [items, motivos] = actual
+    ? await Promise.all([itemsDeLista(sesion.orgId, actual.codigo), itemsDeLista(sesion.orgId, "motivo_consulta", true)])
+    : [[], []];
   const editable = !sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico");
 
   // Las listas que no estén en ninguna sección también se muestran
@@ -60,7 +62,13 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
               </div>
             ))}
           </nav>
-          {actual && <EditorLista key={actual.codigo} lista={actual} items={items} editable={editable} />}
+          {actual && <EditorLista
+              key={actual.codigo}
+              lista={actual}
+              items={items}
+              editable={editable}
+              motivos={motivos.filter((m) => m.codigo).map((m) => ({ codigo: m.codigo!, nombre: m.nombre }))}
+            />}
         </div>
       )}
     </div>

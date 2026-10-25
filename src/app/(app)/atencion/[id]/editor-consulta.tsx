@@ -25,6 +25,7 @@ import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
+import { TextosFrecuentes } from "./textos-frecuentes";
 
 type Props = {
   inicial: DatosConsulta;
@@ -54,24 +55,6 @@ function Texto({ etiqueta, valor, onChange, filas = 3, placeholder }: { etiqueta
       <Label className="mb-1.5">{etiqueta}</Label>
       <Textarea value={valor} onChange={(e) => onChange(e.target.value)} rows={filas} placeholder={placeholder} />
     </div>
-  );
-}
-
-// Inserta un texto del maestro de recomendaciones al final del campo
-function InsertarDesde({ items, onElegir }: { items: Item[]; onElegir: (t: string) => void }) {
-  if (!items.length) return null;
-  return (
-    <select
-      value=""
-      onChange={(e) => {
-        const it = items.find((i) => i.id === e.target.value);
-        if (it) onElegir(it.texto || it.nombre);
-      }}
-      className="h-8 max-w-56 rounded-md border bg-transparent px-2 text-xs text-muted-foreground"
-    >
-      <option value="">+ Insertar recomendación…</option>
-      {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-    </select>
   );
 }
 
@@ -239,7 +222,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                   </select>
                 </div>
               </div>
-              <Texto etiqueta="Motivo (detalle)" valor={d.motivoTexto} onChange={(v) => set("motivoTexto", v)} filas={2} />
+              {preventivo ? (
+                <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  Evaluación de <b className="text-foreground">{motivo?.nombre}</b>: el motivo ya queda registrado y no requiere detalle.
+                </p>
+              ) : (
+                <Texto etiqueta="Motivo (detalle)" valor={d.motivoTexto} onChange={(v) => set("motivoTexto", v)} filas={2} />
+              )}
               {!preventivo && <Texto etiqueta="Enfermedad actual" valor={d.enfermedadActual} onChange={(v) => set("enfermedadActual", v)} filas={4} />}
             </Seccion>
 
@@ -483,13 +472,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                 </div>
               )}
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <Label>Observación de la aptitud</Label>
-                    <InsertarDesde items={listas.recomendacion_aptitud} onElegir={(t) => set("aptitud", { ...d.aptitud, observacion: [d.aptitud.observacion, t].filter(Boolean).join("\n") })} />
-                  </div>
-                  <Textarea value={d.aptitud.observacion} rows={3} onChange={(e) => set("aptitud", { ...d.aptitud, observacion: e.target.value })} />
-                </div>
+                <TextosFrecuentes
+                  etiqueta="Recomendaciones de aptitud"
+                  items={listas.recomendacion_aptitud}
+                  motivoCodigo={motivo?.codigo ?? null}
+                  motivoNombre={motivo?.nombre ?? null}
+                  valor={d.aptitud.observacion}
+                  onChange={(v) => set("aptitud", { ...d.aptitud, observacion: v })}
+                />
                 <div>
                   <Label className="mb-1.5">Vigente hasta</Label>
                   <Input type="date" value={d.aptitud.vigenteHasta} onChange={(e) => set("aptitud", { ...d.aptitud, vigenteHasta: e.target.value })} />
@@ -567,20 +557,22 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
           <TabsContent value="conclusiones" className="mt-4 space-y-4">
             <Seccion titulo="Conclusiones y recomendaciones">
               <Texto etiqueta="Conclusiones" valor={d.conclusiones} onChange={(v) => set("conclusiones", v)} />
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <Label>Recomendaciones para la empresa</Label>
-                  <InsertarDesde items={listas.recomendacion_empresa} onElegir={(t) => set("recomendacionesEmpresa", [d.recomendacionesEmpresa, t].filter(Boolean).join("\n"))} />
-                </div>
-                <Textarea value={d.recomendacionesEmpresa} rows={3} onChange={(e) => set("recomendacionesEmpresa", e.target.value)} />
-              </div>
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <Label>Recomendaciones para el trabajador</Label>
-                  <InsertarDesde items={listas.recomendacion_paciente} onElegir={(t) => set("recomendacionesTrabajador", [d.recomendacionesTrabajador, t].filter(Boolean).join("\n"))} />
-                </div>
-                <Textarea value={d.recomendacionesTrabajador} rows={3} onChange={(e) => set("recomendacionesTrabajador", e.target.value)} />
-              </div>
+              <TextosFrecuentes
+                etiqueta="Recomendaciones para la empresa"
+                items={listas.recomendacion_empresa}
+                motivoCodigo={motivo?.codigo ?? null}
+                motivoNombre={motivo?.nombre ?? null}
+                valor={d.recomendacionesEmpresa}
+                onChange={(v) => set("recomendacionesEmpresa", v)}
+              />
+              <TextosFrecuentes
+                etiqueta="Recomendaciones para el trabajador"
+                items={listas.recomendacion_paciente}
+                motivoCodigo={motivo?.codigo ?? null}
+                motivoNombre={motivo?.nombre ?? null}
+                valor={d.recomendacionesTrabajador}
+                onChange={(v) => set("recomendacionesTrabajador", v)}
+              />
               <Texto etiqueta="Observación privada (solo personal de salud)" valor={d.observacionPrivada} onChange={(v) => set("observacionPrivada", v)} filas={2} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={d.autorizaPaciente} onChange={(e) => set("autorizaPaciente", e.target.checked)} className="size-4 accent-[var(--primary)]" />
