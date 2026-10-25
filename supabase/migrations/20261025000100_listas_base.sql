@@ -1,0 +1,72 @@
+-- zamorApp Ocupacional · Listas configurables base (org_id null = del sistema)
+-- Cada organización puede añadir sus propios valores desde Configuración.
+
+insert into public.listas (codigo, nombre, descripcion) values
+  ('motivo_consulta', 'Motivos de consulta', 'Separados en preventivos y no preventivos para la estadística'),
+  ('tipo_paciente', 'Tipos de paciente', 'Condición del paciente frente a la empresa'),
+  ('clasificacion_aptitud', 'Clasificación de aptitud', 'Palabra base configurable de la constancia'),
+  ('ente_emisor_reposo', 'Entes emisores de reposo', null),
+  ('tipo_riesgo', 'Grupos de riesgo', 'Los seis grupos del análisis de riesgos del puesto'),
+  ('limitacion_ocupacional', 'Limitaciones ocupacionales', null),
+  ('recomendacion_empresa', 'Recomendaciones para la empresa', null),
+  ('recomendacion_paciente', 'Recomendaciones para el paciente', 'Por hallazgo'),
+  ('grupo_paraclinicos', 'Perfiles de paraclínicos', 'Grupos de exámenes de un clic');
+
+insert into public.lista_items (lista, codigo, nombre, grupo, orden) values
+  ('motivo_consulta', 'PRE', 'Pre-empleo', 'preventivo', 1),
+  ('motivo_consulta', 'PER', 'Periódico', 'preventivo', 2),
+  ('motivo_consulta', 'PREV', 'Pre vacacional', 'preventivo', 3),
+  ('motivo_consulta', 'POSV', 'Post vacacional', 'preventivo', 4),
+  ('motivo_consulta', 'EGR', 'Egreso', 'preventivo', 5),
+  ('motivo_consulta', 'REI', 'Reintegro post reposo', 'preventivo', 6),
+  ('motivo_consulta', 'CAM', 'Cambio de puesto', 'preventivo', 7),
+  ('motivo_consulta', 'REU', 'Reubicación', 'preventivo', 8),
+  ('motivo_consulta', 'RIN', 'Reinserción', 'preventivo', 9),
+  ('motivo_consulta', 'ADP', 'Adecuación de puesto', 'preventivo', 10),
+  ('motivo_consulta', 'PRN', 'Prenatal', 'preventivo', 11),
+  ('motivo_consulta', 'PSN', 'Postnatal', 'preventivo', 12),
+  ('motivo_consulta', 'VIG', 'Vigilancia epidemiológica', 'preventivo', 13),
+  ('motivo_consulta', 'MOR', 'Morbilidad', 'no_preventivo', 20),
+  ('motivo_consulta', 'ACL', 'Accidente laboral', 'no_preventivo', 21),
+  ('motivo_consulta', 'ACC', 'Accidente común', 'no_preventivo', 22),
+  ('motivo_consulta', 'EME', 'Emergencia', 'no_preventivo', 23),
+  ('motivo_consulta', 'CTR', 'Control', 'no_preventivo', 24),
+  ('motivo_consulta', 'TEL', 'Telemedicina', 'no_preventivo', 25),
+  ('motivo_consulta', 'CRE', 'Conformación de reposo externo', 'no_preventivo', 26),
+
+  ('tipo_paciente', 'ASP', 'Aspirante', null, 1),
+  ('tipo_paciente', 'EMP', 'Empleado', null, 2),
+  ('tipo_paciente', 'OBR', 'Obrero', null, 3),
+  ('tipo_paciente', 'CON', 'Contratado', null, 4),
+  ('tipo_paciente', 'CTA', 'Contratista', null, 5),
+  ('tipo_paciente', 'PAS', 'Pasante', null, 6),
+  ('tipo_paciente', 'APR', 'Aprendiz', null, 7),
+  ('tipo_paciente', 'FAM', 'Familiar', null, 8),
+  ('tipo_paciente', 'PAR', 'Particular', null, 9),
+
+  ('clasificacion_aptitud', 'elegible', 'Elegible', null, 1),
+  ('clasificacion_aptitud', 'elegible_con_restricciones', 'Elegible con restricciones', null, 2),
+  ('clasificacion_aptitud', 'no_elegible', 'No elegible', null, 3),
+  ('clasificacion_aptitud', 'espera_resultados', 'Espera resultados de exámenes', null, 4),
+  ('clasificacion_aptitud', 'diferido', 'Diferido', null, 5),
+
+  ('ente_emisor_reposo', 'servicio_medico', 'Servicio médico', null, 1),
+  ('ente_emisor_reposo', 'ivss', 'IVSS', null, 2),
+  ('ente_emisor_reposo', 'particular', 'Particular', null, 3),
+  ('ente_emisor_reposo', 'hospital', 'Hospital', null, 4),
+  ('ente_emisor_reposo', 'ambulatorio', 'Ambulatorio', null, 5),
+  ('ente_emisor_reposo', 'cdi', 'CDI', null, 6),
+
+  ('tipo_riesgo', 'fisico', 'Físico', null, 1),
+  ('tipo_riesgo', 'quimico', 'Químico', null, 2),
+  ('tipo_riesgo', 'biologico', 'Biológico', null, 3),
+  ('tipo_riesgo', 'mecanico', 'Mecánico', null, 4),
+  ('tipo_riesgo', 'disergonomico', 'Disergonómico', null, 5),
+  ('tipo_riesgo', 'psicosocial', 'Psicosocial', null, 6),
+
+  ('limitacion_ocupacional', 'cargas', 'Manejo de cargas', null, 1),
+  ('limitacion_ocupacional', 'posturas', 'Posturas forzadas', null, 2),
+  ('limitacion_ocupacional', 'alturas', 'Trabajo en alturas', null, 3),
+  ('limitacion_ocupacional', 'turnos', 'Turnos nocturnos', null, 4),
+  ('limitacion_ocupacional', 'agentes', 'Exposición a agentes químicos', null, 5),
+  ('limitacion_ocupacional', 'ruido', 'Exposición a ruido', null, 6);
