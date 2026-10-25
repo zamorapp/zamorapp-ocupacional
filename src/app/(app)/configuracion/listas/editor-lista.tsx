@@ -10,16 +10,20 @@ import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
-const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico"]);
+const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos"]);
 const ETIQUETA_TEXTO: Record<string, string> = {
   examen_funcional: "Valor por defecto",
   examen_fisico: "Valor por defecto",
+  perfil_examen_fisico: "Hallazgos: una línea por fila, «Fila: hallazgo» (ej. Nariz: congestión nasal)",
+  perfil_examen_funcional: "Síntomas: una línea por fila, «Fila: síntoma» (ej. Respiratorio: tos húmeda)",
+  grupo_paraclinicos: "Exámenes del perfil, uno por línea (con el mismo nombre del catálogo)",
 };
 const ETIQUETA_GRUPO: Record<string, string> = {
   motivo_consulta: "Grupo (preventivo / no_preventivo)",
   paraclinico: "Perfil o grupo",
   antecedente_medico: "Tipo (personal / familiar)",
   causa_reposo: "Tipo (reposo / permiso)",
+  grupo_paraclinicos: "Empresa a la que se sugiere (opcional)",
 };
 
 type Motivo = { codigo: string; nombre: string };

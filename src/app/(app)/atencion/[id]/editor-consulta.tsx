@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
 import { BotonesDocumentos } from "@/components/app/botones-documentos";
 import { Antecedentes } from "./antecedentes";
+import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { TextosFrecuentes } from "./textos-frecuentes";
 
@@ -58,6 +59,23 @@ function Texto({ etiqueta, valor, onChange, filas = 3, placeholder }: { etiqueta
       <Label className="mb-1.5">{etiqueta}</Label>
       <Textarea value={valor} onChange={(e) => onChange(e.target.value)} rows={filas} placeholder={placeholder} />
     </div>
+  );
+}
+
+function ElegirPerfil({ items, onElegir }: { items: Item[]; onElegir: (texto: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <select
+      value=""
+      onChange={(e) => {
+        const it = items.find((i) => i.id === e.target.value);
+        if (it?.texto) onElegir(it.texto);
+      }}
+      className="h-8 max-w-48 rounded-md border bg-transparent px-2 text-xs"
+    >
+      <option value="">Aplicar perfil…</option>
+      {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+    </select>
   );
 }
 
@@ -306,10 +324,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
               )}
             </Seccion>
             <div className="grid gap-4 lg:grid-cols-2">
-              <Seccion titulo="Examen funcional">
+              <Seccion titulo="Examen funcional" accion={<ElegirPerfil items={listas.perfil_examen_funcional} onElegir={(t) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t))} />}>
                 <TablaExamen filas={d.examenFuncional} onChange={(f) => set("examenFuncional", f)} bloqueado={bloqueado} />
               </Seccion>
-              <Seccion titulo="Examen físico">
+              <Seccion titulo="Examen físico" accion={<ElegirPerfil items={listas.perfil_examen_fisico} onElegir={(t) => set("examenFisico", aplicarPerfilExamen(d.examenFisico, t))} />}>
                 <TablaExamen filas={d.examenFisico} onChange={(f) => set("examenFisico", f)} bloqueado={bloqueado} />
               </Seccion>
             </div>
@@ -319,6 +337,30 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
           {/* ── Paraclínicos ── */}
           <TabsContent value="paraclinicos" className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <Seccion titulo="Catálogo">
+              {listas.grupo_paraclinicos.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="mb-2 text-sm font-medium">Perfiles</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {listas.grupo_paraclinicos.map((pf) => {
+                      const sugerido = Boolean(pf.grupo && trabajador.empresa.toLowerCase().includes(pf.grupo.toLowerCase()));
+                      return (
+                        <button
+                          key={pf.id}
+                          type="button"
+                          title={examenesDePerfil(pf.texto).join(", ")}
+                          onClick={() => set("paraclinicos", aplicarPerfilParaclinicos(d.paraclinicos, pf.texto ?? "", listas.paraclinico))}
+                          className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition hover:border-primary", sugerido && "border-primary bg-primary/10 font-medium text-primary")}
+                        >
+                          <Plus className="size-3" /> {pf.nombre} <span className="text-muted-foreground">({examenesDePerfil(pf.texto).length})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {listas.grupo_paraclinicos.some((pf) => pf.grupo && trabajador.empresa.toLowerCase().includes(pf.grupo.toLowerCase())) && (
+                    <p className="mt-2 text-xs text-primary">Resaltado: perfil de esta empresa.</p>
+                  )}
+                </div>
+              )}
               <div className="space-y-4">
                 {gruposParaclinicos.map(([grupo, items]) => {
                   const todos = items.every((p) => d.paraclinicos.some((x) => x.id === p.id));
