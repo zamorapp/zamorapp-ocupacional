@@ -16,7 +16,7 @@ const ZONA = "America/Caracas";
 const ACCIONES = [
   { titulo: "Nueva consulta", icono: ClipboardPlus, href: "/atencion" },
   { titulo: "Nuevo paciente", icono: UserPlus, href: "/pacientes" },
-  { titulo: "Reportar accidente", icono: HardHat, href: "/atencion" },
+  { titulo: "Reportar accidente", icono: HardHat, href: "/accidentes" },
   { titulo: "Emitir constancia", icono: FilePlus2, href: "/documentos" },
 ];
 

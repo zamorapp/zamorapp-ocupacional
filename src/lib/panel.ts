@@ -2,6 +2,8 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
+import { listarEventos } from "@/lib/eventos";
+import { plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { listarTrabajadores } from "@/lib/pacientes-datos";
 
 export type DatosPanel = {
@@ -19,7 +21,7 @@ export async function datosPanel(): Promise<DatosPanel> {
     return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vacio: false };
   }
 
-  const [empresas, trabajadores] = await Promise.all([listarEmpresas(), listarTrabajadores()]);
+  const [empresas, trabajadores, eventos] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true })]);
   const hoy = new Date().toISOString().slice(0, 10);
   const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
 
@@ -39,6 +41,14 @@ export async function datosPanel(): Promise<DatosPanel> {
   ];
 
   const alertas: DatosPanel["alertas"] = [];
+  // Plazos legales de accidentes y enfermedades: primero, porque vencen en horas
+  for (const ev of eventos) {
+    for (const p of [plazoDeclaracion(ev), plazoInformeNt02(ev)]) {
+      if (p && !p.cumplido) {
+        alertas.push({ texto: `${p.texto.split(" vence")[0].split(" vencida")[0]} ante el INPSASEL`, sujeto: `${ev.trabajador ?? "Evento"} · ${ev.empresa}`, plazo: p.texto, estado: p.estado, href: `/accidentes/${ev.id}` });
+      }
+    }
+  }
   if (vencidos.length) alertas.push({ texto: "Exámenes periódicos vencidos", sujeto: plural(vencidos.length, "trabajador", "trabajadores"), plazo: "Vencidos", estado: "alerta", href: "/pacientes" });
   if (porVencer.length) alertas.push({ texto: "Exámenes que vencen en 30 días", sujeto: plural(porVencer.length, "trabajador", "trabajadores"), plazo: "Programar", estado: "aviso", href: "/pacientes" });
   const aspirantes = sinEvaluar.filter((t) => t.estado === "aspirante").length;
