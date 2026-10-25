@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, Users } from "lucide-react";
+import { Briefcase, Building2, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
 import { obtenerSesion } from "@/lib/sesion";
@@ -42,7 +42,7 @@ export default async function Empresas() {
                       <Building2 className="size-5" />
                     </span>
                     <div className="min-w-0">
-                      <div className="font-medium leading-tight">{e.razonSocial}</div>
+                      <Link href={`/empresas/${e.id}`} className="font-medium leading-tight hover:text-primary">{e.razonSocial}</Link>
                       <div className="font-mono text-xs text-muted-foreground">{e.rif}{e.nil && ` · NIL ${e.nil}`}</div>
                     </div>
                   </div>
@@ -51,7 +51,11 @@ export default async function Empresas() {
                     <Link href="/pacientes" className="inline-flex items-center gap-1.5 hover:text-primary">
                       <Users className="size-4" /> {e.trabajadores} trabajadores
                     </Link>
-                    {e.municipio && <span className="text-muted-foreground">{e.municipio}</span>}
+                    {!sesion.demo && (
+                      <Link href={`/empresas/${e.id}`} className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline">
+                        <Briefcase className="size-4" /> Puestos y riesgos
+                      </Link>
+                    )}
                   </div>
                   {!sesion.demo && <AlertaLegal empresaId={e.id} faltan={faltan} ignorada={e.ignorarAlertaLegal} editable={esAdmin} />}
                   {esAdmin && <div className="-mb-2 flex justify-end"><FormEmpresa habilitado empresa={e} /></div>}

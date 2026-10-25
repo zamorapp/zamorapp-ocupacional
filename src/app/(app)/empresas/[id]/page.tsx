@@ -1,0 +1,115 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Briefcase, Building2, Users } from "lucide-react";
+import { Semaforo } from "@/components/app/semaforo";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { listarEmpresas } from "@/lib/empresas";
+import { opciones } from "@/lib/listas";
+import { estructuraEmpresa } from "@/lib/puestos";
+import { claveRiesgo, GRUPOS, nivelRiesgo, riesgoMaximo } from "@/lib/puestos-tipos";
+import { obtenerSesion } from "@/lib/sesion";
+import { cn } from "@/lib/utils";
+import { FormEmpresa } from "../nueva-empresa";
+import { Dependencias } from "./dependencias";
+import { EditorPuesto } from "./editor-puesto";
+
+export const metadata: Metadata = { title: "Empresa" };
+export const dynamic = "force-dynamic";
+
+export default async function EmpresaDetalle({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const sesion = await obtenerSesion();
+  const [empresas, estructura, listas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"])]);
+  const empresa = empresas.find((e) => e.id === id);
+  if (!empresa) notFound();
+  const { dependencias, puestos } = estructura;
+  const editaPuestos = !sesion.demo && ["administrador", "coordinador_sst", "gerente_medico"].includes(sesion.rol ?? "");
+  const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <Link href="/empresas" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> Empresas
+      </Link>
+
+      <div className="flex flex-wrap items-start gap-4">
+        <span className="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><Building2 className="size-6" /></span>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{empresa.razonSocial}</h1>
+          <p className="text-sm text-muted-foreground">
+            {[empresa.rif, empresa.nil && `NIL ${empresa.nil}`, empresa.actividad, empresa.municipio].filter(Boolean).join(" · ")}
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
+        </div>
+        {esAdmin && <FormEmpresa habilitado empresa={empresa} />}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <Card className="h-fit">
+          <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
+          <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
+        </Card>
+
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold">Puestos de trabajo y matriz de riesgos</h2>
+            {sinValorar > 0 && <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-medium text-amber-800">{sinValorar} sin valorar</span>}
+            <div className="ml-auto">
+              {editaPuestos && <EditorPuesto empresaId={id} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
+            </div>
+          </div>
+
+          {puestos.length === 0 ? (
+            <div className="grid place-items-center gap-2 rounded-2xl border border-dashed bg-card py-14 text-center text-muted-foreground">
+              <Briefcase className="size-8" />
+              Sin puestos. Se crean solos al importar la nómina o con Nuevo puesto.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {puestos.map((p) => {
+                const max = riesgoMaximo(p);
+                return (
+                  <Card key={p.id} className="gap-3 py-4">
+                    <CardContent className="space-y-3 px-5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="font-medium">{p.nombre}</span>
+                        {p.codigo && <span className="rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground">{p.codigo}</span>}
+                        <span className="text-sm text-muted-foreground">{[p.dependencia, p.turno, `${p.trabajadores} trab.`].filter(Boolean).join(" · ")}</span>
+                        {max && <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", max.clase)}>Riesgo máx.: {max.texto}</span>}
+                        <div className="ml-auto">
+                          {editaPuestos && <EditorPuesto empresaId={id} puesto={p} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
+                        </div>
+                      </div>
+                      {p.tareas && <p className="line-clamp-2 text-sm text-muted-foreground">{p.tareas}</p>}
+                      <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                        {GRUPOS.map(([g, nombre]) => (
+                          <div key={g} className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <span className="w-24 text-muted-foreground">{nombre}</span>
+                            {(p.riesgos[g] ?? []).length === 0 ? (
+                              <span className="text-muted-foreground/60">—</span>
+                            ) : (
+                              (p.riesgos[g] ?? []).map((a) => {
+                                const n = nivelRiesgo(p.evaluacion[claveRiesgo(g, a)]);
+                                return (
+                                  <span key={a} className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5">
+                                    <Semaforo estado={n?.estado ?? "aviso"} className={n ? "" : "opacity-30"} /> {a}
+                                  </span>
+                                );
+                              })
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
