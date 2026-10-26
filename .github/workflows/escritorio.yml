@@ -1,0 +1,113 @@
+# Programa de escritorio para Windows: prueba la puerta local con PostgreSQL y PostgREST reales
+# y arma el instalador. Corre solo en ramas escritorio/* o a mano, para cuidar los minutos gratuitos.
+name: Escritorio (Windows)
+
+on:
+  push:
+    branches: ["escritorio/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: escritorio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PG_VERSION: "16.4-1"
+      POSTGREST_VERSION: "v12.2.3"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Motor local (PostgreSQL portátil, PostgREST y Node)
+        shell: pwsh
+        run: |
+          $r = "escritorio/recursos"
+          New-Item -ItemType Directory -Force "$r/pgsql", "$r/postgrest", "$r/node" | Out-Null
+          Invoke-WebRequest "https://get.enterprisedb.com/postgresql/postgresql-$env:PG_VERSION-windows-x64-binaries.zip" -OutFile "$env:RUNNER_TEMP/pg.zip"
+          Expand-Archive "$env:RUNNER_TEMP/pg.zip" -DestinationPath "$env:RUNNER_TEMP/pgtmp"
+          foreach ($d in "bin", "lib", "share") { Copy-Item -Recurse "$env:RUNNER_TEMP/pgtmp/pgsql/$d" "$r/pgsql/$d" }
+          Invoke-WebRequest "https://github.com/PostgREST/postgrest/releases/download/$env:POSTGREST_VERSION/postgrest-$env:POSTGREST_VERSION-windows-x64.zip" -OutFile "$env:RUNNER_TEMP/pgrest.zip"
+          Expand-Archive "$env:RUNNER_TEMP/pgrest.zip" -DestinationPath "$env:RUNNER_TEMP/pgresttmp"
+          Get-ChildItem -Recurse "$env:RUNNER_TEMP/pgresttmp" | Select-Object FullName, Length | Format-Table -AutoSize | Out-String | Write-Host
+          $exe = Get-ChildItem -Recurse "$env:RUNNER_TEMP/pgresttmp" -Filter "postgrest*.exe" | Select-Object -First 1
+          if (-not $exe) { throw "No se encontró postgrest.exe en el zip" }
+          Copy-Item $exe.FullName "$r/postgrest/postgrest.exe"
+          Copy-Item (Get-Command node).Source "$r/node/node.exe"
+          & "$r/pgsql/bin/postgres.exe" --version
+          & "$r/postgrest/postgrest.exe" --version
+
+      - name: Base de prueba "nube" con las migraciones reales
+        shell: pwsh
+        run: |
+          $bin = (Resolve-Path escritorio/recursos/pgsql/bin).Path
+          "nube" | Out-File -Encoding ascii -NoNewline "$env:RUNNER_TEMP/pw.txt"
+          & "$bin/initdb.exe" -D "$env:RUNNER_TEMP/nube" -U postgres -A scram-sha-256 --pwfile="$env:RUNNER_TEMP/pw.txt" -E UTF8 --locale=C | Out-Null
+          & "$bin/pg_ctl.exe" start -D "$env:RUNNER_TEMP/nube" -w -l "$env:RUNNER_TEMP/nube.log" -o "-p 55400 -c listen_addresses=127.0.0.1"
+          $env:PGPASSWORD = "nube"
+          function Q { & "$bin/psql.exe" -h 127.0.0.1 -p 55400 -U postgres -v ON_ERROR_STOP=1 -q @args; if ($LASTEXITCODE) { throw "psql $args" } }
+          Q -c "create database zamorapp_prueba"
+          Q -d zamorapp_prueba -f supabase/pruebas/00_stubs_supabase.sql
+          Get-ChildItem supabase/migrations/*.sql | Sort-Object Name | ForEach-Object { Q -1 -d zamorapp_prueba -f $_.FullName | Out-Null }
+          Q -d zamorapp_prueba -f supabase/pruebas/10_datos.sql
+
+      - name: Pruebas de la puerta local (PostgreSQL y PostgREST reales)
+        shell: pwsh
+        timeout-minutes: 10
+        working-directory: escritorio
+        run: |
+          npm ci
+          $env:PG_BIN = (Resolve-Path recursos/pgsql/bin).Path
+          $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path
+          $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"
+          node --test --test-reporter=spec "pruebas/*.test.mjs"
+          $codigo = $LASTEXITCODE
+          Get-ChildItem $env:TEMP -Directory -Filter "zamorapp-*" | ForEach-Object { Get-ChildItem $_.FullName -Filter *.log | ForEach-Object { Write-Host "== $($_.Name)"; Get-Content $_.FullName -Tail 40 } }
+          if ($codigo) { throw "Fallaron las pruebas de la puerta" }
+
+      - name: App en modo escritorio (Next autónomo)
+        shell: pwsh
+        env:
+          ZAMORAPP_ESCRITORIO: "1"
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54331
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: local
+        run: |
+          npm ci
+          npx next build
+          if ($LASTEXITCODE) { throw "Falló la compilación de la app" }
+          $r = "escritorio/recursos"
+          Copy-Item -Recurse .next/standalone "$r/app"
+          Copy-Item -Recurse .next/static "$r/app/.next/static"
+          Copy-Item -Recurse public "$r/app/public"
+          Copy-Item -Recurse supabase/migrations "$r/migraciones"
+          Copy-Item supabase/pruebas/00_stubs_supabase.sql "$r/stubs.sql"
+          New-Item -ItemType Directory -Force "$r/puerta" | Out-Null
+          Copy-Item -Recurse escritorio/puerta "$r/puerta/puerta"
+          Copy-Item -Recurse escritorio/base "$r/puerta/base"
+          Copy-Item escritorio/package.json, escritorio/package-lock.json "$r/puerta/"
+          Push-Location "$r/puerta"; npm ci --omit=dev; Pop-Location
+
+      - name: Instalador (Tauri, NSIS por usuario, sin permisos de administrador)
+        shell: pwsh
+        working-directory: escritorio
+        env:
+          ZAMORAPP_NUBE_URL: ${{ vars.ZAMORAPP_NUBE_URL }}
+          ZAMORAPP_NUBE_ANON: ${{ vars.ZAMORAPP_NUBE_ANON }}
+        run: |
+          if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
+          npx --yes @tauri-apps/cli@2 icon ../public/icono-512.png
+          npx --yes @tauri-apps/cli@2 build
+          if ($LASTEXITCODE) { throw "Falló el instalador" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zamorapp-instalador-windows
+          path: escritorio/src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 30

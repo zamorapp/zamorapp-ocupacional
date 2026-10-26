@@ -45,3 +45,8 @@ next-env.d.ts
 /.next-build/
 /.next-prod/
 .vercel
+
+# escritorio
+/escritorio/node_modules
+/escritorio/src-tauri/target
+/escritorio/recursos

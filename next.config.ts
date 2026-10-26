@@ -13,6 +13,8 @@ const SEGURIDAD = [
 const nextConfig: NextConfig = {
   // Permite compilar en otra carpeta sin tocar la del servidor de desarrollo en uso
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Programa de escritorio: servidor autónomo que se empaca en el instalador de Windows
+  output: process.env.ZAMORAPP_ESCRITORIO ? "standalone" : undefined,
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: SEGURIDAD }];
