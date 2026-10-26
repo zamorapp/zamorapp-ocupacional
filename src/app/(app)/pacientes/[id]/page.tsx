@@ -47,6 +47,8 @@ export default async function FichaPaciente({ params }: Props) {
     ? await Promise.all([
         listarAdjuntos(t.id),
         crearClienteServidor().then((s) => s.from("historia_laboral").select("*").eq("trabajador_id", t.id).order("creado_en")).then((r) => (r.data ?? []) as EmpleoAnterior[]),
+        // Auditoría: queda registrado quién abrió la historia (la base ignora a quien no es personal de salud)
+        crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
     : [[], [] as EmpleoAnterior[]];
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
