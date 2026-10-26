@@ -1,4 +1,4 @@
--- Simulación mínima de Supabase (roles, auth.uid(), storage) para probar las migraciones en PostgreSQL local.
+-- Simulación mínima de Supabase (roles, auth.uid(), storage, permisos por defecto) para probar las migraciones en PostgreSQL local.
 do $$ begin create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
 create schema auth; create schema storage; create schema extensions;
 create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
@@ -10,3 +10,7 @@ alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
 grant usage on schema auth, storage to authenticated, anon;
 grant select, insert, update, delete on storage.objects to authenticated;
+-- Permisos por defecto de Supabase en el esquema public
+grant usage on schema public to anon, authenticated;
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;
