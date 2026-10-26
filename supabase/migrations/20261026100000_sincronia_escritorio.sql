@@ -338,6 +338,37 @@ begin
   return jsonb_build_object('hasta', v_hasta, 'cambios', cambios);
 end $$;
 
+-- Primera descarga de una PC nueva (o reinstalada): copia de cada tabla, por páginas, solo lo visible
+-- para el usuario y solo las columnas que puede leer. «seq» es el punto desde el que seguir con cambios_desde.
+create or replace function public.instantanea(p_equipo uuid, p_secreto text, p_tabla text,
+                                              p_despues uuid default null, p_limite int default 1000)
+returns jsonb language plpgsql security invoker set search_path = public as $$
+declare
+  v_org uuid := sync.equipo_valido(p_equipo, p_secreto);
+  v_seq bigint := (select coalesce(max(seq), 0) from sync.registro);
+  v_cols text; v_tiene_id boolean; v_filas jsonb;
+begin
+  if p_tabla not in (select nombre from sync.tablas) and p_tabla not in
+     ('public.organizaciones', 'public.perfiles', 'public.listas', 'public.cie10', 'public.precios_empresa', 'public.tasas_bcv') then
+    raise exception 'Tabla no disponible para la copia: %', p_tabla;
+  end if;
+  select string_agg(format('t.%I', column_name), ', ' order by ordinal_position), bool_or(column_name = 'id')
+    into v_cols, v_tiene_id
+    from information_schema.columns where table_schema || '.' || table_name = p_tabla;
+  if v_tiene_id then
+    execute format('select coalesce(jsonb_agg(f order by f->>''id''), ''[]'') from (
+                      select to_jsonb(x) f from (select %s from %s t where $1 is null or t.id > $1 order by t.id limit $2) x) y',
+                   v_cols, p_tabla)
+      into v_filas using p_despues, least(greatest(p_limite, 1), 5000);
+  else
+    execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from (select %s from %s t) x', v_cols, p_tabla) into v_filas;
+  end if;
+  return jsonb_build_object('seq', v_seq, 'filas', v_filas,
+    'ultimo', case when v_tiene_id and jsonb_array_length(v_filas) > 0 then v_filas -> -1 ->> 'id' end);
+end $$;
+revoke execute on function public.instantanea(uuid, text, text, uuid, int) from public, anon;
+grant execute on function public.instantanea(uuid, text, text, uuid, int) to authenticated;
+
 revoke execute on function public.aplicar_cambios(uuid, text, jsonb), public.cambios_desde(uuid, text, bigint, int),
   public.registrar_equipo(uuid, text, text), public.resolver_conflicto(uuid, text) from public, anon;
 revoke execute on function sync.equipo_valido(uuid, text), sync.columnas(text, jsonb) from public, anon;

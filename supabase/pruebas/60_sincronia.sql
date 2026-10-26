@@ -84,6 +84,15 @@ select 'baja su trabajador (debe 1): ' || least(count(*),1) from jsonb_array_ele
 select 'no baja empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,2000)->'cambios') x
  where x->>'fila_id' in ('30000000-0000-0000-0000-00000000000b','40000000-0000-0000-0000-00000000000b');
 select 'cursor avanza (debe 1): ' || count(*) where (public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,5)->>'hasta')::bigint >= 5;
+-- primera descarga: por páginas, solo lo visible, sin columnas privadas
+select 'copia de trabajadores sin empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.trabajadores')->'filas') f
+ where f->>'empresa_id'='20000000-0000-0000-0000-00000000000b';
+select 'copia paginada (debe 1): ' || count(*) from (select public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.trabajadores',null,1) r) x
+ where jsonb_array_length(r->'filas')=1 and r->>'ultimo' is not null and (r->>'seq')::bigint > 0;
+select 'perfiles sin firma ni sello (debe 0): ' || count(*) from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas') f
+ where f ? 'firma_url' or f ? 'sello_url';
+do $$ begin perform public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.bitacora');
+  raise notice 'copia de tabla no permitida: FALLA'; exception when others then raise notice 'tabla fuera de la lista rechazada (ok)'; end $$;
 -- equipos desactivados o inexistentes
 do $$ begin perform public.cambios_desde('e0000000-0000-0000-0000-000000000002','s2',0);
   raise notice 'equipo desactivado aceptado: FALLA'; exception when others then raise notice 'equipo desactivado rechazado (ok)'; end $$;
