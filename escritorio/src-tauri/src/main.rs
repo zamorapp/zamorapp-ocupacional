@@ -81,6 +81,17 @@ fn anotar(mensaje: &str) {
     }
 }
 
+// Windows entrega la carpeta del programa como ruta "verbatim" (\\?\C:\...). Node no sabe cargar módulos
+// desde esas rutas (falla con EISDIR lstat 'C:'), así que se pasa a la forma normal C:\...
+fn ruta_normal(ruta: PathBuf) -> PathBuf {
+    let normal = ruta
+        .to_str()
+        .and_then(|t| t.strip_prefix(r"\\?\"))
+        .filter(|resto| !resto.starts_with("UNC\\"))
+        .map(PathBuf::from);
+    normal.unwrap_or(ruta)
+}
+
 // Antes de arrancar, confirma que el programa quedó completo (si falta algo, el registro dice qué).
 fn revisar_recursos(recursos: &Path) -> Result<(), String> {
     let piezas = [
@@ -207,7 +218,7 @@ fn main() {
     let app = tauri::Builder::default()
         .manage(Mutex::new(Procesos::default()))
         .setup(|app| {
-            let recursos = app.path().resource_dir()?.join("recursos");
+            let recursos = ruta_normal(app.path().resource_dir()?.join("recursos"));
             anotar(&format!("programa: {}", std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()));
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
