@@ -2,7 +2,8 @@
 
 export type Categoria = "consulta" | "evaluacion" | "paraclinico" | "informe" | "asesoria" | "evaluacion_puesto" | "formacion" | "otro";
 export type Unidad = "servicio" | "hora" | "trabajador" | "mes";
-export type EstadoCobro = "borrador" | "emitida" | "pagada" | "anulada";
+export type EstadoCobro = "borrador" | "emitida" | "pagada" | "anulada" | "aprobado" | "rechazado" | "convertido";
+export type TipoCobro = "cobro" | "presupuesto";
 
 export type Servicio = {
   id: string;
@@ -41,6 +42,9 @@ export type Cobro = {
   observacion: string;
   numeroFacturaFiscal: string;
   fechaPago: string | null;
+  tipo: TipoCobro;
+  vence: string | null;
+  presupuestoId: string | null;
   items: ItemCobro[];
 };
 
@@ -75,7 +79,13 @@ export const ETIQUETA_ESTADO_COBRO: Record<EstadoCobro, string> = {
   emitida: "Emitida",
   pagada: "Pagada",
   anulada: "Anulada",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+  convertido: "Convertido en cobro",
 };
+
+// En un presupuesto "emitida" se lee como "Enviado"
+export const etiquetaEstado = (tipo: TipoCobro, e: EstadoCobro) => (tipo === "presupuesto" && e === "emitida" ? "Enviado" : ETIQUETA_ESTADO_COBRO[e]);
 
 export function totales(c: Pick<Cobro, "items" | "ivaPct" | "igtfPct" | "tasaBcv">) {
   const subtotal = c.items.reduce((s, i) => s + i.cantidad * i.precioUsd, 0);

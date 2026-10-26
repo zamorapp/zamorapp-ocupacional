@@ -91,6 +91,7 @@ export async function actualizarCobro(cobro: Cobro): Promise<Resultado> {
       observacion: cobro.observacion || null,
       numero_factura_fiscal: cobro.numeroFacturaFiscal || null,
       fecha_pago: cobro.fechaPago,
+      vence: cobro.vence,
     })
     .eq("id", cobro.id);
   if (error) return { ok: false, mensaje: error.message };
@@ -123,4 +124,38 @@ export async function eliminarCobro(id: string): Promise<Resultado> {
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/facturacion");
   redirect("/facturacion");
+}
+
+// Presupuesto nuevo (vacío) para una empresa; los servicios se agregan en el editor
+export async function crearPresupuesto(empresaId: string): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (!empresaId) return { ok: false, mensaje: "Elige la empresa arriba." };
+  const vence = new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10);
+  const { data, error } = await c.supabase.from("cobros").insert({ org_id: c.sesion.orgId!, empresa_id: empresaId, tipo: "presupuesto", vence }).select("id").single();
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/facturacion");
+  redirect(`/facturacion/${data.id}`);
+}
+
+// Un presupuesto aprobado pasa a nota de cobro (borrador) con los mismos renglones
+export async function convertirPresupuesto(id: string): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data: p } = await c.supabase.from("cobros").select("*, cobro_items(*)").eq("id", id).eq("tipo", "presupuesto").single();
+  if (!p) return { ok: false, mensaje: "Presupuesto no encontrado." };
+  const { data: nuevo, error } = await c.supabase.from("cobros")
+    .insert({ org_id: p.org_id, empresa_id: p.empresa_id, tipo: "cobro", presupuesto_id: p.id, tasa_bcv: p.tasa_bcv, iva_pct: p.iva_pct, igtf_pct: p.igtf_pct, observacion: p.observacion })
+    .select("id").single();
+  if (error) return { ok: false, mensaje: error.message };
+  const items = (p.cobro_items ?? []) as Record<string, unknown>[];
+  if (items.length) {
+    const { error: e2 } = await c.supabase.from("cobro_items").insert(items.map((i) => ({
+      cobro_id: nuevo.id, org_id: p.org_id, servicio_id: i.servicio_id, descripcion: i.descripcion, detalle: i.detalle, cantidad: i.cantidad, precio_usd: i.precio_usd, orden: i.orden,
+    })));
+    if (e2) return { ok: false, mensaje: e2.message };
+  }
+  await c.supabase.from("cobros").update({ estado: "convertido" }).eq("id", id);
+  revalidatePath("/facturacion");
+  redirect(`/facturacion/${nuevo.id}`);
 }

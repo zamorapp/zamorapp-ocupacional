@@ -22,7 +22,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/facturacion/${id}`} titulo={`Nota de cobro #${c.numero}`} />
+      <BarraImpresion volver={`/facturacion/${id}`} titulo={`${c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"} #${c.numero}`} />
       <Hoja>
         <header className="mb-5 flex items-start justify-between border-b-2 border-teal-700 pb-3">
           <div>
@@ -30,7 +30,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
             <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
           </div>
           <div className="text-right">
-            <div className="text-base font-bold uppercase">Nota de cobro</div>
+            <div className="text-base font-bold uppercase">{c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"}</div>
             <div className="text-sm">Nº {String(c.numero).padStart(5, "0")}</div>
             <div className="text-[11px] text-neutral-600">Fecha: {fechaCorta(c.fecha)}</div>
           </div>
@@ -41,6 +41,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
           <div><b>RIF:</b> {c.rif}</div>
           {emp?.direccion && <div className="col-span-2"><b>Dirección:</b> {emp.direccion}</div>}
           {c.desde && <div className="col-span-2"><b>Periodo:</b> del {fechaCorta(c.desde)} al {fechaCorta(c.hasta)}</div>}
+          {c.vence && <div className="col-span-2"><b>Válido hasta:</b> {fechaCorta(c.vence)}</div>}
         </div>
 
         <table className="mb-4 w-full border-collapse text-[11.5px]">
