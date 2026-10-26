@@ -67,3 +67,17 @@ export async function ignorarAlertaLegal(id: string, ignorar: boolean): Promise<
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
 }
+
+const LOGO_VALIDO = /^data:image\/(png|jpeg|webp);base64,/;
+
+// Logo de la empresa para el membrete de sus informes (null lo quita)
+export async function guardarLogoEmpresa(id: string, logo: string | null): Promise<Resultado> {
+  const c = await soloAdministrador();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (logo && (!LOGO_VALIDO.test(logo) || logo.length > 600_000)) return { ok: false, mensaje: "La imagen no es válida o es muy grande." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("empresas").update({ logo }).eq("id", id);
+  if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+  revalidatePath(`/empresas/${id}`);
+  return { ok: true, mensaje: logo ? "Logo guardado. Ya sale en los informes de esta empresa." : "Logo quitado." };
+}

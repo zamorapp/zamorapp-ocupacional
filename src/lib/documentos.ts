@@ -1,6 +1,7 @@
 import "server-only";
 import { obtenerConsulta } from "@/lib/consultas";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { obtenerSesion } from "@/lib/sesion";
 
 export type AjustesDocumentos = {
   palabra_aptitud?: string;
@@ -16,6 +17,8 @@ export type AjustesDocumentos = {
   certificado_titulo?: string | null;
   certificado_nota?: string | null;
   firma_sello_separados?: boolean;
+  membrete_lema?: string | null;
+  certificacion_trabajador?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;
@@ -29,8 +32,8 @@ export async function obtenerDocumento(consultaId: string) {
   const { data: c } = await supabase.from("consultas").select("org_id, medico_id, motivo_id, dependencia_id, empresa_id, hora_inicio").eq("id", consultaId).single();
   if (!c) return null;
 
-  const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes").eq("id", c.org_id).single(),
+  const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
+    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", c.org_id).single(),
     c.medico_id
       ? Promise.all([
           supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
@@ -39,22 +42,28 @@ export async function obtenerDocumento(consultaId: string) {
         ]).then(([{ data: p }, { data: img }]) => ({ data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null }))
       : Promise.resolve({ data: null }),
     c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("empresas").select("razon_social, rif").eq("id", c.empresa_id).single(),
+    supabase.from("empresas").select("razon_social, rif, logo").eq("id", c.empresa_id).single(),
     c.dependencia_id ? supabase.from("dependencias").select("nombre").eq("id", c.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia").eq("id", consulta.trabajador.id).single(),
+    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
+    obtenerSesion(),
   ]);
 
   return {
     ...consulta,
-    org: { ...(org ?? { nombre: "", rif: null, direccion: null, telefono: null, correo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
+    org: { ...(org ?? { nombre: "", rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
     medicoDatos: medico as {
       nombre_completo: string; cedula: string | null; mpps: string | null; colegio_medicos: string | null; registro_inpsasel: string | null;
       firma_url: string | null; sello_url: string | null; mostrar_firma: boolean; mostrar_sello: boolean;
     } | null,
     motivo: motivo as { nombre: string; codigo: string | null; grupo: string | null } | null,
-    empresa: empresa as { razon_social: string; rif: string },
+    empresa: empresa as { razon_social: string; rif: string; logo: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
-    extra: trab as { fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number },
+    extra: trab as unknown as {
+      fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number;
+      ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
+    },
+    // Pie de página: quién imprime y cuándo (hora de Venezuela)
+    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
     hora: c.hora_inicio as string,
   };
 }

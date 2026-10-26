@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Certificado, Constancia, Informe, Orden, Recipe, Reposo } from "../../documentos";
+import { Certificado, Constancia, Informe, Orden, Recipe, Referencia, Reposo } from "../../documentos";
 
 const TIPOS = {
   constancia: { titulo: "Constancia de aptitud", Componente: Constancia },
@@ -12,6 +12,7 @@ const TIPOS = {
   recipe: { titulo: "Récipe e indicaciones", Componente: Recipe },
   orden: { titulo: "Orden de exámenes", Componente: Orden },
   certificado: { titulo: "Certificado de salud", Componente: Certificado },
+  referencia: { titulo: "Referencia médica", Componente: Referencia },
 } as const;
 
 type Props = { params: Promise<{ tipo: string; id: string }> };

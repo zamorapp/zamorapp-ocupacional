@@ -14,6 +14,9 @@ import { FormEmpresa } from "../nueva-empresa";
 import { Dependencias } from "./dependencias";
 import { HorasTrabajadas } from "./horas-trabajadas";
 import { EditorPuesto } from "./editor-puesto";
+import { CargarLogo } from "@/components/app/cargar-logo";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { guardarLogoEmpresa } from "../acciones";
 
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
@@ -24,6 +27,8 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
   const empresa = empresas.find((e) => e.id === id);
   if (!empresa) notFound();
+  // El logo se lee aparte para no cargar imágenes en las listas de empresas
+  const logo = sesion.demo ? null : ((await (await crearClienteServidor()).from("empresas").select("logo").eq("id", id).maybeSingle()).data?.logo as string | null) ?? null;
   const { dependencias, puestos } = estructura;
   const editaPuestos = !sesion.demo && ["administrador", "coordinador_sst", "gerente_medico"].includes(sesion.rol ?? "");
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
@@ -49,6 +54,17 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <div className="space-y-6">
+          <Card className="h-fit">
+            <CardHeader><CardTitle className="text-base">Logo para los informes</CardTitle></CardHeader>
+            <CardContent>
+              <CargarLogo
+                inicial={logo}
+                editable={esAdmin}
+                guardar={guardarLogoEmpresa.bind(null, id)}
+                ayuda="Sale a la derecha del membrete en constancias, reposos, informes y demás documentos de los trabajadores de esta empresa. PNG con fondo transparente se ve mejor."
+              />
+            </CardContent>
+          </Card>
           <Card className="h-fit">
             <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
             <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
