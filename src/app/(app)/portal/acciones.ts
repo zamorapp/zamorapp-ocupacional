@@ -24,8 +24,13 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   if (fecha < hoy) return { ok: false, mensaje: "La fecha ya pasó." };
 
   const supabase = await crearClienteServidor();
-  const { data: visibles } = await supabase.from("trabajadores").select("id, empresa_id").in("id", ids);
-  const validos = visibles ?? [];
+  // En tandas de 100 para no pasar el límite de largo de la URL (200 UUID ≈ 7,5 KB)
+  const tandas = await Promise.all(
+    Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) =>
+      supabase.from("trabajadores").select("id, empresa_id").in("id", ids.slice(i * 100, i * 100 + 100)),
+    ),
+  );
+  const validos = tandas.flatMap((t) => t.data ?? []);
   const rechazados = ids.length - validos.length;
   if (!validos.length) return { ok: false, mensaje: "Ninguno de los trabajadores elegidos pertenece a tus empresas." };
 
