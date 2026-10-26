@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
 import { COOKIE_EMPRESA } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { TRABAJADORES_DEMO } from "@/lib/pacientes";
+import { buscarPacientes } from "@/app/(app)/atencion/acciones";
 
 export async function salir() {
   if (supabaseConfigurado) {
@@ -39,4 +41,20 @@ export async function marcarLeidas(ids: string[]) {
   if (!supabaseConfigurado || !ids.length) return;
   const supabase = await crearClienteServidor();
   await supabase.from("notificaciones").update({ leida: true }).in("id", ids);
+}
+
+export type Encontrado = { id: string; nombre: string; cedula: string; empresa: string };
+
+// Buscador global (Ctrl+K): por cédula o nombre; respeta RLS, cada rol ve solo lo suyo.
+export async function buscarGlobal(texto: string): Promise<Encontrado[]> {
+  const q = texto.trim();
+  if (q.length < 2) return [];
+  if (!supabaseConfigurado) {
+    const n = q.toLowerCase();
+    const digitos = q.replace(/\D/g, "");
+    return TRABAJADORES_DEMO.filter((t) =>
+      digitos.length >= 4 ? t.cedula.replace(/\D/g, "").includes(digitos) : `${t.nombres} ${t.apellidos}`.toLowerCase().includes(n),
+    ).slice(0, 8).map((t) => ({ id: t.id, nombre: `${t.nombres} ${t.apellidos}`, cedula: t.cedula, empresa: t.empresa }));
+  }
+  return buscarPacientes(q);
 }

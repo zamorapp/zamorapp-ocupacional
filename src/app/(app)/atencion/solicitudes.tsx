@@ -38,7 +38,7 @@ export function Solicitudes({ solicitudes }: { solicitudes: Cita[] }) {
   return (
     <Card className="gap-0 border-aviso/50 py-0">
       <CardHeader className="flex flex-row items-center gap-2 border-b bg-aviso/10 py-3">
-        <Inbox className="size-5 text-amber-700" />
+        <Inbox className="size-5 text-aviso-texto" />
         <CardTitle className="text-base">Solicitudes de empresas por confirmar ({solicitudes.length})</CardTitle>
       </CardHeader>
       <CardContent className="px-0">

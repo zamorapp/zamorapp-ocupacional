@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
+import { abrirBuscador } from "./buscador-global";
+import { SelectorTema } from "./selector-tema";
 import { InstalarApp } from "./instalar-app";
 import { Notificaciones } from "./notificaciones";
 import { elegirEmpresa, salir } from "./acciones";
@@ -39,7 +41,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
   const cambiar = (id: string | null) => iniciar(() => elegirEmpresa(id));
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:gap-3 sm:px-6">
       <Sheet open={menuAbierto} onOpenChange={setMenuAbierto}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Abrir menú">
@@ -54,7 +56,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="max-w-56 justify-start gap-2">
+          <Button variant="outline" className="min-w-0 max-w-56 flex-1 justify-start gap-2 sm:flex-none">
             <Building2 className="text-primary" />
             <span className="truncate">{actual}</span>
             <ChevronDown className="ml-auto opacity-60" />
@@ -78,24 +80,25 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <label className="relative ml-auto hidden w-full max-w-sm md:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="search"
-          placeholder="Buscar por cédula, nombre o cargo…"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") window.location.href = `/pacientes?q=${encodeURIComponent(e.currentTarget.value)}`;
-          }}
-          className="h-10 w-full rounded-lg border bg-card pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-        />
-      </label>
+      <button
+        type="button"
+        onClick={abrirBuscador}
+        className="ml-auto hidden h-10 w-full max-w-sm items-center gap-2 rounded-lg border bg-card px-3 text-sm text-muted-foreground transition hover:border-primary/50 md:flex"
+      >
+        <Search className="size-4" />
+        <span className="flex-1 text-left">Buscar por cédula, nombre o sección…</span>
+        <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[11px]">Ctrl K</kbd>
+      </button>
+      <Button variant="ghost" size="icon" className="ml-auto md:hidden" aria-label="Buscar" onClick={abrirBuscador}>
+        <Search />
+      </Button>
 
       <InstalarApp />
       <Notificaciones />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <button aria-label="Mi cuenta" className="flex shrink-0 items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             <Avatar className="size-9">
               <AvatarFallback className="bg-primary/10 font-medium text-primary">{iniciales(usuario.nombre)}</AvatarFallback>
             </Avatar>
@@ -106,6 +109,10 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
             <div className="truncate font-medium">{usuario.nombre}</div>
             <div className="text-xs font-normal text-muted-foreground">{usuario.rol}{usuario.demo && " · modo demo"}</div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <div className="px-1 py-1">
+            <SelectorTema />
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/configuracion"><UserRound /> Mi perfil y firma</Link>

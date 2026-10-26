@@ -63,7 +63,7 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
   return (
     <div className="space-y-6">
       <Card>
-        <CardContent className="grid gap-5 lg:grid-cols-[18rem_1fr]">
+        <CardContent className="grid grid-cols-1 gap-5 lg:grid-cols-[18rem_1fr]">
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">1. Empresa</label>
@@ -126,7 +126,7 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
 
       {faltantes.length > 0 && (
         <div className="flex items-start gap-3 rounded-lg border border-alerta/30 bg-alerta/10 px-4 py-3 text-sm">
-          <XCircle className="mt-0.5 size-5 shrink-0 text-alerta" />
+          <XCircle className="mt-0.5 size-5 shrink-0 text-alerta-texto" />
           <div>
             <p className="font-medium">El archivo no tiene las columnas obligatorias</p>
             <p className="text-muted-foreground">Falta: {faltantes.join(", ")}.</p>
@@ -136,7 +136,7 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
 
       {resultado && (
         <div className={cn("flex items-center gap-3 rounded-lg border px-4 py-3 text-sm", resultado.ok ? "border-ok/30 bg-ok/10" : "border-alerta/30 bg-alerta/10")}>
-          {resultado.ok ? <CheckCircle2 className="size-5 shrink-0 text-ok" /> : <XCircle className="size-5 shrink-0 text-alerta" />}
+          {resultado.ok ? <CheckCircle2 className="size-5 shrink-0 text-ok-texto" /> : <XCircle className="size-5 shrink-0 text-alerta-texto" />}
           {resultado.mensaje}
           {resultado.ok && <Link href="/pacientes" className="ml-auto font-medium text-primary hover:underline">Ver pacientes</Link>}
         </div>
@@ -147,8 +147,8 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
           <div className="flex flex-wrap items-center gap-3 border-b px-5 py-4">
             <FileSpreadsheet className="size-5 text-primary" />
             <span className="font-medium">{filas.length} filas</span>
-            <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok">{validas.length} válidas</span>
-            {conError > 0 && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-medium text-alerta">{conError} con errores</span>}
+            <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok-texto">{validas.length} válidas</span>
+            {conError > 0 && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-medium text-alerta-texto">{conError} con errores</span>}
             <Button
               className="ml-auto"
               disabled={validas.length === 0 || guardando || resultado?.ok}
@@ -179,9 +179,9 @@ export function Importador({ cedulasExistentes, empresas, empresaInicial }: Prop
                   <TableCell className="hidden lg:table-cell">{/^\d{4}-/.test(f.fechaNacimiento) ? fecha(f.fechaNacimiento) : f.fechaNacimiento || "—"}</TableCell>
                   <TableCell className="pr-5">
                     {f.errores.length ? (
-                      <span className="text-sm text-alerta">{f.errores.join(" · ")}</span>
+                      <span className="text-sm text-alerta-texto">{f.errores.join(" · ")}</span>
                     ) : (
-                      <CheckCircle2 className="size-4 text-ok" />
+                      <CheckCircle2 className="size-4 text-ok-texto" />
                     )}
                   </TableCell>
                 </TableRow>

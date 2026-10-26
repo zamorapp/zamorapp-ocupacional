@@ -19,12 +19,12 @@ export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
 
 const ESTADO: Record<string, { texto: string; clase: string }> = {
-  solicitada: { texto: "Solicitada", clase: "bg-aviso/20 text-amber-800" },
+  solicitada: { texto: "Solicitada", clase: "bg-aviso/20 text-aviso-texto" },
   citado: { texto: "Confirmada", clase: "bg-primary/15 text-primary" },
-  en_espera: { texto: "En el servicio", clase: "bg-aviso/20 text-amber-800" },
+  en_espera: { texto: "En el servicio", clase: "bg-aviso/20 text-aviso-texto" },
   en_consulta: { texto: "En consulta", clase: "bg-primary text-primary-foreground" },
-  atendido: { texto: "Atendido", clase: "bg-ok/15 text-ok" },
-  no_asistio: { texto: "No asistió", clase: "bg-alerta/15 text-alerta" },
+  atendido: { texto: "Atendido", clase: "bg-ok/15 text-ok-texto" },
+  no_asistio: { texto: "No asistió", clase: "bg-alerta/15 text-alerta-texto" },
   cancelada: { texto: "Cancelada", clase: "bg-muted text-muted-foreground" },
 };
 
@@ -84,7 +84,7 @@ export default async function Portal() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="size-5 text-primary" /> Hoy en el servicio médico</CardTitle></CardHeader>
           <CardContent className="px-0">
@@ -123,7 +123,7 @@ export default async function Portal() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok" /> Evaluaciones recientes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok-texto" /> Evaluaciones recientes</CardTitle></CardHeader>
         <CardContent className="px-0">
           {evaluados.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">Aún no hay evaluaciones.</p> : (
             <ul className="divide-y">

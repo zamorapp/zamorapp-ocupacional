@@ -56,7 +56,7 @@ export function DepurarNomina({ empresas, empresaInicial }: { empresas: { id: st
             <Label htmlFor="dep-desde" className="mb-1.5">Sin consulta desde</Label>
             <Input id="dep-desde" type="date" className="h-10" value={desde} onChange={(e) => { setDesde(e.target.value); setCantidad(null); }} />
           </div>
-          {mensaje && <p className={mensaje.ok ? "text-sm text-ok" : "text-sm text-destructive"}>{mensaje.texto}</p>}
+          {mensaje && <p className={mensaje.ok ? "text-sm text-ok-texto" : "text-sm text-destructive"}>{mensaje.texto}</p>}
           {cantidad === null ? (
             <Button className="w-full" onClick={contar} disabled={ocupado}>{ocupado && <Loader2 className="animate-spin" />} Calcular cuántos son</Button>
           ) : cantidad === 0 ? (

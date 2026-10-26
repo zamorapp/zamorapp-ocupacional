@@ -84,9 +84,9 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
         <Card>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div><Label className="mb-1.5">Tasa BCV (Bs/$)</Label><Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} /></div>
             <div><Label className="mb-1.5">Nº de factura fiscal</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Cuando la emitas en el sistema fiscal" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
@@ -109,7 +109,7 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
 
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
-          {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok" : "text-destructive")}>{aviso.mensaje}</span>}
+          {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
           <div className="ml-auto flex flex-wrap gap-2">
             {borrador && <Button variant="ghost" className="text-destructive" disabled={ocupado} onClick={() => confirm(presupuesto ? "¿Eliminar este presupuesto?" : "¿Eliminar este borrador? Las atenciones vuelven a quedar pendientes.") && iniciar(async () => { const r = await eliminarCobro(c.id); if (r && !r.ok) setAviso(r); })}><Trash2 /> Eliminar</Button>}
             {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={() => confirm("¿Anular esta nota de cobro?") && guardar("anulada")}><XCircle /> Anular</Button>}

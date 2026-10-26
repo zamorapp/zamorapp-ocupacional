@@ -42,7 +42,7 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
           <DialogTitle>{e ? e.razonSocial : "Nueva empresa cliente"}</DialogTitle>
           <DialogDescription>Los datos legales se usan en constancias e informes ante el INPSASEL.</DialogDescription>
         </DialogHeader>
-        <form action={accion} className="grid gap-4 sm:grid-cols-2">
+        <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {e && <input type="hidden" name="id" value={e.id} />}
           <Campo id="razon_social" etiqueta="Razón social *" required defaultValue={e?.razonSocial} className="sm:col-span-2" />
           <Campo id="rif" etiqueta="RIF *" placeholder="J-30123456-7" required defaultValue={e?.rif} />

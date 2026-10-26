@@ -35,7 +35,7 @@ export function CampoSelect({ id, etiqueta, className, children, ...props }: Rea
 export function Aviso({ resultado }: { resultado: { ok: boolean; mensaje: string } | null }) {
   if (!resultado?.mensaje) return null;
   return (
-    <p className={`rounded-md px-3 py-2 text-sm ${resultado.ok ? "bg-ok/10 text-ok" : "bg-destructive/10 text-destructive"}`}>
+    <p className={`rounded-md px-3 py-2 text-sm ${resultado.ok ? "bg-ok/10 text-ok-texto" : "bg-destructive/10 text-destructive"}`}>
       {resultado.mensaje}
     </p>
   );

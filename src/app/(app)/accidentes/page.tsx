@@ -26,7 +26,7 @@ export default async function Accidentes() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Accidentes y enfermedades ocupacionales</h1>
           <p className="text-muted-foreground">
             {delAnio.filter((e) => e.tipo === "accidente").length} accidentes, {delAnio.filter((e) => e.tipo === "incidente").length} incidentes y {delAnio.filter((e) => e.tipo === "enfermedad").length} enfermedades en {anio}
-            {pendientes > 0 && <> · <span className="font-medium text-alerta">{pendientes} por declarar</span></>}
+            {pendientes > 0 && <> · <span className="font-medium text-alerta-texto">{pendientes} por declarar</span></>}
           </p>
         </div>
         <ReportarEvento habilitado={!sesion.demo && empresas.length > 0} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} />
@@ -73,7 +73,7 @@ export default async function Accidentes() {
                     <TableCell>
                       {plazos.length === 0 ? <span className="text-xs text-muted-foreground">No se declara</span> : plazos.map((p) => (
                         <div key={p!.texto} className="flex items-center gap-1.5 text-xs">
-                          <Semaforo estado={p!.estado} /> <span className={p!.estado === "alerta" ? "font-medium text-alerta" : ""}>{p!.texto}</span>
+                          <Semaforo estado={p!.estado} /> <span className={p!.estado === "alerta" ? "font-medium text-alerta-texto" : ""}>{p!.texto}</span>
                         </div>
                       ))}
                     </TableCell>

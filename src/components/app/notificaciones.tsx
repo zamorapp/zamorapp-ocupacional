@@ -39,7 +39,7 @@ export function Notificaciones() {
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative ml-auto md:ml-0" aria-label="Avisos">
+        <Button variant="ghost" size="icon" className="relative" aria-label="Avisos">
           <Bell />
           {nuevas.length > 0 && (
             <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-alerta px-1 text-[10px] font-semibold text-white">

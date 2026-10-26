@@ -77,15 +77,15 @@ export default async function Reportes({ searchParams }: Props) {
           ))}
         </div>
         <input type="hidden" name="p" value="rango" />
-        <input type="date" name="desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
-        <input type="date" name="hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
+        <input type="date" name="desde" aria-label="Desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
+        <input type="date" name="hasta" aria-label="Hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
         <Button type="submit" variant="outline">Ver rango</Button>
         <span className="text-xs text-muted-foreground">La empresa se elige arriba, en el selector del encabezado.</span>
       </form>
 
       {!r ? (
         <div className="flex items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
-          <ShieldAlert className="size-5 text-amber-600" /> Conecta Supabase para ver los reportes.
+          <ShieldAlert className="size-5 text-aviso-texto" /> Conecta Supabase para ver los reportes.
         </div>
       ) : (
         <>
@@ -146,7 +146,7 @@ export default async function Reportes({ searchParams }: Props) {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader><CardTitle className="text-base">Consultas por motivo</CardTitle></CardHeader>
               <CardContent><Barras filas={r.consultas.por_motivo} /></CardContent>

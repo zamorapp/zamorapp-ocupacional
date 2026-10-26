@@ -57,7 +57,7 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
           <DialogDescription>Los riesgos marcados salen en la ficha del trabajador, en la consulta y en la constancia de aptitud.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2"><Label className="mb-1.5">Nombre del cargo *</Label><Input value={p.nombre} onChange={(e) => set("nombre", e.target.value)} /></div>
           <div><Label className="mb-1.5">Código</Label><Input value={p.codigo} onChange={(e) => set("codigo", e.target.value)} /></div>
           <div>

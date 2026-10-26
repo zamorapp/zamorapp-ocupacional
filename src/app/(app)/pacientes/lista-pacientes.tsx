@@ -77,14 +77,14 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
           />
         </label>
         <Select value={empresa} onValueChange={(v) => { setEmpresa(v); setMostrar(100); }}>
-          <SelectTrigger className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Empresa" className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todas las empresas</SelectItem>
             {empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); }}>
-          <SelectTrigger className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Estado" className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todos los estados</SelectItem>
             {Object.entries(ETIQUETA_ESTADO).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -114,7 +114,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
             <TableBody>
               {filtrados.slice(0, mostrar).map((t) => (
                 <TableRow key={t.id} className="cursor-pointer" onClick={() => router.push(`/pacientes/${t.id}`)}>
-                  <TableCell className="py-3 pl-5">
+                  <TableCell className="max-w-[52vw] py-3 pl-4 sm:max-w-none sm:pl-5">
                     <Link href={`/pacientes/${t.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <Avatar className="size-9">
                         <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">{iniciales(t)}</AvatarFallback>

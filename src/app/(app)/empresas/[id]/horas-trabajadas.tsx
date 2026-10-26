@@ -64,7 +64,7 @@ export function HorasTrabajadas({ empresaId, inicial, trabajadoresActuales, edit
           <Button size="sm" disabled={ocupado} onClick={() => iniciar(async () => setAviso(await guardarHoras(empresaId, filas.filter((f) => f.horas !== null))))}>
             {ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar horas
           </Button>
-          {aviso && <span className={aviso.ok ? "text-sm text-ok" : "text-sm text-destructive"}>{aviso.mensaje}</span>}
+          {aviso && <span className={aviso.ok ? "text-sm text-ok-texto" : "text-sm text-destructive"}>{aviso.mensaje}</span>}
         </div>
       )}
     </div>

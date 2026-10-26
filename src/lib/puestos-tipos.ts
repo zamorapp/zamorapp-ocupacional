@@ -33,9 +33,9 @@ export const ESCALA_S = ["", "Insignificante", "Menor", "Moderada", "Mayor", "Ca
 export function nivelRiesgo(v?: Valoracion) {
   if (!v?.p || !v?.s) return null;
   const n = v.p * v.s;
-  if (n <= 4) return { n, texto: "Bajo", estado: "ok" as const, clase: "bg-ok/15 text-ok" };
-  if (n <= 9) return { n, texto: "Medio", estado: "aviso" as const, clase: "bg-aviso/25 text-amber-800 dark:text-aviso" };
-  if (n <= 16) return { n, texto: "Alto", estado: "alerta" as const, clase: "bg-alerta/15 text-alerta" };
+  if (n <= 4) return { n, texto: "Bajo", estado: "ok" as const, clase: "bg-ok/15 text-ok-texto" };
+  if (n <= 9) return { n, texto: "Medio", estado: "aviso" as const, clase: "bg-aviso/25 text-aviso-texto dark:text-aviso" };
+  if (n <= 16) return { n, texto: "Alto", estado: "alerta" as const, clase: "bg-alerta/15 text-alerta-texto" };
   return { n, texto: "Crítico", estado: "alerta" as const, clase: "bg-alerta text-white" };
 }
 

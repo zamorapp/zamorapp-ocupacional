@@ -92,7 +92,7 @@ export default async function FichaPaciente({ params }: Props) {
 
       {examenVencido && (
         <div className="flex items-center gap-3 rounded-lg border border-alerta/30 bg-alerta/10 px-4 py-3 text-sm">
-          <ShieldAlert className="size-5 shrink-0 text-alerta" />
+          <ShieldAlert className="size-5 shrink-0 text-alerta-texto" />
           Examen periódico vencido desde el {fecha(t.proximoExamen)}.
         </div>
       )}

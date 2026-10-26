@@ -28,7 +28,7 @@ export function InstalarApp() {
 
   if (instalada) return null;
   const boton = (
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={evento ? async () => { await evento.prompt(); await evento.userChoice; setEvento(null); window.__eventoInstalar = null; } : undefined}>
+    <Button variant="outline" size="sm" className="gap-1.5" aria-label="Instalar app" onClick={evento ? async () => { await evento.prompt(); await evento.userChoice; setEvento(null); window.__eventoInstalar = null; } : undefined}>
       <MonitorDown /> <span className="hidden sm:inline">Instalar app</span>
     </Button>
   );

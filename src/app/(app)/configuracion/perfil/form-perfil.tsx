@@ -21,7 +21,7 @@ export function FormPerfil({ perfil, editable }: { perfil: Perfil; editable: boo
   return (
     <form action={accion} className="space-y-4">
       <Card>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Campo id="nombre_completo" etiqueta="Nombre completo *" defaultValue={perfil?.nombre_completo ?? ""} required className="sm:col-span-2" />
           <Campo id="cedula" etiqueta="Cédula" defaultValue={perfil?.cedula ?? ""} placeholder="V-12345678" />
           <Campo id="telefono" etiqueta="Teléfono" defaultValue={perfil?.telefono ?? ""} />

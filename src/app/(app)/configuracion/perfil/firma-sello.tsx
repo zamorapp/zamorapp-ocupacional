@@ -70,7 +70,7 @@ export function FirmaSello({ firma, sello, mostrarFirma, mostrarSello }: { firma
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Firma y sello</CardTitle></CardHeader>
-      <CardContent className="grid gap-6 sm:grid-cols-2">
+      <CardContent className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <Imagen tipo="firma" titulo="Firma" ayuda="Foto o escaneo de tu firma en papel blanco." inicial={firma} mostrarInicial={mostrarFirma} />
         <Imagen tipo="sello" titulo="Sello" ayuda="Foto o escaneo del sello húmedo en papel blanco." inicial={sello} mostrarInicial={mostrarSello} />
         <p className="text-xs text-muted-foreground sm:col-span-2">

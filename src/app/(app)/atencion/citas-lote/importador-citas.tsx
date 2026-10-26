@@ -137,7 +137,7 @@ export function ImportadorCitas({ motivos }: { motivos: Motivo[] }) {
 
       {error && <p className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"><XCircle className="size-4" /> {error}</p>}
       {resultado && (
-        <p className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm", resultado.ok ? "bg-ok/10 text-ok" : "bg-destructive/10 text-destructive")}>
+        <p className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm", resultado.ok ? "bg-ok/10 text-ok-texto" : "bg-destructive/10 text-destructive")}>
           {resultado.ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />} {resultado.mensaje}
           {resultado.ok && <Link href="/atencion" className="ml-auto font-medium hover:underline">Ver la cola</Link>}
         </p>
@@ -147,8 +147,8 @@ export function ImportadorCitas({ motivos }: { motivos: Motivo[] }) {
         <Card className="overflow-hidden py-0">
           <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3">
             <span className="font-medium">{filas.length} filas</span>
-            <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok">{validas.length} válidas</span>
-            {filas.length > validas.length && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-medium text-alerta">{filas.length - validas.length} con errores</span>}
+            <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok-texto">{validas.length} válidas</span>
+            {filas.length > validas.length && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-medium text-alerta-texto">{filas.length - validas.length} con errores</span>}
             <Button
               className="ml-auto"
               disabled={!validas.length || guardando || resultado?.ok}
@@ -173,7 +173,7 @@ export function ImportadorCitas({ motivos }: { motivos: Motivo[] }) {
                   <TableCell>{/^\d{4}-/.test(f.fecha) ? f.fecha.split("-").reverse().join("/") : f.fecha}</TableCell>
                   <TableCell>{f.hora ?? "—"}</TableCell>
                   <TableCell>{f.motivo || "—"}</TableCell>
-                  <TableCell className="pr-5">{f.errores.length ? <span className="text-sm text-alerta">{f.errores.join(" · ")}</span> : <CheckCircle2 className="size-4 text-ok" />}</TableCell>
+                  <TableCell className="pr-5">{f.errores.length ? <span className="text-sm text-alerta-texto">{f.errores.join(" · ")}</span> : <CheckCircle2 className="size-4 text-ok-texto" />}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

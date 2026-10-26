@@ -25,14 +25,14 @@ export function AlertaLegal({ empresaId, faltan, ignorada, editable }: { empresa
 
   return (
     <div className="flex items-start gap-2 rounded-md bg-aviso/15 px-3 py-2 text-xs">
-      <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+      <AlertTriangle className="size-4 shrink-0 text-aviso-texto" />
       <span className="flex-1">Falta para el informe trimestral: {faltan.join(", ")}.</span>
       {editable && (
         <button
           type="button"
           disabled={ocupado}
           onClick={() => iniciar(async () => void (await ignorarAlertaLegal(empresaId, true)))}
-          className="shrink-0 font-medium text-amber-700 hover:underline"
+          className="shrink-0 font-medium text-aviso-texto hover:underline"
         >
           {ocupado ? <Loader2 className="size-3 animate-spin" /> : "Ignorar"}
         </button>

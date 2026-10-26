@@ -24,7 +24,7 @@ function Seccion({ titulo, children, accion }: { titulo: string; children: React
   return (
     <Card className="gap-4">
       <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">{titulo}</CardTitle>{accion}</CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2">{children}</CardContent>
+      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</CardContent>
     </Card>
   );
 }
@@ -89,14 +89,14 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
             </div>
           )}
         </div>
-        {aviso?.mensaje && <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok" : "text-destructive")}>{aviso.mensaje}</p>}
+        {aviso?.mensaje && <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>}
       </div>
 
       {(declaracion || informe) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[declaracion, informe].filter(Boolean).map((p) => (
             <div key={p!.texto} className={cn("flex items-center gap-3 rounded-xl border-2 px-4 py-3", p!.estado === "alerta" ? "border-alerta/50 bg-alerta/10" : p!.estado === "aviso" ? "border-aviso/60 bg-aviso/10" : "border-ok/40 bg-ok/10")}>
-              {p!.cumplido ? <CheckCircle2 className="size-6 text-ok" /> : <Clock className={cn("size-6", p!.estado === "alerta" ? "text-alerta" : "text-amber-600")} />}
+              {p!.cumplido ? <CheckCircle2 className="size-6 text-ok-texto" /> : <Clock className={cn("size-6", p!.estado === "alerta" ? "text-alerta-texto" : "text-aviso-texto")} />}
               <div>
                 <div className="font-semibold">{p!.texto}</div>
                 {p!.vence && <div className="text-xs text-muted-foreground">Límite: {fechaHoraVE(p!.vence.toISOString())}</div>}
@@ -201,14 +201,14 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               <div key={i} className="grid gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
                 <Input value={a.descripcion} placeholder="Acción" className="h-9" onChange={(x) => accion(i, { descripcion: x.target.value })} />
                 <Input value={a.responsable} placeholder="Responsable" className="h-9" onChange={(x) => accion(i, { responsable: x.target.value })} />
-                <Input type="date" value={a.fecha} className={cn("h-9", vencida && "border-alerta text-alerta")} onChange={(x) => accion(i, { fecha: x.target.value })} />
+                <Input type="date" value={a.fecha} className={cn("h-9", vencida && "border-alerta text-alerta-texto")} onChange={(x) => accion(i, { fecha: x.target.value })} />
                 <select value={a.estado} onChange={(x) => accion(i, { estado: x.target.value as Accion["estado"] })} className={cn(SELECT, "h-9")}>
                   <option value="pendiente">Pendiente</option>
                   <option value="en_proceso">En proceso</option>
                   <option value="cumplida">Cumplida</option>
                 </select>
                 <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("acciones", e.acciones.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                {vencida && <span className="flex items-center gap-1 text-xs text-alerta sm:col-span-5"><Semaforo estado="alerta" /> Fecha límite vencida</span>}
+                {vencida && <span className="flex items-center gap-1 text-xs text-alerta-texto sm:col-span-5"><Semaforo estado="alerta" /> Fecha límite vencida</span>}
               </div>
             );
           })}

@@ -20,7 +20,7 @@ export default async function Configuracion() {
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Configuración</h1>
         <p className="text-muted-foreground">Todo se ajusta desde aquí, sin tocar código. {sesion.demo && "En modo demo no se guardan cambios."}</p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {OPCIONES.map(({ href, titulo, texto, icono: Icono }) => (
           <Link key={href} href={href} className="group flex gap-4 rounded-xl border bg-card p-5 transition hover:border-primary/40 hover:bg-primary/5">
             <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
