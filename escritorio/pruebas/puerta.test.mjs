@@ -67,9 +67,10 @@ before(async () => {
   puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332" });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
-});
+}, { timeout: 240_000 });
 
 after(async () => {
+  puerta?.closeAllConnections?.();
   puerta?.close();
   motor?.detener();
   await nube?.cerrar();

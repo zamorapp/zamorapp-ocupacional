@@ -45,15 +45,20 @@ export class Motor {
       const archivoClave = path.join(CONFIG.datos, ".clave-inicial");
       fs.writeFileSync(archivoClave, this.estado.d.claveBase, { mode: 0o600 });
       const r = spawnSync(exe("initdb"), ["-D", this.carpetaBase, "-U", "postgres", "-E", "UTF8", "--locale=C",
-        "-A", "scram-sha-256", `--pwfile=${archivoClave}`], { encoding: "utf8" });
+        "-A", "scram-sha-256", `--pwfile=${archivoClave}`], { encoding: "utf8", windowsHide: true, timeout: 180_000 });
       fs.rmSync(archivoClave, { force: true });
       if (r.status !== 0) throw new Error(`initdb falló: ${r.stderr || r.error}`);
     }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
-    const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", path.join(CONFIG.datos, "base.log"),
+    // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
+    const log = path.join(CONFIG.datos, "base.log");
+    const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB`],
-      { encoding: "utf8", windowsHide: true });
-    if (r.status !== 0) throw new Error(`No arrancó la base local: ${r.stderr || r.stdout || r.error}`);
+      { stdio: "ignore", windowsHide: true, timeout: 90_000 });
+    if (r.status !== 0) {
+      const cola = fs.existsSync(log) ? fs.readFileSync(log, "utf8").slice(-800) : String(r.error || "");
+      throw new Error(`No arrancó la base local: ${cola}`);
+    }
     this.baseIniciada = true;
     await this.#esperar(async () => {
       const c = new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
@@ -128,7 +133,7 @@ export class Motor {
       try { h.kill(); } catch { /* ya terminó */ }
     }
     if (this.baseIniciada) {
-      spawnSync(exe("pg_ctl"), ["stop", "-D", this.carpetaBase, "-m", "fast", "-w"], { windowsHide: true });
+      spawnSync(exe("pg_ctl"), ["stop", "-D", this.carpetaBase, "-m", "fast", "-w"], { stdio: "ignore", windowsHide: true, timeout: 60_000 });
       this.baseIniciada = false;
     }
   }

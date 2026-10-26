@@ -60,6 +60,7 @@ jobs:
 
       - name: Pruebas de la puerta local (PostgreSQL y PostgREST reales)
         shell: pwsh
+        timeout-minutes: 10
         working-directory: escritorio
         run: |
           npm ci
@@ -67,7 +68,9 @@ jobs:
           $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"
           node --test --test-reporter=spec "pruebas/*.test.mjs"
-          if ($LASTEXITCODE) { throw "Fallaron las pruebas de la puerta" }
+          $codigo = $LASTEXITCODE
+          Get-ChildItem $env:TEMP -Directory -Filter "zamorapp-*" | ForEach-Object { Get-ChildItem $_.FullName -Filter *.log | ForEach-Object { Write-Host "== $($_.Name)"; Get-Content $_.FullName -Tail 40 } }
+          if ($codigo) { throw "Fallaron las pruebas de la puerta" }
 
       - name: App en modo escritorio (Next autónomo)
         shell: pwsh
