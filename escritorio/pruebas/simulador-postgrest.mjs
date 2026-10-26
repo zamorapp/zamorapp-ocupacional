@@ -1,6 +1,7 @@
 // Simulador mínimo de PostgREST para las pruebas en Linux (en Windows la prueba usa el PostgREST real).
 // Verifica el token con el secreto de la configuración y consulta la base como "authenticated" con RLS.
 // Soporta GET /tabla?select=*&col=eq.valor y POST /rpc/funcion.
+import fs from "node:fs";
 import http from "node:http";
 import pg from "pg";
 import { verificar } from "../puerta/jwt.mjs";
@@ -40,4 +41,15 @@ http.createServer(async (req, res) => {
     res.writeHead(400, { "content-type": "application/json" });
     res.end(JSON.stringify({ message: e.message }));
   } finally { c.release(); }
-}).listen(Number(conf["server-port"]), conf["server-host"]);
+}).listen(Number(conf["server-port"]), conf["server-host"], async () => {
+  console.log(`Listening on port ${conf["server-port"]}`);
+  // Prueba de la caída al arrancar que se vio en Windows (código 3): si existe el archivo marcado, se borra y sale
+  const caida = e.SIMULAR_CAIDA_POSTGREST;
+  if (caida && fs.existsSync(caida)) {
+    const n = Number(fs.readFileSync(caida, "utf8")) - 1;
+    if (n > 0) fs.writeFileSync(caida, String(n)); else fs.rmSync(caida);
+    process.exit(3);
+  }
+  await pool.query("select 1");
+  console.log("Schema cache loaded 0 Relations");
+});

@@ -14,6 +14,7 @@ import { simularNube } from "./simulador-nube.mjs";
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.resolve(aqui, "../..");
 const NUBE_DB = process.env.NUBE_DB;
+const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa el real (no simula caídas)
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
@@ -288,5 +289,22 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
     nube.estado.caida = false;
     await nubeDb.query("update public.miembros set activo = true where usuario_id = $1", [medA]);
     await nubeDb.end();
+  }
+});
+
+// En Windows PostgREST se caía a veces en su primer segundo (código 3): el motor debe relanzarlo solo
+test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
+  const marca = path.join(datos, "caer-postgrest");
+  if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3
+  process.env.SIMULAR_CAIDA_POSTGREST = marca;
+  try {
+    motor.hijos.find((h) => h.spawnargs.some((a) => /postgrest/.test(a)))?.kill();
+    await new Promise((r) => setTimeout(r, 500));
+    await motor.relanzando;
+    assert.ok(!fs.existsSync(marca), "pasó por las dos caídas");
+    const r = await pedir("/rest/v1/trabajadores?select=*", { token: tokenAdmin });
+    assert.equal(r.status, 200);
+  } finally {
+    delete process.env.SIMULAR_CAIDA_POSTGREST;
   }
 });

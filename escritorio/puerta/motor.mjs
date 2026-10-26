@@ -34,9 +34,10 @@ export class Motor {
 
   async iniciar() {
     this.puertoBase = await puertoLibre(CONFIG.puertoBase);
-    this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
     await this.#iniciarPostgres();
     await this.#migrar();
+    // Se elige con la base ya escuchando: si 54329 estaba ocupado y la base tomó 54330, PostgREST no lo pisa
+    this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
     await this.#iniciarPostgrest();
   }
 
@@ -102,15 +103,31 @@ export class Motor {
 
   // La configuración va por variables de entorno del proceso hijo: el secreto JWT y la clave del rol
   // no quedan escritos en ningún archivo.
+  // En Windows PostgREST a veces se cae en su primer segundo (código 3, sin mensaje: un abort nativo al abrir
+  // las primeras conexiones a la vez). La base local no usa SSL ni Kerberos, así que se apagan en la conexión,
+  // y si aun así se cae al arrancar se vuelve a lanzar solo, hasta 4 veces, antes de mostrar un error.
   async #iniciarPostgrest() {
     fs.rmSync(path.join(CONFIG.datos, "postgrest.conf"), { force: true }); // de versiones anteriores
+    for (let intento = 1; ; intento++) {
+      try {
+        await this.#lanzarPostgrest();
+        return;
+      } catch (e) {
+        if (!e.caida || intento >= 4) throw e;
+        this.registro?.(`[postgrest] se cerró al arrancar (intento ${intento} de 4), se vuelve a lanzar: ${e.message}`);
+        await new Promise((r) => setTimeout(r, 1500 * intento));
+      }
+    }
+  }
+
+  async #lanzarPostgrest() {
     const entorno = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PGRST_")));
     // postgrest.exe necesita libpq.dll y sus dependencias, que vienen con el PostgreSQL portátil: su carpeta
     // va primero en el PATH del proceso (en Windows la variable puede llamarse "Path").
     const clavePath = Object.keys(entorno).find((k) => k.toUpperCase() === "PATH") || "PATH";
     entorno[clavePath] = [CONFIG.pgBin, entorno[clavePath]].filter(Boolean).join(path.delimiter);
     Object.assign(entorno, {
-      PGRST_DB_URI: this.url("authenticator", this.estado.d.claveAutenticador),
+      PGRST_DB_URI: `${this.url("authenticator", this.estado.d.claveAutenticador)}?sslmode=disable&gssencmode=disable`,
       PGRST_DB_SCHEMAS: "public,clinico",
       PGRST_DB_POOL: "10",
       PGRST_SERVER_HOST: "127.0.0.1",
@@ -120,8 +137,9 @@ export class Motor {
       // sin PGRST_DB_ANON_ROLE: sin sesión no se lee nada
     });
     const p = spawn(CONFIG.postgrest, [], { env: entorno, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-    // Lo que diga PostgREST queda en puerta.log y, si no arranca, en el mensaje de error.
+    // Todo lo que diga PostgREST queda en puerta.log y, si no arranca, en el mensaje de error.
     let ultimas = [];
+    let esquemaListo = false;
     const anotar = (b) => {
       // Nunca a disco ni a pantalla: claves de la base, secreto JWT ni credenciales en una URI
       let texto = String(b).trimEnd().replace(/postgresql:\/\/[^@\s]*@/g, "postgresql://***@");
@@ -130,19 +148,26 @@ export class Motor {
       }
       this.registro?.(`[postgrest] ${texto}`);
       ultimas = [...ultimas, ...texto.split(/\r?\n/)].slice(-6);
+      if (/Schema cache loaded/i.test(texto)) esquemaListo = true;
     };
     p.stdout.on("data", anotar);
     p.stderr.on("data", anotar);
+    // "close" llega cuando el proceso terminó y ya se leyó toda su salida (con "exit" se perdía la última línea)
     let salida = null;
-    p.on("exit", (codigo) => { salida = codigo; });
+    p.on("close", (codigo, senal) => { salida = codigo ?? senal ?? "?"; this.hijos = this.hijos.filter((h) => h !== p); });
     p.on("error", (e) => { salida = e.message; });
     this.hijos.push(p);
     // En una PC real la primera vez puede tardar: el antivirus revisa postgrest.exe y PostgREST carga el
     // esquema. Se espera hasta 2 minutos, pero si el proceso se cae se avisa de inmediato con su motivo.
     const inicio = Date.now();
     for (;;) {
-      if (salida !== null) throw new Error(`No arrancó PostgREST (salió con ${salida}): ${ultimas.join(" | ") || "sin mensajes"}`);
-      try {
+      if (salida !== null) {
+        const e = new Error(`No arrancó PostgREST (salió con ${salida}): ${ultimas.join(" | ") || "sin mensajes"}`);
+        e.caida = true;
+        throw e;
+      }
+      // No se le pregunta nada hasta que diga que cargó el esquema (o pasen 10 s): sin pedidos durante su arranque
+      if (esquemaListo || Date.now() - inicio > 10_000) try {
         const r = await fetch(`http://127.0.0.1:${this.puertoPostgrest}/`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(3000) });
         if (r.status < 500) break;
       } catch { /* aún no escucha */ }
@@ -150,6 +175,12 @@ export class Motor {
       await new Promise((r) => setTimeout(r, 500));
     }
     this.registro?.(`[postgrest] listo en ${Math.round((Date.now() - inicio) / 1000)} s`);
+    // Si después se cae mientras el programa está abierto, se vuelve a lanzar en el mismo puerto
+    p.once("close", (codigo) => {
+      if (this.deteniendo) return;
+      this.registro?.(`[postgrest] se cerró (código ${codigo}), se vuelve a lanzar`);
+      this.relanzando = this.#iniciarPostgrest().catch((e) => this.registro?.(`[postgrest] no se pudo relanzar: ${e.message}`));
+    });
   }
 
   async #esperar(prueba, que, intentos = 240) {
@@ -160,6 +191,7 @@ export class Motor {
   }
 
   detener() {
+    this.deteniendo = true;
     for (const h of this.hijos.reverse()) {
       try { h.kill(); } catch { /* ya terminó */ }
     }

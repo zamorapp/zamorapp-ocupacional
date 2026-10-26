@@ -19,7 +19,10 @@ jobs:
     # Las ramas escritorio/* ya corren por push: su PR no repite la corrida
     if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'escritorio/')
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read # para bajar el instalador anterior en la prueba de reinstalación
     env:
       PG_VERSION: "16.4-1"
       POSTGREST_VERSION: "v12.2.3"
@@ -113,13 +116,15 @@ jobs:
           npx --yes @tauri-apps/cli@2 build
           if ($LASTEXITCODE) { throw "Falló el instalador" }
 
-      # Prueba de humo del instalador real: instala sin preguntas, abre el programa como lo haría Cesar
-      # y exige que la puerta y la app respondan. Así un instalador que no arranca nunca llega a su PC.
+      # Prueba de humo del instalador real, como lo vive Cesar: primero la versión anterior (el último instalador
+      # que pasó este CI) con sus datos, luego la nueva instalada ENCIMA, y se abre y cierra varias veces seguidas.
+      # Así una falla intermitente al arrancar o una reinstalación que rompe los datos nunca llega a su PC.
       - name: Instalar y abrir el programa (prueba de humo)
         shell: pwsh
-        timeout-minutes: 10
+        timeout-minutes: 25
         env:
           ZAMORAPP_NUBE_URL: ${{ vars.ZAMORAPP_NUBE_URL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Acceso directo de Cesar a la app web (Chrome --app): ni instalar ni desinstalar puede tocarlo
           $escritorio = [Environment]::GetFolderPath("Desktop")
@@ -127,48 +132,91 @@ jobs:
           $ajenos = "$escritorio/zamorApp Ocupacional.lnk", "$menu/zamorApp Ocupacional.lnk"
           $shell = New-Object -ComObject WScript.Shell
           foreach ($l in $ajenos) { $a = $shell.CreateShortcut($l); $a.TargetPath = "C:\Windows\notepad.exe"; $a.Save() }
-          $setup = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
-          Start-Process $setup.FullName -ArgumentList "/S" -Wait
-          $dir = Get-ChildItem $env:LOCALAPPDATA -Directory -Filter "zamorApp Escritorio" | Select-Object -First 1
-          if (-not $dir) { throw "El instalador no creó la carpeta del programa" }
-          foreach ($l in $ajenos) { if ((New-Object -ComObject WScript.Shell).CreateShortcut($l).TargetPath -notmatch "notepad") { throw "El instalador pisó $l" } }
-          foreach ($p in "recursos/puerta/puerta/index.mjs", "recursos/app/server.js", "recursos/app/.next/static", "recursos/pgsql/bin/postgres.exe", "recursos/postgrest/postgrest.exe", "recursos/node/node.exe") {
-            if (-not (Test-Path (Join-Path $dir.FullName $p))) { throw "Falta $p en la instalación (¿recursos aplanados?)" }
-          }
           # Como en la PC de Cesar: sin ningún PostgreSQL del sistema en el PATH (el programa debe traer todo lo suyo)
           $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "postgres|pgsql" }) -join ";"
-          $exe = Get-ChildItem $dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
-          $proc = Start-Process $exe.FullName -PassThru
-          $ok = $false
-          try {
-            for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
-              Start-Sleep 2
-              if ($proc.HasExited) { break }
-              try {
-                $estado = Invoke-RestMethod http://127.0.0.1:54331/zamorapp/estado -TimeoutSec 3
-                $app = Invoke-WebRequest http://127.0.0.1:54332/login -TimeoutSec 10 -UseBasicParsing -MaximumRedirection 0 -SkipHttpErrorCheck
-                if ($app.StatusCode -lt 500) { $ok = $true; Write-Host "Puerta: $($estado | ConvertTo-Json -Compress) · App: HTTP $($app.StatusCode)" }
-              } catch { }
-            }
-            if ($ok) {
-            # La pantalla de ingreso (54332) debe poder hablarle a la puerta (54331) con las cabeceras reales de supabase-js
-            $cors = Invoke-WebRequest "http://127.0.0.1:54331/auth/v1/token?grant_type=password" -Method Options -UseBasicParsing -SkipHttpErrorCheck -Headers @{
-              Origin = "http://127.0.0.1:54332"; "Access-Control-Request-Method" = "POST"; "Access-Control-Request-Headers" = "apikey,authorization,content-type,x-client-info,x-supabase-api-version" }
-            if ($cors.StatusCode -ne 204 -or "$($cors.Headers['Access-Control-Allow-Headers'])" -notmatch "x-supabase-api-version") { $ok = $false; Write-Host "::error::La pantalla de ingreso no podría hablar con la puerta (CORS)" }
-            }
-          } finally {
-            Write-Host "== arranque.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/arranque.log" -ErrorAction SilentlyContinue
-            Write-Host "== puerta.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/datos/puerta.log" -Tail 40 -ErrorAction SilentlyContinue
-            Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue
-            Start-Sleep 5
-            Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          $registros = "$env:LOCALAPPDATA/zamorApp"
+
+          function Instalar($setup) {
+            Start-Process $setup -ArgumentList "/S" -Wait
+            $script:dir = Get-ChildItem $env:LOCALAPPDATA -Directory -Filter "zamorApp Escritorio" | Select-Object -First 1
+            if (-not $script:dir) { throw "El instalador no creó la carpeta del programa" }
+            foreach ($l in $ajenos) { if ((New-Object -ComObject WScript.Shell).CreateShortcut($l).TargetPath -notmatch "notepad") { throw "El instalador pisó $l" } }
           }
-          if (-not $ok) { throw "El programa instalado no arrancó" }
-          $desinstalar = Get-ChildItem $dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
+
+          # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
+          function Abrir([string]$que, [bool]$cors = $false) {
+            $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+            $inicio = Get-Date
+            $proc = Start-Process $exe.FullName -PassThru
+            $ok = $false
+            try {
+              for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
+                Start-Sleep 2
+                if ($proc.HasExited) { break }
+                try {
+                  $estado = Invoke-RestMethod http://127.0.0.1:54331/zamorapp/estado -TimeoutSec 3
+                  $app = Invoke-WebRequest http://127.0.0.1:54332/login -TimeoutSec 10 -UseBasicParsing -MaximumRedirection 0 -SkipHttpErrorCheck
+                  if ($app.StatusCode -lt 500) { $ok = $true; Write-Host "$que listo en $([int]((Get-Date) - $inicio).TotalSeconds) s · Puerta: $($estado | ConvertTo-Json -Compress) · App: HTTP $($app.StatusCode)" }
+                } catch { }
+              }
+              if ($ok -and $cors) {
+                # La pantalla de ingreso (54332) debe poder hablarle a la puerta (54331) con las cabeceras reales de supabase-js
+                $r = Invoke-WebRequest "http://127.0.0.1:54331/auth/v1/token?grant_type=password" -Method Options -UseBasicParsing -SkipHttpErrorCheck -Headers @{
+                  Origin = "http://127.0.0.1:54332"; "Access-Control-Request-Method" = "POST"; "Access-Control-Request-Headers" = "apikey,authorization,content-type,x-client-info,x-supabase-api-version" }
+                if ($r.StatusCode -ne 204 -or "$($r.Headers['Access-Control-Allow-Headers'])" -notmatch "x-supabase-api-version") { $ok = $false; Write-Host "::error::La pantalla de ingreso no podría hablar con la puerta (CORS)" }
+              }
+            } finally {
+              if (-not $ok) {
+                Write-Host "== arranque.log"; Get-Content "$registros/arranque.log" -Tail 40 -ErrorAction SilentlyContinue
+                Write-Host "== puerta.log"; Get-Content "$registros/datos/puerta.log" -Tail 60 -ErrorAction SilentlyContinue
+                Write-Host "== base.log"; Get-Content "$registros/datos/base.log" -Tail 20 -ErrorAction SilentlyContinue
+              }
+              # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
+              [void]$proc.CloseMainWindow()
+              if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
+              Start-Sleep 3
+              $vivos = Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue
+              if ($vivos) {
+                Write-Host "::error::Tras cerrar $que quedaron procesos vivos: $(($vivos | ForEach-Object Name | Sort-Object -Unique) -join ', ')"
+                $vivos | Stop-Process -Force -ErrorAction SilentlyContinue
+                $ok = $false
+              }
+            }
+            return $ok
+          }
+
+          # 1) Versión anterior (lo que Cesar ya tiene), con sus datos. Si no arranca no importa: es la vieja.
+          $previa = gh run list --repo $env:GITHUB_REPOSITORY --workflow escritorio.yml --status success --limit 10 --json databaseId --jq ".[].databaseId" 2>$null |
+            Where-Object { $_ -ne "$env:GITHUB_RUN_ID" } | Select-Object -First 1
+          if ($previa) {
+            gh run download $previa --repo $env:GITHUB_REPOSITORY --name zamorapp-instalador-windows --dir previa 2>$null
+          }
+          $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($setupPrevio) {
+            Write-Host "Versión anterior: corrida $previa ($($setupPrevio.Name))"
+            Instalar $setupPrevio.FullName
+            [void](Abrir "versión anterior")
+            if (-not (Test-Path "$registros/datos/base/PG_VERSION")) { Write-Host "::warning::La versión anterior no dejó datos locales" }
+          } else { Write-Host "::warning::No se encontró un instalador anterior; se prueba solo la instalación nueva" }
+
+          # 2) Versión nueva instalada encima, con los datos existentes
+          $setup = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          Instalar $setup.FullName
+          foreach ($p in "recursos/puerta/puerta/index.mjs", "recursos/app/server.js", "recursos/app/.next/static", "recursos/pgsql/bin/postgres.exe", "recursos/postgrest/postgrest.exe", "recursos/node/node.exe") {
+            if (-not (Test-Path (Join-Path $script:dir.FullName $p))) { throw "Falta $p en la instalación (¿recursos aplanados?)" }
+          }
+
+          # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
+          $fallas = 0
+          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1))) { $fallas++ } }
+          Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
+          if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
+
+          $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
           Start-Sleep 5
           foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
-          Write-Host "Accesos directos de la app web intactos tras instalar y desinstalar"
+          Write-Host "Accesos directos de la app web intactos tras instalar, reinstalar encima y desinstalar"
 
       - uses: actions/upload-artifact@v4
         with:
