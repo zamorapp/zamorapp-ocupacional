@@ -6,9 +6,16 @@ export const PLANTILLA_CITA =
 export const PLANTILLA_APTITUD =
   "Buen día. {servicio} informa el resultado de la evaluación {motivo} de {nombre}, C.I. {cedula}, realizada el {fecha}: {aptitud}.{observacion} La constancia se envía adjunta.";
 
-// Texto que firma el trabajador al final del informe de consulta (editable en Configuración › Organización)
+// Leyendas legales de los documentos (las mismas del Integral). Todas se editan en Configuración › Organización.
+// Certificación que firma el trabajador al final del informe, la historia y la orden de exámenes
 export const CERTIFICACION_TRABAJADOR =
-  "Certifico que he sido examinado, que la información que suministré es veraz y que autorizo a la empresa a realizar los exámenes médicos, de laboratorio y de radiología que considere pertinentes, y a conocer el resultado de mi evaluación médica.";
+  "Para todos los efectos legales certifico que he sido examinado, que toda la información que suministré es veraz en lo que a mis conocimientos se refiere, que autorizo a la empresa a realizar el tipo de examen médico, de laboratorio clínico y de radiología que considere pertinente y necesario para conocer mi aptitud, y que autorizo que los resultados de mi evaluación médica sean enviados a la coordinación médica de la empresa empleadora.";
+// Pie de la constancia de aptitud
+export const NOTA_IDONEIDAD = "La clasificación de idoneidad del paciente se basa en el protocolo de evaluación clínica establecido.";
+// Certificado de salud (manipuladores de alimentos y otros)
+export const NOTA_CERTIFICADO_SACS = "Certificado emitido de acuerdo con la Providencia Administrativa N.º 155-2015 del Servicio Autónomo de Contraloría Sanitaria (SACS), artículo 13.";
+// Autorización de exámenes pre-empleo
+export const NOTA_PREEMPLEO_VIH = "No incluye prueba de VIH, por resolución del MSAS, Gaceta Oficial N.º 35.538 del 02-09-04.";
 
 export function llenar(plantilla: string, datos: Record<string, string | null | undefined>) {
   return plantilla.replace(/\{(\w+)\}/g, (_, k: string) => datos[k] ?? "").replace(/\s+([.,)])/g, "$1").replace(/\(\s*\)/g, "").trim();

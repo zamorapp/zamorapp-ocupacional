@@ -215,6 +215,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       referencias={d.interconsultas.some((x) => x.especialidad)}
       reubicacion={d.reubicacion.activa}
       informeLibre={Boolean(d.informeLibre.cuerpo.trim())}
+      preoperatoria={/preoper/i.test(motivo?.nombre ?? "")}
       antes={cambios && !bloqueado ? guardarAntes : undefined}
       ocupado={guardando}
       variante={variante}

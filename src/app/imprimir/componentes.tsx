@@ -16,10 +16,11 @@ const hora12 = (h: string | null | undefined) => {
 export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
 // corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
-export function Hoja({ children, className = "", media, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; corte?: boolean }) {
+// horizontal: carta apaisada (récipe del Integral), usa la página con nombre «apaisada» de globals.css
+export function Hoja({ children, className = "", media, horizontal, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean }) {
   return (
     <section
-      className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full max-w-[216mm] flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
+      className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full ${horizontal ? "max-w-[279mm] [page:apaisada]" : "max-w-[216mm]"} flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${horizontal ? "min-h-[216mm] print:min-h-[186mm]" : media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
     >
       {children}
     </section>
@@ -182,7 +183,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   const img = imagenesMedico(d);
   return (
     <div className="flex items-end gap-3.5">
-      <div className="w-60 text-center text-[10.5px]">
+      <div className="w-64 text-center text-[10px] leading-[1.35]">
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
@@ -190,14 +191,12 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
           {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
         </div>
         <div className="text-[11.5px] font-bold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
+        <div className="text-doc-tenue">{m?.especialidad || etiqueta}</div>
         <div className="text-doc-tenue">
-          {etiqueta}
-          {!compacto && m?.cedula && ` · C.I. ${m.cedula}`}
-        </div>
-        <div className="text-doc-tenue">
-          {[m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `CM ${m.colegio_medicos}`].filter(Boolean).join(" · ")}
+          {[!compacto && m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `CM ${m.colegio_medicos}`].filter(Boolean).join(" · ")}
         </div>
         {!compacto && m?.registro_inpsasel && <div className="text-doc-tenue">INPSASEL {m.registro_inpsasel}</div>}
+        {!compacto && m?.correo && <div className="text-doc-tenue">{m.correo}</div>}
       </div>
       {separados && <CasillaSello imagen={img.sello} className={compacto ? "h-[70px] w-[124px]" : undefined} />}
     </div>

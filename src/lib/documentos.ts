@@ -19,6 +19,8 @@ export type AjustesDocumentos = {
   firma_sello_separados?: boolean;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
+  constancia_copias?: boolean;
+  orden_nota_preempleo?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;
@@ -36,7 +38,7 @@ export async function obtenerDocumento(consultaId: string) {
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", c.org_id).single(),
     c.medico_id
       ? Promise.all([
-          supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
+          supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
           // Firma y sello: privados, solo para personal clínico (firma_sello)
           supabase.rpc("firma_sello", { p_usuario: c.medico_id }).maybeSingle(),
         ]).then(([{ data: p }, { data: img }]) => ({ data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null }))
@@ -53,6 +55,7 @@ export async function obtenerDocumento(consultaId: string) {
     org: { ...(org ?? { nombre: "", rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
     medicoDatos: medico as {
       nombre_completo: string; cedula: string | null; mpps: string | null; colegio_medicos: string | null; registro_inpsasel: string | null;
+      especialidad: string | null; correo: string | null;
       firma_url: string | null; sello_url: string | null; mostrar_firma: boolean; mostrar_sello: boolean;
     } | null,
     motivo: motivo as { nombre: string; codigo: string | null; grupo: string | null } | null,

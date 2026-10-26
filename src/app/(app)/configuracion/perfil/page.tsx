@@ -17,7 +17,7 @@ export default async function Perfil() {
     const [{ data }, { data: imagenes }] = await Promise.all([
       supabase
         .from("perfiles")
-        .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel, mostrar_firma, mostrar_sello")
+        .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello")
         .eq("id", sesion.usuarioId)
         .maybeSingle(),
       supabase.rpc("firma_sello", { p_usuario: sesion.usuarioId }).maybeSingle(),

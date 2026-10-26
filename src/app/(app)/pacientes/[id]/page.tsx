@@ -189,7 +189,7 @@ export default async function FichaPaciente({ params }: Props) {
                     {c.aptitud && (
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_APTITUD[c.aptitud])}>{ETIQUETA_APTITUD[c.aptitud]}</span>
                     )}
-                    {!c.demo && <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.reposo} tratamiento={c.tratamiento} compacto />}
+                    {!c.demo && <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.reposo} tratamiento={c.tratamiento} preoperatoria={/preoper/i.test(c.motivo)} compacto />}
                   </li>
                 ))}
               </ul>
