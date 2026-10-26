@@ -59,5 +59,5 @@ export function simularNube({ baseUrl, usuarios }) {
       enviar(400, { message: e.message });
     } finally { c.release(); }
   });
-  return { servidor, estado, cerrar: async () => { servidor.close(); await pool.end(); } };
+  return { servidor, estado, usuarios, cerrar: async () => { servidor.close(); await pool.end(); } };
 }

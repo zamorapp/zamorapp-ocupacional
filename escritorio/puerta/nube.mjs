@@ -48,18 +48,27 @@ export class Nube {
   }
 
   // Token vigente del usuario en la nube; lo renueva si vence en menos de 2 minutos.
-  // Si la nube lo rechaza (usuario desactivado o sesión revocada), el usuario queda bloqueado en esta PC.
+  // Si la nube rechaza la renovación (sesión revocada, clave cambiada, usuario suspendido), el usuario
+  // ya no entra sin conexión ni conserva sus sesiones en esta PC hasta volver a entrar con internet.
   async token(uid) {
     const u = this.estado.d.usuarios[uid];
-    if (!u?.nube || u.bloqueado) return null;
+    if (!u?.nube || u.bloqueado || u.requiereNube) return null;
     if (u.nube.expires_at - 120 > Date.now() / 1000) return u.nube.access_token;
     const r = await this.auth("token?grant_type=refresh_token", { refresh_token: u.nube.refresh_token });
     if (r.ok) { this.guardarSesion(uid, r.cuerpo); return r.cuerpo.access_token; }
-    if (r.status >= 400 && r.status < 500) {
-      u.nube = null;
-      this.estado.guardar();
-    }
+    if (r.status >= 400 && r.status < 500) this.exigirNube(uid);
     return null;
+  }
+
+  // Corta las sesiones locales del usuario y le exige entrar con internet (la nube decide).
+  exigirNube(uid, bloquear = false) {
+    const u = this.estado.d.usuarios[uid];
+    if (!u) return;
+    u.nube = null;
+    u.requiereNube = true;
+    if (bloquear) u.bloqueado = true;
+    for (const [t, r] of Object.entries(this.estado.d.refrescos)) if (r.uid === uid) delete this.estado.d.refrescos[t];
+    this.estado.guardar();
   }
 
   async rpc(uid, funcion, args) {

@@ -11,6 +11,8 @@ import { PAGINA_INICIO } from "./inicio.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control"];
 const DEVOLVER = ["content-type", "content-range", "preference-applied", "location", "cache-control", "etag", "last-modified"];
+const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 5 min que se duplica hasta 1 hora
+const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 
 export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
@@ -37,17 +39,33 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
   const usuarioDe = (req) => {
     const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
     const u = datos && d().usuarios[datos.sub];
-    return u && !u.bloqueado ? { uid: datos.sub, u } : null;
+    return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u } : null;
+  };
+
+  // Freno a quien prueba claves: por correo y en total. Vive en memoria (la puerta solo atiende a esta PC).
+  const intentos = new Map();
+  const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - Date.now());
+  const anotarFallo = (email) => {
+    const f = intentos.get(email) || { fallos: 0, hasta: 0 };
+    f.fallos += 1;
+    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = Date.now() + Math.min(3600e3, 300e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
+    intentos.set(email, f);
+    const g = intentos.get("*") || { fallos: 0, desde: Date.now(), hasta: 0 };
+    if (Date.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: Date.now() });
+    g.fallos += 1;
+    if (g.fallos >= FALLOS_GLOBALES) g.hasta = Date.now() + 600e3;
+    intentos.set("*", g);
   };
 
   const errorAuth = (res, status, msg, code = "invalid_credentials") =>
     responder(res, status, { code: status, error_code: code, msg, error: code, error_description: msg });
 
+  // undefined: no se pudo consultar; null: no es miembro activo.
   async function rolEnNube(uid) {
     try {
       const filas = await nube.leer(uid, `miembros?usuario_id=eq.${uid}&activo=is.true&select=rol,org_id`);
       return filas[0]?.rol || null;
-    } catch { return null; }
+    } catch { return undefined; }
   }
 
   async function anotarUsuarioLocal(uid, email) {
@@ -62,14 +80,30 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
   async function entrar(req, res, cuerpo) {
     const email = String(cuerpo?.email || "").trim().toLowerCase();
     const clave = String(cuerpo?.password || "");
+    const espera = Math.max(esperaDe(email), esperaDe("*"));
+    if (espera) return errorAuth(res, 429, `Demasiados intentos. Espera ${Math.ceil(espera / 60000)} min y vuelve a probar.`, "over_request_rate_limit");
+    const conocido = Object.entries(d().usuarios).find(([, u]) => u.email === email);
     if (nube.enLinea) {
       try {
         const r = await nube.auth("token?grant_type=password", { email, password: clave });
-        if (!r.ok) return responder(res, r.status, r.cuerpo ?? r.texto);
+        if (!r.ok) {
+          if (r.status >= 400 && r.status < 500) {
+            anotarFallo(email);
+            // La nube rechaza una clave que esta PC aún aceptaría: la cambiaron. La huella local deja de valer.
+            if (conocido && claveCorrecta(clave, conocido[1])) nube.exigirNube(conocido[0]);
+          }
+          return responder(res, r.status, r.cuerpo ?? r.texto);
+        }
         const uid = r.cuerpo.user.id;
-        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, ...huellaClave(clave), bloqueado: false, user: r.cuerpo.user };
+        const rol = await rolEnNube(uid);
+        if (rol === null) {
+          nube.exigirNube(uid, true);
+          return errorAuth(res, 400, "Tu acceso fue desactivado. Habla con el administrador.", "user_banned");
+        }
+        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, ...huellaClave(clave), bloqueado: false, requiereNube: false, user: r.cuerpo.user };
         nube.guardarSesion(uid, r.cuerpo);
-        d().usuarios[uid].rol = await rolEnNube(uid);
+        if (rol) d().usuarios[uid].rol = rol;
+        intentos.delete(email);
         estado.guardar();
         await anotarUsuarioLocal(uid, email);
         replica.ciclo().catch(() => {});
@@ -79,10 +113,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
         nube.enLinea = false;
       }
     }
-    const par = Object.entries(d().usuarios).find(([, u]) => u.email === email);
-    const [uid, u] = par || [];
-    if (!u || !claveCorrecta(clave, u)) return errorAuth(res, 400, "Correo o clave incorrectos");
+    const [uid, u] = conocido || [];
+    if (!u || !claveCorrecta(clave, u)) { anotarFallo(email); return errorAuth(res, 400, "Correo o clave incorrectos"); }
+    intentos.delete(email);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
+    if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
     if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
@@ -91,7 +126,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
 
   function renovar(res, cuerpo) {
     const r = d().refrescos[cuerpo?.refresh_token];
-    if (!r || r.vence < Date.now() || d().usuarios[r.uid]?.bloqueado) {
+    const u = r && d().usuarios[r.uid];
+    if (!r || r.vence < Date.now() || !u || u.bloqueado || u.requiereNube) {
       return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
     }
     delete d().refrescos[cuerpo.refresh_token];
@@ -164,6 +200,15 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
   }
 
   const servidor = http.createServer(async (req, res) => {
+    // Solo se atiende a esta PC por su nombre local (Host) y, desde un navegador, solo a la ventana de
+    // zamorApp o a la propia puerta (Origin). Así una página web cualquiera, ni siquiera con un DNS que
+    // apunte a 127.0.0.1, puede hablarle a la puerta ni probar claves.
+    const puerto = req.socket.localPort;
+    const locales = [`127.0.0.1:${puerto}`, `localhost:${puerto}`];
+    if (!locales.includes(String(req.headers.host || "").toLowerCase())) { res.writeHead(421); return res.end(); }
+    if (req.headers.origin && req.headers.origin !== origen && !locales.some((h) => req.headers.origin === `http://${h}`)) {
+      res.writeHead(403); return res.end();
+    }
     // Solo la ventana de zamorApp (su propio origen) puede llamar a la puerta desde el navegador.
     const cors = req.headers.origin === origen ? {
       "Access-Control-Allow-Origin": origen, "Access-Control-Allow-Credentials": "true",

@@ -1,13 +1,13 @@
 // Simulador mínimo de PostgREST para las pruebas en Linux (en Windows la prueba usa el PostgREST real).
 // Verifica el token con el secreto de la configuración y consulta la base como "authenticated" con RLS.
 // Soporta GET /tabla?select=*&col=eq.valor y POST /rpc/funcion.
-import fs from "node:fs";
 import http from "node:http";
 import pg from "pg";
 import { verificar } from "../puerta/jwt.mjs";
 
-const conf = Object.fromEntries(fs.readFileSync(process.argv[2], "utf8").split("\n").filter(Boolean)
-  .map((l) => l.split(" = ")).map(([k, v]) => [k.trim(), v.trim().replace(/^"|"$/g, "")]));
+// Igual que el PostgREST real, toma la configuración de las variables PGRST_* (los secretos no van a disco).
+const e = process.env;
+const conf = { "db-uri": e.PGRST_DB_URI, "jwt-secret": e.PGRST_JWT_SECRET, "server-port": e.PGRST_SERVER_PORT, "server-host": e.PGRST_SERVER_HOST };
 const pool = new pg.Pool({ connectionString: conf["db-uri"], max: 4 });
 
 http.createServer(async (req, res) => {

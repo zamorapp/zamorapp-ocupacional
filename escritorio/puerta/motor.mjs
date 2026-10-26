@@ -100,19 +100,22 @@ export class Motor {
     }
   }
 
+  // La configuración va por variables de entorno del proceso hijo: el secreto JWT y la clave del rol
+  // no quedan escritos en ningún archivo.
   async #iniciarPostgrest() {
-    const conf = path.join(CONFIG.datos, "postgrest.conf");
-    fs.writeFileSync(conf, [
-      `db-uri = "${this.url("authenticator", this.estado.d.claveAutenticador)}"`,
-      `db-schemas = "public,clinico"`,
-      `db-pool = 10`,
-      `server-host = "127.0.0.1"`,
-      `server-port = ${this.puertoPostgrest}`,
-      `jwt-secret = "${this.estado.d.jwtSecreto}"`,
-      `db-max-rows = 5000`,
-      // sin db-anon-role: sin sesión no se lee nada
-    ].join("\n"), { mode: 0o600 });
-    const p = spawn(CONFIG.postgrest, [conf], { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    fs.rmSync(path.join(CONFIG.datos, "postgrest.conf"), { force: true }); // de versiones anteriores
+    const entorno = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PGRST_")));
+    Object.assign(entorno, {
+      PGRST_DB_URI: this.url("authenticator", this.estado.d.claveAutenticador),
+      PGRST_DB_SCHEMAS: "public,clinico",
+      PGRST_DB_POOL: "10",
+      PGRST_SERVER_HOST: "127.0.0.1",
+      PGRST_SERVER_PORT: String(this.puertoPostgrest),
+      PGRST_JWT_SECRET: this.estado.d.jwtSecreto,
+      PGRST_DB_MAX_ROWS: "5000",
+      // sin PGRST_DB_ANON_ROLE: sin sesión no se lee nada
+    });
+    const p = spawn(CONFIG.postgrest, [], { env: entorno, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
     p.stderr.on("data", (b) => this.registro?.(`[postgrest] ${b}`));
     this.hijos.push(p);
     await this.#esperar(async () => {

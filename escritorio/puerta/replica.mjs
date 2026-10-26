@@ -31,7 +31,9 @@ export class Replica {
 
   async #ciclo() {
     const eq = this.estado.d.equipo;
-    if (!eq || !this.nube.enLinea) return;
+    if (!this.nube.enLinea) return;
+    await this.vigilarUsuarios();
+    if (!eq) return;
     const uid = this.usuarioSincronia();
     if (!uid) return;
     this.ocupada = true;
@@ -63,9 +65,25 @@ export class Replica {
       this.estado.d.cursor = null;
     }
     this.estado.d.firmasPermisos[uid] = huella;
-    const activo = filas.some((f) => f.activo);
-    if (!activo) { this.estado.d.usuarios[uid].bloqueado = true; this.estado.d.usuarios[uid].nube = null; }
+    if (!filas.some((f) => f.activo)) this.nube.exigirNube(uid, true);
     this.estado.guardar();
+  }
+
+  // Cada ciclo con internet se confirma en la nube a TODOS los usuarios que han entrado en esta PC:
+  // sesión vigente (si cambió la clave o la revocaron, la renovación falla) y miembro activo.
+  async vigilarUsuarios() {
+    for (const [uid, u] of Object.entries(this.estado.d.usuarios)) {
+      if (u.bloqueado) continue;
+      if (!u.nube) { if (!u.requiereNube) this.nube.exigirNube(uid); continue; }
+      try {
+        if (!(await this.nube.token(uid))) continue; // rechazada: token() ya exigió entrar con internet
+        const filas = await this.nube.leer(uid, `miembros?usuario_id=eq.${uid}&activo=is.true&select=rol`);
+        if (!filas.length) this.nube.exigirNube(uid, true);
+        else if (u.rol !== filas[0].rol) { u.rol = filas[0].rol; this.estado.guardar(); }
+      } catch (e) {
+        this.registro(`[réplica] no se pudo confirmar un usuario: ${e.message}`);
+      }
+    }
   }
 
   async #copiaCompleta(c, uid) {

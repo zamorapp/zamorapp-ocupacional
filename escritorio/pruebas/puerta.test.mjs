@@ -179,6 +179,62 @@ test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: o
   assert.ok(!crudo.includes("admin@x") && !crudo.includes(estado.d.equipo.secreto));
 });
 
+test("solo atiende a esta PC: otro Host u otro origen se rechazan", { skip: omitir }, async () => {
+  const puerto = new URL(urlPuerta).port;
+  const http = await import("node:http");
+  const pedirCrudo = (cabeceras) => new Promise((ok, mal) => {
+    const r = http.request({ host: "127.0.0.1", port: puerto, path: "/zamorapp/estado", headers: cabeceras }, (res) => { res.resume(); ok(res.statusCode); });
+    r.on("error", mal); r.end();
+  });
+  assert.equal(await pedirCrudo({ Host: "atacante.com" }), 421, "DNS rebinding");
+  assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "https://atacante.com" }), 403);
+  assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://127.0.0.1:54332" }), 200);
+  assert.equal(await pedirCrudo({ Host: `localhost:${puerto}` }), 200);
+});
+
+test("probar claves: tras 5 fallos el correo queda en espera", { skip: omitir }, async () => {
+  const cuerpo = { email: "nadie@x", password: "mal" };
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo })).status, 400);
+  }
+  const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo });
+  assert.equal(r.status, 429);
+  assert.match(r.json.msg, /Demasiados intentos/);
+});
+
+test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", { skip: omitir }, async () => {
+  const medA = "00000000-0000-0000-0000-0000000000a2";
+  const u = () => estado.d.usuarios[medA]; // entrar con internet reemplaza el registro
+  // 1) La nube revoca la sesión (p. ej. cambió la clave desde la web): la PC lo nota al renovar.
+  nube.usuarios._revocados = [medA];
+  u().nube.expires_at = 0;
+  await replicaObj.ciclo();
+  assert.equal(u().requiereNube, true);
+  assert.equal((await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed })).status, 401, "sus sesiones locales se cortan");
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const fuera = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(fuera.status, 400);
+  assert.equal(fuera.json.error_code, "session_expired");
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  nube.usuarios._revocados = [];
+  // 2) Con internet, la nube rechaza la clave vieja que la PC aún aceptaría: la huella local deja de valer.
+  const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(ok.status, 200);
+  assert.equal(u().requiereNube, false);
+  nube.usuarios["meda@x"].clave = "clave-nueva";
+  const vieja = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(vieja.status, 400);
+  assert.equal(u().requiereNube, true);
+  // 3) Entra con la clave nueva y todo vuelve a la normalidad.
+  const nueva = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-nueva" } });
+  assert.equal(nueva.status, 200);
+  assert.equal(u().requiereNube, false);
+  tokenMed = nueva.json.access_token;
+  nube.usuarios["meda@x"].clave = "clave-med";
+});
+
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();
