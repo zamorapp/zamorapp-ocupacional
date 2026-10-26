@@ -17,7 +17,7 @@ const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplic
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 
-export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
@@ -267,6 +267,15 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
+      // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
+      if (ruta === "/zamorapp/sincronizar" && req.method === "POST") {
+        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
+        const esperada = Buffer.from(control);
+        if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
+        await nube.comprobar();
+        await replica.ciclo();
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
+      }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
         return res.end(PAGINA_INICIO.replace("__ORIGEN__", origen));

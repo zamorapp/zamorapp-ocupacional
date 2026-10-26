@@ -18,6 +18,7 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
+const CONTROL = crypto.randomBytes(24).toString("hex");
 let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta;
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
@@ -65,7 +66,7 @@ before(async () => {
   nubeObj = new Nube(estado);
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332" });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332", control: CONTROL });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -269,6 +270,18 @@ test("recuperar clave: el enlace del correo abre la app web, no la PC", { skip: 
   const r = await pedir(`/auth/v1/recover?redirect_to=${encodeURIComponent("http://127.0.0.1:54332/login/nueva-clave")}`, { metodo: "POST", cuerpo: { email: "meda@x" } });
   assert.equal(r.status, 200);
   assert.equal(nube.estado.ultimoRecuperar, "https://zamorapp-ocupacional.vercel.app/login/nueva-clave");
+});
+
+test("sincronizar ahora: solo con la clave de control de la ventana", { skip: omitir }, async () => {
+  const llamar = (clave) => fetch(`${urlPuerta}/zamorapp/sincronizar`, { method: "POST", headers: clave ? { "X-Zamorapp-Control": clave } : {} });
+  assert.equal((await llamar()).status, 403);
+  assert.equal((await llamar("otra")).status, 403);
+  const r = await llamar(CONTROL);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.enLinea, true);
+  assert.equal(j.error, null);
+  assert.ok(j.ultimaSincronia);
 });
 
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
