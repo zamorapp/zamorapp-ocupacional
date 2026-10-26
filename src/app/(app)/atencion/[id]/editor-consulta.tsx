@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Loader2, Lock, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -132,6 +132,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
+  const [paso, setPaso] = useState("generales");
 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
@@ -141,6 +142,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
+
+  // Pasos de la consulta; "hecho" marca con ✓ los que ya tienen información
+  const pasos = [
+    { id: "generales", titulo: "Generales", hecho: Boolean(d.motivoId) },
+    { id: "antecedentes", titulo: "Antecedentes", hecho: d.antecedentes.length > 0 || d.habitos.some((h) => h.valor) },
+    { id: "examen", titulo: "Examen", hecho: Boolean(d.signos.ta || d.signos.peso) },
+    { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 },
+    { id: "diagnostico", titulo: d.sano ? "Diagnóstico · sano" : d.diagnosticos.length ? `Diagnóstico (${d.diagnosticos.length})` : "Diagnóstico", hecho: d.sano || d.diagnosticos.length > 0 },
+    { id: "aptitud", titulo: "Aptitud", hecho: Boolean(d.aptitud.clasificacion) },
+    ...(mostrarTratamiento ? [{ id: "tratamiento", titulo: "Tratamiento y reposo", hecho: d.tratamiento.length > 0 || d.reposo.activo }] : []),
+    { id: "conclusiones", titulo: "Conclusiones", hecho: Boolean(d.conclusiones || d.recomendacionesTrabajador || d.recomendacionesEmpresa) },
+  ];
+  const indicePaso = Math.max(0, pasos.findIndex((p) => p.id === paso));
+  const irA = (i: number) => { setPaso(pasos[i].id); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const valorImc = imc(d.signos.peso, d.signos.talla);
   const claseImc = clasificarImc(valorImc);
@@ -190,13 +205,19 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
     set("tratamiento", d.tratamiento.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
 
   return (
-    <div className="space-y-4">
-      {/* Cabecera fija con el paciente y las acciones */}
-      <div className="sticky top-16 z-10 -mx-4 border-b bg-background/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+    <Tabs value={pasos[indicePaso].id} onValueChange={setPaso} className="gap-4">
+      {/* Cabecera fija con el paciente, las acciones y los pasos */}
+      <div className="z-10 -mx-4 border-b bg-background/95 px-4 pt-3 lg:sticky lg:top-16 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="grid size-10 shrink-0 sm:size-11 place-items-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
+            {trabajador.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
+          </div>
           <div className="min-w-0 flex-1">
             <Link href={`/pacientes/${trabajador.id}`} className="text-lg font-semibold hover:text-primary">{trabajador.nombre}</Link>
             <p className="truncate text-sm text-muted-foreground">
+              {d.aptitud.clasificacion && (
+                <span className={cn("mr-2 rounded-full px-2 py-0.5 text-xs font-medium", ESTILO_APTITUD[d.aptitud.clasificacion])}>{etiquetaAptitud(d.aptitud.clasificacion)}</span>
+              )}
               {trabajador.cedula}{trabajador.edad !== null && ` · ${trabajador.edad} años`}{trabajador.sexo && ` · ${trabajador.sexo}`} · {[trabajador.cargo, trabajador.empresa].filter(Boolean).join(" · ")}
             </p>
           </div>
@@ -228,20 +249,26 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok" : "text-destructive")}>{aviso.mensaje}</p>
         )}
+        <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
+          {pasos.map((p, i) => (
+            <TabsTrigger
+              key={p.id}
+              value={p.id}
+              className="group mb-2 h-9 flex-none gap-2 rounded-lg border-0 px-3 text-muted-foreground shadow-none hover:bg-muted data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
+            >
+              <span className={cn(
+                "grid size-5 place-items-center rounded-full border text-[11px] font-semibold",
+                p.hecho ? "border-ok bg-ok text-white" : "group-data-[state=active]:border-primary group-data-[state=active]:text-primary",
+              )}>
+                {p.hecho ? <Check className="size-3" strokeWidth={3} /> : i + 1}
+              </span>
+              {p.titulo}
+            </TabsTrigger>
+          ))}
+        </TabsList>
       </div>
 
       <fieldset disabled={bloqueado} className="contents">
-        <Tabs defaultValue="generales">
-          <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="generales">Generales</TabsTrigger>
-            <TabsTrigger value="antecedentes">Antecedentes</TabsTrigger>
-            <TabsTrigger value="examen">Examen</TabsTrigger>
-            <TabsTrigger value="paraclinicos">Paraclínicos{d.paraclinicos.length > 0 && ` (${d.paraclinicos.length})`}</TabsTrigger>
-            <TabsTrigger value="diagnostico">Diagnóstico{d.sano ? " · sano" : d.diagnosticos.length > 0 && ` (${d.diagnosticos.length})`}</TabsTrigger>
-            <TabsTrigger value="aptitud">Aptitud</TabsTrigger>
-            {mostrarTratamiento && <TabsTrigger value="tratamiento">Tratamiento y reposo</TabsTrigger>}
-            <TabsTrigger value="conclusiones">Conclusiones</TabsTrigger>
-          </TabsList>
 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
@@ -689,14 +716,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
               </label>
             </Seccion>
           </TabsContent>
-        </Tabs>
       </fieldset>
+
+      {/* Navegación entre pasos */}
+      <div className="flex items-center justify-between gap-3 border-t pt-4">
+        <Button type="button" variant="ghost" disabled={indicePaso === 0} onClick={() => irA(indicePaso - 1)}>
+          <ChevronLeft /> {indicePaso > 0 ? pasos[indicePaso - 1].titulo : "Anterior"}
+        </Button>
+        <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos</span>
+        {indicePaso < pasos.length - 1 ? (
+          <Button type="button" variant="outline" onClick={() => irA(indicePaso + 1)}>
+            {pasos[indicePaso + 1].titulo} <ChevronRight />
+          </Button>
+        ) : !bloqueado ? (
+          <Button type="button" onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>
+        ) : <span />}
+      </div>
 
       {preventivo && !mostrarTratamiento && (
         <button type="button" className="text-sm text-primary hover:underline" onClick={() => setVerTodo(true)}>
           Mostrar tratamiento y reposo (ocultos para motivos preventivos)
         </button>
       )}
-    </div>
+    </Tabs>
   );
 }

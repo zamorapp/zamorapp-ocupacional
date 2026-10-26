@@ -74,7 +74,8 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "En Atención médica ves la cola del día, las citas y las solicitudes que llegan del portal de empresas (las apruebas o rechazas).",
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
-      "«Nueva consulta» abre el editor. Se guarda solo mientras escribes; arriba ves si hay cambios sin guardar.",
+      "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
+      "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar. En el último paso aparece «Cerrar consulta».",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",
       "Antecedentes: personales y familiares. Si no marcas familiares, el informe dice «No refiere antecedentes familiares».",
       "Examen físico y funcional: usa un perfil (por ejemplo «síndrome viral») o la casilla «Evaluación física normal», que llena todo con las descripciones normales.",
