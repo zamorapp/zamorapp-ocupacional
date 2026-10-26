@@ -57,6 +57,13 @@ const I = {
   historiaLab: leer("historia_laboral", ["cod_paciente", "empresa", "duracion", "horario", "industria", "cargo", "descripcargo", "problemasalud", "accidetrabaj", "enfermocupac",
     "codscondambtraant", "codscondacttraant", "codscondtratraant", "codscondrietraant", "codsriefistraant", "codsriequitraant", "codsriemectraant", "codsriedistraant",
     "codsriebiotraant", "codsriepsitraant", "equiprottraant", "obscondtrabaant", "obsriesexpueant"], "Integral.antecedentelab"),
+  accidentes: leer("accidentes", ["cod_consulta", "fecha", "hora", "fechadeclaracion", "horadeclaracion", "origen", "lugar", "tipolesion", "supervisor", "cast(declaracion as nvarchar(max)) declaracion"], "Integral.accidentelab"),
+  referencias: leer("referencias", ["r.cod_consulta", "m.nombre especialidad", "cast(r.cuerpo as nvarchar(max)) cuerpo"], "Integral.ordenreferencia r left join Integral.maestro m on m.codigo = r.cod_especial and m.codgrupo = '004'"),
+  especialidades: leer("especialidades", ["codigo", "nombre"], "Integral.maestro", "where codgrupo = '004'"),
+  perfilesEx: leer("perfiles_examen", ["g.codigo grupo_codigo", "g.nombre grupo", "g.tipo", "e.nombre examen", "x.orden"],
+    "Integral.examegrupoexame x join Integral.grupoexamen g on g.codigo = x.cod_grupoexamen join Integral.examen e on e.codigo = x.cod_examen"),
+  riesgosAct: leer("riesgos_actuales", ["cod_empresa", "cargo", "codsriefistraact", "codsriequitraact", "codsriemectraact", "codsriedistraact", "codsriebiotraact", "codsriepsitraact"],
+    "Integral.paciente", "where isnull(cargo, '') <> '' and (isnull(codsriefistraact,'') + isnull(codsriequitraact,'') + isnull(codsriemectraact,'') + isnull(codsriedistraact,'') + isnull(codsriebiotraact,'') + isnull(codsriepsitraact,'')) <> ''"),
 };
 for (const [k, v] of Object.entries(I)) console.log(`  ${k.padEnd(14)} ${v.length}`);
 
@@ -163,6 +170,17 @@ try {
   await guardar("public.lista_items", I.notas.filter((n) => n.nota).map((n, i) => ({ ...base, codigo_origen: `nota:${n.codigo}`,
     lista: n.codtipo === "E" ? "recomendacion_empresa" : "recomendacion_paciente", codigo: `integral_${n.codigo}`, nombre: titulo(n.nombre), grupo: null, texto: n.nota, orden: 300 + i, activo: true })),
     { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  await guardar("public.lista_items", I.especialidades.map((e, i) => ({ ...base, codigo_origen: `esp:${e.codigo}`, lista: "especialidad", codigo: `integral_${e.codigo}`,
+    nombre: titulo(e.nombre), grupo: null, orden: 200 + i, activo: true })), { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  const paraGrupos = agrupar(I.perfilesEx.filter((p) => p.tipo === "Paraclinico"), (p) => p.grupo_codigo);
+  const examenesPara = new Map();
+  for (const lista of paraGrupos.values()) for (const p of lista) if (!examenesPara.has(norm(p.examen))) examenesPara.set(norm(p.examen), { nombre: titulo(p.examen), grupo: titulo(p.grupo) });
+  await guardar("public.lista_items", [...examenesPara].map(([k, v], i) => ({ ...base, codigo_origen: `para:${k}`, lista: "paraclinico", codigo: null, nombre: v.nombre, grupo: v.grupo, orden: 300 + i, activo: true })),
+    { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  await guardar("public.lista_items", [...paraGrupos.values()].map((g, i) => ({ ...base, codigo_origen: `perfil-para:${g[0].grupo_codigo}`, lista: "grupo_paraclinicos", codigo: `integral_${g[0].grupo_codigo}`,
+    nombre: titulo(g[0].grupo), grupo: null, texto: g.sort((a, b) => Number(a.orden) - Number(b.orden)).map((p) => titulo(p.examen)).join("\n"), orden: 300 + i, activo: true })),
+    { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  const refPorCons = agrupar(I.referencias, (r) => r.cod_consulta);
   const limPorCons = agrupar(I.limitaciones, (l) => l.cod_consulta);
   const limObs = new Map(I.limitacionObs.map((l) => [l.cod_consulta, l.observacion]));
 
@@ -255,12 +273,15 @@ try {
       tratamiento: (trPorCons.get(c.codigo) ?? []).map((t) => ({ medicina: titulo(t.medicina || ""), concentracion: t.concentracion, presentacion: titulo(t.presentacion),
         dosis: t.dosis, frecuencia: titulo(t.frecuencia), duracion: titulo(t.duracion), via: titulo(t.viaadministr), observacion: t.obspaciente })),
       indicaciones: unir(c.otrasindicaciones, c.indicacionlibre, c.recipelibre),
-      conclusiones: unir(c.impdiagnostica && `Impresión diagnóstica: ${c.impdiagnostica}`, c.conclusion, c.obsgeneral),
+      conclusiones: unir(c.impdiagnostica && `Impresión diagnóstica: ${c.impdiagnostica}`, c.conclusion, c.obsgeneral,
+        !APTITUD[c.codaptitud] && limPorCons.has(c.codigo) ? `Restricciones: ${limPorCons.get(c.codigo).map((l) => oracion(l.nombre)).join("; ")}` : null,
+        !APTITUD[c.codaptitud] ? limObs.get(c.codigo) : null),
+      interconsultas: (refPorCons.get(c.codigo) ?? []).map((r) => ({ especialidad: r.especialidad ? titulo(r.especialidad) : "", motivo: r.cuerpo ?? "" })),
       recomendaciones_empresa: nulo(c.recomendaemp), recomendaciones_trabajador: nulo(c.recomendapac), observacion_privada: nulo(c.obsprivada),
       sano: c.adultosano === "S", estado: "cerrada" };
   }), { ...T, empresa_id: "uuid", trabajador_id: "uuid", medico_id: "uuid", fecha: "date", hora_inicio: "timestamptz", hora_cierre: "timestamptz", tipo: "text",
     motivo_id: "uuid", dependencia_id: "uuid", puesto_id: "uuid", motivo_texto: "text", enfermedad_actual: "text", habitos: "jsonb", antecedentes: "jsonb",
-    examen_funcional: "jsonb", examen_fisico: "jsonb", paraclinicos: "jsonb", signos_vitales: "jsonb", tratamiento: "jsonb", indicaciones: "text", conclusiones: "text",
+    examen_funcional: "jsonb", examen_fisico: "jsonb", paraclinicos: "jsonb", signos_vitales: "jsonb", tratamiento: "jsonb", interconsultas: "jsonb", indicaciones: "text", conclusiones: "text",
     recomendaciones_empresa: "text", recomendaciones_trabajador: "text", observacion_privada: "text", sano: "boolean", estado: "text" }, { modo: "si_no_editado" });
 
   // Diagnósticos: se reemplazan los importados de cada consulta
@@ -314,8 +335,36 @@ try {
   await guardar("clinico.historia_laboral", filasHist, { ...T, trabajador_id: "uuid", empresa: "text", industria: "text", cargo: "text", descripcion: "text", duracion: "text",
     horario: "text", condiciones: "jsonb", riesgos: "jsonb", epp: "text", problemas_salud: "text", accidentes: "text", enfermedades: "text", observaciones: "text" }, { modo: "si_no_editado" });
 
+  // Accidentes laborales (eventos) ligados a la consulta y al trabajador
+  const hora = (h) => (h && /\d{2}:\d{2}/.test(h) ? h.slice(11, 19) : "00:00:00");
+  const filasAcc = I.accidentes.filter((a) => idsCons.has(`cons:${a.cod_consulta}`) && fecha(a.fecha)).map((a) => {
+    const c = porCons.get(a.cod_consulta);
+    return { ...base, codigo_origen: `acc:${a.cod_consulta}`, empresa_id: empresaDe.get(c.cod_empresa), trabajador_id: idTrab(c.cod_paciente), consulta_id: idsCons.get(`cons:${a.cod_consulta}`),
+      tipo: "accidente", subtipo: /it[ií]nere/i.test(a.origen) ? "in_itinere" : "trabajo", fecha_hora: `${fecha(a.fecha)}T${hora(a.hora)}-04:00`, lugar: nulo(a.lugar),
+      naturaleza_lesion: nulo(a.tipolesion), testigos: a.supervisor ? `Supervisor: ${a.supervisor}` : null, descripcion: nulo(a.declaracion),
+      fecha_declaracion: fecha(a.fechadeclaracion) ? `${fecha(a.fechadeclaracion)}T${hora(a.horadeclaracion)}-04:00` : null,
+      estado: fecha(a.fechadeclaracion) ? "declarado" : "abierto", creado_por: MEDICO };
+  });
+  await q("alter table public.eventos disable trigger user");
+  await guardar("public.eventos", filasAcc, { ...T, empresa_id: "uuid", trabajador_id: "uuid", consulta_id: "uuid", tipo: "text", subtipo: "text", fecha_hora: "timestamptz", lugar: "text",
+    naturaleza_lesion: "text", testigos: "text", descripcion: "text", fecha_declaracion: "timestamptz", estado: "text", creado_por: "uuid" }, { modo: "si_no_editado" });
+  await q("alter table public.eventos enable trigger user");
+
+  // Riesgos de cada cargo: unión de lo marcado en las fichas de sus trabajadores (solo si el puesto aún no tiene riesgos)
+  const riesgosPuesto = new Map();
+  for (const p of I.riesgosAct) {
+    const id = empresaDe.has(p.cod_empresa) && idsPuesto.get(claveCargo(empresaDe.get(p.cod_empresa), p.cargo));
+    if (!id) continue;
+    const r = riesgosPuesto.get(id) ?? {};
+    for (const [k, campo] of [["fisico", "codsriefistraact"], ["quimico", "codsriequitraact"], ["mecanico", "codsriemectraact"], ["disergonomico", "codsriedistraact"], ["biologico", "codsriebiotraact"], ["psicosocial", "codsriepsitraact"]])
+      for (const v of lista(p[campo])) r[k] = [...new Set([...(r[k] ?? []), v])];
+    riesgosPuesto.set(id, r);
+  }
+  for (const [id, r] of riesgosPuesto) await q("update public.puestos set riesgos = $1 where id = $2 and (riesgos is null or riesgos = '{}'::jsonb)", [r, id]);
+
   const resumen = { empresas: idsEmpresa.size, sedes: idsSede.size, dependencias: idsDep.size, puestos: idsPuesto.size, medicinas: I.medicinas.length,
-    pacientes: idsPac.size, consultas: idsCons.size, consultas_reescritas: consEscritas.size, diagnosticos: filasDiag.length, aptitudes: consultas.filter((c) => APTITUD[c.codaptitud]).length, reposos: filasReposo.length, historia_laboral: filasHist.length, limitaciones: I.limitacionCat.length, textos: I.notas.length };
+    pacientes: idsPac.size, consultas: idsCons.size, consultas_reescritas: consEscritas.size, diagnosticos: filasDiag.length, aptitudes: consultas.filter((c) => APTITUD[c.codaptitud]).length, reposos: filasReposo.length, historia_laboral: filasHist.length, limitaciones: I.limitacionCat.length, textos: I.notas.length, accidentes: filasAcc.length,
+    referencias: I.referencias.length, especialidades: I.especialidades.length, perfiles_paraclinicos: paraGrupos.size, puestos_con_riesgos: riesgosPuesto.size };
   await q("update public.importaciones set resumen = $1 where id = $2", [resumen, lote.id]);
   for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores", "clinico.historia_laboral"]) await q(`alter table ${t} enable trigger user`);
   await q(ENSAYO ? "rollback" : "commit");
