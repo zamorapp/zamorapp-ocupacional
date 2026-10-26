@@ -62,6 +62,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
       <p className="text-sm text-muted-foreground">
         {guardado ? "Textos guardados para este período." : "Borrador sugerido con los datos del período: revísalo, edítalo y guárdalo."} Lo que guardes aquí sale en el informe impreso.
       </p>
+      <p className="rounded-md bg-aviso/10 px-3 py-2 text-xs">La empresa (RR. HH., delegados) puede leer estos textos: no incluyas nombres ni diagnósticos individuales.</p>
       {SECCIONES.map(([k, titulo, ayuda]) => (
         <div key={k} className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
