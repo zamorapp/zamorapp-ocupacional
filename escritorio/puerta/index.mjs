@@ -9,10 +9,23 @@ import { Replica } from "./replica.mjs";
 import { crearPuerta } from "./servidor.mjs";
 
 fs.mkdirSync(CONFIG.datos, { recursive: true });
+
+// Si el estado no se puede abrir (la llave de Windows se perdió, p. ej. al cambiar de usuario o de PC),
+// se aparta la copia y se empieza de cero: todo vuelve a bajar desde la nube. Nada se borra.
+function abrirEstado() {
+  try {
+    return new Estado(CONFIG.datos, CONFIG.llave);
+  } catch (e) {
+    const aparte = `${CONFIG.datos}-anterior-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`;
+    fs.renameSync(CONFIG.datos, aparte);
+    fs.mkdirSync(CONFIG.datos, { recursive: true });
+    fs.writeFileSync(path.join(CONFIG.datos, "puerta.log"), `${new Date().toISOString()} [puerta] estado ilegible (${e.message}); la copia anterior quedó en ${aparte}\n`);
+    return new Estado(CONFIG.datos, CONFIG.llave);
+  }
+}
+const estado = abrirEstado();
 const bitacora = fs.createWriteStream(path.join(CONFIG.datos, "puerta.log"), { flags: "a" });
 const registro = (m) => bitacora.write(`${new Date().toISOString()} ${String(m).trimEnd()}\n`);
-
-const estado = new Estado(CONFIG.datos, CONFIG.llave);
 const motor = new Motor(estado);
 motor.registro = registro;
 const nube = new Nube(estado);
@@ -21,7 +34,9 @@ const replica = new Replica(estado, nube, motor, registro);
 async function principal() {
   await motor.iniciar();
   await nube.comprobar();
-  const puerto = await puertoLibre(CONFIG.puertoPuerta);
+  // La app trae grabada la dirección de la puerta: este puerto es fijo (si está ocupado, se avisa).
+  const puerto = CONFIG.puertoPuerta;
+  if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
   crearPuerta({ estado, nube, motor, replica, origen, registro }).listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);

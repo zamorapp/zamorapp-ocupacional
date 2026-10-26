@@ -7,6 +7,7 @@ import pg from "pg";
 import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
+import { PAGINA_INICIO } from "./inicio.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control"];
 const DEVOLVER = ["content-type", "content-range", "preference-applied", "location", "cache-control", "etag", "last-modified"];
@@ -143,7 +144,18 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     if (!nube.enLinea) return responder(res, 503, { message: "Para registrar esta PC hace falta internet" });
     const filas = await nube.leer(quien.uid, `miembros?usuario_id=eq.${quien.uid}&rol=eq.administrador&activo=is.true&select=org_id`);
     if (!filas.length) return responder(res, 403, { message: "Solo el administrador registra la PC" });
-    const r = await nube.rpc(quien.uid, "registrar_equipo", { p_org: filas[0].org_id, p_nombre: String(cuerpo?.nombre || "PC"), p_serie: String(cuerpo?.serie || "A") });
+    // Serie de numeración: la primera libre (A, B, C… sin la W, que es de la web)
+    const series = cuerpo?.serie ? [String(cuerpo.serie)] : [..."ABCDEFGHIJKLMNOPQRSTUVXYZ"];
+    let r = null;
+    for (const serie of series) {
+      try {
+        r = await nube.rpc(quien.uid, "registrar_equipo", { p_org: filas[0].org_id, p_nombre: String(cuerpo?.nombre || "PC"), p_serie: serie });
+        break;
+      } catch (e) {
+        if (!/duplicate|unique|duplicad/i.test(e.message) || series.length === 1) throw e;
+      }
+    }
+    if (!r) return responder(res, 409, { message: "No quedan series libres" });
     d().equipo = { id: r.id, secreto: r.secreto, org_id: filas[0].org_id, nombre: cuerpo?.nombre || "PC" };
     d().cursor = null;
     estado.guardar();
@@ -173,6 +185,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
+      if (ruta === "/zamorapp/inicio") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
+        return res.end(PAGINA_INICIO.replace("__ORIGEN__", origen));
+      }
 
       if (ruta === "/auth/v1/token") {
         const tipo = new URL(req.url, "http://x").searchParams.get("grant_type");
