@@ -156,6 +156,18 @@ test("más de 7 días sin conexión: no entra hasta reconectar", { skip: omitir 
   assert.equal(r.json.error_code, "session_expired");
 });
 
+test("más de 7 días sin conexión: tampoco se renueva una sesión abierta", { skip: omitir }, async () => {
+  const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(ok.status, 200);
+  const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  const antes = u.ultimoOnline;
+  u.ultimoOnline = Date.now() - 8 * 864e5;
+  const r = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+  u.ultimoOnline = antes;
+  assert.equal(r.status, 400);
+  assert.equal(r.json.error_code, "session_expired");
+});
+
 test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir }, async () => {
   nube.estado.caida = false;
   await nubeObj.comprobar();
@@ -177,6 +189,12 @@ test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: o
   assert.equal((await pedir("/rest/v1/trabajadores?select=*")).status, 401);
   const crudo = fs.readFileSync(path.join(datos, "estado.zamorapp"));
   assert.ok(!crudo.includes("admin@x") && !crudo.includes(estado.d.equipo.secreto));
+  // Ningún archivo de la carpeta de datos (fuera de la base) guarda el secreto JWT ni la clave de PostgREST.
+  assert.ok(!fs.existsSync(path.join(datos, "postgrest.conf")));
+  for (const f of fs.readdirSync(datos).filter((n) => fs.statSync(path.join(datos, n)).isFile())) {
+    const texto = fs.readFileSync(path.join(datos, f));
+    assert.ok(!texto.includes(estado.d.jwtSecreto) && !texto.includes(estado.d.claveAutenticador), `secreto en ${f}`);
+  }
 });
 
 test("solo atiende a esta PC: otro Host u otro origen se rechazan", { skip: omitir }, async () => {
@@ -186,7 +204,7 @@ test("solo atiende a esta PC: otro Host u otro origen se rechazan", { skip: omit
     const r = http.request({ host: "127.0.0.1", port: puerto, path: "/zamorapp/estado", headers: cabeceras }, (res) => { res.resume(); ok(res.statusCode); });
     r.on("error", mal); r.end();
   });
-  assert.equal(await pedirCrudo({ Host: "atacante.com" }), 421, "DNS rebinding");
+  assert.equal(await pedirCrudo({ Host: "atacante.com" }), 403, "DNS rebinding");
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "https://atacante.com" }), 403);
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://127.0.0.1:54332" }), 200);
   assert.equal(await pedirCrudo({ Host: `localhost:${puerto}` }), 200);

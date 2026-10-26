@@ -11,7 +11,7 @@ import { PAGINA_INICIO } from "./inicio.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control"];
 const DEVOLVER = ["content-type", "content-range", "preference-applied", "location", "cache-control", "etag", "last-modified"];
-const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 5 min que se duplica hasta 1 hora
+const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 
@@ -48,7 +48,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
   const anotarFallo = (email) => {
     const f = intentos.get(email) || { fallos: 0, hasta: 0 };
     f.fallos += 1;
-    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = Date.now() + Math.min(3600e3, 300e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
+    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = Date.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
     intentos.set(email, f);
     const g = intentos.get("*") || { fallos: 0, desde: Date.now(), hasta: 0 };
     if (Date.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: Date.now() });
@@ -130,6 +130,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     if (!r || r.vence < Date.now() || !u || u.bloqueado || u.requiereNube) {
       return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
     }
+    if (!nube.enLinea && Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+      delete d().refrescos[cuerpo.refresh_token];
+      return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
+    }
     delete d().refrescos[cuerpo.refresh_token];
     return responder(res, 200, sesionLocal(r.uid));
   }
@@ -205,7 +209,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     // apunte a 127.0.0.1, puede hablarle a la puerta ni probar claves.
     const puerto = req.socket.localPort;
     const locales = [`127.0.0.1:${puerto}`, `localhost:${puerto}`];
-    if (!locales.includes(String(req.headers.host || "").toLowerCase())) { res.writeHead(421); return res.end(); }
+    if (!locales.includes(String(req.headers.host || "").toLowerCase())) { res.writeHead(403); return res.end(); }
     if (req.headers.origin && req.headers.origin !== origen && !locales.some((h) => req.headers.origin === `http://${h}`)) {
       res.writeHead(403); return res.end();
     }
