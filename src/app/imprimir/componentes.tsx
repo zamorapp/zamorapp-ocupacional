@@ -77,15 +77,25 @@ export function Bloque({ titulo, children }: { titulo: string; children: React.R
   );
 }
 
+// Casilla cuadrada para el sello húmedo del médico
+export function CasillaSello({ className = "size-28" }: { className?: string }) {
+  return <div className={`grid shrink-0 place-items-end justify-center border border-dashed border-neutral-500 pb-1 text-[10px] text-neutral-500 ${className}`}>Sello</div>;
+}
+
 export function FirmaMedico({ d, etiqueta = "Médico evaluador" }: { d: DatosDocumento; etiqueta?: string }) {
   const m = d.medicoDatos;
+  // Configuración › Organización: firma y sello en casillas separadas (por defecto) o en una sola línea
+  const separados = d.org.ajustes.firma_sello_separados !== false;
   return (
-    <div className="w-64 text-center text-[11px]">
-      <div className="mb-1 h-14 border-b border-neutral-800" />
-      <div className="font-semibold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
-      <div>{[m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `C.M. ${m.colegio_medicos}`].filter(Boolean).join(" · ")}</div>
-      {m?.registro_inpsasel && <div>Reg. INPSASEL {m.registro_inpsasel}</div>}
-      <div className="text-neutral-500">{etiqueta} · Firma y sello</div>
+    <div className="flex items-end gap-4">
+      <div className="w-64 text-center text-[11px]">
+        <div className="mb-1 h-14 border-b border-neutral-800" />
+        <div className="font-semibold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
+        <div>{[m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `C.M. ${m.colegio_medicos}`].filter(Boolean).join(" · ")}</div>
+        {m?.registro_inpsasel && <div>Reg. INPSASEL {m.registro_inpsasel}</div>}
+        <div className="text-neutral-500">{etiqueta} · {separados ? "Firma" : "Firma y sello"}</div>
+      </div>
+      {separados && <CasillaSello />}
     </div>
   );
 }

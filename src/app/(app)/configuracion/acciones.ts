@@ -116,6 +116,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),
       certificado_nota: texto(datos, "certificado_nota"),
+      firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
     };
     const { error } = await supabase

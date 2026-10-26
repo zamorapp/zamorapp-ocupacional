@@ -15,6 +15,7 @@ export type AjustesDocumentos = {
   mensaje_aptitud?: string | null;
   certificado_titulo?: string | null;
   certificado_nota?: string | null;
+  firma_sello_separados?: boolean;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;

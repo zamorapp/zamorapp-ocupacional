@@ -100,7 +100,7 @@ export const MANUAL: TemaManual[] = [
       "Desde la consulta o desde Documentos, toca el documento que necesites; se abre listo para imprimir o guardar en PDF.",
       "El récipe no se imprime si faltan datos exigidos por la Res. MPPS 028; la pantalla te dice cuáles.",
       "La orden de exámenes agrupa los paraclínicos con casillas y tu firma.",
-      "Títulos, pies de página y la nota de la orden se cambian en Configuración › Organización.",
+      "Títulos, pies de página y la nota de la orden se cambian en Configuración › Organización. Ahí también eliges si la firma y el sello del médico van en casillas separadas (como en el Integral) o en una sola línea.",
     ],
   },
   {

@@ -20,6 +20,7 @@ type Ajustes = {
   mensaje_aptitud?: string | null;
   certificado_titulo?: string | null;
   certificado_nota?: string | null;
+  firma_sello_separados?: boolean;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
 };
@@ -73,6 +74,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />
               <Casilla id="firma_paciente_constancia" etiqueta="Espacio de firma del trabajador" defecto={a.firma_paciente_constancia ?? false} />
+              <Casilla id="firma_sello_separados" etiqueta="Firma y sello del médico en casillas separadas (todos los documentos)" defecto={a.firma_sello_separados ?? true} />
             </div>
           </CardContent>
         </Card>
