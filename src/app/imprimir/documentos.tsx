@@ -348,3 +348,45 @@ export function Certificado({ d }: { d: DatosDocumento }) {
     </Hoja>
   );
 }
+
+// Referencia a especialista: una carta por cada interconsulta indicada en la consulta
+export function Referencia({ d }: { d: DatosDocumento }) {
+  const c = d.datos;
+  const refs = c.interconsultas.filter((x) => x.especialidad.trim());
+  if (!refs.length) return <Hoja media><p>Esta consulta no tiene referencias indicadas.</p></Hoja>;
+  const sv = c.signos;
+  return (
+    <>
+      {refs.map((r, i) => (
+        <Hoja key={i}>
+          <Membrete d={d} />
+          <Titulo d={d} prefijo={`RF${i + 1}`} sub={r.especialidad}>Referencia médica</Titulo>
+          <DatosPaciente d={d} completo={false} />
+          <p className="mb-3 text-[13px]">Estimado(a) colega de <b>{r.especialidad}</b>:</p>
+          <p className="mb-4 text-[13px] leading-relaxed">
+            Remito a <b>{d.trabajador.nombre}</b>, C.I. {d.trabajador.cedula}{d.trabajador.edad !== null && `, de ${d.trabajador.edad} años`}, trabajador(a) de {d.empresa.razon_social}, para su evaluación y conducta.
+          </p>
+          <Bloque titulo="Motivo de la referencia">{r.motivo || "—"}</Bloque>
+          {(c.motivoTexto || c.enfermedadActual) && <Bloque titulo="Resumen clínico">{[c.motivoTexto, c.enfermedadActual].filter(Boolean).join("\n")}</Bloque>}
+          {Object.values(sv).some(Boolean) && (
+            <Bloque titulo="Signos vitales">
+              {[sv.ta && `TA ${sv.ta} mmHg`, sv.fc && `FC ${sv.fc} lpm`, sv.fr && `FR ${sv.fr} rpm`, sv.temp && `T ${sv.temp} °C`, sv.sat && `SatO₂ ${sv.sat} %`].filter(Boolean).join(" · ")}
+            </Bloque>
+          )}
+          <Bloque titulo="Impresión diagnóstica">
+            {c.diagnosticos.length ? c.diagnosticos.map((x) => `${x.cie10} ${x.descripcion}`).join("\n") : "—"}
+          </Bloque>
+          {c.tratamiento.some((m) => m.medicina) && (
+            <Bloque titulo="Tratamiento indicado">{c.tratamiento.filter((m) => m.medicina).map((m) => [m.medicina, m.concentracion, m.dosis, m.frecuencia].filter(Boolean).join(" · ")).join("\n")}</Bloque>
+          )}
+          <p className="mt-2 text-[12px]">Agradezco su atención y la contrarreferencia con sus hallazgos y recomendaciones.</p>
+          <Firmas>
+            <span />
+            <FirmaMedico d={d} etiqueta="Médico que refiere" />
+          </Firmas>
+          <Pie d={d} />
+        </Hoja>
+      ))}
+    </>
+  );
+}

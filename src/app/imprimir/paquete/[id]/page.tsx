@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Constancia, Orden, Recipe, Reposo } from "../../documentos";
+import { Constancia, Orden, Recipe, Referencia, Reposo } from "../../documentos";
 
 export const metadata: Metadata = { title: "Documentos de la consulta" };
 
 // Todos los documentos que aplican a la consulta en una sola impresión (uno por hoja):
-// constancia si hay aptitud, reposo si está activo, récipe si hay tratamiento completo y orden si hay paraclínicos.
+// constancia si hay aptitud, reposo si está activo, récipe si hay tratamiento completo, orden si hay paraclínicos y referencia si hay interconsultas.
 export default async function Paquete({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const d = await obtenerDocumento(id);
@@ -20,6 +20,7 @@ export default async function Paquete({ params }: { params: Promise<{ id: string
     d.datos.reposo.activo && { clave: "reposo", Componente: Reposo },
     tratamiento && !faltan.length && { clave: "recipe", Componente: Recipe },
     d.datos.paraclinicos.length > 0 && { clave: "orden", Componente: Orden },
+    d.datos.interconsultas.some((x) => x.especialidad.trim()) && { clave: "referencia", Componente: Referencia },
   ].filter(Boolean) as { clave: string; Componente: typeof Constancia }[];
 
   return (

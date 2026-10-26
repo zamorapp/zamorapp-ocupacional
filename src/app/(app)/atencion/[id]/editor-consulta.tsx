@@ -212,6 +212,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       reposo={d.reposo.activo}
       tratamiento={d.tratamiento.some((m) => m.medicina)}
       examenes={d.paraclinicos.length > 0}
+      referencias={d.interconsultas.some((x) => x.especialidad)}
       antes={cambios && !bloqueado ? guardarAntes : undefined}
       ocupado={guardando}
       variante={variante}
