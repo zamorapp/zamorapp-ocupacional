@@ -66,7 +66,7 @@ export const MANUAL: TemaManual[] = [
       "Depurar nómina: marca como egresados, de una vez, a quienes no tienen consulta desde una fecha (ej. hace un año). Primero te dice cuántos son y luego confirmas.",
       "En «Resultados» adjuntas PDF o fotos de laboratorio, Rx o informes externos (hasta 10 MB cada uno). Desde el celular puedes tomar la foto directamente.",
     ],
-    consejos: ["Los resultados adjuntos y el contenido clínico solo los ve el personal de salud; la empresa solo ve la aptitud."],
+    consejos: ["Los resultados adjuntos y el contenido clínico solo los ve el personal de salud; la empresa solo ve la aptitud de consultas cerradas. Un usuario limitado a ciertas empresas solo ve la historia clínica de esas empresas."],
   },
   {
     id: "atencion",
@@ -86,8 +86,8 @@ export const MANUAL: TemaManual[] = [
       "Diagnóstico: escribe y elige del buscador CIE-10, o marca «Sano» si cumple los protocolos.",
       "Tratamiento: busca el medicamento y la dosis, vía, frecuencia y días se llenan con sus valores habituales; puedes cambiarlos.",
       "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
-      "Al terminar, toca «Cerrar consulta». Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
-      "Con la aptitud puesta y la consulta guardada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
+      "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
+      "Con la aptitud puesta y la consulta cerrada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
     ],
     consejos: ["Todo texto frecuente, perfil y lista se edita en Configuración › Listas."],
   },
@@ -161,7 +161,7 @@ export const MANUAL: TemaManual[] = [
       "En Inicio tocas «Solicitar cita», eliges el trabajador, el tipo de evaluación y la fecha deseada.",
       "El servicio médico la aprueba o propone otra fecha; te llega un aviso en la campanita.",
       "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos).",
-      "Cuando se emite una aptitud, recibes un aviso.",
+      "Cuando el médico cierra la consulta con su aptitud, recibes un aviso (una sola vez por consulta).",
     ],
   },
   {

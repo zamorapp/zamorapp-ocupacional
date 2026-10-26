@@ -247,7 +247,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           ) : (
             <>
             <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} examenes={d.paraclinicos.length > 0} compacto />
-            {d.aptitud.clasificacion && (() => {
+            {d.aptitud.clasificacion && d.estado !== "borrador" && (() => {
               const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
                 empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
               return (
