@@ -20,6 +20,8 @@ import { obtenerTrabajador } from "@/lib/pacientes-datos";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+import { listarAdjuntos } from "@/lib/adjuntos";
+import { Adjuntos } from "@/components/app/adjuntos";
 import { BotonConsulta } from "./boton-consulta";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +39,8 @@ export default async function FichaPaciente({ params }: Props) {
   const consultas = sesion.demo
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud }));
+  const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && sesion.rol !== "gerente_empresa";
+  const adjuntos = verAdjuntos ? await listarAdjuntos(t.id) : [];
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
 
   return (
@@ -90,6 +94,7 @@ export default async function FichaPaciente({ params }: Props) {
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
+          {verAdjuntos && <TabsTrigger value="resultados">Resultados ({adjuntos.length})</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="resumen" className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -174,6 +179,11 @@ export default async function FichaPaciente({ params }: Props) {
             )}
           </Card>
         </TabsContent>
+        {verAdjuntos && (
+          <TabsContent value="resultados" className="mt-4">
+            <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} /></CardContent></Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

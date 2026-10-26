@@ -14,6 +14,7 @@ type Ajustes = {
   firma_paciente_constancia?: boolean;
   firma_medico_ocupacional?: boolean;
   reposo_pie_copia?: string | null;
+  orden_nota?: string | null;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
 };
@@ -76,6 +77,13 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
             <Campo id="reposo_pie_original" etiqueta="Pie del original" defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Orden de exámenes</CardTitle></CardHeader>
+          <CardContent>
+            <Campo id="orden_nota" etiqueta="Nota al pie (ej. ayuno de 8 horas, laboratorio convenido)" defaultValue={a.orden_nota ?? ""} />
           </CardContent>
         </Card>
       </fieldset>

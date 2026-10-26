@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Constancia, Informe, Recipe, Reposo } from "../../documentos";
+import { Constancia, Informe, Orden, Recipe, Reposo } from "../../documentos";
 
 const TIPOS = {
   constancia: { titulo: "Constancia de aptitud", Componente: Constancia },
   reposo: { titulo: "Reposo médico", Componente: Reposo },
   informe: { titulo: "Informe médico", Componente: Informe },
   recipe: { titulo: "Récipe e indicaciones", Componente: Recipe },
+  orden: { titulo: "Orden de exámenes", Componente: Orden },
 } as const;
 
 type Props = { params: Promise<{ tipo: string; id: string }> };

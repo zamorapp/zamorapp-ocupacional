@@ -111,6 +111,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
       reposo_pie_original: texto(datos, "reposo_pie_original"),
+      orden_nota: texto(datos, "orden_nota"),
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
     };
     const { error } = await supabase

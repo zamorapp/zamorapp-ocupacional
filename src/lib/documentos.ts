@@ -10,6 +10,7 @@ export type AjustesDocumentos = {
   firma_medico_ocupacional?: boolean;
   reposo_pie_copia?: string | null;
   reposo_pie_original?: string | null;
+  orden_nota?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;

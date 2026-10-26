@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { FileCheck2, FileHeart, FileText, Pill } from "lucide-react";
+import { FileCheck2, FileHeart, FileText, FlaskConical, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Props = { consultaId: string; aptitud: boolean; reposo: boolean; tratamiento: boolean; compacto?: boolean };
+type Props = { consultaId: string; aptitud: boolean; reposo: boolean; tratamiento: boolean; examenes?: boolean; compacto?: boolean };
 
 // Enlaces a los documentos imprimibles de una consulta; solo los que aplican
-export function BotonesDocumentos({ consultaId, aptitud, reposo, tratamiento, compacto }: Props) {
+export function BotonesDocumentos({ consultaId, aptitud, reposo, tratamiento, examenes, compacto }: Props) {
   const docs = [
     aptitud && { tipo: "constancia", texto: "Constancia", icono: FileCheck2 },
     reposo && { tipo: "reposo", texto: "Reposo", icono: FileHeart },
     { tipo: "informe", texto: "Informe", icono: FileText },
     tratamiento && { tipo: "recipe", texto: "Récipe", icono: Pill },
+    examenes && { tipo: "orden", texto: "Orden de exámenes", icono: FlaskConical },
   ].filter(Boolean) as { tipo: string; texto: string; icono: typeof FileText }[];
 
   return (

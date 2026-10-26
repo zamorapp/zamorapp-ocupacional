@@ -26,6 +26,8 @@ import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
 import { BotonesDocumentos } from "@/components/app/botones-documentos";
+import { Adjuntos } from "@/components/app/adjuntos";
+import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
@@ -36,6 +38,7 @@ type Props = {
   trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
   listas: Record<string, Item[]>;
+  adjuntos: { orgId: string; lista: Adjunto[] } | null;
 };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
@@ -123,7 +126,7 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }: Props) {
   const [d, setD] = useState<DatosConsulta>(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -219,7 +222,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
           {cambios ? (
             <span>guarda los cambios para emitirlos</span>
           ) : (
-            <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} compacto />
+            <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} examenes={d.paraclinicos.length > 0} compacto />
           )}
         </div>
         {aviso?.mensaje && (
@@ -429,6 +432,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas }: Props) {
                 ))}
               </div>
             </Seccion>
+            {adjuntos && (
+              <div className="lg:col-span-2">
+                <Seccion titulo="Resultados adjuntos (PDF o fotos)">
+                  <Adjuntos orgId={adjuntos.orgId} trabajadorId={trabajador.id} consultaId={d.id} iniciales={adjuntos.lista} />
+                </Seccion>
+              </div>
+            )}
           </TabsContent>
 
           {/* ── Diagnóstico ── */}

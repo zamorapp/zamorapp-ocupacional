@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { obtenerConsulta } from "@/lib/consultas";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
+import { listarAdjuntos } from "@/lib/adjuntos";
 import { EditorConsulta } from "./editor-consulta";
 
 export const metadata: Metadata = { title: "Consulta" };
@@ -21,13 +22,14 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
   const sesion = await obtenerSesion();
   const [consulta, listas] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS)]);
   if (!consulta) notFound();
+  const adjuntos = sesion.demo || !sesion.orgId ? null : { orgId: sesion.orgId, lista: await listarAdjuntos(consulta.trabajador.id) };
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} />
     </div>
   );
 }

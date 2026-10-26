@@ -189,3 +189,30 @@ export function Recipe({ d }: { d: DatosDocumento }) {
     </Hoja>
   );
 }
+
+export function Orden({ d }: { d: DatosDocumento }) {
+  const examenes = d.datos.paraclinicos;
+  const grupos = new Map<string, string[]>();
+  for (const p of examenes) grupos.set(p.grupo ?? "Otros", [...(grupos.get(p.grupo ?? "Otros") ?? []), p.nombre]);
+  return (
+    <Hoja>
+      <Membrete d={d} />
+      <Titulo sub={`${d.motivo?.nombre ?? ""} · ${fechaLarga(d.datos.fecha)}`}>Orden de exámenes paraclínicos</Titulo>
+      <DatosPaciente d={d} />
+      {examenes.length === 0 ? (
+        <p>Esta consulta no tiene exámenes solicitados.</p>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-4">
+          {[...grupos].map(([grupo, nombres]) => (
+            <div key={grupo}>
+              <div className="mb-1 border-b border-neutral-400 text-xs font-bold uppercase tracking-wide">{grupo}</div>
+              {nombres.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><span className="size-3 border border-neutral-800" />{n}</div>)}
+            </div>
+          ))}
+        </div>
+      )}
+      {d.org.ajustes.orden_nota && <p className="mt-6 text-sm">{d.org.ajustes.orden_nota}</p>}
+      <div className="mt-12 flex justify-end"><FirmaMedico d={d} etiqueta="Médico solicitante" /></div>
+    </Hoja>
+  );
+}
