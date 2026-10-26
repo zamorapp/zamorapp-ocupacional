@@ -26,7 +26,7 @@ import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
-import { BotonesDocumentos } from "@/components/app/botones-documentos";
+import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import { Adjuntos } from "@/components/app/adjuntos";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
@@ -198,6 +198,26 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     });
   };
 
+  // Menú Imprimir: con cambios sin guardar, guarda primero para que el documento salga con lo que se ve en pantalla
+  const guardarAntes = async () => {
+    const r = await guardarConsulta(d, false);
+    setAviso(r);
+    if (r.ok) setGuardado(JSON.stringify(d));
+    return r.ok;
+  };
+  const menuImprimir = (variante: "default" | "outline") => (
+    <MenuImprimir
+      consultaId={d.id}
+      aptitud={Boolean(d.aptitud.clasificacion)}
+      reposo={d.reposo.activo}
+      tratamiento={d.tratamiento.some((m) => m.medicina)}
+      examenes={d.paraclinicos.length > 0}
+      antes={cambios && !bloqueado ? guardarAntes : undefined}
+      ocupado={guardando}
+      variante={variante}
+    />
+  );
+
   // Ctrl+S guarda; avisa antes de salir con cambios sin guardar
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
@@ -252,10 +272,11 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {d.estado === "firmada" ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
-              <Button variant="outline" asChild><Link href={`/imprimir/paquete/${d.id}`}><Printer /> Imprimir todo</Link></Button>
+              {menuImprimir("default")}
             </div>
           ) : bloqueado ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {menuImprimir("outline")}
               <Button variant="outline" onClick={() => iniciar(async () => { const r = await reabrirConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "borrador" }); })} disabled={guardando}>
                 <Lock /> Reabrir
               </Button>
@@ -269,7 +290,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               )}
             </div>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {menuImprimir("outline")}
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
@@ -278,27 +300,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             </div>
           )}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Documentos:</span>
-          {cambios ? (
-            <span>guarda los cambios para emitirlos</span>
-          ) : (
-            <>
-            <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} examenes={d.paraclinicos.length > 0} compacto />
-            {d.aptitud.clasificacion && d.estado !== "borrador" && (() => {
-              const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
-                empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
-              return (
-                <span className="ml-1 inline-flex items-center gap-1.5">
-                  <span>· Enviar a RR. HH.:</span>
-                  <a href={enlaceWhatsApp(envio.telefono, texto)} target="_blank" rel="noreferrer" className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">WhatsApp</a>
-                  <a href={enlaceCorreo(envio.correo, `Resultado de evaluación · ${trabajador.nombre}`, texto)} className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">Correo</a>
-                </span>
-              );
-            })()}
-            </>
-          )}
-        </div>
+        {!cambios && d.aptitud.clasificacion && d.estado !== "borrador" && (() => {
+          const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
+            empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
+          return (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Enviar resultado a RR. HH.:</span>
+              <a href={enlaceWhatsApp(envio.telefono, texto)} target="_blank" rel="noreferrer" className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">WhatsApp</a>
+              <a href={enlaceCorreo(envio.correo, `Resultado de evaluación · ${trabajador.nombre}`, texto)} className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">Correo</a>
+            </div>
+          );
+        })()}
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}

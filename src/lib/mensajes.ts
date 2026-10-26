@@ -6,6 +6,10 @@ export const PLANTILLA_CITA =
 export const PLANTILLA_APTITUD =
   "Buen día. {servicio} informa el resultado de la evaluación {motivo} de {nombre}, C.I. {cedula}, realizada el {fecha}: {aptitud}.{observacion} La constancia se envía adjunta.";
 
+// Texto que firma el trabajador al final del informe de consulta (editable en Configuración › Organización)
+export const CERTIFICACION_TRABAJADOR =
+  "Certifico que he sido examinado, que la información que suministré es veraz y que autorizo a la empresa a realizar los exámenes médicos, de laboratorio y de radiología que considere pertinentes, y a conocer el resultado de mi evaluación médica.";
+
 export function llenar(plantilla: string, datos: Record<string, string | null | undefined>) {
   return plantilla.replace(/\{(\w+)\}/g, (_, k: string) => datos[k] ?? "").replace(/\s+([.,)])/g, "$1").replace(/\(\s*\)/g, "").trim();
 }

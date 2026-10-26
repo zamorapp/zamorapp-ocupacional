@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileText } from "lucide-react";
-import { BotonesDocumentos } from "@/components/app/botones-documentos";
+import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { Card } from "@/components/ui/card";
 import { listarConsultas } from "@/lib/consultas";
 import { fecha } from "@/lib/pacientes";
@@ -39,7 +39,7 @@ export default async function Documentos() {
                   <Link href={`/atencion/${c.id}`} className="font-medium hover:text-primary">{c.paciente}</Link>
                   <div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"} · {c.empresa}</div>
                 </div>
-                <BotonesDocumentos consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} compacto />
+                <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} />
               </li>
             ))}
           </ul>

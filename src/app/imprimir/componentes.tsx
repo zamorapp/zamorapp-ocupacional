@@ -1,89 +1,169 @@
+import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import type { DatosDocumento } from "@/lib/documentos";
+
+// Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
+// Los colores son fijos (papel), no siguen el tema oscuro de la app.
 
 export const fechaLarga = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T00:00:00Z"));
 export const fechaCorta = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
+const hora12 = (h: string | null | undefined) => {
+  if (!h) return null;
+  const [hh, mm] = h.split(":").map(Number);
+  return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "a. m." : "p. m."}`;
+};
+// Folio legible del documento: prefijo por tipo + primeros 8 caracteres de la consulta
+export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
-export function Hoja({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+// corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
+export function Hoja({ children, className = "", media, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; corte?: boolean }) {
   return (
-    <section className={`hoja mx-auto mb-8 w-full max-w-[216mm] bg-white p-[14mm] text-[12.5px] leading-relaxed text-neutral-900 shadow-sm print:mb-0 print:max-w-none print:p-0 print:shadow-none ${className}`}>
+    <section
+      className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full max-w-[216mm] flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
+    >
       {children}
     </section>
   );
 }
 
-export function Membrete({ d }: { d: DatosDocumento }) {
+function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (logo) return <img src={logo} alt="" className="h-12 max-w-32 object-contain" />;
   return (
-    <header className="mb-5 flex items-start justify-between border-b-2 border-teal-700 pb-3">
-      <div>
-        <div className="text-lg font-bold uppercase tracking-wide text-teal-800">{d.org.nombre}</div>
-        <div className="text-[11px] text-neutral-600">
-          {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, d.org.telefono && `Tel. ${d.org.telefono}`, d.org.correo].filter(Boolean).join(" · ")}
+    <span className="grid size-12 shrink-0 place-items-center rounded-[11px] bg-doc-acento text-lg font-extrabold text-white">
+      {nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+"}
+    </span>
+  );
+}
+
+// Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
+export function Membrete({ d, compacto }: { d: DatosDocumento; compacto?: boolean }) {
+  return (
+    <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
+      <Marca logo={d.org.logo} nombre={d.org.nombre} />
+      <div className="min-w-0">
+        <div className="text-[15px] font-extrabold uppercase tracking-wide">{d.org.nombre}</div>
+        {!compacto && d.org.ajustes.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{d.org.ajustes.membrete_lema}</div>}
+        <div className="text-[10.5px] text-doc-tenue">
+          {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>
-      <div className="text-right text-[11px] text-neutral-600">
-        <div>Servicio de Salud Ocupacional</div>
-        <div>Historia Nº {d.extra.numero_historia}</div>
+      <div className="flex items-center gap-3 text-right">
+        <div>
+          <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Empresa</div>
+          <div className="max-w-44 text-[11px] font-semibold leading-tight">{d.empresa.razon_social}</div>
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
       </div>
     </header>
   );
 }
 
-export function Titulo({ children, sub }: { children: React.ReactNode; sub?: string | null }) {
+// Título con etiqueta (motivo) y folio/fecha/historia a la derecha
+export function Titulo({ d, children, sub, prefijo, compacto, copia }: { d: DatosDocumento; children: React.ReactNode; sub?: string | null; prefijo: string; compacto?: boolean; copia?: string }) {
+  const h = hora12(d.hora);
   return (
-    <div className="mb-4 text-center">
-      <h1 className="text-base font-bold uppercase tracking-wider">{children}</h1>
-      {sub && <div className="text-xs uppercase text-neutral-600">{sub}</div>}
+    <div className={`flex items-end justify-between gap-4 ${compacto ? "mt-3 mb-2.5" : "mt-5 mb-4"}`}>
+      <div>
+        <h1 className={`font-extrabold leading-tight tracking-tight text-balance ${compacto ? "text-xl" : "text-2xl"}`}>{children}</h1>
+        {sub && <span className="mt-1.5 inline-block rounded bg-doc-suave px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-doc-acento">{sub}</span>}
+        {copia && <span className="mt-1.5 ml-2 inline-block rounded border border-doc-acento px-2 py-[1px] text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{copia}</span>}
+      </div>
+      <div className="shrink-0 text-right font-cifra text-[10.5px] leading-relaxed text-doc-tenue">
+        <div>Folio <b className="font-medium text-[#15201e]">{folio(prefijo, d.datos.id)}</b></div>
+        <div>Fecha <b className="font-medium text-[#15201e]">{fechaCorta(d.datos.fecha)}{h && !compacto ? ` · ${h}` : ""}</b></div>
+        {!compacto && <div>Historia <b className="font-medium text-[#15201e]">{String(d.extra.numero_historia).padStart(9, "0")}</b></div>}
+      </div>
     </div>
   );
 }
 
-export function Datos({ filas, columnas = 2 }: { filas: [string, React.ReactNode][]; columnas?: 2 | 3 }) {
+// Celdas etiqueta/valor en una cuadrícula con bordes finos
+export function Ficha({ celdas }: { celdas: { k: string; v: React.ReactNode; ancho?: 2 | 4; destacada?: boolean }[] }) {
   return (
-    <div className={`mb-4 grid gap-x-6 gap-y-1 rounded border border-neutral-300 p-3 ${columnas === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-      {filas.map(([k, v]) => (
-        <div key={k} className="flex gap-1.5">
-          <span className="shrink-0 font-semibold">{k}:</span>
-          <span>{v || "—"}</span>
+    <div className="mb-4 grid grid-cols-4 overflow-hidden rounded-lg border border-doc-linea [&>div]:-mb-px [&>div]:-mr-px">
+      {celdas.map(({ k, v, ancho, destacada }) => (
+        <div key={k} className={`border-r border-b border-doc-linea px-3 py-1.5 ${ancho === 2 ? "col-span-2" : ancho === 4 ? "col-span-4" : ""} ${destacada ? "bg-doc-suave" : ""}`}>
+          <div className="text-[8.5px] font-semibold uppercase tracking-[.11em] text-doc-tenue">{k}</div>
+          <div className={destacada ? "text-sm font-extrabold uppercase" : "font-semibold"}>{v || "—"}</div>
         </div>
       ))}
     </div>
   );
 }
 
-export function DatosPaciente({ d }: { d: DatosDocumento }) {
-  return (
-    <Datos
-      filas={[
-        ["Trabajador", d.trabajador.nombre],
-        ["Cédula", d.trabajador.cedula],
-        ["Edad", d.trabajador.edad !== null ? `${d.trabajador.edad} años` : null],
-        ["Sexo", d.trabajador.sexo === "F" ? "Femenino" : d.trabajador.sexo === "M" ? "Masculino" : null],
-        ["Empresa", d.empresa.razon_social],
-        ["RIF", d.empresa.rif],
-        ["Cargo", d.trabajador.cargo],
-        ["Dependencia", d.dependencia],
-      ]}
-    />
-  );
+// Se mantiene para informes que muestran pares sueltos (p. ej. reposo)
+export function Datos({ filas, columnas = 2 }: { filas: [string, React.ReactNode][]; columnas?: 2 | 3 }) {
+  return <Ficha celdas={filas.map(([k, v]) => ({ k, v, ancho: columnas === 2 ? 2 : undefined }))} />;
+}
+
+export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; completo?: boolean }) {
+  const t = d.trabajador;
+  const sexo = t.sexo === "F" ? "F" : t.sexo === "M" ? "M" : null;
+  const celdas: { k: string; v: React.ReactNode; ancho?: 2 | 4; destacada?: boolean }[] = [
+    { k: "Trabajador", v: t.nombre, ancho: 2, destacada: true },
+    { k: "Cédula", v: t.cedula },
+    { k: "Edad · Sexo", v: [t.edad !== null && `${t.edad} años`, sexo].filter(Boolean).join(" · ") },
+    { k: "Cargo · Dependencia", v: [t.cargo, d.dependencia].filter(Boolean).join(" · "), ancho: 2 },
+  ];
+  if (completo) {
+    celdas.push(
+      { k: "Ingreso · Turno", v: [d.extra.fecha_ingreso && fechaCorta(d.extra.fecha_ingreso), d.extra.turno].filter(Boolean).join(" · ") },
+      { k: "Tipo · Ficha", v: [d.extra.tipo?.nombre, d.extra.ficha].filter(Boolean).join(" · ") },
+    );
+  } else celdas[3] = { ...celdas[3], ancho: 4 };
+  return <Ficha celdas={celdas} />;
 }
 
 export function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="mb-3 break-inside-avoid">
-      <div className="mb-1 border-b border-neutral-300 text-xs font-bold uppercase tracking-wide text-teal-800">{titulo}</div>
+    <div className="mb-3.5 break-inside-avoid">
+      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
       <div className="whitespace-pre-line">{children}</div>
     </div>
   );
 }
 
-// Casilla cuadrada para el sello húmedo del médico
-export function CasillaSello({ className = "h-28 w-52", imagen }: { className?: string; imagen?: string | null }) {
+// Texto con un punto por línea (o «1. … 2. …» corrido) → lista numerada en una o dos columnas
+export function Lista({ texto, columnas }: { texto: string; columnas?: 1 | 2 }) {
+  const items = texto
+    .split(/\n|(?:^|\s)(?=\d{1,2}[.)]\s)/)
+    .map((x) => x.replace(/^\s*(\d{1,2}[.)]|[-•*])\s*/, "").trim())
+    .filter(Boolean);
+  if (items.length <= 1) return <p className="whitespace-pre-line">{texto.trim()}</p>;
+  const cols = columnas ?? (items.length >= 5 ? 2 : 1);
   return (
-    <div className={`relative grid shrink-0 place-items-end justify-center border border-dashed border-neutral-500 pb-1 text-[10px] text-neutral-500 ${className}`}>
+    <ol className={`list-decimal space-y-0.5 pl-5 ${cols === 2 ? "columns-2 gap-7" : ""}`}>
+      {items.map((x, i) => <li key={i} className="break-inside-avoid">{x}</li>)}
+    </ol>
+  );
+}
+
+// Resultado destacado (aptitud): recuadro con ícono; legible también en blanco y negro
+export function Veredicto({ texto, detalle, tono }: { texto: string; detalle?: string | null; tono: "ok" | "aviso" | "alerta" | "neutro" }) {
+  const color = { ok: "border-[#1d7a46] bg-[#e7f4ec] text-[#1d7a46]", aviso: "border-[#9a6a00] bg-[#fdf4dc] text-[#7a5300]", alerta: "border-[#b42318] bg-[#fdecea] text-[#b42318]", neutro: "border-doc-acento bg-doc-suave text-doc-acento" }[tono];
+  const Icono = { ok: Check, aviso: AlertTriangle, alerta: X, neutro: Clock }[tono];
+  return (
+    <div className={`grid grid-cols-[auto_1fr] items-center gap-3.5 rounded-[10px] border-2 px-4 py-3 ${color}`}>
+      <span className="grid size-9 place-items-center rounded-full bg-current">
+        <Icono className="size-5 text-white" strokeWidth={3} />
+      </span>
+      <div>
+        <div className="text-[17px] font-extrabold">{texto}</div>
+        {detalle && <div className="text-[11px] text-doc-tenue">{detalle}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Casilla para el sello húmedo del médico
+export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { className?: string; imagen?: string | null }) {
+  return (
+    <div className={`relative grid shrink-0 place-items-end justify-center rounded-lg border border-dashed border-[#9aa7a4] pb-1 text-[9px] text-[#9aa7a4] ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {imagen && <img src={imagen} alt="" className="absolute inset-1 m-auto max-h-[85%] max-w-[95%] object-contain" />}
-      Sello
+      {imagen && <img src={imagen} alt="" className="absolute inset-1 m-auto max-h-[88%] max-w-[95%] object-contain" />}
+      {!imagen && "Sello"}
     </div>
   );
 }
@@ -94,37 +174,55 @@ export function imagenesMedico(d: DatosDocumento) {
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
 }
 
-export function FirmaMedico({ d, etiqueta = "Médico evaluador" }: { d: DatosDocumento; etiqueta?: string }) {
+export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d: DatosDocumento; etiqueta?: string; compacto?: boolean }) {
   const m = d.medicoDatos;
   // Configuración › Organización: firma y sello en casillas separadas (por defecto) o en una sola línea
   const separados = d.org.ajustes.firma_sello_separados !== false;
   const img = imagenesMedico(d);
   return (
-    <div className="flex items-end gap-4">
-      <div className="w-64 text-center text-[11px]">
-        <div className="relative mb-1 h-16 border-b border-neutral-800">
+    <div className="flex items-end gap-3.5">
+      <div className="w-60 text-center text-[10.5px]">
+        <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
         </div>
-        <div className="font-semibold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
-        <div>{[m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `C.M. ${m.colegio_medicos}`].filter(Boolean).join(" · ")}</div>
-        {m?.registro_inpsasel && <div>Reg. INPSASEL {m.registro_inpsasel}</div>}
-        <div className="text-neutral-500">{etiqueta} · {separados ? "Firma" : "Firma y sello"}</div>
+        <div className="text-[11.5px] font-bold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
+        <div className="text-doc-tenue">
+          {etiqueta}
+          {!compacto && m?.cedula && ` · C.I. ${m.cedula}`}
+        </div>
+        <div className="text-doc-tenue">
+          {[m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `CM ${m.colegio_medicos}`].filter(Boolean).join(" · ")}
+        </div>
+        {!compacto && m?.registro_inpsasel && <div className="text-doc-tenue">INPSASEL {m.registro_inpsasel}</div>}
       </div>
-      {separados && <CasillaSello imagen={img.sello} />}
+      {separados && <CasillaSello imagen={img.sello} className={compacto ? "h-[70px] w-[124px]" : undefined} />}
     </div>
   );
 }
 
 export function FirmaTrabajador({ d }: { d: DatosDocumento }) {
   return (
-    <div className="w-64 text-center text-[11px]">
-      <div className="mb-1 h-14 border-b border-neutral-800" />
-      <div className="font-semibold">{d.trabajador.nombre}</div>
-      <div>C.I. {d.trabajador.cedula}</div>
-      <div className="text-neutral-500">Firma del trabajador</div>
+    <div className="w-56 text-center text-[10.5px]">
+      <div className="mb-1 h-14 border-b border-[#15201e]" />
+      <div className="text-[11.5px] font-bold">{d.trabajador.nombre}</div>
+      <div className="text-doc-tenue">C.I. {d.trabajador.cedula} · Trabajador</div>
     </div>
+  );
+}
+
+// Zona de firmas: siempre al pie de la hoja
+export function Firmas({ children }: { children: React.ReactNode }) {
+  return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
+}
+
+export function Pie({ d, derecha }: { d: DatosDocumento; derecha?: string }) {
+  return (
+    <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
+      <span>Impreso por {d.impreso.por} · {d.impreso.el}</span>
+      {derecha && <span>{derecha}</span>}
+    </footer>
   );
 }

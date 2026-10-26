@@ -118,6 +118,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       certificado_nota: texto(datos, "certificado_nota"),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
+      membrete_lema: texto(datos, "membrete_lema"),
+      certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
     };
     const { error } = await supabase
       .from("organizaciones")
@@ -127,6 +129,20 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
     invalidarSesion();
     revalidatePath("/", "layout");
     return { ok: true, mensaje: "Datos de la organización guardados." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Logo del servicio de salud: va a la izquierda del membrete en todos los documentos (null lo quita)
+export async function guardarLogoOrganizacion(logo: string | null): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(["administrador"]);
+    if (logo && (!/^data:image\/(png|jpeg|webp);base64,/.test(logo) || logo.length > 600_000)) return { ok: false, mensaje: "La imagen no es válida o es muy grande." };
+    const { error } = await supabase.from("organizaciones").update({ logo }).eq("id", sesion.orgId!);
+    if (error) throw error;
+    revalidatePath("/configuracion/organizacion");
+    return { ok: true, mensaje: logo ? "Logo guardado." : "Logo quitado." };
   } catch (e) {
     return fallo(e);
   }

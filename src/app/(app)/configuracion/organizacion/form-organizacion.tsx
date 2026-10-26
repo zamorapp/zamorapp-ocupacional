@@ -7,6 +7,7 @@ import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guardarOrganizacion } from "../acciones";
+import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
 
 type Ajustes = {
   palabra_aptitud?: string;
@@ -23,6 +24,8 @@ type Ajustes = {
   firma_sello_separados?: boolean;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
+  membrete_lema?: string | null;
+  certificacion_trabajador?: string | null;
 };
 
 type Org = { nombre: string; rif: string | null; direccion: string | null; telefono: string | null; correo: string | null; ajustes: unknown };
@@ -51,6 +54,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
             <Campo id="correo" etiqueta="Correo" type="email" defaultValue={org.correo ?? ""} />
             <Campo id="direccion" etiqueta="Dirección" defaultValue={org.direccion ?? ""} />
+            <Campo id="membrete_lema" etiqueta="Lema bajo el nombre (membrete)" defaultValue={a.membrete_lema ?? ""} placeholder="Servicios en Medicina Ocupacional · Ergonomía" className="sm:col-span-2" />
           </CardContent>
         </Card>
 
@@ -69,6 +73,13 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
               rows={2}
               className="sm:col-span-2"
               defaultValue={a.observacion_idoneidad ?? "La clasificación de aptitud se basa en el protocolo de evaluación clínica ocupacional del servicio."}
+            />
+            <CampoTexto
+              id="certificacion_trabajador"
+              etiqueta="Certificación del trabajador (final del informe de consulta; vacío para no imprimirla)"
+              rows={3}
+              className="sm:col-span-2"
+              defaultValue={a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR}
             />
             <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
             <div className="flex flex-col justify-end gap-2 pb-1">

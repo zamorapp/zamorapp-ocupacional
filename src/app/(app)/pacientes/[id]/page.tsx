@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, FileText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CalendarClock, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
+import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ id: string }> };
@@ -40,8 +41,8 @@ export default async function FichaPaciente({ params }: Props) {
   if (!t) notFound();
   const sesion = await obtenerSesion();
   const consultas = sesion.demo
-    ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud }))
-    : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud }));
+    ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
+    : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && sesion.rol !== "gerente_empresa";
   const [adjuntos, empleos] = verAdjuntos
     ? await Promise.all([
@@ -85,7 +86,11 @@ export default async function FichaPaciente({ params }: Props) {
             {sesion.rol !== "gerente_empresa" && (
               <>
                 <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
-                <Button variant="outline" asChild className="flex-1 xl:flex-none"><Link href="/documentos"><FileText /> Documentos</Link></Button>
+                {sesion.clinico && (
+                  <Button variant="outline" asChild className="flex-1 xl:flex-none">
+                    <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -184,6 +189,7 @@ export default async function FichaPaciente({ params }: Props) {
                     {c.aptitud && (
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_APTITUD[c.aptitud])}>{ETIQUETA_APTITUD[c.aptitud]}</span>
                     )}
+                    {!c.demo && <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.reposo} tratamiento={c.tratamiento} compacto />}
                   </li>
                 ))}
               </ul>
