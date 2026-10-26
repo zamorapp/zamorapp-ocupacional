@@ -16,6 +16,7 @@ if ($conexion) { Stop-Process -Id $conexion.OwningProcess -Force -ErrorAction Si
 if (Test-Path ".next-prod") { Remove-Item ".next-prod" -Recurse -Force }
 Rename-Item ".next-build" ".next-prod"
 
-# Arranca en segundo plano, minimizado
-Start-Process -FilePath (Join-Path $raiz "abrir-zamorapp.cmd") -ArgumentList "sin-navegador" -WindowStyle Minimized
+# Arranca en segundo plano. Se crea con WMI para que no dependa de esta ventana: si se cierra, la app sigue.
+Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = "cmd.exe /c `"$(Join-Path $raiz "abrir-zamorapp.cmd")`" sin-navegador"; CurrentDirectory = $raiz } | Out-Null
+Start-Sleep -Seconds 8
 Write-Host "zamorApp actualizada y en marcha en http://localhost:3000" -ForegroundColor Green
