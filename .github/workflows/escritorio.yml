@@ -174,7 +174,8 @@ jobs:
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
               [void]$proc.CloseMainWindow()
               if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
-              Start-Sleep 3
+              # La base puede tardar unos segundos en cerrar con calma; solo cuenta lo que siga vivo a los 30 s
+              for ($s = 0; $s -lt 30 -and (Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue); $s++) { Start-Sleep 1 }
               $vivos = Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue
               if ($vivos) {
                 Write-Host "::error::Tras cerrar $que quedaron procesos vivos: $(($vivos | ForEach-Object Name | Sort-Object -Unique) -join ', ')"
@@ -211,6 +212,14 @@ jobs:
           for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1))) { $fallas++ } }
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
+
+          # 4) PC nueva (o reinstalación tras un daño): sin datos previos, el primer arranque también debe funcionar
+          $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
+          Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
+          Start-Sleep 5
+          Remove-Item -Recurse -Force "$registros/datos" -ErrorAction SilentlyContinue
+          Instalar $setup.FullName
+          if (-not (Abrir "primer arranque en PC nueva")) { throw "El programa no arrancó en una PC sin datos" }
 
           $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait

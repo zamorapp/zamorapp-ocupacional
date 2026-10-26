@@ -50,6 +50,13 @@ export class Motor {
       fs.rmSync(archivoClave, { force: true });
       if (r.status !== 0) throw new Error(`initdb falló: ${r.stderr || r.error}`);
     }
+    // Si quedó viva una base de una sesión anterior (el programa se cerró a la fuerza, se apagó la PC o se instaló
+    // una versión nueva encima), se detiene con calma antes de arrancar: dos servidores no pueden usar los mismos datos.
+    const previa = spawnSync(exe("pg_ctl"), ["status", "-D", this.carpetaBase], { stdio: "ignore", windowsHide: true, timeout: 30_000 });
+    if (previa.status === 0) {
+      this.registro?.("[base] había una base local abierta de una sesión anterior; se detiene antes de arrancar");
+      spawnSync(exe("pg_ctl"), ["stop", "-D", this.carpetaBase, "-m", "fast", "-w", "-t", "60"], { stdio: "ignore", windowsHide: true, timeout: 90_000 });
+    }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
     const log = path.join(CONFIG.datos, "base.log");

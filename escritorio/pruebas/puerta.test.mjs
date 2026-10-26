@@ -308,3 +308,18 @@ test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)
     delete process.env.SIMULAR_CAIDA_POSTGREST;
   }
 });
+
+// Una base que quedó viva de una sesión anterior (cierre a la fuerza o versión instalada encima) no impide abrir
+test("si quedó abierta la base de una sesión anterior, el programa igual arranca", { skip: omitir }, async () => {
+  const { Motor } = await import("../puerta/motor.mjs");
+  const otro = new Motor(estado); // la base de "motor" sigue viva, como tras un cierre a la fuerza
+  try {
+    await otro.iniciar();
+    const r = await fetch(`http://127.0.0.1:${otro.puertoPostgrest}/`);
+    assert.ok(r.status < 500);
+  } finally {
+    otro.detener();
+    motor.deteniendo = true;
+    motor.baseIniciada = false; // ya la detuvo "otro"
+  }
+});
