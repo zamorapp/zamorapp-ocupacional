@@ -1,6 +1,6 @@
 -- zamorApp Ocupacional · Fase F0 del programa de escritorio: base de la sincronía PC ⇄ nube.
 -- Todo es aditivo: la app web sigue igual. Arquitectura: https://claude.ai/artifact/9DgoHNbvVG11Ff7qJAyqvS
--- 1) Equipos (PC) registrados y revocables, con su serie de numeración.
+-- 1) Equipos (PC) registrados y revocables, con su serie de numeración y un secreto propio (solo su hash queda aquí).
 -- 2) Cada fila sincronizable lleva "version"; cada cambio queda en sync.registro con los campos tocados.
 -- 3) aplicar_cambios(): la PC sube su cola con la sesión del usuario (security invoker, RLS igual que en la web).
 --    Idempotente por id de cambio; aplica solo si la versión base coincide. En datos clínicos nunca gana
@@ -21,21 +21,39 @@ create table public.equipos (
   registrado_por uuid default auth.uid() references auth.users (id) on delete set null,
   registrado_en timestamptz not null default now(),
   ultimo_contacto timestamptz,
+  secreto_hash text not null,  -- sha256 del secreto que guarda la PC; el secreto no se guarda en la nube
   unique (org_id, serie)
 );
 alter table public.equipos enable row level security;
-create policy equipos_leer on public.equipos for select using (org_id in (select public.mis_orgs()));
+-- Solo el administrador ve y gestiona equipos (los ids no circulan entre usuarios).
 create policy equipos_admin on public.equipos for all using (public.es_admin(org_id)) with check (public.es_admin(org_id));
-grant select, insert, update, delete on public.equipos to authenticated;
+grant select, delete on public.equipos to authenticated;
+grant update (nombre, activo) on public.equipos to authenticated;
 
--- El equipo debe estar activo y ser de una organización del usuario; marca el último contacto.
-create or replace function sync.equipo_valido(p_equipo uuid)
+-- Alta de una PC: solo el administrador. Devuelve el secreto una única vez; la PC lo guarda cifrado en Windows.
+create or replace function public.registrar_equipo(p_org uuid, p_nombre text, p_serie text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_secreto text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''); v_id uuid;
+begin
+  if not public.es_admin(p_org) then raise exception 'Solo el administrador registra equipos' using errcode = '42501'; end if;
+  insert into public.equipos (org_id, nombre, serie, secreto_hash)
+  values (p_org, p_nombre, upper(p_serie), encode(sha256(convert_to(v_secreto, 'UTF8')), 'hex'))
+  returning id into v_id;
+  return jsonb_build_object('id', v_id, 'secreto', v_secreto);
+end $$;
+
+-- El equipo debe estar activo, presentar su secreto y ser de la organización de un usuario interno
+-- (las empresas cliente usan solo el portal web). Marca el último contacto.
+create or replace function sync.equipo_valido(p_equipo uuid, p_secreto text)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare v_org uuid;
 begin
   select org_id into v_org from public.equipos
-   where id = p_equipo and activo and org_id in (select public.mis_orgs());
-  if v_org is null then raise exception 'Equipo no autorizado o desactivado' using errcode = '42501'; end if;
+   where id = p_equipo and activo and org_id in (select public.mis_orgs())
+     and secreto_hash = encode(sha256(convert_to(coalesce(p_secreto, ''), 'UTF8')), 'hex');
+  if v_org is null or public.mi_rol(v_org) in ('gerente_empresa', 'supervisor', 'delegado_prevencion', 'trabajador') then
+    raise exception 'Equipo no autorizado o desactivado' using errcode = '42501';
+  end if;
   update public.equipos set ultimo_contacto = now() where id = p_equipo;
   return v_org;
 end $$;
@@ -128,7 +146,8 @@ create table sync.aplicados (
 alter table sync.aplicados enable row level security;
 create policy aplicados_propios on sync.aplicados for all
   using (autor = auth.uid()) with check (autor = auth.uid() and org_id in (select public.mis_orgs()));
-grant select, insert on sync.aplicados to authenticated;
+grant select on sync.aplicados to authenticated;
+grant insert (cambio_id, org_id, equipo_id, resultado), update (resultado) on sync.aplicados to authenticated;
 
 create table sync.conflictos (
   id uuid primary key default gen_random_uuid(),
@@ -150,12 +169,26 @@ alter table sync.conflictos enable row level security;
 create policy conflictos_ver on sync.conflictos for select using (
   autor = auth.uid() or (org_id in (select public.mis_orgs()) and public.es_admin(org_id)
     and (tabla not like 'clinico.%' or public.es_clinico(org_id))));
+-- Lo crea aplicar_cambios con la sesión del usuario: queda a su nombre y no puede nacer resuelto.
+-- (Enviar un cambio inválido por aplicar_cambios produce lo mismo, así que no hay conflicto «falso» posible
+-- que no quede atribuido a su autor.)
 create policy conflictos_crear on sync.conflictos for insert
   with check (autor = auth.uid() and org_id in (select public.mis_orgs()));
-create policy conflictos_resolver on sync.conflictos for update using (
-  autor = auth.uid() or (public.es_admin(org_id) and (tabla not like 'clinico.%' or public.es_clinico(org_id))));
-grant select, insert on sync.conflictos to authenticated;
-grant update (resuelto_en, resuelto_por, resolucion) on sync.conflictos to authenticated;
+grant select on sync.conflictos to authenticated;
+grant insert (org_id, tabla, fila_id, tipo, motivo, cambio, equipo_id) on sync.conflictos to authenticated;
+
+-- Resolver: solo por esta función, que firma con quien resuelve.
+create or replace function public.resolver_conflicto(p_id uuid, p_resolucion text)
+returns void language plpgsql security definer set search_path = public as $$
+declare k sync.conflictos;
+begin
+  select * into k from sync.conflictos where id = p_id and resuelto_en is null;
+  if not found or not (k.autor = auth.uid() or (public.es_admin(k.org_id)
+      and (k.tabla not like 'clinico.%' or public.es_clinico(k.org_id)))) then
+    raise exception 'Conflicto inexistente, ya resuelto o sin permiso' using errcode = '42501';
+  end if;
+  update sync.conflictos set resuelto_en = now(), resuelto_por = auth.uid(), resolucion = p_resolucion where id = p_id;
+end $$;
 
 -- Columnas que una PC puede escribir: las reales de la tabla, menos las que controla el servidor.
 -- Un campo desconocido (versiones distintas de la app) rechaza el cambio entero: así nada se pierde en silencio.
@@ -177,10 +210,10 @@ end $$;
 
 -- p_lote: [{id, tabla, fila_id, op: I|U|D, version_base, datos}] (en I, datos es la fila completa; en U, solo lo que cambió).
 -- Devuelve por cambio: {id, estado: aplicado|duplicado|conflicto|rechazado, version, motivo}.
-create or replace function public.aplicar_cambios(p_equipo uuid, p_lote jsonb)
+create or replace function public.aplicar_cambios(p_equipo uuid, p_secreto text, p_lote jsonb)
 returns jsonb language plpgsql security invoker set search_path = public as $$
 declare
-  v_org uuid := sync.equipo_valido(p_equipo);
+  v_org uuid := sync.equipo_valido(p_equipo, p_secreto);
   c jsonb; t sync.tablas; r jsonb; salida jsonb := '[]';
   v_id uuid; v_fila uuid; v_base bigint; v_actual bigint; v_nueva bigint; v_cols text[]; v_lista text;
   v_tocados text[]; v_n int; v_tipo text; v_motivo text;
@@ -192,8 +225,14 @@ begin
     v_id := (c ->> 'id')::uuid; v_fila := (c ->> 'fila_id')::uuid; v_base := (c ->> 'version_base')::bigint;
     r := null; v_tipo := null; v_motivo := null;
 
-    select resultado into r from sync.aplicados where cambio_id = v_id;
-    if found then salida := salida || jsonb_build_array(r || '{"estado":"duplicado"}'); continue; end if;
+    -- Reservar el id del cambio antes de aplicarlo: un reenvío simultáneo espera y lo ve como duplicado.
+    insert into sync.aplicados (cambio_id, org_id, equipo_id, resultado) values (v_id, v_org, p_equipo, '{}')
+      on conflict (cambio_id) do nothing;
+    if not found then
+      select resultado into r from sync.aplicados where cambio_id = v_id;
+      salida := salida || jsonb_build_array(coalesce(r, jsonb_build_object('id', v_id)) || '{"estado":"duplicado"}');
+      continue;
+    end if;
 
     select * into t from sync.tablas where nombre = c ->> 'tabla';
     if not found or not t.subible then
@@ -270,7 +309,7 @@ begin
       r := jsonb_build_object('id', v_id, 'estado', case when v_tipo = 'rechazado' then 'rechazado' else 'conflicto' end,
                               'version', v_actual, 'motivo', v_motivo);
     end if;
-    insert into sync.aplicados (cambio_id, org_id, equipo_id, resultado) values (v_id, v_org, p_equipo, r);
+    update sync.aplicados set resultado = r where cambio_id = v_id;
     salida := salida || jsonb_build_array(r);
   end loop;
   perform set_config('sync.cambio_id', '', true), set_config('sync.equipo_id', '', true);
@@ -279,10 +318,10 @@ end $$;
 
 -- ─── 4) Bajada: lo que cambió desde el último punto, solo lo visible para el usuario ───
 -- Devuelve {hasta, cambios: [{seq, tabla, fila_id, op, version, cambio_id, fila}]}. La PC guarda «hasta» como cursor.
-create or replace function public.cambios_desde(p_equipo uuid, p_desde bigint, p_limite int default 500)
+create or replace function public.cambios_desde(p_equipo uuid, p_secreto text, p_desde bigint, p_limite int default 500)
 returns jsonb language plpgsql security invoker set search_path = public as $$
 declare
-  v_org uuid := sync.equipo_valido(p_equipo);
+  v_org uuid := sync.equipo_valido(p_equipo, p_secreto);
   g record; v_fila jsonb; v_hasta bigint := p_desde; cambios jsonb := '[]';
 begin
   for g in select * from sync.registro
@@ -299,10 +338,12 @@ begin
   return jsonb_build_object('hasta', v_hasta, 'cambios', cambios);
 end $$;
 
-revoke execute on function public.aplicar_cambios(uuid, jsonb), public.cambios_desde(uuid, bigint, int) from public, anon;
-revoke execute on function sync.equipo_valido(uuid), sync.columnas(text, jsonb) from public, anon;
-grant execute on function public.aplicar_cambios(uuid, jsonb), public.cambios_desde(uuid, bigint, int),
-  sync.equipo_valido(uuid), sync.columnas(text, jsonb) to authenticated;
+revoke execute on function public.aplicar_cambios(uuid, text, jsonb), public.cambios_desde(uuid, text, bigint, int),
+  public.registrar_equipo(uuid, text, text), public.resolver_conflicto(uuid, text) from public, anon;
+revoke execute on function sync.equipo_valido(uuid, text), sync.columnas(text, jsonb) from public, anon;
+grant execute on function public.aplicar_cambios(uuid, text, jsonb), public.cambios_desde(uuid, text, bigint, int),
+  public.registrar_equipo(uuid, text, text), public.resolver_conflicto(uuid, text),
+  sync.equipo_valido(uuid, text), sync.columnas(text, jsonb) to authenticated;
 
 -- ─── 5) Auditoría ───
 -- Accesos a la historia clínica: quién la abrió, cuándo y desde qué equipo. Solo se agrega.
@@ -326,7 +367,8 @@ returns void language plpgsql security definer set search_path = public as $$
 declare v_org uuid;
 begin
   select org_id into v_org from public.trabajadores where id = p_trabajador;
-  if v_org is null or not public.es_clinico(v_org) then return; end if; -- solo se audita a quien puede abrir la historia
+  -- solo se audita a quien puede abrir esa historia
+  if v_org is null or not public.es_clinico(v_org) or not public.ve_trabajador(v_org, p_trabajador) then return; end if;
   insert into public.accesos (org_id, trabajador_id, consulta_id, equipo_id)
   values (v_org, p_trabajador, p_consulta,
           (select id from public.equipos where id = p_equipo and org_id = v_org));
