@@ -20,7 +20,8 @@ const sinAcentos = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, 
 
 // Buscador universal: Ctrl+K o "/" desde cualquier pantalla.
 // Enter abre la ficha; Ctrl+Enter (o el botón Atender) abre la consulta directamente.
-export function BuscadorGlobal({ portal = false }: { portal?: boolean }) {
+// «Atender» y las secciones clínicas solo aparecen para el personal de salud.
+export function BuscadorGlobal({ portal = false, clinico = false }: { portal?: boolean; clinico?: boolean }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
@@ -67,10 +68,11 @@ export function BuscadorGlobal({ portal = false }: { portal?: boolean }) {
   const opciones = useMemo<Opcion[]>(() => {
     const q = sinAcentos(texto.trim());
     const secciones = (portal ? SECCIONES_EMPRESA : SECCIONES)
+      .filter((s) => clinico || !s.clinico)
       .filter((s) => !q || sinAcentos(`${s.titulo} ${s.descripcion}`).includes(q))
       .map((s) => ({ tipo: "ir" as const, href: s.href, titulo: s.titulo, descripcion: s.descripcion, icono: s.icono }));
     return [...pacientes.map((p) => ({ tipo: "paciente" as const, p })), ...secciones];
-  }, [pacientes, texto, portal]);
+  }, [pacientes, texto, portal, clinico]);
 
   useEffect(() => setActivo(0), [opciones.length]);
   useEffect(() => {
@@ -95,7 +97,7 @@ export function BuscadorGlobal({ portal = false }: { portal?: boolean }) {
     });
   const elegir = (o: Opcion, consulta = false) => {
     if (o.tipo === "ir") return ir(o.href);
-    if (consulta && !portal) return atender(o.p.id);
+    if (consulta && clinico) return atender(o.p.id);
     ir(`/pacientes/${o.p.id}`);
   };
 
@@ -149,7 +151,7 @@ export function BuscadorGlobal({ portal = false }: { portal?: boolean }) {
                     </span>
                   </span>
                 </button>
-                {o.tipo === "paciente" && !portal ? (
+                {o.tipo === "paciente" && clinico ? (
                   <button
                     type="button"
                     onClick={() => atender(o.p.id)}
@@ -176,7 +178,7 @@ export function BuscadorGlobal({ portal = false }: { portal?: boolean }) {
         <div className="hidden items-center gap-4 border-t bg-muted/50 px-4 py-2 text-[11px] text-muted-foreground sm:flex">
           <span className="flex items-center gap-1"><kbd className="rounded border bg-card px-1">↑</kbd><kbd className="rounded border bg-card px-1">↓</kbd> moverse</span>
           <span className="flex items-center gap-1"><CornerDownLeft className="size-3" /> abrir</span>
-          {!portal && <span className="flex items-center gap-1"><kbd className="rounded border bg-card px-1">Ctrl</kbd>+<CornerDownLeft className="size-3" /> atender</span>}
+          {clinico && <span className="flex items-center gap-1"><kbd className="rounded border bg-card px-1">Ctrl</kbd>+<CornerDownLeft className="size-3" /> atender</span>}
           <span className="ml-auto">Ctrl+K desde cualquier pantalla</span>
         </div>
       </DialogContent>

@@ -34,7 +34,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">{children}</main>
       </div>
       <BarraInferior portal={portal} />
-      <BuscadorGlobal portal={portal} />
+      <BuscadorGlobal portal={portal} clinico={!portal && ["medico", "enfermeria", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
     </div>
   );
 }
