@@ -12,6 +12,7 @@ import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
+import { EnVivo } from "@/components/app/en-vivo";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
@@ -81,7 +82,15 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
             <Button variant="ghost" size="icon" className="size-8" asChild><Link href={`/atencion?dia=${moverDia(dia, 1)}`} aria-label="Día siguiente"><ChevronRight /></Link></Button>
           </div>
           {dia !== hoy && <Link href="/atencion" className="text-sm text-primary hover:underline">Volver a hoy</Link>}
-          <span className="ml-auto text-sm text-muted-foreground">{citas.length} citas</span>
+          <span className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            {!sesion.demo && sesion.orgId && (
+              <span className="flex items-center gap-1.5" title="La cola se actualiza sola cuando alguien registra una llegada o una cita">
+                <span className="size-2 animate-pulse rounded-full bg-ok" /> En vivo
+                <EnVivo tabla="citas" orgId={sesion.orgId} />
+              </span>
+            )}
+            {citas.length} citas
+          </span>
         </div>
         <ColaAtencion citas={citas} esHoy={dia === hoy} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
       </section>

@@ -217,3 +217,14 @@ export async function mostrarFirmaSello(campo: "mostrar_firma" | "mostrar_sello"
     return fallo(e);
   }
 }
+
+// Revocar o reactivar una PC registrada. La RLS de equipos solo deja al administrador; la PC revocada deja de sincronizar.
+export async function activarEquipo(id: string, activo: boolean): Promise<{ ok: boolean; mensaje: string }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan cambios." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("equipos").update({ activo }).eq("id", id);
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/configuracion/equipos");
+  return { ok: true, mensaje: activo ? "Equipo reactivado." : "Equipo revocado: deja de sincronizar desde ya." };
+}

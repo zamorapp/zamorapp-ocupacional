@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building, ListChecks, UserCog, Users } from "lucide-react";
+import { ArrowRight, Building, Laptop, ListChecks, ShieldCheck, UserCog, Users } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -9,6 +9,8 @@ const OPCIONES = [
   { href: "/configuracion/listas", titulo: "Listas configurables", texto: "Motivos, aptitud, paraclínicos, medicinas, recomendaciones y todos los maestros.", icono: ListChecks },
   { href: "/configuracion/organizacion", titulo: "Organización y documentos", texto: "Datos del servicio, palabra de aptitud, títulos y notas de los documentos.", icono: Building },
   { href: "/configuracion/usuarios", titulo: "Usuarios y roles", texto: "Quién entra a la app y qué puede ver o hacer.", icono: Users },
+  { href: "/configuracion/auditoria", titulo: "Auditoría", texto: "Quién abrió cada historia y qué se cambió, día por día y con el equipo de origen.", icono: ShieldCheck },
+  { href: "/configuracion/equipos", titulo: "Equipos", texto: "PC con zamorApp instalado: última sincronía, revocar o reactivar.", icono: Laptop },
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", texto: "Cédula, MPPS, Colegio de Médicos y registro INPSASEL para los documentos.", icono: UserCog },
 ];
 

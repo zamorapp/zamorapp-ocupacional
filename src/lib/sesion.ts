@@ -15,6 +15,7 @@ export type Sesion = {
   orgId: string | null;
   organizacion: string;
   rol: Rol | null;
+  clinico: boolean; // mismo criterio que es_clinico() en la base: rol de salud o acceso clínico activado
 };
 
 const SESION_DEMO: Sesion = {
@@ -25,6 +26,7 @@ const SESION_DEMO: Sesion = {
   orgId: null,
   organizacion: "TIPURO SERVI MEDIC",
   rol: "gerente_medico",
+  clinico: true,
 };
 
 // Perfil, organización y rol cambian muy poco: se guardan en memoria del servidor 2 minutos
@@ -56,7 +58,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
       .from("miembros")
-      .select("org_id, rol, organizaciones(nombre)")
+      .select("org_id, rol, acceso_clinico, organizaciones(nombre)")
       .eq("usuario_id", usuarioId)
       .eq("activo", true)
       .limit(1)
@@ -69,6 +71,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     orgId: miembro?.org_id ?? null,
     organizacion: org?.nombre ?? "Sin organización",
     rol: (miembro?.rol as Rol) ?? null,
+    clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
   };
   MEMORIA.set(usuarioId, { datos, vence: Date.now() + DURACION });
   return { demo: false, usuarioId, correo, ...datos };

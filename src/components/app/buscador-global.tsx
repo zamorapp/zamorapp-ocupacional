@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight, CornerDownLeft, Loader2, Search, Stethoscope, UserRound } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { iniciarConsulta } from "@/app/(app)/atencion/acciones";
 import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 import { buscarGlobal, type Encontrado } from "./acciones";
+import { RegistroRapido } from "./registro-rapido";
 
 export const EVENTO_BUSCADOR = "zamorapp:buscar";
 export const abrirBuscador = () => window.dispatchEvent(new Event(EVENTO_BUSCADOR));
@@ -21,8 +22,11 @@ const sinAcentos = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, 
 // Buscador universal: Ctrl+K o "/" desde cualquier pantalla.
 // Enter abre la ficha; Ctrl+Enter (o el botón Atender) abre la consulta directamente.
 // «Atender» y las secciones clínicas solo aparecen para el personal de salud.
-export function BuscadorGlobal({ portal = false, clinico = false }: { portal?: boolean; clinico?: boolean }) {
+type Props = { portal?: boolean; clinico?: boolean; empresas?: { id: string; nombre: string }[]; empresaActiva?: string | null };
+
+export function BuscadorGlobal({ portal = false, clinico = false, empresas = [], empresaActiva = null }: Props) {
   const router = useRouter();
+  const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [pacientes, setPacientes] = useState<Encontrado[]>([]);
@@ -60,7 +64,7 @@ export function BuscadorGlobal({ portal = false, clinico = false }: { portal?: b
             setPacientes([]);
           }
         }),
-      200,
+      300,
     );
     return () => clearTimeout(t);
   }, [texto, abierto]);
@@ -78,6 +82,13 @@ export function BuscadorGlobal({ portal = false, clinico = false }: { portal?: b
   useEffect(() => {
     lista.current?.querySelector(`[data-indice="${activo}"]`)?.scrollIntoView({ block: "nearest" });
   }, [activo]);
+
+  // Al cambiar de pantalla (por ejemplo, al abrir la consulta) el buscador se cierra solo
+  useEffect(() => {
+    setAbierto(false);
+    setTexto("");
+    setError(null);
+  }, [ruta]);
 
   const cerrar = () => {
     setAbierto(false);
@@ -167,11 +178,16 @@ export function BuscadorGlobal({ portal = false, clinico = false }: { portal?: b
             </li>
           ))}
           {texto.trim().length >= 2 && !buscando && nPacientes === 0 && (
-            <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-              Ningún trabajador coincide con «{texto.trim()}».{" "}
-              <button type="button" className="font-medium text-primary hover:underline" onClick={() => ir(`/pacientes?q=${encodeURIComponent(texto.trim())}`)}>
-                Ver en Pacientes
-              </button>
+            <li className="space-y-3 px-1 py-3">
+              <p className="text-center text-sm text-muted-foreground">
+                Ningún trabajador coincide con «{texto.trim()}».{" "}
+                <button type="button" className="font-medium text-primary hover:underline" onClick={() => ir(`/pacientes?q=${encodeURIComponent(texto.trim())}`)}>
+                  Ver en Pacientes
+                </button>
+              </p>
+              {!portal && (
+                <RegistroRapido key={texto.trim()} texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico={clinico} alListo={(href) => (href ? ir(href) : cerrar())} />
+              )}
             </li>
           )}
         </ul>

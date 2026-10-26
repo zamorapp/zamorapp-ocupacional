@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, Search, Users } from "lucide-react";
+import { ChevronRight, FileSpreadsheet, Loader2, Search, Stethoscope, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import {
   iniciales,
 } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
+import { iniciarConsulta } from "../atencion/acciones";
 
 const TODAS = "todas";
 
@@ -27,10 +28,22 @@ function normalizar(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-.\s]/g, "").toLowerCase();
 }
 
-type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode };
+type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode; clinico?: boolean };
 
-export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }: Props) {
+export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, clinico = false }: Props) {
   const router = useRouter();
+  // En el celular: tarjetas de 25 en 25, con «Atender» para el personal de salud
+  const [mostrarMovil, setMostrarMovil] = useState(25);
+  const [abriendo, iniciarApertura] = useTransition();
+  const [atendiendo, setAtendiendo] = useState<string | null>(null);
+  const [errorAtender, setErrorAtender] = useState<string | null>(null);
+  const atender = (id: string) => {
+    setAtendiendo(id);
+    iniciarApertura(async () => {
+      const r = await iniciarConsulta(id);
+      if (r && !r.ok) setErrorAtender(r.mensaje);
+    });
+  };
   const [busqueda, setBusqueda] = useState(busquedaInicial);
   const [empresa, setEmpresa] = useState(TODAS);
   const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(TODAS);
@@ -76,14 +89,14 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
             className="h-11 w-full rounded-lg border bg-card pl-9 pr-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
-        <Select value={empresa} onValueChange={(v) => { setEmpresa(v); setMostrar(100); }}>
+        <Select value={empresa} onValueChange={(v) => { setEmpresa(v); setMostrar(100); setMostrarMovil(25); }}>
           <SelectTrigger aria-label="Empresa" className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todas las empresas</SelectItem>
             {empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); }}>
+        <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); setMostrarMovil(25); }}>
           <SelectTrigger aria-label="Estado" className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todos los estados</SelectItem>
@@ -101,7 +114,45 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
               : "Ningún trabajador coincide con la búsqueda."}
           </div>
         ) : (
-          <Table>
+          <>
+          {errorAtender && <p className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive sm:hidden">{errorAtender}</p>}
+          <ul className="divide-y sm:hidden">
+            {filtrados.slice(0, mostrarMovil).map((t) => (
+              <li key={t.id} className="flex items-center gap-3 px-4 py-3">
+                <Link href={`/pacientes/${t.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <Avatar className="size-10">
+                    <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">{iniciales(t)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium leading-tight">{t.nombres} {t.apellidos}</div>
+                    <div className="truncate text-xs text-muted-foreground"><span className="font-mono">{t.cedula}</span> · {t.empresa}</div>
+                    <div className="mt-1">
+                      {t.aptitud ? (
+                        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", ESTILO_APTITUD[t.aptitud])}>{ETIQUETA_APTITUD[t.aptitud]}</span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">Sin evaluar</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                {clinico ? (
+                  <Button size="sm" variant="outline" className="shrink-0 text-primary" disabled={abriendo} onClick={() => atender(t.id)} aria-label={`Atender a ${t.nombres} ${t.apellidos}`}>
+                    {abriendo && atendiendo === t.id ? <Loader2 className="animate-spin" /> : <Stethoscope />} Atender
+                  </Button>
+                ) : (
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                )}
+              </li>
+            ))}
+            {filtrados.length > mostrarMovil && (
+              <li className="px-4 py-3">
+                <Button variant="outline" className="w-full" onClick={() => setMostrarMovil((m) => m + 25)}>
+                  Ver 25 más ({filtrados.length - mostrarMovil} restantes)
+                </Button>
+              </li>
+            )}
+          </ul>
+          <Table className="hidden sm:table">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="pl-5">Trabajador</TableHead>
@@ -114,7 +165,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
             <TableBody>
               {filtrados.slice(0, mostrar).map((t) => (
                 <TableRow key={t.id} className="cursor-pointer" onClick={() => router.push(`/pacientes/${t.id}`)}>
-                  <TableCell className="max-w-[52vw] py-3 pl-4 sm:max-w-none sm:pl-5">
+                  <TableCell className="py-3 pl-5">
                     <Link href={`/pacientes/${t.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <Avatar className="size-9">
                         <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">{iniciales(t)}</AvatarFallback>
@@ -144,9 +195,10 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }
               ))}
             </TableBody>
           </Table>
+          </>
         )}
         {filtrados.length > mostrar && (
-          <div className="flex items-center justify-between gap-3 border-t px-5 py-3 text-sm text-muted-foreground">
+          <div className="hidden sm:flex items-center justify-between gap-3 border-t px-5 py-3 text-sm text-muted-foreground">
             <span>Mostrando {mostrar} de {filtrados.length}. Escribe en el buscador para encontrar a alguien al instante.</span>
             <Button variant="outline" size="sm" onClick={() => setMostrar((m) => m + 200)}>Mostrar más</Button>
           </div>
