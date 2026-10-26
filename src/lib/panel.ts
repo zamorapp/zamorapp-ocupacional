@@ -22,8 +22,7 @@ export async function datosPanel(): Promise<DatosPanel> {
     return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vacio: false };
   }
 
-  const [empresas, trabajadores, eventos, citas] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true }), listarCitas(hoyVE())]);
-  const solicitudes = await listarSolicitudes();
+  const [empresas, trabajadores, eventos, citas, solicitudes] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true }), listarCitas(hoyVE()), listarSolicitudes()]);
   const hoy = new Date().toISOString().slice(0, 10);
   const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
 

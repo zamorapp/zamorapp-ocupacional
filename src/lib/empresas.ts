@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { supabaseConfigurado } from "@/lib/config";
 import { EMPRESAS_DEMO } from "@/lib/demo";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -21,7 +22,8 @@ export type Empresa = {
   ignorarAlertaLegal: boolean;
 };
 
-export async function listarEmpresas(): Promise<Empresa[]> {
+// cache(): el layout y la página la piden en la misma carga; así va una sola consulta
+export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
   if (!supabaseConfigurado) {
     return EMPRESAS_DEMO.map((e) => ({
       id: e.rif,
@@ -66,7 +68,7 @@ export async function listarEmpresas(): Promise<Empresa[]> {
     activa: e.activa,
     ignorarAlertaLegal: e.ignorar_alerta_legal,
   }));
-}
+});
 
 // Datos legales que exige el informe trimestral (bloque 1); si falta alguno se marca en rojo.
 export function datosLegalesFaltantes(e: Empresa) {
