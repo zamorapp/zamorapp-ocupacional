@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { RegistroSW } from "@/components/app/registro-sw";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_NOMBRE } from "@/lib/config";
 import "./globals.css";
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="es-VE">
       <body className={`${inter.variable} antialiased`}>
         <TooltipProvider>{children}</TooltipProvider>
+        <RegistroSW />
       </body>
     </html>
   );
