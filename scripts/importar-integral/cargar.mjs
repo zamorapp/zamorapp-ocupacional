@@ -332,8 +332,9 @@ try {
   await guardar("clinico.aptitudes", consultas.filter((c) => APTITUD[c.codaptitud] && escrita(c.codigo)).map((c) => ({ ...base, codigo_origen: `apt:${c.codigo}`,
     consulta_id: idsCons.get(`cons:${c.codigo}`), trabajador_id: idTrab(c.cod_paciente), clasificacion: APTITUD[c.codaptitud], observacion: unir(c.obsaptitud, limObs.get(c.codigo)), vigente_hasta: vigencia(fecha(c.fecha)),
     limitaciones: (limPorCons.get(c.codigo) ?? []).map((l) => oracion(l.nombre)), restricciones: (limPorCons.get(c.codigo) ?? []).map((l) => oracion(l.nombre)),
-    emitida_en: marca(c.horacierre) ?? marca(c.fecha) })),
-    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", vigente_hasta: "date", limitaciones: "jsonb", restricciones: "text[]", emitida_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
+    // Ya avisada: una aptitud histórica no debe avisar a la empresa al reabrir o cerrar la consulta
+    emitida_en: marca(c.horacierre) ?? marca(c.fecha), avisada_en: marca(c.horacierre) ?? marca(c.fecha) })),
+    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", vigente_hasta: "date", limitaciones: "jsonb", restricciones: "text[]", emitida_en: "timestamptz", avisada_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
 
   // Reposos
   await q("delete from clinico.reposos where consulta_id = any($1::uuid[]) and origen = $2", [idsConsLista, ORIGEN]);
