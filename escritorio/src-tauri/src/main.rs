@@ -223,7 +223,7 @@ fn main() {
                         anotar(&format!("ERROR: {e}"));
                         let texto = format!("No se pudo abrir zamorApp: {e} Cierra y vuelve a abrir el programa. Si sigue igual, avisa al soporte y envía el archivo %LOCALAPPDATA%\\zamorApp\\arranque.log.")
                             .replace('\\', "\\\\").replace('\'', "\\'");
-                        let _ = ventana.eval(&format!("document.querySelector('.c').innerHTML = '<strong>{texto}</strong>'"));
+                        let _ = ventana.eval(&format!("document.querySelector('.c').replaceChildren(Object.assign(document.createElement('strong'), {{ textContent: '{texto}' }}))"));
                     }
                 }
             });
