@@ -123,7 +123,11 @@ export class Motor {
     // Lo que diga PostgREST queda en puerta.log y, si no arranca, en el mensaje de error.
     let ultimas = [];
     const anotar = (b) => {
-      const texto = String(b).trimEnd();
+      // Nunca a disco ni a pantalla: claves de la base, secreto JWT ni credenciales en una URI
+      let texto = String(b).trimEnd().replace(/postgresql:\/\/[^@\s]*@/g, "postgresql://***@");
+      for (const secreto of [this.estado.d.claveAutenticador, this.estado.d.jwtSecreto, this.estado.d.claveBase]) {
+        if (secreto) texto = texto.split(secreto).join("***");
+      }
       this.registro?.(`[postgrest] ${texto}`);
       ultimas = [...ultimas, ...texto.split(/\r?\n/)].slice(-6);
     };
