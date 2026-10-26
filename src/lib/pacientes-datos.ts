@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { type Aptitud, type Trabajador, TRABAJADORES_DEMO } from "@/lib/pacientes";
+import { todas } from "@/lib/paginar";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 const COLUMNAS = `id, numero_historia, cedula, nombres, apellidos, sexo, fecha_nacimiento, fecha_ingreso, turno,
@@ -59,16 +60,19 @@ function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
 }
 
 // Última aptitud de cada trabajador, desde la vista segura (sin diagnósticos)
-async function aptitudes(ids: string[]) {
+async function aptitudes(ids: string[], empresa?: string | null) {
   const mapa = new Map<string, AptitudFila>();
   if (!ids.length) return mapa;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase
-    .from("aptitud_trabajadores")
-    .select("trabajador_id, fecha, clasificacion, vigente_hasta")
-    .in("trabajador_id", ids)
-    .order("fecha", { ascending: false });
-  for (const a of (data ?? []) as AptitudFila[]) if (!mapa.has(a.trabajador_id)) mapa.set(a.trabajador_id, a);
+  // Pocos trabajadores: se piden por id. Muchos: toda la vista (ya trae solo la última por trabajador)
+  const filas = ids.length <= 100
+    ? ((await supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, vigente_hasta").in("trabajador_id", ids)).data ?? []) as AptitudFila[]
+    : await todas<AptitudFila>((d, h) => {
+        let q = supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, vigente_hasta", { count: "exact" }).order("trabajador_id").range(d, h);
+        if (empresa) q = q.eq("empresa_id", empresa);
+        return q;
+      });
+  for (const a of filas) mapa.set(a.trabajador_id, a);
   return mapa;
 }
 
@@ -76,12 +80,12 @@ export async function listarTrabajadores(): Promise<Trabajador[]> {
   if (!supabaseConfigurado) return TRABAJADORES_DEMO;
   const supabase = await crearClienteServidor();
   const empresa = await empresaActivaId();
-  let consulta = supabase.from("trabajadores").select(COLUMNAS).order("apellidos").limit(2000);
-  if (empresa) consulta = consulta.eq("empresa_id", empresa);
-  const { data, error } = await consulta;
-  if (error) throw error;
-  const filas = (data ?? []) as unknown as Fila[];
-  const apt = await aptitudes(filas.map((f) => f.id));
+  const filas = await todas<Fila>((d, h) => {
+    let q = supabase.from("trabajadores").select(COLUMNAS, { count: "exact" }).order("apellidos").order("id").range(d, h);
+    if (empresa) q = q.eq("empresa_id", empresa);
+    return q;
+  });
+  const apt = await aptitudes(filas.map((f) => f.id), empresa);
   return filas.map((f) => aTrabajador(f, apt.get(f.id)));
 }
 
@@ -98,8 +102,8 @@ export async function obtenerTrabajador(id: string): Promise<Trabajador | null> 
 export async function cedulasRegistradas(): Promise<string[]> {
   if (!supabaseConfigurado) return TRABAJADORES_DEMO.map((t) => t.cedula);
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("trabajadores").select("cedula").limit(20000);
-  return (data ?? []).map((t) => t.cedula);
+  const filas = await todas<{ cedula: string }>((d, h) => supabase.from("trabajadores").select("cedula", { count: "exact" }).order("id").range(d, h));
+  return filas.map((t) => t.cedula);
 }
 
 export async function listarTiposPaciente(): Promise<{ id: string; nombre: string }[]> {

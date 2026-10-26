@@ -2,13 +2,14 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { Puesto } from "@/lib/puestos-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { todas } from "@/lib/paginar";
 
 export type Dependencia = { id: string; nombre: string; trabajadores: number; puestos: number };
 
 export async function estructuraEmpresa(empresaId: string): Promise<{ dependencias: Dependencia[]; puestos: Puesto[] }> {
   if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(empresaId)) return { dependencias: [], puestos: [] };
   const supabase = await crearClienteServidor();
-  const [{ data: deps }, { data: pts }, { data: trab }] = await Promise.all([
+  const [{ data: deps }, { data: pts }, trab] = await Promise.all([
     supabase.from("dependencias").select("id, nombre").eq("empresa_id", empresaId).eq("activa", true).order("nombre"),
     supabase
       .from("puestos")
@@ -16,7 +17,8 @@ export async function estructuraEmpresa(empresaId: string): Promise<{ dependenci
       .eq("empresa_id", empresaId)
       .eq("activo", true)
       .order("nombre"),
-    supabase.from("trabajadores").select("puesto_id, dependencia_id").eq("empresa_id", empresaId).in("estado", ["activo", "reposo", "aspirante"]).limit(20000),
+    todas<{ puesto_id: string | null; dependencia_id: string | null }>((d, h) =>
+      supabase.from("trabajadores").select("puesto_id, dependencia_id", { count: "exact" }).eq("empresa_id", empresaId).in("estado", ["activo", "reposo", "aspirante"]).order("id").range(d, h)),
   ]);
   const porPuesto = new Map<string, number>();
   const porDep = new Map<string, number>();

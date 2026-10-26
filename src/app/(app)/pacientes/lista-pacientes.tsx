@@ -34,6 +34,8 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) 
   const [busqueda, setBusqueda] = useState(busquedaInicial);
   const [empresa, setEmpresa] = useState(TODAS);
   const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(TODAS);
+  // Con miles de trabajadores se muestran por tandas para que la búsqueda sea instantánea
+  const [mostrar, setMostrar] = useState(100);
 
   const empresas = useMemo(() => [...new Set(trabajadores.map((t) => t.empresa))].sort(), [trabajadores]);
 
@@ -68,19 +70,19 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) 
           <input
             autoFocus
             value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            onChange={(e) => { setBusqueda(e.target.value); setMostrar(100); }}
             placeholder="Cédula, nombre, cargo o nº de historia"
             className="h-11 w-full rounded-lg border bg-card pl-9 pr-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
-        <Select value={empresa} onValueChange={setEmpresa}>
+        <Select value={empresa} onValueChange={(v) => { setEmpresa(v); setMostrar(100); }}>
           <SelectTrigger className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todas las empresas</SelectItem>
             {empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={estado} onValueChange={(v) => setEstado(v as EstadoTrabajador | typeof TODAS)}>
+        <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); }}>
           <SelectTrigger className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todos los estados</SelectItem>
@@ -109,7 +111,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.map((t) => (
+              {filtrados.slice(0, mostrar).map((t) => (
                 <TableRow key={t.id} className="cursor-pointer" onClick={() => router.push(`/pacientes/${t.id}`)}>
                   <TableCell className="py-3 pl-5">
                     <Link href={`/pacientes/${t.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
@@ -141,6 +143,12 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) 
               ))}
             </TableBody>
           </Table>
+        )}
+        {filtrados.length > mostrar && (
+          <div className="flex items-center justify-between gap-3 border-t px-5 py-3 text-sm text-muted-foreground">
+            <span>Mostrando {mostrar} de {filtrados.length}. Escribe en el buscador para encontrar a alguien al instante.</span>
+            <Button variant="outline" size="sm" onClick={() => setMostrar((m) => m + 200)}>Mostrar más</Button>
+          </div>
         )}
       </Card>
     </div>

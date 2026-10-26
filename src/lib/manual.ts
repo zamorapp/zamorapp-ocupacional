@@ -156,6 +156,19 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "integral",
+    titulo: "Datos traídos del Sistema Integral",
+    para: "servicio",
+    resumen: "Las empresas, pacientes y consultas del Integral (2021-2026) están en zamorApp; el Integral no se modificó y puedes seguir usándolo.",
+    pasos: [
+      "Cada paciente del Integral aparece en Pacientes con su historia, cargo y aptitud; sus consultas antiguas se abren desde la pestaña Consultas.",
+      "Las consultas importadas quedan cerradas. Si necesitas corregir una, ábrela y usa «Reabrir».",
+      "Los diagnósticos conservan el nombre que usabas en el Integral y llevan el código CIE-10 equivalente.",
+      "Las 122 medicinas que recetabas están en el vademécum con la dosis, vía y frecuencia que más usabas.",
+      "Si sigues registrando en el Integral, la carga se puede repetir: actualiza lo existente y agrega lo nuevo sin duplicar.",
+    ],
+  },
+  {
     id: "respaldo",
     titulo: "Respaldos",
     para: "servicio",
