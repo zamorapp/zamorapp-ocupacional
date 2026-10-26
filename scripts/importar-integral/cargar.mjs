@@ -104,7 +104,7 @@ const APTITUD = { Elegible: "elegible", ElegibleRest: "elegible_con_restriccione
 const CAUSA = { EnfComun: "enfermedad_comun", AccComun: "accidente_comun", AccLaboral: "accidente_laboral", EnfOcupacional: "enfermedad_ocupacional", PreNatal: "prenatal", PostNatal: "postnatal" };
 const ENTE = { SERM: "servicio_medico", PART: "particular", HOSP: "hospital", AMBU: "ambulatorio", IVSS: "ivss", CDI: "cdi" };
 const FRECUENCIA = { "CADA 12 HRS": "Cada 12 horas", DIARIO: "Cada 24 horas", "CADA 8 HORAS": "Cada 8 horas", "CADA 6 HORAS": "Cada 6 horas", "CADA 4 HORAS": "Cada 4 horas",
-  "15 DIAS": "Cada 15 días", STAT: "Dosis única", INTERDIARIO: "Cada 48 horas", MENSUAL: "Mensual", "S.O.S": "Si hay dolor (SOS)", SOS: "Si hay dolor (SOS)" };
+  "15 DIAS": "Cada 15 días", STAT: "Dosis única", INTERDIARIO: "Cada 48 horas", MENSUAL: "Una vez al mes", "S.O.S": "Si hay dolor (SOS)", SOS: "Si hay dolor (SOS)" };
 const frecuencia = (v) => FRECUENCIA[(v ?? "").trim().toUpperCase()] ?? (v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "");
 const duracion = (v) => {
   const x = (v ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
