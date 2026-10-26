@@ -144,7 +144,7 @@ export const MANUAL: TemaManual[] = [
     resumen: "Todo lo editable de la app: organización, usuarios, listas, perfiles y textos.",
     pasos: [
       "Organización: nombre, RIF, dirección, logo y textos de los documentos, incluidos el certificado de salud y las plantillas de WhatsApp y correo.",
-      "Mi perfil: tus datos de médico (cédula, MPPS) y tu firma.",
+      "Mi perfil: tus datos de médico (cédula, MPPS, colegio, INPSASEL) y las fotos de tu firma y tu sello. Marca si quieres que se impriman o dejar la casilla vacía para firmar y sellar a mano.",
       "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar.",
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",

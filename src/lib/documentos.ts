@@ -32,7 +32,7 @@ export async function obtenerDocumento(consultaId: string) {
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes").eq("id", c.org_id).single(),
     c.medico_id
-      ? supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel").eq("id", c.medico_id).maybeSingle()
+      ? supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, firma_url, sello_url, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle()
       : Promise.resolve({ data: null }),
     c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("empresas").select("razon_social, rif").eq("id", c.empresa_id).single(),
@@ -43,7 +43,10 @@ export async function obtenerDocumento(consultaId: string) {
   return {
     ...consulta,
     org: { ...(org ?? { nombre: "", rif: null, direccion: null, telefono: null, correo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
-    medicoDatos: medico as { nombre_completo: string; cedula: string | null; mpps: string | null; colegio_medicos: string | null; registro_inpsasel: string | null } | null,
+    medicoDatos: medico as {
+      nombre_completo: string; cedula: string | null; mpps: string | null; colegio_medicos: string | null; registro_inpsasel: string | null;
+      firma_url: string | null; sello_url: string | null; mostrar_firma: boolean; mostrar_sello: boolean;
+    } | null,
     motivo: motivo as { nombre: string; codigo: string | null; grupo: string | null } | null,
     empresa: empresa as { razon_social: string; rif: string },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,

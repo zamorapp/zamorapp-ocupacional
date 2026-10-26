@@ -78,24 +78,42 @@ export function Bloque({ titulo, children }: { titulo: string; children: React.R
 }
 
 // Casilla cuadrada para el sello húmedo del médico
-export function CasillaSello({ className = "size-28" }: { className?: string }) {
-  return <div className={`grid shrink-0 place-items-end justify-center border border-dashed border-neutral-500 pb-1 text-[10px] text-neutral-500 ${className}`}>Sello</div>;
+export function CasillaSello({ className = "h-28 w-52", imagen }: { className?: string; imagen?: string | null }) {
+  return (
+    <div className={`relative grid shrink-0 place-items-end justify-center border border-dashed border-neutral-500 pb-1 text-[10px] text-neutral-500 ${className}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {imagen && <img src={imagen} alt="" className="absolute inset-1 m-auto max-h-[85%] max-w-[95%] object-contain" />}
+      Sello
+    </div>
+  );
+}
+
+// Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
+export function imagenesMedico(d: DatosDocumento) {
+  const m = d.medicoDatos;
+  return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
 }
 
 export function FirmaMedico({ d, etiqueta = "Médico evaluador" }: { d: DatosDocumento; etiqueta?: string }) {
   const m = d.medicoDatos;
   // Configuración › Organización: firma y sello en casillas separadas (por defecto) o en una sola línea
   const separados = d.org.ajustes.firma_sello_separados !== false;
+  const img = imagenesMedico(d);
   return (
     <div className="flex items-end gap-4">
       <div className="w-64 text-center text-[11px]">
-        <div className="mb-1 h-14 border-b border-neutral-800" />
+        <div className="relative mb-1 h-16 border-b border-neutral-800">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
+        </div>
         <div className="font-semibold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
         <div>{[m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `C.M. ${m.colegio_medicos}`].filter(Boolean).join(" · ")}</div>
         {m?.registro_inpsasel && <div>Reg. INPSASEL {m.registro_inpsasel}</div>}
         <div className="text-neutral-500">{etiqueta} · {separados ? "Firma" : "Firma y sello"}</div>
       </div>
-      {separados && <CasillaSello />}
+      {separados && <CasillaSello imagen={img.sello} />}
     </div>
   );
 }

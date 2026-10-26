@@ -4,6 +4,7 @@ import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Volver } from "../volver";
 import { FormPerfil } from "./form-perfil";
+import { FirmaSello } from "./firma-sello";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
@@ -14,7 +15,7 @@ export default async function Perfil() {
     const supabase = await crearClienteServidor();
     const { data } = await supabase
       .from("perfiles")
-      .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel")
+      .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel, firma_url, sello_url, mostrar_firma, mostrar_sello")
       .eq("id", sesion.usuarioId)
       .maybeSingle();
     perfil = data;
@@ -29,6 +30,7 @@ export default async function Perfil() {
         </p>
       </div>
       <FormPerfil perfil={perfil} editable={!sesion.demo} />
+      {!sesion.demo && <FirmaSello firma={perfil?.firma_url ?? null} sello={perfil?.sello_url ?? null} mostrarFirma={perfil?.mostrar_firma ?? true} mostrarSello={perfil?.mostrar_sello ?? true} />}
     </div>
   );
 }

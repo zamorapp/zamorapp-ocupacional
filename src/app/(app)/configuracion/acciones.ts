@@ -192,3 +192,28 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     return fallo(e);
   }
 }
+
+// Firma y sello del médico (imagen PNG en data URL, ya reducida en el navegador) y si se imprimen
+export async function guardarImagenFirma(tipo: "firma" | "sello", imagen: string | null): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto();
+    if (imagen && (!/^data:image\/(png|jpeg);base64,/.test(imagen) || imagen.length > 600_000)) return { ok: false, mensaje: "La imagen no es válida o es muy grande." };
+    const { error } = await supabase.from("perfiles").update({ [`${tipo}_url`]: imagen }).eq("id", sesion.usuarioId);
+    if (error) throw error;
+    revalidatePath("/configuracion/perfil");
+    return { ok: true, mensaje: imagen ? (tipo === "firma" ? "Firma guardada." : "Sello guardado.") : "Imagen quitada." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function mostrarFirmaSello(campo: "mostrar_firma" | "mostrar_sello", valor: boolean): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto();
+    const { error } = await supabase.from("perfiles").update({ [campo]: valor }).eq("id", sesion.usuarioId);
+    if (error) throw error;
+    return { ok: true, mensaje: "Guardado." };
+  } catch (e) {
+    return fallo(e);
+  }
+}

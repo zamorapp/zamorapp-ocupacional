@@ -2,7 +2,7 @@ import type { DatosDocumento } from "@/lib/documentos";
 import { faltantesRecipe } from "@/lib/documentos";
 import { ETIQUETA_ORIGEN, resumenAntecedentes } from "@/lib/consultas-tipos";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
-import { Bloque, CasillaSello, Datos, DatosPaciente, fechaCorta, fechaLarga, FirmaMedico, FirmaTrabajador, Hoja, Membrete, Titulo } from "./componentes";
+import { Bloque, CasillaSello, imagenesMedico, Datos, DatosPaciente, fechaCorta, fechaLarga, FirmaMedico, FirmaTrabajador, Hoja, Membrete, Titulo } from "./componentes";
 
 // "Elegible" / "Apto" / "Recomendable" según Configuración › Organización
 function etiquetasAptitud(palabra = "Elegible"): Record<Aptitud, string> {
@@ -168,8 +168,14 @@ function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: strin
         </div>
         {d.org.ajustes.firma_sello_separados !== false ? (
           <div className="flex items-end gap-2">
-            <div className="w-32 text-center"><div className="mb-1 h-10 border-b border-neutral-800" />Firma</div>
-            <CasillaSello className="size-20" />
+            <div className="w-32 text-center">
+              <div className="relative mb-1 h-10 border-b border-neutral-800">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {imagenesMedico(d).firma && <img src={imagenesMedico(d).firma!} alt="" className="absolute inset-x-0 bottom-0 mx-auto max-h-12 max-w-full object-contain" />}
+              </div>
+              Firma
+            </div>
+            <CasillaSello className="h-20 w-36" imagen={imagenesMedico(d).sello} />
           </div>
         ) : (
           <div className="w-44 text-center"><div className="mb-1 h-10 border-b border-neutral-800" />Firma y sello</div>
