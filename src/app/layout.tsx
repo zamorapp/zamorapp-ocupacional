@@ -25,6 +25,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es-VE">
       <body className={`${inter.variable} antialiased`}>
+        {/* Guarda el aviso de instalación aunque llegue antes de que cargue React (lo usa InstalarApp). */}
+        <script dangerouslySetInnerHTML={{ __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__eventoInstalar=e});" }} />
         <TooltipProvider>{children}</TooltipProvider>
         <RegistroSW />
       </body>

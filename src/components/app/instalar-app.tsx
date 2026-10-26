@@ -3,33 +3,45 @@
 import { useEffect, useState } from "react";
 import { MonitorDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type EventoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+declare global { interface Window { __eventoInstalar?: EventoInstalar | null } }
 
-/** Botón "Instalar app": aparece solo cuando el navegador permite instalar zamorApp y aún no está instalada. */
+/** Botón "Instalar app": usa el aviso del navegador si existe; si no, explica cómo instalarla. Se oculta dentro de la app instalada. */
 export function InstalarApp() {
+  const [instalada, setInstalada] = useState(true);
   const [evento, setEvento] = useState<EventoInstalar | null>(null);
 
   useEffect(() => {
+    setInstalada(window.matchMedia("(display-mode: standalone)").matches);
+    setEvento(window.__eventoInstalar ?? null);
     const guardar = (e: Event) => { e.preventDefault(); setEvento(e as EventoInstalar); };
-    const instalada = () => setEvento(null);
+    const lista = () => { setInstalada(true); setEvento(null); };
     window.addEventListener("beforeinstallprompt", guardar);
-    window.addEventListener("appinstalled", instalada);
+    window.addEventListener("appinstalled", lista);
     return () => {
       window.removeEventListener("beforeinstallprompt", guardar);
-      window.removeEventListener("appinstalled", instalada);
+      window.removeEventListener("appinstalled", lista);
     };
   }, []);
 
-  if (!evento) return null;
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5"
-      onClick={async () => { await evento.prompt(); await evento.userChoice; setEvento(null); }}
-    >
+  if (instalada) return null;
+  const boton = (
+    <Button variant="outline" size="sm" className="gap-1.5" onClick={evento ? async () => { await evento.prompt(); await evento.userChoice; setEvento(null); window.__eventoInstalar = null; } : undefined}>
       <MonitorDown /> <span className="hidden sm:inline">Instalar app</span>
     </Button>
+  );
+  if (evento) return boton;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{boton}</DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72 space-y-2 p-3 text-sm">
+        <p className="font-medium">Instalar zamorApp</p>
+        <p><b>Chrome o Edge (PC):</b> menú ⋮ → «Transmitir, guardar y compartir» → «Instalar página como app», o el ícono de instalar al final de la barra de direcciones.</p>
+        <p><b>Android:</b> menú ⋮ → «Agregar a la pantalla principal».</p>
+        <p><b>iPhone o iPad:</b> botón Compartir → «Agregar a inicio».</p>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
