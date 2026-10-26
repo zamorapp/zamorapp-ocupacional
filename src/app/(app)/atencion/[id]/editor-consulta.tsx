@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,10 @@ type Props = {
   listas: Record<string, Item[]>;
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
   envio: { servicio: string; plantilla: string; telefono: string | null; correo: string | null };
+  puedeFirmar: boolean;
 };
+
+const CONFIRMAR_FIRMA = "La firma bloquea la consulta para siempre (no se edita, reabre ni borra). ¿Firmar?";
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const APTITUDES: Aptitud[] = ["elegible", "elegible_con_restricciones", "no_elegible", "espera_resultados", "diferido"];
@@ -128,7 +132,8 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar }: Props) {
+  const router = useRouter();
   const [d, setD] = useState<DatosConsulta>(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -175,6 +180,23 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       }),
     [d],
   );
+
+  // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
+  const firmarEImprimir = () => {
+    if (!confirm(CONFIRMAR_FIRMA)) return;
+    iniciar(async () => {
+      if (d.estado === "borrador") {
+        const g = await guardarConsulta(d, true);
+        if (!g.ok) return setAviso(g);
+        setGuardado(JSON.stringify({ ...d, estado: "cerrada" }));
+      }
+      const r = await firmarConsulta(d.id);
+      setAviso(r);
+      if (!r.ok) return setD((x) => ({ ...x, estado: "cerrada" }));
+      setD((x) => ({ ...x, estado: "firmada" }));
+      router.push(`/imprimir/paquete/${d.id}`);
+    });
+  };
 
   // Ctrl+S guarda; avisa antes de salir con cambios sin guardar
   useEffect(() => {
@@ -228,26 +250,31 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             {medico && <div>{medico}</div>}
           </div>
           {d.estado === "firmada" ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
+              <Button variant="outline" asChild><Link href={`/imprimir/paquete/${d.id}`}><Printer /> Imprimir todo</Link></Button>
+            </div>
           ) : bloqueado ? (
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => iniciar(async () => { const r = await reabrirConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "borrador" }); })} disabled={guardando}>
                 <Lock /> Reabrir
               </Button>
-              <Button
-                onClick={() => confirm("Al firmar, la consulta queda bloqueada para siempre: no se podrá editar, reabrir ni borrar. ¿Firmar?") &&
-                  iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })}
-                disabled={guardando}
-              >
-                <CheckCircle2 /> Firmar
-              </Button>
+              {puedeFirmar && (
+                <>
+                  <Button variant="outline" onClick={() => confirm(CONFIRMAR_FIRMA) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
+                    <CheckCircle2 /> Firmar
+                  </Button>
+                  <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
-              <Button onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>
+              <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>
+              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>}
             </div>
           )}
         </div>

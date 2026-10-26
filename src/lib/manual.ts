@@ -23,6 +23,7 @@ export const MANUAL: TemaManual[] = [
       "Con las flechas eliges; Enter abre la ficha del trabajador.",
       "Servicio médico: para atenderlo de una vez, toca «Atender» en el resultado o pulsa Ctrl+Enter: se abre la consulta nueva sin pasar por la ficha.",
       "Si escribes el nombre de una sección (por ejemplo «reportes»), te lleva allí.",
+      "¿No existe? Si la cédula no aparece, el mismo buscador ofrece «Registrar y atender»: cédula, nombres, apellidos y empresa, y se abre la consulta. Sexo, cargo y demás datos se completan después. Recepción ve «Registrar» y llega a la ficha.",
       "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
     ],
     consejos: ["En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar."],
@@ -52,6 +53,7 @@ export const MANUAL: TemaManual[] = [
       "Arriba eliges la empresa activa o «Todas las empresas»; todo lo que ves se filtra por esa elección.",
       "La campanita muestra avisos nuevos (solicitudes de cita del portal, aptitudes emitidas, etc.).",
       "El buscador de arriba (o Ctrl+K, o la tecla /) encuentra trabajadores por cédula o nombre y también te lleva a cualquier sección.",
+      "Arriba ves lo que te toca hoy según tu rol: el médico, quiénes esperan, sus consultas por firmar y las abiertas; recepción, quiénes faltan por llegar, quiénes esperan y las solicitudes del portal; el coordinador SST, los eventos abiertos; administración, las notas por cobrar. Toca cualquier recuadro para ir directo. Los accesos rápidos también cambian según el rol.",
     ],
   },
   {
@@ -75,6 +77,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Pacientes → «Nuevo» para registrar uno, o «Importar» para cargar la nómina desde Excel (acepta fechas en formato Excel).",
       "Abre un paciente para ver sus pestañas: Resumen, Laboral y riesgos, Consultas y Resultados.",
+      "En el celular la lista se ve en tarjetas de 25 en 25 con la aptitud de cada uno; el personal de salud tiene «Atender» al lado de cada nombre.",
       "«Nueva consulta» abre la atención médica del trabajador (solo personal de salud).",
       "En «Historia laboral» registras sus empleos anteriores: empresa, cargo, tiempo, riesgos, equipos de protección, accidentes y enfermedades previas.",
       "Depurar nómina: marca como egresados, de una vez, a quienes no tienen consulta desde una fecha (ej. hace un año). Primero te dice cuántos son y luego confirmas.",
@@ -88,7 +91,9 @@ export const MANUAL: TemaManual[] = [
     para: "servicio",
     resumen: "Donde se atiende: cola del día, citas, solicitudes del portal y la consulta completa.",
     pasos: [
-      "En Atención médica ves la cola del día, las citas y las solicitudes que llegan del portal de empresas (las apruebas o rechazas).",
+      "En Atención médica ves la cola del día como tablero de cuatro columnas: Citados, En espera, En consulta y Atendidos. Arrastra a un citado a «En espera» cuando llega, y de ahí a «En consulta» para abrir su consulta (los botones «Llegó» y «Atender» hacen lo mismo). El tiempo de espera se pone amarillo a los 20 minutos y rojo a los 40.",
+      "La cola está «En vivo»: si recepción marca una llegada en otro equipo, la ves al instante sin recargar.",
+      "Arriba también ves las solicitudes que llegan del portal de empresas (las apruebas o rechazas).",
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
       "El botón verde de WhatsApp en cada cita abre tu WhatsApp con el recordatorio listo para enviar al trabajador.",
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
@@ -101,6 +106,7 @@ export const MANUAL: TemaManual[] = [
       "Tratamiento: busca el medicamento y la dosis, vía, frecuencia y días se llenan con sus valores habituales; puedes cambiarlos.",
       "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
       "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Una consulta cerrada puede «Reabrirse» para corregirla, o «Firmarse»: firmada queda bloqueada para siempre (no se edita, no se reabre ni se borra). Firma el médico que atendió o el gerente médico; enfermería no firma. Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
+      "«Cerrar, firmar e imprimir» (o «Firmar e imprimir» si ya estaba cerrada) hace todo en un clic: cierra, firma y abre en una sola impresión la constancia, el reposo, el récipe y la orden de exámenes que apliquen. Pide confirmación porque la firma no se deshace. Solo lo ve quien puede firmar. Una consulta firmada tiene «Imprimir todo» para volver a imprimirlos.",
       "Con la aptitud puesta y la consulta cerrada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
     ],
     consejos: ["Todo texto frecuente, perfil y lista se edita en Configuración › Listas."],
@@ -164,6 +170,8 @@ export const MANUAL: TemaManual[] = [
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",
       "En las listas largas usa el buscador de arriba para encontrar un elemento.",
+      "Auditoría (administrador, gerente médico y auditor): día por día, quién abrió cada historia clínica y qué se creó, cambió o borró, y desde qué equipo. Filtra por Accesos o Cambios. No se puede editar ni borrar.",
+      "Equipos (administrador): las PC con zamorApp para escritorio, su serie y su última sincronía. «Revocar» corta a una PC perdida o dada de baja; «Reactivar» la devuelve.",
     ],
   },
   {
@@ -172,7 +180,7 @@ export const MANUAL: TemaManual[] = [
     para: "empresa",
     resumen: "Para RR. HH. de las empresas clientes: pedir citas, ver la nómina con su aptitud y recibir avisos.",
     pasos: [
-      "En Inicio tocas «Solicitar cita», eliges el trabajador, el tipo de evaluación y la fecha deseada.",
+      "En Inicio tocas «Solicitar cita», buscas y agregas uno o varios trabajadores (con «Agregar los N» sumas todos los que coinciden), eliges el tipo de evaluación y la fecha deseada. Se envía una solicitud por trabajador, hasta 200 a la vez; si alguno no es de tu empresa, se te avisa cuántos quedaron fuera.",
       "El servicio médico la aprueba o propone otra fecha; te llega un aviso en la campanita.",
       "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos).",
       "Cuando el médico cierra la consulta con su aptitud, recibes un aviso (una sola vez por consulta).",

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Building2, CalendarClock, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Plus, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Semaforo } from "@/components/app/semaforo";
 import { datosPanel } from "@/lib/panel";
+import { enfoqueDelRol } from "@/lib/panel-rol";
+import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -13,12 +15,7 @@ export const dynamic = "force-dynamic";
 
 const ZONA = "America/Caracas";
 
-const ACCIONES = [
-  { titulo: "Nueva consulta", icono: ClipboardPlus, href: "/atencion" },
-  { titulo: "Nuevo paciente", icono: UserPlus, href: "/pacientes" },
-  { titulo: "Reportar accidente", icono: HardHat, href: "/accidentes" },
-  { titulo: "Emitir constancia", icono: FilePlus2, href: "/documentos" },
-];
+const ICONOS = { consulta: ClipboardPlus, paciente: UserPlus, accidente: HardHat, constancia: FilePlus2, cita: CalendarPlus, cobro: Receipt, reporte: BarChart3, usuarios: UsersRound };
 
 const ESTILO_CITA: Record<string, string> = {
   Atendido: "bg-ok/15 text-ok-texto",
@@ -33,7 +30,8 @@ function saludo() {
 }
 
 export default async function Panel() {
-  const [sesion, datos] = await Promise.all([obtenerSesion(), datosPanel()]);
+  const sesion = await obtenerSesion();
+  const [datos, enfoque] = await Promise.all([datosPanel(), enfoqueDelRol(sesion)]);
   const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);
   const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date());
 
@@ -48,6 +46,30 @@ export default async function Panel() {
           <Link href="/atencion"><Plus /> Registrar</Link>
         </Button>
       </div>
+
+      {/* Lo primero según el rol: pendientes que se resuelven hoy */}
+      <section aria-label={enfoque.titulo} className="space-y-2">
+        <h2 className="text-sm font-medium text-muted-foreground">{enfoque.titulo}</h2>
+        <div className={cn("grid grid-cols-1 gap-3", enfoque.tareas.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+          {enfoque.tareas.map((t) => (
+            <Link
+              key={t.titulo}
+              href={t.href}
+              className={cn(
+                "group flex items-center gap-4 rounded-xl border bg-card p-4 transition hover:border-primary/50",
+                t.urgente && t.valor > 0 && "border-aviso/60 bg-aviso/10",
+              )}
+            >
+              <span className={cn("text-3xl font-semibold tabular-nums", t.urgente && t.valor > 0 ? "text-aviso-texto" : "text-foreground")}>{t.valor}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{t.titulo}</span>
+                <span className="block truncate text-xs text-muted-foreground">{t.detalle}</span>
+              </span>
+              <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5" />
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {datos.vacio && (
         <Card className="border-primary/30 bg-primary/5 py-5">
@@ -153,14 +175,14 @@ export default async function Panel() {
         <Card>
           <CardHeader><CardTitle className="text-base">Accesos rápidos</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            {ACCIONES.map(({ titulo, icono: Icono, href }) => (
+            {enfoque.acciones.map(({ titulo, icono, href }) => { const Icono = ICONOS[icono]; return (
               <Link key={titulo} href={href} className="group flex flex-col items-start gap-3 rounded-xl border p-4 transition hover:border-primary/40 hover:bg-primary/5">
                 <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
                   <Icono className="size-5" />
                 </span>
                 <span className="text-sm font-medium">{titulo}</span>
               </Link>
-            ))}
+            ); })}
           </CardContent>
         </Card>
 

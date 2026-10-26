@@ -22,6 +22,7 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
     <ListaPacientes
       trabajadores={trabajadores}
       busquedaInicial={q ?? ""}
+      clinico={sesion.clinico}
       depurar={!sesion.demo && sesion.rol !== "gerente_empresa" ? <DepurarNomina empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={activa ?? ""} /> : null}
       nuevo={
         <NuevoPaciente

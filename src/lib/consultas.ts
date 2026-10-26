@@ -80,6 +80,7 @@ export type ConsultaCompleta = {
   datos: DatosConsulta;
   trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
+  medicoId: string | null;
 };
 
 export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | null> {
@@ -105,6 +106,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
 
   return {
     medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,
+    medicoId: c.medico_id ?? null,
     trabajador: {
       id: c.trabajador_id,
       nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
