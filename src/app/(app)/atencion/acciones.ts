@@ -151,3 +151,12 @@ export async function reabrirConsulta(id: string): Promise<Resultado> {
   revalidatePath(`/atencion/${id}`);
   return { ok: true, mensaje: "Consulta reabierta." };
 }
+
+// Firma: la consulta queda bloqueada para siempre (no se edita, no se reabre, no se borra)
+export async function firmarConsulta(id: string): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("firmar_consulta", { p_id: id });
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath(`/atencion/${id}`);
+  return { ok: true, mensaje: "Consulta firmada. Ya no se puede modificar." };
+}

@@ -86,7 +86,7 @@ export const MANUAL: TemaManual[] = [
       "Diagnóstico: escribe y elige del buscador CIE-10, o marca «Sano» si cumple los protocolos.",
       "Tratamiento: busca el medicamento y la dosis, vía, frecuencia y días se llenan con sus valores habituales; puedes cambiarlos.",
       "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
-      "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
+      "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Una consulta cerrada puede «Reabrirse» para corregirla, o «Firmarse»: firmada queda bloqueada para siempre (no se edita, no se reabre ni se borra). Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
       "Con la aptitud puesta y la consulta cerrada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
     ],
     consejos: ["Todo texto frecuente, perfil y lista se edita en Configuración › Listas."],
@@ -145,7 +145,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Organización: nombre, RIF, dirección, logo y textos de los documentos, incluidos el certificado de salud y las plantillas de WhatsApp y correo.",
       "Mi perfil: tus datos de médico (cédula, MPPS) y tu firma.",
-      "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. A los usuarios de empresa (RR. HH.) les asignas sus empresas.",
+      "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar.",
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",

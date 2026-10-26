@@ -24,7 +24,7 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { guardarConsulta, reabrirConsulta } from "../acciones";
+import { firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
 import { BotonesDocumentos } from "@/components/app/botones-documentos";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import { Adjuntos } from "@/components/app/adjuntos";
@@ -227,10 +227,21 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <div>{ETIQUETA_ESTADO_CONSULTA[d.estado]} · {d.fecha.split("-").reverse().join("/")}</div>
             {medico && <div>{medico}</div>}
           </div>
-          {bloqueado ? (
-            <Button variant="outline" onClick={() => iniciar(async () => { const r = await reabrirConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "borrador" }); })} disabled={d.estado === "firmada" || guardando}>
-              <Lock /> Reabrir
-            </Button>
+          {d.estado === "firmada" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
+          ) : bloqueado ? (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => iniciar(async () => { const r = await reabrirConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "borrador" }); })} disabled={guardando}>
+                <Lock /> Reabrir
+              </Button>
+              <Button
+                onClick={() => confirm("Al firmar, la consulta queda bloqueada para siempre: no se podrá editar, reabrir ni borrar. ¿Firmar?") &&
+                  iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })}
+                disabled={guardando}
+              >
+                <CheckCircle2 /> Firmar
+              </Button>
+            </div>
           ) : (
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>

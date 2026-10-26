@@ -11,6 +11,8 @@ import { agregarUsuario, cambiarRol, type Resultado } from "../acciones";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
+// Personas de la empresa cliente: deben tener su empresa asignada
+const ROLES_EMPRESA: Rol[] = ["gerente_empresa", "trabajador", "supervisor", "delegado_prevencion", "auditor"];
 
 function iniciales(texto: string) {
   return texto.split(/[\s@.]+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
@@ -39,9 +41,9 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
               <CampoSelect id="rol" etiqueta="Rol" value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value as Rol)}>
                 {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </CampoSelect>
-              {rolNuevo === "gerente_empresa" && (
+              {ROLES_EMPRESA.includes(rolNuevo) && (
                 <div className="sm:col-span-3">
-                  <p className="mb-1.5 text-sm font-medium">Empresas a las que tendrá acceso (portal)</p>
+                  <p className="mb-1.5 text-sm font-medium">Empresa a la que pertenece * (solo verá esa)</p>
                   <div className="flex flex-wrap gap-3">
                     {empresas.map((e) => (
                       <label key={e.id} className="flex items-center gap-1.5 text-sm">
@@ -74,7 +76,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
               </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
-                <div className="truncate text-sm text-muted-foreground">{m.correo}{m.rol === "gerente_empresa" && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
+                <div className="truncate text-sm text-muted-foreground">{m.correo}{ROLES_EMPRESA.includes(m.rol) && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
               </div>
               {esAdmin ? (
                 <>
