@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
   if (!conSesion && !enLogin) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (conSesion && enLogin) {
+  if (conSesion && enLogin && !request.nextUrl.pathname.startsWith("/login/nueva-clave")) {
     return NextResponse.redirect(new URL("/panel", request.url));
   }
   return respuesta;

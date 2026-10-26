@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 
-type Modo = "ingresar" | "registro";
+type Modo = "ingresar" | "registro" | "recuperar";
 
 export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   const router = useRouter();
@@ -29,6 +29,17 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
     const correo = String(datos.get("correo"));
     const clave = String(datos.get("clave"));
     const supabase = crearClienteNavegador();
+
+    if (modo === "recuperar") {
+      const { error } = await supabase.auth.resetPasswordForEmail(correo, { redirectTo: `${window.location.origin}/login/nueva-clave` });
+      setCargando(false);
+      if (error) {
+        setError(error.message.includes("rate") ? "Ya enviamos un correo hace poco. Espera un minuto y vuelve a intentar." : "No se pudo enviar el correo. Revisa la dirección.");
+        return;
+      }
+      setConfirmar(correo);
+      return;
+    }
 
     if (modo === "registro") {
       const { data, error } = await supabase.auth.signUp({
@@ -66,7 +77,9 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
         <MailCheck className="mx-auto size-10 text-primary" />
         <p className="font-medium">Revisa tu correo</p>
         <p className="text-sm text-muted-foreground">
-          Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.
+          {modo === "recuperar"
+            ? <>Si <b className="text-foreground">{confirmar}</b> tiene cuenta, le llegará un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.</>
+            : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
         </p>
         <Button variant="outline" onClick={() => { setConfirmar(null); setModo("ingresar"); }}>Volver al ingreso</Button>
       </div>
@@ -74,6 +87,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   }
 
   const registro = modo === "registro";
+  const recuperar = modo === "recuperar";
 
   return (
     <form onSubmit={enviar} className="space-y-5">
@@ -87,10 +101,11 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
         <Label htmlFor="correo">Correo</Label>
         <Input id="correo" name="correo" type="email" autoComplete="email" placeholder="medico@empresa.com" required={!modoDemo} className="h-11" />
       </div>
-      <div className="space-y-2">
+      {recuperar && <p className="text-sm text-muted-foreground">Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva.</p>}
+      {!recuperar && <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="clave">Contraseña</Label>
-          {!registro && <button type="button" className="text-sm text-primary hover:underline">¿La olvidaste?</button>}
+          {!registro && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setError(null); setModo("recuperar"); }}>¿La olvidaste?</button>}
         </div>
         <Input
           id="clave"
@@ -101,13 +116,17 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
           required={!modoDemo}
           className="h-11"
         />
-      </div>
+      </div>}
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <Button type="submit" className="h-11 w-full text-base" disabled={cargando}>
         {cargando && <Loader2 className="animate-spin" />}
-        {modoDemo ? "Entrar en modo demo" : registro ? "Crear cuenta" : "Ingresar"}
+        {modoDemo ? "Entrar en modo demo" : registro ? "Crear cuenta" : recuperar ? "Enviar enlace" : "Ingresar"}
       </Button>
-      {modoDemo ? (
+      {recuperar ? (
+        <p className="text-center text-sm">
+          <button type="button" className="font-medium text-primary hover:underline" onClick={() => { setError(null); setModo("ingresar"); }}>Volver al ingreso</button>
+        </p>
+      ) : modoDemo ? (
         <p className="text-center text-sm text-muted-foreground">Supabase aún no está conectado: verás datos de ejemplo.</p>
       ) : (
         <p className="text-center text-sm text-muted-foreground">
