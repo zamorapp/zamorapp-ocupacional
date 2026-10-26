@@ -174,9 +174,11 @@ jobs:
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
               [void]$proc.CloseMainWindow()
               if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
-              # La base puede tardar unos segundos en cerrar con calma; solo cuenta lo que siga vivo a los 30 s
-              for ($s = 0; $s -lt 30 -and (Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue); $s++) { Start-Sleep 1 }
-              $vivos = Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue
+              # Solo cuentan los procesos del programa (el PostgreSQL "nube" de las pruebas sigue vivo y no es suyo).
+              # La base puede tardar unos segundos en cerrar con calma; cuenta lo que siga vivo a los 30 s.
+              $propios = { Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } }
+              for ($s = 0; $s -lt 30 -and (& $propios); $s++) { Start-Sleep 1 }
+              $vivos = & $propios
               if ($vivos) {
                 Write-Host "::error::Tras cerrar $que quedaron procesos vivos: $(($vivos | ForEach-Object Name | Sort-Object -Unique) -join ', ')"
                 $vivos | Stop-Process -Force -ErrorAction SilentlyContinue
