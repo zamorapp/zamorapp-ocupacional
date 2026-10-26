@@ -102,7 +102,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
   async function aLaNube(req, res, cuerpo, uid) {
     const token = uid ? await nube.token(uid) : null;
     if (uid && !token) return false;
-    const cab = { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token || CONFIG.nubeAnon}` };
+    const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
     try {
       const r = await fetch(`${CONFIG.nube}${req.url}`, {

@@ -35,7 +35,11 @@ jobs:
           Expand-Archive pg.zip -DestinationPath pgtmp
           foreach ($d in "bin", "lib", "share") { Copy-Item -Recurse "pgtmp/pgsql/$d" "$r/pgsql/$d" }
           Invoke-WebRequest "https://github.com/PostgREST/postgrest/releases/download/$env:POSTGREST_VERSION/postgrest-$env:POSTGREST_VERSION-windows-x64.zip" -OutFile pgrest.zip
-          Expand-Archive pgrest.zip -DestinationPath "$r/postgrest"
+          Expand-Archive pgrest.zip -DestinationPath pgresttmp
+          Get-ChildItem -Recurse pgresttmp | Select-Object FullName, Length | Format-Table -AutoSize | Out-String | Write-Host
+          $exe = Get-ChildItem -Recurse pgresttmp -Filter "postgrest*.exe" | Select-Object -First 1
+          if (-not $exe) { throw "No se encontró postgrest.exe en el zip" }
+          Copy-Item $exe.FullName "$r/postgrest/postgrest.exe"
           Copy-Item (Get-Command node).Source "$r/node/node.exe"
           & "$r/pgsql/bin/postgres.exe" --version
           & "$r/postgrest/postgrest.exe" --version

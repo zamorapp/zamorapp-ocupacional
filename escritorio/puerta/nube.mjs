@@ -8,8 +8,10 @@ export class Nube {
     this.enLinea = false;
   }
 
+  // Con las claves nuevas de Supabase (sb_publishable_…) la clave va solo en "apikey";
+  // Authorization lleva únicamente el token del usuario.
   cabeceras(token) {
-    return { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token || CONFIG.nubeAnon}`, "Content-Type": "application/json" };
+    return { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json" };
   }
 
   async comprobar() {
