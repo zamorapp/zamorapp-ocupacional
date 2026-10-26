@@ -224,6 +224,7 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   const medA = "00000000-0000-0000-0000-0000000000a2";
   const u = () => estado.d.usuarios[medA]; // entrar con internet reemplaza el registro
   // 1) La nube revoca la sesión (p. ej. cambió la clave desde la web): la PC lo nota al renovar.
+  await replicaObj.enCurso;
   nube.usuarios._revocados = [medA];
   u().nube.expires_at = 0;
   await replicaObj.ciclo();
@@ -258,6 +259,7 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
   await nubeDb.connect();
   const medA = "00000000-0000-0000-0000-0000000000a2";
   try {
+    await replicaObj.enCurso; // entrar con internet dispara un ciclo en segundo plano: que no se cruce con este
     await nubeDb.query("update public.miembros set activo = false where usuario_id = $1", [medA]);
     estado.d.usuarios[medA].ultimoOnline = Date.now(); // que sea el usuario de la sincronía
     await replicaObj.ciclo();
