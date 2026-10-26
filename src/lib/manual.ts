@@ -87,7 +87,7 @@ export const MANUAL: TemaManual[] = [
       "Tratamiento: busca el medicamento y la dosis, vía, frecuencia y días se llenan con sus valores habituales; puedes cambiarlos.",
       "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
       "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Los botones de documentos imprimen Constancia, Reposo, Informe, Certificado de salud, Récipe y Orden de exámenes.",
-      "Con la aptitud puesta y la consulta guardada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
+      "Con la aptitud puesta y la consulta cerrada, «Enviar a RR. HH.» (aparece al cerrar la consulta) abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
     ],
     consejos: ["Todo texto frecuente, perfil y lista se edita en Configuración › Listas."],
   },
