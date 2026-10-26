@@ -31,13 +31,13 @@ jobs:
         run: |
           $r = "escritorio/recursos"
           New-Item -ItemType Directory -Force "$r/pgsql", "$r/postgrest", "$r/node" | Out-Null
-          Invoke-WebRequest "https://get.enterprisedb.com/postgresql/postgresql-$env:PG_VERSION-windows-x64-binaries.zip" -OutFile pg.zip
-          Expand-Archive pg.zip -DestinationPath pgtmp
-          foreach ($d in "bin", "lib", "share") { Copy-Item -Recurse "pgtmp/pgsql/$d" "$r/pgsql/$d" }
-          Invoke-WebRequest "https://github.com/PostgREST/postgrest/releases/download/$env:POSTGREST_VERSION/postgrest-$env:POSTGREST_VERSION-windows-x64.zip" -OutFile pgrest.zip
-          Expand-Archive pgrest.zip -DestinationPath pgresttmp
-          Get-ChildItem -Recurse pgresttmp | Select-Object FullName, Length | Format-Table -AutoSize | Out-String | Write-Host
-          $exe = Get-ChildItem -Recurse pgresttmp -Filter "postgrest*.exe" | Select-Object -First 1
+          Invoke-WebRequest "https://get.enterprisedb.com/postgresql/postgresql-$env:PG_VERSION-windows-x64-binaries.zip" -OutFile "$env:RUNNER_TEMP/pg.zip"
+          Expand-Archive "$env:RUNNER_TEMP/pg.zip" -DestinationPath "$env:RUNNER_TEMP/pgtmp"
+          foreach ($d in "bin", "lib", "share") { Copy-Item -Recurse "$env:RUNNER_TEMP/pgtmp/pgsql/$d" "$r/pgsql/$d" }
+          Invoke-WebRequest "https://github.com/PostgREST/postgrest/releases/download/$env:POSTGREST_VERSION/postgrest-$env:POSTGREST_VERSION-windows-x64.zip" -OutFile "$env:RUNNER_TEMP/pgrest.zip"
+          Expand-Archive "$env:RUNNER_TEMP/pgrest.zip" -DestinationPath "$env:RUNNER_TEMP/pgresttmp"
+          Get-ChildItem -Recurse "$env:RUNNER_TEMP/pgresttmp" | Select-Object FullName, Length | Format-Table -AutoSize | Out-String | Write-Host
+          $exe = Get-ChildItem -Recurse "$env:RUNNER_TEMP/pgresttmp" -Filter "postgrest*.exe" | Select-Object -First 1
           if (-not $exe) { throw "No se encontró postgrest.exe en el zip" }
           Copy-Item $exe.FullName "$r/postgrest/postgrest.exe"
           Copy-Item (Get-Command node).Source "$r/node/node.exe"
@@ -48,9 +48,9 @@ jobs:
         shell: pwsh
         run: |
           $bin = (Resolve-Path escritorio/recursos/pgsql/bin).Path
-          "nube" | Out-File -Encoding ascii -NoNewline pw.txt
-          & "$bin/initdb.exe" -D nube -U postgres -A scram-sha-256 --pwfile=pw.txt -E UTF8 --locale=C | Out-Null
-          & "$bin/pg_ctl.exe" start -D nube -w -l nube.log -o "-p 55400 -c listen_addresses=127.0.0.1"
+          "nube" | Out-File -Encoding ascii -NoNewline "$env:RUNNER_TEMP/pw.txt"
+          & "$bin/initdb.exe" -D "$env:RUNNER_TEMP/nube" -U postgres -A scram-sha-256 --pwfile="$env:RUNNER_TEMP/pw.txt" -E UTF8 --locale=C | Out-Null
+          & "$bin/pg_ctl.exe" start -D "$env:RUNNER_TEMP/nube" -w -l "$env:RUNNER_TEMP/nube.log" -o "-p 55400 -c listen_addresses=127.0.0.1"
           $env:PGPASSWORD = "nube"
           function Q { & "$bin/psql.exe" -h 127.0.0.1 -p 55400 -U postgres -v ON_ERROR_STOP=1 -q @args; if ($LASTEXITCODE) { throw "psql $args" } }
           Q -c "create database zamorapp_prueba"
