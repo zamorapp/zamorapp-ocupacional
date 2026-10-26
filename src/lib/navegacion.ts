@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Building2,
   CalendarClock,
   FileText,
@@ -31,6 +32,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/facturacion", titulo: "Facturación", icono: Receipt, descripcion: "Servicios, pacientes atendidos y notas de cobro" },
   { href: "/documentos", titulo: "Documentos", icono: FileText, descripcion: "Constancias, reposos e informes emitidos" },
   { href: "/configuracion", titulo: "Configuración", icono: Settings, descripcion: "Usuarios, roles y listas configurables" },
+  { href: "/ayuda", titulo: "Manual de uso", icono: BookOpen, descripcion: "Cómo usar cada función" },
 ];
 
 // Portal de empresas (RR. HH. y gerentes de la empresa cliente)
@@ -38,7 +40,8 @@ export const SECCIONES_EMPRESA: Seccion[] = [
   { href: "/portal", titulo: "Inicio", icono: CalendarClock, descripcion: "Citas, evaluaciones y avisos" },
   { href: "/pacientes", titulo: "Trabajadores", icono: Users, descripcion: "Nómina y aptitud vigente" },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Reporte de accidentes e incidentes" },
+  { href: "/ayuda", titulo: "Manual de uso", icono: BookOpen, descripcion: "Cómo usar el portal" },
 ];
 
 // Rutas que puede abrir un usuario de empresa
-export const RUTAS_EMPRESA = ["/portal", "/pacientes", "/accidentes"];
+export const RUTAS_EMPRESA = ["/portal", "/pacientes", "/accidentes", "/ayuda"];
