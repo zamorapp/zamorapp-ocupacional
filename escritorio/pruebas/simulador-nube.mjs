@@ -20,6 +20,7 @@ export function simularNube({ baseUrl, usuarios }) {
     const url = new URL(req.url, "http://x");
     const enviar = (s, j) => { res.writeHead(s, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
     if (url.pathname === "/auth/v1/health") return enviar(200, {});
+    if (url.pathname === "/auth/v1/recover") { estado.ultimoRecuperar = url.searchParams.get("redirect_to"); return enviar(200, {}); }
     if (url.pathname === "/auth/v1/token") {
       const b = JSON.parse(cuerpo || "{}");
       if (url.searchParams.get("grant_type") === "password") {

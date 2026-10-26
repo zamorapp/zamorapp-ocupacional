@@ -9,7 +9,9 @@ import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
 
-const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control"];
+const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
+// Los enlaces de los correos (recuperar clave, confirmar) abren la app web: la PC no recibe visitas de afuera.
+const WEB = "https://zamorapp-ocupacional.vercel.app";
 const DEVOLVER = ["content-type", "content-range", "preference-applied", "location", "cache-control", "etag", "last-modified"];
 const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
@@ -81,11 +83,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     const email = String(cuerpo?.email || "").trim().toLowerCase();
     const clave = String(cuerpo?.password || "");
     const espera = Math.max(esperaDe(email), esperaDe("*"));
+    if (espera) registro("[auth] entrar: en espera por demasiados intentos");
     if (espera) return errorAuth(res, 429, `Demasiados intentos. Espera ${Math.ceil(espera / 60000)} min y vuelve a probar.`, "over_request_rate_limit");
     const conocido = Object.entries(d().usuarios).find(([, u]) => u.email === email);
+    if (!nube.enLinea) await nube.comprobar(); // antes de entrar sin conexión, se confirma que de verdad no hay internet
     if (nube.enLinea) {
       try {
         const r = await nube.auth("token?grant_type=password", { email, password: clave });
+        registro(`[auth] entrar en línea: ${r.status}${r.ok ? "" : ` ${r.cuerpo?.error_code || r.cuerpo?.error || ""}`} (usuario ${conocido ? "conocido" : "nuevo"} en esta PC)`);
         if (!r.ok) {
           if (r.status >= 400 && r.status < 500) {
             anotarFallo(email);
@@ -95,13 +100,16 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
           return responder(res, r.status, r.cuerpo ?? r.texto);
         }
         const uid = r.cuerpo.user.id;
+        // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
+        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user };
+        nube.guardarSesion(uid, r.cuerpo);
         const rol = await rolEnNube(uid);
         if (rol === null) {
+          registro("[auth] entrar: no es miembro activo; acceso bloqueado en esta PC");
           nube.exigirNube(uid, true);
           return errorAuth(res, 400, "Tu acceso fue desactivado. Habla con el administrador.", "user_banned");
         }
-        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, ...huellaClave(clave), bloqueado: false, requiereNube: false, user: r.cuerpo.user };
-        nube.guardarSesion(uid, r.cuerpo);
+        Object.assign(d().usuarios[uid], huellaClave(clave));
         if (rol) d().usuarios[uid].rol = rol;
         intentos.delete(email);
         estado.guardar();
@@ -114,7 +122,17 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       }
     }
     const [uid, u] = conocido || [];
-    if (!u || !claveCorrecta(clave, u)) { anotarFallo(email); return errorAuth(res, 400, "Correo o clave incorrectos"); }
+    if (!u) {
+      registro("[auth] entrar sin conexión: usuario que nunca entró en esta PC");
+      anotarFallo(email);
+      return errorAuth(res, 400, "Sin conexión a internet. La primera vez que entras en esta PC necesitas internet.", "offline_first_login");
+    }
+    if (!claveCorrecta(clave, u)) {
+      registro("[auth] entrar sin conexión: clave incorrecta");
+      anotarFallo(email);
+      return errorAuth(res, 400, "Correo o clave incorrectos");
+    }
+    registro(`[auth] entrar sin conexión: ${u.bloqueado ? "bloqueado" : u.requiereNube ? "requiere internet" : "ok"}`);
     intentos.delete(email);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
     if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
@@ -216,7 +234,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     // Solo la ventana de zamorApp (su propio origen) puede llamar a la puerta desde el navegador.
     const cors = req.headers.origin === origen ? {
       "Access-Control-Allow-Origin": origen, "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, prefer, accept-profile, content-profile, range, x-upsert, cache-control",
+      // Se aceptan las cabeceras que pida el cliente de Supabase (cambian entre versiones, p. ej. x-supabase-api-version):
+      // el origen ya está limitado a la ventana de zamorApp.
+      "Access-Control-Allow-Headers": String(req.headers["access-control-request-headers"] || "").replace(/[^a-zA-Z0-9,\- ]/g, "") ||
+        "authorization, apikey, content-type, x-client-info, x-supabase-api-version, prefer, accept-profile, content-profile, range, x-upsert, cache-control",
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Expose-Headers": "content-range, content-type",
     } : {};
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
@@ -265,7 +286,16 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
         return responder(res, r.status, r.cuerpo ?? r.texto);
       }
       if (ruta.startsWith("/auth/v1/")) { // recuperar clave y demás: solo con internet
-        if (nube.enLinea && await aLaNube(req, res, crudo, null)) return;
+        if (!nube.enLinea) await nube.comprobar();
+        if (ruta === "/auth/v1/recover" || ruta === "/auth/v1/signup" || ruta === "/auth/v1/resend") {
+          const u = new URL(req.url, "http://x");
+          const destino = u.searchParams.get("redirect_to");
+          if (destino) u.searchParams.set("redirect_to", WEB + new URL(destino, WEB).pathname);
+          req.url = u.pathname + u.search;
+        }
+        const listo = nube.enLinea && await aLaNube(req, res, crudo, null);
+        registro(`[auth] ${ruta}: ${listo ? res.statusCode : "sin internet"}`);
+        if (listo) return;
         return errorAuth(res, 503, "Esta acción requiere internet", "offline");
       }
 

@@ -17,6 +17,17 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<string | null>(null);
 
+  // Mensaje claro para cada caso: clave equivocada, demasiados intentos, sin internet o sin conexión con el servicio.
+  function mensajeIngreso(error: { message: string; code?: string; status?: number; name?: string }) {
+    if (error.message.includes("not confirmed")) return "Confirma tu correo antes de ingresar.";
+    if (error.name === "AuthRetryableFetchError" || !error.status) return "No se pudo conectar con el servicio de zamorApp. Revisa la conexión y vuelve a intentar.";
+    // Avisos propios del programa de escritorio (ya vienen en español) y límites de intentos
+    if (["over_request_rate_limit", "session_expired", "user_banned", "offline", "offline_first_login"].includes(error.code ?? "")) return error.message;
+    if (error.status === 429) return "Demasiados intentos. Espera unos minutos y vuelve a probar.";
+    if (error.status >= 500) return "El servicio no respondió. Vuelve a intentar en un momento.";
+    return "Correo o contraseña incorrectos.";
+  }
+
   async function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -63,7 +74,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
       const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
       setCargando(false);
       if (error) {
-        setError(error.message.includes("not confirmed") ? "Confirma tu correo antes de ingresar." : "Correo o contraseña incorrectos.");
+        setError(mensajeIngreso(error));
         return;
       }
     }

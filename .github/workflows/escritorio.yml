@@ -150,6 +150,12 @@ jobs:
                 if ($app.StatusCode -lt 500) { $ok = $true; Write-Host "Puerta: $($estado | ConvertTo-Json -Compress) · App: HTTP $($app.StatusCode)" }
               } catch { }
             }
+            if ($ok) {
+            # La pantalla de ingreso (54332) debe poder hablarle a la puerta (54331) con las cabeceras reales de supabase-js
+            $cors = Invoke-WebRequest "http://127.0.0.1:54331/auth/v1/token?grant_type=password" -Method Options -UseBasicParsing -SkipHttpErrorCheck -Headers @{
+              Origin = "http://127.0.0.1:54332"; "Access-Control-Request-Method" = "POST"; "Access-Control-Request-Headers" = "apikey,authorization,content-type,x-client-info,x-supabase-api-version" }
+            if ($cors.StatusCode -ne 204 -or "$($cors.Headers['Access-Control-Allow-Headers'])" -notmatch "x-supabase-api-version") { $ok = $false; Write-Host "::error::La pantalla de ingreso no podría hablar con la puerta (CORS)" }
+            }
           } finally {
             Write-Host "== arranque.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/arranque.log" -ErrorAction SilentlyContinue
             Write-Host "== puerta.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/datos/puerta.log" -Tail 40 -ErrorAction SilentlyContinue

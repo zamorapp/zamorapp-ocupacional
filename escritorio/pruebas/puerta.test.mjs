@@ -254,6 +254,21 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   nube.usuarios["meda@x"].clave = "clave-med";
 });
 
+test("la ventana de la app puede llamar a la puerta (CORS con las cabeceras de supabase-js)", { skip: omitir }, async () => {
+  const pedidas = "apikey,authorization,content-type,x-client-info,x-supabase-api-version";
+  const r = await fetch(`${urlPuerta}/auth/v1/token?grant_type=password`, { method: "OPTIONS", headers: {
+    Origin: "http://127.0.0.1:54332", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": pedidas } });
+  assert.equal(r.status, 204);
+  assert.equal(r.headers.get("access-control-allow-origin"), "http://127.0.0.1:54332");
+  for (const h of pedidas.split(",")) assert.ok(r.headers.get("access-control-allow-headers").includes(h), `falta ${h}`);
+});
+
+test("recuperar clave: el enlace del correo abre la app web, no la PC", { skip: omitir }, async () => {
+  const r = await pedir(`/auth/v1/recover?redirect_to=${encodeURIComponent("http://127.0.0.1:54332/login/nueva-clave")}`, { metodo: "POST", cuerpo: { email: "meda@x" } });
+  assert.equal(r.status, 200);
+  assert.equal(nube.estado.ultimoRecuperar, "https://zamorapp-ocupacional.vercel.app/login/nueva-clave");
+});
+
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();
