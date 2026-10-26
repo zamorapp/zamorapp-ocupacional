@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileCheck2, FileHeart, FileText, FlaskConical, Pill } from "lucide-react";
+import { BadgeCheck, FileCheck2, FileHeart, FileText, FlaskConical, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Props = { consultaId: string; aptitud: boolean; reposo: boolean; tratamiento: boolean; examenes?: boolean; compacto?: boolean };
@@ -10,6 +10,7 @@ export function BotonesDocumentos({ consultaId, aptitud, reposo, tratamiento, ex
     aptitud && { tipo: "constancia", texto: "Constancia", icono: FileCheck2 },
     reposo && { tipo: "reposo", texto: "Reposo", icono: FileHeart },
     { tipo: "informe", texto: "Informe", icono: FileText },
+    { tipo: "certificado", texto: "Certificado de salud", icono: BadgeCheck },
     tratamiento && { tipo: "recipe", texto: "Récipe", icono: Pill },
     examenes && { tipo: "orden", texto: "Orden de exámenes", icono: FlaskConical },
   ].filter(Boolean) as { tipo: string; texto: string; icono: typeof FileText }[];

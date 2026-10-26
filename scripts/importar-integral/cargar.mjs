@@ -49,6 +49,14 @@ const I = {
     "Integral.consultaexamen ce join Integral.examen e on e.codigo = ce.cod_examen left join Integral.grupoexamen g on g.codigo = ce.cod_grupoexamen"),
   tratamientos: leer("tratamientos", ["t.cod_consulta", "t.cod_medicina", "m.nombre medicina", "t.presentacion", "t.concentracion", "t.dosis", "t.frecuencia", "t.duracion", "t.viaadministr", "t.obspaciente"],
     "Integral.tratamiento t left join Integral.medicina m on m.codigo = t.cod_medicina"),
+  limitaciones: leer("limitaciones", ["lb.cod_consulta", "l.nombre"],
+    "Integral.limitaciones x join Integral.limitacionLab lb on lb.codigo = x.cod_limitacionlab join Integral.limitacion l on l.codigo = x.cod_limitacion"),
+  limitacionObs: leer("limitacion_obs", ["cod_consulta", "cast(observacion as nvarchar(max)) observacion"], "Integral.limitacionLab", "where datalength(observacion) > 0"),
+  limitacionCat: leer("limitacion_cat", ["codigo", "nombre"], "Integral.limitacion"),
+  notas: leer("notas", ["codigo", "codtipo", "nombre", "cast(nota as nvarchar(max)) nota"], "Integral.notalarga"),
+  historiaLab: leer("historia_laboral", ["cod_paciente", "empresa", "duracion", "horario", "industria", "cargo", "descripcargo", "problemasalud", "accidetrabaj", "enfermocupac",
+    "codscondambtraant", "codscondacttraant", "codscondtratraant", "codscondrietraant", "codsriefistraant", "codsriequitraant", "codsriemectraant", "codsriedistraant",
+    "codsriebiotraant", "codsriepsitraant", "equiprottraant", "obscondtrabaant", "obsriesexpueant"], "Integral.antecedentelab"),
 };
 for (const [k, v] of Object.entries(I)) console.log(`  ${k.padEnd(14)} ${v.length}`);
 
@@ -137,7 +145,7 @@ try {
   // Vigencia de la aptitud: la misma regla que usa la consulta (Configuración › Organización)
   const { rows: [aj] } = await q("select coalesce((ajustes->>'meses_examen_periodico')::int, 12) meses from public.organizaciones where id = $1", [ORG]);
   const vigencia = (f) => { if (!f) return null; const d = new Date(f + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + aj.meses); return d.toISOString().slice(0, 10); };
-  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores"]) await q(`alter table ${t} disable trigger user`);
+  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores", "clinico.historia_laboral"]) await q(`alter table ${t} disable trigger user`);
   const { rows: [lote] } = await q("insert into public.importaciones (org_id, origen, etapa, creado_por) values ($1, $2, 'completa', $3) returning id", [ORG, ORIGEN, MEDICO]);
   const base = { org_id: ORG, origen: ORIGEN, lote_importacion: lote.id };
   const T = { org_id: "uuid", origen: "text", codigo_origen: "text", lote_importacion: "uuid" };
@@ -149,6 +157,14 @@ try {
     ...TIPOS_NUEVOS.map(([codigo, nombre], i) => ({ ...base, codigo_origen: `tipo:${codigo}`, lista: "tipo_paciente", codigo, nombre, grupo: null, orden: 200 + i, activo: true })),
   ], { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
   const motivos = await items("motivo_consulta"), tiposPac = await items("tipo_paciente");
+  const oracion = (t) => { const x = t.trim().toLowerCase(); return x.charAt(0).toUpperCase() + x.slice(1); };
+  await guardar("public.lista_items", I.limitacionCat.map((l, i) => ({ ...base, codigo_origen: `lim:${l.codigo}`, lista: "limitacion_ocupacional", codigo: `integral_${l.codigo}`,
+    nombre: oracion(l.nombre), grupo: null, orden: 200 + i, activo: true })), { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  await guardar("public.lista_items", I.notas.filter((n) => n.nota).map((n, i) => ({ ...base, codigo_origen: `nota:${n.codigo}`,
+    lista: n.codtipo === "E" ? "recomendacion_empresa" : "recomendacion_paciente", codigo: `integral_${n.codigo}`, nombre: titulo(n.nombre), grupo: null, texto: n.nota, orden: 300 + i, activo: true })),
+    { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  const limPorCons = agrupar(I.limitaciones, (l) => l.cod_consulta);
+  const limObs = new Map(I.limitacionObs.map((l) => [l.cod_consulta, l.observacion]));
 
   const masComun = (xs) => { const n = new Map(); for (const v of xs.filter(Boolean)) n.set(v, (n.get(v) ?? 0) + 1); return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ""; };
   const tratPorMed = agrupar(I.tratamientos, (t) => t.cod_medicina);
@@ -269,9 +285,10 @@ try {
 
   // Aptitud
   await guardar("clinico.aptitudes", consultas.filter((c) => APTITUD[c.codaptitud] && escrita(c.codigo)).map((c) => ({ ...base, codigo_origen: `apt:${c.codigo}`,
-    consulta_id: idsCons.get(`cons:${c.codigo}`), trabajador_id: idTrab(c.cod_paciente), clasificacion: APTITUD[c.codaptitud], observacion: nulo(c.obsaptitud), vigente_hasta: vigencia(fecha(c.fecha)),
+    consulta_id: idsCons.get(`cons:${c.codigo}`), trabajador_id: idTrab(c.cod_paciente), clasificacion: APTITUD[c.codaptitud], observacion: unir(c.obsaptitud, limObs.get(c.codigo)), vigente_hasta: vigencia(fecha(c.fecha)),
+    limitaciones: (limPorCons.get(c.codigo) ?? []).map((l) => oracion(l.nombre)), restricciones: (limPorCons.get(c.codigo) ?? []).map((l) => oracion(l.nombre)),
     emitida_en: marca(c.horacierre) ?? marca(c.fecha) })),
-    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", vigente_hasta: "date", emitida_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
+    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", vigente_hasta: "date", limitaciones: "jsonb", restricciones: "text[]", emitida_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
 
   // Reposos
   await q("delete from clinico.reposos where consulta_id = any($1::uuid[]) and origen = $2", [idsConsLista, ORIGEN]);
@@ -284,10 +301,23 @@ try {
   await guardar("clinico.reposos", filasReposo, { ...T, consulta_id: "uuid", trabajador_id: "uuid", causa: "text", ente_emisor: "text", desde: "date", hasta: "date",
     reintegro: "date", cie10: "text", validado_ivss: "boolean" });
 
+  // Historia laboral (empleos anteriores)
+  const lista = (v) => (v ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+  const niega = (v) => (v && v.toUpperCase() !== "NIEGA" ? v : v ? "Niega" : null);
+  const filasHist = I.historiaLab.filter((h) => idTrab(h.cod_paciente) && h.empresa).map((h) => ({ ...base, codigo_origen: `hl:${h.cod_paciente}`, trabajador_id: idTrab(h.cod_paciente),
+    empresa: titulo(h.empresa), industria: nulo(h.industria) && titulo(h.industria), cargo: nulo(h.cargo) && titulo(h.cargo), descripcion: nulo(h.descripcargo), duracion: nulo(h.duracion), horario: nulo(h.horario),
+    condiciones: Object.fromEntries([["ambiente", h.codscondambtraant], ["actividad", h.codscondacttraant], ["traslado", h.codscondtratraant], ["carga", h.codscondrietraant]].filter(([, v]) => v)),
+    riesgos: Object.fromEntries([["fisico", h.codsriefistraant], ["quimico", h.codsriequitraant], ["mecanico", h.codsriemectraant], ["disergonomico", h.codsriedistraant],
+      ["biologico", h.codsriebiotraant], ["psicosocial", h.codsriepsitraant]].map(([k, v]) => [k, lista(v)]).filter(([, v]) => v.length)),
+    epp: nulo(h.equiprottraant), problemas_salud: niega(h.problemasalud), accidentes: niega(h.accidetrabaj), enfermedades: niega(h.enfermocupac),
+    observaciones: unir(h.obscondtrabaant, h.obsriesexpueant) }));
+  await guardar("clinico.historia_laboral", filasHist, { ...T, trabajador_id: "uuid", empresa: "text", industria: "text", cargo: "text", descripcion: "text", duracion: "text",
+    horario: "text", condiciones: "jsonb", riesgos: "jsonb", epp: "text", problemas_salud: "text", accidentes: "text", enfermedades: "text", observaciones: "text" }, { modo: "si_no_editado" });
+
   const resumen = { empresas: idsEmpresa.size, sedes: idsSede.size, dependencias: idsDep.size, puestos: idsPuesto.size, medicinas: I.medicinas.length,
-    pacientes: idsPac.size, consultas: idsCons.size, consultas_reescritas: consEscritas.size, diagnosticos: filasDiag.length, aptitudes: consultas.filter((c) => APTITUD[c.codaptitud]).length, reposos: filasReposo.length };
+    pacientes: idsPac.size, consultas: idsCons.size, consultas_reescritas: consEscritas.size, diagnosticos: filasDiag.length, aptitudes: consultas.filter((c) => APTITUD[c.codaptitud]).length, reposos: filasReposo.length, historia_laboral: filasHist.length, limitaciones: I.limitacionCat.length, textos: I.notas.length };
   await q("update public.importaciones set resumen = $1 where id = $2", [resumen, lote.id]);
-  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores"]) await q(`alter table ${t} enable trigger user`);
+  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores", "clinico.historia_laboral"]) await q(`alter table ${t} enable trigger user`);
   await q(ENSAYO ? "rollback" : "commit");
   console.log(ENSAYO ? "\nENSAYO (no se guardó nada):" : `\nCARGA GUARDADA · lote ${lote.id}:`, resumen);
   const sinEmpresa = I.pacientes.length - pacientes.length, consSinPac = I.consultas.length - consultas.length;

@@ -18,6 +18,8 @@ type Ajustes = {
   orden_nota?: string | null;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
+  certificado_titulo?: string | null;
+  certificado_nota?: string | null;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
 };
@@ -89,6 +91,14 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <p className="text-sm text-muted-foreground">{"Se abren en tu WhatsApp o tu correo listos para enviar. Campos que se reemplazan: {nombre}, {cedula}, {fecha}, {hora}, {motivo}, {empresa}, {servicio}, {aptitud}, {observacion}."}</p>
             <CampoTexto id="mensaje_cita" etiqueta="Recordatorio de cita (al trabajador)" rows={3} defaultValue={a.mensaje_cita ?? PLANTILLA_CITA} />
             <CampoTexto id="mensaje_aptitud" etiqueta="Resultado de aptitud (a RR. HH. de la empresa)" rows={3} defaultValue={a.mensaje_aptitud ?? PLANTILLA_APTITUD} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Certificado de salud</CardTitle></CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <Campo id="certificado_titulo" etiqueta="Título" defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
+            <Campo id="certificado_nota" etiqueta="Nota al pie (opcional)" defaultValue={a.certificado_nota ?? ""} />
           </CardContent>
         </Card>
 

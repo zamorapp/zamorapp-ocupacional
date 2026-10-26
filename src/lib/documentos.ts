@@ -13,6 +13,8 @@ export type AjustesDocumentos = {
   orden_nota?: string | null;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
+  certificado_titulo?: string | null;
+  certificado_nota?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;

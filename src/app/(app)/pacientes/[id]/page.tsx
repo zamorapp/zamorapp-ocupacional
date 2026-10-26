@@ -22,6 +22,9 @@ import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import type { EmpleoAnterior } from "@/lib/historia-laboral";
+import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +43,12 @@ export default async function FichaPaciente({ params }: Props) {
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud }));
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && sesion.rol !== "gerente_empresa";
-  const adjuntos = verAdjuntos ? await listarAdjuntos(t.id) : [];
+  const [adjuntos, empleos] = verAdjuntos
+    ? await Promise.all([
+        listarAdjuntos(t.id),
+        crearClienteServidor().then((s) => s.from("historia_laboral").select("*").eq("trabajador_id", t.id).order("creado_en")).then((r) => (r.data ?? []) as EmpleoAnterior[]),
+      ])
+    : [[], [] as EmpleoAnterior[]];
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
 
   return (
@@ -94,6 +102,7 @@ export default async function FichaPaciente({ params }: Props) {
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
+          {verAdjuntos && <TabsTrigger value="historia">Historia laboral ({empleos.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="resultados">Resultados ({adjuntos.length})</TabsTrigger>}
         </TabsList>
 
@@ -179,6 +188,11 @@ export default async function FichaPaciente({ params }: Props) {
             )}
           </Card>
         </TabsContent>
+        {verAdjuntos && (
+          <TabsContent value="historia" className="mt-4">
+            <Card><CardContent><HistoriaLaboral trabajadorId={t.id} empleos={empleos} /></CardContent></Card>
+          </TabsContent>
+        )}
         {verAdjuntos && (
           <TabsContent value="resultados" className="mt-4">
             <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} /></CardContent></Card>

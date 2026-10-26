@@ -216,3 +216,33 @@ export function Orden({ d }: { d: DatosDocumento }) {
     </Hoja>
   );
 }
+
+export function Certificado({ d }: { d: DatosDocumento }) {
+  const c = d.datos;
+  const a = d.org.ajustes;
+  const alterados = [...c.examenFuncional, ...c.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
+  const apt = c.aptitud.clasificacion ? etiquetasAptitud(a.palabra_aptitud)[c.aptitud.clasificacion as Aptitud] : null;
+  return (
+    <Hoja>
+      <Membrete d={d} />
+      <Titulo sub={fechaLarga(c.fecha)}>{a.certificado_titulo ?? "Certificado de salud"}</Titulo>
+      <p className="my-4 leading-relaxed">
+        Quien suscribe, médico del servicio de salud ocupacional, certifica que evaluó a <b>{d.trabajador.nombre}</b>, C.I. <b>{d.trabajador.cedula}</b>,
+        el día {fechaLarga(c.fecha)}{d.motivo?.nombre ? `, con motivo de evaluación ${d.motivo.nombre.toLowerCase()}` : ""}, encontrando:
+      </p>
+      <Bloque titulo="Examen funcional y físico">
+        {alterados.length ? alterados.map((x) => `${x.nombre}: ${x.valor}`).join("\n") : "Dentro de límites normales."}
+      </Bloque>
+      {c.paraclinicos.length > 0 && (
+        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.map((p) => `${p.nombre}: ${p.resultado || "pendiente"}`).join("\n")}</Bloque>
+      )}
+      <Bloque titulo="Conclusión">
+        {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}
+        {apt && `\n${apt}.`}
+      </Bloque>
+      {a.certificado_nota && <p className="mt-4 text-sm">{a.certificado_nota}</p>}
+      <p className="mt-4 text-sm">Certificado que se expide a solicitud de la parte interesada.</p>
+      <div className="mt-12 flex justify-end"><FirmaMedico d={d} /></div>
+    </Hoja>
+  );
+}
