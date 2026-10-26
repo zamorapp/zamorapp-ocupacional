@@ -117,6 +117,12 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       observacion_privada: d.observacionPrivada || null,
       autoriza_paciente: d.autorizaPaciente,
       sano: d.sano,
+      reubicacion: d.reubicacion.activa
+        ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
+            desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,
+            motivo: d.reubicacion.motivo || null, restricciones: d.reubicacion.restricciones || null }
+        : null,
+      informe_libre: d.informeLibre.cuerpo.trim() ? { titulo: d.informeLibre.titulo || null, dirigido_a: d.informeLibre.dirigidoA || null, cuerpo: d.informeLibre.cuerpo } : null,
     },
     p_diagnosticos: diags.map((x, i) => ({
       cie10: x.cie10.trim().toUpperCase() || "—",
@@ -134,7 +140,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
         }
       : null,
     p_reposo: d.reposo.activo
-      ? { causa: d.reposo.causa, ente: d.reposo.ente, desde: d.reposo.desde, hasta: d.reposo.hasta, cie10: d.reposo.cie10 || null }
+      ? { causa: d.reposo.causa, ente: d.reposo.ente, desde: d.reposo.desde, hasta: d.reposo.hasta, cie10: d.reposo.cie10 || null,
+          medico_externo: d.reposo.medicoExterno || null, centro_ivss: d.reposo.centroIvss || null, validado_ivss: d.reposo.validadoIvss }
       : null,
     p_cerrar: cerrar,
   });

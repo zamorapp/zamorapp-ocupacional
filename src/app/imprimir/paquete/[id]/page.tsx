@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Constancia, Orden, Recipe, Referencia, Reposo } from "../../documentos";
+import { Constancia, Orden, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
 
 export const metadata: Metadata = { title: "Documentos de la consulta" };
 
@@ -21,6 +21,7 @@ export default async function Paquete({ params }: { params: Promise<{ id: string
     tratamiento && !faltan.length && { clave: "recipe", Componente: Recipe },
     d.datos.paraclinicos.length > 0 && { clave: "orden", Componente: Orden },
     d.datos.interconsultas.some((x) => x.especialidad.trim()) && { clave: "referencia", Componente: Referencia },
+    d.datos.reubicacion.activa && { clave: "reubicacion", Componente: Reubicacion },
   ].filter(Boolean) as { clave: string; Componente: typeof Constancia }[];
 
   return (

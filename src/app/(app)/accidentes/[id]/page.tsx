@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { obtenerEvento } from "@/lib/eventos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
@@ -20,9 +21,12 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
   if (!evento) notFound();
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <Link href="/accidentes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Accidentes y enfermedades
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href="/accidentes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> Accidentes y enfermedades
+        </Link>
+        <Button variant="outline" asChild><Link href={`/imprimir/evento/${id}`} target="_blank"><Printer /> Imprimir declaración</Link></Button>
+      </div>
       <EditorEvento inicial={evento} listas={listas} />
     </div>
   );

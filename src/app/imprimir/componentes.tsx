@@ -37,7 +37,8 @@ function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: stri
 }
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
-export function Membrete({ d, compacto }: { d: DatosDocumento; compacto?: boolean }) {
+// Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
+export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa">; compacto?: boolean }) {
   return (
     <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
       <Marca logo={d.org.logo} nombre={d.org.nombre} />
@@ -218,7 +219,7 @@ export function Firmas({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
 }
 
-export function Pie({ d, derecha }: { d: DatosDocumento; derecha?: string }) {
+export function Pie({ d, derecha }: { d: Pick<DatosDocumento, "impreso">; derecha?: string }) {
   return (
     <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
       <span>Impreso por {d.impreso.por} · {d.impreso.el}</span>
