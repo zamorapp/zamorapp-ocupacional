@@ -134,6 +134,9 @@ try {
   await q("begin");
   const { rows: [org] } = await q("select o.id, m.usuario_id from public.organizaciones o join public.miembros m on m.org_id = o.id and m.rol = 'administrador' order by m.creado_en limit 1");
   const ORG = org.id, MEDICO = org.usuario_id;
+  // Vigencia de la aptitud: la misma regla que usa la consulta (Configuración › Organización)
+  const { rows: [aj] } = await q("select coalesce((ajustes->>'meses_examen_periodico')::int, 12) meses from public.organizaciones where id = $1", [ORG]);
+  const vigencia = (f) => { if (!f) return null; const d = new Date(f + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + aj.meses); return d.toISOString().slice(0, 10); };
   for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores"]) await q(`alter table ${t} disable trigger user`);
   const { rows: [lote] } = await q("insert into public.importaciones (org_id, origen, etapa, creado_por) values ($1, $2, 'completa', $3) returning id", [ORG, ORIGEN, MEDICO]);
   const base = { org_id: ORG, origen: ORIGEN, lote_importacion: lote.id };
@@ -266,9 +269,9 @@ try {
 
   // Aptitud
   await guardar("clinico.aptitudes", consultas.filter((c) => APTITUD[c.codaptitud] && escrita(c.codigo)).map((c) => ({ ...base, codigo_origen: `apt:${c.codigo}`,
-    consulta_id: idsCons.get(`cons:${c.codigo}`), trabajador_id: idTrab(c.cod_paciente), clasificacion: APTITUD[c.codaptitud], observacion: nulo(c.obsaptitud),
+    consulta_id: idsCons.get(`cons:${c.codigo}`), trabajador_id: idTrab(c.cod_paciente), clasificacion: APTITUD[c.codaptitud], observacion: nulo(c.obsaptitud), vigente_hasta: vigencia(fecha(c.fecha)),
     emitida_en: marca(c.horacierre) ?? marca(c.fecha) })),
-    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", emitida_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
+    { ...T, consulta_id: "uuid", trabajador_id: "uuid", clasificacion: "text", observacion: "text", vigente_hasta: "date", emitida_en: "timestamptz" }, { conflicto: "(consulta_id)", clave: "consulta_id" });
 
   // Reposos
   await q("delete from clinico.reposos where consulta_id = any($1::uuid[]) and origen = $2", [idsConsLista, ORIGEN]);

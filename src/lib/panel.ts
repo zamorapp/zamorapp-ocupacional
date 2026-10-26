@@ -5,7 +5,19 @@ import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
 import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
 import { listarEventos } from "@/lib/eventos";
 import { plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
-import { listarTrabajadores } from "@/lib/pacientes-datos";
+import { empresaActivaId } from "@/lib/empresa-activa";
+import { crearClienteServidor } from "@/lib/supabase/server";
+
+// Conteos que calcula la base (función resumen_panel), sin traer a todos los trabajadores
+type Resumen = {
+  activos: number; en_reposo: number; al_dia: number; vencidos: number; por_vencer: number; sin_evaluar: number; aspirantes: number;
+  aptitud: Record<"elegible" | "elegible_con_restricciones" | "no_elegible" | "espera_resultados" | "diferido", number>;
+};
+async function resumen(): Promise<Resumen | null> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.rpc("resumen_panel", { p_empresa: await empresaActivaId() });
+  return (data as Resumen | null) ?? null;
+}
 
 export type DatosPanel = {
   indicadores: { titulo: string; valor: string; detalle: string; estado: Estado }[];
@@ -22,17 +34,14 @@ export async function datosPanel(): Promise<DatosPanel> {
     return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vacio: false };
   }
 
-  const [empresas, trabajadores, eventos, citas, solicitudes] = await Promise.all([listarEmpresas(), listarTrabajadores(), listarEventos({ abiertos: true }), listarCitas(hoyVE()), listarSolicitudes()]);
-  const hoy = new Date().toISOString().slice(0, 10);
-  const en30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
-
-  const activos = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
-  const enReposo = trabajadores.filter((t) => t.estado === "reposo").length;
-  const vencidos = activos.filter((t) => t.proximoExamen && t.proximoExamen < hoy);
-  const porVencer = activos.filter((t) => t.proximoExamen && t.proximoExamen >= hoy && t.proximoExamen <= en30);
-  const alDia = activos.filter((t) => t.proximoExamen && t.proximoExamen >= hoy).length;
-  const sinEvaluar = trabajadores.filter((t) => !t.aptitud && t.estado !== "egresado" && t.estado !== "inactivo");
-  const cobertura = activos.length ? Math.round((alDia / activos.length) * 100) : 0;
+  const [empresas, r, eventos, citas, solicitudes] = await Promise.all([listarEmpresas(), resumen(), listarEventos({ abiertos: true }), listarCitas(hoyVE()), listarSolicitudes()]);
+  const n = r ?? { activos: 0, en_reposo: 0, al_dia: 0, vencidos: 0, por_vencer: 0, sin_evaluar: 0, aspirantes: 0, aptitud: { elegible: 0, elegible_con_restricciones: 0, no_elegible: 0, espera_resultados: 0, diferido: 0 } };
+  const activos = { length: n.activos };
+  const enReposo = n.en_reposo;
+  const vencidos = { length: n.vencidos };
+  const porVencer = { length: n.por_vencer };
+  const sinEvaluar = { length: n.sin_evaluar };
+  const cobertura = n.activos ? Math.round((n.al_dia / n.activos) * 100) : 0;
 
   const indicadores: DatosPanel["indicadores"] = [
     { titulo: "Trabajadores activos", valor: String(activos.length), detalle: plural(empresas.length, "empresa cliente", "empresas clientes"), estado: "ok" },
@@ -55,14 +64,14 @@ export async function datosPanel(): Promise<DatosPanel> {
   }
   if (vencidos.length) alertas.push({ texto: "Exámenes periódicos vencidos", sujeto: plural(vencidos.length, "trabajador", "trabajadores"), plazo: "Vencidos", estado: "alerta", href: "/pacientes" });
   if (porVencer.length) alertas.push({ texto: "Exámenes que vencen en 30 días", sujeto: plural(porVencer.length, "trabajador", "trabajadores"), plazo: "Programar", estado: "aviso", href: "/pacientes" });
-  const aspirantes = sinEvaluar.filter((t) => t.estado === "aspirante").length;
+  const aspirantes = n.aspirantes;
   if (aspirantes) alertas.push({ texto: "Aspirantes esperando evaluación pre-empleo", sujeto: plural(aspirantes, "aspirante", "aspirantes"), plazo: "Pendiente", estado: "aviso", href: "/pacientes" });
   for (const e of empresas.filter((x) => !x.ignorarAlertaLegal)) {
     const faltan = datosLegalesFaltantes(e);
     if (faltan.length) alertas.push({ texto: "Datos legales incompletos", sujeto: `${e.razonSocial}: ${faltan.join(", ")}`, plazo: "Informe trimestral", estado: "aviso", href: "/empresas" });
   }
 
-  const cuenta = (c: string) => trabajadores.filter((t) => t.aptitud === c).length;
+  const cuenta = (c: keyof Resumen["aptitud"]) => n.aptitud[c] ?? 0;
   const aptitud = [
     { clase: "Elegible", cantidad: cuenta("elegible"), color: "bg-ok" },
     { clase: "Con restricciones", cantidad: cuenta("elegible_con_restricciones"), color: "bg-aviso" },
