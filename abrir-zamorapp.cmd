@@ -14,7 +14,7 @@ if not exist ".next-prod" (
   if not "%1"=="sin-navegador" start "" http://localhost:3000
   exit /b
 )
-echo zamorApp Ocupacional en marcha. No cierres esta ventana mientras uses la app.
-if not "%1"=="sin-navegador" start "" /min powershell -NoProfile -Command "Start-Sleep 4; Start-Process http://localhost:3000"
+rem Arranca el servidor oculto, sin ventana que se pueda cerrar por error
 set NEXT_DIST_DIR=.next-prod
-call npx.cmd next start -p 3000
+powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c npx.cmd next start -p 3000' -WindowStyle Hidden"
+if not "%1"=="sin-navegador" start "" /min powershell -NoProfile -Command "Start-Sleep 5; Start-Process http://localhost:3000"
