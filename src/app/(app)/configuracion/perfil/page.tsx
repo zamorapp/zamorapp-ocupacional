@@ -13,12 +13,16 @@ export default async function Perfil() {
   let perfil = null;
   if (supabaseConfigurado && !sesion.demo) {
     const supabase = await crearClienteServidor();
-    const { data } = await supabase
-      .from("perfiles")
-      .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel, firma_url, sello_url, mostrar_firma, mostrar_sello")
-      .eq("id", sesion.usuarioId)
-      .maybeSingle();
-    perfil = data;
+    // Las imágenes de firma y sello no se leen de la tabla: van por firma_sello() (privadas)
+    const [{ data }, { data: imagenes }] = await Promise.all([
+      supabase
+        .from("perfiles")
+        .select("nombre_completo, cedula, telefono, mpps, colegio_medicos, registro_inpsasel, mostrar_firma, mostrar_sello")
+        .eq("id", sesion.usuarioId)
+        .maybeSingle(),
+      supabase.rpc("firma_sello", { p_usuario: sesion.usuarioId }).maybeSingle(),
+    ]);
+    perfil = data ? { ...data, ...((imagenes as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null;
   }
   return (
     <div className="mx-auto max-w-3xl space-y-6">

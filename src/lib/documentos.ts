@@ -32,7 +32,11 @@ export async function obtenerDocumento(consultaId: string) {
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes").eq("id", c.org_id).single(),
     c.medico_id
-      ? supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, firma_url, sello_url, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle()
+      ? Promise.all([
+          supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
+          // Firma y sello: privados, solo para personal clínico (firma_sello)
+          supabase.rpc("firma_sello", { p_usuario: c.medico_id }).maybeSingle(),
+        ]).then(([{ data: p }, { data: img }]) => ({ data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null }))
       : Promise.resolve({ data: null }),
     c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("empresas").select("razon_social, rif").eq("id", c.empresa_id).single(),
