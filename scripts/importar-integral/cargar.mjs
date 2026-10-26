@@ -57,6 +57,8 @@ const I = {
   historiaLab: leer("historia_laboral", ["cod_paciente", "empresa", "duracion", "horario", "industria", "cargo", "descripcargo", "problemasalud", "accidetrabaj", "enfermocupac",
     "codscondambtraant", "codscondacttraant", "codscondtratraant", "codscondrietraant", "codsriefistraant", "codsriequitraant", "codsriemectraant", "codsriedistraant",
     "codsriebiotraant", "codsriepsitraant", "equiprottraant", "obscondtrabaant", "obsriesexpueant"], "Integral.antecedentelab"),
+  reubicaciones: leer("reubicaciones", ["r.cod_consulta", "r.reubicado", "cast(r.observacion as nvarchar(max)) observacion", "x.nombre resultado", "cast(rr.observacion as nvarchar(max)) obs_resultado"],
+    "Integral.reubicacionlab r left join Integral.reubicacionlabresultado rr on rr.cod_reubicacionlab = r.codigo left join Integral.resultreubic x on x.codigo = rr.cod_resultreubic"),
   accidentes: leer("accidentes", ["cod_consulta", "fecha", "hora", "fechadeclaracion", "horadeclaracion", "origen", "lugar", "tipolesion", "supervisor", "cast(declaracion as nvarchar(max)) declaracion"], "Integral.accidentelab"),
   referencias: leer("referencias", ["r.cod_consulta", "m.nombre especialidad", "cast(r.cuerpo as nvarchar(max)) cuerpo"], "Integral.ordenreferencia r left join Integral.maestro m on m.codigo = r.cod_especial and m.codgrupo = '004'"),
   especialidades: leer("especialidades", ["codigo", "nombre"], "Integral.maestro", "where codgrupo = '004'"),
@@ -101,6 +103,19 @@ const TIPOS_NUEVOS = [["ASO", "Asociado"], ["VIS", "Visitante"], ["SOB", "Sobrev
 const APTITUD = { Elegible: "elegible", ElegibleRest: "elegible_con_restricciones", NoElegible: "no_elegible", EspResultado: "espera_resultados", Diferido: "diferido" };
 const CAUSA = { EnfComun: "enfermedad_comun", AccComun: "accidente_comun", AccLaboral: "accidente_laboral", EnfOcupacional: "enfermedad_ocupacional", PreNatal: "prenatal", PostNatal: "postnatal" };
 const ENTE = { SERM: "servicio_medico", PART: "particular", HOSP: "hospital", AMBU: "ambulatorio", IVSS: "ivss", CDI: "cdi" };
+const FRECUENCIA = { "CADA 12 HRS": "Cada 12 horas", DIARIO: "Cada 24 horas", "CADA 8 HORAS": "Cada 8 horas", "CADA 6 HORAS": "Cada 6 horas", "CADA 4 HORAS": "Cada 4 horas",
+  "15 DIAS": "Cada 15 días", STAT: "Dosis única", INTERDIARIO: "Cada 48 horas", MENSUAL: "Mensual", "S.O.S": "Si hay dolor (SOS)", SOS: "Si hay dolor (SOS)" };
+const frecuencia = (v) => FRECUENCIA[(v ?? "").trim().toUpperCase()] ?? (v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "");
+const duracion = (v) => {
+  const x = (v ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!x) return "";
+  if (x === "SOS") return "Mientras dure el síntoma";
+  if (x === "1 SEMANA") return "7 días";
+  const m = /^(\d+)\s*(DIA|DIAS|MES|MESES|SEMANA|SEMANAS)$/.exec(x);
+  if (!m) return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+  const n = Number(m[1]), u = m[2];
+  return u.startsWith("DIA") ? `${n} ${n === 1 ? "día" : "días"}` : u.startsWith("MES") ? `${n} ${n === 1 ? "mes" : "meses"}` : `${n * 7} días`;
+};
 const HABITOS = [["alcohol", "Alcohol", "habalcohol"], ["tabaco", "Tabáquicos", "habtabaquico"], ["cafe", "Cafeicos", "habcafeico"],
   ["medicamentos", "Medicamentos", "habmedicamento"], ["estupefacientes", "Estupefacientes", "habestupefaciente"], ["actividad_fisica", "Actividad física", "habactividadfisica"]];
 
@@ -180,6 +195,14 @@ try {
   await guardar("public.lista_items", [...paraGrupos.values()].map((g, i) => ({ ...base, codigo_origen: `perfil-para:${g[0].grupo_codigo}`, lista: "grupo_paraclinicos", codigo: `integral_${g[0].grupo_codigo}`,
     nombre: titulo(g[0].grupo), grupo: null, texto: g.sort((a, b) => Number(a.orden) - Number(b.orden)).map((p) => titulo(p.examen)).join("\n"), orden: 300 + i, activo: true })),
     { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  const valores = (lista, xs) => [...new Set(xs.filter(Boolean))].map((nombre, i) => ({ ...base, codigo_origen: `${lista}:${norm(nombre)}`, lista, codigo: null, nombre, grupo: null, orden: 300 + i, activo: true }));
+  const yaEn = async (lista) => new Set((await q("select lower(nombre) n from public.lista_items where org_id = $1 and lista = $2", [ORG, lista])).rows.map((r) => r.n));
+  const fr = await yaEn("frecuencia_dosis"), du = await yaEn("duracion_tratamiento");
+  await guardar("public.lista_items", [
+    ...valores("frecuencia_dosis", I.tratamientos.map((t) => frecuencia(t.frecuencia)).filter((v) => !fr.has(v.toLowerCase()))),
+    ...valores("duracion_tratamiento", I.tratamientos.map((t) => duracion(t.duracion)).filter((v) => !du.has(v.toLowerCase()))),
+  ], { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  const reubPorCons = new Map(I.reubicaciones.map((r) => [r.cod_consulta, r]));
   const refPorCons = agrupar(I.referencias, (r) => r.cod_consulta);
   const limPorCons = agrupar(I.limitaciones, (l) => l.cod_consulta);
   const limObs = new Map(I.limitacionObs.map((l) => [l.cod_consulta, l.observacion]));
@@ -190,9 +213,9 @@ try {
     const t = tratPorMed.get(m.codigo) ?? [];
     const campo = (k) => titulo(masComun(t.map((x) => x[k])) || "");
     const texto = [["concentracion", campo("concentracion")], ["presentacion", campo("presentacion")], ["via", campo("viaadministr")], ["dosis", campo("dosis")],
-      ["frecuencia", campo("frecuencia")], ["duracion", campo("duracion")]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
+      ["frecuencia", frecuencia(masComun(t.map((x) => x.frecuencia)))], ["duracion", duracion(masComun(t.map((x) => x.duracion)))]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
     return { ...base, codigo_origen: `med:${m.codigo}`, lista: "medicina", codigo: `integral_${m.codigo}`, nombre: titulo(m.nombre), grupo: nulo(m.laboratorio?.replace(/^\*$/, "")), texto, orden: 300 + i, activo: true };
-  }), { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: "conservar" });
+  }), { ...T, lista: "text", codigo: "text", nombre: "text", grupo: "text", texto: "text", orden: "int", activo: "boolean" }, { modo: process.env.REFRESCAR_MEDICINAS ? "actualizar" : "conservar" }); // REFRESCAR_MEDICINAS=1 rehace sus indicaciones
 
   // Empresas, sedes y dependencias
   const empresaDe = new Map(), sedeDe = new Map();
@@ -271,11 +294,12 @@ try {
         resultado: [e.resultado, e.observacion].filter(Boolean).join(". ") })),
       signos_vitales: {},
       tratamiento: (trPorCons.get(c.codigo) ?? []).map((t) => ({ medicina: titulo(t.medicina || ""), concentracion: t.concentracion, presentacion: titulo(t.presentacion),
-        dosis: t.dosis, frecuencia: titulo(t.frecuencia), duracion: titulo(t.duracion), via: titulo(t.viaadministr), observacion: t.obspaciente })),
+        dosis: t.dosis, frecuencia: frecuencia(t.frecuencia), duracion: duracion(t.duracion), via: titulo(t.viaadministr), observacion: t.obspaciente })),
       indicaciones: unir(c.otrasindicaciones, c.indicacionlibre, c.recipelibre),
       conclusiones: unir(c.impdiagnostica && `Impresión diagnóstica: ${c.impdiagnostica}`, c.conclusion, c.obsgeneral,
         !APTITUD[c.codaptitud] && limPorCons.has(c.codigo) ? `Restricciones: ${limPorCons.get(c.codigo).map((l) => oracion(l.nombre)).join("; ")}` : null,
-        !APTITUD[c.codaptitud] ? limObs.get(c.codigo) : null),
+        !APTITUD[c.codaptitud] ? limObs.get(c.codigo) : null,
+        reubPorCons.has(c.codigo) ? (() => { const r = reubPorCons.get(c.codigo); return [`Reubicación laboral: ${r.reubicado === "S" ? "sí" : "no"}.`, r.resultado && `Resultado: ${oracion(r.resultado)}.`, r.observacion, r.obs_resultado].filter(Boolean).join(" "); })() : null),
       interconsultas: (refPorCons.get(c.codigo) ?? []).map((r) => ({ especialidad: r.especialidad ? titulo(r.especialidad) : "", motivo: r.cuerpo ?? "" })),
       recomendaciones_empresa: nulo(c.recomendaemp), recomendaciones_trabajador: nulo(c.recomendapac), observacion_privada: nulo(c.obsprivada),
       sano: c.adultosano === "S", estado: "cerrada" };
