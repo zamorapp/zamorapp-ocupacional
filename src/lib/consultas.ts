@@ -93,7 +93,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("trabajadores").select("id, nombres, apellidos, cedula, sexo, fecha_nacimiento, empresas(razon_social), puestos(nombre, riesgos)").eq("id", c.trabajador_id).maybeSingle(),
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
-    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10").eq("consulta_id", id).maybeSingle(),
+    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
     c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
@@ -142,8 +142,16 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       indicaciones: c.indicaciones ?? "",
       interconsultas: c.interconsultas ?? [],
       reposo: rep
-        ? { activo: true, causa: rep.causa, ente: rep.ente_emisor, desde: rep.desde, hasta: rep.hasta, cie10: rep.cie10 ?? "" }
-        : { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: c.fecha, hasta: c.fecha, cie10: "" },
+        ? { activo: true, causa: rep.causa, ente: rep.ente_emisor, desde: rep.desde, hasta: rep.hasta, cie10: rep.cie10 ?? "",
+            medicoExterno: rep.medico_externo ?? "", centroIvss: rep.centro_ivss ?? "", validadoIvss: rep.validado_ivss ?? false }
+        : { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: c.fecha, hasta: c.fecha, cie10: "", medicoExterno: "", centroIvss: "", validadoIvss: false },
+      reubicacion: c.reubicacion
+        ? {
+            activa: true, tipo: c.reubicacion.tipo === "definitiva" ? "definitiva" : "temporal", puestoActual: c.reubicacion.puesto_actual ?? "", puestoPropuesto: c.reubicacion.puesto_propuesto ?? "",
+            desde: c.reubicacion.desde ?? c.fecha, hasta: c.reubicacion.hasta ?? "", motivo: c.reubicacion.motivo ?? "", restricciones: c.reubicacion.restricciones ?? "",
+          }
+        : { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: c.fecha, hasta: "", motivo: "", restricciones: "" },
+      informeLibre: { titulo: c.informe_libre?.titulo ?? "", dirigidoA: c.informe_libre?.dirigido_a ?? "", cuerpo: c.informe_libre?.cuerpo ?? "" },
       conclusiones: c.conclusiones ?? "",
       recomendacionesEmpresa: c.recomendaciones_empresa ?? "",
       recomendacionesTrabajador: c.recomendaciones_trabajador ?? "",

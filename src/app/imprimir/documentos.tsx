@@ -94,7 +94,9 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
         ))}
       </div>
       {diag && <p><b>Diagnóstico:</b> {diag.cie10} {diag.descripcion}</p>}
-      <p className="text-[10.5px] text-doc-tenue">Emitido por: {r.ente.replace(/_/g, " ")}</p>
+      <p className="text-[10.5px] text-doc-tenue">
+        {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
+      </p>
       <Firmas>
         <span />
         <FirmaMedico d={d} compacto />
@@ -271,7 +273,7 @@ export function Recipe({ d }: { d: DatosDocumento }) {
     <Hoja media>
       <div className="grid flex-1 grid-cols-2 gap-4">
         <MitadRecipe d={d} titulo="Récipe">
-          {meds.map((x, i) => `${i + 1}. ${x.medicina} ${x.concentracion} · ${x.presentacion}`).join("\n")}
+          {meds.map((x, i) => `${i + 1}. ${x.medicina} ${x.concentracion} · ${x.presentacion}${x.notaFarmacia ? `\n   Farmacia: ${x.notaFarmacia}` : ""}`).join("\n")}
         </MitadRecipe>
         <MitadRecipe d={d} titulo="Indicaciones">
           {meds.map((x, i) => `${i + 1}. ${x.medicina}: ${x.dosis} vía ${x.via.toLowerCase()} ${x.frecuencia.toLowerCase()} por ${x.duracion.toLowerCase()}${x.observacion ? `. ${x.observacion}` : ""}`).join("\n")}
@@ -388,5 +390,67 @@ export function Referencia({ d }: { d: DatosDocumento }) {
         </Hoja>
       ))}
     </>
+  );
+}
+
+// Reubicación laboral: carta a la empresa con el puesto propuesto, el tiempo y las restricciones
+export function Reubicacion({ d }: { d: DatosDocumento }) {
+  const r = d.datos.reubicacion;
+  if (!r.activa) return <Hoja media><p>Esta consulta no tiene reubicación indicada.</p></Hoja>;
+  return (
+    <Hoja>
+      <Membrete d={d} />
+      <Titulo d={d} prefijo="RB" sub={r.tipo === "definitiva" ? "Definitiva" : "Temporal"}>Recomendación de reubicación laboral</Titulo>
+      <DatosPaciente d={d} />
+      <div className="mb-4 grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+        <div className="rounded-lg border border-doc-linea px-3 py-2">
+          <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">Puesto actual</div>
+          <div className="text-[14px] font-bold">{r.puestoActual || d.trabajador.cargo || "—"}</div>
+        </div>
+        <div className="grid place-items-center text-xl text-doc-acento">→</div>
+        <div className="rounded-lg border-2 border-doc-acento bg-doc-suave px-3 py-2">
+          <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">Puesto o tareas propuestas</div>
+          <div className="text-[14px] font-bold">{r.puestoPropuesto || "—"}</div>
+        </div>
+      </div>
+      <Ficha
+        celdas={[
+          { k: "Tipo", v: r.tipo === "definitiva" ? "Definitiva" : "Temporal" },
+          { k: "Desde", v: fechaCorta(r.desde) },
+          { k: "Hasta", v: r.tipo === "temporal" ? fechaCorta(r.hasta) : "Indefinido" },
+          { k: "Revisión", v: r.tipo === "temporal" && r.hasta ? `Control al ${fechaCorta(r.hasta)}` : "Según evolución" },
+        ]}
+      />
+      {r.motivo && <Bloque titulo="Motivo médico">{r.motivo}</Bloque>}
+      {r.restricciones && <Bloque titulo="Restricciones"><Lista texto={r.restricciones} /></Bloque>}
+      <p className="mt-2 text-[12px]">
+        Se recomienda a {d.empresa.razon_social} adecuar las tareas del trabajador según lo indicado, conforme a la LOPCYMAT, y notificar al servicio médico cualquier cambio en sus condiciones de trabajo.
+      </p>
+      <Firmas>
+        <FirmaTrabajador d={d} />
+        <FirmaMedico d={d} etiqueta="Médico ocupacional" />
+      </Firmas>
+      <Pie d={d} />
+    </Hoja>
+  );
+}
+
+// Informe médico de texto libre (cartas e informes que no encajan en otro documento)
+export function InformeLibre({ d }: { d: DatosDocumento }) {
+  const x = d.datos.informeLibre;
+  if (!x.cuerpo.trim()) return <Hoja media><p>Esta consulta no tiene informe libre.</p></Hoja>;
+  return (
+    <Hoja>
+      <Membrete d={d} />
+      <Titulo d={d} prefijo="IL" sub={d.motivo?.nombre ?? null}>{x.titulo || "Informe médico"}</Titulo>
+      <DatosPaciente d={d} completo={false} />
+      {x.dirigidoA && <p className="mb-3 text-[13px]"><b>{x.dirigidoA}</b></p>}
+      <div className="whitespace-pre-line text-[13px] leading-relaxed">{x.cuerpo}</div>
+      <Firmas>
+        <span />
+        <FirmaMedico d={d} />
+      </Firmas>
+      <Pie d={d} />
+    </Hoja>
   );
 }

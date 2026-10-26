@@ -213,6 +213,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       tratamiento={d.tratamiento.some((m) => m.medicina)}
       examenes={d.paraclinicos.length > 0}
       referencias={d.interconsultas.some((x) => x.especialidad)}
+      reubicacion={d.reubicacion.activa}
+      informeLibre={Boolean(d.informeLibre.cuerpo.trim())}
       antes={cambios && !bloqueado ? guardarAntes : undefined}
       ocupado={guardando}
       variante={variante}
@@ -711,7 +713,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                     ))}
                     <Input value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
                     <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("tratamiento", d.tratamiento.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                    <Input value={m.observacion ?? ""} placeholder="Observación (ej. después de las comidas)" className="h-8 sm:col-span-8" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
+                    <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
+                    <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
                   </div>
                 ))}
                 <Texto etiqueta="Otras indicaciones" valor={d.indicaciones} onChange={(v) => set("indicaciones", v)} filas={2} />
@@ -749,6 +752,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                         ? `${Math.round((Date.parse(d.reposo.hasta) - Date.parse(d.reposo.desde)) / 864e5) + 1} días · reintegro el día siguiente`
                         : "La fecha final es anterior a la inicial"}
                     </div>
+                    {d.reposo.ente !== "servicio_medico" && (
+                      <div className="sm:col-span-2">
+                        <Label className="mb-1.5">Médico externo que lo indicó</Label>
+                        <Input value={d.reposo.medicoExterno} placeholder="Nombre y MPPS" onChange={(e) => set("reposo", { ...d.reposo, medicoExterno: e.target.value })} />
+                      </div>
+                    )}
+                    <div className="sm:col-span-2">
+                      <Label className="mb-1.5">Centro del IVSS</Label>
+                      <Input value={d.reposo.centroIvss} placeholder="Si aplica" onChange={(e) => set("reposo", { ...d.reposo, centroIvss: e.target.value })} />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                      <input type="checkbox" checked={d.reposo.validadoIvss} onChange={(e) => set("reposo", { ...d.reposo, validadoIvss: e.target.checked })} className="size-4 accent-[var(--primary)]" />
+                      Validado por el IVSS
+                    </label>
                   </div>
                 )}
               </Seccion>
@@ -780,6 +797,68 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 <input type="checkbox" checked={d.autorizaPaciente} onChange={(e) => set("autorizaPaciente", e.target.checked)} className="size-4 accent-[var(--primary)]" />
                 El trabajador autoriza enviar el informe a la empresa (si no, la empresa solo recibe la constancia de aptitud)
               </label>
+            </Seccion>
+
+            <Seccion titulo="Reubicación laboral">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={d.reubicacion.activa}
+                  onChange={(e) => set("reubicacion", { ...d.reubicacion, activa: e.target.checked, puestoActual: d.reubicacion.puestoActual || trabajador.cargo })}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                Indicar reubicación (se imprime la carta para la empresa)
+              </label>
+              {d.reubicacion.activa && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div className="sm:col-span-2">
+                    <Label className="mb-1.5">Puesto actual</Label>
+                    <Input value={d.reubicacion.puestoActual} onChange={(e) => set("reubicacion", { ...d.reubicacion, puestoActual: e.target.value })} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label className="mb-1.5">Puesto o tareas propuestas</Label>
+                    <Input value={d.reubicacion.puestoPropuesto} onChange={(e) => set("reubicacion", { ...d.reubicacion, puestoPropuesto: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="mb-1.5">Tipo</Label>
+                    <select value={d.reubicacion.tipo} onChange={(e) => set("reubicacion", { ...d.reubicacion, tipo: e.target.value as "temporal" | "definitiva" })} className={SELECT}>
+                      <option value="temporal">Temporal</option>
+                      <option value="definitiva">Definitiva</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="mb-1.5">Desde</Label>
+                    <Input type="date" value={d.reubicacion.desde} onChange={(e) => set("reubicacion", { ...d.reubicacion, desde: e.target.value })} />
+                  </div>
+                  {d.reubicacion.tipo === "temporal" && (
+                    <div>
+                      <Label className="mb-1.5">Hasta</Label>
+                      <Input type="date" value={d.reubicacion.hasta} onChange={(e) => set("reubicacion", { ...d.reubicacion, hasta: e.target.value })} />
+                    </div>
+                  )}
+                  <div className="sm:col-span-4">
+                    <Texto etiqueta="Motivo médico" valor={d.reubicacion.motivo} onChange={(v) => set("reubicacion", { ...d.reubicacion, motivo: v })} filas={2} />
+                  </div>
+                  <div className="sm:col-span-4">
+                    <Texto etiqueta="Restricciones (una por línea)" valor={d.reubicacion.restricciones} onChange={(v) => set("reubicacion", { ...d.reubicacion, restricciones: v })} filas={3} />
+                  </div>
+                </div>
+              )}
+            </Seccion>
+
+            <Seccion titulo="Informe médico libre">
+              <p className="text-sm text-muted-foreground">Para cartas o informes que no encajan en otro documento. Si escribes el contenido, aparece «Informe libre» en el botón Imprimir.</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1.5">Título</Label>
+                  <Input value={d.informeLibre.titulo} placeholder="Informe médico" onChange={(e) => set("informeLibre", { ...d.informeLibre, titulo: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="mb-1.5">Dirigido a</Label>
+                  <Input value={d.informeLibre.dirigidoA} placeholder="A quien pueda interesar" onChange={(e) => set("informeLibre", { ...d.informeLibre, dirigidoA: e.target.value })} />
+                </div>
+              </div>
+              <Texto etiqueta="Contenido" valor={d.informeLibre.cuerpo} onChange={(v) => set("informeLibre", { ...d.informeLibre, cuerpo: v })} filas={6} />
             </Seccion>
           </TabsContent>
       </fieldset>
