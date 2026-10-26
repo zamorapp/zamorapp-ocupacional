@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Empresa } from "@/lib/empresas";
+import { MESES } from "@/lib/periodos";
 import { guardarEmpresa } from "./acciones";
 
 function Campo({ id, etiqueta, className, ...props }: React.ComponentProps<"input"> & { etiqueta: string }) {
@@ -50,6 +51,8 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
           <Campo id="actividad" etiqueta="Actividad económica" defaultValue={e?.actividad ?? ""} className="sm:col-span-2" />
           <Campo id="estado" etiqueta="Estado" defaultValue={e?.estado ?? ""} />
           <Campo id="municipio" etiqueta="Municipio" defaultValue={e?.municipio ?? ""} />
+          <Campo id="parroquia" etiqueta="Parroquia" defaultValue={e?.parroquia ?? ""} />
+          <Campo id="sector" etiqueta="Sector económico" defaultValue={e?.sector ?? ""} />
           <Campo id="direccion" etiqueta="Dirección" defaultValue={e?.direccion ?? ""} className="sm:col-span-2" />
           <Campo id="telefono" etiqueta="Teléfono" type="tel" defaultValue={e?.telefono ?? ""} />
           <Campo id="correo" etiqueta="Correo" type="email" defaultValue={e?.correo ?? ""} />
@@ -64,6 +67,13 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
           </div>
           <Campo id="servicio_sst_registro" etiqueta="Registro del Servicio de SST" type="date" defaultValue={e?.servicioSstRegistro ?? ""} />
           <Campo id="psst_registro" etiqueta="Registro del PSST" type="date" defaultValue={e?.psstRegistro ?? ""} />
+          <div className="sm:col-span-2">
+            <Label htmlFor="mes_inicio_gestion" className="mb-1.5">La gestión (año de trabajo) empieza en</Label>
+            <select id="mes_inicio_gestion" name="mes_inicio_gestion" defaultValue={e?.mesInicioGestion ?? 1} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm">
+              {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">Los trimestres del informe de vigilancia se cuentan desde este mes. Ejemplo: febrero → I trimestre febrero-abril.</p>
+          </div>
 
           {estado && !estado.ok && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">{estado.mensaje}</p>

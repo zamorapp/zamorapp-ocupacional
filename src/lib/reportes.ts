@@ -1,66 +1,51 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import type { Periodo } from "@/lib/periodos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 type Conteo = { nombre: string; n: number };
+export type Causa = { cie10: string; descripcion: string; n: number; pacientes?: number };
 
 export type Reporte = {
-  poblacion: { total: number; femenino: number; masculino: number; por_tipo: Conteo[] };
+  poblacion: {
+    total: number; femenino: number; masculino: number; por_tipo: Conteo[];
+    discapacidad?: number; vigilancia_ocupacional?: number; vigilancia_no_ocupacional?: number;
+  };
   consultas: {
-    total: number; pacientes: number; preventivas: number; no_preventivas: number; sanos: number;
+    total: number; pacientes: number; preventivas: number; no_preventivas: number; sanos: number; patologicos?: number;
     por_motivo: (Conteo & { grupo: string | null })[];
     por_tipo: Record<string, number>;
+    por_tipo_paciente?: Conteo[];
     por_sexo: { F: number; M: number };
     por_edad: { grupo: string; n: number }[];
+    por_dependencia?: (Conteo & { personal: number })[];
   };
   morbilidad: {
     total: number;
+    pacientes?: number;
     por_sistema: Conteo[];
     por_origen: Record<string, number>;
-    primeras_causas: { cie10: string; descripcion: string; n: number }[];
+    por_tipo_consulta?: Record<string, { n: number; pacientes: number }>;
+    primeras_causas: Causa[];
+    // Diez primeras causas por corte: tipo, origen, sexo, edad, sistema, actividad, motivo, dependencia
+    cortes?: Record<string, Record<string, Causa[]>>;
   };
+  referencias?: { total: number; por_especialidad: Conteo[] };
   ausentismo: {
     reposos: number; dias_perdidos: number; dias_periodo: number; dias_computables: number;
+    reposos_iniciados?: number; trabajadores_ausentes?: number;
     por_causa: (Conteo & { dias: number })[];
-    por_ente: Conteo[];
+    por_ente: (Conteo & { dias?: number })[];
+    primeras_causas?: (Causa & { dias: number })[];
+    detalle?: { causa: string; ente: string; cie10: string | null; descripcion: string | null; n: number; dias: number }[];
+    por_dependencia?: (Conteo & { dias: number })[];
   };
+  enfermedad_ocupacional?: { casos: number; dias: number; casos_anteriores: number; dias_anteriores: number };
+  accidentes?: { fecha: string; tipo: string; lugar: string | null; lesion: string | null; parte: string | null; gravedad: string | null; dias: number; estado: string }[];
   aptitud: Record<string, number>;
 };
 
-export type Periodo = { clave: string; desde: string; hasta: string; etiqueta: string };
-
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
-// Periodos rápidos; "rango" usa desde/hasta de la URL
-export function resolverPeriodo(clave = "trimestre", desde?: string, hasta?: string): Periodo {
-  const hoy = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }) + "T00:00:00Z");
-  const a = hoy.getUTCFullYear();
-  const m = hoy.getUTCMonth();
-  const trimestre = (anio: number, t: number): Periodo => ({
-    clave: "",
-    desde: iso(new Date(Date.UTC(anio, t * 3, 1))),
-    hasta: iso(new Date(Date.UTC(anio, t * 3 + 3, 0))),
-    etiqueta: `${["I", "II", "III", "IV"][t]} trimestre ${anio}`,
-  });
-  switch (clave) {
-    case "mes":
-      return { clave, desde: iso(new Date(Date.UTC(a, m, 1))), hasta: iso(new Date(Date.UTC(a, m + 1, 0))), etiqueta: `${MESES[m]} ${a}` };
-    case "trimestre_anterior": {
-      const t = Math.floor(m / 3) - 1;
-      return { ...(t < 0 ? trimestre(a - 1, 3) : trimestre(a, t)), clave };
-    }
-    case "anio":
-      return { clave, desde: `${a}-01-01`, hasta: `${a}-12-31`, etiqueta: `Año ${a}` };
-    case "rango":
-      if (desde && hasta && desde <= hasta) {
-        return { clave, desde, hasta, etiqueta: `${desde.split("-").reverse().join("/")} al ${hasta.split("-").reverse().join("/")}` };
-      }
-      return resolverPeriodo("trimestre");
-    default:
-      return { ...trimestre(a, Math.floor(m / 3)), clave: "trimestre" };
-  }
-}
+export { resolverPeriodo, type Periodo } from "@/lib/periodos";
 
 export async function obtenerReporte(empresaId: string | null, p: Periodo): Promise<Reporte | null> {
   if (!supabaseConfigurado) return null;
@@ -75,33 +60,6 @@ export function indicadoresAusentismo(r: Reporte) {
   const pad = r.ausentismo.dias_periodo ? r.ausentismo.dias_computables / r.ausentismo.dias_periodo : 0;
   const pct = r.poblacion.total ? (pad * 100) / r.poblacion.total : 0;
   return { pad: Math.round(pad * 100) / 100, pct: Math.round(pct * 100) / 100 };
-}
-
-// Hallazgos escritos automáticamente para el resumen ejecutivo
-export function resumenEjecutivo(r: Reporte, nombresCausa: Record<string, string>) {
-  const frases: string[] = [];
-  const { pct } = indicadoresAusentismo(r);
-  frases.push(`Se atendieron ${r.consultas.total} consultas a ${r.consultas.pacientes} trabajadores (${r.consultas.preventivas} preventivas y ${r.consultas.no_preventivas} no preventivas).`);
-  if (r.morbilidad.primeras_causas[0]) {
-    const c = r.morbilidad.primeras_causas[0];
-    frases.push(`La primera causa de morbilidad fue ${c.descripcion.toLowerCase()} (${c.cie10}) con ${c.n} ${c.n === 1 ? "caso" : "casos"}.`);
-  } else {
-    frases.push("No se registraron diagnósticos de morbilidad en el periodo.");
-  }
-  const ocup = r.morbilidad.por_origen.ocupacional ?? 0;
-  const accLab = r.morbilidad.por_origen.accidente_laboral ?? 0;
-  frases.push(ocup ? `Se registraron ${ocup} diagnósticos de presunto origen ocupacional que requieren seguimiento.` : "Sin diagnósticos de origen ocupacional.");
-  frases.push(accLab ? `Hubo ${accLab} diagnósticos por accidente laboral.` : "Sin accidentes laborales registrados.");
-  if (r.ausentismo.reposos) {
-    const causa = r.ausentismo.por_causa[0];
-    frases.push(
-      `Ausentismo de ${pct.toLocaleString("es-VE")} % (${r.ausentismo.dias_perdidos} días perdidos en ${r.ausentismo.reposos} reposos), ${pct < 2.5 ? "dentro" : "por encima"} de la meta de 2,5 %.` +
-        (causa ? ` Principal causa: ${(nombresCausa[causa.nombre] ?? causa.nombre).toLowerCase()}.` : ""),
-    );
-  } else {
-    frases.push("Sin reposos en el periodo.");
-  }
-  return frases;
 }
 
 export type Accidentalidad = {
@@ -137,4 +95,73 @@ export function indicesCovenin(a: Accidentalidad) {
     tieo: por(a.enfermedades),
     aTiempo: declarables ? Math.round((a.declarados_a_tiempo / declarables) * 100) : null,
   };
+}
+
+// Días hábiles (lunes a viernes) entre dos fechas ISO, ambas incluidas
+function diasHabiles(desde: string, hasta: string) {
+  const d = new Date(desde + "T00:00:00Z");
+  const fin = new Date(hasta + "T00:00:00Z");
+  let n = 0;
+  for (; d <= fin; d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDay() % 6 !== 0) n++;
+  return n;
+}
+
+// Sin horas cargadas, COVENIN 474 (5.2) permite estimarlas: trabajadores × 8 h × días hábiles, declarando el método
+export function completarHorasHombre(a: Accidentalidad, trabajadores: number, p: Periodo): Accidentalidad & { estimado_auto: boolean } {
+  if (a.hht > 0 || trabajadores <= 0) return { ...a, estimado_auto: false };
+  return { ...a, hht: trabajadores * 8 * diasHabiles(p.desde, p.hasta), hay_estimado: true, estimado_auto: true };
+}
+
+// Tasas de enfermedad ocupacional: TAEO = días perdidos por EO × 100 / HHT · TIEO = casos × 1.000.000 / HHT
+export function tasasEnfermedadOcupacional(r: Reporte, hht: number) {
+  const eo = r.enfermedad_ocupacional;
+  if (!eo || hht <= 0) return { taeo: null, tieo: null };
+  return { taeo: Math.round(((eo.dias * 100) / hht) * 10000) / 10000, tieo: Math.round(((eo.casos * 1_000_000) / hht) * 100) / 100 };
+}
+
+export type InformeVigilancia = {
+  id: string | null;
+  resumen: string;
+  conclusiones: string;
+  recomendaciones: string;
+  factores_riesgo: string;
+  medidas_control: string;
+  firmantes: Firmantes;
+  actualizado_en: string | null;
+};
+export type Persona = { nombre: string; cedula: string };
+export type Firmantes = { medico?: Persona; sst?: Persona; delegados?: Persona[]; empleador?: Persona };
+
+// Textos guardados del informe para esa empresa (o el consolidado) y ese período exacto
+export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
+  q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
+  const { data } = await q.maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    resumen: data.resumen ?? "",
+    conclusiones: data.conclusiones ?? "",
+    recomendaciones: data.recomendaciones ?? "",
+    factores_riesgo: data.factores_riesgo ?? "",
+    medidas_control: data.medidas_control ?? "",
+    firmantes: (data.firmantes ?? {}) as Firmantes,
+    actualizado_en: data.actualizado_en,
+  };
+}
+
+// Riesgos marcados en los puestos de la empresa: base de "Factores de riesgo" sugeridos
+export async function riesgosDeEmpresa(empresaId: string | null): Promise<Record<string, string[]>> {
+  if (!supabaseConfigurado || !empresaId) return {};
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("puestos").select("riesgos").eq("empresa_id", empresaId).eq("activo", true);
+  const total: Record<string, Set<string>> = {};
+  for (const p of data ?? []) {
+    for (const [grupo, agentes] of Object.entries((p.riesgos ?? {}) as Record<string, string[]>)) {
+      for (const a of agentes ?? []) (total[grupo] ??= new Set()).add(a);
+    }
+  }
+  return Object.fromEntries(Object.entries(total).map(([g, s]) => [g, [...s]]));
 }

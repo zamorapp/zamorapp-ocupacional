@@ -131,10 +131,20 @@ export const MANUAL: TemaManual[] = [
     id: "reportes",
     titulo: "Reportes",
     para: "servicio",
-    resumen: "Morbilidad, ausentismo, vigilancia epidemiológica y pacientes atendidos.",
+    resumen: "Informe trimestral de vigilancia epidemiológica (LOPCYMAT art. 34): morbilidad, ausentismo, accidentalidad, conclusiones y recomendaciones.",
     pasos: [
-      "Elige empresa y período; el reporte se calcula al momento.",
-      "Usa «Imprimir» para el informe de vigilancia o la lista de atendidos.",
+      "Elige la empresa arriba, en el encabezado, y luego el período: año de gestión y trimestre I, II, III o IV. Arriba se ven siempre las fechas exactas (por ejemplo, del 01/02/2026 al 30/04/2026).",
+      "Si la empresa empieza su gestión en otro mes, cámbialo en Empresas › Editar › «La gestión empieza en»: los trimestres se cuentan desde ese mes (febrero → I trimestre febrero-abril). También puedes cambiarlo solo para esta consulta en «La gestión empieza en».",
+      "Para otros tres meses cualquiera usa «Otros 3 meses desde»; para fechas libres, el rango Desde-Hasta.",
+      "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
+      "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir».",
+      "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o guardas en PDF.",
+    ],
+    consejos: [
+      "Lo guardado queda por empresa y período: si vuelves al mismo trimestre, encuentras tu redacción.",
+      "«Usar sugerencia» en cada sección recupera el texto propuesto; «Regenerar todo» lo hace con todas.",
+      "Los factores de riesgo se sugieren a partir de los puestos de la empresa: márcalos en Empresas › Puestos.",
+      "Sin horas hombre cargadas, los índices se calculan con horas estimadas (trabajadores × 8 h × días hábiles) y se indica en el informe.",
     ],
   },
   {

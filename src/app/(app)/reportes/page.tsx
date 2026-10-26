@@ -4,26 +4,23 @@ import { FileBarChart2, ShieldAlert } from "lucide-react";
 import { Barras } from "@/components/app/barras";
 import { Semaforo } from "@/components/app/semaforo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
-import { listarEmpresas } from "@/lib/empresas";
-import { opciones } from "@/lib/listas";
-import { indicadoresAusentismo, indicesCovenin, obtenerAccidentalidad, obtenerReporte, resolverPeriodo, resumenEjecutivo } from "@/lib/reportes";
+import { parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
+import { indicesCovenin, tasasEnfermedadOcupacional } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
+import { cargarVigilancia } from "@/lib/vigilancia";
+import { EditorInforme } from "./editor-informe";
+import { ExploradorCausas } from "./explorador-causas";
+import { SelectorPeriodo } from "./selector-periodo";
 
 export const metadata: Metadata = { title: "Reportes" };
 export const dynamic = "force-dynamic";
 
-const PERIODOS = [
-  ["mes", "Este mes"],
-  ["trimestre", "Este trimestre"],
-  ["trimestre_anterior", "Trimestre anterior"],
-  ["anio", "Este año"],
-  ["rango", "Rango"],
-] as const;
+type Props = { searchParams: Promise<ConsultaPeriodo> };
 
-type Props = { searchParams: Promise<{ p?: string; desde?: string; hasta?: string }> };
+const ROLES_REDACTAN = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst"];
 
 function Indicador({ titulo, valor, detalle, estado }: { titulo: string; valor: string; detalle: string; estado?: "ok" | "aviso" | "alerta" }) {
   return (
@@ -37,51 +34,40 @@ function Indicador({ titulo, valor, detalle, estado }: { titulo: string; valor: 
   );
 }
 
+function Grafico({ titulo, children, detalle }: { titulo: string; children: React.ReactNode; detalle?: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{titulo}</CardTitle>
+        {detalle && <CardDescription>{detalle}</CardDescription>}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
+const num = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString("es-VE"));
+
 export default async function Reportes({ searchParams }: Props) {
-  const [q, sesion, empresaId, empresas] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas()]);
-  const periodo = resolverPeriodo(q.p, q.desde, q.hasta);
-  const [r, listas, acc] = await Promise.all([
-    sesion.demo ? null : obtenerReporte(empresaId, periodo),
-    opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud"]),
-    sesion.demo ? null : obtenerAccidentalidad(empresaId, periodo),
-  ]);
-  const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
-  const causas = nombre("causa_reposo");
-  const entes = nombre("ente_emisor_reposo");
-  const aptitudes = nombre("clasificacion_aptitud");
-  const empresa = empresas.find((e) => e.id === empresaId)?.razonSocial ?? "Todas las empresas";
-  const params = new URLSearchParams({ p: periodo.clave, desde: periodo.desde, hasta: periodo.hasta, ...(empresaId ? { empresa: empresaId } : {}) });
+  const [q, sesion, empresaId] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId()]);
+  const v = await cargarVigilancia(sesion, empresaId, q);
+  const { r, acc, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
+  const params = new URLSearchParams({ ...parametrosPeriodo(periodo), ...(empresaId ? { empresa: empresaId } : {}) });
+  const enlaceImprimir = `/imprimir/vigilancia?${params}`;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reportes</h1>
-          <p className="text-muted-foreground"><span className="first-letter:uppercase">{periodo.etiqueta}</span> · {empresa}</p>
+          <p className="text-muted-foreground">Vigilancia epidemiológica · {empresa?.razonSocial ?? "Todas las empresas"} <span className="text-xs">(la empresa se elige arriba, en el encabezado)</span></p>
         </div>
         <Button asChild disabled={!r}>
-          <Link href={`/imprimir/vigilancia?${params}`} target="_blank"><FileBarChart2 /> Informe trimestral de vigilancia</Link>
+          <Link href={enlaceImprimir} target="_blank"><FileBarChart2 /> Imprimir informe trimestral</Link>
         </Button>
       </div>
 
-      <form className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
-          {PERIODOS.filter(([k]) => k !== "rango").map(([k, t]) => (
-            <Link
-              key={k}
-              href={`/reportes?p=${k}`}
-              className={`rounded-md px-3 py-1.5 text-sm transition ${periodo.clave === k ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-            >
-              {t}
-            </Link>
-          ))}
-        </div>
-        <input type="hidden" name="p" value="rango" />
-        <input type="date" name="desde" aria-label="Desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
-        <input type="date" name="hasta" aria-label="Hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
-        <Button type="submit" variant="outline">Ver rango</Button>
-        <span className="text-xs text-muted-foreground">La empresa se elige arriba, en el selector del encabezado.</span>
-      </form>
+      <SelectorPeriodo key={`${periodo.desde}${periodo.hasta}${empresaId}`} periodo={periodo} inicioEmpresa={empresa?.mesInicioGestion ?? 1} empresa={empresa?.razonSocial ?? null} />
 
       {!r ? (
         <div className="flex items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
@@ -89,105 +75,98 @@ export default async function Reportes({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          {(() => {
-            const { pad, pct } = indicadoresAusentismo(r);
-            return (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <Indicador titulo="Población" valor={String(r.poblacion.total)} detalle={`${r.poblacion.femenino} F · ${r.poblacion.masculino} M`} />
-                <Indicador titulo="Consultas" valor={String(r.consultas.total)} detalle={`${r.consultas.pacientes} pacientes`} />
-                <Indicador titulo="Preventivas" valor={String(r.consultas.preventivas)} detalle={`${r.consultas.no_preventivas} no preventivas`} />
-                <Indicador titulo="Días perdidos" valor={String(r.ausentismo.dias_perdidos)} detalle={`${r.ausentismo.reposos} reposos · PAD ${pad.toLocaleString("es-VE")}`} />
-                <Indicador titulo="% ausentismo" valor={`${pct.toLocaleString("es-VE")} %`} detalle="Meta < 2,5 %" estado={pct < 2.5 ? "ok" : "alerta"} />
-              </div>
-            );
-          })()}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+            <Indicador titulo="Población" valor={String(r.poblacion.total)} detalle={`${r.poblacion.femenino} F · ${r.poblacion.masculino} M`} />
+            <Indicador titulo="Consultas" valor={String(r.consultas.total)} detalle={`${r.consultas.pacientes} pacientes · ${r.consultas.preventivas} preventivas`} />
+            <Indicador titulo="Prevalencia" valor={`${num(r.poblacion.total ? Math.round(((r.morbilidad.pacientes ?? 0) * 1000) / r.poblacion.total) / 10 : 0)} %`} detalle={`${r.morbilidad.total} diagnósticos`} />
+            <Indicador titulo="Días perdidos" valor={String(r.ausentismo.dias_perdidos)} detalle={`${r.ausentismo.reposos} reposos · PAD ${num(ausentismo.pad)}`} />
+            <Indicador titulo="% ausentismo" valor={`${num(ausentismo.pct)} %`} detalle="Meta < 2,5 %" estado={ausentismo.pct < 2.5 ? "ok" : "alerta"} />
+            <Indicador titulo="Referencias" valor={String(r.referencias?.total ?? 0)} detalle="a especialistas" />
+          </div>
 
           {r.poblacion.total > 0 && r.poblacion.total < 10 && (
             <p className="rounded-md bg-aviso/10 px-4 py-2 text-sm">Población menor a 10 trabajadores: los índices tienen baja comparabilidad.</p>
           )}
 
-
           {acc && (() => {
             const ix = indicesCovenin(acc);
-            const v = (n: number | null) => (n === null ? "—" : n.toLocaleString("es-VE"));
+            const eo = tasasEnfermedadOcupacional(r, acc.hht);
             return (
               <Card>
-                <CardHeader><CardTitle className="text-base">Accidentalidad (COVENIN 474)</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {[
-                      ["IFN", v(ix.ifn), "Con tiempo perdido"],
-                      ["IFB", v(ix.ifb), "Lesiones totales"],
-                      ["IS", v(ix.is), "Severidad"],
-                      ["TIEO", v(ix.tieo), "Enfermedad ocupacional"],
-                      ["Declaradas a tiempo", ix.aTiempo === null ? "—" : `${ix.aTiempo} %`, `${acc.por_declarar} por declarar`],
-                      ["HHT", acc.hht.toLocaleString("es-VE"), `${acc.meses_con_horas} meses${acc.hay_estimado ? " · estimado" : ""}`],
-                    ].map(([t, n, d]) => (
-                      <div key={t} className="rounded-lg border p-3">
-                        <div className="text-xs text-muted-foreground">{t}</div>
-                        <div className="text-xl font-semibold">{n}</div>
-                        <div className="text-xs text-muted-foreground">{d}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {acc.accidentes} accidentes ({acc.con_tiempo_perdido} con tiempo perdido) · {acc.incidentes} incidentes · {acc.enfermedades} enfermedades · {acc.dias_perdidos} días perdidos y {acc.dias_cargados} cargados. Índices por millón de horas hombre.
-                    {acc.hht === 0 && " Carga las horas trabajadas en la página de la empresa para calcular los índices."}
-                  </p>
+                <CardHeader>
+                  <CardTitle className="text-base">Accidentalidad y enfermedad ocupacional (COVENIN 474)</CardTitle>
+                  <CardDescription>Índices por millón de horas hombre trabajadas{acc.estimado_auto ? " · HHT estimadas (trabajadores × 8 h × días hábiles): carga las horas reales en la empresa" : ""}.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+                  {[
+                    ["IFN", num(ix.ifn), "Con tiempo perdido"],
+                    ["IFB", num(ix.ifb), "Lesiones totales"],
+                    ["IS", num(ix.is), "Severidad"],
+                    ["TIEO", num(eo.tieo ?? ix.tieo), "Incidencia EO"],
+                    ["TAEO", num(eo.taeo), "Ausentismo EO"],
+                    ["Accidentes", String(acc.accidentes), `${acc.con_tiempo_perdido} con tiempo perdido`],
+                    ["Declaradas a tiempo", ix.aTiempo === null ? "—" : `${ix.aTiempo} %`, `${acc.por_declarar} por declarar`],
+                    ["HHT", num(acc.hht), acc.hay_estimado ? "estimadas" : "según nómina"],
+                  ].map(([t, n, d]) => (
+                    <div key={t} className="rounded-lg border p-3">
+                      <div className="text-xs text-muted-foreground">{t}</div>
+                      <div className="text-xl font-semibold">{n}</div>
+                      <div className="text-xs text-muted-foreground">{d}</div>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             );
           })()}
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Resumen ejecutivo</CardTitle></CardHeader>
-            <CardContent>
-              <ul className="list-disc space-y-1 pl-5 text-sm">{resumenEjecutivo(r, causas).map((f) => <li key={f}>{f}</li>)}</ul>
-            </CardContent>
-          </Card>
-
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle className="text-base">Consultas por motivo</CardTitle></CardHeader>
-              <CardContent><Barras filas={r.consultas.por_motivo} /></CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Morbilidad por aparatos y sistemas</CardTitle></CardHeader>
-              <CardContent><Barras filas={r.morbilidad.por_sistema} color="bg-chart-2" /></CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Diez primeras causas de morbilidad</CardTitle></CardHeader>
-              <CardContent>
-                <Barras filas={r.morbilidad.primeras_causas.map((c) => ({ nombre: `${c.cie10} ${c.descripcion}`, n: c.n }))} color="bg-aviso" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Origen de los diagnósticos</CardTitle></CardHeader>
-              <CardContent>
-                <Barras filas={Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n }))} color="bg-alerta" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Ausentismo por causa (días)</CardTitle></CardHeader>
-              <CardContent>
-                <Barras filas={r.ausentismo.por_causa.map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias, detalle: `${c.n} rep.` }))} sufijo="d" color="bg-alerta" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Reposos por ente emisor</CardTitle></CardHeader>
-              <CardContent><Barras filas={r.ausentismo.por_ente.map((c) => ({ nombre: entes[c.nombre] ?? c.nombre, n: c.n }))} /></CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Consultas por grupo de edad</CardTitle></CardHeader>
-              <CardContent><Barras filas={r.consultas.por_edad.map((e) => ({ nombre: e.grupo, n: e.n }))} color="bg-chart-3" /></CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Aptitud emitida</CardTitle></CardHeader>
-              <CardContent>
-                <Barras filas={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} color="bg-ok" />
-              </CardContent>
-            </Card>
+            <Grafico titulo="Consultas por motivo"><Barras filas={r.consultas.por_motivo} /></Grafico>
+            <Grafico titulo="Morbilidad por aparatos y sistemas"><Barras filas={r.morbilidad.por_sistema} color="bg-chart-2" /></Grafico>
+            <Grafico titulo="Diez primeras causas de morbilidad" detalle="Explora por tipo de consulta, origen, sexo, edad, actividad, sistema, motivo o dependencia.">
+              <ExploradorCausas cortes={r.morbilidad.cortes ?? {}} poblacion={r.poblacion.total} />
+            </Grafico>
+            <Grafico titulo="Origen de los diagnósticos">
+              <Barras filas={Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n }))} color="bg-alerta" />
+            </Grafico>
+            <Grafico titulo="Ausentismo por causa (días)">
+              <Barras filas={r.ausentismo.por_causa.map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias, detalle: `${c.n} rep.` }))} sufijo="d" color="bg-alerta" />
+            </Grafico>
+            <Grafico titulo="Reposos por ente emisor (días)">
+              <Barras filas={r.ausentismo.por_ente.map((c) => ({ nombre: entes[c.nombre] ?? c.nombre, n: c.dias ?? c.n, detalle: `${c.n} rep.` }))} sufijo="d" />
+            </Grafico>
+            <Grafico titulo="Uso del servicio por dependencia" detalle="Consultas y personal efectivo de cada dependencia.">
+              <Barras filas={(r.consultas.por_dependencia ?? []).map((d) => ({ nombre: d.nombre, n: d.n, detalle: `de ${d.personal}` }))} color="bg-chart-3" />
+            </Grafico>
+            <Grafico titulo="Referencias a especialidades">
+              <Barras filas={r.referencias?.por_especialidad ?? []} color="bg-chart-4" />
+            </Grafico>
+            <Grafico titulo="Consultas por grupo etario"><Barras filas={r.consultas.por_edad.map((e) => ({ nombre: e.grupo, n: e.n }))} color="bg-chart-3" /></Grafico>
+            <Grafico titulo="Aptitud emitida">
+              <Barras filas={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} color="bg-ok" />
+            </Grafico>
           </div>
+
+          {v.sugeridos && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Redacción del informe</CardTitle>
+                <CardDescription>Resumen, conclusiones médico-ocupacionales y recomendaciones de seguridad para {periodo.etiqueta}.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EditorInforme
+                  key={`${periodo.desde}${periodo.hasta}${empresaId}`}
+                  empresaId={empresaId}
+                  desde={periodo.desde}
+                  hasta={periodo.hasta}
+                  inicial={v.informe}
+                  sugeridos={v.sugeridos}
+                  firmantesBase={v.firmantesBase}
+                  editable={Boolean(sesion.rol && ROLES_REDACTAN.includes(sesion.rol))}
+                  enlaceImprimir={enlaceImprimir}
+                />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

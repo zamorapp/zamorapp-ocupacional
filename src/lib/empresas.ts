@@ -11,6 +11,8 @@ export type Empresa = {
   actividad: string | null;
   estado: string | null;
   municipio: string | null;
+  parroquia: string | null;
+  sector: string | null;
   direccion: string | null;
   telefono: string | null;
   correo: string | null;
@@ -20,6 +22,7 @@ export type Empresa = {
   trabajadores: number;
   activa: boolean;
   ignorarAlertaLegal: boolean;
+  mesInicioGestion: number; // 1-12: los trimestres del informe de vigilancia se cuentan desde este mes
 };
 
 // cache(): el layout y la página la piden en la misma carga; así va una sola consulta
@@ -33,6 +36,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
       actividad: null,
       estado: null,
       municipio: null,
+      parroquia: null,
+      sector: null,
       direccion: null,
       telefono: null,
       correo: null,
@@ -42,12 +47,13 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
       trabajadores: e.trabajadores,
       activa: true,
       ignorarAlertaLegal: false,
+      mesInicioGestion: 1,
     }));
   }
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, trabajadores(count)")
+    .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, trabajadores(count)")
     .order("razon_social");
   if (error) throw error;
   return (data ?? []).map((e) => ({
@@ -58,6 +64,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     actividad: e.actividad_economica,
     estado: e.estado,
     municipio: e.municipio,
+    parroquia: e.parroquia,
+    sector: e.sector,
     direccion: e.direccion,
     telefono: e.telefono,
     correo: e.correo,
@@ -67,6 +75,7 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     trabajadores: (e.trabajadores as unknown as { count: number }[])[0]?.count ?? 0,
     activa: e.activa,
     ignorarAlertaLegal: e.ignorar_alerta_legal,
+    mesInicioGestion: e.mes_inicio_gestion ?? 1,
   }));
 });
 
