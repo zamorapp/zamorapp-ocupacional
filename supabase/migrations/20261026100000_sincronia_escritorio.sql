@@ -192,9 +192,9 @@ end $$;
 
 -- Columnas que una PC puede escribir: las reales de la tabla, menos las que controla el servidor.
 -- Un campo desconocido (versiones distintas de la app) rechaza el cambio entero: así nada se pierde en silencio.
-create or replace function sync.columnas(p_tabla text, p_datos jsonb)
+create or replace function sync.columnas(p_tabla text, p_datos jsonb, p_privilegio text)
 returns text[] language plpgsql stable set search_path = public as $$
-declare v_cols text[]; v_desconocidos text[];
+declare v_cols text[]; v_desconocidos text[]; v_prohibidos text[];
 begin
   select coalesce(array_agg(k order by k) filter (where c.column_name is not null), '{}'),
          array_agg(k order by k) filter (where c.column_name is null)
@@ -204,6 +204,10 @@ begin
    where k not in ('id', 'org_id', 'version', 'creado_en', 'actualizado_en');
   if v_desconocidos is not null then
     raise exception 'Campos desconocidos en %: %', p_tabla, array_to_string(v_desconocidos, ', ');
+  end if;
+  select array_agg(k) into v_prohibidos from unnest(v_cols) k where not has_column_privilege(p_tabla, k, p_privilegio);
+  if v_prohibidos is not null then
+    raise exception 'Sin permiso para escribir en %: %', p_tabla, array_to_string(v_prohibidos, ', ') using errcode = '42501';
   end if;
   return v_cols;
 end $$;
@@ -248,14 +252,14 @@ begin
           elsif (c -> 'datos' ->> 'org_id')::uuid is distinct from v_org then
             v_tipo := 'rechazado'; v_motivo := 'La fila no es de la organización del equipo';
           else
-            v_cols := sync.columnas(t.nombre, c -> 'datos') || array['id', 'org_id'];
+            v_cols := sync.columnas(t.nombre, c -> 'datos', 'INSERT') || array['id', 'org_id'];
             select string_agg(quote_ident(x), ', ') into v_lista from unnest(v_cols) x;
             execute format('insert into %1$s (%2$s) select %2$s from jsonb_populate_record(null::%1$s, $1) returning version',
                            t.nombre, v_lista) into v_nueva using (c -> 'datos') || jsonb_build_object('id', v_fila);
           end if;
 
         elsif c ->> 'op' = 'U' then
-          v_cols := sync.columnas(t.nombre, c -> 'datos');
+          v_cols := sync.columnas(t.nombre, c -> 'datos', 'UPDATE');
           if v_actual is null then
             v_tipo := 'rechazado'; v_motivo := 'La fila no existe o no tienes acceso';
           elsif cardinality(v_cols) = 0 then
@@ -354,7 +358,8 @@ begin
   end if;
   select string_agg(format('t.%I', column_name), ', ' order by ordinal_position), bool_or(column_name = 'id')
     into v_cols, v_tiene_id
-    from information_schema.columns where table_schema || '.' || table_name = p_tabla;
+    from information_schema.columns where table_schema || '.' || table_name = p_tabla
+     and has_column_privilege(p_tabla, column_name, 'SELECT');
   if v_tiene_id then
     execute format('select coalesce(jsonb_agg(f order by f->>''id''), ''[]'') from (
                       select to_jsonb(x) f from (select %s from %s t where $1 is null or t.id > $1 order by t.id limit $2) x) y',
@@ -371,10 +376,10 @@ grant execute on function public.instantanea(uuid, text, text, uuid, int) to aut
 
 revoke execute on function public.aplicar_cambios(uuid, text, jsonb), public.cambios_desde(uuid, text, bigint, int),
   public.registrar_equipo(uuid, text, text), public.resolver_conflicto(uuid, text) from public, anon;
-revoke execute on function sync.equipo_valido(uuid, text), sync.columnas(text, jsonb) from public, anon;
+revoke execute on function sync.equipo_valido(uuid, text), sync.columnas(text, jsonb, text) from public, anon;
 grant execute on function public.aplicar_cambios(uuid, text, jsonb), public.cambios_desde(uuid, text, bigint, int),
   public.registrar_equipo(uuid, text, text), public.resolver_conflicto(uuid, text),
-  sync.equipo_valido(uuid, text), sync.columnas(text, jsonb) to authenticated;
+  sync.equipo_valido(uuid, text), sync.columnas(text, jsonb, text) to authenticated;
 
 -- ─── 5) Auditoría ───
 -- Accesos a la historia clínica: quién la abrió, cuándo y desde qué equipo. Solo se agrega.

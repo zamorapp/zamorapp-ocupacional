@@ -91,6 +91,7 @@ select 'copia paginada (debe 1): ' || count(*) from (select public.instantanea('
  where jsonb_array_length(r->'filas')=1 and r->>'ultimo' is not null and (r->>'seq')::bigint > 0;
 select 'perfiles sin firma ni sello (debe 0): ' || count(*) from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas') f
  where f ? 'firma_url' or f ? 'sello_url';
+select 'perfiles se copian (debe 1): ' || least(jsonb_array_length(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas'),1);
 do $$ begin perform public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.bitacora');
   raise notice 'copia de tabla no permitida: FALLA'; exception when others then raise notice 'tabla fuera de la lista rechazada (ok)'; end $$;
 -- equipos desactivados o inexistentes
