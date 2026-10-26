@@ -106,6 +106,55 @@ jobs:
           npx --yes @tauri-apps/cli@2 build
           if ($LASTEXITCODE) { throw "Falló el instalador" }
 
+      # Prueba de humo del instalador real: instala sin preguntas, abre el programa como lo haría Cesar
+      # y exige que la puerta y la app respondan. Así un instalador que no arranca nunca llega a su PC.
+      - name: Instalar y abrir el programa (prueba de humo)
+        shell: pwsh
+        timeout-minutes: 10
+        env:
+          ZAMORAPP_NUBE_URL: ${{ vars.ZAMORAPP_NUBE_URL }}
+        run: |
+          # Acceso directo de Cesar a la app web (Chrome --app): ni instalar ni desinstalar puede tocarlo
+          $escritorio = [Environment]::GetFolderPath("Desktop")
+          $menu = "$env:APPDATA/Microsoft/Windows/Start Menu/Programs"
+          $ajenos = "$escritorio/zamorApp Ocupacional.lnk", "$menu/zamorApp Ocupacional.lnk"
+          $shell = New-Object -ComObject WScript.Shell
+          foreach ($l in $ajenos) { $a = $shell.CreateShortcut($l); $a.TargetPath = "C:\Windows\notepad.exe"; $a.Save() }
+          $setup = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $dir = Get-ChildItem $env:LOCALAPPDATA -Directory -Filter "zamorApp Escritorio" | Select-Object -First 1
+          if (-not $dir) { throw "El instalador no creó la carpeta del programa" }
+          foreach ($l in $ajenos) { if ((New-Object -ComObject WScript.Shell).CreateShortcut($l).TargetPath -notmatch "notepad") { throw "El instalador pisó $l" } }
+          foreach ($p in "recursos/puerta/puerta/index.mjs", "recursos/app/server.js", "recursos/app/.next/static", "recursos/pgsql/bin/postgres.exe", "recursos/postgrest/postgrest.exe", "recursos/node/node.exe") {
+            if (-not (Test-Path (Join-Path $dir.FullName $p))) { throw "Falta $p en la instalación (¿recursos aplanados?)" }
+          }
+          $exe = Get-ChildItem $dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+          $proc = Start-Process $exe.FullName -PassThru
+          $ok = $false
+          try {
+            for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
+              Start-Sleep 2
+              if ($proc.HasExited) { break }
+              try {
+                $estado = Invoke-RestMethod http://127.0.0.1:54331/zamorapp/estado -TimeoutSec 3
+                $app = Invoke-WebRequest http://127.0.0.1:54332/login -TimeoutSec 10 -UseBasicParsing -MaximumRedirection 0 -SkipHttpErrorCheck
+                if ($app.StatusCode -lt 500) { $ok = $true; Write-Host "Puerta: $($estado | ConvertTo-Json -Compress) · App: HTTP $($app.StatusCode)" }
+              } catch { }
+            }
+          } finally {
+            Write-Host "== arranque.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/arranque.log" -ErrorAction SilentlyContinue
+            Write-Host "== puerta.log"; Get-Content "$env:LOCALAPPDATA/zamorApp/datos/puerta.log" -Tail 40 -ErrorAction SilentlyContinue
+            Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue
+            Start-Sleep 5
+            Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          if (-not $ok) { throw "El programa instalado no arrancó" }
+          $desinstalar = Get-ChildItem $dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
+          Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
+          Start-Sleep 5
+          foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
+          Write-Host "Accesos directos de la app web intactos tras instalar y desinstalar"
+
       - uses: actions/upload-artifact@v4
         with:
           name: zamorapp-instalador-windows
