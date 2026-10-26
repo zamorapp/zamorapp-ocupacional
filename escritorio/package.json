@@ -1,0 +1,14 @@
+{
+  "name": "zamorapp-escritorio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Programa de escritorio de zamorApp: puerta local, copia local y ventana Tauri",
+  "scripts": {
+    "puerta": "node puerta/index.mjs",
+    "prueba": "node --test pruebas/"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

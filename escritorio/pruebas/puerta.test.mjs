@@ -1,0 +1,200 @@
+// Prueba integral de la puerta local: base local real (PostgreSQL), nube simulada sobre la base de prueba
+// con las migraciones reales. Requiere: PG_BIN (initdb/pg_ctl), NUBE_DB (base de supabase/pruebas/correr.sh)
+// y no correr como root (PostgreSQL no lo permite). En Windows, ZAMORAPP_POSTGREST apunta al PostgREST real.
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, before, test } from "node:test";
+import { fileURLToPath } from "node:url";
+import pg from "pg";
+import { simularNube } from "./simulador-nube.mjs";
+
+const aqui = path.dirname(fileURLToPath(import.meta.url));
+const raiz = path.resolve(aqui, "../..");
+const NUBE_DB = process.env.NUBE_DB;
+const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
+
+const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
+let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta;
+
+async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
+  const r = await fetch(`${urlPuerta}${ruta}`, {
+    method: metodo,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  const texto = await r.text();
+  return { status: r.status, json: texto ? JSON.parse(texto) : null };
+}
+
+before(async () => {
+  if (omitir) return;
+  const simuladorPostgrest = path.join(datos, process.platform === "win32" ? "postgrest.cmd" : "postgrest.sh");
+  if (!process.env.ZAMORAPP_POSTGREST) {
+    fs.writeFileSync(simuladorPostgrest, `#!/bin/sh\nexec "${process.execPath}" "${path.join(aqui, "simulador-postgrest.mjs")}" "$1"\n`, { mode: 0o755 });
+  }
+  nube = simularNube({ baseUrl: NUBE_DB, usuarios: {
+    "admin@x": { id: "00000000-0000-0000-0000-0000000000a1", clave: "clave-admin" },
+    "meda@x": { id: "00000000-0000-0000-0000-0000000000a2", clave: "clave-med" },
+  } });
+  await new Promise((ok) => nube.servidor.listen(0, "127.0.0.1", ok));
+  Object.assign(process.env, {
+    ZAMORAPP_DATOS: datos,
+    ZAMORAPP_NUBE_URL: `http://127.0.0.1:${nube.servidor.address().port}`,
+    ZAMORAPP_NUBE_ANON: "anon-prueba",
+    ZAMORAPP_LLAVE: crypto.randomBytes(32).toString("hex"),
+    ZAMORAPP_PG_BIN: process.env.PG_BIN,
+    ZAMORAPP_POSTGREST: process.env.ZAMORAPP_POSTGREST || simuladorPostgrest,
+    ZAMORAPP_MIGRACIONES: path.join(raiz, "supabase/migrations"),
+    ZAMORAPP_BASE_EXTRA: path.join(raiz, "escritorio/base"),
+    ZAMORAPP_STUBS: path.join(raiz, "supabase/pruebas/00_stubs_supabase.sql"),
+    PUERTO_BASE: "55329", PUERTO_POSTGREST: "55330",
+  });
+  const { Estado } = await import("../puerta/estado.mjs");
+  const { Motor } = await import("../puerta/motor.mjs");
+  const { Nube } = await import("../puerta/nube.mjs");
+  const { Replica } = await import("../puerta/replica.mjs");
+  const { crearPuerta } = await import("../puerta/servidor.mjs");
+  const { CONFIG } = await import("../puerta/config.mjs");
+  estado = new Estado(datos, CONFIG.llave);
+  motor = new Motor(estado);
+  await motor.iniciar();
+  nubeObj = new Nube(estado);
+  await nubeObj.comprobar();
+  replicaObj = new Replica(estado, nubeObj, motor);
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332" });
+  await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
+  urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
+});
+
+after(async () => {
+  puerta?.close();
+  motor?.detener();
+  await nube?.cerrar();
+  fs.rmSync(datos, { recursive: true, force: true });
+});
+
+let tokenAdmin, tokenMed;
+
+test("entrar con internet y registrar la PC", { skip: omitir }, async () => {
+  const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+  assert.equal(r.status, 200);
+  tokenAdmin = r.json.access_token;
+  assert.equal((await pedir("/auth/v1/user", { token: tokenAdmin })).json.id, "00000000-0000-0000-0000-0000000000a1");
+  const serie = "Q" + String.fromCharCode(65 + crypto.randomInt(22));
+  const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
+  assert.equal(eq.status, 200, JSON.stringify(eq.json));
+  assert.ok(estado.d.equipo.secreto.length === 64);
+});
+
+test("clave equivocada con internet: la nube la rechaza", { skip: omitir }, async () => {
+  const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "otra" } });
+  assert.equal(r.status, 400);
+});
+
+test("primera copia completa a la PC", { skip: omitir }, async () => {
+  await replicaObj.ciclo();
+  assert.equal(replicaObj.error, null);
+  assert.ok(estado.d.copiaCompleta);
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  const { rows } = await c.query("select count(*)::int n from public.trabajadores");
+  const cats = await c.query("select count(*)::int n from public.listas");
+  await c.end();
+  assert.ok(rows[0].n >= 2, `trabajadores locales: ${rows[0].n}`);
+  assert.ok(cats.rows[0].n > 0);
+});
+
+test("con internet, la app lee de la nube", { skip: omitir }, async () => {
+  const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(r.status, 200);
+  tokenMed = r.json.access_token;
+  const t = await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed });
+  assert.equal(t.status, 200);
+  assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"));
+});
+
+test("sin internet: consulta la copia local con las mismas reglas de acceso", { skip: omitir }, async () => {
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  assert.equal(nubeObj.enLinea, false);
+  const t = await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed });
+  assert.equal(t.status, 200, JSON.stringify(t.json));
+  assert.ok(t.json.length >= 1);
+  assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"), "el médico de A no ve trabajadores de B");
+});
+
+test("sin internet: guardar se rechaza con un mensaje claro y los adjuntos esperan", { skip: omitir }, async () => {
+  const w = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { cedula: "9" } });
+  assert.equal(w.status, 503);
+  assert.match(w.json.message, /solo se puede consultar/);
+  const s = await pedir("/storage/v1/object/sign/adjuntos/x", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(s.status, 503);
+});
+
+test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir }, async () => {
+  const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(ok.status, 200);
+  const mal = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "nop" } });
+  assert.equal(mal.status, 400);
+  const renovada = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+  assert.equal(renovada.status, 200);
+  const reuso = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+  assert.equal(reuso.status, 400, "un token de renovación sirve una sola vez");
+});
+
+test("más de 7 días sin conexión: no entra hasta reconectar", { skip: omitir }, async () => {
+  const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  const antes = u.ultimoOnline;
+  u.ultimoOnline = Date.now() - 8 * 864e5;
+  const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  u.ultimoOnline = antes;
+  assert.equal(r.status, 400);
+  assert.equal(r.json.error_code, "session_expired");
+});
+
+test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  const nubeDb = new pg.Client({ connectionString: NUBE_DB });
+  await nubeDb.connect();
+  const nombre = `Ana ${Date.now()}`;
+  await nubeDb.query("update public.trabajadores set nombres = $1 where id = '30000000-0000-0000-0000-00000000000a'", [nombre]);
+  await nubeDb.end();
+  await replicaObj.ciclo();
+  assert.equal(replicaObj.error, null);
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  const { rows } = await c.query("select nombres from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'");
+  await c.end();
+  assert.equal(rows[0].nombres, nombre);
+});
+
+test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
+  assert.equal((await pedir("/rest/v1/trabajadores?select=*")).status, 401);
+  const crudo = fs.readFileSync(path.join(datos, "estado.zamorapp"));
+  assert.ok(!crudo.includes("admin@x") && !crudo.includes(estado.d.equipo.secreto));
+});
+
+test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
+  const nubeDb = new pg.Client({ connectionString: NUBE_DB });
+  await nubeDb.connect();
+  const medA = "00000000-0000-0000-0000-0000000000a2";
+  try {
+    await nubeDb.query("update public.miembros set activo = false where usuario_id = $1", [medA]);
+    estado.d.usuarios[medA].ultimoOnline = Date.now(); // que sea el usuario de la sincronía
+    await replicaObj.ciclo();
+    assert.equal(estado.d.usuarios[medA].bloqueado, true);
+    assert.equal((await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed })).status, 401);
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+    assert.equal(r.status, 400, "tampoco entra sin internet");
+  } finally {
+    nube.estado.caida = false;
+    await nubeDb.query("update public.miembros set activo = true where usuario_id = $1", [medA]);
+    await nubeDb.end();
+  }
+});

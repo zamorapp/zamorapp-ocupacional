@@ -1,0 +1,222 @@
+// Puerta local: la app de escritorio le habla como si fuera Supabase (auth, rest, storage).
+// Con internet desvía todo a la nube con el token de la nube del usuario; sin internet atiende
+// desde la copia local, por ahora solo para consultar (fase F1).
+import crypto from "node:crypto";
+import http from "node:http";
+import pg from "pg";
+import { CONFIG, RPC_LECTURA } from "./config.mjs";
+import { claveCorrecta, huellaClave } from "./estado.mjs";
+import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
+
+const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control"];
+const DEVOLVER = ["content-type", "content-range", "preference-applied", "location", "cache-control", "etag", "last-modified"];
+const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
+
+export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
+  const d = () => estado.d;
+
+  const responder = (res, status, cuerpo, extra = {}) => {
+    const texto = cuerpo === undefined ? "" : typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo);
+    res.writeHead(status, { "Content-Type": "application/json", ...extra });
+    res.end(texto);
+  };
+
+  const sesionLocal = (uid) => {
+    const u = d().usuarios[uid];
+    const ahora = Math.floor(Date.now() / 1000);
+    const exp = ahora + CONFIG.sesionSegundos;
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID() }, d().jwtSecreto);
+    const refresh_token = crypto.randomBytes(24).toString("base64url");
+    for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < Date.now()) delete d().refrescos[t];
+    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5 };
+    estado.guardar();
+    return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
+  };
+
+  const usuarioDe = (req) => {
+    const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
+    const u = datos && d().usuarios[datos.sub];
+    return u && !u.bloqueado ? { uid: datos.sub, u } : null;
+  };
+
+  const errorAuth = (res, status, msg, code = "invalid_credentials") =>
+    responder(res, status, { code: status, error_code: code, msg, error: code, error_description: msg });
+
+  async function rolEnNube(uid) {
+    try {
+      const filas = await nube.leer(uid, `miembros?usuario_id=eq.${uid}&activo=is.true&select=rol,org_id`);
+      return filas[0]?.rol || null;
+    } catch { return null; }
+  }
+
+  async function anotarUsuarioLocal(uid, email) {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      await c.query("set session_replication_role = replica");
+      await c.query("insert into auth.users (id, email) values ($1, $2) on conflict (id) do update set email = excluded.email", [uid, email]);
+    } catch (e) { registro(`[puerta] usuario local: ${e.message}`); } finally { await c.end().catch(() => {}); }
+  }
+
+  async function entrar(req, res, cuerpo) {
+    const email = String(cuerpo?.email || "").trim().toLowerCase();
+    const clave = String(cuerpo?.password || "");
+    if (nube.enLinea) {
+      try {
+        const r = await nube.auth("token?grant_type=password", { email, password: clave });
+        if (!r.ok) return responder(res, r.status, r.cuerpo ?? r.texto);
+        const uid = r.cuerpo.user.id;
+        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, ...huellaClave(clave), bloqueado: false, user: r.cuerpo.user };
+        nube.guardarSesion(uid, r.cuerpo);
+        d().usuarios[uid].rol = await rolEnNube(uid);
+        estado.guardar();
+        await anotarUsuarioLocal(uid, email);
+        replica.ciclo().catch(() => {});
+        return responder(res, 200, sesionLocal(uid));
+      } catch (e) {
+        registro(`[puerta] nube no responde al entrar: ${e.message}`);
+        nube.enLinea = false;
+      }
+    }
+    const par = Object.entries(d().usuarios).find(([, u]) => u.email === email);
+    const [uid, u] = par || [];
+    if (!u || !claveCorrecta(clave, u)) return errorAuth(res, 400, "Correo o clave incorrectos");
+    if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
+    if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+      return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
+    }
+    return responder(res, 200, sesionLocal(uid));
+  }
+
+  function renovar(res, cuerpo) {
+    const r = d().refrescos[cuerpo?.refresh_token];
+    if (!r || r.vence < Date.now() || d().usuarios[r.uid]?.bloqueado) {
+      return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
+    }
+    delete d().refrescos[cuerpo.refresh_token];
+    return responder(res, 200, sesionLocal(r.uid));
+  }
+
+  // Reenvía la petición a la nube con el token de la nube de ese usuario. Devuelve false si la nube no responde.
+  async function aLaNube(req, res, cuerpo, uid) {
+    const token = uid ? await nube.token(uid) : null;
+    if (uid && !token) return false;
+    const cab = { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token || CONFIG.nubeAnon}` };
+    for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
+    try {
+      const r = await fetch(`${CONFIG.nube}${req.url}`, {
+        method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
+      });
+      const salida = {};
+      for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+      res.writeHead(r.status, salida);
+      res.end(Buffer.from(await r.arrayBuffer()));
+      return true;
+    } catch (e) {
+      registro(`[puerta] nube no responde: ${e.message}`);
+      nube.enLinea = false;
+      return false;
+    }
+  }
+
+  async function aLaCopia(req, res, cuerpo) {
+    const cab = { Authorization: req.headers.authorization };
+    for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
+    const r = await fetch(`http://127.0.0.1:${motor.puertoPostgrest}${req.url.replace(/^\/rest\/v1/, "")}`, {
+      method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo,
+    });
+    const salida = {};
+    for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+    res.writeHead(r.status, salida);
+    res.end(Buffer.from(await r.arrayBuffer()));
+  }
+
+  const soloLectura = (req) => {
+    if (["GET", "HEAD"].includes(req.method)) return true;
+    const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
+    return Boolean(m && RPC_LECTURA.has(m[1]));
+  };
+
+  async function registrarEquipo(req, res, cuerpo) {
+    const quien = usuarioDe(req);
+    if (!quien) return errorAuth(res, 401, "Entra primero como administrador", "bad_jwt");
+    if (!nube.enLinea) return responder(res, 503, { message: "Para registrar esta PC hace falta internet" });
+    const filas = await nube.leer(quien.uid, `miembros?usuario_id=eq.${quien.uid}&rol=eq.administrador&activo=is.true&select=org_id`);
+    if (!filas.length) return responder(res, 403, { message: "Solo el administrador registra la PC" });
+    const r = await nube.rpc(quien.uid, "registrar_equipo", { p_org: filas[0].org_id, p_nombre: String(cuerpo?.nombre || "PC"), p_serie: String(cuerpo?.serie || "A") });
+    d().equipo = { id: r.id, secreto: r.secreto, org_id: filas[0].org_id, nombre: cuerpo?.nombre || "PC" };
+    d().cursor = null;
+    estado.guardar();
+    replica.ciclo().catch(() => {});
+    return responder(res, 200, { ok: true, id: r.id });
+  }
+
+  const servidor = http.createServer(async (req, res) => {
+    // Solo la ventana de zamorApp (su propio origen) puede llamar a la puerta desde el navegador.
+    const cors = req.headers.origin === origen ? {
+      "Access-Control-Allow-Origin": origen, "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, prefer, accept-profile, content-profile, range, x-upsert, cache-control",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Expose-Headers": "content-range, content-type",
+    } : {};
+    for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
+    if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+
+    try {
+      const partes = [];
+      for await (const p of req) partes.push(p);
+      const crudo = Buffer.concat(partes);
+      const json = () => { try { return JSON.parse(crudo.toString("utf8") || "null"); } catch { return null; } };
+      const ruta = req.url.split("?")[0];
+
+      if (ruta === "/zamorapp/estado") {
+        return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
+      }
+      if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
+
+      if (ruta === "/auth/v1/token") {
+        const tipo = new URL(req.url, "http://x").searchParams.get("grant_type");
+        if (tipo === "password") return await entrar(req, res, json());
+        if (tipo === "refresh_token") return renovar(res, json());
+        return errorAuth(res, 400, "Tipo de ingreso no disponible en la PC", "unsupported_grant_type");
+      }
+      if (ruta === "/auth/v1/user" && req.method === "GET") {
+        const quien = usuarioDe(req);
+        return quien ? responder(res, 200, quien.u.user) : errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+      }
+      if (ruta === "/auth/v1/logout") {
+        const quien = usuarioDe(req);
+        if (quien) for (const [t, r] of Object.entries(d().refrescos)) if (r.uid === quien.uid) delete d().refrescos[t];
+        estado.guardar();
+        res.writeHead(204); return res.end();
+      }
+      if (ruta === "/auth/v1/user" && req.method === "PUT") { // cambio de clave: solo con internet
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        if (!nube.enLinea) return errorAuth(res, 503, "Cambiar la clave requiere internet", "offline");
+        const token = await nube.token(quien.uid);
+        const r = await nube.auth("user", json(), token);
+        if (r.ok && json()?.password) { Object.assign(quien.u, huellaClave(json().password)); estado.guardar(); }
+        return responder(res, r.status, r.cuerpo ?? r.texto);
+      }
+      if (ruta.startsWith("/auth/v1/")) { // recuperar clave y demás: solo con internet
+        if (nube.enLinea && await aLaNube(req, res, crudo, null)) return;
+        return errorAuth(res, 503, "Esta acción requiere internet", "offline");
+      }
+
+      if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
+        if (nube.enLinea && await aLaNube(req, res, crudo, quien.uid)) return;
+        if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
+        if (!soloLectura(req)) return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
+        return await aLaCopia(req, res, crudo);
+      }
+      return responder(res, 404, { message: "No encontrado" });
+    } catch (e) {
+      registro(`[puerta] ${req.method} ${req.url}: ${e.stack || e.message}`);
+      if (!res.headersSent) responder(res, 500, { message: "Error interno de la puerta local" });
+    }
+  });
+  return servidor;
+}
