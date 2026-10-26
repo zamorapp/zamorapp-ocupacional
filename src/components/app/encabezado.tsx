@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
+import { InstalarApp } from "./instalar-app";
 import { Notificaciones } from "./notificaciones";
 import { elegirEmpresa, salir } from "./acciones";
 
@@ -89,6 +90,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
         />
       </label>
 
+      <InstalarApp />
       <Notificaciones />
 
       <DropdownMenu>
