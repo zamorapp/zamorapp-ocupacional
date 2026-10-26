@@ -11,6 +11,8 @@ export type AjustesDocumentos = {
   reposo_pie_copia?: string | null;
   reposo_pie_original?: string | null;
   orden_nota?: string | null;
+  mensaje_cita?: string | null;
+  mensaje_aptitud?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;

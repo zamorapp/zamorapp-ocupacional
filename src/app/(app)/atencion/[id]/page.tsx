@@ -6,6 +6,9 @@ import { obtenerConsulta } from "@/lib/consultas";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
+import { datosOrganizacion } from "@/lib/organizacion";
+import { PLANTILLA_APTITUD } from "@/lib/mensajes";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { EditorConsulta } from "./editor-consulta";
 
 export const metadata: Metadata = { title: "Consulta" };
@@ -22,6 +25,12 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
   const sesion = await obtenerSesion();
   const [consulta, listas] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS)]);
   if (!consulta) notFound();
+  // Contacto de RR. HH. de la empresa para enviar el resultado de aptitud
+  const [org, contacto] = await Promise.all([
+    datosOrganizacion(),
+    sesion.demo ? null : crearClienteServidor().then((s) => s.from("consultas").select("empresas(telefono, correo)").eq("id", id).single()).then((r) => (r.data?.empresas ?? null) as unknown as { telefono: string | null; correo: string | null } | null),
+  ]);
+  const envio = { servicio: org.nombre, plantilla: org.ajustes.mensaje_aptitud ?? PLANTILLA_APTITUD, telefono: contacto?.telefono ?? null, correo: contacto?.correo ?? null };
   const adjuntos = sesion.demo || !sesion.orgId ? null : { orgId: sesion.orgId, lista: await listarAdjuntos(consulta.trabajador.id) };
 
   return (
@@ -29,7 +38,7 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} />
     </div>
   );
 }

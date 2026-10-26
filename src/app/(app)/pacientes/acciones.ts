@@ -176,3 +176,16 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
     return { ok: false, mensaje: (e as Error).message };
   }
 }
+
+// Depurar nómina: cuenta (aplicar = false) o marca como egresados a quienes no tienen consulta desde "desde"
+export async function depurarNomina(empresaId: string | null, desde: string, aplicar: boolean): Promise<Resultado & { cantidad?: number }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para usar esta función." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde)) return { ok: false, mensaje: "Elige una fecha válida." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("depurar_nomina", { p_empresa: empresaId || null, p_desde: desde, p_aplicar: aplicar });
+  if (error) return { ok: false, mensaje: error.message.includes("permiso") ? "Solo el administrador o el personal de salud pueden depurar la nómina." : error.message };
+  if (aplicar) revalidatePath("/", "layout");
+  const n = Number(data ?? 0);
+  return { ok: true, cantidad: n, mensaje: aplicar ? `${n} trabajadores marcados como egresados.` : `${n} trabajadores sin consulta desde esa fecha.` };
+}

@@ -26,6 +26,7 @@ import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { guardarConsulta, reabrirConsulta } from "../acciones";
 import { BotonesDocumentos } from "@/components/app/botones-documentos";
+import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import { Adjuntos } from "@/components/app/adjuntos";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { Antecedentes } from "./antecedentes";
@@ -39,6 +40,7 @@ type Props = {
   medico: string | null;
   listas: Record<string, Item[]>;
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
+  envio: { servicio: string; plantilla: string; telefono: string | null; correo: string | null };
 };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
@@ -126,7 +128,7 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio }: Props) {
   const [d, setD] = useState<DatosConsulta>(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -243,7 +245,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos }
           {cambios ? (
             <span>guarda los cambios para emitirlos</span>
           ) : (
+            <>
             <BotonesDocumentos consultaId={d.id} aptitud={Boolean(d.aptitud.clasificacion)} reposo={d.reposo.activo} tratamiento={d.tratamiento.some((m) => m.medicina)} examenes={d.paraclinicos.length > 0} compacto />
+            {d.aptitud.clasificacion && (() => {
+              const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
+                empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
+              return (
+                <span className="ml-1 inline-flex items-center gap-1.5">
+                  <span>· Enviar a RR. HH.:</span>
+                  <a href={enlaceWhatsApp(envio.telefono, texto)} target="_blank" rel="noreferrer" className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">WhatsApp</a>
+                  <a href={enlaceCorreo(envio.correo, `Resultado de evaluación · ${trabajador.nombre}`, texto)} className="rounded-md border bg-card px-2 py-1 font-medium hover:border-primary/50 hover:text-primary">Correo</a>
+                </span>
+              );
+            })()}
+            </>
           )}
         </div>
         {aviso?.mensaje && (

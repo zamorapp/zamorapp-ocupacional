@@ -14,6 +14,7 @@ export type Cita = {
   trabajadorId: string;
   paciente: string;
   cedula: string;
+  telefono: string | null;
   empresa: string;
   motivoId: string | null;
   motivo: string | null;
@@ -24,7 +25,7 @@ export type Cita = {
 type Fila = {
   id: string; fecha: string; hora: string | null; estado: EstadoCita; llegada: string | null; trabajador_id: string;
   motivo_id: string | null; consulta_id: string | null; observacion: string | null;
-  trabajadores: { nombres: string; apellidos: string; cedula: string } | null;
+  trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null } | null;
   empresas: { razon_social: string } | null;
   motivo: { nombre: string } | null;
 };
@@ -36,7 +37,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("citas")
-    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, trabajadores(nombres, apellidos, cedula), empresas(razon_social), motivo:lista_items(nombre)")
+    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha")
@@ -55,6 +56,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
     trabajadorId: c.trabajador_id,
     paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
     cedula: c.trabajadores?.cedula ?? "",
+    telefono: c.trabajadores?.telefono ?? null,
     empresa: c.empresas?.razon_social ?? "",
     motivoId: c.motivo_id,
     motivo: c.motivo?.nombre ?? null,
@@ -69,7 +71,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("citas")
-    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula), empresas(razon_social), motivo:lista_items(nombre)")
+    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
     .eq("estado", "solicitada")
     .gte("fecha", hoyVE())
     .order("fecha")
@@ -84,6 +86,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
     trabajadorId: c.trabajador_id,
     paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
     cedula: c.trabajadores?.cedula ?? "",
+    telefono: c.trabajadores?.telefono ?? null,
     empresa: c.empresas?.razon_social ?? "",
     motivoId: c.motivo_id,
     motivo: c.motivo?.nombre ?? null,

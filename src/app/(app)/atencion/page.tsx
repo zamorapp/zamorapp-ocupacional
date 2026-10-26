@@ -12,6 +12,8 @@ import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
+import { datosOrganizacion } from "@/lib/organizacion";
+import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
@@ -36,11 +38,12 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const hoy = hoyVE();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const [consultas, citas, listas, solicitudes] = await Promise.all([
+  const [consultas, citas, listas, solicitudes, org] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta"]),
     sesion.demo ? [] : listarSolicitudes(),
+    datosOrganizacion(),
   ]);
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
@@ -80,7 +83,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           {dia !== hoy && <Link href="/atencion" className="text-sm text-primary hover:underline">Volver a hoy</Link>}
           <span className="ml-auto text-sm text-muted-foreground">{citas.length} citas</span>
         </div>
-        <ColaAtencion citas={citas} esHoy={dia === hoy} />
+        <ColaAtencion citas={citas} esHoy={dia === hoy} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
       </section>
 
       {/* Consultas recientes */}

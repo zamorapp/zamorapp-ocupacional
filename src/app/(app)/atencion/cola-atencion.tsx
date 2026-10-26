@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarCheck2, Clock, Loader2, Stethoscope, UserCheck, UserX, X } from "lucide-react";
+import { CalendarCheck2, Clock, Loader2, MessageCircle, Stethoscope, UserCheck, UserX, X } from "lucide-react";
+import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Cita, EstadoCita } from "@/lib/citas";
@@ -25,7 +26,10 @@ function Fila({ c, children, detalle }: { c: Cita; children?: React.ReactNode; d
   );
 }
 
-export function ColaAtencion({ citas, esHoy }: { citas: Cita[]; esHoy: boolean }) {
+export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: boolean; mensaje: { servicio: string; plantilla: string } }) {
+  // Recordatorio de cita por WhatsApp (se abre en el WhatsApp del usuario, listo para enviar)
+  const recordatorio = (c: Cita) =>
+    enlaceWhatsApp(c.telefono, llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio }));
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
@@ -79,6 +83,9 @@ export function ColaAtencion({ citas, esHoy }: { citas: Cita[]; esHoy: boolean }
           {citados.map((c) => (
             <Fila key={c.id} c={c}>
               {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
+              <Button size="icon" variant="ghost" className="size-8 text-ok" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
+                <a href={recordatorio(c)} target="_blank" rel="noreferrer"><MessageCircle /></a>
+              </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
               <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" onClick={() => confirm(`¿Cancelar la cita de ${c.paciente}?`) && estado(c.id, "cancelada")}><X /></Button>
             </Fila>

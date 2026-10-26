@@ -27,9 +27,9 @@ function normalizar(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-.\s]/g, "").toLowerCase();
 }
 
-type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode };
+type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode };
 
-export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) {
+export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar }: Props) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState(busquedaInicial);
   const [empresa, setEmpresa] = useState(TODAS);
@@ -56,7 +56,8 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo }: Props) 
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pacientes</h1>
           <p className="text-muted-foreground">{trabajadores.length} trabajadores en el expediente</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {depurar}
           <Button variant="outline" asChild>
             <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
           </Button>
