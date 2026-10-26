@@ -44,6 +44,9 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     servicio_sst_tipo: texto(datos, "servicio_sst"),
     servicio_sst_fecha_registro: texto(datos, "servicio_sst_registro"),
     psst_fecha_registro: texto(datos, "psst_registro"),
+    parroquia: texto(datos, "parroquia"),
+    sector: texto(datos, "sector"),
+    mes_inicio_gestion: Math.min(12, Math.max(1, Number(datos.get("mes_inicio_gestion")) || 1)),
   };
 
   const supabase = await crearClienteServidor();
