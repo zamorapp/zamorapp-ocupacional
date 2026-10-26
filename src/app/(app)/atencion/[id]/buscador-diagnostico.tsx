@@ -93,7 +93,9 @@ export function BuscadorDiagnostico({ cie10, descripcion, onElegir, onEscribir, 
               >
                 <span className="w-16 shrink-0 font-mono text-xs leading-5 text-muted-foreground">{r.cie10}</span>
                 <span className="flex-1">{r.descripcion}</span>
-                {r.usos > 0 && (
+                {r.usos >= 900000 ? (
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 text-xs text-primary" title="De tu lista «Mis diagnósticos»">Mío</span>
+                ) : r.usos > 0 && (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-primary" title="Usado antes en el servicio">
                     <History className="size-3" /> {r.usos}
                   </span>

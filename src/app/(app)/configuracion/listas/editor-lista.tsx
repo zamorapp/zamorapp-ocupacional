@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,13 +10,14 @@ import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
-const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos"]);
+const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "medicina"]);
 const ETIQUETA_TEXTO: Record<string, string> = {
   examen_funcional: "Valor por defecto",
   examen_fisico: "Valor por defecto",
   perfil_examen_fisico: "Hallazgos: una línea por fila, «Fila: hallazgo» (ej. Nariz: congestión nasal)",
   perfil_examen_funcional: "Síntomas: una línea por fila, «Fila: síntoma» (ej. Respiratorio: tos húmeda)",
   grupo_paraclinicos: "Exámenes del perfil, uno por línea (con el mismo nombre del catálogo)",
+  medicina: "Indicación que se llena sola, una línea por campo: «concentracion: 500 mg», «presentacion: Tableta», «via: Oral», «dosis: 1 tableta», «frecuencia: Cada 8 horas», «duracion: 5 días», «observacion: …»",
 };
 const ETIQUETA_GRUPO: Record<string, string> = {
   motivo_consulta: "Grupo (preventivo / no_preventivo)",
@@ -24,7 +25,10 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   antecedente_medico: "Tipo (personal / familiar)",
   causa_reposo: "Tipo (reposo / permiso)",
   grupo_paraclinicos: "Empresa a la que se sugiere (opcional)",
+  medicina: "Laboratorio (opcional)",
+  diagnostico: "Sistema orgánico (opcional)",
 };
+const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *" };
 
 type Motivo = { codigo: string; nombre: string };
 
@@ -66,7 +70,7 @@ function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item:
       <input type="hidden" name="lista" value={lista} />
       {item && <input type="hidden" name="id" value={item.id} />}
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
-      <Campo id="codigo" etiqueta="Código" defaultValue={item?.codigo ?? ""} />
+      <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico"} />
       {lista.startsWith("recomendacion_") ? (
         <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
       ) : (
@@ -101,7 +105,10 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
       setAviso(r.ok ? null : r);
     });
 
-  const visibles = verInactivos ? items : items.filter((i) => i.activo);
+  const [filtro, setFiltro] = useState("");
+  const sinAcentos = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const visibles = (verInactivos ? items : items.filter((i) => i.activo))
+    .filter((i) => !filtro || sinAcentos(`${i.nombre} ${i.codigo ?? ""} ${i.grupo ?? ""}`).includes(sinAcentos(filtro)));
   const inactivos = items.filter((i) => !i.activo).length;
 
   return (
@@ -124,6 +131,12 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
         {ocupado && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
       </div>
 
+      {items.length > 12 && (
+        <label className="relative block border-b px-5 py-2">
+          <Search className="pointer-events-none absolute left-8 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder={`Buscar en ${items.length} elementos…`} className="h-9 w-full rounded-md border bg-card pl-9 pr-3 text-sm outline-none focus:border-primary" />
+        </label>
+      )}
       {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
       {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alTerminar={() => setEditando(null)} />}
 
@@ -148,8 +161,8 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
               </div>
               {editable && (
                 <div className="flex shrink-0 gap-0.5 opacity-60 transition group-hover:opacity-100">
-                  <Button variant="ghost" size="icon" className="size-8" title="Subir" disabled={i === 0 || !verInactivos} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, -1))}><ArrowUp /></Button>
-                  <Button variant="ghost" size="icon" className="size-8" title="Bajar" disabled={i === visibles.length - 1 || !verInactivos} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, 1))}><ArrowDown /></Button>
+                  <Button variant="ghost" size="icon" className="size-8" title="Subir" disabled={i === 0 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, -1))}><ArrowUp /></Button>
+                  <Button variant="ghost" size="icon" className="size-8" title="Bajar" disabled={i === visibles.length - 1 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, 1))}><ArrowDown /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title="Editar" onClick={() => setEditando(item.id)}><Pencil /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title={item.activo ? "Desactivar" : "Activar"} onClick={() => ejecutar(() => alternarItem(item.id, !item.activo))}>
                     {item.activo ? <EyeOff /> : <Eye />}

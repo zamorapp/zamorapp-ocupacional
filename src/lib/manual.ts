@@ -141,6 +141,9 @@ export const MANUAL: TemaManual[] = [
       "Mi perfil: tus datos de médico (cédula, MPPS) y tu firma.",
       "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. A los usuarios de empresa (RR. HH.) les asignas sus empresas.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar.",
+      "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
+      "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",
+      "En las listas largas usa el buscador de arriba para encontrar un elemento.",
     ],
   },
   {
@@ -165,7 +168,7 @@ export const MANUAL: TemaManual[] = [
       "Las consultas importadas quedan cerradas. Si necesitas corregir una, ábrela y usa «Reabrir».",
       "Los diagnósticos conservan el nombre que usabas en el Integral y llevan el código CIE-10 equivalente.",
       "Las 122 medicinas que recetabas están en el vademécum con la dosis, vía y frecuencia que más usabas.",
-      "Si sigues registrando en el Integral, la carga se puede repetir: actualiza lo existente y agrega lo nuevo sin duplicar.",
+      "Si sigues registrando en el Integral, haz doble clic en «actualizar-desde-integral.cmd» (carpeta zamorapp-ocupacional): respalda y trae lo nuevo sin duplicar.",
     ],
   },
   {
