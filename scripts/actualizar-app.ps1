@@ -12,6 +12,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "La compilación falló; la app en uso no 
 # Detiene el servidor que esté escuchando en el puerto 3000
 $conexion = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($conexion) { Stop-Process -Id $conexion.OwningProcess -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }
+# Espera a que el puerto quede libre; si no, el arranque creería que la app ya está en marcha
+for ($i = 0; $i -lt 30 -and (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Seconds 1 }
 
 if (Test-Path ".next-prod") { Remove-Item ".next-prod" -Recurse -Force }
 Rename-Item ".next-build" ".next-prod"
