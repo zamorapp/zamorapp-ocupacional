@@ -17,6 +17,7 @@ const NUBE_DB = process.env.NUBE_DB;
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
+const CONTROL = crypto.randomBytes(24).toString("hex");
 let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta;
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
@@ -64,7 +65,7 @@ before(async () => {
   nubeObj = new Nube(estado);
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332" });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332", control: CONTROL });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -252,6 +253,18 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   assert.equal(u().requiereNube, false);
   tokenMed = nueva.json.access_token;
   nube.usuarios["meda@x"].clave = "clave-med";
+});
+
+test("sincronizar ahora: solo con la clave de control de la ventana", { skip: omitir }, async () => {
+  const llamar = (clave) => fetch(`${urlPuerta}/zamorapp/sincronizar`, { method: "POST", headers: clave ? { "X-Zamorapp-Control": clave } : {} });
+  assert.equal((await llamar()).status, 403);
+  assert.equal((await llamar("otra")).status, 403);
+  const r = await llamar(CONTROL);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.enLinea, true);
+  assert.equal(j.error, null);
+  assert.ok(j.ultimaSincronia);
 });
 
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {

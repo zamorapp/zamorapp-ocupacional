@@ -9,6 +9,11 @@ on:
   pull_request:
     paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml"]
   workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar esta versión como actualización (solo desde main)"
+        type: boolean
+        default: false
 
 concurrency:
   group: escritorio-${{ github.ref }}
@@ -107,10 +112,18 @@ jobs:
         env:
           ZAMORAPP_NUBE_URL: ${{ vars.ZAMORAPP_NUBE_URL }}
           ZAMORAPP_NUBE_ANON: ${{ vars.ZAMORAPP_NUBE_ANON }}
+          # Llave pública de las actualizaciones (variable) y llave privada para firmarlas (secreto, solo al publicar)
+          ZAMORAPP_UPDATER_PUBKEY: ${{ vars.ZAMORAPP_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
+          # Cada compilación lleva un número mayor que la anterior: así el programa sabe cuándo hay una versión nueva
+          $ajustes = @{ version = "0.2.${{ github.run_number }}" }
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) { $ajustes.bundle = @{ createUpdaterArtifacts = $true } }
+          $ajustes | ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 src-tauri/ajustes-ci.json
           npx --yes @tauri-apps/cli@2 icon ../public/icono-512.png
-          npx --yes @tauri-apps/cli@2 build
+          npx --yes @tauri-apps/cli@2 build --config src-tauri/ajustes-ci.json
           if ($LASTEXITCODE) { throw "Falló el instalador" }
 
       # Prueba de humo del instalador real: instala sin preguntas, abre el programa como lo haría Cesar
@@ -163,6 +176,32 @@ jobs:
           Start-Sleep 5
           foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
           Write-Host "Accesos directos de la app web intactos tras instalar y desinstalar"
+
+      # Publica la actualización: solo a mano desde main, con la versión ya probada arriba (instalar y abrir).
+      - name: Publicar actualización (repo zamorapp-descargas)
+        if: github.ref == 'refs/heads/main' && inputs.publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.DESCARGAS_TOKEN }}
+        run: |
+          if (-not $env:GH_TOKEN) { throw "Falta el secreto DESCARGAS_TOKEN" }
+          $v = "0.2.${{ github.run_number }}"
+          $exe = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado (¿falta TAURI_SIGNING_PRIVATE_KEY?)" }
+          $nombre = "zamorapp-escritorio-$v-setup.exe"
+          Copy-Item $exe.FullName $nombre
+          $repo = "gestionesaguamiel-web/zamorapp-descargas"
+          @{
+            version = $v
+            notes = "zamorApp Escritorio $v (${{ github.sha }})"
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{ "windows-x86_64" = @{
+              signature = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
+              url = "https://github.com/$repo/releases/download/v$v/$nombre"
+            } }
+          } | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8NoBOM latest.json
+          gh release create "v$v" $nombre latest.json --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
+          if ($LASTEXITCODE) { throw "No se pudo publicar la versión" }
 
       - uses: actions/upload-artifact@v4
         with:

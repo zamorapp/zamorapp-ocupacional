@@ -2,12 +2,15 @@
 // arranca la base PostgreSQL y PostgREST) y el servidor de la app; al cerrar, los detiene en orden.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{Manager, RunEvent};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::{AppHandle, Manager, RunEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_updater::UpdaterExt;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -19,6 +22,14 @@ const PUERTO_PUERTA: u16 = 54331;
 const PUERTO_APP: u16 = 54332;
 const NUBE_URL: &str = match option_env!("ZAMORAPP_NUBE_URL") { Some(v) => v, None => "" };
 const NUBE_ANON: &str = match option_env!("ZAMORAPP_NUBE_ANON") { Some(v) => v, None => "" };
+// Llave pública con la que se verifican las actualizaciones (la privada vive solo en GitHub Actions).
+const LLAVE_ACTUALIZACIONES: &str = match option_env!("ZAMORAPP_UPDATER_PUBKEY") { Some(v) => v, None => "" };
+
+// Clave de un solo uso por sesión para que solo esta ventana pida acciones internas a la puerta.
+fn clave_control() -> &'static str {
+    static CLAVE: OnceLock<String> = OnceLock::new();
+    CLAVE.get_or_init(|| hex::encode(rand::random::<[u8; 24]>()))
+}
 
 #[derive(Default)]
 struct Procesos {
@@ -136,6 +147,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .env("ZAMORAPP_STUBS", recursos.join("stubs.sql"))
         .env("ZAMORAPP_ORIGEN", format!("http://127.0.0.1:{PUERTO_APP}"))
         .env("PUERTO_PUERTA", PUERTO_PUERTA.to_string())
+        .env("ZAMORAPP_CONTROL", clave_control())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -208,6 +220,82 @@ fn detener(p: &mut Procesos) {
     }
 }
 
+fn avisar(app: &AppHandle, titulo: &str, texto: &str) {
+    app.dialog().message(texto).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).blocking_show();
+}
+
+// Pide a la puerta local una acción interna (POST) y devuelve el cuerpo de la respuesta.
+fn pedir_puerta(ruta: &str) -> Result<String, String> {
+    let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
+    c.set_read_timeout(Some(Duration::from_secs(300))).ok();
+    write!(c, "POST {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+        .map_err(|e| e.to_string())?;
+    let mut respuesta = String::new();
+    c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
+    let (cabecera, cuerpo) = respuesta.split_once("\r\n\r\n").unwrap_or((&respuesta, ""));
+    if cabecera.starts_with("HTTP/1.1 200") { Ok(cuerpo.to_string()) } else { Err(cabecera.lines().next().unwrap_or("").to_string()) }
+}
+
+fn sincronizar_ahora(app: AppHandle) {
+    std::thread::spawn(move || {
+        anotar("sincronizar ahora (pedido)");
+        let (titulo, texto) = match pedir_puerta("/zamorapp/sincronizar").map(|c| serde_json::from_str::<serde_json::Value>(&c)) {
+            Ok(Ok(v)) if v["enLinea"] == false => ("Sin internet", "No hay conexión. Tus datos se sincronizarán solos cuando vuelva internet.".to_string()),
+            Ok(Ok(v)) if v["error"].is_string() => ("No se pudo sincronizar", format!("La nube respondió: {}. Se volverá a intentar sola en unos segundos.", v["error"].as_str().unwrap_or(""))),
+            Ok(Ok(_)) => ("Sincronización lista", "Esta PC tiene los datos al día con la nube.".to_string()),
+            _ => ("No se pudo sincronizar", "La base local no respondió. Cierra y vuelve a abrir zamorApp.".to_string()),
+        };
+        avisar(&app, titulo, &texto);
+    });
+}
+
+// Busca una versión nueva. Al abrir, solo avisa si la hay; desde el menú, responde siempre.
+// Nunca obliga: "Más tarde" deja todo como está. Instalar no toca los datos (%LOCALAPPDATA%\zamorApp).
+fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
+    std::thread::spawn(move || {
+        if LLAVE_ACTUALIZACIONES.is_empty() {
+            if a_pedido { avisar(&app, "Actualizaciones", "Esta versión aún no tiene activadas las actualizaciones automáticas."); }
+            return;
+        }
+        let actual = app.package_info().version.to_string();
+        let consulta = tauri::async_runtime::block_on(async {
+            let actualizador = app.updater_builder().pubkey(LLAVE_ACTUALIZACIONES).build()?;
+            actualizador.check().await
+        });
+        match consulta {
+            Ok(Some(nueva)) => {
+                anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
+                let aceptar = app.dialog()
+                    .message(format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
+                    .title("Actualización disponible")
+                    .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
+                    .blocking_show();
+                if !aceptar { anotar("actualización pospuesta"); return; }
+                match tauri::async_runtime::block_on(nueva.download(|_, _| {}, || {})) {
+                    Ok(paquete) => {
+                        anotar("actualización descargada y verificada; instalando");
+                        // La base local se detiene con calma antes de que el instalador reemplace los archivos.
+                        detener(&mut app.state::<Mutex<Procesos>>().lock().unwrap());
+                        if let Err(e) = nueva.install(paquete) {
+                            anotar(&format!("ERROR al instalar la actualización: {e}"));
+                            avisar(&app, "No se pudo actualizar", "La actualización no se instaló. Cierra y vuelve a abrir zamorApp; tus datos están intactos.");
+                        }
+                    }
+                    Err(e) => {
+                        anotar(&format!("ERROR al descargar la actualización: {e}"));
+                        avisar(&app, "No se pudo actualizar", "No se pudo descargar la actualización. Revisa internet y vuelve a intentarlo desde el menú zamorApp.");
+                    }
+                }
+            }
+            Ok(None) => if a_pedido { avisar(&app, "Actualizaciones", &format!("Ya tienes la versión más reciente ({actual})." )) },
+            Err(e) => {
+                anotar(&format!("no se pudo buscar actualizaciones: {e}"));
+                if a_pedido { avisar(&app, "Actualizaciones", "No se pudo revisar si hay una versión nueva. Revisa la conexión a internet."); }
+            }
+        }
+    });
+}
+
 fn main() {
     anotar(&format!("--- zamorApp {} abriendo", env!("CARGO_PKG_VERSION")));
     std::panic::set_hook(Box::new(|info| anotar(&format!("PÁNICO: {info}"))));
@@ -216,8 +304,23 @@ fn main() {
         Err(e) => anotar(&format!("WebView2 no disponible: {e}")),
     }
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(Procesos::default()))
+        .on_menu_event(|app, evento| match evento.id().0.as_str() {
+            "sincronizar" => sincronizar_ahora(app.clone()),
+            "actualizar" => buscar_actualizacion(app.clone(), true),
+            _ => {}
+        })
         .setup(|app| {
+            let version = MenuItemBuilder::with_id("version", format!("Versión {}", app.package_info().version)).enabled(false).build(app)?;
+            let menu_zamorapp = SubmenuBuilder::new(app, "zamorApp")
+                .text("sincronizar", "Sincronizar ahora")
+                .text("actualizar", "Buscar actualizaciones")
+                .item(&PredefinedMenuItem::separator(app)?)
+                .item(&version)
+                .build()?;
+            app.set_menu(MenuBuilder::new(app).item(&menu_zamorapp).build()?)?;
             let recursos = ruta_normal(app.path().resource_dir()?.join("recursos"));
             anotar(&format!("programa: {}", std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()));
             let manejador = app.handle().clone();
@@ -229,6 +332,8 @@ fn main() {
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
                         let _ = ventana.navigate(destino.parse().expect("dirección local"));
                         anotar("ventana abierta en la pantalla de inicio");
+                        std::thread::sleep(Duration::from_secs(20));
+                        buscar_actualizacion(manejador.clone(), false);
                     }
                     Err(e) => {
                         anotar(&format!("ERROR: {e}"));
