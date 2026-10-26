@@ -22,3 +22,8 @@ insert into clinico.aptitudes (org_id,consulta_id,trabajador_id,clasificacion) v
  ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','no_elegible'),
  ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-00000000000b','30000000-0000-0000-0000-00000000000b','elegible');
 update public.miembros set acceso_clinico=true where rol='administrador';
+-- Otro médico y una enfermera de la empresa A (para probar la firma)
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000a4','medA2@x'),('00000000-0000-0000-0000-0000000000a5','enfA@x');
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
+ ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','medico','{20000000-0000-0000-0000-00000000000a}'),
+ ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a5','enfermeria','{20000000-0000-0000-0000-00000000000a}');
