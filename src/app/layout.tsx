@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { RegistroSW } from "@/components/app/registro-sw";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_NOMBRE } from "@/lib/config";
+import { SCRIPT_TEMA } from "@/lib/tema";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -23,7 +24,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es-VE">
+    <html lang="es-VE" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
       <body className={`${inter.variable} antialiased`}>
         {/* Guarda el aviso de instalación aunque llegue antes de que cargue React (lo usa InstalarApp). */}
         <script dangerouslySetInnerHTML={{ __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__eventoInstalar=e});" }} />

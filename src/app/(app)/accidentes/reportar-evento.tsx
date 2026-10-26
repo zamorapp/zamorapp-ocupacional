@@ -46,7 +46,7 @@ export function ReportarEvento({ habilitado, empresas }: { habilitado: boolean; 
           <DialogTitle>Reportar evento</DialogTitle>
           <DialogDescription>Regístralo apenas ocurra: el plazo de 24 h para declarar ante el INPSASEL empieza a correr.</DialogDescription>
         </DialogHeader>
-        <form action={accion} className="grid gap-4 sm:grid-cols-2">
+        <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="grid grid-cols-3 gap-2 sm:col-span-2">
             {[["accidente", "Accidente"], ["incidente", "Incidente"], ["enfermedad", "Enfermedad ocupacional"]].map(([k, t]) => (
               <label key={k} className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-center text-sm font-medium transition ${tipo === k ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}>

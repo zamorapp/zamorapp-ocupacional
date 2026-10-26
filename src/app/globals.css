@@ -11,6 +11,11 @@
   --color-ok: var(--ok);
   --color-aviso: var(--aviso);
   --color-alerta: var(--alerta);
+  --color-info: var(--info);
+  --color-ok-texto: var(--ok-texto);
+  --color-aviso-texto: var(--aviso-texto);
+  --color-alerta-texto: var(--alerta-texto);
+  --color-info-texto: var(--info-texto);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,87 +51,123 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Sistema de diseño zamorApp: neutros con tinte verde azulado (hue 195-200) en ambos temas.
+   Estados: ok / aviso / alerta / info como fondo; *-texto para texto legible (AA) sobre la tarjeta. */
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.98 0.004 190);
-  --foreground: oklch(0.2 0.02 200);
+  --background: oklch(0.985 0.004 195);
+  --foreground: oklch(0.21 0.02 200);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 200);
+  --card-foreground: oklch(0.21 0.02 200);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 200);
-  --primary: oklch(0.51 0.1 186);
+  --popover-foreground: oklch(0.21 0.02 200);
+  --primary: oklch(0.48 0.1 186);
   --primary-foreground: oklch(0.99 0 0);
   --ok: oklch(0.6 0.14 155);
   --aviso: oklch(0.75 0.15 75);
   --alerta: oklch(0.58 0.21 27);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --info: oklch(0.58 0.13 245);
+  --ok-texto: oklch(0.45 0.12 155);
+  --aviso-texto: oklch(0.5 0.12 60);
+  --alerta-texto: oklch(0.5 0.19 27);
+  --info-texto: oklch(0.47 0.13 250);
+  --secondary: oklch(0.96 0.008 195);
+  --secondary-foreground: oklch(0.25 0.02 200);
+  --muted: oklch(0.96 0.006 195);
+  --muted-foreground: oklch(0.46 0.015 200);
+  --accent: oklch(0.95 0.015 186);
+  --accent-foreground: oklch(0.25 0.03 200);
+  --destructive: oklch(0.55 0.22 27);
+  --border: oklch(0.91 0.008 195);
+  --input: oklch(0.89 0.01 195);
+  --ring: oklch(0.55 0.1 186);
+  --chart-1: oklch(0.55 0.1 186);
+  --chart-2: oklch(0.6 0.14 155);
+  --chart-3: oklch(0.75 0.15 75);
+  --chart-4: oklch(0.58 0.13 245);
+  --chart-5: oklch(0.58 0.21 27);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.21 0.02 200);
+  --sidebar-primary: oklch(0.48 0.1 186);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0.015 186);
+  --sidebar-accent-foreground: oklch(0.25 0.03 200);
+  --sidebar-border: oklch(0.91 0.008 195);
+  --sidebar-ring: oklch(0.55 0.1 186);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.7 0.11 186);
+  --background: oklch(0.165 0.012 205);
+  --foreground: oklch(0.96 0.005 195);
+  --card: oklch(0.21 0.014 205);
+  --card-foreground: oklch(0.96 0.005 195);
+  --popover: oklch(0.23 0.014 205);
+  --popover-foreground: oklch(0.96 0.005 195);
+  --primary: oklch(0.72 0.11 186);
   --primary-foreground: oklch(0.18 0.02 200);
   --ok: oklch(0.7 0.14 155);
   --aviso: oklch(0.8 0.14 80);
   --alerta: oklch(0.68 0.19 25);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --info: oklch(0.7 0.12 245);
+  --ok-texto: oklch(0.8 0.13 155);
+  --aviso-texto: oklch(0.85 0.13 80);
+  --alerta-texto: oklch(0.76 0.16 25);
+  --info-texto: oklch(0.8 0.1 245);
+  --secondary: oklch(0.27 0.014 205);
+  --secondary-foreground: oklch(0.96 0.005 195);
+  --muted: oklch(0.26 0.014 205);
+  --muted-foreground: oklch(0.75 0.012 200);
+  --accent: oklch(0.29 0.03 190);
+  --accent-foreground: oklch(0.96 0.005 195);
+  --destructive: oklch(0.7 0.19 22);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.65 0.1 186);
+  --chart-1: oklch(0.72 0.11 186);
+  --chart-2: oklch(0.7 0.14 155);
+  --chart-3: oklch(0.8 0.14 80);
+  --chart-4: oklch(0.7 0.12 245);
+  --chart-5: oklch(0.68 0.19 25);
+  --sidebar: oklch(0.19 0.013 205);
+  --sidebar-foreground: oklch(0.96 0.005 195);
+  --sidebar-primary: oklch(0.72 0.11 186);
+  --sidebar-primary-foreground: oklch(0.18 0.02 200);
+  --sidebar-accent: oklch(0.29 0.03 190);
+  --sidebar-accent-foreground: oklch(0.96 0.005 195);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.65 0.1 186);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Cifras alineadas en tablas, indicadores y horas */
+  .tabular-nums,
+  td,
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 /* Documentos impresos (constancia, reposo, informe, récipe) */

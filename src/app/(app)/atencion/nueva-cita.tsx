@@ -43,7 +43,7 @@ export function NuevaCita({ habilitado, fecha, motivos }: Props) {
           <DialogTitle>Agendar cita</DialogTitle>
           <DialogDescription>O marca «Llegó ahora» para pasarlo directo a la cola de espera.</DialogDescription>
         </DialogHeader>
-        <form action={accion} className="grid gap-4 sm:grid-cols-2">
+        <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label className="mb-1.5">Paciente *</Label>
             {paciente ? (

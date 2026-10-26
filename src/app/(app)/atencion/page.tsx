@@ -22,8 +22,8 @@ export const metadata: Metadata = { title: "Atención médica" };
 export const dynamic = "force-dynamic";
 
 const ESTILO_ESTADO = {
-  borrador: "bg-aviso/20 text-amber-700 dark:text-aviso",
-  cerrada: "bg-ok/15 text-ok",
+  borrador: "bg-aviso/20 text-aviso-texto",
+  cerrada: "bg-ok/15 text-ok-texto",
   firmada: "bg-primary/15 text-primary",
 };
 
@@ -65,7 +65,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
 
       {sesion.demo && (
         <div className="flex items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
-          <ShieldAlert className="size-5 text-amber-600" /> Conecta Supabase para registrar citas y consultas.
+          <ShieldAlert className="size-5 text-aviso-texto" /> Conecta Supabase para registrar citas y consultas.
         </div>
       )}
 

@@ -29,8 +29,8 @@ const VISTAS = [
 ] as const;
 
 const ESTILO: Record<Cobro["estado"], string> = {
-  borrador: "bg-muted text-muted-foreground", emitida: "bg-primary/15 text-primary", pagada: "bg-ok/15 text-ok", anulada: "bg-alerta/15 text-alerta",
-  aprobado: "bg-ok/15 text-ok", rechazado: "bg-alerta/15 text-alerta", convertido: "bg-muted text-muted-foreground",
+  borrador: "bg-muted text-muted-foreground", emitida: "bg-primary/15 text-primary", pagada: "bg-ok/15 text-ok-texto", anulada: "bg-alerta/15 text-alerta-texto",
+  aprobado: "bg-ok/15 text-ok-texto", rechazado: "bg-alerta/15 text-alerta-texto", convertido: "bg-muted text-muted-foreground",
 };
 const dias = (iso: string, hoy: string) => Math.round((Date.parse(hoy) - Date.parse(iso)) / 864e5);
 
@@ -91,7 +91,7 @@ export default async function Facturacion({ searchParams }: Props) {
                   {filas.map((f) => (
                     <TableRow key={f.empresa}>
                       <TableCell className="pl-5 font-medium">{f.empresa}<div className="text-xs text-muted-foreground">{f.notas} {f.notas === 1 ? "nota" : "notas"}</div></TableCell>
-                      {f.tramos.map((m, i) => <TableCell key={i} className={cn("text-right tabular-nums", i === 3 && m > 0 && "font-medium text-alerta")}>{m ? usd(m) : "—"}</TableCell>)}
+                      {f.tramos.map((m, i) => <TableCell key={i} className={cn("text-right tabular-nums", i === 3 && m > 0 && "font-medium text-alerta-texto")}>{m ? usd(m) : "—"}</TableCell>)}
                       <TableCell className="pr-5 text-right font-semibold tabular-nums">{usd(f.total)}</TableCell>
                     </TableRow>
                   ))}

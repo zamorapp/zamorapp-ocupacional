@@ -51,7 +51,7 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos }: P
           <DialogTitle>Nuevo paciente</DialogTitle>
           <DialogDescription>Abre el expediente único del trabajador.</DialogDescription>
         </DialogHeader>
-        <form action={accion} className="grid gap-4 sm:grid-cols-2">
+        <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label htmlFor="empresa_id" className="mb-1.5">Empresa *</Label>
             <select id="empresa_id" name="empresa_id" defaultValue={empresaInicial} required className={SELECT}>

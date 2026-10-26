@@ -6,7 +6,7 @@ export default function Cargando() {
         <div className="h-8 w-56 rounded-lg bg-muted" />
         <div className="h-4 w-80 max-w-full rounded bg-muted/70" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-24 rounded-xl bg-muted/70" />)}
       </div>
       <div className="space-y-3 rounded-xl border bg-card p-5">

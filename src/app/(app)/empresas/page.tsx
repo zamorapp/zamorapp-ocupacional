@@ -31,7 +31,7 @@ export default async function Empresas() {
           <p className="text-sm text-muted-foreground">Registra la primera con el botón Nueva empresa.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {empresas.map((e) => {
             const faltan = datosLegalesFaltantes(e);
             return (

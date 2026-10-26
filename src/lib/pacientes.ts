@@ -44,9 +44,9 @@ export const ETIQUETA_APTITUD: Record<Aptitud, string> = {
 };
 
 export const ESTILO_APTITUD: Record<Aptitud, string> = {
-  elegible: "bg-ok/15 text-ok",
-  elegible_con_restricciones: "bg-aviso/20 text-amber-700 dark:text-aviso",
-  no_elegible: "bg-alerta/15 text-alerta",
+  elegible: "bg-ok/15 text-ok-texto",
+  elegible_con_restricciones: "bg-aviso/20 text-aviso-texto",
+  no_elegible: "bg-alerta/15 text-alerta-texto",
   espera_resultados: "bg-primary/15 text-primary",
   diferido: "bg-muted text-muted-foreground",
 };

@@ -45,7 +45,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
       <fieldset disabled={!editable} className="space-y-4">
         <Card>
           <CardHeader><CardTitle className="text-base">Datos del servicio</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="nombre" etiqueta="Nombre *" defaultValue={org.nombre} required className="sm:col-span-2" />
             <Campo id="rif" etiqueta="RIF" defaultValue={org.rif ?? ""} placeholder="J-00000000-0" />
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
@@ -56,7 +56,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
 
         <Card>
           <CardHeader><CardTitle className="text-base">Aptitud y constancia</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <CampoSelect id="palabra_aptitud" etiqueta="Palabra base de la aptitud" defaultValue={a.palabra_aptitud ?? "Elegible"}>
               <option value="Elegible">Elegible / No elegible</option>
               <option value="Apto">Apto / No apto</option>
@@ -81,7 +81,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
 
         <Card>
           <CardHeader><CardTitle className="text-base">Reposo médico</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
             <Campo id="reposo_pie_original" etiqueta="Pie del original" defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
           </CardContent>
@@ -98,7 +98,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
 
         <Card>
           <CardHeader><CardTitle className="text-base">Certificado de salud</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="certificado_titulo" etiqueta="Título" defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
             <Campo id="certificado_nota" etiqueta="Nota al pie (opcional)" defaultValue={a.certificado_nota ?? ""} />
           </CardContent>

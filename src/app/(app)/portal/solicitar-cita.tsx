@@ -37,7 +37,7 @@ export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nomb
           <DialogTitle>Solicitar cita</DialogTitle>
           <DialogDescription>El servicio médico la confirma o te propone otra hora. Te llega un aviso en cada paso.</DialogDescription>
         </DialogHeader>
-        <form action={accion} className="grid gap-4 sm:grid-cols-2">
+        <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label className="mb-1.5">Trabajador *</Label>
             {trabajador ? (

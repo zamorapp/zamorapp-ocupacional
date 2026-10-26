@@ -14,6 +14,20 @@ export const MANUAL_ACTUALIZADO = "2026-10-26";
 
 export const MANUAL: TemaManual[] = [
   {
+    id: "atajos",
+    titulo: "Buscar rápido, atajos y tema oscuro",
+    para: "todos",
+    resumen: "Llega a cualquier trabajador o sección en dos teclas, desde cualquier pantalla.",
+    pasos: [
+      "Pulsa Ctrl+K (o la tecla /) y escribe la cédula o el nombre. En el celular, toca «Buscar» en la barra de abajo.",
+      "Con las flechas eliges; Enter abre la ficha del trabajador.",
+      "Servicio médico: para atenderlo de una vez, toca «Atender» en el resultado o pulsa Ctrl+Enter: se abre la consulta nueva sin pasar por la ficha.",
+      "Si escribes el nombre de una sección (por ejemplo «reportes»), te lleva allí.",
+      "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
+    ],
+    consejos: ["En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar."],
+  },
+  {
     id: "ingreso",
     titulo: "Ingresar, instalar y recuperar la contraseña",
     para: "todos",
@@ -37,7 +51,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Arriba eliges la empresa activa o «Todas las empresas»; todo lo que ves se filtra por esa elección.",
       "La campanita muestra avisos nuevos (solicitudes de cita del portal, aptitudes emitidas, etc.).",
-      "El buscador de arriba encuentra trabajadores por cédula, nombre o cargo; pulsa Enter.",
+      "El buscador de arriba (o Ctrl+K, o la tecla /) encuentra trabajadores por cédula o nombre y también te lleva a cualquier sección.",
     ],
   },
   {

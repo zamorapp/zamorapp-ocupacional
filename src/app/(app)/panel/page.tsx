@@ -21,9 +21,9 @@ const ACCIONES = [
 ];
 
 const ESTILO_CITA: Record<string, string> = {
-  Atendido: "bg-ok/15 text-ok",
+  Atendido: "bg-ok/15 text-ok-texto",
   "En consulta": "bg-primary/15 text-primary",
-  "En espera": "bg-aviso/20 text-amber-700 dark:text-aviso",
+  "En espera": "bg-aviso/20 text-aviso-texto",
   Citado: "bg-muted text-muted-foreground",
 };
 
@@ -56,7 +56,7 @@ export default async function Panel() {
               <h2 className="font-semibold">Empecemos: carga tus datos en dos pasos</h2>
               <p className="text-sm text-muted-foreground">Todo lo demás (consultas, aptitud, reportes) cuelga de la empresa y sus trabajadores.</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Link href="/empresas" className="group flex items-center gap-3 rounded-xl border bg-card p-4 transition hover:border-primary/50">
                 <span className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground"><Building2 className="size-5" /></span>
                 <div className="flex-1"><div className="font-medium">1. Registra una empresa cliente</div><div className="text-sm text-muted-foreground">RIF, NIL y datos legales</div></div>
@@ -87,7 +87,7 @@ export default async function Panel() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -118,14 +118,14 @@ export default async function Panel() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-5 text-alerta" /> Alertas
+              <AlertTriangle className="size-5 text-alerta-texto" /> Alertas
               <Badge variant="secondary" className="ml-auto">{datos.alertas.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {datos.alertas.length === 0 && (
               <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                <CheckCircle2 className="size-4 text-ok" /> Todo al día.
+                <CheckCircle2 className="size-4 text-ok-texto" /> Todo al día.
               </p>
             )}
             {datos.alertas.map((a) => {
@@ -135,7 +135,7 @@ export default async function Panel() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{a.texto}</div>
                     <div className="truncate text-xs text-muted-foreground">{a.sujeto}</div>
-                    <div className={`mt-1 text-xs font-medium ${a.estado === "alerta" ? "text-alerta" : "text-muted-foreground"}`}>{a.plazo}</div>
+                    <div className={`mt-1 text-xs font-medium ${a.estado === "alerta" ? "text-alerta-texto" : "text-muted-foreground"}`}>{a.plazo}</div>
                   </div>
                 </>
               );
@@ -149,7 +149,7 @@ export default async function Panel() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
           <CardHeader><CardTitle className="text-base">Accesos rápidos</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">

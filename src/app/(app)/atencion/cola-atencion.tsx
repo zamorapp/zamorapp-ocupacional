@@ -68,11 +68,11 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
     <div className="space-y-3">
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className={cn("grid gap-4 md:grid-cols-2 2xl:grid-cols-3", ocupado && "pointer-events-none opacity-70")}>
-        <Columna titulo="En espera" icono={Clock} n={espera.length} tono="text-amber-600">
+        <Columna titulo="En espera" icono={Clock} n={espera.length} tono="text-aviso-texto">
           {espera.map((c) => {
             const min = minutosDesde(c.llegada, ahora);
             return (
-              <Fila key={c.id} c={c} detalle={<span className={cn(" font-medium", min >= 30 && "text-alerta")}> · espera {min} min</span>}>
+              <Fila key={c.id} c={c} detalle={<span className={cn(" font-medium", min >= 30 && "text-alerta-texto")}> · espera {min} min</span>}>
                 <Button size="sm" onClick={() => atender(c)}>{ocupado ? <Loader2 className="animate-spin" /> : <Stethoscope />} Atender</Button>
               </Fila>
             );
@@ -83,7 +83,7 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
           {citados.map((c) => (
             <Fila key={c.id} c={c}>
               {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
-              <Button size="icon" variant="ghost" className="size-8 text-ok" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
+              <Button size="icon" variant="ghost" className="size-8 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer"><MessageCircle /></a>
               </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
@@ -92,12 +92,12 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
           ))}
         </Columna>
 
-        <Columna titulo="En consulta y atendidos" icono={Stethoscope} n={enConsulta.length + cerradas.length} tono="text-ok">
+        <Columna titulo="En consulta y atendidos" icono={Stethoscope} n={enConsulta.length + cerradas.length} tono="text-ok-texto">
           {[...enConsulta, ...cerradas].map((c) => (
             <Fila
               key={c.id}
               c={c}
-              detalle={<span className={cn(" font-medium", c.estado === "en_consulta" ? "text-primary" : c.estado === "atendido" ? "text-ok" : "text-muted-foreground")}>
+              detalle={<span className={cn(" font-medium", c.estado === "en_consulta" ? "text-primary" : c.estado === "atendido" ? "text-ok-texto" : "text-muted-foreground")}>
                 {" · "}{{ en_consulta: "en consulta", atendido: "atendido", no_asistio: "no asistió", cancelada: "cancelada" }[c.estado as "en_consulta"]}
               </span>}
             >

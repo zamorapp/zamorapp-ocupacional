@@ -102,9 +102,9 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
         <div>
           <div className="text-sm text-muted-foreground">{items.length} renglones</div>
           <div className="text-2xl font-semibold">{usd(t.total)}</div>
-          {t.totalBs !== null ? <div className="text-sm text-muted-foreground">{bs(t.totalBs)} a tasa {tasa}</div> : <div className="text-sm text-amber-700">Carga la tasa BCV para ver el monto en Bs.</div>}
+          {t.totalBs !== null ? <div className="text-sm text-muted-foreground">{bs(t.totalBs)} a tasa {tasa}</div> : <div className="text-sm text-aviso-texto">Carga la tasa BCV para ver el monto en Bs.</div>}
         </div>
-        {sinServicio > 0 && <p className="text-sm text-alerta">{sinServicio} atenciones marcadas sin servicio: elígelo o desmárcalas.</p>}
+        {sinServicio > 0 && <p className="text-sm text-alerta-texto">{sinServicio} atenciones marcadas sin servicio: elígelo o desmárcalas.</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button
           size="lg"

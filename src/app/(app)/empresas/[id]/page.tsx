@@ -47,7 +47,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
         {esAdmin && <FormEmpresa habilitado empresa={empresa} />}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <div className="space-y-6">
           <Card className="h-fit">
             <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
@@ -62,7 +62,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
         <section className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-semibold">Puestos de trabajo y matriz de riesgos</h2>
-            {sinValorar > 0 && <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-medium text-amber-800">{sinValorar} sin valorar</span>}
+            {sinValorar > 0 && <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-medium text-aviso-texto">{sinValorar} sin valorar</span>}
             <div className="ml-auto">
               {editaPuestos && <EditorPuesto empresaId={id} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
             </div>

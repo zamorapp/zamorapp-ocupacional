@@ -74,7 +74,7 @@ function AccionesExamen({ perfiles, etiquetaNormal, onAplicar }: { perfiles: Ite
   return (
     <div className="flex items-center gap-2">
       {normal?.texto && (
-        <Button type="button" size="sm" variant="outline" className="h-8 border-ok/50 text-ok hover:bg-ok/10 hover:text-ok" onClick={() => onAplicar(normal.texto!, true)}>
+        <Button type="button" size="sm" variant="outline" className="h-8 border-ok/50 text-ok-texto hover:bg-ok/10 hover:text-ok-texto" onClick={() => onAplicar(normal.texto!, true)}>
           <CheckCircle2 /> {etiquetaNormal}
         </Button>
       )}
@@ -273,7 +273,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           )}
         </div>
         {aviso?.mensaje && (
-          <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok" : "text-destructive")}>{aviso.mensaje}</p>
+          <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}
         <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
           {pasos.map((p, i) => (
@@ -299,7 +299,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
             <Seccion titulo="Motivo">
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>
                   <Label className="mb-1.5">Motivo de consulta *</Label>
                   <select value={d.motivoId ?? ""} onChange={(e) => set("motivoId", e.target.value || null)} className={SELECT}>
@@ -335,7 +335,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             </Seccion>
 
             <Seccion titulo="Riesgos del puesto">
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {GRUPOS_RIESGO.map(([k, n]) => (
                   <div key={k} className="flex flex-wrap items-baseline gap-2 text-sm">
                     <span className="w-28 text-muted-foreground">{n}</span>
@@ -380,23 +380,23 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       placeholder={ph}
                       inputMode={k === "ta" ? "text" : "decimal"}
                       onChange={(e) => set("signos", { ...d.signos, [k]: e.target.value })}
-                      className={cn("h-9", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta")}
+                      className={cn("h-9", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
                     />
                   </div>
                 ))}
                 <div>
                   <Label className="mb-1.5 text-xs">IMC</Label>
-                  <div className={cn("flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium", claseImc?.alerta && "border-aviso text-amber-700")}>
+                  <div className={cn("flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium", claseImc?.alerta && "border-aviso text-aviso-texto")}>
                     {valorImc ?? "—"}
                   </div>
-                  {claseImc && <p className={cn("mt-1 text-xs", claseImc.alerta ? "text-amber-700" : "text-muted-foreground")}>{claseImc.texto}</p>}
+                  {claseImc && <p className={cn("mt-1 text-xs", claseImc.alerta ? "text-aviso-texto" : "text-muted-foreground")}>{claseImc.texto}</p>}
                 </div>
               </div>
               {taAlterada(d.signos.ta) && (
-                <p className="flex items-center gap-2 text-sm text-alerta"><AlertTriangle className="size-4" /> Tensión arterial elevada.</p>
+                <p className="flex items-center gap-2 text-sm text-alerta-texto"><AlertTriangle className="size-4" /> Tensión arterial elevada.</p>
               )}
             </Seccion>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Seccion titulo="Examen funcional" accion={<AccionesExamen perfiles={listas.perfil_examen_funcional} etiquetaNormal="Funcional normal" onAplicar={(t, normal) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t, normal))} />}>
                 <TablaExamen filas={d.examenFuncional} onChange={(f) => set("examenFuncional", f)} bloqueado={bloqueado} />
               </Seccion>
@@ -550,7 +550,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 </div>
               ))}
               {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
-                <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta">
+                <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
                   <AlertTriangle className="size-4" /> Sospecha de enfermedad ocupacional: la declaración ante el INPSASEL vence 24 h después del diagnóstico.
                 </p>
               )}
@@ -559,7 +559,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
               {d.interconsultas.length === 0 && <p className="text-sm text-muted-foreground">Sin interconsultas.</p>}
               {d.interconsultas.map((x, i) => (
-                <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
                   <select value={x.especialidad} onChange={(e) => set("interconsultas", d.interconsultas.map((y, j) => (j === i ? { ...y, especialidad: e.target.value } : y)))} className={cn(SELECT, "h-9")}>
                     <option value="">Especialidad</option>
                     {listas.especialidad.map((s) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
@@ -574,7 +574,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {/* ── Aptitud ── */}
           <TabsContent value="aptitud" className="mt-4 space-y-4">
             <Seccion titulo="Clasificación de aptitud">
-              <div className="grid gap-2 sm:grid-cols-5">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
                 {APTITUDES.map((a) => (
                   <button
                     key={a}
@@ -609,7 +609,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   </div>
                 </div>
               )}
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
                 <TextosFrecuentes
                   etiqueta="Recomendaciones de aptitud"
                   items={listas.recomendacion_aptitud}
@@ -683,7 +683,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   Indicar reposo
                 </label>
                 {d.reposo.activo && (
-                  <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                     <div className="sm:col-span-2">
                       <Label className="mb-1.5">Causa</Label>
                       <select value={d.reposo.causa} onChange={(e) => set("reposo", { ...d.reposo, causa: e.target.value })} className={SELECT}>

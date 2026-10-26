@@ -16,10 +16,10 @@ export function TasaBcv({ actual, hoy, editable }: { actual: { fecha: string; ta
       {actual ? (
         <span className="text-muted-foreground">
           {actual.tasa.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} Bs/$ · {actual.fecha.split("-").reverse().join("/")}
-          {actual.fecha !== hoy && <span className="ml-1 text-amber-700">(no es de hoy)</span>}
+          {actual.fecha !== hoy && <span className="ml-1 text-aviso-texto">(no es de hoy)</span>}
         </span>
       ) : (
-        <span className="text-amber-700">sin cargar</span>
+        <span className="text-aviso-texto">sin cargar</span>
       )}
       {editable && (
         <form

@@ -38,7 +38,7 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
           Conecta Supabase para editar las listas.
         </p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
           <nav className="space-y-5 lg:sticky lg:top-24 lg:self-start">
             {secciones.map((s) => (
               <div key={s.titulo}>
