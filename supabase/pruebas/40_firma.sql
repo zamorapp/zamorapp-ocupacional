@@ -8,7 +8,10 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2'
 do $$ begin perform public.firmar_consulta('40000000-0000-0000-0000-0000000000f1'); raise notice 'firmó un borrador: FALLA'; exception when others then raise notice 'firmar borrador rechazado (ok): %', sqlerrm; end $$;
 select public.guardar_consulta('40000000-0000-0000-0000-0000000000f1','{"tipo":"primera","conclusiones":"final"}',
   '[{"cie10":"J00","descripcion":"Rinofaringitis","origen":"comun","principal":true}]','{"clasificacion":"elegible","limitaciones":[]}',null,true);
+reset role;
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
 update clinico.consultas set medico_id='00000000-0000-0000-0000-0000000000a2' where id='40000000-0000-0000-0000-0000000000f1';
+set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
 do $$ begin perform public.firmar_consulta('40000000-0000-0000-0000-0000000000f1'); raise notice 'enfermería firmó: FALLA'; exception when others then raise notice 'enfermería no firma (ok)'; end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
