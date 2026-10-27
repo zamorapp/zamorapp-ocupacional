@@ -4,11 +4,16 @@ import { ArrowLeft } from "lucide-react";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { cedulasRegistradas } from "@/lib/pacientes-datos";
+import { obtenerSesion } from "@/lib/sesion";
+import { empresaSoloLectura } from "@/lib/sesion-roles";
+import { notFound } from "next/navigation";
 import { Importador } from "./importador";
 
 export const metadata: Metadata = { title: "Importar pacientes" };
 
 export default async function ImportarPacientes() {
+  // Supervisor, delegado, auditor y trabajador no cargan nómina (la base tampoco los deja)
+  if (empresaSoloLectura((await obtenerSesion()).rol)) notFound();
   const [cedulas, empresas, activa] = await Promise.all([cedulasRegistradas(), listarEmpresas(), empresaActivaId()]);
   return (
     <div className="mx-auto max-w-7xl space-y-6">
