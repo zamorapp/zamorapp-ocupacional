@@ -10,6 +10,7 @@ import type { Cita, EstadoCita } from "@/lib/citas";
 import { cn } from "@/lib/utils";
 import { iniciarConsulta } from "./acciones";
 import { cambiarEstadoCita } from "./citas-acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 // Tiempo de espera: normal, aviso desde 20 min y alerta desde 40 min
 const tonoEspera = (min: number) => (min >= 40 ? "text-alerta-texto" : min >= 20 ? "text-aviso-texto" : "text-muted-foreground");
@@ -100,7 +101,7 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
               </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
-              <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={() => confirm(`¿Cancelar la cita de ${c.paciente}?`) && estado(c.id, "cancelada")}><X /></Button>
+              <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
             </Fila>
           ))}
         </Columna>

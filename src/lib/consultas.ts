@@ -94,7 +94,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
     supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
-    c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+    c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
+      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
   const tr = t as unknown as {
@@ -120,6 +121,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     datos: {
       id: c.id,
       estado: c.estado,
+      revision: c.revision ?? 1,
       fecha: c.fecha,
       tipo: c.tipo,
       motivoId: c.motivo_id,
@@ -160,4 +162,18 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       sano: c.sano ?? false,
     },
   };
+}
+
+// Versiones firmadas anteriores de una consulta corregida (la más reciente primero). Solo personal clínico (RLS).
+export type VersionConsulta = { revision: number; firmadaEn: string | null; motivo: string; reabiertaEn: string; por: string };
+
+export async function listarVersiones(consultaId: string): Promise<VersionConsulta[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("consultas_versiones").select("revision, firmada_en, motivo, reabierta_en, reabierta_por")
+    .eq("consulta_id", consultaId).order("revision", { ascending: false });
+  const ids = [...new Set((data ?? []).map((v) => v.reabierta_por))];
+  const { data: perfiles } = ids.length ? await supabase.from("perfiles").select("id, nombre_completo").in("id", ids) : { data: [] };
+  const nombre = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo as string]));
+  return (data ?? []).map((v) => ({ revision: v.revision, firmadaEn: v.firmada_en, motivo: v.motivo, reabiertaEn: v.reabierta_en, por: nombre.get(v.reabierta_por) ?? "Usuario" }));
 }
