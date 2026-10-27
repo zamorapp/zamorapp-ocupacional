@@ -2,6 +2,9 @@ import "server-only";
 import { obtenerConsulta } from "@/lib/consultas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerSesion } from "@/lib/sesion";
+import type { OpcionImpresion } from "@/lib/documentos-opciones";
+
+export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
 export type AjustesDocumentos = {
   palabra_aptitud?: string;
@@ -73,6 +76,8 @@ export async function obtenerDocumento(consultaId: string) {
     impreso: { por: sesion.nombre, revision: consulta.datos.revision, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
     hora: c.hora_inicio as string,
     cierre: (c.hora_cierre as string | null) ?? null,
+    // Partes que se ocultan en esta impresión (?sin=membrete,firma,…): las fija la página según la URL
+    sin: [] as OpcionImpresion[],
   };
 }
 

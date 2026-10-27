@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
-import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
+import { faltantesRecipe, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
+import { opcionesDe } from "@/lib/documentos-opciones";
+import { OpcionesImpresion } from "../../opciones";
 import { BarraImpresion } from "../../barra";
-import { Certificado, Constancia, ConstanciaAtencion, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
+import { Certificado, Constancia, ConstanciaAtencion, OrdenAtencion, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
 
 const TIPOS = {
   constancia: { titulo: "Constancia de aptitud", Componente: Constancia },
@@ -19,9 +21,10 @@ const TIPOS = {
   reubicacion: { titulo: "Reubicación laboral", Componente: Reubicacion },
   libre: { titulo: "Informe libre", Componente: InformeLibre },
   atencion: { titulo: "Constancia de atención médica", Componente: ConstanciaAtencion },
+  oam: { titulo: "Orden de atención médica ocupacional", Componente: OrdenAtencion },
 } as const;
 
-type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
@@ -30,11 +33,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
-  const { dx } = await searchParams;
+  const { dx, sin } = await searchParams;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
-  const d = await obtenerDocumento(id);
-  if (!d) notFound();
+  const base = await obtenerDocumento(id);
+  if (!base) notFound();
+  const d = { ...base, sin: opcionesDeUrl(sin) };
   const faltan = tipo === "recipe" ? faltantesRecipe(d) : [];
 
   return (
@@ -49,9 +53,10 @@ export default async function Imprimir({ params, searchParams }: Props) {
         </div>
       ) : (
         <>
+          <OpcionesImpresion disponibles={opcionesDe(tipo)} />
           {tipo === "atencion" && d.datos.diagnosticos.length > 0 && (
             <div className="mx-auto -mt-3 mb-4 flex max-w-[216mm] justify-end px-1 text-sm print:hidden">
-              <Link href={`/imprimir/atencion/${id}${dx === "1" ? "" : "?dx=1"}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
+              <Link href={`/imprimir/atencion/${id}?${new URLSearchParams({ ...(dx === "1" ? {} : { dx: "1" }), ...(sin ? { sin } : {}) })}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
                 {dx === "1" ? "Quitar diagnóstico (versión para la empresa)" : "Incluir diagnóstico (solo para el trabajador)"}
               </Link>
             </div>
