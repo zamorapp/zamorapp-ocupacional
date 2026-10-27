@@ -341,6 +341,15 @@ jobs:
             if (-not $ok) { Write-Host "== arranque.log (actualización)"; & $nuevo | ForEach-Object { Write-Host "   $_" }; Write-Host "== servidor de prueba"; Get-Content capturas/actualizacion.log, capturas/actualizacion.err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" } }
             Get-Process zamorapp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
             Stop-Process -Id $servidor.Id -ErrorAction SilentlyContinue
+            # Lo que el programa actualizado deje vivo (puerta node, base, PostgREST) se anota y se limpia: si no, la
+            # prueba de PC nueva lo contaría como suyo
+            $propios = { Get-Process node, postgres, postgrest -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } }
+            for ($s = 0; $s -lt 30 -and (& $propios); $s++) { Start-Sleep 1 }
+            $huerfanos = & $propios
+            if ($huerfanos) {
+              Write-Host "::warning::Tras la actualización quedaron procesos vivos del programa: $(($huerfanos | ForEach-Object Name | Sort-Object -Unique) -join ', ')"
+              $huerfanos | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
             Remove-Item Env:ZAMORAPP_ACTUALIZACIONES_URL, Env:ZAMORAPP_ACTUALIZACIONES_LLAVE, Env:ZAMORAPP_ACTUALIZAR_SIN_PREGUNTAR -ErrorAction SilentlyContinue
             Start-Sleep 10
           }
