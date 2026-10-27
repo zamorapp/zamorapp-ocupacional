@@ -11,6 +11,7 @@ import { opciones } from "@/lib/listas";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { listarTrabajadores } from "@/lib/pacientes-datos";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
+import { empresaSoloLectura } from "@/lib/sesion-roles";
 import { listarSolicitudes } from "@/lib/solicitudes";
 import { ETIQUETA_SOLICITUD } from "@/lib/solicitudes-tipos";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,8 @@ export default async function Portal() {
     .filter((t) => t.aptitud && t.aptitudFecha)
     .sort((a, b) => (b.aptitudFecha ?? "").localeCompare(a.aptitudFecha ?? ""))
     .slice(0, 8);
+  // Supervisor, delegado, auditor y trabajador solo consultan: pedir citas, cargar nómina y solicitudes es de RR. HH.
+  const gestiona = !empresaSoloLectura(sesion.rol);
   const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
   const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
   const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
@@ -69,9 +72,9 @@ export default async function Portal() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hola, {primerNombre(sesion.nombre)}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>
+          {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
-          <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} />
+          {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} />}
         </div>
       </div>
 
@@ -114,14 +117,14 @@ export default async function Portal() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock className="size-5 text-primary" /> Próximas citas y solicitudes</CardTitle></CardHeader>
           <CardContent className="px-0">
-            {proximas.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">Sin citas próximas. Usa «Solicitar cita».</p> : (
+            {proximas.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">Sin citas próximas.{gestiona ? " Usa «Solicitar cita»." : ""}</p> : (
               <ul className="divide-y">
                 {proximas.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-24 font-mono text-muted-foreground">{fecha(c.fecha)}{c.hora && ` ${c.hora}`}</span>
                     <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div></div>
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
-                    {c.estado === "solicitada" && <CancelarSolicitud id={c.id} />}
+                    {gestiona && c.estado === "solicitada" && <CancelarSolicitud id={c.id} />}
                   </li>
                 ))}
               </ul>
@@ -152,7 +155,7 @@ export default async function Portal() {
       <Card id="solicitudes" className="scroll-mt-20">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-base"><Inbox className="size-5 text-primary" /> Solicitudes al servicio médico</CardTitle>
-          <NuevaSolicitud tipos={listas.tipo_solicitud.map((t) => ({ id: t.id, nombre: t.nombre }))} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} />
+          {gestiona && <NuevaSolicitud tipos={listas.tipo_solicitud.map((t) => ({ id: t.id, nombre: t.nombre }))} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} />}
         </CardHeader>
         <CardContent className="px-0">
           {solicitudes.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">¿Necesitas un informe, una copia o una constancia? Usa «Nueva solicitud».</p> : (

@@ -6,13 +6,12 @@ import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ETIQUETA_ROL, type Rol } from "@/lib/sesion-roles";
+import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
 import { agregarUsuario, cambiarRol, type Resultado } from "../acciones";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
 // Personas de la empresa cliente: deben tener su empresa asignada
-const ROLES_EMPRESA: Rol[] = ["gerente_empresa", "trabajador", "supervisor", "delegado_prevencion", "auditor"];
 
 function iniciales(texto: string) {
   return texto.split(/[\s@.]+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");

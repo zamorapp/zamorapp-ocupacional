@@ -28,9 +28,9 @@ function normalizar(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-.\s]/g, "").toLowerCase();
 }
 
-type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode; clinico?: boolean };
+type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode; clinico?: boolean; importar?: boolean };
 
-export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, clinico = false }: Props) {
+export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, clinico = false, importar = true }: Props) {
   const router = useRouter();
   // En el celular: tarjetas de 25 en 25, con «Atender» para el personal de salud
   const [mostrarMovil, setMostrarMovil] = useState(25);
@@ -71,9 +71,11 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
         </div>
         <div className="flex flex-wrap gap-2">
           {depurar}
-          <Button variant="outline" asChild>
-            <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
-          </Button>
+          {importar && (
+            <Button variant="outline" asChild>
+              <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
+            </Button>
+          )}
           {nuevo}
         </div>
       </div>
