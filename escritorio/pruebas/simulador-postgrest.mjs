@@ -1,6 +1,6 @@
 // Simulador mínimo de PostgREST para las pruebas en Linux (en Windows la prueba usa el PostgREST real).
 // Verifica el token con el secreto de la configuración y consulta la base como "authenticated" con RLS.
-// Soporta GET /tabla?select=*&col=eq.valor y POST /rpc/funcion.
+// Soporta GET /tabla?select=*|a,b&col=eq.valor y POST /rpc/funcion.
 import fs from "node:fs";
 import http from "node:http";
 import pg from "pg";
@@ -30,7 +30,10 @@ http.createServer(async (req, res) => {
     } else {
       const tabla = url.pathname.slice(1).replace(/[^a-z_0-9]/g, "");
       const filtros = [...url.searchParams].filter(([k, v]) => k !== "select" && v.startsWith("eq."));
-      filas = (await c.query(`select to_jsonb(t) as f from public.${tabla} t ${filtros.length ? "where " + filtros.map(([k], i) => `t.${k.replace(/[^a-z_0-9]/g, "")}::text = $${i + 1}`).join(" and ") : ""}`,
+      // select=a,b pide solo esas columnas (como PostgREST: con privilegios por columna, * puede no estar permitido)
+      const cols = (url.searchParams.get("select") ?? "*").split(",").map((x) => x.trim().replace(/[^a-z_0-9*]/g, "")).filter(Boolean);
+      const fila = cols.includes("*") ? "to_jsonb(t)" : `jsonb_build_object(${cols.map((x) => `'${x}', t.${x}`).join(", ")})`;
+      filas = (await c.query(`select ${fila} as f from public.${tabla} t ${filtros.length ? "where " + filtros.map(([k], i) => `t.${k.replace(/[^a-z_0-9]/g, "")}::text = $${i + 1}`).join(" and ") : ""}`,
         filtros.map(([, v]) => v.slice(3)))).rows.map((r) => r.f);
     }
     await c.query("commit");
