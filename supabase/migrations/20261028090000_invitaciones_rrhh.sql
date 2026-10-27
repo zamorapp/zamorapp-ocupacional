@@ -92,9 +92,10 @@ begin
     insert into public.miembros (org_id, usuario_id, rol, empresas_permitidas)
     values (i.org_id, auth.uid(), 'gerente_empresa', array[i.empresa_id]);
   elsif m.rol = 'gerente_empresa' then
+    -- Un RR. HH. desactivado por el administrador no se reactiva con un enlace
+    if not m.activo then raise exception 'Tu cuenta está desactivada. Pide al administrador que la reactive.'; end if;
     update public.miembros
-    set empresas_permitidas = (select array_agg(distinct x) from unnest(coalesce(m.empresas_permitidas, '{}') || i.empresa_id) x),
-        activo = true
+    set empresas_permitidas = (select array_agg(distinct x) from unnest(coalesce(m.empresas_permitidas, '{}') || i.empresa_id) x)
     where id = m.id;
   else
     -- Nunca cambia el rol de alguien del servicio médico ni de otro rol de empresa
@@ -110,3 +111,23 @@ begin
 end $$;
 revoke execute on function public.aceptar_invitacion(text) from public, anon;
 grant execute on function public.aceptar_invitacion(text) to authenticated;
+
+-- ─── Grupo sanguíneo y discapacidad: solo los escribe el servicio médico ───
+-- Ya no se leen fuera del servicio (20261027210000); ahora RR. HH. y los demás roles de empresa tampoco
+-- los escriben por la API: al crear quedan vacíos y al editar se conserva lo que había.
+create or replace function public.salud_solo_servicio()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if auth.uid() is null or public.es_servicio(new.org_id) then return new; end if;
+  if tg_op = 'INSERT' then
+    new.grupo_sanguineo := null;
+    new.discapacidad := false;
+  else
+    new.grupo_sanguineo := old.grupo_sanguineo;
+    new.discapacidad := old.discapacidad;
+  end if;
+  return new;
+end $$;
+drop trigger if exists salud_solo_servicio on public.trabajadores;
+create trigger salud_solo_servicio before insert or update of grupo_sanguineo, discapacidad on public.trabajadores
+  for each row execute function public.salud_solo_servicio();

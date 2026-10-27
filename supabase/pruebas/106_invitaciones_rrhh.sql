@@ -58,6 +58,24 @@ exception when others then
   if sqlerrm like '%ya se usó%' then raise notice 'un enlace usado no sirve a otra cuenta (debe 1): 1';
   else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
+-- Un RR. HH. que el administrador desactivó no vuelve a entrar con otro enlace
+reset role;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas,activo) values ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000c2','gerente_empresa','{20000000-0000-0000-0000-00000000000b}',false);
+insert into public.invitaciones (id,org_id,empresa_id,token_hash) values ('7a000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',sha256(convert_to('token-desactivado','UTF8')));
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000c2',false) \g /dev/null
+do $$ begin
+  perform public.aceptar_invitacion('token-desactivado');
+  raise notice 'FALLA: un RR. HH. desactivado se reactivó con un enlace';
+exception when others then
+  if sqlerrm like '%desactivada%' then raise notice 'un RR. HH. desactivado no se reactiva con un enlace (debe 1): 1';
+  else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+reset role;
+select 'sigue desactivado y sin la empresa nueva (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000c2' and not activo and empresas_permitidas = '{20000000-0000-0000-0000-00000000000b}';
+select 'el enlace sigue sin usar (debe 1): ' || count(*) from public.invitaciones where id = '7a000000-0000-0000-0000-000000000004' and usada_por is null;
+set role authenticated;
 -- El médico no pierde su rol si abre un enlace
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 do $$ begin
@@ -80,6 +98,19 @@ exception when others then
   else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
 select 'el administrador recibe un aviso por cada aceptación (debe 2): ' || count(*) from public.notificaciones where titulo = 'RR. HH. aceptó la invitación' and usuario_id = '00000000-0000-0000-0000-0000000000a1';
+
+-- RR. HH. no escribe grupo sanguíneo ni discapacidad por la API
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+insert into public.trabajadores (org_id,empresa_id,cedula,nombres,apellidos,grupo_sanguineo,discapacidad) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','V-99106001','Prueba','Ciento seis','O+',true);
+update public.trabajadores set grupo_sanguineo = 'AB-', discapacidad = true where cedula = 'V-99106001';
+reset role;
+select 'RR. HH. no escribe datos de salud (debe 1): ' || count(*) from public.trabajadores where cedula = 'V-99106001' and grupo_sanguineo is null and not discapacidad;
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+update public.trabajadores set grupo_sanguineo = 'O+' where cedula = 'V-99106001';
+reset role;
+select 'el médico sí los escribe (debe 1): ' || count(*) from public.trabajadores where cedula = 'V-99106001' and grupo_sanguineo = 'O+';
+delete from public.trabajadores where cedula = 'V-99106001';
 
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null

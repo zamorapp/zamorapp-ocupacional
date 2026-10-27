@@ -142,7 +142,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
       )}
       <div className="space-y-2">
         <Label htmlFor="correo">Correo</Label>
-        <Input id="correo" name="correo" type="email" autoComplete="email" placeholder="medico@empresa.com" required={!modoDemo} className="h-11" />
+        <Input id="correo" name="correo" type="email" autoComplete="email" placeholder={siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"} required={!modoDemo} className="h-11" />
       </div>
       {recuperar && <p className="text-sm text-muted-foreground">Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva.</p>}
       {!recuperar && <div className="space-y-2">

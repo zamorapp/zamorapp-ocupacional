@@ -35,7 +35,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
       .insert(nuevos.map((n) => ({ ...n, org_id: sesion.orgId, empresa_id: empresaId })))
       .select("id");
     if (error) {
-      if (error.code === "23505") return { ok: false, mensaje: "Una de las cédulas nuevas ya está registrada en el servicio médico. Búscala por cédula; si no aparece, avísale al servicio médico." };
+      if (error.code === "23505") return { ok: false, mensaje: "No se pudo registrar uno de los trabajadores nuevos. Búscalo por cédula; si no aparece, avísale al servicio médico." };
       return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede registrar trabajadores en esa empresa." : error.message };
     }
     ids.push(...(creados ?? []).map((c) => c.id));

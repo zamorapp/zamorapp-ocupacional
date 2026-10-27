@@ -45,7 +45,7 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
           <>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">{inv.organizacion} te invita{inv.nombre ? `, ${inv.nombre.split(" ")[0]},` : ""} al portal de</p>
-              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight"><Building2 className="size-6 text-primary" /> {inv.empresa}</h1>
+              <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><Building2 className="mt-1 size-6 shrink-0 text-primary" /> {inv.empresa}</h1>
             </div>
             <ul className="space-y-2 text-sm">
               <li className="flex gap-2"><CalendarClock className="size-4 shrink-0 text-primary" /> Pide evaluaciones con fecha y hora, también para trabajadores nuevos.</li>

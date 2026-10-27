@@ -22,7 +22,7 @@ export function Bandeja({ grupos, plantillas }: { grupos: GrupoPorEnviar[]; plan
     );
   }
   return (
-    <ul className="grid gap-4 lg:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {grupos.map((g) => <Grupo key={`${g.empresaId}|${g.fecha}`} g={g} plantilla={plantillaInicial(plantillas.filter((p) => !p.empresaId || p.empresaId === g.empresaId), g.empresaId)} />)}
     </ul>
   );
@@ -89,15 +89,15 @@ function Grupo({ g, plantilla }: { g: GrupoPorEnviar; plantilla: Plantilla }) {
         {hecho.length > 0 ? (
           <div className="space-y-2">
             <p className="flex items-center gap-1.5 text-sm font-medium text-ok-texto"><CheckCircle2 className="size-4" /> Enlace listo. Si WhatsApp no se abrió, tócalo aquí:</p>
-            {hecho.map((h) => <Button key={h.whatsapp} size="sm" variant="outline" className="mr-2" asChild><a href={h.whatsapp} target="_blank" rel="noreferrer"><MessageCircle /> Abrir WhatsApp · {h.nombre}</a></Button>)}
+            {hecho.map((h) => <Button key={h.whatsapp} size="sm" variant="outline" className="mr-2 max-w-full" asChild><a href={h.whatsapp} target="_blank" rel="noreferrer"><MessageCircle /> <span className="truncate">Abrir WhatsApp · {h.nombre}</span></a></Button>)}
           </div>
         ) : (
           <>
             {conTelefono.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {conTelefono.map((c) => (
-                  <Button key={c.id} size="sm" disabled={trabajando} onClick={() => mandar(c.id, [c.id], [])}>
-                    {enCurso === c.id ? <Loader2 className="animate-spin" /> : <MessageCircle />} WhatsApp · {c.nombre}
+                  <Button key={c.id} size="sm" className="max-w-full" disabled={trabajando} onClick={() => mandar(c.id, [c.id], [])}>
+                    {enCurso === c.id ? <Loader2 className="animate-spin" /> : <MessageCircle />} <span className="truncate">WhatsApp · {c.nombre}</span>
                   </Button>
                 ))}
               </div>

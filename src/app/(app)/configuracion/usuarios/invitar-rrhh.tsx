@@ -72,7 +72,7 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
             {invitaciones.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{i.nombre || "Sin nombre"} <span className="font-normal text-muted-foreground">· {i.empresa}</span></span>
+                  <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"} <span className="font-normal text-muted-foreground">· {i.empresa}</span></span>
                   <span className="block text-xs text-muted-foreground">Creada el {dia(i.creadoEn)}{i.usadaEn ? ` · entró el ${dia(i.usadaEn)}` : i.estado === "vigente" ? ` · vence el ${dia(i.vence)}` : ""}</span>
                 </span>
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[i.estado].c)}>{ESTADO[i.estado].t}</span>
