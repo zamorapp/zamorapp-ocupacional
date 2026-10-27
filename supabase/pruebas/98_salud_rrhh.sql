@@ -77,4 +77,8 @@ select 'auditor no lee bitácora de empresa B (debe 0): ' || count(*) from publi
  where coalesce(despues, antes) ->> 'empresa_id' = '20000000-0000-0000-0000-00000000000b';
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 select 'admin clínico lee bitácora clínica (debe 1): ' || least(count(*),1) from public.bitacora where tabla like 'clinico.%';
+-- Conteo por empresa sin SELECT sobre toda la tabla: RR. HH. de A solo cuenta su empresa
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+select 'RR. HH. de A cuenta trabajadores solo de A (debe 1): ' || count(*) from public.trabajadores_por_empresa();
+select 'RR. HH. de A no cuenta los de B (debe 0): ' || count(*) from public.trabajadores_por_empresa() where empresa_id='20000000-0000-0000-0000-00000000000b';
 reset role;

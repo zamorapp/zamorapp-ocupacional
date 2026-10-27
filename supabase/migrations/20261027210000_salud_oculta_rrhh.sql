@@ -148,3 +148,12 @@ create policy bitacora_leer on public.bitacora for select using (
       or (public.mi_rol(org_id) = 'auditor'
           and public.puede_ver_empresa(org_id, nullif(coalesce(despues, antes) ->> case when tabla = 'public.empresas' then 'id' else 'empresa_id' end, '')::uuid))
   end);
+
+-- Trabajadores por empresa (lista de empresas). El embebido trabajadores(count) de PostgREST
+-- ya no sirve sin SELECT sobre toda la tabla; esto cuenta con las mismas reglas de acceso (invoker).
+create or replace function public.trabajadores_por_empresa()
+returns table (empresa_id uuid, total bigint) language sql stable security invoker set search_path = public as $$
+  select t.empresa_id, count(*) from public.trabajadores t group by t.empresa_id
+$$;
+revoke execute on function public.trabajadores_por_empresa() from public, anon;
+grant execute on function public.trabajadores_por_empresa() to authenticated;
