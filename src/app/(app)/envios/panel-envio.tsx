@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MARCA_FECHA, MENSAJE_ENVIO, mensajeSoloConstancias, type Canal, type Contacto, type ResultadoEnvio } from "@/lib/envios-tipos";
+import { MARCAS, mensajeSoloConstancias, plantillaInicial, rellenar, type Canal, type Contacto, type Plantilla, type ResultadoEnvio } from "@/lib/envios-tipos";
 import { cn } from "@/lib/utils";
 import { enviar } from "./acciones";
 import { Contactos } from "./contactos";
@@ -18,6 +18,7 @@ type Props = {
   fecha: string; // fecha del lote que queda en el registro de envíos
   consultaIds: string[]; // solo firmadas
   contactos: Contacto[];
+  plantillas?: Plantilla[]; // de la empresa y generales; sin plantillas se usa el texto de fábrica
   correo: string | null; // remitente configurado
   puedeAutorizar: boolean;
   historial?: string; // enlace a los envíos de la empresa (cuando el panel se usa fuera de Envíos)
@@ -30,12 +31,22 @@ const alternar = (set: Set<string>, id: string) => {
 };
 
 /** Destinatarios, canal y mensaje del envío a la empresa. Lo usan Envíos (lote del día) y Reportes › Aptitud emitida (lote del período). */
-export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, puedeAutorizar, historial }: Props) {
+export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas = [], correo, puedeAutorizar, historial }: Props) {
   const [canal, setCanal] = useState<Canal>("correo");
   const [para, setPara] = useState(() => new Set(contactos.filter((c) => c.correo).map((c) => c.id)));
   const [extra, setExtra] = useState("");
   const [conConsulta, setConConsulta] = useState(true);
-  const [mensaje, setMensaje] = useState(MENSAJE_ENVIO);
+  const opciones = plantillas.filter((p) => !p.empresaId || p.empresaId === empresa.id);
+  const [plantilla, setPlantilla] = useState(() => plantillaInicial(opciones, empresa.id));
+  const [asunto, setAsunto] = useState(plantilla.asunto);
+  const [mensaje, setMensaje] = useState(plantilla.mensaje);
+  const usarPlantilla = (id: string) => {
+    const p = opciones.find((x) => x.id === id);
+    if (!p) return;
+    setPlantilla(p);
+    setAsunto(p.asunto);
+    setMensaje(p.mensaje);
+  };
   const [resultado, setResultado] = useState<ResultadoEnvio | null>(null);
   const [enviando, iniciar] = useTransition();
 
@@ -47,7 +58,9 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
   const autorizados = incluir ? deSalud : [];
   const extras = extra.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
   const total = destinatarios.length + extras.length;
-  const ejemplo = mensaje.replaceAll(MARCA_FECHA, "27/10/2026, 3:40 p. m.");
+  const valores = { fechaHora: "27/10/2026, 3:40 p. m.", empresa: empresa.nombre, fecha: fecha.split("-").reverse().join("/"), cantidad: consultaIds.length };
+  const ejemplo = rellenar(mensaje, valores);
+  const paraRRHH = plantilla.mensajeConstancias ? rellenar(plantilla.mensajeConstancias, valores) : mensajeSoloConstancias(ejemplo);
   const cambiarCanal = (c: Canal) => {
     setCanal(c);
     setPara(new Set(contactos.filter((x) => (c === "correo" ? x.correo : x.telefono)).map((x) => x.id)));
@@ -74,6 +87,8 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
           canal,
           incluirConsulta: incluir,
           mensaje,
+          asunto,
+          mensajeConstancias: plantilla.mensajeConstancias,
         }),
       );
     });
@@ -134,10 +149,28 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
           <p className="text-xs text-muted-foreground">Por WhatsApp va un enlace seguro a las constancias que vence en 7 días y se puede anular. La consulta médica nunca va por WhatsApp.</p>
         )}
 
-        <div>
-          <Label htmlFor="mensaje" className="mb-1.5">Mensaje</Label>
-          <Textarea id="mensaje" rows={5} value={mensaje} onChange={(e) => setMensaje(e.target.value)} />
-          <p className="mt-1 text-xs text-muted-foreground">{MARCA_FECHA} se cambia por la fecha y hora del envío. A quien no recibe la consulta le llega: «{mensajeSoloConstancias(ejemplo).slice(0, 110)}…»</p>
+        <div className="space-y-3">
+          {opciones.length > 1 && (
+            <div>
+              <Label htmlFor="plantilla" className="mb-1.5">Plantilla</Label>
+              <select id="plantilla" value={plantilla.id} onChange={(e) => usarPlantilla(e.target.value)} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm">
+                {opciones.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.empresaId ? " · solo esta empresa" : ""}{p.predeterminada ? " (predeterminada)" : ""}</option>)}
+              </select>
+            </div>
+          )}
+          {canal === "correo" && (
+            <div>
+              <Label htmlFor="asunto" className="mb-1.5">Asunto</Label>
+              <input id="asunto" value={asunto} onChange={(e) => setAsunto(e.target.value)} maxLength={200} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm" />
+            </div>
+          )}
+          <div>
+            <Label htmlFor="mensaje" className="mb-1.5">Mensaje</Label>
+            <Textarea id="mensaje" rows={5} value={mensaje} onChange={(e) => setMensaje(e.target.value)} />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Se cambian al enviar: {MARCAS.map((m) => m.marca).join(", ")}. A quien no recibe la consulta le llega: «{paraRRHH.slice(0, 110)}{paraRRHH.length > 110 ? "…" : ""}» <Link href="/envios/plantillas" className="text-primary hover:underline">Editar plantillas</Link>
+            </p>
+          </div>
         </div>
 
         <Button className="w-full" size="lg" disabled={enviando || !consultaIds.length || !total || (canal === "correo" && !correo)} onClick={mandar}>

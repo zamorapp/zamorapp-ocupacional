@@ -2,15 +2,19 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { correoConfigurado, enviarCorreo } from "@/lib/correo";
 import {
+  ASUNTO_ENVIO,
   CORREO_VALIDO,
-  MARCA_FECHA,
+  ESPERA_SIN_CONFIRMAR_MIN,
   MAX_LOTE,
   mensajeSoloConstancias,
+  rellenar,
   telefonoWhatsApp,
   type ConsultaLote,
   type Contacto,
   type EntradaEnvio,
   type EnvioHistorial,
+  type FilaBitacora,
+  type Plantilla,
   type ResultadoEnvio,
 } from "@/lib/envios-tipos";
 import { pdfDeRutas } from "@/lib/pdf-servidor";
@@ -81,29 +85,123 @@ export async function historialEnvios(empresaId: string, limite = 40): Promise<E
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("envios")
-    .select("id, creado_en, fecha_lote, canal, destinatario, documentos, consultas, estado, error, envio_enlaces(vence, revocado_en, envio_aperturas(count))")
+    .select(CAMPOS_HISTORIAL)
     .eq("empresa_id", empresaId)
     .order("creado_en", { ascending: false })
     .limit(limite);
-  type Enlace = { vence: string; revocado_en: string | null; envio_aperturas: { count: number }[] };
-  return (data ?? []).map((e) => {
-    const l = (Array.isArray(e.envio_enlaces) ? e.envio_enlaces[0] : e.envio_enlaces) as Enlace | null | undefined;
+  return (data ?? []).map(aHistorial);
+}
+
+const CAMPOS_HISTORIAL = "id, creado_en, fecha_lote, canal, destinatario, documentos, consultas, estado, error, reintento_de, envio_enlaces(vence, revocado_en, envio_aperturas(count))";
+type Enlace = { vence: string; revocado_en: string | null; envio_aperturas: { count: number }[] };
+type FilaEnvio = {
+  id: string; creado_en: string; fecha_lote: string; canal: EnvioHistorial["canal"]; destinatario: string; documentos: string[];
+  consultas: string[]; estado: EnvioHistorial["estado"]; error: string | null; reintento_de: string | null; envio_enlaces: Enlace[] | Enlace | null;
+};
+function aHistorial(e: FilaEnvio): EnvioHistorial {
+  const l = Array.isArray(e.envio_enlaces) ? e.envio_enlaces[0] : e.envio_enlaces;
+  return {
+    id: e.id,
+    creadoEn: e.creado_en,
+    fechaLote: e.fecha_lote,
+    canal: e.canal,
+    destinatario: e.destinatario,
+    documentos: e.documentos,
+    cantidad: e.consultas.length,
+    estado: e.estado,
+    error: e.error,
+    enlace: l ? { vence: l.vence, revocado: Boolean(l.revocado_en), aperturas: l.envio_aperturas?.[0]?.count ?? 0 } : null,
+    reintentoDe: e.reintento_de,
+  };
+}
+
+const sinConfirmarViejo = (estado: string, creadoEn: string) => estado === "enviando" && Date.now() - new Date(creadoEn).getTime() > ESPERA_SIN_CONFIRMAR_MIN * 60_000;
+
+export type FiltrosBitacora = { empresaId?: string; estado?: string; canal?: string; desde?: string; hasta?: string };
+
+// Bitácora de todas las empresas: qué salió, a quién, quién lo envió y qué falló (y si ya se reintentó)
+export async function bitacora(f: FiltrosBitacora, limite = 300): Promise<FilaBitacora[]> {
+  const supabase = await crearClienteServidor();
+  let q = supabase
+    .from("envios")
+    .select(`${CAMPOS_HISTORIAL}, empresa_id, asunto, enviado_por, empresas(razon_social, nombre_comercial)`)
+    .order("creado_en", { ascending: false })
+    .limit(limite);
+  if (f.empresaId) q = q.eq("empresa_id", f.empresaId);
+  if (f.canal === "correo" || f.canal === "whatsapp") q = q.eq("canal", f.canal);
+  if (f.estado === "fallido" || f.estado === "enviado" || f.estado === "enlace" || f.estado === "enviando") q = q.eq("estado", f.estado);
+  if (f.estado === "pendiente") q = q.in("estado", ["fallido", "enviando"]);
+  if (f.desde) q = q.gte("creado_en", `${f.desde}T00:00:00-04:00`);
+  if (f.hasta) q = q.lte("creado_en", `${f.hasta}T23:59:59-04:00`);
+  const { data } = await q;
+  type Fila = FilaEnvio & { empresa_id: string; asunto: string; enviado_por: string; empresas: { razon_social: string; nombre_comercial: string | null } | null };
+  const filas = (data ?? []) as unknown as Fila[];
+  const ids = filas.map((e) => e.id);
+  const autores = [...new Set(filas.map((e) => e.enviado_por))];
+  const [{ data: hijos }, { data: perfiles }] = await Promise.all([
+    ids.length ? supabase.from("envios").select("reintento_de").in("reintento_de", ids) : Promise.resolve({ data: [] as { reintento_de: string }[] }),
+    autores.length ? supabase.from("perfiles").select("id, nombre_completo").in("id", autores) : Promise.resolve({ data: [] as { id: string; nombre_completo: string }[] }),
+  ]);
+  const reintentados = new Set((hijos ?? []).map((h) => h.reintento_de));
+  const nombres = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo as string]));
+  return filas.map((e) => {
+    const reintentado = reintentados.has(e.id);
     return {
-      id: e.id,
-      creadoEn: e.creado_en,
-      fechaLote: e.fecha_lote,
-      canal: e.canal,
-      destinatario: e.destinatario,
-      documentos: e.documentos,
-      cantidad: (e.consultas as string[]).length,
-      estado: e.estado,
-      error: e.error,
-      enlace: l ? { vence: l.vence, revocado: Boolean(l.revocado_en), aperturas: l.envio_aperturas?.[0]?.count ?? 0 } : null,
+      ...aHistorial(e),
+      empresaId: e.empresa_id,
+      empresa: e.empresas ? e.empresas.nombre_comercial || e.empresas.razon_social : "—",
+      asunto: e.asunto,
+      enviadoPor: nombres.get(e.enviado_por) ?? null,
+      reintentado,
+      reintentable: e.canal === "correo" && !reintentado && (e.estado === "fallido" || sinConfirmarViejo(e.estado, e.creado_en)),
     };
   });
 }
 
+export async function listarPlantillas(): Promise<Plantilla[]> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase
+    .from("plantillas_correo")
+    .select("id, empresa_id, nombre, asunto, mensaje, mensaje_constancias, predeterminada")
+    .eq("activo", true)
+    .order("predeterminada", { ascending: false })
+    .order("nombre");
+  return (data ?? []).map((p) => ({
+    id: p.id,
+    empresaId: p.empresa_id,
+    nombre: p.nombre,
+    asunto: p.asunto,
+    mensaje: p.mensaje,
+    mensajeConstancias: p.mensaje_constancias,
+    predeterminada: p.predeterminada,
+  }));
+}
+
 const hex = (b: Buffer) => "\\x" + b.toString("hex");
+
+type Cliente = Awaited<ReturnType<typeof crearClienteServidor>>;
+type Adjunto = { nombre: string; contenido: Buffer };
+type Detalle = NonNullable<ResultadoEnvio["detalle"]>[number];
+
+// Un correo: primero se registra (la base valida firma, empresa y destinatario autorizado); si lo rechaza, el correo no sale.
+// Después se cierra el registro como enviado o fallido.
+async function correoRegistrado(supabase: Cliente, fila: Record<string, unknown>, adjuntos: Adjunto[], remitente: string): Promise<Detalle> {
+  const destinatario = String(fila.destinatario);
+  const { data: registro, error: errReg } = await supabase.from("envios").insert({ ...fila, estado: "enviando" }).select("id").single();
+  if (errReg || !registro) return { destinatario, estado: "fallido", error: `No se envió: ${errReg?.message ?? "sin registro"}` };
+  let estado: "enviado" | "fallido" = "enviado";
+  let error: string | undefined;
+  try {
+    await enviarCorreo({ para: destinatario, asunto: String(fila.asunto), texto: String(fila.mensaje), nombreRemitente: remitente, adjuntos });
+  } catch (err) {
+    estado = "fallido";
+    error = (err as Error).message.slice(0, 300);
+  }
+  const { error: errCierre } = await supabase.from("envios").update({ estado, error: error ?? null }).eq("id", registro.id);
+  return { destinatario, estado, error: error ?? (errCierre ? `Enviado; el registro quedó «sin confirmar»: ${errCierre.message}` : undefined) };
+}
+
+const nombreArchivo = (empresa: string, fecha: string) => `${empresa} - ${fechaVE(fecha).replaceAll("/", "-")}.pdf`.replace(/[\\/:*?"<>|]/g, " ");
 
 export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   const sesion = await obtenerSesion();
@@ -156,7 +254,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
 
   // PDF en el servidor, con la sesión de quien envía
   const nombreEmpresa = empresa.nombre_comercial || empresa.razon_social;
-  const sufijo = `${nombreEmpresa} - ${fechaVE(e.fecha).replaceAll("/", "-")}.pdf`.replace(/[\\/:*?"<>|]/g, " ");
+  const sufijo = nombreArchivo(nombreEmpresa, e.fecha);
   const rutas = [conConstancia.length ? `/imprimir/lote?doc=constancia&ids=${conConstancia.map((c) => c.id).join(",")}` : null, llevanConsulta ? `/imprimir/lote?doc=consulta&ids=${validasIds.join(",")}` : null];
   let pdfs: Buffer[];
   try {
@@ -168,15 +266,18 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   const consultaPdf = llevanConsulta ? { nombre: `Consultas médicas - ${sufijo}`, contenido: pdfs[pdfs.length - 1] } : null;
 
   const cuando = ahoraVE();
-  const texto = (e.mensaje.trim() || "").replaceAll(MARCA_FECHA, cuando);
-  const asunto = `Evaluaciones médicas · ${nombreEmpresa} · ${fechaVE(e.fecha)}`;
+  const marcas = (cantidad: number) => ({ fechaHora: cuando, empresa: nombreEmpresa, fecha: fechaVE(e.fecha), cantidad });
   const detalle: NonNullable<ResultadoEnvio["detalle"]> = [];
   const enlaces: NonNullable<ResultadoEnvio["enlaces"]> = [];
 
   for (const d of destinos) {
     const docs = [constancias && "constancia", d.consulta && consultaPdf && "consulta"].filter(Boolean) as string[];
     if (!docs.length) continue;
-    const cuerpo = d.consulta ? texto : mensajeSoloConstancias(texto);
+    const cantidad = docs.includes("consulta") ? validasIds.length : conConstancia.length;
+    const texto = rellenar(e.mensaje.trim(), marcas(cantidad));
+    const paraRRHH = e.mensajeConstancias?.trim();
+    const cuerpo = d.consulta ? texto : paraRRHH ? rellenar(paraRRHH, marcas(cantidad)) : mensajeSoloConstancias(texto);
+    const asunto = rellenar(e.asunto?.trim() || ASUNTO_ENVIO, marcas(cantidad)).slice(0, 200);
     const fila = {
       org_id: sesion.orgId,
       empresa_id: e.empresaId,
@@ -191,28 +292,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
     };
 
     if (e.canal === "correo") {
-      // Primero se registra (la base valida firma, empresa y destinatario autorizado); si lo rechaza, el correo no sale
-      const { data: registro, error: errReg } = await supabase.from("envios").insert({ ...fila, estado: "enviando" }).select("id").single();
-      if (errReg || !registro) {
-        detalle.push({ destinatario: d.destino, estado: "fallido", error: `No se envió: ${errReg?.message ?? "sin registro"}` });
-        continue;
-      }
-      let estado: "enviado" | "fallido" = "enviado";
-      let error: string | undefined;
-      try {
-        await enviarCorreo({
-          para: d.destino,
-          asunto,
-          texto: cuerpo,
-          nombreRemitente: `${sesion.nombre} · ${sesion.organizacion}`,
-          adjuntos: [constancias, d.consulta ? consultaPdf : null].filter((a) => a !== null),
-        });
-      } catch (err) {
-        estado = "fallido";
-        error = (err as Error).message.slice(0, 300);
-      }
-      const { error: errCierre } = await supabase.from("envios").update({ estado, error: error ?? null }).eq("id", registro.id);
-      detalle.push({ destinatario: d.destino, estado, error: error ?? (errCierre ? `Enviado; el registro quedó «sin confirmar»: ${errCierre.message}` : undefined) });
+      detalle.push(await correoRegistrado(supabase, fila, [constancias, d.consulta ? consultaPdf : null].filter((a) => a !== null), `${sesion.nombre} · ${sesion.organizacion}`));
       continue;
     }
 
@@ -251,4 +331,88 @@ export async function revocarEnlace(envioId: string) {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("envio_enlaces").update({ revocado_en: new Date().toISOString() }).eq("envio_id", envioId).is("revocado_en", null);
   return error ? error.message : null;
+}
+
+const MAX_REINTENTOS = 10;
+
+// Reintenta correos fallidos o sin confirmar: vuelve a generar el PDF y manda el mismo correo (mismo destinatario,
+// documentos y texto) como un envío nuevo enlazado al original. La base vuelve a validar firma y autorización.
+export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  if (!sesion.clinico) return { ok: false, mensaje: "Solo el personal de salud reenvía documentos a la empresa." };
+  if (!correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+  const lista = [...new Set(ids)].slice(0, MAX_REINTENTOS);
+  if (!lista.length) return { ok: false, mensaje: "No hay envíos para reintentar." };
+  const supabase = await crearClienteServidor();
+  const [{ data }, { data: hijos }] = await Promise.all([
+    supabase
+      .from("envios")
+      .select("id, org_id, empresa_id, fecha_lote, canal, destinatario, contacto_id, consultas, documentos, asunto, mensaje, estado, creado_en, empresas(razon_social, nombre_comercial)")
+      .in("id", lista),
+    supabase.from("envios").select("reintento_de").in("reintento_de", lista),
+  ]);
+  type Original = {
+    id: string; org_id: string; empresa_id: string; fecha_lote: string; canal: string; destinatario: string; contacto_id: string | null;
+    consultas: string[]; documentos: string[]; asunto: string; mensaje: string; estado: string; creado_en: string;
+    empresas: { razon_social: string; nombre_comercial: string | null } | null;
+  };
+  const yaReintentados = new Set((hijos ?? []).map((h) => h.reintento_de));
+  const originales = ((data ?? []) as unknown as Original[]).filter(
+    (o) => o.canal === "correo" && !yaReintentados.has(o.id) && (o.estado === "fallido" || sinConfirmarViejo(o.estado, o.creado_en)),
+  );
+  if (!originales.length) return { ok: false, mensaje: "Esos envíos ya salieron o ya se reintentaron." };
+
+  // Un PDF por lote y documento, compartido entre los reintentos que llevan las mismas consultas
+  const pdfs = new Map<string, Buffer>();
+  const detalle: Detalle[] = [];
+  for (const o of originales) {
+    const empresa = o.empresas ? o.empresas.nombre_comercial || o.empresas.razon_social : "Empresa";
+    const adjuntos: Adjunto[] = [];
+    try {
+      for (const doc of o.documentos) {
+        const clave = `${doc}|${[...o.consultas].sort().join(",")}`;
+        if (!pdfs.has(clave)) pdfs.set(clave, (await pdfDeRutas([`/imprimir/lote?doc=${doc}&ids=${o.consultas.join(",")}`]))[0]);
+        adjuntos.push({ nombre: `${doc === "consulta" ? "Consultas médicas" : "Constancias de aptitud"} - ${nombreArchivo(empresa, o.fecha_lote)}`, contenido: pdfs.get(clave)! });
+      }
+    } catch (err) {
+      detalle.push({ destinatario: o.destinatario, estado: "fallido", error: `No se pudo generar el PDF: ${(err as Error).message}` });
+      continue;
+    }
+    const fila = {
+      org_id: o.org_id,
+      empresa_id: o.empresa_id,
+      fecha_lote: o.fecha_lote,
+      canal: "correo",
+      destinatario: o.destinatario,
+      contacto_id: o.contacto_id,
+      consultas: o.consultas,
+      documentos: o.documentos,
+      asunto: o.asunto,
+      mensaje: o.mensaje,
+      reintento_de: o.id,
+    };
+    detalle.push(await correoRegistrado(supabase, fila, adjuntos, `${sesion.nombre} · ${sesion.organizacion}`));
+  }
+  const bien = detalle.filter((d) => d.estado === "enviado").length;
+  const mal = detalle.length - bien;
+  const resto = [...new Set(ids)].length - lista.length;
+  const partes = [
+    `${bien} correo${bien === 1 ? "" : "s"} reenviado${bien === 1 ? "" : "s"}`,
+    mal ? `${mal} volvió a fallar` : null,
+    resto > 0 ? `quedan ${resto}: vuelve a tocar «Reintentar»` : null,
+  ].filter(Boolean);
+  return { ok: bien > 0, mensaje: partes.join(" · ") + ".", detalle };
+}
+
+// Correos fallidos o sin confirmar de los últimos 30 días que aún no se reintentaron (número en la pestaña Bitácora)
+export async function contarPendientes(): Promise<number> {
+  const supabase = await crearClienteServidor();
+  const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const { data } = await supabase.from("envios").select("id, estado, creado_en").eq("canal", "correo").in("estado", ["fallido", "enviando"]).gte("creado_en", desde).limit(200);
+  const candidatos = (data ?? []).filter((e) => e.estado === "fallido" || sinConfirmarViejo(e.estado, e.creado_en));
+  if (!candidatos.length) return 0;
+  const { data: hijos } = await supabase.from("envios").select("reintento_de").in("reintento_de", candidatos.map((e) => e.id));
+  const hechos = new Set((hijos ?? []).map((h) => h.reintento_de));
+  return candidatos.filter((e) => !hechos.has(e.id)).length;
 }

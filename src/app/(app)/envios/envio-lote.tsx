@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, FileText, Link2Off, Mail, MessageCircle } 
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ConsultaLote, Contacto, EnvioHistorial } from "@/lib/envios-tipos";
+import type { ConsultaLote, Contacto, EnvioHistorial, Plantilla } from "@/lib/envios-tipos";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { anularEnlace } from "./acciones";
@@ -18,6 +18,7 @@ type Props = {
   consultas: ConsultaLote[];
   contactos: Contacto[];
   historial: EnvioHistorial[];
+  plantillas: Plantilla[];
   correo: string | null; // remitente configurado
   puedeAutorizar: boolean;
 };
@@ -25,7 +26,7 @@ type Props = {
 const fechaHora = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
-export function EnvioLote({ empresa, fecha, consultas, contactos, historial, correo, puedeAutorizar }: Props) {
+export function EnvioLote({ empresa, fecha, consultas, contactos, historial, plantillas, correo, puedeAutorizar }: Props) {
   // Por defecto: las firmadas que aún no salieron
   const [marcadas, setMarcadas] = useState(() => new Set(consultas.filter((c) => c.firmada && !c.enviada).map((c) => c.id)));
   const [ignorarAviso, setIgnorarAviso] = useState(false);
@@ -89,11 +90,11 @@ export function EnvioLote({ empresa, fecha, consultas, contactos, historial, cor
           </CardContent>
         </Card>
 
-        <PanelEnvio empresa={empresa} fecha={fecha} consultaIds={elegidas.map((c) => c.id)} contactos={contactos} correo={correo} puedeAutorizar={puedeAutorizar} />
+        <PanelEnvio empresa={empresa} fecha={fecha} consultaIds={elegidas.map((c) => c.id)} contactos={contactos} plantillas={plantillas} correo={correo} puedeAutorizar={puedeAutorizar} />
       </div>
 
       <Card className="gap-0 py-0">
-        <CardHeader className="border-b py-4"><CardTitle className="text-base">Envíos a esta empresa</CardTitle></CardHeader>
+        <CardHeader className="border-b py-4"><CardTitle className="flex items-center justify-between gap-2 text-base">Envíos a esta empresa <Link href={`/envios/bitacora?empresa=${empresa.id}`} className="text-sm font-normal text-primary hover:underline">Bitácora completa</Link></CardTitle></CardHeader>
         <CardContent className="px-0">
           {historial.length === 0 ? <p className="px-6 py-8 text-center text-sm text-muted-foreground">Aún no hay envíos.</p> : (
             <ul className="divide-y">
