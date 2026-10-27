@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Direcciones con las que la ventana de zamorApp Escritorio abre la app local
 const HOSTS_ESCRITORIO = ["127.0.0.1:54332", "localhost:54332"];
-const COOKIE_DOS_PASOS = "zamorapp-dos-pasos";
 
 // Refresca la sesión de Supabase y protege las rutas internas.
 // Sin Supabase configurado la app corre en modo demo y no bloquea nada.
@@ -56,19 +55,15 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verificación en dos pasos (administrador y gerente médico): sin el código de 6 dígitos no se abre nada.
-  // Las sesiones de la puerta local del escritorio no traen "aal": ahí lo controla la puerta.
+  // La puerta local del escritorio pone "aal" solo a quien la necesita (la verificación pasa por ella a la nube).
   const ruta = request.nextUrl.pathname;
   const enDosPasos = ruta.startsWith("/login/dos-pasos");
   const aal = data?.claims?.aal;
   if (conSesion && aal === "aal2" && enDosPasos) return irA("/panel");
   if (conSesion && aal === "aal1" && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
-    const sub = String(data?.claims?.sub);
-    // Quien no la necesita queda anotado 10 minutos para no preguntar en cada pantalla (la base igual la exige)
-    if (request.cookies.get(COOKIE_DOS_PASOS)?.value !== `${sub}:no`) {
-      const { data: requiere, error } = await supabase.rpc("requiere_dos_pasos");
-      if (requiere === true) return irA("/login/dos-pasos");
-      if (!error) respuesta.cookies.set(COOKIE_DOS_PASOS, `${sub}:no`, { maxAge: 600, httpOnly: true, sameSite: "lax", path: "/" });
-    }
+    // Sin caché: una cookie se podría falsificar. Es una consulta liviana y solo para sesiones aal1.
+    const { data: requiere } = await supabase.rpc("requiere_dos_pasos");
+    if (requiere === true) return irA("/login/dos-pasos");
   }
 
   if (conSesion && enLogin && !ruta.startsWith("/login/nueva-clave") && !enDosPasos) {

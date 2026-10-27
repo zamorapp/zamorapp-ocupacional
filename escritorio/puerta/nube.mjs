@@ -26,11 +26,11 @@ export class Nube {
   }
 
   // Devuelve { ok, status, cuerpo } tal como responde Supabase Auth.
-  async auth(ruta, cuerpo, token) {
+  async auth(ruta, cuerpo, token, metodo) {
     const r = await fetch(`${CONFIG.nube}/auth/v1/${ruta}`, {
-      method: cuerpo === undefined ? "GET" : (ruta === "user" ? "PUT" : "POST"),
+      method: metodo || (cuerpo === undefined ? "GET" : (ruta === "user" ? "PUT" : "POST")),
       headers: this.cabeceras(token),
-      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+      body: cuerpo === undefined || cuerpo === null ? undefined : JSON.stringify(cuerpo),
       signal: AbortSignal.timeout(15000),
     });
     const texto = await r.text();

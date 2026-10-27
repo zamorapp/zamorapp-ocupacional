@@ -33,6 +33,7 @@ export async function confirmarCodigo(supabase: SupabaseClient, factorId: string
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: limpio });
   if (!error) return null;
   if (error.status === 429) return "Demasiados intentos. Espera unos minutos y vuelve a probar.";
+  if (error.status === 503) return error.message; // programa de escritorio sin internet (aviso de la puerta)
   if (error.code === "mfa_verification_failed" || error.code === "mfa_challenge_expired") return "El código no es correcto o ya cambió. Escribe el que muestra ahora la app.";
   return "No se pudo verificar el código. Revisa la hora del teléfono (automática) e intenta de nuevo.";
 }

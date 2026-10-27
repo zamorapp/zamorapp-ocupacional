@@ -256,6 +256,40 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   nube.usuarios["meda@x"].clave = "clave-med";
 });
 
+test("verificación en dos pasos: la puerta pide el código para abrir la app y para registrar una PC", { skip: omitir }, async () => {
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  try {
+    const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+    assert.equal(r.status, 200);
+    const token = r.json.access_token;
+    assert.equal(aal(token), "aal1", "el administrador entra con aal1 y la app le pide el código");
+    const m = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+    assert.equal(aal(m.json.access_token), undefined, "al médico no se le pide");
+
+    let eq = await pedir("/zamorapp/equipo", { metodo: "POST", token, cuerpo: { nombre: "Otra PC", serie: "QZ" } });
+    assert.equal(eq.status, 401);
+    assert.equal(eq.json.code, "dos_pasos");
+    eq = await pedir("/zamorapp/equipo", { metodo: "POST", token, cuerpo: { nombre: "Otra PC", serie: "QZ", codigo: "000000" } });
+    assert.equal(eq.status, 401);
+    assert.match(eq.json.message, /no es correcto/);
+
+    const mal = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token, cuerpo: { challenge_id: "reto-1", code: "111111" } });
+    assert.equal(mal.status, 422);
+    assert.equal((await pedir("/auth/v1/factors/f-admin/challenge", { metodo: "POST", token, cuerpo: {} })).status, 200);
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    assert.equal(aal(ok.json.access_token), "aal2");
+    assert.equal(aal(estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"].nube.access_token), "aal2", "la sesión de la nube también queda aal2");
+    const ren = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+    assert.equal(aal(ren.json.access_token), "aal2", "renovar conserva el segundo paso");
+  } finally {
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
 test("la ventana de la app puede llamar a la puerta (CORS con las cabeceras de supabase-js)", { skip: omitir }, async () => {
   const pedidas = "apikey,authorization,content-type,x-client-info,x-supabase-api-version";
   const r = await fetch(`${urlPuerta}/auth/v1/token?grant_type=password`, { method: "OPTIONS", headers: {

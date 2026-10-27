@@ -14,15 +14,9 @@ do $$ begin
 exception when insufficient_privilege then raise notice 'los ajustes de seguridad no se leen desde la API (ok)'; end $$;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 
--- Freno en la base: apagado no frena a nadie
-reset role;
+-- Freno encendido (así queda la migración)
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1"}',false) \g /dev/null
-set role authenticated;
-select 'apagado: admin aal1 pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
-
-reset role;
-update public.ajustes_seguridad set valor = true where clave = 'dos_pasos_en_base';
-set role authenticated;
+select set_config('request.path','/clinico/consultas',false) \g /dev/null
 do $$ begin
   perform public.verificar_dos_pasos();
   raise notice 'admin sin el segundo paso: FALLA';
@@ -30,17 +24,46 @@ exception when others then
   if sqlstate = 'PGRST' and sqlerrm like '%dos_pasos%' then raise notice 'admin sin el segundo paso queda frenado (ok)';
   else raise notice 'admin sin el segundo paso, error inesperado %: FALLA', sqlerrm; end if;
 end $$;
+select 'admin aal1 no ve archivos adjuntos (debe 0): ' || public.dos_pasos_cumplido()::int;
+do $$ begin
+  perform public.registrar_equipo('10000000-0000-0000-0000-000000000001','PC robada','Q');
+  raise notice 'admin aal1 registra una PC: FALLA';
+exception when insufficient_privilege then raise notice 'admin aal1 no registra una PC (ok)'; end $$;
 select set_config('request.path','/rpc/requiere_dos_pasos',false) \g /dev/null
 select 'admin aal1 puede preguntar si la necesita (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select set_config('request.path','/rpc/cambios_desde',false) \g /dev/null
+select 'admin aal1: la sincronía del escritorio pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select set_config('request.path','/miembros',false) \g /dev/null
+select set_config('request.method','GET',false) \g /dev/null
+select 'admin aal1 lee su fila de miembros (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select set_config('request.method','PATCH',false) \g /dev/null
+do $$ begin
+  perform public.verificar_dos_pasos();
+  raise notice 'admin aal1 cambia miembros: FALLA';
+exception when others then raise notice 'admin aal1 no cambia miembros (ok)'; end $$;
 select set_config('request.path','/clinico/consultas',false) \g /dev/null
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal2"}',false) \g /dev/null
 select 'admin con el segundo paso pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select 'admin aal2 registra una PC (debe 1): ' || count(*) from (select public.registrar_equipo('10000000-0000-0000-0000-000000000001','PC nueva','Q')) x;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated","aal":"aal1"}',false) \g /dev/null
 select 'médico aal1 pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}',false) \g /dev/null
 select 'sesión de la puerta local (sin aal) pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
 
+-- Freno apagado: no frena, pero registrar una PC sigue exigiendo el segundo paso
 reset role;
 update public.ajustes_seguridad set valor = false where clave = 'dos_pasos_en_base';
+set role authenticated;
+select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1"}',false) \g /dev/null
+select 'apagado: admin aal1 pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+do $$ begin
+  perform public.registrar_equipo('10000000-0000-0000-0000-000000000001','PC robada 2','R');
+  raise notice 'apagado: admin aal1 registra una PC: FALLA';
+exception when insufficient_privilege then raise notice 'apagado: admin aal1 sigue sin registrar una PC (ok)'; end $$;
+
+reset role;
+update public.ajustes_seguridad set valor = true where clave = 'dos_pasos_en_base';
+delete from public.equipos where nombre = 'PC nueva';
 select set_config('request.jwt.claims','',false) \g /dev/null
 select set_config('request.path','',false) \g /dev/null
+select set_config('request.method','',false) \g /dev/null
