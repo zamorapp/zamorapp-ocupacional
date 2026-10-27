@@ -1,17 +1,17 @@
-# Programa de escritorio para Windows: prueba la puerta local con PostgreSQL y PostgREST reales
-# y arma el instalador. Corre en ramas escritorio/*, en PR que tocan el escritorio, al llegar a main, o a mano.
-# Cada corrida cuesta ~50 min del plan gratuito (Windows cuenta doble): por eso un PR que solo trae
-# migraciones NO corre aquí; se prueba una sola vez cuando llega a main.
+# Prueba de humo del programa de escritorio para Windows: arma el instalador real, lo instala encima de la
+# versión anterior, lo abre 6 veces, prueba una PC nueva, el ingreso por la ventana, las descargas y la
+# actualización automática. Cuesta ~34 min cobrables del plan gratuito (Windows cuenta doble), por eso corre
+# SOLO: a mano (workflow_dispatch), cuando un PR pide revisión o deja de ser borrador, y al llegar a main.
+# Las pruebas baratas (base, puerta, compilación) corren en cada envío en escritorio-linux.yml.
 name: Escritorio (Windows)
 
 on:
-  # main: una corrida por fusión que toque la base o el escritorio (deja el instalador vigente como artefacto).
-  # El filtro de rutas también aplica a escritorio/**, donde todo cambio debe correr: por eso incluye supabase.
   push:
-    branches: ["escritorio/**", "main"]
+    branches: ["main"]
     paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml"]
   pull_request:
-    paths: ["escritorio/**", ".github/workflows/escritorio.yml"]
+    types: [ready_for_review, review_requested]
+    paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml"]
   workflow_dispatch:
     inputs:
       publicar:
@@ -25,8 +25,6 @@ concurrency:
 
 jobs:
   windows:
-    # Las ramas escritorio/* ya corren por push: su PR no repite la corrida
-    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'escritorio/')
     runs-on: windows-latest
     timeout-minutes: 75
     permissions:
@@ -260,6 +258,12 @@ jobs:
             gh run download $previa --repo $env:GITHUB_REPOSITORY --name zamorapp-instalador-windows --dir previa 2>$null
           }
           $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $setupPrevio) {
+            # Los artefactos duran 3 días: si no hay, se usa la última versión publicada (lo que Cesar tiene de verdad)
+            gh release download --repo gestionesaguamiel-web/zamorapp-descargas --pattern "*.exe" --dir previa 2>$null
+            $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($setupPrevio) { $previa = "última publicada" }
+          }
           if ($setupPrevio) {
             Write-Host "Versión anterior: corrida $previa ($($setupPrevio.Name))"
             Instalar $setupPrevio.FullName
@@ -380,5 +384,5 @@ jobs:
         with:
           name: zamorapp-instalador-windows
           path: escritorio/src-tauri/target/release/bundle/nsis/*.exe
-          # 68 MB por corrida contra 500 MB de cuota: en ramas dura 3 días; en main (instalador vigente) 30
-          retention-days: ${{ github.ref == 'refs/heads/main' && 30 || 3 }}
+          # 68 MB por corrida contra 500 MB de cuota (Cesar, 2026-10-27): 3 días. El oficial vive en zamorapp-descargas.
+          retention-days: 3

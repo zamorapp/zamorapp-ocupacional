@@ -1,0 +1,68 @@
+# Pruebas baratas en Linux (cuentan la mitad que Windows): reglas de acceso de la base, puerta local con
+# PostgreSQL y PostgREST reales y compilación de la app en modo escritorio. Corren en cada envío.
+# La prueba de humo del instalador (Windows, ~34 min cobrables) queda en escritorio.yml y corre solo a mano,
+# al pedir revisión de un PR o al llegar a main.
+name: Escritorio (Linux)
+
+on:
+  push:
+    branches: ["escritorio/**", "main"]
+    paths: ["supabase/**", "escritorio/**", "src/**", "package.json", ".github/workflows/escritorio-linux.yml"]
+  pull_request:
+    paths: ["supabase/**", "escritorio/**", ".github/workflows/escritorio-linux.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: escritorio-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGREST_VERSION: "v12.2.3"
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: PostgreSQL del runner y PostgREST
+        run: |
+          set -e
+          sudo systemctl start postgresql
+          sudo -u postgres psql -c "alter user postgres password 'postgres'"
+          PG_BIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
+          echo "PG_BIN=$PG_BIN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/postgrest"
+          curl -sSL "https://github.com/PostgREST/postgrest/releases/download/$POSTGREST_VERSION/postgrest-$POSTGREST_VERSION-linux-static-x86-64.tar.xz" | tar -xJ -C "$RUNNER_TEMP/postgrest"
+          echo "ZAMORAPP_POSTGREST=$RUNNER_TEMP/postgrest/postgrest" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/postgrest/postgrest" --version
+          "$PG_BIN/postgres" --version
+
+      - name: Reglas de acceso (RLS) con las migraciones reales
+        run: bash supabase/pruebas/correr.sh
+
+      - name: Pruebas de la puerta local
+        working-directory: escritorio
+        timeout-minutes: 10
+        env:
+          NUBE_DB: postgresql://postgres:postgres@127.0.0.1:5432/zamorapp_prueba
+        run: |
+          npm ci
+          node --test --test-reporter=spec "pruebas/*.test.mjs"
+
+      - name: App en modo escritorio (Next autónomo)
+        env:
+          ZAMORAPP_ESCRITORIO: "1"
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54331
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: local
+        run: |
+          npm ci
+          npx next build
