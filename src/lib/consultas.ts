@@ -94,7 +94,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
     supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
-    c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+    c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
+      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
   const tr = t as unknown as {
