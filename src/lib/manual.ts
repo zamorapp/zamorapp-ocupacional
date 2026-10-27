@@ -155,7 +155,11 @@ export const MANUAL: TemaManual[] = [
     resumen: "Registro de accidentes, incidentes y enfermedades ocupacionales según COVENIN, con índices de accidentalidad.",
     pasos: [
       "Accidentes → «Nuevo» y llena el tipo, lugar, lesión, parte del cuerpo y causas.",
-      "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad.",
+      "Agente, tipo de accidente, acto inseguro, condición insegura, parte del cuerpo y naturaleza de la lesión usan los códigos de la COVENIN 474 (Anexo C); se ven en la lista y salen impresos en la declaración.",
+      "En «Clasificación de la lesión» elige sin tiempo perdido, temporal, parcial permanente, absoluta permanente o fatal: los días cargados se calculan solos (6.000 por muerte o incapacidad absoluta; parcial con la Tabla 1 por el % de pérdida, tope 6.000).",
+      "Para el accidente, anota turno, actividad que realizaba, motivo, lesiones, testigos (presencial o referencial) y observaciones: son los datos del Anexo D para el INPSASEL.",
+      "La app avisa del plazo de 24 horas para declarar, de 7 días para registrar las causas de la investigación y del informe NT-02 (15 o 30 días).",
+      "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad. En la parcial permanente, el índice de severidad toma el mayor entre el cargo y los días de reposo.",
     ],
   },
   {
