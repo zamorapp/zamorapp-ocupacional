@@ -45,6 +45,13 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
     }
 
+    // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
+    if (lista === "grupo_paraclinicos" && (datos.has("d_empresas") || datos.has("d_motivos"))) {
+      const uuids = (k: string) => (texto(datos, k) ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), empresas: uuids("d_empresas"), motivos: uuids("d_motivos") };
+    }
+
     if (id) {
       const { error } = await supabase.from("lista_items").update(campos).eq("id", id).eq("org_id", sesion.orgId!);
       if (error) throw error;
@@ -135,6 +142,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
+      // 0 = sin recordatorio de resultados pendientes en la campana
+      recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
     };

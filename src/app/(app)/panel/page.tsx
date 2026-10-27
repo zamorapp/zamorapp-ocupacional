@@ -10,6 +10,7 @@ import { conVencimientos, enfoqueDelRol } from "@/lib/panel-rol";
 import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
+import { recordarResultados } from "@/lib/recordatorios";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  const [datos, enfoqueBase] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion)]);
+  const [datos, enfoqueBase] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion)]);
   const suma = (k: "vencidos" | "por_vencer") => datos.vencimientos.reduce((s, v) => s + v[k], 0);
   const enfoque = conVencimientos(enfoqueBase, sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
   const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);
