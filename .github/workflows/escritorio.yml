@@ -7,7 +7,7 @@ on:
     branches: ["escritorio/**"]
   # Un cambio en la base o en el programa de escritorio que llega por otro PR también debe probarse aquí
   pull_request:
-    paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml"]
+    paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml", "src/app/imprimir/**", "src/lib/escritorio.ts"]
   workflow_dispatch:
 
 concurrency:
@@ -149,6 +149,8 @@ jobs:
           # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real). El puerto lo abre
           # el programa solo cuando también apunta a la nube de prueba (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS no surte efecto).
           $env:ZAMORAPP_PUERTO_DEPURACION = "9333"
+          # Guardar PDF en las pruebas: el programa lo deja aquí sin el diálogo «Guardar como» (solo con la nube de prueba)
+          $env:ZAMORAPP_PDF_PRUEBA = Join-Path (Resolve-Path capturas).Path "pdf"
 
           function Instalar($setup) {
             Start-Process $setup -ArgumentList "/S" -Wait
@@ -159,7 +161,8 @@ jobs:
 
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
           # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
-          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false) {
+          # -imprimir: además abre el informe de vigilancia en su ventana, lo guarda en PDF y abre el diálogo de impresoras
+          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false, [bool]$imprimir = $false) {
             $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
             $inicio = Get-Date
             $proc = Start-Process $exe.FullName -PassThru
@@ -180,7 +183,7 @@ jobs:
                 Write-Host "   WebView2 de zamorApp: $(@($web).Count) proceso(s); con puerto de depuración: $(@($web | Where-Object CommandLine -match 'remote-debugging-port').Count)"
                 try { Write-Host "   CDP 9333: $((Invoke-RestMethod http://127.0.0.1:9333/json/version -TimeoutSec 3).Browser)" } catch { Write-Host "   CDP 9333 no responde: $($_.Exception.Message)" }
                 $base = "capturas/" + ($que -replace "[^a-z0-9]+", "-")
-                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
+                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png$(if ($imprimir) { " --imprimir `"$env:ZAMORAPP_PDF_PRUEBA`"" })" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
                 Get-Content "$base.salida.txt", "$base.errores.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
                 if ($prueba.ExitCode) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló (ver capturas/)" }
               }
@@ -248,7 +251,7 @@ jobs:
 
           # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
           $fallas = 0
-          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6))) { $fallas++ } }
+          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6) ($n -eq 6))) { $fallas++ } }
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
 

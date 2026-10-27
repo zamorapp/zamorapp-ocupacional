@@ -45,5 +45,5 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     : await supabase.from("informes_vigilancia").insert({ ...campos, org_id: sesion.orgId, empresa_id: empresaId, desde, hasta });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "No tienes permiso para esta empresa." : error.message };
   revalidatePath("/reportes");
-  return { ok: true, mensaje: "Informe guardado." };
+  return { ok: true, mensaje: "Guardado en zamorApp: este texto sale en el informe impreso de esta empresa y trimestre, desde cualquier equipo." };
 }

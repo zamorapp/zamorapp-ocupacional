@@ -117,7 +117,8 @@ export const MANUAL: TemaManual[] = [
     para: "servicio",
     resumen: "Constancia de aptitud, consulta médica, reposo (original y copia), certificado, récipe, orden de exámenes e historia clínica, con el logo de cada empresa.",
     pasos: [
-      "Toca «Imprimir» (ícono de impresora) en la consulta, en cada consulta de la pestaña Consultas del paciente o en Documentos, y elige el documento o «Todo lo de esta consulta». Se abre en otra pestaña listo para imprimir o guardar en PDF.",
+      "Toca «Imprimir» (ícono de impresora) en la consulta, en cada consulta de la pestaña Consultas del paciente o en Documentos, y elige el documento o «Todo lo de esta consulta». Se abre en otra pestaña (en zamorApp Escritorio, en otra ventana) listo para imprimir o guardar en PDF.",
+      "En zamorApp Escritorio, arriba del documento: «Imprimir» abre el diálogo de impresoras de Windows (impresora, páginas, copias) y «Guardar PDF» te pregunta dónde guardarlo; propone la carpeta Documentos › zamorApp › Informes. Al guardar puedes «Abrir» el PDF o «Ver en la carpeta». En el navegador, «Imprimir o guardar PDF» abre su diálogo: para tener el archivo, en «Destino» elige «Guardar como PDF» (queda en Descargas o donde elijas).",
       "En la consulta también puedes indicar una reubicación laboral (puesto actual, propuesto, temporal o definitiva, restricciones) y escribir un informe libre; ambos tienen su impreso. En el reposo se registran el médico externo, el centro del IVSS y si fue validado; en el récipe, una nota a farmacia por medicina.",
       "En Accidentes y enfermedades, «Imprimir declaración» saca la declaración del evento con datos de la empresa, el trabajador, la lesión (COVENIN 474), la declaración ante el INPSASEL, causas, acciones y firmas.",
       "En la ficha del paciente, «Imprimir historia» saca la historia clínica completa: datos, antecedentes, riesgos, historia laboral y todas sus consultas. Solo la ve el personal de salud.",
@@ -150,8 +151,8 @@ export const MANUAL: TemaManual[] = [
       "Si la empresa empieza su gestión en otro mes, cámbialo en Empresas › Editar › «La gestión empieza en»: los trimestres se cuentan desde ese mes (febrero → I trimestre febrero-abril). También puedes cambiarlo solo para esta consulta en «La gestión empieza en».",
       "Para otros tres meses cualquiera usa «Otros 3 meses desde»; para fechas libres, el rango Desde-Hasta.",
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
-      "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir».",
-      "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o guardas en PDF.",
+      "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
+      "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [
       "Lo guardado queda por empresa y período: si vuelves al mismo trimestre, encuentras tu redacción.",

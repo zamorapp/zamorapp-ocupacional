@@ -1,7 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "principal",
-  "description": "La ventana solo muestra la app local; no usa comandos de Tauri.",
-  "windows": ["principal"],
-  "permissions": []
+  "description": "La app local (127.0.0.1:54332) solo puede pedir imprimir, guardar en PDF y abrir el PDF guardado.",
+  "windows": ["principal", "documento-*"],
+  "remote": {
+    "urls": ["http://127.0.0.1:54332/*", "http://localhost:54332/*"]
+  },
+  "permissions": ["allow-imprimir", "allow-guardar-pdf", "allow-mostrar-pdf"]
 }

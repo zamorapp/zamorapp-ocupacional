@@ -49,13 +49,18 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
   const persona = (k: "medico" | "sst" | "empleador", c: Partial<Persona>) => setFirmantes({ ...firmantes, [k]: { ...vacia, ...firmantes[k], ...c } });
   const delegados = firmantes.delegados?.length ? firmantes.delegados : [vacia];
 
-  const guardar = (imprimir = false) =>
+  const guardar = (imprimir = false) => {
+    // La ventana del informe se abre ya, con el clic (si se abre después de guardar, el navegador la bloquea)
+    const ventana = imprimir ? window.open("about:blank", "_blank") : null;
     iniciar(async () => {
       const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes });
       setAviso(r);
       if (r.ok) setGuardado(true);
-      if (r.ok && imprimir) window.open(enlaceImprimir, "_blank");
+      if (!r.ok || !imprimir) return void ventana?.close();
+      if (ventana) ventana.location.href = enlaceImprimir;
+      else window.location.href = enlaceImprimir;
     });
+  };
 
   return (
     <div className="space-y-5">

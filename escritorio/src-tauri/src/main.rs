@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{Manager, RunEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
+
+mod documentos;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -114,10 +116,13 @@ fn nube_url() -> String {
 
 // Puerto de depuración del navegador interno (CDP), para que la prueba de humo maneje la ventana como una
 // persona. Solo se abre junto con la nube de prueba (pruebas automáticas); en una PC real se ignora.
+fn en_pruebas() -> bool {
+    std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false)
+}
+
 fn puerto_depuracion() -> Option<u16> {
-    let en_pruebas = std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false);
     let puerto = std::env::var("ZAMORAPP_PUERTO_DEPURACION").ok()?.parse::<u16>().ok()?;
-    if !en_pruebas {
+    if !en_pruebas() {
         anotar("ZAMORAPP_PUERTO_DEPURACION se ignora fuera de las pruebas automáticas");
         return None;
     }
@@ -286,6 +291,8 @@ fn main() {
     }
     let app = tauri::Builder::default()
         .manage(Mutex::new(Procesos::default()))
+        .manage(documentos::Guardados::default())
+        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf])
         .setup(|app| {
             let recursos = ruta_normal(app.path().resource_dir()?.join("recursos"));
             anotar(&format!("programa: {}", std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()));
@@ -293,10 +300,13 @@ fn main() {
             // puerto de depuración en las pruebas automáticas. Los argumentos repiten los que wry pasa por defecto.
             let config = app.config().app.windows.iter().find(|w| w.label == "principal").cloned().expect("ventana principal en tauri.conf.json");
             // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
-    let version = app.package_info().version.to_string();
-    anotar(&format!("versión del instalador {version}"));
-    let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-        .title(format!("zamorApp Escritorio v{version}"));
+            let version = app.package_info().version.to_string();
+            anotar(&format!("versión del instalador {version}"));
+            // Documentos (target="_blank", window.open) en su propia ventana; sin esto el navegador interno los descarta
+            let manejador_docs = app.handle().clone();
+            let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+                .title(format!("zamorApp Escritorio v{version}"))
+                .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features));
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
@@ -325,10 +335,13 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("no se pudo crear la ventana de zamorApp");
 
-    app.run(|manejador, evento| {
-        if let RunEvent::Exit = evento {
+    app.run(|manejador, evento| match evento {
+        // Cerrar la ventana principal cierra el programa entero, aunque queden documentos abiertos en otras ventanas
+        RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "principal" => manejador.exit(0),
+        RunEvent::Exit => {
             anotar("cerrando");
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
         }
+        _ => {}
     });
 }
