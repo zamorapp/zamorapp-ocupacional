@@ -6,8 +6,12 @@
 param([switch]$Configurar, [switch]$Programar)
 $ErrorActionPreference = "Stop"
 $raiz = Split-Path -Parent $PSScriptRoot
-$credencial = Join-Path $env:LOCALAPPDATA "zamorApp\respaldo.cred"
-$registro = Join-Path $env:LOCALAPPDATA "zamorApp\respaldo.log"
+# En la carpeta del usuario y no en AppData: Windows aísla AppData para los programas empaquetados,
+# y la tarea programada no vería la clave guardada desde uno de ellos.
+$carpeta = Join-Path $env:USERPROFILE ".zamorapp"
+$credencial = Join-Path $carpeta "respaldo.cred"
+$registro = Join-Path $carpeta "respaldo.log"
+New-Item -ItemType Directory -Force $carpeta | Out-Null
 
 if ($Configurar) {
   if (-not $env:PGPW) { throw "Define primero `$env:PGPW con la clave de la base" }
