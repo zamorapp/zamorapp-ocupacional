@@ -58,13 +58,13 @@ export function BarraImpresion({ volver, titulo, bloqueado }: { volver: string; 
         )}
       </div>
       {guardado && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-ok/10 px-3 py-1.5 text-sm" role="status">
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-ok/10 px-3 py-1.5 text-sm" role="status" data-estado="pdf-guardado">
           <span className="min-w-0 flex-1 break-all">PDF guardado en <span className="font-mono text-xs">{guardado}</span></span>
           <Button size="sm" variant="ghost" onClick={() => ver(true)}><SquareArrowOutUpRight /> Abrir</Button>
           <Button size="sm" variant="ghost" onClick={() => ver(false)}><FolderOpen /> Ver en la carpeta</Button>
         </div>
       )}
-      {error && <p className="mt-2 text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-sm text-destructive" role="alert" data-estado="error">{error}</p>}
     </div>
   );
 }

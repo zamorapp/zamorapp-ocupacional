@@ -214,8 +214,8 @@ try {
       const antes = new Set(fs.existsSync(IMPRIMIR) ? fs.readdirSync(IMPRIMIR) : []);
       await documento.click("[data-accion=guardar-pdf]");
       const estado = await Promise.race([
-        documento.waitForSelector("[role=status]", { timeout: 120_000 }).then((e) => e.textContent()),
-        documento.waitForSelector("[role=alert]", { timeout: 120_000 }).then(async (e) => { throw new Error(`Guardar PDF falló: ${await e.textContent()}`); }),
+        documento.waitForSelector("[data-estado=pdf-guardado]", { timeout: 120_000 }).then((e) => e.textContent()),
+        documento.waitForSelector("[data-estado=error]", { timeout: 120_000 }).then(async (e) => { throw new Error(`Guardar PDF falló: ${await e.textContent()}`); }),
       ]);
       anotar(`   ${estado?.trim()}`);
       const nuevos = fs.readdirSync(IMPRIMIR).filter((f) => !antes.has(f) && f.endsWith(".pdf"));
@@ -252,7 +252,7 @@ try {
       try { salidaPs = execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { encoding: "utf8", timeout: 60_000 }); }
       catch (e) { throw new Error(`«Imprimir» no abrió el diálogo de impresoras: ${(e.stdout || e.message).trim()}`); }
       anotar(`   ${salidaPs.trim()}`);
-      const error = await documento.evaluate(() => document.querySelector("[role=alert]")?.textContent || "");
+      const error = await documento.evaluate(() => document.querySelector("[data-estado=error]")?.textContent || "");
       if (error) throw new Error(`La página avisó un error al imprimir: ${error}`);
     });
   }
