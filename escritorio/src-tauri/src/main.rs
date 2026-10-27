@@ -123,12 +123,33 @@ fn nube_url() -> String {
     }
 }
 
+// Las pruebas automáticas son las únicas que apuntan el programa a una nube en esta misma PC (127.0.0.1).
+fn en_pruebas() -> bool {
+    std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false)
+}
+
+// Solo en las pruebas automáticas (nube de prueba) se puede apuntar el actualizador a una dirección y una llave
+// de prueba y aceptar la actualización sin preguntar; en una PC real estas variables se ignoran por completo.
+struct ActualizadorPrueba { url: String, llave: String, sin_preguntar: bool }
+fn actualizador_prueba() -> Option<ActualizadorPrueba> {
+    let url = std::env::var("ZAMORAPP_ACTUALIZACIONES_URL").ok()?;
+    if !en_pruebas() || !url.starts_with("http://127.0.0.1:") {
+        anotar("ZAMORAPP_ACTUALIZACIONES_URL se ignora fuera de las pruebas automáticas");
+        return None;
+    }
+    anotar(&format!("actualizaciones de prueba (solo pruebas automáticas): {url}"));
+    Some(ActualizadorPrueba {
+        url,
+        llave: std::env::var("ZAMORAPP_ACTUALIZACIONES_LLAVE").unwrap_or_default(),
+        sin_preguntar: std::env::var("ZAMORAPP_ACTUALIZAR_SIN_PREGUNTAR").map(|v| v == "1").unwrap_or(false),
+    })
+}
+
 // Puerto de depuración del navegador interno (CDP), para que la prueba de humo maneje la ventana como una
 // persona. Solo se abre junto con la nube de prueba (pruebas automáticas); en una PC real se ignora.
 fn puerto_depuracion() -> Option<u16> {
-    let en_pruebas = std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false);
     let puerto = std::env::var("ZAMORAPP_PUERTO_DEPURACION").ok()?.parse::<u16>().ok()?;
-    if !en_pruebas {
+    if !en_pruebas() {
         anotar("ZAMORAPP_PUERTO_DEPURACION se ignora fuera de las pruebas automáticas");
         return None;
     }
@@ -322,19 +343,24 @@ fn sincronizar_ahora(app: AppHandle) {
 // Nunca obliga: "Más tarde" deja todo como está. Instalar no toca los datos (%LOCALAPPDATA%\zamorApp).
 fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
     std::thread::spawn(move || {
-        if LLAVE_ACTUALIZACIONES.is_empty() {
+        let prueba = actualizador_prueba();
+        let llave = prueba.as_ref().map(|p| p.llave.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| LLAVE_ACTUALIZACIONES.to_string());
+        if llave.is_empty() {
             if a_pedido { avisar(&app, "Actualizaciones", "Esta versión aún no tiene activadas las actualizaciones automáticas."); }
             return;
         }
         let actual = app.package_info().version.to_string();
         let consulta = tauri::async_runtime::block_on(async {
-            let actualizador = app.updater_builder().pubkey(LLAVE_ACTUALIZACIONES).build()?;
-            actualizador.check().await
+            let mut constructor = app.updater_builder().pubkey(llave);
+            if let Some(p) = &prueba {
+                constructor = constructor.endpoints(vec![p.url.parse().map_err(|_| tauri_plugin_updater::Error::EmptyEndpoints)?])?;
+            }
+            constructor.build()?.check().await
         });
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = app.dialog()
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || app.dialog()
                     .message(format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
                     .title("Actualización disponible")
                     .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
@@ -396,10 +422,10 @@ fn main() {
             // puerto de depuración en las pruebas automáticas. Los argumentos repiten los que wry pasa por defecto.
             let config = app.config().app.windows.iter().find(|w| w.label == "principal").cloned().expect("ventana principal en tauri.conf.json");
             // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
-    let version = app.package_info().version.to_string();
-    anotar(&format!("versión del instalador {version}"));
-    let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-        .title(format!("zamorApp Escritorio v{version}"));
+            let version = app.package_info().version.to_string();
+            anotar(&format!("versión del instalador {version}"));
+            let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+                .title(format!("zamorApp Escritorio v{version}"));
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }

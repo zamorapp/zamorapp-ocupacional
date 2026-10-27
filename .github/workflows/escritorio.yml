@@ -121,16 +121,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
+          # El instalador siempre sale firmado (así la prueba de humo prueba una actualización de verdad). Con la llave
+          # real solo al publicar desde main; en cualquier otra corrida, con una llave de prueba de un solo uso.
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            if (-not $env:ZAMORAPP_UPDATER_PUBKEY) { throw "Falta la variable ZAMORAPP_UPDATER_PUBKEY (llave pública de las actualizaciones)" }
+            "LLAVE_ACTUALIZACIONES_PRUEBA=$env:ZAMORAPP_UPDATER_PUBKEY" >> $env:GITHUB_ENV
+          } else {
+            npx --yes @tauri-apps/cli@2 signer generate --ci -w "$env:RUNNER_TEMP/prueba.key"
+            if ($LASTEXITCODE) { throw "No se pudo generar la llave de prueba" }
+            $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content "$env:RUNNER_TEMP/prueba.key" -Raw).Trim()
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+            "LLAVE_ACTUALIZACIONES_PRUEBA=$((Get-Content "$env:RUNNER_TEMP/prueba.key.pub" -Raw).Trim())" >> $env:GITHUB_ENV
+            Write-Host "Instalador firmado con una llave de prueba (no es una publicación)"
+          }
           # Versión 0.1.<número de corrida>: cada instalador es una versión nueva (se ve en el título de la ventana,
           # en arranque.log y en el nombre del setup), y el programa instalado sabe cuándo hay una más nueva
           $version = "0.1.$env:GITHUB_RUN_NUMBER"
           Write-Host "Versión del instalador: $version"
-          $ajustes = @{ version = $version }
-          if ($env:TAURI_SIGNING_PRIVATE_KEY) { $ajustes.bundle = @{ createUpdaterArtifacts = $true } }
-          $ajustes | ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 src-tauri/ajustes-ci.json
+          @{ version = $version; bundle = @{ createUpdaterArtifacts = $true } } | ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 src-tauri/ajustes-ci.json
           npx --yes @tauri-apps/cli@2 icon ../public/icono-512.png
           npx --yes @tauri-apps/cli@2 build --config src-tauri/ajustes-ci.json
           if ($LASTEXITCODE) { throw "Falló el instalador" }
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado" }
 
       # Prueba de humo del instalador real, como lo vive Cesar: primero la versión anterior (el último instalador
       # que pasó este CI) con sus datos, luego la nueva instalada ENCIMA, y se abre y cierra varias veces seguidas.
@@ -264,6 +277,46 @@ jobs:
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
 
+          # 3b) Actualización automática, como la vivirá Cesar: el programa instalado encuentra una versión "nueva" en un
+          # servidor de prueba (este mismo instalador, anunciado como 0.1.<corrida+1>), la descarga, verifica la firma,
+          # la instala sin preguntar (solo en pruebas) y se vuelve a abrir solo. El servidor la anuncia una sola vez.
+          $versionNueva = "0.1.$([int]$env:GITHUB_RUN_NUMBER + 1)"
+          $servidor = Start-Process node -ArgumentList "escritorio/pruebas/actualizacion-cli.mjs --setup `"$($setup.FullName)`" --version $versionNueva" -PassThru -NoNewWindow -RedirectStandardOutput capturas/actualizacion.log -RedirectStandardError capturas/actualizacion.err
+          $env:ZAMORAPP_ACTUALIZACIONES_URL = "http://127.0.0.1:55600/latest.json"
+          $env:ZAMORAPP_ACTUALIZACIONES_LLAVE = $env:LLAVE_ACTUALIZACIONES_PRUEBA
+          $env:ZAMORAPP_ACTUALIZAR_SIN_PREGUNTAR = "1"
+          $desde = @(Get-Content "$registros/arranque.log" -ErrorAction SilentlyContinue).Count
+          $nuevo = { @(Get-Content "$registros/arranque.log" -ErrorAction SilentlyContinue | Select-Object -Skip $desde) }
+          $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+          $proc = Start-Process $exe.FullName -PassThru
+          $ok = $false
+          try {
+            # 1. El programa anuncia que la descargó y verificó (20 s de espera inicial + descarga local)
+            for ($i = 0; $i -lt 90 -and -not $ok; $i++) { Start-Sleep 2; if ((& $nuevo) -match "actualización descargada y verificada") { $ok = $true } }
+            if (-not $ok) { throw "El programa no encontró o no descargó la actualización de prueba en 180 s" }
+            Write-Host "actualización: descargada y verificada con la firma"
+            # 2. Se cierra solo y el instalador lo vuelve a abrir
+            if (-not $proc.WaitForExit(60000)) { throw "El programa no se cerró para instalar la actualización" }
+            $ok = $false
+            for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
+              Start-Sleep 2
+              $lineas = & $nuevo
+              if (($lineas -match "abriendo").Count -ge 2 -and ($lineas -match "app lista").Count -ge 1) { $ok = $true }
+            }
+            if (-not $ok) { throw "El programa no se volvió a abrir tras instalar la actualización" }
+            $relanzado = Get-Process zamorapp -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } | Select-Object -First 1
+            if (-not $relanzado) { throw "El programa actualizado no está corriendo" }
+            Write-Host "actualización: instalada y el programa se volvió a abrir solo (versión $((& $nuevo | Select-String 'versión del instalador' | Select-Object -Last 1).Line))"
+            [void]$relanzado.CloseMainWindow()
+            if (-not $relanzado.WaitForExit(40000)) { Stop-Process -Id $relanzado.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::El programa actualizado no se cerró con la ventana" }
+          } finally {
+            if (-not $ok) { Write-Host "== arranque.log (actualización)"; & $nuevo | ForEach-Object { Write-Host "   $_" }; Write-Host "== servidor de prueba"; Get-Content capturas/actualizacion.log, capturas/actualizacion.err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" } }
+            Get-Process zamorapp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Stop-Process -Id $servidor.Id -ErrorAction SilentlyContinue
+            Remove-Item Env:ZAMORAPP_ACTUALIZACIONES_URL, Env:ZAMORAPP_ACTUALIZACIONES_LLAVE, Env:ZAMORAPP_ACTUALIZAR_SIN_PREGUNTAR -ErrorAction SilentlyContinue
+            Start-Sleep 10
+          }
+
           # 4) PC nueva (o reinstalación tras un daño): sin datos previos, el primer arranque también debe funcionar
           $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
@@ -296,7 +349,7 @@ jobs:
           GH_TOKEN: ${{ secrets.DESCARGAS_TOKEN }}
         run: |
           if (-not $env:GH_TOKEN) { throw "Falta el secreto DESCARGAS_TOKEN" }
-          $v = "0.2.${{ github.run_number }}"
+          $v = "0.1.${{ github.run_number }}"
           $exe = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado (¿falta TAURI_SIGNING_PRIVATE_KEY?)" }
           $nombre = "zamorapp-escritorio-$v-setup.exe"
