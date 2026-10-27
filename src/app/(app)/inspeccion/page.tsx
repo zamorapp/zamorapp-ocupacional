@@ -59,7 +59,7 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
         <p className="rounded-xl border p-6 text-sm text-muted-foreground">{sesion.demo ? "Conecta Supabase para medir el cumplimiento." : "Elige una empresa."}</p>
       ) : (
         <>
-          <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
             <Card className="items-center justify-center gap-2 py-6 text-center">
               <div className={cn("text-5xl font-bold tabular-nums", d.puntaje === null ? "text-muted-foreground" : d.puntaje >= 100 ? "text-ok-texto" : d.puntaje >= 80 ? "text-aviso-texto" : "text-alerta-texto")}>
                 {d.puntaje === null ? "—" : `${d.puntaje} %`}
@@ -67,7 +67,7 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
               <div className="text-sm text-muted-foreground">Índice de cumplimiento</div>
               <div className="text-xs text-muted-foreground">{fecha(desde)} al {fecha(hasta)}</div>
             </Card>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {d.criterios.map((c) => (
                 <div key={c.clave} className={cn("flex items-start gap-3 rounded-xl border p-3", c.estado === "alerta" && "border-alerta/40 bg-alerta/5", c.estado === "aviso" && "border-aviso/50 bg-aviso/5")}>
                   {c.estado === "no_aplica" ? <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-muted-foreground/30" /> : <Semaforo estado={c.estado} className="mt-1.5" />}
@@ -91,7 +91,7 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
                 {ROLES_NOTIFICAN.includes(sesion.rol ?? "") && <BotonNotificarTrabajadores ids={porNotificar} />}
               </CardHeader>
               <CardContent>
-                <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                   {sinNotificar.slice(0, 40).map((t) => (
                     <li key={t.id} className="flex items-center justify-between gap-2 border-b py-1">
                       <Link href={`/pacientes/${t.id}`} className="truncate hover:text-primary">{t.nombre}</Link>
