@@ -54,6 +54,8 @@ export default async function FichaPaciente({ params }: Props) {
         crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
     : [[], [] as EmpleoAnterior[]];
+  // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
+  const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
   const conBase = !sesion.demo && Boolean(sesion.orgId);
   const [{ data: tp }, { data: notifs }] = conBase
@@ -136,7 +138,7 @@ export default async function FichaPaciente({ params }: Props) {
             <CardContent>
               <Datos filas={[
                 ["Fecha de nacimiento", fecha(t.fechaNacimiento)],
-                ["Grupo sanguíneo", t.grupoSanguineo],
+                ...(verSalud ? [["Grupo sanguíneo", t.grupoSanguineo] as [string, string | null]] : []),
                 ["Lateralidad", t.lateralidad],
                 ["Teléfono", t.telefono],
                 ["Correo", t.correo],

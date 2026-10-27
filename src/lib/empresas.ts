@@ -55,11 +55,17 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     }));
   }
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("empresas")
-    .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, trabajadores(count)")
-    .order("razon_social");
+  // El conteo va aparte: trabajadores(count) necesita SELECT sobre toda la tabla y sus datos de salud son privados
+  const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
+    supabase
+      .from("empresas")
+      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen")
+      .order("razon_social"),
+    supabase.rpc("trabajadores_por_empresa"),
+  ]);
   if (error) throw error;
+  if (errorConteo) throw errorConteo;
+  const totales = new Map(((conteos ?? []) as { empresa_id: string; total: number }[]).map((c) => [c.empresa_id, Number(c.total)]));
   return (data ?? []).map((e) => ({
     id: e.id,
     razonSocial: e.razon_social,
@@ -76,7 +82,7 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     servicioSst: e.servicio_sst_tipo,
     servicioSstRegistro: e.servicio_sst_fecha_registro,
     psstRegistro: e.psst_fecha_registro,
-    trabajadores: (e.trabajadores as unknown as { count: number }[])[0]?.count ?? 0,
+    trabajadores: totales.get(e.id) ?? 0,
     activa: e.activa,
     ignorarAlertaLegal: e.ignorar_alerta_legal,
     mesInicioGestion: e.mes_inicio_gestion ?? 1,
