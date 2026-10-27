@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -45,6 +45,7 @@ import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
+import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 
 type Props = {
   inicial: DatosConsulta;
@@ -56,6 +57,8 @@ type Props = {
   puedeFirmar: boolean;
   versiones: VersionConsulta[];
   historial: HistorialConsulta;
+  plantillas: Plantilla[];
+  nueva: boolean;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -150,9 +153,18 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial }: Props) {
+// Plantilla activa del motivo elegido (se busca por el código del motivo: PRE, PER, EGR, REI…)
+function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, motivoId: string | null) {
+  const codigo = listas.motivo_consulta?.find((m) => m.id === motivoId)?.codigo;
+  return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
+}
+
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva }: Props) {
   const router = useRouter();
-  const [d, setD] = useState<DatosConsulta>(inicial);
+  // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
+  const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
+  const [precarga] = useState(() => (plantillaInicial ? aplicarPlantilla(inicial, plantillaInicial.datos, listas) : inicial));
+  const [d, setD] = useState<DatosConsulta>(precarga);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [guardando, iniciar] = useTransition();
@@ -165,12 +177,42 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const [accidente, setAccidente] = useState(false);
   // Avisos que el médico decidió ignorar en esta consulta (no bloquean nada)
   const [ignorados, setIgnorados] = useState<string[]>([]);
+  // Última plantilla aplicada, con la consulta como estaba antes para poder deshacer
+  // (despues: lo que dejó la plantilla; si el médico no tocó nada más, cambiar de motivo parte de «antes»)
+  const [deshacer, setDeshacer] = useState<{ nombre: string; antes: DatosConsulta; despues: DatosConsulta } | null>(
+    () => (plantillaInicial ? { nombre: plantillaInicial.nombre, antes: inicial, despues: precarga } : null));
 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
 
   const motivo = listas.motivo_consulta.find((m) => m.id === d.motivoId);
+  const plantilla = plantillaPara(plantillas, listas, d.motivoId);
+  // Aplica la plantilla sobre lo escrito (no borra nada) y deja «Deshacer» con la consulta como estaba
+  const usarPlantilla = (p: Plantilla, base: DatosConsulta) => {
+    const despues = aplicarPlantilla(base, p.datos, listas);
+    setDeshacer({ nombre: p.nombre, antes: base, despues });
+    setD(despues);
+  };
+  // Deshace directo si nada cambió desde la plantilla; si el médico siguió escribiendo, lo confirma antes
+  const deshacerPlantilla = async () => {
+    if (!deshacer) return;
+    if (deshacer.despues !== d && !(await confirmar({
+      titulo: "¿Deshacer la plantilla?",
+      texto: "La consulta vuelve a como estaba antes de aplicarla: también se pierde lo que escribiste después.",
+      accion: "Deshacer",
+    }))) return;
+    setD({ ...deshacer.antes, motivoId: d.motivoId });
+    setDeshacer(null);
+  };
+  const cambiarMotivo = (motivoId: string | null) => {
+    // Si la plantilla anterior quedó intacta, se quita antes de poner la del motivo nuevo (no se acumulan)
+    const intacta = deshacer && deshacer.despues === d;
+    const base = { ...(intacta ? deshacer.antes : d), motivoId };
+    const p = plantillaPara(plantillas, listas, motivoId);
+    if (p && !bloqueado) usarPlantilla(p, base);
+    else { setD(base); if (intacta) setDeshacer(null); }
+  };
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
@@ -500,7 +542,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>
                   <Label className="mb-1.5">Motivo de consulta *</Label>
-                  <select value={d.motivoId ?? ""} onChange={(e) => set("motivoId", e.target.value || null)} className={SELECT}>
+                  <select value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT}>
                     <option value="">Elige el motivo</option>
                     {["preventivo", "no_preventivo", null].map((g) => {
                       const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
@@ -522,6 +564,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   </select>
                 </div>
               </div>
+              {!bloqueado && deshacer ? (
+                <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <Wand2 className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 basis-56">Plantilla de <b>{deshacer.nombre}</b> aplicada: revisa el examen, las recomendaciones y la vigencia.</span>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={deshacerPlantilla}>
+                    <RotateCcw /> Deshacer
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setDeshacer(null)}>Listo</Button>
+                </div>
+              ) : !bloqueado && plantilla && (
+                <Button type="button" size="sm" variant="outline" onClick={() => usarPlantilla(plantilla, d)} title={resumenPlantilla(plantilla.datos)}>
+                  <Wand2 /> Aplicar plantilla de {plantilla.nombre}
+                </Button>
+              )}
               {preventivo ? (
                 <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                   Evaluación de <b className="text-foreground">{motivo?.nombre}</b>: el motivo ya queda registrado y no requiere detalle.

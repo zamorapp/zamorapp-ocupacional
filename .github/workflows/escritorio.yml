@@ -226,6 +226,7 @@ jobs:
             gh run download $previa --repo $env:GITHUB_REPOSITORY --name zamorapp-instalador-windows --dir previa 2>$null
           }
           $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          $global:LASTEXITCODE = 0  # un gh fallido (sin artefacto ni release) no debe teñir de rojo el paso entero
           if ($setupPrevio) {
             Write-Host "Versión anterior: corrida $previa ($($setupPrevio.Name))"
             Instalar $setupPrevio.FullName
