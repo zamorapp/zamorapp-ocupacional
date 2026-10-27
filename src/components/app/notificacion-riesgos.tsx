@@ -52,7 +52,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
               <span className="min-w-0 flex-1 truncate text-muted-foreground">{n.puesto}{desactualizada(n, puesto) && " · desactualizada"}</span>
               {edita ? (
                 <label className="flex items-center gap-1.5 text-xs">
-                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado} className="size-4 accent-[var(--primary)]"
+                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado || Boolean(n.firmadaEn)} title={n.firmadaEn ? "Con el acuse firmado no se cambia: si hubo un error, registra una nueva" : undefined} className="size-4 accent-[var(--primary)]"
                     onChange={(x) => iniciar(async () => {
                       const r = await marcarFirmada(n.id, x.target.checked);
                       setAviso(r);

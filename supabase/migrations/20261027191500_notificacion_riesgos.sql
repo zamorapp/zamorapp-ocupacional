@@ -33,10 +33,29 @@ create policy notificaciones_riesgo_editar on public.notificaciones_riesgo for a
 grant select, insert, update, delete on public.notificaciones_riesgo to authenticated;
 revoke all on public.notificaciones_riesgo from anon;
 
--- El trabajador y el puesto deben ser de la empresa y organización de la notificación
+-- El trabajador y el puesto deben ser de la empresa y organización de la notificación.
+-- Quien notifica es quien registra (se imprime como «Notificado por») y no se cambia después.
+-- Con el acuse firmado, lo notificado es la prueba legal: solo se pueden cambiar las observaciones y no se borra.
 create or replace function public.validar_notificacion_riesgo()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
+  if tg_op = 'DELETE' then
+    if old.firmada_en is not null then
+      raise exception 'La notificación ya tiene el acuse firmado: no se puede borrar. Registra una nueva.' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+  if tg_op = 'INSERT' and auth.uid() is not null then new.entregada_por := auth.uid(); end if;
+  if tg_op = 'UPDATE' then
+    new.entregada_por := old.entregada_por;
+    if old.firmada_en is not null and (
+         new.contenido is distinct from old.contenido or new.puesto is distinct from old.puesto
+      or new.puesto_id is distinct from old.puesto_id or new.entregada_en is distinct from old.entregada_en
+      or new.trabajador_id is distinct from old.trabajador_id or new.empresa_id is distinct from old.empresa_id
+      or new.org_id is distinct from old.org_id or new.firmada_en is distinct from old.firmada_en) then
+      raise exception 'La notificación ya tiene el acuse firmado: solo se pueden cambiar las observaciones. Registra una nueva.' using errcode = '42501';
+    end if;
+  end if;
   if not exists (select 1 from public.trabajadores t where t.id = new.trabajador_id and t.org_id = new.org_id and t.empresa_id = new.empresa_id)
      or (new.puesto_id is not null and not exists (select 1 from public.puestos p where p.id = new.puesto_id and p.org_id = new.org_id and p.empresa_id = new.empresa_id)) then
     raise exception 'El trabajador y el puesto deben ser de la misma empresa.' using errcode = '23514';
@@ -45,7 +64,7 @@ begin
 end $$;
 revoke execute on function public.validar_notificacion_riesgo() from public, authenticated, anon;
 drop trigger if exists validar_notificacion_riesgo on public.notificaciones_riesgo;
-create trigger validar_notificacion_riesgo before insert or update of org_id, empresa_id, trabajador_id, puesto_id on public.notificaciones_riesgo
+create trigger validar_notificacion_riesgo before insert or update or delete on public.notificaciones_riesgo
   for each row execute function public.validar_notificacion_riesgo();
 
 drop trigger if exists upd_notificaciones_riesgo on public.notificaciones_riesgo;
