@@ -6,7 +6,7 @@ import { todas } from "@/lib/paginar";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 const COLUMNAS = `id, numero_historia, cedula, nombres, apellidos, sexo, fecha_nacimiento, fecha_ingreso, turno,
-  grupo_sanguineo, lateralidad, telefono, correo, estado,
+  lateralidad, telefono, correo, estado,
   empresas(razon_social), dependencias(nombre), puestos(nombre, riesgos), tipo:lista_items(nombre)`;
 
 type Fila = {
@@ -19,7 +19,7 @@ type Fila = {
   fecha_nacimiento: string | null;
   fecha_ingreso: string | null;
   turno: string | null;
-  grupo_sanguineo: string | null;
+  grupo_sanguineo?: string | null;
   lateralidad: string | null;
   telefono: string | null;
   correo: string | null;
@@ -47,7 +47,7 @@ function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
     tipoPaciente: f.tipo?.nombre ?? null,
     fechaIngreso: f.fecha_ingreso,
     turno: f.turno,
-    grupoSanguineo: f.grupo_sanguineo,
+    grupoSanguineo: f.grupo_sanguineo ?? null,
     lateralidad: f.lateralidad,
     telefono: f.telefono,
     correo: f.correo,
@@ -93,10 +93,14 @@ export async function obtenerTrabajador(id: string): Promise<Trabajador | null> 
   if (!supabaseConfigurado) return TRABAJADORES_DEMO.find((t) => t.id === id) ?? null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("trabajadores").select(COLUMNAS).eq("id", id).maybeSingle();
+  // Grupo sanguíneo: solo lo recibe el personal del servicio (vista trabajadores_salud); RR. HH. no.
+  const [{ data }, { data: salud }] = await Promise.all([
+    supabase.from("trabajadores").select(COLUMNAS).eq("id", id).maybeSingle(),
+    supabase.from("trabajadores_salud").select("grupo_sanguineo").eq("id", id).maybeSingle(),
+  ]);
   if (!data) return null;
   const apt = await aptitudes([id]);
-  return aTrabajador(data as unknown as Fila, apt.get(id));
+  return aTrabajador({ ...(data as unknown as Fila), grupo_sanguineo: salud?.grupo_sanguineo ?? null }, apt.get(id));
 }
 
 export async function cedulasRegistradas(): Promise<string[]> {
