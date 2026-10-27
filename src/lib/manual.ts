@@ -42,7 +42,7 @@ export const MANUAL: TemaManual[] = [
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],
     consejos: [
-      "Necesita internet: los datos viven en la nube y se respaldan cada día en tu PC y en OneDrive.",
+      "Necesita internet: los datos viven en la nube y se respaldan cada día en tu PC y en Google Drive.",
       "Si ves «No se pudo conectar con zamorApp», revisa el internet y toca «Reintentar». No se pierde nada de lo ya guardado.",
     ],
   },
@@ -253,11 +253,11 @@ export const MANUAL: TemaManual[] = [
     id: "respaldo",
     titulo: "Respaldos",
     para: "servicio",
-    resumen: "Copia diaria de todos los datos en la PC (Documentos\\zamorApp Respaldos) y en OneDrive; se guardan los últimos 30.",
+    resumen: "Copia diaria de todos los datos en la PC (Documentos\\zamorApp Respaldos) y en Google Drive (Mi unidad\\zamorApp\\respaldos-zamorApp); se guardan los últimos 30.",
     pasos: [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
-      "Abre OneDrive e inicia sesión para que la copia suba a la nube.",
+      "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube.",
     ],
   },
 ];
