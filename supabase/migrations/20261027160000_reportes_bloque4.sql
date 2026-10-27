@@ -37,6 +37,12 @@ where not exists (select 1 from public.lista_items x where x.lista = 'diagnostic
 
 select public.copiar_listas_base(id) from public.organizaciones;
 
+-- Potencial discapacidad marcada por el médico en la consulta (la agrega también 20261027150000_consulta_agil.sql;
+-- se repite aquí, idempotente, para que el reporte no dependa del orden en que se publiquen)
+alter table clinico.consultas add column if not exists potencial_discapacidad boolean not null default false;
+alter table clinico.consultas add column if not exists discapacidad_nota text;
+create or replace view public.consultas with (security_invoker = true) as select * from clinico.consultas;
+
 create or replace function public.reporte_listado(p_tipo text, p_empresa uuid, p_desde date, p_hasta date, p_opciones jsonb default '{}'::jsonb)
 returns jsonb language plpgsql stable security invoker set search_path = public as $$
 declare
@@ -264,9 +270,10 @@ begin
                extract(year from age(p_hasta, t.fecha_nacimiento))::int as edad, t.sexo::text as sexo,
                e.razon_social as empresa, pu.nombre as cargo, t.discapacidad,
                coalesce(rp.dias, 0) as dias_reposo, ua.clasificacion as ultima_aptitud, ua.restricciones,
-               dx.ocupacionales,
+               dx.ocupacionales, pm.nota as nota_medico,
                concat_ws('; ',
                  case when t.discapacidad then 'Discapacidad registrada' end,
+                 case when pm.marcada then 'Marcado por el médico' end,
                  case when coalesce(rp.dias, 0) >= v_umbral then coalesce(rp.dias, 0) || ' días de reposo' end,
                  case when ua.clasificacion = 'no_elegible' then 'No elegible' when ua.clasificacion = 'elegible_con_restricciones' then 'Con restricciones' end,
                  case when dx.ocupacionales is not null then 'Diagnóstico ocupacional' end) as criterios
@@ -290,6 +297,12 @@ begin
           where c.trabajador_id = t.id and c.estado <> 'borrador' and c.fecha between p_desde and p_hasta
             and d.origen in ('ocupacional', 'accidente_laboral')
         ) dx on true
+        -- Criterio del médico: la última consulta cerrada o firmada del período
+        left join lateral (
+          select c.potencial_discapacidad as marcada, c.discapacidad_nota as nota from public.consultas c
+          where c.trabajador_id = t.id and c.estado <> 'borrador' and c.fecha between p_desde and p_hasta
+          order by c.fecha desc, c.hora_inicio desc limit 1
+        ) pm on true
         where t.estado in ('activo', 'reposo')
           and (p_empresa is null or t.empresa_id = p_empresa)
       ) y

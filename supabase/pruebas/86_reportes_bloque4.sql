@@ -11,8 +11,11 @@ insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion,origen) v
  ('10000000-0000-0000-0000-000000000001','49000000-0000-0000-0000-000000000001','H83.3','Hipoacusia por ruido','ocupacional'),
  ('10000000-0000-0000-0000-000000000001','49000000-0000-0000-0000-000000000001','J06.9','Rinofaringitis','comun');
 
+update clinico.consultas set potencial_discapacidad = true, discapacidad_nota = 'Hipoacusia bilateral progresiva' where id = '49000000-0000-0000-0000-000000000001';
+
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'discapacidad: marcado por el médico con su nota (debe 1): ' || count(*) from jsonb_array_elements(public.reporte_listado('discapacidad',null,'2026-05-01','2026-05-31')) x where x ->> 'criterios' like '%Marcado por el médico%' and x ->> 'nota_medico' = 'Hipoacusia bilateral progresiva';
 select 'declaración: EDO y ocupacional, no la rinofaringitis (debe 2): ' || jsonb_array_length(public.reporte_listado('declaracion',null,'2026-05-01','2026-05-31'));
 select 'declaración: A09 es EDO semanal (debe 1): ' || count(*) from jsonb_array_elements(public.reporte_listado('declaracion',null,'2026-05-01','2026-05-31')) x where x ->> 'cie10' = 'A09.0' and x ->> 'notificacion' = 'EDO semanal (MPPS)';
 select 'declaración: hipoacusia va al INPSASEL (debe 1): ' || count(*) from jsonb_array_elements(public.reporte_listado('declaracion',null,'2026-05-01','2026-05-31')) x where x ->> 'notificacion' like '%INPSASEL%';
@@ -24,5 +27,6 @@ select 'padrón trae la ficha completa (debe 1): ' || (count(*) > 0)::int from j
 
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. de A no ve la declaración obligatoria (debe 0): ' || jsonb_array_length(public.reporte_listado('declaracion',null,'2026-05-01','2026-05-31'));
+select 'RR. HH. de A no ve la nota del médico (debe 0): ' || count(*) from jsonb_array_elements(public.reporte_listado('discapacidad',null,'2026-05-01','2026-05-31')) x where x ->> 'nota_medico' is not null;
 select 'RR. HH. de A no ve limitaciones (debe 0): ' || jsonb_array_length(public.reporte_listado('limitaciones',null,'2030-01-01','2030-01-31','{"vigentes":true}'));
 reset role;

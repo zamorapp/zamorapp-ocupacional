@@ -259,6 +259,7 @@ export const REPORTES: DefReporte[] = [
       { k: "restricciones", t: "Restricciones", ancho: 30 },
       { k: "ocupacionales", t: "Diagnósticos ocupacionales", ancho: 34 },
       { k: "criterios", t: "Por qué aparece", ancho: 36 },
+      { k: "nota_medico", t: "Nota del médico", ancho: 30, clinico: true },
     ],
     filtros: ["ultima_aptitud"],
     resumenes: [{ titulo: "Por criterio", por: "criterios", separar: true }, { titulo: "Por empresa", por: "empresa" }],
