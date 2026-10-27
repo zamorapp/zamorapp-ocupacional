@@ -40,6 +40,7 @@ export type SignosVitales = {
 export type DatosConsulta = {
   id: string;
   estado: EstadoConsulta;
+  revision: number; // 1 = original; sube cada vez que se corrige una consulta firmada
   fecha: string;
   tipo: "primera" | "sucesiva" | "derivada";
   motivoId: string | null;

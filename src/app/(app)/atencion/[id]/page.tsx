@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { obtenerConsulta } from "@/lib/consultas";
+import { listarVersiones, obtenerConsulta } from "@/lib/consultas";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
@@ -23,7 +23,7 @@ const LISTAS = [
 export default async function Consulta({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sesion = await obtenerSesion();
-  const [consulta, listas] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS)]);
+  const [consulta, listas, versiones] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS), sesion.demo ? [] : listarVersiones(id)]);
   if (!consulta) notFound();
   // Contacto de RR. HH. de la empresa para enviar el resultado de aptitud
   const [org, contacto] = await Promise.all([
@@ -41,7 +41,7 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} />
     </div>
   );
 }

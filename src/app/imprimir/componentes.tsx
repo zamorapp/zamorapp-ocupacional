@@ -218,10 +218,15 @@ export function Firmas({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
 }
 
-export function Pie({ d, derecha }: { d: Pick<DatosDocumento, "impreso">; derecha?: string }) {
+export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string }) {
+  const revision = d.impreso.revision ?? 1;
   return (
     <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
-      <span>Impreso por {d.impreso.por} · {d.impreso.el}</span>
+      <span>
+        Impreso por {d.impreso.por} · {d.impreso.el}
+        {/* Una consulta corregida invalida los impresos de su revisión anterior */}
+        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores de esta consulta</b></>}
+      </span>
       {derecha && <span>{derecha}</span>}
     </footer>
   );

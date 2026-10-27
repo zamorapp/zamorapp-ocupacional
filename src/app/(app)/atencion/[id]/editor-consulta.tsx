@@ -25,7 +25,8 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
+import { corregirConsulta, firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
+import type { VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import { Adjuntos } from "@/components/app/adjuntos";
@@ -44,13 +45,15 @@ type Props = {
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
   envio: { servicio: string; plantilla: string; telefono: string | null; correo: string | null };
   puedeFirmar: boolean;
+  versiones: VersionConsulta[];
 };
 
 const CONFIRMAR_FIRMA = {
   titulo: "¿Firmar la consulta?",
-  texto: "Al firmarla queda cerrada para siempre: ya no se puede editar, reabrir ni borrar.",
+  texto: "Al firmarla queda bloqueada y no se borra. Si después encuentras un error, podrás corregirla indicando el motivo: la versión firmada queda guardada en el historial.",
   accion: "Firmar",
 };
+const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(iso));
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const APTITUDES: Aptitud[] = ["elegible", "elegible_con_restricciones", "no_elegible", "espera_resultados", "diferido"];
@@ -137,7 +140,7 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones }: Props) {
   const router = useRouter();
   const [d, setD] = useState<DatosConsulta>(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
@@ -145,6 +148,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
   const [paso, setPaso] = useState("generales");
+  // Corregir una consulta firmada: motivo obligatorio (lo exige también reabrir_consulta en la base)
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const [motivoCorreccion, setMotivoCorreccion] = useState("");
 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
@@ -282,6 +288,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
+              {puedeFirmar && !corrigiendo && (
+                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
+              )}
             </div>
           ) : bloqueado ? (
             <div className="flex flex-wrap gap-2">
@@ -309,6 +318,51 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             </div>
           )}
         </div>
+        {d.estado === "firmada" && corrigiendo && (
+          <div className="mt-4 space-y-3 rounded-lg border border-aviso/40 bg-aviso/10 p-4">
+            <p className="text-sm">
+              <b>Corregir la consulta firmada.</b> La versión firmada se guarda tal cual en el historial (no se pierde ni se edita)
+              y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
+              «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
+            </p>
+            <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
+            <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
+              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
+              <Button
+                disabled={guardando || motivoCorreccion.trim().length < 10}
+                title={motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
+                onClick={() => iniciar(async () => {
+                  const r = await corregirConsulta(d.id, motivoCorreccion);
+                  setAviso(r);
+                  if (!r.ok) return;
+                  const nuevo = { ...d, estado: "borrador" as const, revision: r.revision ?? d.revision + 1 };
+                  setD(nuevo);
+                  setGuardado(JSON.stringify(nuevo));
+                  setCorrigiendo(false);
+                  setMotivoCorreccion("");
+                  router.refresh();
+                })}
+              >
+                {guardando ? <Loader2 className="animate-spin" /> : <RotateCcw />} Abrir para corregir
+              </Button>
+            </div>
+          </div>
+        )}
+        {versiones.length > 0 && (
+          <details className="mt-3 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">Revisión {d.revision} · {versiones.length} versión{versiones.length === 1 ? "" : "es"} firmada{versiones.length === 1 ? "" : "s"} anterior{versiones.length === 1 ? "" : "es"}</summary>
+            <ul className="mt-2 space-y-1.5 pb-1">
+              {versiones.map((v) => (
+                <li key={v.revision} className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Revisión {v.revision}</span>
+                  {v.firmadaEn && <> · firmada {fechaHora(v.firmadaEn)}</>} · corregida {fechaHora(v.reabiertaEn)} por {v.por}: «{v.motivo}»
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {!cambios && d.aptitud.clasificacion && d.estado !== "borrador" && (() => {
           const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
             empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
