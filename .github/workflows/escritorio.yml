@@ -160,6 +160,9 @@ jobs:
         timeout-minutes: 35
         env:
           GH_TOKEN: ${{ github.token }}
+          # Solo al publicar: la prueba de actualización firma la copia de prueba con la llave real (igual que arriba)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           # Acceso directo de Cesar a la app web (Chrome --app): ni instalar ni desinstalar puede tocarlo
           $escritorio = [Environment]::GetFolderPath("Desktop")
@@ -264,6 +267,7 @@ jobs:
             $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($setupPrevio) { $previa = "última publicada" }
           }
+          $global:LASTEXITCODE = 0  # un gh fallido (sin artefacto ni release) no debe teñir de rojo el paso entero
           if ($setupPrevio) {
             Write-Host "Versión anterior: corrida $previa ($($setupPrevio.Name))"
             Instalar $setupPrevio.FullName
@@ -294,7 +298,14 @@ jobs:
           # servidor de prueba (este mismo instalador, anunciado como 0.1.<corrida+1>), la descarga, verifica la firma,
           # la instala sin preguntar (solo en pruebas) y se vuelve a abrir solo. El servidor la anuncia una sola vez.
           $versionNueva = "0.1.$([int]$env:GITHUB_RUN_NUMBER + 1)"
-          $servidor = Start-Process node -ArgumentList "escritorio/pruebas/actualizacion-cli.mjs --setup `"$($setup.FullName)`" --version $versionNueva" -PassThru -NoNewWindow -RedirectStandardOutput capturas/actualizacion.log -RedirectStandardError capturas/actualizacion.err
+          # La firma lleva la versión (requireSignedVersion): el instalador se copia y se firma de nuevo como $versionNueva.
+          # Nunca se toca la firma original, que es la que se publica.
+          $copia = "$env:RUNNER_TEMP/actualizacion"; New-Item -ItemType Directory -Force $copia | Out-Null
+          $setupNuevo = Join-Path $copia $setup.Name; Copy-Item $setup.FullName $setupNuevo
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) { npx --yes @tauri-apps/cli@2 signer sign --app-version $versionNueva $setupNuevo }
+          else { npx --yes @tauri-apps/cli@2 signer sign -f "$env:RUNNER_TEMP/prueba.key" -p "" --app-version $versionNueva $setupNuevo }
+          if ($LASTEXITCODE -or -not (Test-Path "$setupNuevo.sig")) { throw "No se pudo firmar la actualización de prueba como $versionNueva" }
+          $servidor = Start-Process node -ArgumentList "escritorio/pruebas/actualizacion-cli.mjs --setup `"$setupNuevo`" --version $versionNueva" -PassThru -NoNewWindow -RedirectStandardOutput capturas/actualizacion.log -RedirectStandardError capturas/actualizacion.err
           $env:ZAMORAPP_ACTUALIZACIONES_URL = "http://127.0.0.1:55600/latest.json"
           $env:ZAMORAPP_ACTUALIZACIONES_LLAVE = $env:LLAVE_ACTUALIZACIONES_PRUEBA
           $env:ZAMORAPP_ACTUALIZAR_SIN_PREGUNTAR = "1"
