@@ -170,9 +170,14 @@ jobs:
                 } catch { }
               }
               if ($ok -and $ui) {
-                $captura = "capturas/" + ($que -replace "[^a-z0-9]+", "-") + ".png"
-                node escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar "PC de prueba" --captura $captura 2>&1 | ForEach-Object { "   $_" }
-                if ($LASTEXITCODE) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló" }
+                # ¿El WebView2 de zamorApp abrió el puerto de depuración? (lo pide WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS)
+                $web = Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -match "zamorapp" -and $_.CommandLine -notmatch "--type=" }
+                Write-Host "   WebView2 de zamorApp: $(@($web).Count) proceso(s); con puerto de depuración: $(@($web | Where-Object CommandLine -match 'remote-debugging-port').Count)"
+                try { Write-Host "   CDP 9333: $((Invoke-RestMethod http://127.0.0.1:9333/json/version -TimeoutSec 3).Browser)" } catch { Write-Host "   CDP 9333 no responde: $($_.Exception.Message)" }
+                $base = "capturas/" + ($que -replace "[^a-z0-9]+", "-")
+                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
+                Get-Content "$base.salida.txt", "$base.errores.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
+                if ($prueba.ExitCode) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló (ver capturas/)" }
               }
               if ($ok -and $cors) {
                 # La pantalla de ingreso (54332) debe poder hablarle a la puerta (54331) con las cabeceras reales de supabase-js
@@ -182,10 +187,9 @@ jobs:
               }
             } finally {
               if (-not $ok) {
-                Write-Host "== arranque.log"; Get-Content "$registros/arranque.log" -Tail 40 -ErrorAction SilentlyContinue
-                Write-Host "== puerta.log"; Get-Content "$registros/datos/puerta.log" -Tail 60 -ErrorAction SilentlyContinue
-                Write-Host "== app.log"; Get-Content "$registros/datos/app.log" -Tail 30 -ErrorAction SilentlyContinue
-                Write-Host "== base.log"; Get-Content "$registros/datos/base.log" -Tail 20 -ErrorAction SilentlyContinue
+                foreach ($l in "arranque.log", "datos/puerta.log", "datos/app.log", "datos/base.log") {
+                  Write-Host "== $l"; Get-Content "$registros/$l" -Tail 60 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
+                }
               }
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
               [void]$proc.CloseMainWindow()
@@ -200,8 +204,14 @@ jobs:
                 $vivos | Stop-Process -Force -ErrorAction SilentlyContinue
                 $ok = $false
               }
+              # El navegador interno (WebView2) tarda unos segundos en morir tras cerrar el programa; si la próxima
+              # apertura lo encuentra vivo, se le pega y no abre el puerto de depuración de la prueba de ventana
+              $webVivo = { Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object CommandLine -match "zamorapp" }
+              for ($s = 0; $s -lt 20 -and (& $webVivo); $s++) { Start-Sleep 1 }
+              if (& $webVivo) { Write-Host "::warning::El WebView2 de $que seguía vivo a los 20 s; se cierra a la fuerza"; & $webVivo | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }
             }
-            return $ok
+            # Solo $ok sale de la función: en PowerShell todo lo que una función deja en la salida se vuelve su valor
+            return [bool]$ok
           }
 
           # 1) Versión anterior (lo que Cesar ya tiene), con sus datos. Si no arranca no importa: es la vieja.

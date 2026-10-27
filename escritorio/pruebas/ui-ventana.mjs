@@ -30,10 +30,13 @@ async function conectar() {
   if (CDP) {
     const { chromium } = await import("playwright-core");
     const limite = Date.now() + 90_000;
-    for (;;) {
+    let ultimo = "";
+    for (let intento = 0; ; intento++) {
       try { return { navegador: await chromium.connectOverCDP(CDP, { timeout: 5000 }), local: false }; }
       catch (e) {
-        if (Date.now() > limite) throw new Error(`No se pudo conectar a la ventana por CDP (${CDP}): ${e.message}`);
+        ultimo = e.message.split("\n")[0];
+        if (intento % 10 === 0) anotar(`   esperando el puerto de depuración de la ventana (${CDP}): ${ultimo}`);
+        if (Date.now() > limite) throw new Error(`No se pudo conectar a la ventana por CDP (${CDP}) en 90 s: ${ultimo}. ¿El programa se abrió con WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 y sin otro WebView2 de zamorApp vivo?`);
         await esperar(1000);
       }
     }
@@ -51,10 +54,11 @@ async function paso(nombre, fn) {
   return r;
 }
 
-const { navegador, local } = await conectar();
 let salida = 0;
 let pagina;
+let navegador, local;
 try {
+  ({ navegador, local } = await conectar());
   const contexto = navegador.contexts()[0] || await navegador.newContext();
   pagina = contexto.pages()[0] || await contexto.newPage();
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
@@ -175,9 +179,14 @@ try {
     anotar(`RESULTADO: FALLÓ: ${e.message}`);
   }
 } finally {
-  if (CAPTURA && pagina) {
-    try { fs.mkdirSync(path.dirname(CAPTURA), { recursive: true }); await pagina.screenshot({ path: CAPTURA, fullPage: false }); anotar(`captura: ${CAPTURA}`); } catch (e) { anotar(`sin captura: ${e.message}`); }
+  if (CAPTURA) {
+    fs.mkdirSync(path.dirname(CAPTURA), { recursive: true });
+    if (pagina) {
+      try { await pagina.screenshot({ path: CAPTURA, fullPage: false }); anotar(`captura: ${CAPTURA}`); } catch (e) { anotar(`sin captura: ${e.message}`); }
+    }
+    // La bitácora completa queda junto a la captura (en el CI viaja en el mismo artefacto)
+    try { fs.writeFileSync(CAPTURA.replace(/\.png$/i, "") + ".log", bitacora.join("\n") + "\n"); } catch { /* sin bitácora en disco */ }
   }
-  if (local) await navegador.close(); else await navegador.close().catch(() => {}); // por CDP solo se desconecta; la ventana sigue
+  if (navegador) { if (local) await navegador.close(); else await navegador.close().catch(() => {}); } // por CDP solo se desconecta; la ventana sigue
 }
 process.exit(salida);
