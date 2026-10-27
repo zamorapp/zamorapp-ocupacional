@@ -30,13 +30,15 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "ingreso",
-    titulo: "Ingresar, instalar y recuperar la contraseña",
+    titulo: "Ingresar (con contraseña o huella), instalar y recuperar la contraseña",
     para: "todos",
     resumen: "zamorApp funciona en la PC, el celular y la tablet desde zamorapp-ocupacional.vercel.app, con los mismos datos en todos.",
     pasos: [
       "Abre zamorapp-ocupacional.vercel.app y entra con tu correo y contraseña.",
       "Para tenerla como app de escritorio o en el celular, toca «Instalar app» arriba, junto a la campanita. En iPhone: Compartir → «Agregar a inicio».",
       "Si olvidaste la contraseña, toca «¿La olvidaste?», escribe tu correo y abre el enlace que te llega. Ahí creas la nueva.",
+      "Entrar con huella: después de entrar con tu contraseña, zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses.",
+      "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],
     consejos: [
