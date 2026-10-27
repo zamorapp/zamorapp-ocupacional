@@ -21,6 +21,7 @@ const REGISTRAR = arg("registrar"); // nombre de la PC; sin él, se exige que la
 const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
+const HELLO = process.argv.includes("--hello"); // además: activar Windows Hello, salir y volver a entrar con él
 const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -156,6 +157,12 @@ try {
     for (;;) {
       const url = pagina.url();
       if (/\/panel/.test(url)) break;
+      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no"
+      const oferta = pagina.getByRole("button", { name: HELLO ? "Activar Windows Hello" : "Ahora no" });
+      if (await oferta.isVisible().catch(() => false)) {
+        anotar(`   la app ofrece Windows Hello: "${HELLO ? "Activar" : "Ahora no"}"`);
+        await oferta.click();
+      }
       if (/[?&]correo=/.test(url)) throw new Error("El formulario se envió sin JavaScript (GET /login?correo=...): la pantalla no estaba hidratada");
       const error = await pagina.evaluate(() => document.querySelector("[role=alert], .text-destructive")?.textContent || "").catch(() => "");
       if (error) throw new Error(`La app mostró un error al entrar: ${error}`);
@@ -170,6 +177,25 @@ try {
     await pagina.reload({ waitUntil: "domcontentloaded" });
     await esperar(1500);
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
+  });
+
+  if (HELLO) await paso("salir y volver a entrar con Windows Hello (sin escribir la clave)", async () => {
+    // En el CI no hay huella: el programa la da por verificada solo con la nube de prueba y ZAMORAPP_HELLO_PRUEBA=1
+    await pagina.click("button[aria-label='Mi cuenta']");
+    await pagina.getByRole("menuitem", { name: "Salir" }).click();
+    await pagina.waitForURL(/\/login/, { timeout: 60_000 });
+    const boton = pagina.getByRole("button", { name: "Entrar con Windows Hello" });
+    await boton.waitFor({ timeout: 30_000 }).catch(() => { throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)"); });
+    await boton.click();
+    const limite = Date.now() + 60_000;
+    while (!/\/panel/.test(pagina.url())) {
+      const error = await pagina.evaluate(() => document.querySelector(".text-destructive")?.textContent || "").catch(() => "");
+      if (error) throw new Error(`Windows Hello no entró: ${error}`);
+      if (Date.now() > limite) throw new Error(`Con Windows Hello la app no llegó al panel; quedó en ${pagina.url()}`);
+      await esperar(500);
+    }
+    await pagina.waitForSelector("h1", { timeout: 60_000 });
+    anotar("   entró con Windows Hello");
   });
 
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {

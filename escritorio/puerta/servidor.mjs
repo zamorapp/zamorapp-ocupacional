@@ -8,6 +8,7 @@ import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearHello } from "./hello.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
 // Los enlaces de los correos (recuperar clave, confirmar) abren la app web: la PC no recibe visitas de afuera.
@@ -17,7 +18,7 @@ const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplic
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 
-export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
@@ -223,6 +224,9 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     return responder(res, 200, { ok: true, id: r.id });
   }
 
+  // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro });
+
   const servidor = http.createServer(async (req, res) => {
     // Solo se atiende a esta PC por su nombre local (Host) y, desde un navegador, solo a la ventana de
     // zamorApp o a la propia puerta (Origin). Así una página web cualquiera, ni siquiera con un DNS que
@@ -262,6 +266,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       const ruta = req.url.split("?")[0];
       if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
+      if (await atenderHello(req, res, ruta, json)) return;
       if (ruta === "/zamorapp/estado") {
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });

@@ -2,12 +2,14 @@
 // arranca la base PostgreSQL y PostgREST) y el servidor de la app; al cerrar, los detiene en orden.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Manager, RunEvent};
+
+mod hello;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -19,6 +21,12 @@ const PUERTO_PUERTA: u16 = 54331;
 const PUERTO_APP: u16 = 54332;
 const NUBE_URL: &str = match option_env!("ZAMORAPP_NUBE_URL") { Some(v) => v, None => "" };
 const NUBE_ANON: &str = match option_env!("ZAMORAPP_NUBE_ANON") { Some(v) => v, None => "" };
+
+// Clave de un solo uso por sesión para que solo esta ventana pida acciones internas a la puerta.
+fn clave_control() -> &'static str {
+    static CLAVE: OnceLock<String> = OnceLock::new();
+    CLAVE.get_or_init(|| hex::encode(rand::random::<[u8; 24]>()))
+}
 
 #[derive(Default)]
 struct Procesos {
@@ -202,6 +210,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .env("ZAMORAPP_STUBS", recursos.join("stubs.sql"))
         .env("ZAMORAPP_ORIGEN", format!("http://127.0.0.1:{PUERTO_APP}"))
         .env("PUERTO_PUERTA", PUERTO_PUERTA.to_string())
+        .env("ZAMORAPP_CONTROL", clave_control())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -277,6 +286,18 @@ fn detener(p: &mut Procesos) {
     }
 }
 
+// Pide a la puerta local una acción interna (POST) y devuelve el cuerpo de la respuesta.
+fn pedir_puerta(ruta: &str) -> Result<String, String> {
+    let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
+    c.set_read_timeout(Some(Duration::from_secs(300))).ok();
+    write!(c, "POST {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+        .map_err(|e| e.to_string())?;
+    let mut respuesta = String::new();
+    c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
+    let (cabecera, cuerpo) = respuesta.split_once("\r\n\r\n").unwrap_or((&respuesta, ""));
+    if cabecera.starts_with("HTTP/1.1 200") { Ok(cuerpo.to_string()) } else { Err(cabecera.lines().next().unwrap_or("").to_string()) }
+}
+
 fn main() {
     anotar(&format!("--- zamorApp {} abriendo", env!("CARGO_PKG_VERSION")));
     std::panic::set_hook(Box::new(|info| anotar(&format!("PÁNICO: {info}"))));
@@ -296,7 +317,21 @@ fn main() {
     let version = app.package_info().version.to_string();
     anotar(&format!("versión del instalador {version}"));
     let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-        .title(format!("zamorApp Escritorio v{version}"));
+        .title(format!("zamorApp Escritorio v{version}"))
+        // "Entrar con Windows Hello": la página pide la huella navegando a una dirección de la puerta que se
+        // intercepta aquí (la página no cambia). Ver hello.rs.
+        .on_navigation({
+            let manejador = app.handle().clone();
+            move |url| match hello::pedido(url, PUERTO_PUERTA) {
+                Some((accion, codigo)) => {
+                    if let Some(ventana) = manejador.get_webview_window("principal") {
+                        hello::atender(ventana, accion, codigo, pedir_puerta, anotar);
+                    }
+                    false
+                }
+                None => true,
+            }
+        });
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
