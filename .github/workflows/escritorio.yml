@@ -141,7 +141,9 @@ jobs:
           Write-Host "Versión del instalador: $version"
           # La llave pública también va en la configuración (el empaquetador la exige para firmar). El programa usa la
           # grabada en ZAMORAPP_UPDATER_PUBKEY; una llave de prueba aquí no le da confianza a nada en una PC real.
-          @{ version = $version; bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = $pub } } } | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 src-tauri/ajustes-ci.json
+          # dangerousInsecureTransportProtocol: la prueba 3b sirve latest.json por http://127.0.0.1 y el plugin rechaza http en
+          # compilaciones release. El endpoint real sigue siendo https y el de prueba solo se usa cuando la nube es 127.0.0.1.
+          @{ version = $version; bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = $pub; dangerousInsecureTransportProtocol = $true } } } | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 src-tauri/ajustes-ci.json
           npx --yes @tauri-apps/cli@2 icon ../public/icono-512.png
           npx --yes @tauri-apps/cli@2 build --config src-tauri/ajustes-ci.json
           if ($LASTEXITCODE) { throw "Falló el instalador" }
