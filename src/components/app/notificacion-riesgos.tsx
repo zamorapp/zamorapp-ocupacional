@@ -92,3 +92,22 @@ export function BotonNotificarPuesto({ puestoId, trabajadores }: { puestoId: str
     </>
   );
 }
+
+// Varios trabajadores (p. ej. los pendientes del paquete de inspección)
+export function BotonNotificarTrabajadores({ ids }: { ids: string[] }) {
+  const [ocupado, iniciar] = useTransition();
+  if (!ids.length) return null;
+  return (
+    <Button size="sm" disabled={ocupado}
+      onClick={() => {
+        if (!window.confirm(`¿Notificar los riesgos de su puesto a ${ids.length} trabajador(es)? Se registra la entrega con fecha de hoy.`)) return;
+        iniciar(async () => {
+          const r = await notificarRiesgos(ids);
+          if (r.ok && r.ids) imprimir(r.ids);
+          window.alert(r.mensaje);
+        });
+      }}>
+      {ocupado ? <Loader2 className="animate-spin" /> : <BellRing />} Notificar a los {ids.length}
+    </Button>
+  );
+}

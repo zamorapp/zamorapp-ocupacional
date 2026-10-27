@@ -86,3 +86,13 @@ export async function obtenerEvento(id: string): Promise<Evento | null> {
   const { data } = await supabase.from("eventos").select(COLUMNAS).eq("id", id).maybeSingle();
   return data ? aEvento(data as unknown as Fila) : null;
 }
+
+// Eventos de una empresa en un período (paquete de inspección)
+export async function eventosDeEmpresa(empresaId: string, desde: string, hasta: string): Promise<Evento[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("eventos").select(COLUMNAS).eq("empresa_id", empresaId)
+    .gte("fecha_hora", `${desde}T00:00:00-04:00`).lte("fecha_hora", `${hasta}T23:59:59-04:00`).order("fecha_hora").limit(1000);
+  if (error) throw error;
+  return ((data ?? []) as unknown as Fila[]).map(aEvento);
+}
