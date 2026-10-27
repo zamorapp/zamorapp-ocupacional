@@ -29,7 +29,7 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.adjuntos (org_id,trabajador_id,consulta_id,nombre,ruta,tipo_mime,tamano) values
-   ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000b','4e000000-0000-0000-0000-00000000000a','x.pdf','10000000-0000-0000-0000-000000000001/x/y.pdf','application/pdf',10);
+   ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000b','4e000000-0000-0000-0000-00000000000a','x.pdf','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000b/y.pdf','application/pdf',10);
   raise notice 'FALLA: archivo de otro trabajador en esta consulta';
 exception when others then
   if sqlerrm like '%mismo trabajador%' then raise notice 'no mezcla trabajador y consulta (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
@@ -67,6 +67,45 @@ do $$ begin
 exception when others then
   if sqlerrm like '%inválido%' then raise notice 'estado inventado rechazado (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
+
+-- Ruta fuera de la carpeta del trabajador
+do $$ begin
+  insert into public.adjuntos (org_id,trabajador_id,nombre,ruta,tipo_mime,tamano) values
+   ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000a','x.pdf','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000b/x.pdf','application/pdf',10);
+  raise notice 'FALLA: registró un archivo de la carpeta de otro trabajador';
+exception when others then
+  if sqlerrm like '%no corresponde al trabajador%' then raise notice 'ruta de otro trabajador rechazada (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+
+-- Consulta firmada: sus archivos no se religan, borran ni agregan (la importación sin sesión sí los carga)
+reset role;
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+insert into clinico.adjuntos (org_id,trabajador_id,consulta_id,nombre,ruta,tipo_mime,tamano) values
+ ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000a','4e000000-0000-0000-0000-00000000000f','f.pdf','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000a/firmada.pdf','application/pdf',10);
+select 'importación carga el escaneado de una firmada (debe 1): ' || count(*) from clinico.adjuntos where ruta like '%/firmada.pdf';
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+do $$ begin
+  update public.adjuntos set examenes = '{hb}' where ruta like '%/firmada.pdf';
+  raise notice 'FALLA: religó un archivo de una consulta firmada';
+exception when others then
+  if sqlerrm like '%firmada%' then raise notice 'firmada: no se religa (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+do $$ begin
+  delete from public.adjuntos where ruta like '%/firmada.pdf';
+  raise notice 'FALLA: borró un archivo de una consulta firmada';
+exception when others then
+  if sqlerrm like '%firmada%' then raise notice 'firmada: no se borra (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+do $$ begin
+  insert into public.adjuntos (org_id,trabajador_id,consulta_id,nombre,ruta,tipo_mime,tamano) values
+   ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000a','4e000000-0000-0000-0000-00000000000f','n.pdf','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000a/n.pdf','application/pdf',10);
+  raise notice 'FALLA: agregó un archivo a una consulta firmada';
+exception when others then
+  if sqlerrm like '%firmada%' then raise notice 'firmada: no se agregan archivos (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+with x as (delete from public.adjuntos where ruta like '%/p-lab.pdf' returning 1)
+select 'consulta cerrada: el archivo sí se borra (debe 1): ' || count(*) from x;
 
 -- RR. HH. no ve ni escribe resultados ni archivos
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null

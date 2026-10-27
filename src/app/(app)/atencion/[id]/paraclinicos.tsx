@@ -40,6 +40,8 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
   const defs = useMemo(() => new Map(catalogo.map((i) => [i.id, defExamen(i.datos)])), [catalogo]);
   const def = useCallback((id: string) => defs.get(id) ?? SIN_DEF, [defs]);
   const editableResultado = modo !== "lectura";
+  // Firmada: los archivos de la consulta no se agregan, religan ni borran (la base lo exige); se ven igual
+  const archivosEditables = modo !== "lectura";
 
   const [lista, setLista] = useState<Adjunto[]>(archivos?.lista ?? []);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -160,7 +162,12 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
       {paraclinicos.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {conteo.normales > 0 && <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok-texto">{plural(conteo.normales, "normal", "normales")}</span>}
-          {conteo.alterados > 0 && <span className="rounded-full bg-alerta/15 px-2.5 py-0.5 text-xs font-semibold text-alerta-texto">{conteo.alterados} fuera de rango</span>}
+          {conteo.alterados + conteo.fuera > 0 && (
+            // Rojo solo si hay alguno alterado; si todos están apenas fuera de rango, ámbar (igual que las filas)
+            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", conteo.alterados ? "bg-alerta/15 text-alerta-texto" : "bg-aviso/20 text-aviso-texto")}>
+              {conteo.alterados ? `${plural(conteo.alterados, "alterado", "alterados")}${conteo.fuera ? ` · ${conteo.fuera} fuera de rango` : ""}` : `${conteo.fuera} fuera de rango`}
+            </span>
+          )}
           {conteo.pendientes > 0
             ? <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-semibold text-aviso-texto">Faltan {plural(conteo.pendientes, "resultado", "resultados")}</span>
             : <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok-texto">Resultados completos</span>}
@@ -174,7 +181,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 grid-cols-1 gap-3">
-          {archivos && (
+          {archivos && archivosEditables && (
             <>
               <div
                 onDragOver={(e) => alPasar(e, "zona")}
@@ -239,9 +246,9 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                   return (
                     <div
                       key={p.id}
-                      onDragOver={(e) => alPasar(e, p.id)}
+                      onDragOver={archivosEditables ? (e) => alPasar(e, p.id) : undefined}
                       onDragLeave={() => setSobre(null)}
-                      onDrop={(e) => alSoltar(e, p.id)}
+                      onDrop={archivosEditables ? (e) => alSoltar(e, p.id) : undefined}
                       className={cn(
                         "grid grid-cols-[0.75rem_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-2 border-t px-4 py-2.5 sm:grid-cols-[0.75rem_minmax(0,1fr)_minmax(6.5rem,11rem)_auto_auto]",
                         sobre === p.id && "bg-accent",
@@ -315,7 +322,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                         {archivos && (
                           <button
                             type="button"
-                            onClick={() => (elegido ? void ligar(elegido, p.id) : ligados.length ? setVer(ligados[0].id) : setError("Toca primero un archivo de «Sin asignar» o arrástralo a este examen."))}
+                            onClick={() => (elegido && archivosEditables ? void ligar(elegido, p.id) : ligados.length ? setVer(ligados[0].id) : archivosEditables ? setError("Toca primero un archivo de «Sin asignar» o arrástralo a este examen.") : undefined)}
                             aria-label={ligados.length ? `Ver archivo de ${p.nombre}` : `Ligar archivo a ${p.nombre}`}
                             className={cn("inline-flex items-center gap-1 rounded-md p-1 text-xs hover:bg-muted", ligados.length || elegido ? "font-semibold text-primary" : "text-muted-foreground")}
                           >
@@ -335,7 +342,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
             ))}
           </Card>
           {modo === "lectura" && paraclinicos.length > 0 && (
-            <p className="text-xs text-muted-foreground">La consulta está firmada: para cambiar un resultado usa «Corregir». Los archivos sí se pueden seguir ligando.</p>
+            <p className="text-xs text-muted-foreground">La consulta está firmada: para cambiar un resultado o sus archivos usa «Corregir». Un resultado nuevo sin consulta se sube en la ficha del paciente.</p>
           )}
         </div>
 
@@ -355,7 +362,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                         <>Ligado a: {actual.examenes.map((x) => (
                           <span key={x} className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-px">
                             {nombreExamen(x)}
-                            <button type="button" aria-label={`Quitar de ${nombreExamen(x)}`} onClick={() => cambiarExamenes(actual, actual.examenes.filter((y) => y !== x))}><X className="size-3" /></button>
+                            {archivosEditables && <button type="button" aria-label={`Quitar de ${nombreExamen(x)}`} onClick={() => cambiarExamenes(actual, actual.examenes.filter((y) => y !== x))}><X className="size-3" /></button>}
                           </span>
                         ))}</>
                       ) : <span>Sin ligar a un examen</span>}
@@ -373,7 +380,9 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                       <a href={urls[actual.id]} target="_blank" rel="noreferrer" aria-label="Abrir en otra pestaña"><ExternalLink /></a>
                     </Button>
                   )}
-                  <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" aria-label="Borrar archivo" onClick={() => borrar(actual)}><Trash2 /></Button>
+                  {(archivosEditables || actual.consulta_id !== archivos.consultaId) && (
+                    <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" aria-label="Borrar archivo" onClick={() => borrar(actual)}><Trash2 /></Button>
+                  )}
                 </div>
                 <div className="grid min-h-[26rem] place-items-center overflow-auto bg-muted p-3">
                   {!urls[actual.id] ? (

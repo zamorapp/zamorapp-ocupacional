@@ -81,7 +81,32 @@ export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, e
         <span className="text-xs text-muted-foreground">Marcadas de entrada: las firmadas. Una constancia por hoja, solo el original para la empresa, sin diagnósticos.</span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      {/* Celular: tarjetas con lo esencial; desde tableta, la tabla completa */}
+      <ul className="divide-y rounded-xl border bg-card md:hidden">
+        {vista.slice(0, visibles).map((f) => {
+          const id = String(f.id);
+          const e = estados[id];
+          return (
+            <li key={id}>
+              <label className={cn("flex items-start gap-3 px-3 py-2.5", sel.has(id) && "bg-accent/60")}>
+                <input type="checkbox" checked={sel.has(id)} onChange={() => alternar(id)} aria-label={`Marcar a ${f.paciente}`} className="mt-1 size-4 accent-primary" />
+                <span className="min-w-0 flex-1">
+                  <b className="block font-medium">{f.paciente}</b>
+                  <span className="block text-xs text-muted-foreground">{[f.cedula, f.motivo, fecha(f.fecha)].filter(Boolean).join(" · ")}</span>
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", e?.aptitud ? ESTILO_APTITUD[e.aptitud] : "bg-muted")}>{f.aptitud ?? "—"}</span>
+                    {e?.estado === "firmada"
+                      ? <span className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-semibold text-ok-texto">Firmada</span>
+                      : <span className="rounded-full bg-aviso/20 px-2 py-0.5 text-xs font-semibold text-aviso-texto">{e?.estado === "borrador" ? "En curso" : "Sin firmar"}</span>}
+                  </span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+        {!vista.length && <li className="py-10 text-center text-sm text-muted-foreground">Sin constancias con este filtro.</li>}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
         <table className="w-full min-w-[52rem] text-sm">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
@@ -146,7 +171,7 @@ export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, e
         )}
       </div>
       {envio && enviando && listas.length > 0 && (
-        <PanelEnvio key={ids.join(",")} empresa={empresa} fecha={envio.fecha} consultaIds={ids} contactos={envio.contactos} correo={envio.correo} puedeAutorizar={envio.puedeAutorizar} />
+        <PanelEnvio key={ids.join(",")} empresa={empresa} fecha={envio.fecha} consultaIds={ids} contactos={envio.contactos} correo={envio.correo} puedeAutorizar={envio.puedeAutorizar} historial={`/envios?empresa=${empresa.id}`} />
       )}
     </div>
   );

@@ -1,7 +1,9 @@
 -- zamorApp Ocupacional · Paraclínicos digitales
 -- 1. Cada archivo (PDF o foto) se puede ligar a uno o varios exámenes de su consulta (adjuntos.examenes).
 -- 2. Reglas del archivo en la base: solo PDF, JPG y PNG de hasta 10 MB; consulta y trabajador coherentes;
---    los exámenes ligados existen en esa consulta; ruta, trabajador y organización no cambian después de subir.
+--    la ruta está en la carpeta del trabajador; los exámenes ligados existen en esa consulta; ruta, trabajador y
+--    organización no cambian después de subir. Los archivos de una consulta firmada no se agregan, religan ni borran
+--    (igual que sus resultados: hay que «Corregir»).
 -- 3. Los adjuntos respetan las empresas asignadas al usuario (igual que diagnósticos y aptitudes).
 -- 4. guardar_resultados: escribe solo resultado, estado y marca manual de los exámenes ya solicitados,
 --    también con la consulta cerrada (los resultados llegan días después). Firmada: hay que corregirla.
@@ -17,11 +19,22 @@ create or replace function public.validar_adjunto()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare c record; v_ids text[]; v_falta text;
 begin
+  -- Lo que ya está en una consulta firmada no se toca. Sin sesión (importación del SAME con la clave de servicio)
+  -- sí se cargan los escaneados de consultas que ya vienen firmadas.
+  if tg_op in ('UPDATE', 'DELETE') and auth.uid() is not null and old.consulta_id is not null
+     and exists (select 1 from clinico.consultas where id = old.consulta_id and estado = 'firmada') then
+    raise exception 'La consulta está firmada: sus archivos no se cambian. Usa «Corregir».';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+
   if tg_op = 'INSERT' then
     if new.tipo_mime not in ('application/pdf', 'image/jpeg', 'image/png') then
       raise exception 'Solo se aceptan PDF, JPG o PNG.';
     end if;
     if new.tamano > 10485760 then raise exception 'El archivo pesa más de 10 MB.'; end if;
+    if new.ruta not like new.org_id::text || '/' || new.trabajador_id::text || '/%' then
+      raise exception 'La ruta del archivo no corresponde al trabajador.';
+    end if;
   else
     if new.org_id <> old.org_id or new.trabajador_id <> old.trabajador_id or new.ruta <> old.ruta
        or new.tipo_mime <> old.tipo_mime or new.tamano <> old.tamano then
@@ -30,9 +43,12 @@ begin
   end if;
 
   if new.consulta_id is not null then
-    select org_id, trabajador_id, paraclinicos into c from clinico.consultas where id = new.consulta_id;
+    select org_id, trabajador_id, estado, paraclinicos into c from clinico.consultas where id = new.consulta_id;
     if not found or c.org_id <> new.org_id or c.trabajador_id <> new.trabajador_id then
       raise exception 'El archivo y la consulta deben ser del mismo trabajador.';
+    end if;
+    if c.estado = 'firmada' and auth.uid() is not null then
+      raise exception 'La consulta está firmada: sus archivos no se cambian. Usa «Corregir» o súbelo a la ficha del paciente.';
     end if;
   end if;
 
@@ -48,7 +64,7 @@ end $$;
 revoke execute on function public.validar_adjunto() from public, authenticated;
 
 drop trigger if exists validar_adjunto on clinico.adjuntos;
-create trigger validar_adjunto before insert or update on clinico.adjuntos
+create trigger validar_adjunto before insert or update or delete on clinico.adjuntos
   for each row execute function public.validar_adjunto();
 
 drop policy if exists adjuntos_empresa on clinico.adjuntos;
@@ -88,4 +104,5 @@ begin
 
   update clinico.consultas set paraclinicos = v where id = p_id;
 end $$;
+revoke execute on function public.guardar_resultados(uuid, jsonb) from public, anon;
 grant execute on function public.guardar_resultados(uuid, jsonb) to authenticated;

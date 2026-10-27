@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { AlertTriangle, Loader2, Mail, MessageCircle, Send, ShieldCheck, XCircle } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ type Props = {
   contactos: Contacto[];
   correo: string | null; // remitente configurado
   puedeAutorizar: boolean;
+  historial?: string; // enlace a los envíos de la empresa (cuando el panel se usa fuera de Envíos)
 };
 
 const alternar = (set: Set<string>, id: string) => {
@@ -28,7 +30,7 @@ const alternar = (set: Set<string>, id: string) => {
 };
 
 /** Destinatarios, canal y mensaje del envío a la empresa. Lo usan Envíos (lote del día) y Reportes › Aptitud emitida (lote del período). */
-export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, puedeAutorizar }: Props) {
+export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, puedeAutorizar, historial }: Props) {
   const [canal, setCanal] = useState<Canal>("correo");
   const [para, setPara] = useState(() => new Set(contactos.filter((c) => c.correo).map((c) => c.id)));
   const [extra, setExtra] = useState("");
@@ -39,7 +41,10 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
 
   const disponibles = contactos.filter((c) => (canal === "correo" ? c.correo : c.telefono));
   const destinatarios = disponibles.filter((c) => para.has(c.id));
-  const autorizados = canal === "correo" && conConsulta ? destinatarios.filter((c) => c.recibeConsulta) : [];
+  // La consulta médica solo se ofrece si hay alguien de salud autorizado entre los elegidos; si no, queda desmarcada
+  const deSalud = canal === "correo" ? destinatarios.filter((c) => c.recibeConsulta) : [];
+  const incluir = conConsulta && deSalud.length > 0;
+  const autorizados = incluir ? deSalud : [];
   const extras = extra.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
   const total = destinatarios.length + extras.length;
   const ejemplo = mensaje.replaceAll(MARCA_FECHA, "27/10/2026, 3:40 p. m.");
@@ -67,7 +72,7 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
           correosExtra: canal === "correo" ? extras : [],
           telefonosExtra: canal === "whatsapp" ? extras : [],
           canal,
-          incluirConsulta: conConsulta,
+          incluirConsulta: incluir,
           mensaje,
         }),
       );
@@ -78,7 +83,10 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle className="text-base">Enviar a {empresa.nombre}</CardTitle>
-        <Contactos empresaId={empresa.id} contactos={contactos} puedeAutorizar={puedeAutorizar} />
+        <div className="flex flex-wrap items-center gap-2">
+          {historial && <Link href={historial} className="text-sm text-primary hover:underline">Ver envíos a esta empresa</Link>}
+          <Contactos empresaId={empresa.id} contactos={contactos} puedeAutorizar={puedeAutorizar} />
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <div role="radiogroup" aria-label="Cómo enviar" className="grid grid-cols-2 gap-2">
@@ -119,8 +127,8 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, correo, pue
 
         {canal === "correo" ? (
           <label className="flex items-start gap-3 rounded-md border px-3 py-2.5 text-sm">
-            <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={conConsulta} onChange={(e) => setConConsulta(e.target.checked)} />
-            <span>Incluir la consulta médica <span className="block text-xs text-muted-foreground">Solo a personal de salud autorizado ({autorizados.length ? autorizados.map((c) => c.nombre).join(", ") : "ninguno elegido"}). Los demás reciben solo las constancias.</span></span>
+            <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={incluir} disabled={!deSalud.length} onChange={(e) => setConConsulta(e.target.checked)} />
+            <span className={cn(!deSalud.length && "text-muted-foreground")}>Incluir la consulta médica <span className="block text-xs text-muted-foreground">{deSalud.length ? `Solo a personal de salud autorizado (${deSalud.map((c) => c.nombre).join(", ")}). Los demás reciben solo las constancias.` : "Elige a alguien de salud para incluirla. Sin eso, solo van las constancias."}</span></span>
           </label>
         ) : (
           <p className="text-xs text-muted-foreground">Por WhatsApp va un enlace seguro a las constancias que vence en 7 días y se puede anular. La consulta médica nunca va por WhatsApp.</p>

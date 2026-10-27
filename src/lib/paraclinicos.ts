@@ -63,11 +63,12 @@ export function estadoCalculado(valor: string, def: DefExamen, sexo: string | nu
 export const pendiente = (p: Paraclinico) => !p.resultado?.trim() && !p.estado;
 
 export function contarResultados(lista: Paraclinico[]) {
-  const c = { pendientes: 0, normales: 0, alterados: 0 };
+  const c = { pendientes: 0, normales: 0, fuera: 0, alterados: 0 };
   for (const p of lista) {
     if (pendiente(p)) c.pendientes++;
     else if (p.estado === "normal") c.normales++;
-    else if (p.estado === "fuera" || p.estado === "alterado") c.alterados++;
+    else if (p.estado === "fuera") c.fuera++;
+    else if (p.estado === "alterado") c.alterados++;
   }
   return c;
 }
