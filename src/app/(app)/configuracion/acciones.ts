@@ -29,7 +29,21 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
     const lista = texto(datos, "lista")!;
     const nombre = texto(datos, "nombre");
     if (!nombre) return { ok: false, mensaje: "Escribe el nombre." };
-    const campos = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    const campos: Record<string, unknown> = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    // Paraclínicos: unidad y rango de referencia (se combinan con lo que ya tenga datos, p. ej. códigos del SAME)
+    if (lista === "paraclinico") {
+      const numero = (k: string) => {
+        const v = texto(datos, k);
+        if (v === null) return null;
+        const n = Number(v.replace(",", "."));
+        if (!Number.isFinite(n)) throw new Error("El rango debe ser un número (usa coma o punto para los decimales).");
+        return n;
+      };
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
+      if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+    }
 
     if (id) {
       const { error } = await supabase.from("lista_items").update(campos).eq("id", id).eq("org_id", sesion.orgId!);

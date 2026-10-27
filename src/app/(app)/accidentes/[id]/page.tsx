@@ -16,7 +16,7 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
   const sesion = await obtenerSesion();
   const [evento, listas] = await Promise.all([
     obtenerEvento(id),
-    opciones(sesion.orgId, ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente"]),
+    opciones(sesion.orgId, ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente", "acto_inseguro", "condicion_insegura"]),
   ]);
   if (!evento) notFound();
   return (

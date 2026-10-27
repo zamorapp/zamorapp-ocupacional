@@ -180,6 +180,17 @@ export async function corregirConsulta(id: string, motivo: string): Promise<Resu
   return { ok: true, mensaje: "Consulta abierta para corregir. La versión firmada quedó guardada en el historial.", revision: data as number };
 }
 
+// Resultados de los exámenes ya solicitados: se pueden escribir también con la consulta cerrada (llegan días después).
+// guardar_resultados solo toca resultado, estado y unidad/referencia; con la consulta firmada hay que corregirla.
+export async function guardarResultados(id: string, paraclinicos: DatosConsulta["paraclinicos"]): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const resultados = paraclinicos.map((p) => ({ id: p.id, resultado: p.resultado, estado: p.estado ?? "", manual: Boolean(p.manual), unidad: p.unidad ?? "", referencia: p.referencia ?? "" }));
+  const { error } = await supabase.rpc("guardar_resultados", { p_id: id, p_resultados: resultados });
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Resultados guardados." };
+}
+
 // Duplicar: borrador nuevo de hoy con el contenido clínico de la consulta (sin signos, resultados, aptitud,
 // reposo, reubicación ni firma). Lo hace duplicar_consulta en la base, en una sola transacción.
 export async function duplicarConsulta(id: string): Promise<Resultado & { id?: string }> {
