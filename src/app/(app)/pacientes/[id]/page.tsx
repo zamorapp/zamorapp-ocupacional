@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, CalendarClock, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +89,11 @@ export default async function FichaPaciente({ params }: Props) {
                 {sesion.clinico && (
                   <Button variant="outline" asChild className="flex-1 xl:flex-none">
                     <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
+                  </Button>
+                )}
+                {sesion.clinico && (
+                  <Button variant="outline" asChild className="flex-1 xl:flex-none">
+                    <Link href={`/imprimir/historia-laboral/${t.id}`} target="_blank"><BriefcaseBusiness /> Historia laboral</Link>
                   </Button>
                 )}
               </>

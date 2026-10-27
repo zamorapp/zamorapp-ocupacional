@@ -78,7 +78,16 @@ export function FiltrosReporte({ columnas, valores, opciones, elegidas, ver }: {
             <Button type="button" size="sm" variant="outline" className="h-9"><Columns3 /> Mostrar{ver.length ? ` (${ver.length})` : ""}</Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Columnas adicionales</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex items-center justify-between text-xs text-muted-foreground">
+              Columnas adicionales
+              <button
+                type="button"
+                className="font-medium text-primary hover:underline"
+                onClick={() => ir({ ver: ver.length === opcionales.length ? null : opcionales.map((c) => c.k).join(",") })}
+              >
+                {ver.length === opcionales.length ? "Ninguna" : "Todas"}
+              </button>
+            </DropdownMenuLabel>
             {opcionales.map((c) => (
               <DropdownMenuCheckboxItem
                 key={c.k}
