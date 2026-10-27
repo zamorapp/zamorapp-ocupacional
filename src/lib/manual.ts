@@ -12,6 +12,17 @@ export type TemaManual = {
 
 export const MANUAL_ACTUALIZADO = "2026-10-27";
 
+// Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
+export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-27", texto: "Paraclínicos con rango y color, y los PDF o fotos ligados a cada examen", tema: "paraclinicos" },
+  { fecha: "2026-10-27", texto: "Constancias de aptitud por lote en un PDF y envío a la empresa por correo o WhatsApp", tema: "envios" },
+  { fecha: "2026-10-27", texto: "Consulta más ágil: dictado por voz, evolución de signos, duplicar y registrar accidente", tema: "consulta" },
+  { fecha: "2026-10-27", texto: "Corregir una consulta firmada con motivo, sin perder la versión firmada", tema: "firmar" },
+  { fecha: "2026-10-27", texto: "Declaración de accidentes con los códigos COVENIN 474 y los plazos del INPSASEL", tema: "accidentes" },
+  { fecha: "2026-10-27", texto: "15 reportes del SAME con impresión y Excel, y nuevos documentos (OAM, constancia de atención, evaluación de puesto)", tema: "reportes-same" },
+  { fecha: "2026-10-27", texto: "Solicitudes de las empresas desde el portal y respaldo diario en Google Drive", tema: "solicitudes" },
+];
+
 export const MANUAL: TemaManual[] = [
   {
     id: "atajos",
@@ -91,38 +102,72 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "atencion",
-    titulo: "Atención médica: cola, citas y consultas",
+    titulo: "Atención médica: cola del día y citas",
     para: "servicio",
-    resumen: "Donde se atiende: cola del día, citas, solicitudes del portal y la consulta completa.",
+    resumen: "La cola del día como tablero en vivo, las citas y las solicitudes que llegan del portal.",
     pasos: [
       "En Atención médica ves la cola del día como tablero de cuatro columnas: Citados, En espera, En consulta y Atendidos. Arrastra a un citado a «En espera» cuando llega, y de ahí a «En consulta» para abrir su consulta (los botones «Llegó» y «Atender» hacen lo mismo). El tiempo de espera se pone amarillo a los 20 minutos y rojo a los 40.",
-      "La cola está «En vivo»: si recepción marca una llegada en otro equipo, la ves al instante sin recargar.",
-      "Arriba también ves las solicitudes que llegan del portal de empresas (las apruebas o rechazas).",
+      "La cola está «En vivo»: si recepción marca una llegada en otro equipo, la ves al instante sin recargar. Las tarjetas avisan «Faltan N resultados» cuando hay paraclínicos pendientes.",
+      "Arriba también ves las solicitudes de cita que llegan del portal de empresas (las apruebas o rechazas).",
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
       "El botón verde de WhatsApp en cada cita abre tu WhatsApp con el recordatorio listo para enviar al trabajador.",
+    ],
+  },
+  {
+    id: "consulta",
+    titulo: "La consulta, paso a paso",
+    para: "servicio",
+    resumen: "El editor de la consulta: pasos numerados, dictado por voz, evolución de signos, duplicar, accidentes y avisos que nunca bloquean.",
+    pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
-      "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar. En el último paso aparece «Cerrar consulta».",
+      "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar.",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",
       "Antecedentes: personales y familiares. Si no marcas familiares, el informe dice «No refiere antecedentes familiares».",
       "Examen físico y funcional: usa un perfil (por ejemplo «síndrome viral») o la casilla «Evaluación física normal», que llena todo con las descripciones normales.",
-      "Paraclínicos: en «Agregar exámenes» elige exámenes sueltos o un perfil (ej. «Ingreso COSAPI»). Escribe cada resultado: con el rango del catálogo se pinta solo (verde normal, ámbar fuera de rango, rojo alterado). Si no estás de acuerdo con el color, tócalo para cambiarlo a mano; la flechita lo devuelve al del rango.",
-      "Resultados digitales: suelta los PDF o fotos en «Suelta aquí los resultados» (o «Elegir archivos» / «Tomar foto» en el teléfono). Quedan en «Sin asignar»: arrástralos al examen que corresponde, o toca el archivo y luego el clip del examen. Un mismo PDF puede servir a varios exámenes. El visor de la derecha los muestra sin descargarlos, con zoom y giro para las fotos.",
-      "Los resultados que llegan días después se escriben con la consulta cerrada: entra a Paraclínicos y toca «Guardar resultados». Con la consulta firmada, sus resultados y archivos no se cambian: hay que «Corregir». «Faltan N resultados» es solo un aviso (con «Ignorar»): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»).",
+      "Evolución (en el paso Examen): tensión arterial, frecuencia cardíaca, peso e IMC de las consultas anteriores junto con lo que escribes ahora. La banda verde es el rango normal y el punto rojo marca un valor fuera de rango.",
+      "Dictar en vez de escribir: toca el micrófono dentro de cualquier texto largo (motivo, enfermedad actual, conclusiones, recomendaciones, informe libre…) y habla; toca de nuevo para detener. Di «punto», «coma» o «punto y aparte» para puntuar. El dictado solo escribe: tú revisas y guardas. Funciona en Chrome y Edge con internet: el audio lo procesan Google o Microsoft, por eso la primera vez en cada equipo pide aceptarlo. Si no aparece el micrófono, en Windows usa Win + H.",
       "Diagnóstico: escribe y elige del buscador CIE-10, o marca «Sano» si cumple los protocolos.",
       "Tratamiento: busca el medicamento y la dosis, vía, frecuencia y días se llenan con sus valores habituales; puedes cambiarlos.",
-      "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
-      "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Una consulta cerrada puede «Reabrirse» para corregirla, o «Firmarse»: firmada queda bloqueada (no se edita ni se borra). Firma el médico que atendió o el gerente médico; enfermería no firma. El botón «Imprimir» (con la impresora, arriba a la derecha) abre la Constancia (original para RR. HH. y copia para el servicio médico), la Consulta médica (informe completo), el Informe para el trabajador (versión corta, sin aptitud ni recomendaciones a la empresa), la Evaluación preoperatoria (si el motivo es preoperatorio), el Reposo, el Certificado de salud, el Récipe, la Orden de exámenes, la Referencia a especialista, la Reubicación, el Informe libre o «Todo» junto; si hay cambios sin guardar, los guarda antes.",
-      "«Cerrar, firmar e imprimir» (o «Firmar e imprimir» si ya estaba cerrada) hace todo en un clic: cierra, firma y abre en una sola impresión la constancia, el reposo, el récipe y la orden de exámenes que apliquen. Pide confirmación porque la firma no se deshace. Solo lo ve quien puede firmar. Una consulta firmada conserva el botón «Imprimir» para volver a imprimirlos.",
-      "¿Te equivocaste en una consulta firmada? Toca «Corregir», escribe el motivo y pulsa «Abrir para corregir». La versión firmada queda guardada tal cual en el historial de la consulta (nadie la puede editar ni borrar) y la consulta vuelve a borrador: corrígela, ciérrala y fírmala de nuevo. Los impresos nuevos dicen «Revisión 2» (3, 4…) y reemplazan a los anteriores; si cambiaste la aptitud, la empresa recibe el aviso «Aptitud corregida». Corrige el médico que atendió, el gerente médico o el administrador con acceso clínico. Firmar nunca bloquea al trabajador: siempre puedes abrirle consultas nuevas.",
-      "Dictar en vez de escribir: toca el micrófono dentro de cualquier texto largo (motivo, enfermedad actual, conclusiones, recomendaciones, informe libre…) y habla; toca de nuevo para detener. Di «punto», «coma» o «punto y aparte» para puntuar. El dictado solo escribe: tú revisas y guardas. Funciona en Chrome y Edge con internet: el audio lo procesan Google o Microsoft, por eso la primera vez en cada equipo pide aceptarlo. Si no aparece el micrófono, en Windows usa Win + H.",
-      "En el paso Examen, «Evolución» muestra la tensión arterial, la frecuencia cardíaca, el peso y el IMC de las consultas anteriores junto con lo que escribes ahora: la banda verde es el rango normal y el punto rojo marca un valor fuera de rango.",
-      "Menú «⋯» (arriba a la derecha): «Duplicar consulta» crea un borrador nuevo de hoy con el mismo contenido (motivo, examen, diagnósticos, tratamiento, recomendaciones), sin signos vitales, resultados, aptitud, reposo ni firma. «Registrar accidente o enfermedad» abre un panel con el trabajador ya cargado, sin salir de la consulta; el evento queda enlazado y luego completas la declaración en Accidentes. Si el diagnóstico es accidente laboral o enfermedad ocupacional, el aviso del paso Diagnóstico trae el botón «Registrar».",
       "Si el reposo se cruza con otro reposo del trabajador, aparece un aviso con las fechas y los días en común. No bloquea: corrige las fechas o toca «Ignorar».",
+      "Aptitud y recomendaciones: elige la clasificación y usa los textos frecuentes para aptitud, empresa y trabajador.",
       "En Aptitud, «Potencial discapacidad» marca al trabajador para seguimiento (con el motivo). La consulta te avisa si ya hay criterios: 90 días o más de reposo en 12 meses, discapacidad registrada, aptitud no elegible o con restricciones, o diagnóstico ocupacional.",
       "Informe libre: «Usar modelo…» pega un texto base y llena el nombre, la cédula, la edad, la empresa, el cargo, la fecha, el diagnóstico y el médico. Los modelos se editan en Configuración › Listas › Modelos de informe libre (campos {nombre} {cedula} {edad} {empresa} {cargo} {fecha} {diagnostico} {medico}).",
-      "Con la aptitud puesta y la consulta cerrada, «Enviar a RR. HH.» abre WhatsApp o tu correo con el resultado para la empresa; adjunta la constancia en PDF.",
+      "Menú «⋯» (arriba a la derecha): «Duplicar consulta» crea un borrador nuevo de hoy con el mismo contenido (motivo, examen, diagnósticos, tratamiento, recomendaciones), sin signos vitales, resultados, aptitud, reposo ni firma. «Registrar accidente o enfermedad» abre un panel con el trabajador ya cargado, sin salir de la consulta; el evento queda enlazado y luego completas la declaración en Accidentes. Si el diagnóstico es accidente laboral o enfermedad ocupacional, el aviso del paso Diagnóstico trae el botón «Registrar».",
     ],
     consejos: ["Todo texto frecuente, perfil y lista se edita en Configuración › Listas."],
+  },
+  {
+    id: "paraclinicos",
+    titulo: "Paraclínicos: resultados y archivos",
+    para: "servicio",
+    resumen: "Cada examen con su valor, unidad, rango y color; los PDF y fotos ligados al examen y vistos sin salir de la consulta.",
+    pasos: [
+      "En el paso Paraclínicos, «Agregar exámenes» elige exámenes sueltos o un perfil (ej. «Ingreso COSAPI»).",
+      "Escribe cada resultado: con el rango del catálogo se pinta solo (verde normal, ámbar fuera de rango, rojo alterado). Rx, audiometría y otros informes se marcan «Normal» o «Alterado», con el hallazgo si quieres. Si no estás de acuerdo con el color, tócalo para cambiarlo a mano; la flechita lo devuelve al del rango.",
+      "Archivos: suelta los PDF o fotos en «Suelta aquí los resultados» (o «Elegir archivos» / «Tomar foto» en el teléfono). Quedan en «Sin asignar»: arrástralos al examen que corresponde, o toca el archivo y luego el clip del examen. Un mismo PDF puede servir a varios exámenes.",
+      "El visor de la derecha muestra el archivo sin descargarlo, con zoom y giro para las fotos. Del escáner: guarda el PDF y suéltalo en la misma zona.",
+      "Los resultados que llegan días después se escriben con la consulta cerrada: entra a Paraclínicos y toca «Guardar resultados». Con la consulta firmada, sus resultados y archivos no se cambian: hay que «Corregir».",
+      "«Faltan N resultados» es solo un aviso (con «Ignorar»): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»).",
+    ],
+    consejos: [
+      "Las fotos se comprimen antes de subir y pierden los datos de ubicación. Hasta 10 MB por archivo.",
+      "La unidad y el rango de cada examen se editan en Configuración › Listas › Paraclínicos.",
+    ],
+  },
+  {
+    id: "firmar",
+    titulo: "Cerrar, firmar, corregir e imprimir la consulta",
+    para: "servicio",
+    resumen: "Qué ve la empresa y cuándo, quién firma, cómo se corrige una consulta firmada y cómo sale todo impreso en un clic.",
+    pasos: [
+      "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Una consulta cerrada puede «Reabrirse» o «Firmarse». Firma el médico que atendió o el gerente médico; enfermería no firma.",
+      "«Cerrar, firmar e imprimir» (o «Firmar e imprimir» si ya estaba cerrada) hace todo en un clic: cierra, firma y abre en una sola impresión la constancia, el reposo, el récipe y la orden de exámenes que apliquen. Antes pide confirmación en una ventana propia de zamorApp (el cursor arranca en «Cancelar»).",
+      "El botón «Imprimir» (con la impresora, arriba a la derecha) abre la Constancia (original para RR. HH. y copia para el servicio médico), la Consulta médica (informe completo), el Informe para el trabajador (versión corta, sin aptitud ni recomendaciones a la empresa), la Evaluación preoperatoria (si el motivo es preoperatorio), el Reposo, el Certificado de salud, el Récipe, la Orden de exámenes, la Referencia a especialista, la Reubicación, el Informe libre o «Todo» junto; si hay cambios sin guardar, los guarda antes.",
+      "Una consulta firmada ya no se edita ni se borra. ¿Te equivocaste? Toca «Corregir», escribe el motivo y pulsa «Abrir para corregir». La versión firmada queda guardada tal cual en el historial de la consulta (nadie la puede editar ni borrar) y la consulta vuelve a borrador: corrígela, ciérrala y fírmala de nuevo.",
+      "Los impresos nuevos dicen «Revisión 2» (3, 4…) y reemplazan a los anteriores; si cambiaste la aptitud, la empresa recibe el aviso «Aptitud corregida», y los enlaces de WhatsApp ya enviados de esa consulta se anulan solos. Corrige el médico que atendió, el gerente médico o el administrador con acceso clínico.",
+      "Firmar nunca bloquea al trabajador: siempre puedes abrirle consultas nuevas.",
+      "Para mandar las constancias a la empresa, usa Envíos o «Enviar a la empresa» en Reportes › Aptitud emitida (ver «Enviar las evaluaciones a la empresa»).",
+    ],
   },
   {
     id: "documentos",
@@ -191,7 +236,6 @@ export const MANUAL: TemaManual[] = [
       "Entra a Reportes y elige el reporte en la barra de arriba (en el celular, deslízala hacia los lados). Al cambiar de reporte se conserva el período.",
       "Elige la empresa en el encabezado (o «Todas las empresas» para el consolidado) y el período: trimestre, mes, año de gestión o un rango de fechas.",
       "Usa el buscador y los filtros (motivo, aptitud, médico, causa, origen…). Las opciones en verde cambian el reporte: «Resumir por» empresa, médico o dependencia; «Agrupar por» en la morbilidad; incluir o no los reposos que vienen de antes; el umbral de reposo prolongado.",
-      "En Aptitud, «Mostrar» agrega columnas: observación, conclusiones y recomendaciones a la empresa y al trabajador.",
       "Constancias por lote: en Aptitud emitida, con una empresa elegida, marca a los trabajadores (de entrada quedan marcadas las firmadas) y toca «Constancias en un PDF»: salen todas juntas, una por hoja (el original para RR. HH., sin diagnósticos), listas para imprimir o «Guardar como PDF» en un solo archivo. «Enviar a la empresa» las manda desde ahí mismo por correo (PDF adjunto) o por WhatsApp (enlace seguro), igual que en Envíos. Las sin firmar no entran; «Firmar las mías» firma de una vez las tuyas que ya están cerradas.",
       "En Aptitud, «Mostrar» agrega columnas: observación, conclusiones y recomendaciones a la empresa y al trabajador. En el Padrón agrega la ficha patronímica completa (nacimiento, contrato, teléfono, correo, dirección…); «Todas» las marca de una vez y el Excel sale con ellas.",
       "«Por médico» resume lo que hizo cada médico en el período (consultas, pacientes, primeras y sucesivas, aptitudes, reposos, interconsultas, duración), incluidos los médicos del SAME. Para la lista de sus pacientes, usa «Atendidos (detalle)» con el filtro Médico.",
@@ -276,11 +320,11 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "envios",
-    titulo: "Enviar las evaluaciones del día a la empresa",
+    titulo: "Enviar las evaluaciones a la empresa",
     para: "servicio",
     resumen: "Constancias de aptitud y consulta médica en PDF, por correo o WhatsApp, con registro de cada envío.",
     pasos: [
-      "Menú Envíos → elige la empresa y el día. Aparecen las evaluaciones de ese día; las firmadas que aún no salieron ya vienen marcadas.",
+      "Menú Envíos → elige la empresa y el día. Aparecen las evaluaciones de ese día; las firmadas que aún no salieron ya vienen marcadas. Para un mes o un trimestre completo, usa Reportes › Aptitud emitida → «Enviar a la empresa»: es el mismo envío.",
       "Las sin firmar no entran: fírmalas y vuelve, o toca «Ignorar» para seguir con el resto.",
       "«Contactos» guarda los correos y teléfonos de la empresa. Marca como «Personal de salud» solo al médico o enfermera de la empresa: es el único que recibe la consulta médica (lo marca el gerente médico o el administrador).",
       "Correo: llega desde la cuenta del servicio con tu texto y la fecha y hora del envío. Los de RR. HH. reciben solo las constancias; el personal de salud, también la consulta médica.",
