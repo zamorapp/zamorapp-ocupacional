@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
 const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "medicina"]);
@@ -172,7 +173,7 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
                     size="icon"
                     className="size-8 hover:text-destructive"
                     title="Eliminar"
-                    onClick={() => confirm(`¿Eliminar «${item.nombre}»?`) && ejecutar(() => eliminarItem(item.id))}
+                    onClick={async () => (await confirmar({ titulo: `¿Eliminar «${item.nombre}»?`, accion: "Eliminar", peligro: true })) && ejecutar(() => eliminarItem(item.id))}
                   >
                     <Trash2 />
                   </Button>

@@ -5,6 +5,7 @@ import { ImageUp, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guardarImagenFirma, mostrarFirmaSello } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 // Reduce la imagen y vuelve transparente el fondo claro (papel) para que se vea bien sobre el documento
 async function preparar(archivo: File, ancho: number): Promise<string> {
@@ -50,7 +51,7 @@ function Imagen({ tipo, titulo, ayuda, inicial, mostrarInicial }: { tipo: "firma
           {ocupado ? <Loader2 className="animate-spin" /> : <ImageUp />} {imagen ? "Cambiar" : "Subir foto"}
         </Button>
         {imagen && (
-          <Button type="button" size="sm" variant="ghost" disabled={ocupado} onClick={() => confirm(`¿Quitar ${tipo === "firma" ? "la firma" : "el sello"}?`) && iniciar(async () => { const r = await guardarImagenFirma(tipo, null); if (r.ok) setImagen(null); })}>
+          <Button type="button" size="sm" variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: `¿Quitar ${tipo === "firma" ? "la firma" : "el sello"}?`, texto: "Los documentos nuevos saldrán sin esta imagen hasta que cargues otra.", accion: "Quitar", peligro: true })) && iniciar(async () => { const r = await guardarImagenFirma(tipo, null); if (r.ok) setImagen(null); })}>
             <Trash2 /> Quitar
           </Button>
         )}
