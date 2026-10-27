@@ -203,7 +203,12 @@ try {
           const t = await fetch(s).then((r) => r.text()).catch(() => "");
           if (t.includes("zamorapp.huella")) salida.push(`${s.split("/").pop()}: ${(t.match(/let [a-z]=![01],[a-z]="http[^"]*"/) || ["sin marca"])[0]}`);
         }
-        return { total: performance.getEntriesByType("resource").length, pk: typeof PublicKeyCredential, ls: Object.keys(localStorage), conHuella: salida, texto: document.body.innerText.slice(0, 300) };
+        const nav = performance.getEntriesByType("navigation")[0];
+        const fresca = await fetch(location.pathname, { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+        const srcs = (html) => [...html.matchAll(/static\/chunks\/[^"]+\.js/g)].map((m) => m[0].split("/").pop()).sort().join(",");
+        return { nav: nav && { tipo: nav.type, transfer: nav.transferSize, entrega: nav.deliveryType },
+          htmlIgual: srcs(document.documentElement.outerHTML) === srcs(fresca), js: performance.getEntriesByType("resource").map((x) => x.name.split("/").pop()).filter((n) => n.endsWith(".js")),
+          total: performance.getEntriesByType("resource").length, pk: typeof PublicKeyCredential, ls: Object.keys(localStorage), conHuella: salida, texto: document.body.innerText.slice(0, 300) };
       }).catch((e) => `evaluate: ${e.message}`);
       anotar(`   scripts: ${JSON.stringify(scripts)}`);
       throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
