@@ -67,7 +67,9 @@ export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
     setCargando(true);
     const r = await activarHuella(crearClienteNavegador());
     setCargando(false);
-    if (r.ok) { noOfrecerHuella(); alTerminar(); } else setError(r.mensaje);
+    // Activada no se marca "no ofrecer": la web ya recuerda la llave y el escritorio lo sabe por la puerta (si la
+    // PC se reinstala sin datos, vuelve a ofrecerla)
+    if (r.ok) alTerminar(); else setError(r.mensaje);
   };
   return (
     <div className="space-y-4 rounded-xl border bg-card p-6 text-center">
