@@ -328,6 +328,18 @@ test("recuperar clave: el enlace del correo abre la app web, no la PC", { skip: 
   assert.equal(nube.estado.ultimoRecuperar, "https://zamorapp-ocupacional.vercel.app/login/nueva-clave");
 });
 
+test("sincronizar ahora: solo con la clave de control de la ventana", { skip: omitir }, async () => {
+  const llamar = (clave) => fetch(`${urlPuerta}/zamorapp/sincronizar`, { method: "POST", headers: clave ? { "X-Zamorapp-Control": clave } : {} });
+  assert.equal((await llamar()).status, 403);
+  assert.equal((await llamar("otra")).status, 403);
+  const r = await llamar(CONTROL);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.enLinea, true);
+  assert.equal(j.error, null);
+  assert.ok(j.ultimaSincronia);
+});
+
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();

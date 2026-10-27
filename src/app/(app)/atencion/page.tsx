@@ -16,6 +16,7 @@ import { EnVivo } from "@/components/app/en-vivo";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
+import { recordarResultados } from "@/lib/recordatorios";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
 
@@ -45,6 +46,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     opciones(sesion.orgId, ["motivo_consulta"]),
     sesion.demo ? [] : listarSolicitudes(),
     datosOrganizacion(),
+    recordarResultados(sesion),
   ]);
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;

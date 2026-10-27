@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -28,25 +28,29 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, reabrirConsulta } from "../acciones";
+import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
+import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
+import { AvisoDeclaracion } from "./aviso-declaracion";
+import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
+import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 
 type Props = {
   inicial: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
   listas: Record<string, Item[]>;
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
@@ -54,6 +58,9 @@ type Props = {
   puedeFirmar: boolean;
   versiones: VersionConsulta[];
   historial: HistorialConsulta;
+  plantillas: Plantilla[];
+  nueva: boolean;
+  pasoInicial?: string;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -148,27 +155,67 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial }: Props) {
+// Plantilla activa del motivo elegido (se busca por el código del motivo: PRE, PER, EGR, REI…)
+function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, motivoId: string | null) {
+  const codigo = listas.motivo_consulta?.find((m) => m.id === motivoId)?.codigo;
+  return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
+}
+
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial }: Props) {
   const router = useRouter();
-  const [d, setD] = useState<DatosConsulta>(inicial);
+  // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
+  const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
+  const [precarga] = useState(() => (plantillaInicial ? aplicarPlantilla(inicial, plantillaInicial.datos, listas) : inicial));
+  const [d, setD] = useState<DatosConsulta>(precarga);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
-  const [paso, setPaso] = useState("generales");
+  const [paso, setPaso] = useState(pasoInicial ?? "generales");
   // Corregir una consulta firmada: motivo obligatorio (lo exige también reabrir_consulta en la base)
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [motivoCorreccion, setMotivoCorreccion] = useState("");
   const [ignorarPendientes, setIgnorarPendientes] = useState(false);
+  const [ignorarPerfil, setIgnorarPerfil] = useState(false);
   const [accidente, setAccidente] = useState(false);
   // Avisos que el médico decidió ignorar en esta consulta (no bloquean nada)
   const [ignorados, setIgnorados] = useState<string[]>([]);
+  // Última plantilla aplicada, con la consulta como estaba antes para poder deshacer
+  // (despues: lo que dejó la plantilla; si el médico no tocó nada más, cambiar de motivo parte de «antes»)
+  const [deshacer, setDeshacer] = useState<{ nombre: string; antes: DatosConsulta; despues: DatosConsulta } | null>(
+    () => (plantillaInicial ? { nombre: plantillaInicial.nombre, antes: inicial, despues: precarga } : null));
 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
 
   const motivo = listas.motivo_consulta.find((m) => m.id === d.motivoId);
+  const plantilla = plantillaPara(plantillas, listas, d.motivoId);
+  // Aplica la plantilla sobre lo escrito (no borra nada) y deja «Deshacer» con la consulta como estaba
+  const usarPlantilla = (p: Plantilla, base: DatosConsulta) => {
+    const despues = aplicarPlantilla(base, p.datos, listas);
+    setDeshacer({ nombre: p.nombre, antes: base, despues });
+    setD(despues);
+  };
+  // Deshace directo si nada cambió desde la plantilla; si el médico siguió escribiendo, lo confirma antes
+  const deshacerPlantilla = async () => {
+    if (!deshacer) return;
+    if (deshacer.despues !== d && !(await confirmar({
+      titulo: "¿Deshacer la plantilla?",
+      texto: "La consulta vuelve a como estaba antes de aplicarla: también se pierde lo que escribiste después.",
+      accion: "Deshacer",
+    }))) return;
+    setD({ ...deshacer.antes, motivoId: d.motivoId });
+    setDeshacer(null);
+  };
+  const cambiarMotivo = (motivoId: string | null) => {
+    // Si la plantilla anterior quedó intacta, se quita antes de poner la del motivo nuevo (no se acumulan)
+    const intacta = deshacer && deshacer.despues === d;
+    const base = { ...(intacta ? deshacer.antes : d), motivoId };
+    const p = plantillaPara(plantillas, listas, motivoId);
+    if (p && !bloqueado) usarPlantilla(p, base);
+    else { setD(base); if (intacta) setDeshacer(null); }
+  };
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
@@ -325,6 +372,16 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     return [...g.entries()];
   }, [listas.paraclinico]);
 
+  const reglasDeclaracion = useMemo(() => reglasDeListas(listas), [listas]);
+
+  // Perfiles de paraclínicos de la empresa y el tipo de examen de esta consulta
+  const sugeridos = useMemo(
+    () => perfilesSugeridos(listas.grupo_paraclinicos, { empresaId: trabajador.empresaId, empresa: trabajador.empresa, motivoId: d.motivoId }),
+    [listas.grupo_paraclinicos, trabajador.empresaId, trabajador.empresa, d.motivoId],
+  );
+  const faltanDePerfil = (pf: Item) => aplicarPerfilParaclinicos(d.paraclinicos, pf.texto ?? "", listas.paraclinico).slice(d.paraclinicos.length);
+  const perfilPropuesto = sugeridos.find((pf) => faltanDePerfil(pf).length > 0);
+
   const actualizarDiag = (i: number, cambio: Partial<Diagnostico>) =>
     set("diagnosticos", d.diagnosticos.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
   const actualizarMed = (i: number, cambio: Partial<Medicamento>) =>
@@ -468,6 +525,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <span className="min-w-0 flex-1">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
+            <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" title="No volver a avisar en la campana por esta consulta"
+              onClick={async () => { setIgnorarPendientes(true); setAviso(await noRecordarResultados(d.id)); }}>No recordar más</Button>
           </div>
         )}
         <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
@@ -497,7 +556,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>
                   <Label className="mb-1.5">Motivo de consulta *</Label>
-                  <select value={d.motivoId ?? ""} onChange={(e) => set("motivoId", e.target.value || null)} className={SELECT}>
+                  <select value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT}>
                     <option value="">Elige el motivo</option>
                     {["preventivo", "no_preventivo", null].map((g) => {
                       const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
@@ -519,6 +578,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   </select>
                 </div>
               </div>
+              {!bloqueado && deshacer ? (
+                <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <Wand2 className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 basis-56">Plantilla de <b>{deshacer.nombre}</b> aplicada: revisa el examen, las recomendaciones y la vigencia.</span>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={deshacerPlantilla}>
+                    <RotateCcw /> Deshacer
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setDeshacer(null)}>Listo</Button>
+                </div>
+              ) : !bloqueado && plantilla && (
+                <Button type="button" size="sm" variant="outline" onClick={() => usarPlantilla(plantilla, d)} title={resumenPlantilla(plantilla.datos)}>
+                  <Wand2 /> Aplicar plantilla de {plantilla.nombre}
+                </Button>
+              )}
               {preventivo ? (
                 <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                   Evaluación de <b className="text-foreground">{motivo?.nombre}</b>: el motivo ya queda registrado y no requiere detalle.
@@ -605,6 +678,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Paraclínicos ── */}
           <TabsContent value="paraclinicos" className="mt-4 space-y-4">
+            {modoParaclinicos === "editar" && perfilPropuesto && !ignorarPerfil && (() => {
+              const faltan = faltanDePerfil(perfilPropuesto);
+              const total = examenesDePerfil(perfilPropuesto.texto).length;
+              const nombres = faltan.map((p) => p.nombre).join(", ");
+              return (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                  <FlaskConical className="size-5 shrink-0 text-primary" />
+                  <div className="min-w-48 flex-1 text-sm">
+                    <div className="font-medium">Perfil sugerido: {perfilPropuesto.nombre}</div>
+                    <div className="truncate text-xs text-muted-foreground" title={nombres}>
+                      {faltan.length === total ? `${total} exámenes: ${nombres}` : `Faltan ${faltan.length} de ${total}: ${nombres}`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => set("paraclinicos", [...d.paraclinicos, ...faltan])}>
+                      <Plus /> {faltan.length === total ? "Aplicar" : `Agregar ${faltan.length === 1 ? "el que falta" : `los ${faltan.length}`}`}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setIgnorarPerfil(true)}>Ignorar</Button>
+                  </div>
+                </div>
+              );
+            })()}
             {modoParaclinicos === "editar" && (
             <details open={d.paraclinicos.length === 0} className="group rounded-xl border bg-card">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 font-semibold">
@@ -617,7 +712,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <div className="mb-2 text-sm font-medium">Perfiles</div>
                   <div className="flex flex-wrap gap-1.5">
                     {listas.grupo_paraclinicos.map((pf) => {
-                      const sugerido = Boolean(pf.grupo && trabajador.empresa.toLowerCase().includes(pf.grupo.toLowerCase()));
+                      const sugerido = sugeridos.includes(pf);
                       return (
                         <button
                           key={pf.id}
@@ -631,8 +726,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       );
                     })}
                   </div>
-                  {listas.grupo_paraclinicos.some((pf) => pf.grupo && trabajador.empresa.toLowerCase().includes(pf.grupo.toLowerCase())) && (
-                    <p className="mt-2 text-xs text-primary">Resaltado: perfil de esta empresa.</p>
+                  {sugeridos.length > 0 && (
+                    <p className="mt-2 text-xs text-primary">Resaltado: perfil de esta empresa o de este tipo de examen.</p>
                   )}
                 </div>
               )}
@@ -750,12 +845,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <button type="button" onClick={() => setAccidente(true)} className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline">Registrar</button>
                 </p>
               )}
-              {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
-                <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-                  <AlertTriangle className="size-4 shrink-0" /> Sospecha de enfermedad ocupacional: la declaración ante el INPSASEL vence 24 h después del diagnóstico.
-                  <button type="button" onClick={() => setAccidente(true)} className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline">Registrar</button>
-                </p>
-              )}
+              {/* Enfermedad ocupacional: aviso con el Anexo 1 (NT-02) y la lista del MPPS, «Iniciar declaración» e «Ignorar» */}
+              <AvisoDeclaracion consultaId={d.id} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
             </Seccion>
             )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
