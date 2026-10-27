@@ -29,3 +29,12 @@ select 'RRHH sí ve el evento (debe 1): ' || count(*) from public.eventos where 
 reset role;
 with x as (update clinico.investigaciones set estado='terminado' where evento_id='60000000-0000-0000-0000-0000000000e1' returning version)
 select 'versión de sincronía al editar (debe 2): ' || version from x;
+-- Potencial discapacidad heredada de la consulta (columna de la consulta opcional)
+reset role;
+select 'sin marca en la consulta no hereda (debe 0): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e1';
+alter table clinico.consultas add column if not exists potencial_discapacidad boolean not null default false;
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,potencial_discapacidad) values
+ ('40000000-0000-0000-0000-0000000000e9','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada','2026-06-02',true);
+insert into public.eventos (id,org_id,empresa_id,trabajador_id,tipo,fecha_hora,consulta_id) values
+ ('60000000-0000-0000-0000-0000000000e3','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','accidente','2026-06-02 08:00','40000000-0000-0000-0000-0000000000e9');
+select 'hereda la marca de la consulta (debe 1): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e3';

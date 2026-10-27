@@ -60,6 +60,23 @@ alter table public.eventos
     ('temporal', 'parcial_permanente', 'total_permanente', 'absoluta_permanente', 'gran_discapacidad')),
   add column if not exists discapacidad_pct numeric(5, 2) check (discapacidad_pct between 0 and 100);
 
+-- El evento creado desde una consulta hereda su marca de potencial discapacidad (la pone el médico en la consulta).
+-- Se lee por to_jsonb para no depender del orden en que se publiquen las migraciones de la consulta.
+create or replace function public.heredar_potencial_discapacidad()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.consulta_id is not null and not new.potencial_discapacidad then
+    select coalesce((to_jsonb(c) ->> 'potencial_discapacidad')::boolean, false) into new.potencial_discapacidad
+      from clinico.consultas c where c.id = new.consulta_id and c.org_id = new.org_id;
+    new.potencial_discapacidad := coalesce(new.potencial_discapacidad, false);
+  end if;
+  return new;
+end $$;
+revoke execute on function public.heredar_potencial_discapacidad() from public, authenticated, anon;
+drop trigger if exists heredar_potencial_discapacidad on public.eventos;
+create trigger heredar_potencial_discapacidad before insert on public.eventos
+  for each row execute function public.heredar_potencial_discapacidad();
+
 -- ─── 3) Réplica en el programa de escritorio ───
 insert into sync.tablas (nombre, clinica, subible) values ('clinico.investigaciones', true, true)
   on conflict (nombre) do nothing;
