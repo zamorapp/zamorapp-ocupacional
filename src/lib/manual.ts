@@ -10,7 +10,7 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-26";
+export const MANUAL_ACTUALIZADO = "2026-10-27";
 
 export const MANUAL: TemaManual[] = [
   {
@@ -264,6 +264,33 @@ export const MANUAL: TemaManual[] = [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
       "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube.",
+    ],
+  },
+  {
+    id: "envios",
+    titulo: "Enviar las evaluaciones del día a la empresa",
+    para: "servicio",
+    resumen: "Constancias de aptitud y consulta médica en PDF, por correo o WhatsApp, con registro de cada envío.",
+    pasos: [
+      "Menú Envíos → elige la empresa y el día. Aparecen las evaluaciones de ese día; las firmadas que aún no salieron ya vienen marcadas.",
+      "Las sin firmar no entran: fírmalas y vuelve, o toca «Ignorar» para seguir con el resto.",
+      "«Contactos» guarda los correos y teléfonos de la empresa. Marca como «Personal de salud» solo al médico o enfermera de la empresa: es el único que recibe la consulta médica (lo marca el gerente médico o el administrador).",
+      "Correo: llega desde la cuenta del servicio con tu texto y la fecha y hora del envío. Los de RR. HH. reciben solo las constancias; el personal de salud, también la consulta médica.",
+      "WhatsApp: se crea un enlace seguro a las constancias que vence en 7 días. Toca «Abrir WhatsApp» y envía el mensaje ya escrito. La consulta médica nunca va por WhatsApp.",
+      "Abajo queda el registro: a quién, cuándo, qué y si falló. Un enlace se puede anular; si reabres una consulta para corregirla, su enlace se anula solo.",
+    ],
+    consejos: ["«Ver constancias» y «Ver consultas» muestran el PDF del lote para imprimirlo o revisarlo antes de enviar."],
+  },
+  {
+    id: "solicitudes",
+    titulo: "Solicitudes de las empresas",
+    para: "todos",
+    resumen: "La empresa pide informes, copias o constancias desde su portal; el servicio responde con el documento.",
+    pasos: [
+      "Empresa: en el portal, «Nueva solicitud» → qué necesitas, el trabajador (si aplica) y el detalle. Te llega un aviso cuando cambia de estado y descargas el documento desde la misma lista.",
+      "Servicio: menú Solicitudes. Abre una, elige el estado (en proceso, respondida o rechazada), escribe la respuesta y adjunta un archivo o genera el documento desde una consulta firmada del trabajador (informe, constancia de atención, referencia…).",
+      "Al guardar, la empresa recibe el aviso en la campanita. Las que llegan por teléfono se cargan con «Registrar solicitud».",
+      "Los tipos de solicitud se editan en Configuración › Listas.",
     ],
   },
 ];

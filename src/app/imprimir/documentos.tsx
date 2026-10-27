@@ -28,9 +28,11 @@ const COLOR_APTITUD: Record<Aptitud, string> = {
 
 const alteradosDe = (d: DatosDocumento) => [...d.datos.examenFuncional, ...d.datos.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
 
-// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja
-export function Constancia({ d }: { d: DatosDocumento }) {
+// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja.
+// soloOriginal: lo que se envía a la empresa por correo (la copia queda en el servicio).
+export function Constancia({ d, soloOriginal }: { d: DatosDocumento; soloOriginal?: boolean }) {
   if (d.org.ajustes.constancia_copias === false) return <CuerpoConstancia d={d} />;
+  if (soloOriginal) return <CuerpoConstancia d={d} copia="Original · Recursos humanos" />;
   return (
     <>
       <CuerpoConstancia d={d} copia="Original · Recursos humanos" />
