@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: "Listas configurables" };
 
 export default async function Listas({ searchParams }: { searchParams: Promise<{ l?: string }> }) {
   const [{ l }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
-  const listas = await listarListas(sesion.orgId);
+  // Las plantillas de examen tienen su propia pantalla (Configuración › Plantillas de examen)
+  const listas = (await listarListas(sesion.orgId)).filter((x) => x.codigo !== "plantilla_examen");
   const porCodigo = new Map(listas.map((x) => [x.codigo, x]));
   const actual = porCodigo.get(l ?? "") ?? porCodigo.get("motivo_consulta") ?? listas[0];
   const [items, motivos] = actual

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { historialConsulta, listarVersiones, obtenerConsulta } from "@/lib/consultas";
+import { plantillasDeOrg } from "@/lib/plantillas-servidor";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
@@ -34,7 +35,10 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
   // Mismo criterio que validar_firma() en la base: el autor, el gerente médico o el administrador con acceso clínico; nunca enfermería
   const puedeFirmar = sesion.clinico && sesion.rol !== "enfermeria" &&
     (!consulta.medicoId || consulta.medicoId === sesion.usuarioId || sesion.rol === "gerente_medico" || sesion.rol === "administrador");
-  const historial = sesion.demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : await historialConsulta(consulta.trabajador.id, id);
+  const [historial, plantillas] = await Promise.all([
+    sesion.demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
+    plantillasDeOrg(sesion.orgId),
+  ]);
   const adjuntos = sesion.demo || !sesion.orgId ? null : { orgId: sesion.orgId, lista: await listarAdjuntos(consulta.trabajador.id) };
 
   return (
@@ -42,7 +46,7 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} />
     </div>
   );
 }
