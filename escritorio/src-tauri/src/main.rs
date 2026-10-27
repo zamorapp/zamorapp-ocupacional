@@ -149,10 +149,6 @@ fn actualizador_prueba() -> Option<ActualizadorPrueba> {
 
 // Puerto de depuración del navegador interno (CDP), para que la prueba de humo maneje la ventana como una
 // persona. Solo se abre junto con la nube de prueba (pruebas automáticas); en una PC real se ignora.
-fn en_pruebas() -> bool {
-    std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false)
-}
-
 fn puerto_depuracion() -> Option<u16> {
     let puerto = std::env::var("ZAMORAPP_PUERTO_DEPURACION").ok()?.parse::<u16>().ok()?;
     if !en_pruebas() {
