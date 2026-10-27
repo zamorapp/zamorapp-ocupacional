@@ -22,7 +22,8 @@ if ($Configurar) {
 }
 
 if ($Programar) {
-  $accion = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+  # Por wscript: powershell.exe directo deja ver un cuadro negro un instante al iniciar la PC
+  $accion = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$(Join-Path $PSScriptRoot 'respaldo-oculto.vbs')`""
   $disparadores = @((New-ScheduledTaskTrigger -Daily -At "12:30"), (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME))
   $ajustes = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
   Register-ScheduledTask -TaskName "zamorApp respaldo" -Action $accion -Trigger $disparadores -Settings $ajustes -Force | Out-Null
