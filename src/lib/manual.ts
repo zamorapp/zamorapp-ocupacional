@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-27";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
   { fecha: "2026-10-27", texto: "Paraclínicos con rango y color, y los PDF o fotos ligados a cada examen", tema: "paraclinicos" },
   { fecha: "2026-10-27", texto: "Constancias de aptitud por lote en un PDF y envío a la empresa por correo o WhatsApp", tema: "envios" },
   { fecha: "2026-10-27", texto: "Consulta más ágil: dictado por voz, evolución de signos, duplicar y registrar accidente", tema: "consulta" },
@@ -371,11 +372,12 @@ export const MANUAL: TemaManual[] = [
     id: "respaldo",
     titulo: "Respaldos",
     para: "servicio",
-    resumen: "Copia diaria de todos los datos en la PC (Documentos\\zamorApp Respaldos) y en Google Drive (Mi unidad\\zamorApp\\respaldos-zamorApp); se guardan los últimos 30.",
+    resumen: "Copia diaria de todos los datos en la PC (Documentos\\zamorApp Respaldos) y en Google Drive (Mi unidad\\zamorApp\\respaldos-zamorApp); se guardan los últimos 30 días y uno por mes durante un año.",
     pasos: [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
       "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube.",
+      "En el Inicio, el administrador y el gerente médico ven el último respaldo: verde si está al día, amarillo si quedó solo en la PC o falló un intento, rojo si pasó más de un día sin respaldo correcto.",
     ],
   },
   {

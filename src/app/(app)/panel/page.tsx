@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
+import { estadoRespaldo } from "@/lib/respaldo";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  const [datos, enfoqueBase] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion)]);
+  const [datos, enfoqueBase, , respaldo] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion), estadoRespaldo(sesion)]);
   const suma = (k: "vencidos" | "por_vencer") => datos.vencimientos.reduce((s, v) => s + v[k], 0);
   const enfoque = conVencimientos(enfoqueBase, sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
   const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);
@@ -50,6 +51,25 @@ export default async function Panel() {
           <Link href="/atencion"><Plus /> Registrar</Link>
         </Button>
       </div>
+
+      {/* Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no */}
+      {respaldo && (
+        <Link
+          href="/ayuda#respaldo"
+          className={cn(
+            "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm transition hover:border-primary/50",
+            respaldo.estado === "ok" && "bg-card",
+            respaldo.estado === "aviso" && "border-aviso/60 bg-aviso/10",
+            respaldo.estado === "alerta" && "border-alerta/60 bg-alerta/10",
+          )}
+        >
+          <DatabaseBackup className={cn("mt-0.5 size-4 shrink-0", respaldo.estado === "ok" ? "text-ok-texto" : respaldo.estado === "aviso" ? "text-aviso-texto" : "text-alerta-texto")} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 font-medium"><Semaforo estado={respaldo.estado} /> {respaldo.titulo}</span>
+            <span className="block break-words text-xs text-muted-foreground">{respaldo.detalle}</span>
+          </span>
+        </Link>
+      )}
 
       {/* Lo primero según el rol: pendientes que se resuelven hoy */}
       <section aria-label={enfoque.titulo} className="space-y-2">
