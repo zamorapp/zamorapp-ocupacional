@@ -138,6 +138,22 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "inspeccion",
+    titulo: "Inspección del INPSASEL",
+    para: "servicio",
+    resumen: "Índice de cumplimiento de una empresa y un solo documento con todo lo que pide el inspector.",
+    pasos: [
+      "Menú «Inspección»: elige la empresa y el período (por defecto, los últimos 12 meses).",
+      "Cada requisito muestra cuántos cumplen, su base legal y un semáforo: verde cumple, amarillo 80 % o más, rojo menos. La flecha lleva a donde se corrige.",
+      "«Sin notificación de riesgos vigente y firmada» lista a quién falta; «Notificar a los N» registra y abre las hojas de los que nunca la recibieron o la tienen desactualizada.",
+      "«Imprimir paquete» arma un solo documento: portada con el índice, registro de eventos, trabajadores, puestos e informes trimestrales, y luego cada declaración, cada informe de investigación (solo si eres personal de salud) y cada notificación firmada.",
+    ],
+    consejos: [
+      "Los requisitos sin datos en el período (por ejemplo, sin accidentes) salen como «No aplica» y no bajan el índice.",
+      "Para que el índice cuente el Servicio y el Programa de SST, carga sus fechas de registro en Empresas.",
+    ],
+  },
+  {
     id: "notificacion-riesgos",
     titulo: "Notificación de riesgos",
     para: "servicio",
