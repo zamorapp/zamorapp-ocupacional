@@ -56,6 +56,9 @@ export const MANUAL: TemaManual[] = [
       "La campanita muestra avisos nuevos (solicitudes de cita del portal, aptitudes emitidas, etc.).",
       "El buscador de arriba (o Ctrl+K, o la tecla /) encuentra trabajadores por cédula o nombre y también te lleva a cualquier sección.",
       "Arriba ves lo que te toca hoy según tu rol: el médico, quiénes esperan, sus consultas por firmar y las abiertas; recepción, quiénes faltan por llegar, quiénes esperan y las solicitudes del portal; el coordinador SST, los eventos abiertos; administración, las notas por cobrar. Toca cualquier recuadro para ir directo. Los accesos rápidos también cambian según el rol.",
+      "Recepción, SST y administración ven además «Exámenes por programar»: los vencidos y los que vencen pronto en todas sus empresas.",
+      "En Alertas sale cada empresa con exámenes periódicos vencidos o por vencer; al tocarla se abre el reporte de Vencimientos de esa empresa, listo para agendar las citas.",
+      "Abajo, «Exámenes periódicos por empresa» muestra en una barra cuántos trabajadores están vencidos (rojo), por vencer (ámbar), al día (verde) y sin evaluación (gris). «Accidentabilidad · 12 meses» muestra el índice de frecuencia neta, el de severidad y los accidentes de cada mes (rojo: con tiempo perdido).",
     ],
   },
   {
@@ -71,6 +74,7 @@ export const MANUAL: TemaManual[] = [
       "En cada agente de riesgo marcado escribe la medida de control; abajo anotas el EPP requerido y las recomendaciones del puesto. Quien guarda la valoración queda como evaluador.",
       "«Informe» (ícono de impresora) en cada puesto imprime la evaluación del puesto de trabajo: descripción y tareas, resumen por nivel, mapa de calor probabilidad × severidad, matriz con medidas de control, EPP, recomendaciones, trabajadores expuestos y firmas del evaluador, la empresa y el delegado de prevención. Si no escribiste recomendaciones, propone las de los riesgos altos y críticos.",
       "En «Horas trabajadas» cargas las horas-hombre por mes; con ellas se calculan los índices de accidentalidad.",
+      "Al editar la empresa defines «Examen periódico cada (meses)» y «Avisar antes del vencimiento (días)». Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esa periodicidad desde el último examen.",
     ],
   },
   {
@@ -186,7 +190,7 @@ export const MANUAL: TemaManual[] = [
     id: "reportes-same",
     titulo: "Reportes del servicio (atendidos, morbilidad, aptitud, reposos…)",
     para: "servicio",
-    resumen: "Los reportes del SAME y más: pacientes atendidos (resumen y detalle), producción y estadística por médico, citas, morbilidad CIE-10, diagnósticos, declaración obligatoria, potencial discapacidad, aptitud, limitaciones, reposos, interconsultas, exámenes aplicados y padrón de pacientes.",
+    resumen: "Los reportes del SAME y más: pacientes atendidos (resumen y detalle), producción y estadística por médico, citas, morbilidad CIE-10, diagnósticos, declaración obligatoria, potencial discapacidad, aptitud, limitaciones, reposos, interconsultas, exámenes aplicados, padrón de pacientes, vencimientos de exámenes y accidentabilidad mensual.",
     pasos: [
       "Entra a Reportes y elige el reporte en la barra de arriba (en el celular, deslízala hacia los lados). Al cambiar de reporte se conserva el período.",
       "Elige la empresa en el encabezado (o «Todas las empresas» para el consolidado) y el período: trimestre, mes, año de gestión o un rango de fechas.",
@@ -196,6 +200,8 @@ export const MANUAL: TemaManual[] = [
       "En Aptitud, «Mostrar» agrega columnas: observación, conclusiones y recomendaciones a la empresa y al trabajador. En el Padrón agrega la ficha patronímica completa (nacimiento, contrato, teléfono, correo, dirección…); «Todas» las marca de una vez y el Excel sale con ellas.",
       "«Por médico» resume lo que hizo cada médico en el período (consultas, pacientes, primeras y sucesivas, aptitudes, reposos, interconsultas, duración), incluidos los médicos del SAME. Para la lista de sus pacientes, usa «Atendidos (detalle)» con el filtro Médico.",
       "«Declaración obligatoria» lista las enfermedades de notificación obligatoria al MPPS (inmediatas o semanales) y los diagnósticos de origen ocupacional que se declaran al INPSASEL en 24 horas, con el evento registrado si ya existe. La lista de diagnósticos se edita en Configuración › Listas › Diagnósticos de declaración obligatoria.",
+      "«Vencimientos» lista a los trabajadores activos con el examen vencido (días en negativo = días de atraso), por vencer o sin evaluación. «Incluir» cambia el horizonte: el aviso de cada empresa, 30, 60 o 90 días, o todos. No depende del período.",
+      "«Accidentabilidad» da, mes a mes, horas hombre, accidentes con y sin tiempo perdido, días perdidos y cargados, y los índices de frecuencia neta y bruta y de severidad por millón de horas (COVENIN 474). Arriba salen los índices de todo el período. Si un mes no tiene horas cargadas, se estiman (activos × 8 h × días hábiles) y la columna «Horas según» lo indica. «Empresas: Todas las empresas juntas» da el consolidado.",
       "Limitaciones puede mostrar las vigentes hoy (la última aptitud de cada trabajador activo), sin importar el período. Reposos agrega duración, reintegro, médico externo y centro del IVSS; Exámenes marca los pendientes de resultado.",
       "Toca el encabezado de una columna para ordenar. En pantalla se ven de 100 en 100; la impresión y el Excel llevan todos los registros.",
       "«Imprimir o PDF» abre el reporte con los logos del servicio y de la empresa, el resumen y la tabla completa (en el consolidado, agrupada por empresa con subtotales). «Excel» descarga el archivo con fechas y números reales y una hoja «Resumen».",
