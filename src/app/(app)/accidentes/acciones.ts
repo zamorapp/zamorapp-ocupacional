@@ -30,6 +30,12 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
     empresaId = t?.empresa_id ?? empresaId;
   }
   if (!empresaId) return { ok: false, mensaje: "Elige la empresa." };
+  // Desde una consulta: solo se enlaza si es una consulta visible de ese mismo trabajador
+  let consultaId = texto(datos, "consulta_id");
+  if (consultaId) {
+    const { data: c } = await supabase.from("consultas").select("id").eq("id", consultaId).eq("trabajador_id", trabajadorId ?? "").maybeSingle();
+    consultaId = c?.id ?? null;
+  }
 
   const { data, error } = await supabase
     .from("eventos")
@@ -45,6 +51,8 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
       lugar: texto(datos, "lugar"),
       descripcion: texto(datos, "descripcion"),
       gravedad: texto(datos, "gravedad"),
+      // Si se registra desde una consulta, queda enlazado a ella
+      consulta_id: consultaId,
     })
     .select("id")
     .single();
