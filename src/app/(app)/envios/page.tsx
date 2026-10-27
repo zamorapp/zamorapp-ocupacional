@@ -33,7 +33,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Envíos a empresas</h1>
           <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado.</p>
         </div>
-        <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} />
+        <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
       </div>
       <Filtros empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresa={empresa?.id ?? ""} fecha={fecha} />
       {empresa ? (

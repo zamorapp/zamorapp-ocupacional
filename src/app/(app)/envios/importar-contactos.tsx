@@ -19,8 +19,13 @@ const COLUMNAS = {
   telefono: ["telefono", "whatsapp", "celular", "movil"],
   salud: ["personal de salud", "salud", "recibe consulta"],
 };
-const texto = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
-const celda = (v: string | null) => `"${(v ?? "").replaceAll('"', '""')}"`;
+// Quita el ' que la plantilla antepone a valores como «+58…» para que Excel no los tome por fórmula
+const texto = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim().replace(/^'(?=[=+\-@])/, ""));
+// Un valor que empiece por = + - @ (o tab/retorno) lo ejecutaría Excel como fórmula: se antepone ' para que quede como texto
+const celda = (v: string | null) => {
+  const t = v ?? "";
+  return `"${(/^[=+\-@\t\r]/.test(t) ? "'" + t : t).replaceAll('"', '""')}"`;
+};
 
 // Plantilla con todas las empresas y el correo y teléfono de su ficha ya puestos: solo falta completar nombres y cargos
 function descargarPlantilla(empresas: Empresa[]) {
@@ -33,7 +38,17 @@ function descargarPlantilla(empresas: Empresa[]) {
   URL.revokeObjectURL(url);
 }
 
-export function ImportarContactos({ empresas }: { empresas: Empresa[] }) {
+// Cuántos quedarán como «Personal de salud» (recibirán la consulta médica): solo con correo y si quien carga puede autorizar
+function resumenSalud(filas: FilaContacto[], puedeAutorizar: boolean) {
+  const marcados = filas.filter((f) => f.salud).length;
+  if (!marcados) return "Ninguno quedará como «Personal de salud».";
+  const quedan = puedeAutorizar ? filas.filter((f) => f.salud && f.correo).length : 0;
+  const n = (x: number) => `${x} contacto${x === 1 ? "" : "s"}`;
+  if (quedan === marcados) return `${n(quedan)} quedará${quedan === 1 ? "" : "n"} como «Personal de salud» y recibirá${quedan === 1 ? "" : "n"} la consulta médica.`;
+  return `${n(quedan)} quedará${quedan === 1 ? "" : "n"} como «Personal de salud»; ${marcados - quedan} marcado${marcados - quedan === 1 ? "" : "s"} no (${puedeAutorizar ? "les falta el correo" : "solo lo autoriza el gerente médico o el administrador"}).`;
+}
+
+export function ImportarContactos({ empresas, puedeAutorizar }: { empresas: Empresa[]; puedeAutorizar: boolean }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [filas, setFilas] = useState<FilaContacto[]>([]);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -102,6 +117,7 @@ export function ImportarContactos({ empresas }: { empresas: Empresa[] }) {
               </tbody>
             </table>
             {filas.length > 50 && <p className="px-3 py-2 text-xs text-muted-foreground">…y {filas.length - 50} más.</p>}
+            <p className="border-t px-3 py-2 text-xs text-muted-foreground">{resumenSalud(filas, puedeAutorizar)}</p>
           </div>
         )}
         {filas.length > 0 && (
