@@ -32,7 +32,10 @@ pub fn atender(ventana: WebviewWindow, accion: String, codigo: String, avisar_pu
                 "/zamorapp/huella/entrar".to_string()
             };
             let cuerpo = avisar_puerta(&ruta).map_err(|_| "La base local no respondió. Cierra y vuelve a abrir zamorApp.".to_string())?;
-            let v = serde_json::from_str::<serde_json::Value>(&cuerpo).unwrap_or_default();
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&cuerpo) else {
+                anotar(&format!("Windows Hello: respuesta ilegible de la puerta: {}", cuerpo.chars().take(200).collect::<String>()));
+                return Err("La base local respondió algo inesperado. Cierra y vuelve a abrir zamorApp.".to_string());
+            };
             // La puerta explica por qué no (p. ej. más de 7 días sin conexión)
             if v["ok"] == true { Ok(v) } else { Err(v["mensaje"].as_str().unwrap_or("No se pudo entrar con Windows Hello.").to_string()) }
         });

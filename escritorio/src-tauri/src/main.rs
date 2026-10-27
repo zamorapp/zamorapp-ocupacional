@@ -295,7 +295,24 @@ fn pedir_puerta(ruta: &str) -> Result<String, String> {
     let mut respuesta = String::new();
     c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
     let (cabecera, cuerpo) = respuesta.split_once("\r\n\r\n").unwrap_or((&respuesta, ""));
-    if cabecera.starts_with("HTTP/1.1 200") { Ok(cuerpo.to_string()) } else { Err(cabecera.lines().next().unwrap_or("").to_string()) }
+    if !cabecera.starts_with("HTTP/1.1 200") {
+        return Err(cabecera.lines().next().unwrap_or("").to_string());
+    }
+    // Node puede responder por partes (Transfer-Encoding: chunked): se juntan para leer el JSON completo
+    if cabecera.to_ascii_lowercase().contains("transfer-encoding: chunked") { Ok(juntar_partes(cuerpo)) } else { Ok(cuerpo.to_string()) }
+}
+
+fn juntar_partes(mut resto: &str) -> String {
+    let mut cuerpo = String::new();
+    while let Some((largo, despues)) = resto.split_once("\r\n") {
+        let n = usize::from_str_radix(largo.split(';').next().unwrap_or("").trim(), 16).unwrap_or(0);
+        if n == 0 || despues.len() < n {
+            break;
+        }
+        cuerpo.push_str(&despues[..n]);
+        resto = despues[n..].trim_start_matches("\r\n");
+    }
+    cuerpo
 }
 
 fn main() {
