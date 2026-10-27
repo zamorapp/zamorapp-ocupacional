@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { DatosConsulta, EstadoConsulta } from "@/lib/consultas-tipos";
+import type { DatosConsulta, EstadoConsulta, Paraclinico } from "@/lib/consultas-tipos";
+import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -19,6 +20,7 @@ export type ResumenConsulta = {
   aptitud: Aptitud | null;
   tieneReposo: boolean;
   tieneTratamiento: boolean;
+  pendientes: number; // paraclínicos solicitados sin resultado (las consultas importadas del SAME no cuentan)
 };
 
 type FilaResumen = {
@@ -34,6 +36,8 @@ type FilaResumen = {
   aptitudes: { clasificacion: Aptitud }[] | { clasificacion: Aptitud } | null;
   reposos: { id: string }[] | null;
   tratamiento: unknown[] | null;
+  paraclinicos: Paraclinico[] | null;
+  origen: string | null;
 };
 
 const hora = (iso: string) =>
@@ -44,7 +48,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("consultas")
-    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion), reposos(id), tratamiento")
+    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion), reposos(id), tratamiento, paraclinicos, origen")
     .order("fecha", { ascending: false })
     .order("hora_inicio", { ascending: false })
     .limit(opciones.limite ?? 200);
@@ -72,6 +76,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
       aptitud: apt?.clasificacion ?? null,
       tieneReposo: (c.reposos ?? []).length > 0,
       tieneTratamiento: (c.tratamiento ?? []).length > 0,
+      pendientes: c.origen ? 0 : contarResultados(c.paraclinicos ?? []).pendientes,
     };
   });
 }

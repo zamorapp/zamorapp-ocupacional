@@ -2,7 +2,12 @@
 import type { Aptitud } from "@/lib/pacientes";
 
 export type FilaExamen = { clave: string; nombre: string; valor: string; normal: string };
-export type Paraclinico = { id: string; nombre: string; grupo: string | null; resultado: string };
+// estado: semáforo del resultado ("" = sin clasificar); manual = el médico lo cambió a mano; unidad y referencia quedan
+// copiadas del catálogo al escribir el resultado, para que la historia no cambie si el catálogo cambia.
+export type Paraclinico = {
+  id: string; nombre: string; grupo: string | null; resultado: string;
+  estado?: "" | "normal" | "fuera" | "alterado"; manual?: boolean; unidad?: string; referencia?: string;
+};
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
 export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string; notaFarmacia?: string };
 export type Interconsulta = { especialidad: string; motivo: string };
