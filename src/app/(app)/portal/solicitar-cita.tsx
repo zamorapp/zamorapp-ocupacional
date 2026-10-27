@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { CalendarPlus, CheckCircle2, Loader2, Search, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Loader2, Search, UserPlus, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -9,12 +9,19 @@ import { Label } from "@/components/ui/label";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
 import { solicitarCita } from "./acciones";
 
-export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nombre: string }[]; manana: string }) {
+type Nuevo = { cedula: string; nombres: string; apellidos: string };
+
+export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { motivos: { id: string; nombre: string }[]; manana: string; empresas: { id: string; nombre: string }[]; empresaActiva: string | null }) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PacienteEncontrado[]>([]);
   // Varios trabajadores con la misma fecha y motivo en una sola solicitud
   const [elegidos, setElegidos] = useState<PacienteEncontrado[]>([]);
+  // Trabajadores que aún no están en la nómina: se registran al enviar la solicitud
+  const [nuevos, setNuevos] = useState<Nuevo[]>([]);
+  const [ficha, setFicha] = useState<Nuevo | null>(null);
+  const [empresaNuevos, setEmpresaNuevos] = useState(empresaActiva ?? empresas[0]?.id ?? "");
+  const total = elegidos.length + nuevos.length;
   const [buscando, iniciar] = useTransition();
   const [estado, accion, enviando] = useActionState(solicitarCita, null);
 
@@ -24,7 +31,7 @@ export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nomb
   }, [texto]);
 
   useEffect(() => {
-    if (estado?.ok) { setAbierto(false); setElegidos([]); setTexto(""); }
+    if (estado?.ok) { setAbierto(false); setElegidos([]); setNuevos([]); setFicha(null); setTexto(""); }
   }, [estado]);
 
   const agregar = (p: PacienteEncontrado) => {
@@ -46,9 +53,16 @@ export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nomb
         </DialogHeader>
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label className="mb-1.5">Trabajadores * {elegidos.length > 0 && <span className="font-normal text-muted-foreground">· {elegidos.length} elegidos</span>}</Label>
-            {elegidos.length > 0 && (
+            <Label className="mb-1.5">Trabajadores * {total > 0 && <span className="font-normal text-muted-foreground">· {total} elegidos</span>}</Label>
+            {total > 0 && (
               <ul className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                {nuevos.map((n) => (
+                  <li key={n.cedula} className="flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 py-0.5 pl-2.5 pr-1 text-xs">
+                    <input type="hidden" name="nuevo" value={JSON.stringify(n)} />
+                    {n.nombres} {n.apellidos} <span className="text-muted-foreground">· nuevo</span>
+                    <button type="button" aria-label={`Quitar a ${n.nombres}`} onClick={() => setNuevos((l) => l.filter((x) => x.cedula !== n.cedula))} className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-3" /></button>
+                  </li>
+                ))}
                 {elegidos.map((p) => (
                   <li key={p.id} className="flex items-center gap-1 rounded-full border bg-muted/50 py-0.5 pl-2.5 pr-1 text-xs">
                     <input type="hidden" name="trabajador_id" value={p.id} />
@@ -63,6 +77,32 @@ export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nomb
               <input autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar trabajador" placeholder={elegidos.length ? "Agregar otro: cédula o nombre" : "Cédula o nombre"} className="h-10 w-full rounded-md border bg-transparent pl-9 pr-9 text-sm" />
               {buscando && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
             </label>
+            {texto.trim().length >= 2 && !buscando && pendientes.length === 0 && !ficha && (
+              <p className="mt-1 text-xs text-muted-foreground">No está en la nómina. <button type="button" className="font-medium text-primary hover:underline" onClick={() => { const d = texto.replace(/\D/g, ""); setFicha({ cedula: d.length >= 5 ? d : "", nombres: d.length >= 5 ? "" : texto.trim(), apellidos: "" }); setTexto(""); }}>Agregarlo como trabajador nuevo</button></p>
+            )}
+            {!ficha && (
+              <button type="button" onClick={() => setFicha({ cedula: "", nombres: "", apellidos: "" })} className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><UserPlus className="size-4" /> Trabajador nuevo (no está en la nómina)</button>
+            )}
+            {ficha && (
+              <div className="mt-2 grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-3" onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}>
+                <input value={ficha.cedula} onChange={(e) => setFicha({ ...ficha, cedula: e.target.value })} placeholder="Cédula *" aria-label="Cédula del trabajador nuevo" inputMode="numeric" className="h-9 rounded-md border bg-background px-2 text-sm" />
+                <input value={ficha.nombres} onChange={(e) => setFicha({ ...ficha, nombres: e.target.value })} placeholder="Nombres *" aria-label="Nombres del trabajador nuevo" className="h-9 rounded-md border bg-background px-2 text-sm" />
+                <input value={ficha.apellidos} onChange={(e) => setFicha({ ...ficha, apellidos: e.target.value })} placeholder="Apellidos *" aria-label="Apellidos del trabajador nuevo" className="h-9 rounded-md border bg-background px-2 text-sm" />
+                {empresas.length > 1 && (
+                  <select value={empresaNuevos} onChange={(e) => setEmpresaNuevos(e.target.value)} aria-label="Empresa del trabajador nuevo" className="h-9 rounded-md border bg-background px-2 text-sm sm:col-span-3">
+                    {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                  </select>
+                )}
+                <div className="flex justify-end gap-2 sm:col-span-3">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFicha(null)}>Cancelar</Button>
+                  <Button type="button" size="sm" disabled={ficha.cedula.replace(/\D/g, "").length < 5 || !ficha.nombres.trim() || !ficha.apellidos.trim()}
+                    onClick={() => { setNuevos((l) => (l.some((x) => x.cedula === ficha.cedula) ? l : [...l, { cedula: ficha.cedula.trim(), nombres: ficha.nombres.trim(), apellidos: ficha.apellidos.trim() }])); setFicha(null); }}>
+                    Agregar
+                  </Button>
+                </div>
+              </div>
+            )}
+            {nuevos.length > 0 && <input type="hidden" name="empresa_nuevos" value={empresaNuevos} />}
             {texto.trim().length >= 2 && pendientes.length > 0 && (
               <ul className="mt-1 max-h-40 divide-y overflow-y-auto rounded-md border">
                 {pendientes.length > 1 && (
@@ -83,8 +123,8 @@ export function SolicitarCita({ motivos, manana }: { motivos: { id: string; nomb
           <Campo id="nota" etiqueta="Nota para el servicio médico" className="sm:col-span-2" />
           <div className="flex items-center gap-2 sm:col-span-2">
             <Aviso resultado={estado && !estado.ok ? estado : null} />
-            <Button type="submit" className="ml-auto" disabled={enviando || !elegidos.length}>
-              {enviando && <Loader2 className="animate-spin" />} {elegidos.length > 1 ? `Enviar ${elegidos.length} solicitudes` : "Enviar solicitud"}
+            <Button type="submit" className="ml-auto" disabled={enviando || !total}>
+              {enviando && <Loader2 className="animate-spin" />} {total > 1 ? `Enviar ${total} solicitudes` : "Enviar solicitud"}
             </Button>
           </div>
         </form>

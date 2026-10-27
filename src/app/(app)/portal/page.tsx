@@ -74,7 +74,7 @@ export default async function Portal() {
         <div className="flex flex-wrap gap-2">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
-          {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} />}
+          {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
       </div>
 

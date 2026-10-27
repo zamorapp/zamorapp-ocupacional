@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-27";
+export const MANUAL_ACTUALIZADO = "2026-10-28";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
   { fecha: "2026-10-27", texto: "Ajustes clínicos: plantillas, paraclínicos por empresa y recomendaciones en una pantalla, con vista previa de la consulta", tema: "configuracion" },
   { fecha: "2026-10-27", texto: "Plantillas de examen por motivo: al elegir pre-empleo, periódico, egreso o reintegro se precarga el examen normal", tema: "consulta" },
@@ -357,7 +358,7 @@ export const MANUAL: TemaManual[] = [
     para: "empresa",
     resumen: "Para RR. HH. de las empresas clientes: pedir citas, ver la nómina con su aptitud y recibir avisos.",
     pasos: [
-      "En Inicio tocas «Solicitar cita», buscas y agregas uno o varios trabajadores (con «Agregar los N» sumas todos los que coinciden), eliges el tipo de evaluación y la fecha deseada. Se envía una solicitud por trabajador, hasta 200 a la vez; si alguno no es de tu empresa, se te avisa cuántos quedaron fuera.",
+      "En Inicio tocas «Solicitar cita», buscas y agregas uno o varios trabajadores (con «Agregar los N» sumas todos los que coinciden), eliges el tipo de evaluación y la fecha deseada. Se envía una solicitud por trabajador, hasta 200 a la vez; si alguno no es de tu empresa, se te avisa cuántos quedaron fuera. ¿No está en la nómina? «Trabajador nuevo»: cédula, nombres y apellidos, y entra en la misma solicitud.",
       "El servicio médico la aprueba o propone otra fecha; te llega un aviso en la campanita.",
       "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos: tampoco el grupo sanguíneo ni la discapacidad, que solo ve el servicio médico).",
       "Cuando el médico cierra la consulta con su aptitud, recibes un aviso (una sola vez por consulta).",
@@ -405,6 +406,24 @@ export const MANUAL: TemaManual[] = [
       "Pestaña «Bitácora»: todos los envíos de todas las empresas, con filtros y «Exportar a Excel». Un número rojo avisa los correos que fallaron: «Reintentar» manda el mismo correo otra vez y queda anotado como reintento.",
     ],
     consejos: ["«Ver constancias» y «Ver consultas» muestran el PDF del lote para imprimirlo o revisarlo antes de enviar."],
+  },
+  {
+    id: "rrhh-whatsapp",
+    titulo: "RR. HH. por enlace y WhatsApp desde tu teléfono",
+    para: "servicio",
+    resumen: "Invita a RR. HH. de cada empresa con un enlace y mándale las constancias por WhatsApp desde tu número, sin pagar el WhatsApp oficial.",
+    pasos: [
+      "Configuración › Usuarios › «Invitar a RR. HH. por enlace» (administrador): elige la empresa, toca un contacto o escribe nombre y WhatsApp, y «Crear enlace». Luego «Enviar por WhatsApp»: se abre tu WhatsApp con el mensaje y el enlace ya escritos.",
+      "RR. HH. abre el enlace, crea su cuenta ahí mismo y entra directo al portal de su empresa. Solo ve esa empresa. El enlace vale 7 días y un solo uso; si no lo usó, puedes anularlo y crear otro. Te llega un aviso cuando entra.",
+      "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
+      "Envíos › «Por enviar»: cada constancia que firmas aparece sola aquí, agrupada por empresa y día. Toca «WhatsApp · (nombre)» y se abre tu WhatsApp con el mensaje y el enlace seguro a las constancias; solo te falta tocar enviar.",
+      "Si la empresa no tiene teléfono guardado, escríbelo en «Otro teléfono». Para mandar por correo o elegir otras opciones, «Correo y más».",
+    ],
+    consejos: [
+      "En el teléfono: usa zamorApp desde el navegador o la app instalada; al tocar WhatsApp se abre tu WhatsApp con tu número.",
+      "En la PC: instala WhatsApp para Windows (o abre web.whatsapp.com) y vincúlalo una vez con tu teléfono escaneando el código QR (WhatsApp › Dispositivos vinculados). Desde ahí los mensajes salen con tu número.",
+      "La consulta médica nunca va por WhatsApp: solo las constancias de aptitud, con un enlace que vence a los 7 días y se puede anular en la Bitácora.",
+    ],
   },
   {
     id: "solicitudes",

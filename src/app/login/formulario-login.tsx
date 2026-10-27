@@ -10,11 +10,12 @@ import { crearClienteNavegador } from "@/lib/supabase/client";
 import { BotonEntrarHuella, OfrecerHuella } from "@/components/app/huella";
 import { huellaActivaAqui, huellaDisponible, ofrecerHuella } from "@/lib/huella";
 
-type Modo = "ingresar" | "registro" | "recuperar";
+export type Modo = "ingresar" | "registro" | "recuperar";
 
-export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
+// «siguiente»: a dónde volver después de entrar (p. ej. la invitación de RR. HH.); por defecto el panel
+export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar" }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo }) {
   const router = useRouter();
-  const [modo, setModo] = useState<Modo>("ingresar");
+  const [modo, setModo] = useState<Modo>(modoInicial);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<string | null>(null); // qué respondió exactamente el servicio, para soporte
@@ -22,7 +23,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   const [ofrecer, setOfrecer] = useState(false);
 
   const alPanel = () => {
-    router.replace("/panel");
+    router.replace(siguiente);
     router.refresh();
   };
 
@@ -74,7 +75,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
           password: clave,
           options: {
             data: { nombre_completo: String(datos.get("nombre")) },
-            emailRedirectTo: `${window.location.origin}/panel`,
+            emailRedirectTo: `${window.location.origin}${siguiente}`,
           },
         });
         if (error) {
