@@ -6,6 +6,7 @@ import { Volver } from "../volver";
 import { FormPerfil } from "./form-perfil";
 import { FirmaSello } from "./firma-sello";
 import { HuellaCuenta } from "@/components/app/huella";
+import { DosPasosCuenta } from "@/components/app/dos-pasos-cuenta";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
@@ -37,6 +38,10 @@ export default async function Perfil() {
       <FormPerfil perfil={perfil} editable={!sesion.demo} />
       {!sesion.demo && <FirmaSello firma={perfil?.firma_url ?? null} sello={perfil?.sello_url ?? null} mostrarFirma={perfil?.mostrar_firma ?? true} mostrarSello={perfil?.mostrar_sello ?? true} />}
       {!sesion.demo && <HuellaCuenta />}
+      {/* En el escritorio la sesión es de la puerta local: la verificación se activa en la web */}
+      {!sesion.demo && process.env.NEXT_PUBLIC_ESCRITORIO !== "1" && (
+        <DosPasosCuenta obligatoria={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
+      )}
     </div>
   );
 }
