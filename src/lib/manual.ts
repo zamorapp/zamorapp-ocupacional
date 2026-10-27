@@ -165,6 +165,23 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "declaracion-obligatoria",
+    titulo: "Diagnósticos de declaración obligatoria (INPSASEL y MPPS)",
+    para: "servicio",
+    resumen: "zamorApp reconoce los diagnósticos que se deben declarar: los de la lista de enfermedades ocupacionales del Anexo 1 de la NT-02-2008 (INPSASEL) y los de notificación epidemiológica al MPPS.",
+    pasos: [
+      "En la consulta, pestaña Diagnóstico: al marcar un diagnóstico como «Enfermedad ocupacional» aparece el aviso con el plazo (24 h para declarar ante el INPSASEL; informe de investigación en 15 días si está en el Anexo 1 o 30 si no).",
+      "«Iniciar declaración» crea la declaración en Accidentes y enfermedades con el trabajador, la empresa, el CIE-10 y el Anexo 1 ya puestos. Después el aviso muestra el número y si ya se declaró.",
+      "Si el diagnóstico está en el Anexo 1 pero lo marcaste como enfermedad común, el aviso lo recuerda y ofrece «Marcar como ocupacional».",
+      "Los diagnósticos de notificación obligatoria al MPPS (dengue, tuberculosis, hepatitis y otros) muestran un recordatorio con su plazo (inmediata o semanal).",
+      "Ningún aviso bloquea: «Ignorar» lo oculta en esa consulta.",
+      "Reportes › «Declaración obligatoria» lista los casos del período con el estado de cada declaración.",
+    ],
+    consejos: [
+      "Las dos listas se editan en Configuración › Listas: «Enfermedades ocupacionales (NT-02, Anexo 1)» y «Diagnósticos de declaración obligatoria». En el Anexo 1 se pueden poner varios códigos separados por coma, rangos (A15-A19) y exclusiones (!Z56.0).",
+    ],
+  },
+  {
     id: "reportes",
     titulo: "Reportes",
     para: "servicio",

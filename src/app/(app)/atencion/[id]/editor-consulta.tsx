@@ -38,6 +38,8 @@ import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
+import { AvisoDeclaracion } from "./aviso-declaracion";
+import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
@@ -325,6 +327,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     return [...g.entries()];
   }, [listas.paraclinico]);
 
+  const reglasDeclaracion = useMemo(() => reglasDeListas(listas), [listas]);
   const actualizarDiag = (i: number, cambio: Partial<Diagnostico>) =>
     set("diagnosticos", d.diagnosticos.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
   const actualizarMed = (i: number, cambio: Partial<Medicamento>) =>
@@ -750,12 +753,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <button type="button" onClick={() => setAccidente(true)} className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline">Registrar</button>
                 </p>
               )}
-              {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
-                <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-                  <AlertTriangle className="size-4 shrink-0" /> Sospecha de enfermedad ocupacional: la declaración ante el INPSASEL vence 24 h después del diagnóstico.
-                  <button type="button" onClick={() => setAccidente(true)} className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline">Registrar</button>
-                </p>
-              )}
+              {/* Enfermedad ocupacional: aviso con el Anexo 1 (NT-02) y la lista del MPPS, «Iniciar declaración» e «Ignorar» */}
+              <AvisoDeclaracion consultaId={d.id} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
             </Seccion>
             )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
