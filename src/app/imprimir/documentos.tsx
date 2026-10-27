@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import type { DatosDocumento } from "@/lib/documentos";
+import { textoResultado } from "@/lib/paraclinicos";
 import { faltantesRecipe } from "@/lib/documentos";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
@@ -28,9 +29,11 @@ const COLOR_APTITUD: Record<Aptitud, string> = {
 
 const alteradosDe = (d: DatosDocumento) => [...d.datos.examenFuncional, ...d.datos.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
 
-// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja
-export function Constancia({ d }: { d: DatosDocumento }) {
+// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja.
+// soloOriginal: lo que se envía a la empresa por correo (la copia queda en el servicio).
+export function Constancia({ d, soloOriginal }: { d: DatosDocumento; soloOriginal?: boolean }) {
   if (d.org.ajustes.constancia_copias === false) return <CuerpoConstancia d={d} />;
+  if (soloOriginal) return <CuerpoConstancia d={d} copia="Original · Recursos humanos" />;
   return (
     <>
       <CuerpoConstancia d={d} copia="Original · Recursos humanos" />
@@ -195,7 +198,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       </Bloque>
       {c.paraclinicos.length > 0 && (
         <Bloque titulo="Exámenes paraclínicos">
-          <div className="grid grid-cols-2 gap-x-6">{c.paraclinicos.map((p) => <div key={p.nombre}><b className="font-semibold">{p.nombre}:</b> {p.resultado || "pendiente"}</div>)}</div>
+          <div className="grid grid-cols-2 gap-x-6">{c.paraclinicos.map((p) => <div key={p.nombre}><b className="font-semibold">{p.nombre}:</b> {textoResultado(p)}</div>)}</div>
         </Bloque>
       )}
       <Bloque titulo="Diagnósticos">
@@ -367,7 +370,7 @@ export function Certificado({ d }: { d: DatosDocumento }) {
         {alterados.length ? alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n") : "Dentro de límites normales."}
       </Bloque>
       {c.paraclinicos.length > 0 && (
-        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.map((p) => `• ${p.nombre}: ${p.resultado || "pendiente"}`).join("\n")}</Bloque>
+        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.map((p) => `• ${p.nombre}: ${textoResultado(p)}`).join("\n")}</Bloque>
       )}
       <Bloque titulo="Conclusión">
         {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}

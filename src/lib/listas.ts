@@ -12,6 +12,7 @@ export type Item = {
   texto: string | null;
   orden: number;
   activo: boolean;
+  datos?: Record<string, unknown>;
 };
 
 // Agrupa las listas en secciones para la pantalla de Configuración
@@ -41,7 +42,7 @@ export async function itemsDeLista(orgId: string | null, lista: string, soloActi
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("lista_items")
-    .select("id, codigo, nombre, grupo, texto, orden, activo")
+    .select("id, codigo, nombre, grupo, texto, orden, activo, datos")
     .eq("org_id", orgId)
     .eq("lista", lista)
     .order("orden")
@@ -58,7 +59,7 @@ export async function opciones(orgId: string | null, listas: string[]): Promise<
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("lista_items")
-    .select("id, lista, codigo, nombre, grupo, texto, orden, activo")
+    .select("id, lista, codigo, nombre, grupo, texto, orden, activo, datos")
     .eq("org_id", orgId)
     .eq("activo", true)
     .in("lista", listas)

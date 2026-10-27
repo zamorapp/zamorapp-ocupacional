@@ -1,6 +1,8 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { hoyVE } from "@/lib/citas";
+import type { Paraclinico } from "@/lib/consultas-tipos";
+import { contarResultados } from "@/lib/paraclinicos";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -38,13 +40,19 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
       porFirmar = porFirmar.eq("medico_id", sesion.usuarioId);
       abiertas = abiertas.eq("medico_id", sesion.usuarioId);
     }
-    const [espera, firmar, enCurso] = await Promise.all([contar(citas("en_espera")), firma ? contar(porFirmar) : Promise.resolve(0), contar(abiertas)]);
+    // Resultados por recibir: exámenes sin resultado en consultas de los últimos 60 días (las importadas del SAME no cuentan)
+    let conExamenes = supabase.from("consultas").select("paraclinicos").is("origen", null).neq("paraclinicos", "[]")
+      .gte("fecha", new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).limit(1000);
+    if (rol !== "gerente_medico" && rol !== "administrador") conExamenes = conExamenes.eq("medico_id", sesion.usuarioId);
+    const porRecibir = conExamenes.then(({ data }) => (data ?? []).reduce((n, c) => n + contarResultados((c.paraclinicos ?? []) as Paraclinico[]).pendientes, 0));
+    const [espera, firmar, enCurso, resultados] = await Promise.all([contar(citas("en_espera")), firma ? contar(porFirmar) : Promise.resolve(0), contar(abiertas), porRecibir]);
     return {
       titulo: "Tu consulta de hoy",
       tareas: [
         { titulo: "En espera ahora", valor: espera, detalle: "Llegaron y esperan consulta", href: "/atencion", urgente: espera > 0 },
         ...(firma ? [{ titulo: "Por firmar", valor: firmar, detalle: "Consultas cerradas sin firma", href: "/atencion" }] : []),
         { titulo: "Consultas abiertas", valor: enCurso, detalle: "Empezadas y sin cerrar", href: "/atencion" },
+        { titulo: "Resultados por recibir", valor: resultados, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
       ],
       acciones: ACCIONES.clinico,
     };
