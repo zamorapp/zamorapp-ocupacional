@@ -192,6 +192,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     setDeshacer({ nombre: p.nombre, antes: base, despues });
     setD(despues);
   };
+  // Deshace directo si nada cambió desde la plantilla; si el médico siguió escribiendo, lo confirma antes
+  const deshacerPlantilla = async () => {
+    if (!deshacer) return;
+    if (deshacer.despues !== d && !(await confirmar({
+      titulo: "¿Deshacer la plantilla?",
+      texto: "La consulta vuelve a como estaba antes de aplicarla: también se pierde lo que escribiste después.",
+      accion: "Deshacer",
+    }))) return;
+    setD({ ...deshacer.antes, motivoId: d.motivoId });
+    setDeshacer(null);
+  };
   const cambiarMotivo = (motivoId: string | null) => {
     // Si la plantilla anterior quedó intacta, se quita antes de poner la del motivo nuevo (no se acumulan)
     const intacta = deshacer && deshacer.despues === d;
@@ -554,7 +565,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
                   <Wand2 className="size-4 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1 basis-56">Plantilla de <b>{deshacer.nombre}</b> aplicada: revisa el examen, las recomendaciones y la vigencia.</span>
-                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setD({ ...deshacer.antes, motivoId: d.motivoId }); setDeshacer(null); }}>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={deshacerPlantilla}>
                     <RotateCcw /> Deshacer
                   </Button>
                   <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setDeshacer(null)}>Listo</Button>
