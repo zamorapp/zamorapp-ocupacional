@@ -82,7 +82,7 @@ insert into public.lista_items (lista, codigo, nombre, grupo, orden) values
   ('declaracion_ocupacional', 'C96.9', 'Tumor maligno del tejido linfático, hematopoyético y tejidos afines', '090 Neoplasias ocupacionales', 904),
   -- 110 Afecciones por temperaturas extremas
   ('declaracion_ocupacional', 'W92', 'Exposición a calor excesivo de origen artificial', '110 Afecciones por temperaturas extremas', 1101),
-  ('declaracion_ocupacional', 'W93', 'Exposición a frío excesivo de origen artificial', '110 Afecciones por temperaturas extremas', 1102),;
+  ('declaracion_ocupacional', 'W93', 'Exposición a frío excesivo de origen artificial', '110 Afecciones por temperaturas extremas', 1102);
 
 -- Cada organización recibe su copia editable
 select public.copiar_listas_base(id) from public.organizaciones;
