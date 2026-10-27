@@ -1,4 +1,4 @@
--- Plantillas de correo (generales solo gerente médico/administrador, por empresa según permisos) y reintentos de envíos.
+-- Prueba 89 (va antes de 91 y deja todo como lo encontró). Plantillas de correo (generales solo gerente médico/administrador, por empresa según permisos) y reintentos de envíos.
 \pset tuples_only on
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
@@ -96,3 +96,9 @@ end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. no ve la bitácora (debe 0): ' || count(*) from public.envios;
 reset role;
+-- Limpieza: las pruebas siguientes (91 envíos) cuentan contactos y envíos de la empresa A
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+delete from public.envios where id::text like '6a000000-%';
+delete from public.empresa_contactos where id = '5a000000-0000-0000-0000-0000000000a1';
+delete from clinico.consultas where id = '4a000000-0000-0000-0000-00000000000a';
+delete from public.plantillas_correo where org_id = '10000000-0000-0000-0000-000000000001';
