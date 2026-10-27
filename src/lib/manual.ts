@@ -231,7 +231,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Organización: nombre, RIF, dirección, logo y textos de los documentos, incluidos el certificado de salud y las plantillas de WhatsApp y correo.",
       "Mi perfil: tus datos de médico (cédula, MPPS, colegio, INPSASEL) y las fotos de tu firma y tu sello. Marca si quieres que se impriman o dejar la casilla vacía para firmar y sellar a mano. Las fotos de firma y sello son privadas: solo las usa el personal de salud al imprimir; RR. HH. de las empresas no puede verlas.",
-      "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa.",
+      "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa. El grupo sanguíneo y la discapacidad del trabajador solo los ve el servicio (administrador, gerente médico, médico, enfermería y recepción). La bitácora con el contenido de consultas, aptitudes y reposos solo la lee el administrador o gerente médico con acceso clínico; el auditor ve el resto, solo de su empresa.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar. En «Paraclínicos» cada examen lleva su unidad y su rango de referencia (y uno para mujeres si cambia por sexo), o «Normal / Alterado» para Rx, audiometría y otros informes: con eso se colorea el resultado.",
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",
@@ -248,7 +248,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "En Inicio tocas «Solicitar cita», buscas y agregas uno o varios trabajadores (con «Agregar los N» sumas todos los que coinciden), eliges el tipo de evaluación y la fecha deseada. Se envía una solicitud por trabajador, hasta 200 a la vez; si alguno no es de tu empresa, se te avisa cuántos quedaron fuera.",
       "El servicio médico la aprueba o propone otra fecha; te llega un aviso en la campanita.",
-      "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos).",
+      "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos: tampoco el grupo sanguíneo ni la discapacidad, que solo ve el servicio médico).",
       "Cuando el médico cierra la consulta con su aptitud, recibes un aviso (una sola vez por consulta).",
     ],
   },

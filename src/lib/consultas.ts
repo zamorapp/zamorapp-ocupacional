@@ -199,7 +199,7 @@ export async function historialConsulta(trabajadorId: string, consultaId: string
       .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
     supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
       .order("desde", { ascending: false }).limit(60),
-    supabase.from("trabajadores").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
+    supabase.from("trabajadores_salud").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
   ]);
   return {
     mediciones: (cs ?? []).filter((c) => c.signos_vitales && Object.keys(c.signos_vitales).length).map((c) => ({ fecha: c.fecha, signos: c.signos_vitales })).reverse(),
