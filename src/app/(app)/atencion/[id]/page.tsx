@@ -22,8 +22,8 @@ const LISTAS = [
   "declaracion_ocupacional", "diagnostico_declarable",
 ];
 
-export default async function Consulta({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string }> }) {
+  const [{ id }, { paso }] = await Promise.all([params, searchParams]);
   const sesion = await obtenerSesion();
   const [consulta, listas, versiones] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS), sesion.demo ? [] : listarVersiones(id)]);
   if (!consulta) notFound();
@@ -47,7 +47,7 @@ export default async function Consulta({ params }: { params: Promise<{ id: strin
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} />
     </div>
   );
 }

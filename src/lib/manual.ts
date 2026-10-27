@@ -148,12 +148,13 @@ export const MANUAL: TemaManual[] = [
     para: "servicio",
     resumen: "Cada examen con su valor, unidad, rango y color; los PDF y fotos ligados al examen y vistos sin salir de la consulta.",
     pasos: [
+      "Perfil sugerido: si hay un perfil de exámenes para la empresa del trabajador o el tipo de examen (pre-empleo, periódico…), arriba de Paraclínicos aparece «Perfil sugerido» con «Aplicar» o «Ignorar». Los perfiles se arman en Configuración › Listas › Perfiles de paraclínicos: exámenes uno por línea y, con chips, las empresas y los tipos de examen donde se sugieren (sin elegir ninguno = todos).",
       "En el paso Paraclínicos, «Agregar exámenes» elige exámenes sueltos o un perfil (ej. «Ingreso COSAPI»).",
       "Escribe cada resultado: con el rango del catálogo se pinta solo (verde normal, ámbar fuera de rango, rojo alterado). Rx, audiometría y otros informes se marcan «Normal» o «Alterado», con el hallazgo si quieres. Si no estás de acuerdo con el color, tócalo para cambiarlo a mano; la flechita lo devuelve al del rango.",
       "Archivos: suelta los PDF o fotos en «Suelta aquí los resultados» (o «Elegir archivos» / «Tomar foto» en el teléfono). Quedan en «Sin asignar»: arrástralos al examen que corresponde, o toca el archivo y luego el clip del examen. Un mismo PDF puede servir a varios exámenes.",
       "El visor de la derecha muestra el archivo sin descargarlo, con zoom y giro para las fotos. Del escáner: guarda el PDF y suéltalo en la misma zona.",
       "Los resultados que llegan días después se escriben con la consulta cerrada: entra a Paraclínicos y toca «Guardar resultados». Con la consulta firmada, sus resultados y archivos no se cambian: hay que «Corregir».",
-      "«Faltan N resultados» es solo un aviso (con «Ignorar»): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»).",
+      "«Faltan N resultados» es solo un aviso (con «Ignorar»; «No recordar más» apaga también el recordatorio de la campana): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»). Si pasan 3 días sin resultados, la campana te lo recuerda y vuelve a hacerlo cada 3 días; el número de días se cambia en Configuración › Organización (0 = no recordar).",
     ],
     consejos: [
       "Las fotos se comprimen antes de subir y pierden los datos de ubicación. Hasta 10 MB por archivo.",

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
+import { alcancePerfil } from "@/lib/perfiles-paraclinicos";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -26,7 +27,6 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   paraclinico: "Perfil o grupo",
   antecedente_medico: "Tipo (personal / familiar)",
   causa_reposo: "Tipo (reposo / permiso)",
-  grupo_paraclinicos: "Empresa a la que se sugiere (opcional)",
   medicina: "Laboratorio (opcional)",
   diagnostico: "Sistema orgánico (opcional)",
   diagnostico_declarable: "Notificación (inmediata / semanal)",
@@ -35,6 +35,41 @@ const ETIQUETA_GRUPO: Record<string, string> = {
 const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *", diagnostico_declarable: "Inicio del código CIE-10 (ej. A15 cubre A15.0 a A15.9)", declaracion_ocupacional: "Códigos CIE-10 * (ej.: M54.5; varios con coma; !Z56.0 excluye)" };
 
 type Motivo = { codigo: string; nombre: string };
+type Opcion = { id: string; nombre: string };
+type Alcance = { empresas: Opcion[]; motivos: Opcion[] };
+
+// Chips para elegir varias opciones; con muchas opciones aparece un buscador y se muestran primero las elegidas
+function SelectorVarios({ nombre, titulo, opciones, inicial }: { nombre: string; titulo: string; opciones: Opcion[]; inicial: string[] }) {
+  const [elegidos, setElegidos] = useState(inicial);
+  const [buscar, setBuscar] = useState("");
+  const muchas = opciones.length > 12;
+  const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const visibles = opciones
+    .filter((o) => elegidos.includes(o.id) || !muchas || (buscar && sinAcentos(o.nombre).includes(sinAcentos(buscar))))
+    .slice(0, 40);
+  const alternar = (id: string) => setElegidos(elegidos.includes(id) ? elegidos.filter((x) => x !== id) : [...elegidos, id]);
+  return (
+    <div className="sm:col-span-3">
+      <input type="hidden" name={nombre} value={elegidos.join(",")} />
+      <p className="mb-1.5 text-sm font-medium">{titulo} <span className="font-normal text-muted-foreground">(ninguna = todas)</span></p>
+      {muchas && (
+        <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder={`Buscar entre ${opciones.length}…`} className="mb-2 h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary sm:max-w-xs" />
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {visibles.map((o) => {
+          const activo = elegidos.includes(o.id);
+          return (
+            <button key={o.id} type="button" onClick={() => alternar(o.id)}
+              className={cn("rounded-full border px-2.5 py-1 text-xs transition", activo ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/50")}>
+              {o.nombre}
+            </button>
+          );
+        })}
+        {muchas && !buscar && elegidos.length === 0 && <span className="text-xs text-muted-foreground">Escribe para buscar.</span>}
+      </div>
+    </div>
+  );
+}
 
 // Paraclínicos: unidad y rango de referencia para el semáforo del resultado (se guardan en lista_items.datos)
 function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
@@ -85,7 +120,7 @@ function SelectorMotivos({ motivos, inicial }: { motivos: Motivo[]; inicial: str
   );
 }
 
-function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item: Item | null; motivos: Motivo[]; alTerminar: () => void }) {
+function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: string; item: Item | null; motivos: Motivo[]; alcance?: Alcance; alTerminar: () => void }) {
   const [estado, accion, enviando] = useActionState(guardarItem, null);
   useEffect(() => {
     if (estado?.ok) alTerminar();
@@ -100,6 +135,16 @@ function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item:
       <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico" || lista === "declaracion_ocupacional"} />
       {lista.startsWith("recomendacion_") ? (
         <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
+      ) : lista === "grupo_paraclinicos" && alcance ? (
+        <>
+          {/* El nombre de empresa que guardaban los perfiles viejos se reemplaza al elegir empresas */}
+          <input type="hidden" name="grupo" value={alcancePerfil(item ?? {}).empresas.length ? "" : (item?.grupo ?? "")} />
+          <SelectorVarios nombre="d_empresas" titulo="Sugerir en estas empresas" opciones={alcance.empresas} inicial={alcancePerfil(item ?? {}).empresas} />
+          <SelectorVarios nombre="d_motivos" titulo="Y en estos tipos de examen" opciones={alcance.motivos} inicial={alcancePerfil(item ?? {}).motivos} />
+          {item?.grupo && !alcancePerfil(item).empresas.length && (
+            <p className="text-xs text-aviso-texto sm:col-span-3">Este perfil se sugería por el nombre «{item.grupo}». Elige la empresa para que quede enlazado.</p>
+          )}
+        </>
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
@@ -118,7 +163,8 @@ function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item:
   );
 }
 
-export function EditorLista({ lista, items, editable, motivos }: { lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[] }) {
+export function EditorLista({ lista, items, editable, motivos, alcance }: { lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[]; alcance?: Alcance }) {
+  const nombreDe = new Map([...(alcance?.empresas ?? []), ...(alcance?.motivos ?? [])].map((o) => [o.id, o.nombre]));
   const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
   const etiquetaGrupo = (g: string) =>
     lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ") : g;
@@ -166,7 +212,7 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
         </label>
       )}
       {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
-      {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alTerminar={() => setEditando(null)} />}
+      {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alcance={alcance} alTerminar={() => setEditando(null)} />}
 
       {visibles.length === 0 && editando !== "nuevo" && (
         <p className="px-5 py-12 text-center text-sm text-muted-foreground">Esta lista está vacía.</p>
@@ -175,14 +221,14 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
       <ul className="divide-y">
         {visibles.map((item, i) =>
           editando === item.id ? (
-            <li key={item.id}><Formulario lista={lista.codigo} item={item} motivos={motivos} alTerminar={() => setEditando(null)} /></li>
+            <li key={item.id}><Formulario lista={lista.codigo} item={item} motivos={motivos} alcance={alcance} alTerminar={() => setEditando(null)} /></li>
           ) : (
             <li key={item.id} className={cn("group flex items-start gap-3 px-5 py-3", !item.activo && "opacity-50")}>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{item.nombre}</span>
                   {item.codigo && <span className="rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground">{item.codigo}</span>}
-                  {item.grupo && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{etiquetaGrupo(item.grupo)}</span>}
+                  {item.grupo && !alcance && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{etiquetaGrupo(item.grupo)}</span>}
                   {!item.activo && <span className="text-xs text-muted-foreground">inactivo</span>}
                 </div>
                 {lista.codigo === "paraclinico" && (() => {
@@ -191,6 +237,16 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
                   return dx.tipo === "informe" ? <p className="mt-0.5 text-xs text-muted-foreground">Normal / Alterado</p>
                     : ref || dx.unidad ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{[ref, dx.unidad].filter(Boolean).join(" ")}</p>
                     : <p className="mt-0.5 text-xs text-aviso-texto">Sin rango: el resultado no se colorea</p>;
+                })()}
+                {alcance && (() => {
+                  const a = alcancePerfil(item);
+                  const nombres = (xs: string[]) => xs.map((x) => nombreDe.get(x) ?? "(inactiva)").join(", ");
+                  return (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {a.empresas.length ? nombres(a.empresas) : item.grupo ? `Por nombre: ${item.grupo}` : "Todas las empresas"}
+                      {" · "}{a.motivos.length ? nombres(a.motivos) : "todo tipo de examen"}
+                    </p>
+                  );
                 })()}
                 {item.texto && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{item.texto}</p>}
               </div>

@@ -83,7 +83,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
 
 export type ConsultaCompleta = {
   datos: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
   // Recién creada y nunca guardada: la plantilla del motivo se aplica sola al abrirla
@@ -123,6 +123,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       edad,
       sexo: tr?.sexo ?? null,
       empresa: tr?.empresas?.razon_social ?? "",
+      empresaId: c.empresa_id ?? null, // empresa de la consulta (la del trabajador al atenderlo)
       cargo: tr?.puestos?.nombre ?? "",
       riesgos: tr?.puestos?.riesgos ?? {},
     },
