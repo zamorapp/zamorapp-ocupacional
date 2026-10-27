@@ -6,8 +6,10 @@ import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
+import { defExamen, textoReferencia } from "@/lib/paraclinicos";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
 const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "medicina"]);
@@ -27,10 +29,35 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   grupo_paraclinicos: "Empresa a la que se sugiere (opcional)",
   medicina: "Laboratorio (opcional)",
   diagnostico: "Sistema orgánico (opcional)",
+  diagnostico_declarable: "Notificación (inmediata / semanal)",
+  declaracion_ocupacional: "Categoría del Anexo 1",
 };
-const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *" };
+const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *", diagnostico_declarable: "Inicio del código CIE-10 (ej. A15 cubre A15.0 a A15.9)", declaracion_ocupacional: "Códigos CIE-10 * (ej.: M54.5; varios con coma; !Z56.0 excluye)" };
 
 type Motivo = { codigo: string; nombre: string };
+
+// Paraclínicos: unidad y rango de referencia para el semáforo del resultado (se guardan en lista_items.datos)
+function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
+  const d = defExamen(datos);
+  const v = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
+  return (
+    <div className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-3 sm:col-span-3 sm:grid-cols-6">
+      <div className="col-span-2 sm:col-span-1">
+        <label htmlFor="d_tipo" className="mb-1.5 block text-sm font-medium">Resultado</label>
+        <select id="d_tipo" name="d_tipo" defaultValue={d.tipo} className="h-10 w-full rounded-md border bg-transparent px-2 text-sm">
+          <option value="numero">Número</option>
+          <option value="informe">Normal / Alterado</option>
+        </select>
+      </div>
+      <Campo id="d_unidad" etiqueta="Unidad" defaultValue={d.unidad} placeholder="mg/dL" />
+      <Campo id="d_rango_min" etiqueta="Mínimo" defaultValue={v(d.min)} inputMode="decimal" placeholder="70" />
+      <Campo id="d_rango_max" etiqueta="Máximo" defaultValue={v(d.max)} inputMode="decimal" placeholder="110" />
+      <Campo id="d_rango_min_f" etiqueta="Mín. mujer" defaultValue={v(d.minF)} inputMode="decimal" placeholder="Igual" />
+      <Campo id="d_rango_max_f" etiqueta="Máx. mujer" defaultValue={v(d.maxF)} inputMode="decimal" placeholder="Igual" />
+      <p className="col-span-2 text-xs text-muted-foreground sm:col-span-6">Con el rango, el resultado se pinta solo: verde normal, ámbar fuera de rango, rojo alterado. Deja vacío lo que no aplique (p. ej. solo máximo para colesterol). «Mujer» solo si el rango cambia por sexo.</p>
+    </div>
+  );
+}
 
 // Elige uno o varios motivos; se guardan como códigos separados por coma en "grupo"
 function SelectorMotivos({ motivos, inicial }: { motivos: Motivo[]; inicial: string }) {
@@ -70,12 +97,13 @@ function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item:
       <input type="hidden" name="lista" value={lista} />
       {item && <input type="hidden" name="id" value={item.id} />}
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
-      <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico"} />
+      <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico" || lista === "declaracion_ocupacional"} />
       {lista.startsWith("recomendacion_") ? (
         <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
+      {lista === "paraclinico" && <CamposResultado datos={item?.datos} />}
       {conTexto ? (
         <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3} className="sm:col-span-3" />
       ) : (
@@ -157,6 +185,13 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
                   {item.grupo && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{etiquetaGrupo(item.grupo)}</span>}
                   {!item.activo && <span className="text-xs text-muted-foreground">inactivo</span>}
                 </div>
+                {lista.codigo === "paraclinico" && (() => {
+                  const dx = defExamen(item.datos);
+                  const ref = textoReferencia(dx, null);
+                  return dx.tipo === "informe" ? <p className="mt-0.5 text-xs text-muted-foreground">Normal / Alterado</p>
+                    : ref || dx.unidad ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{[ref, dx.unidad].filter(Boolean).join(" ")}</p>
+                    : <p className="mt-0.5 text-xs text-aviso-texto">Sin rango: el resultado no se colorea</p>;
+                })()}
                 {item.texto && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{item.texto}</p>}
               </div>
               {editable && (
@@ -172,7 +207,7 @@ export function EditorLista({ lista, items, editable, motivos }: { lista: Lista;
                     size="icon"
                     className="size-8 hover:text-destructive"
                     title="Eliminar"
-                    onClick={() => confirm(`¿Eliminar «${item.nombre}»?`) && ejecutar(() => eliminarItem(item.id))}
+                    onClick={async () => (await confirmar({ titulo: `¿Eliminar «${item.nombre}»?`, accion: "Eliminar", peligro: true })) && ejecutar(() => eliminarItem(item.id))}
                   >
                     <Trash2 />
                   </Button>

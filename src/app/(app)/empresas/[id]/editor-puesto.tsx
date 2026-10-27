@@ -20,7 +20,7 @@ type Props = {
   turnos: Item[];
 };
 
-const VACIO: Puesto = { id: "", codigo: "", nombre: "", dependenciaId: null, dependencia: null, descripcion: "", tareas: "", herramientas: "", turno: "", riesgos: {}, evaluacion: {}, trabajadores: 0 };
+const VACIO: Puesto = { id: "", codigo: "", nombre: "", dependenciaId: null, dependencia: null, descripcion: "", tareas: "", herramientas: "", turno: "", riesgos: {}, evaluacion: {}, epp: "", recomendaciones: "", evaluadoEn: null, trabajadores: 0 };
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 
 export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos }: Props) {
@@ -34,6 +34,10 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
   const alternar = (g: GrupoRiesgo, agente: string) => {
     const lista = p.riesgos[g] ?? [];
     set("riesgos", { ...p.riesgos, [g]: lista.includes(agente) ? lista.filter((a) => a !== agente) : [...lista, agente] });
+  };
+  const controlar = (g: GrupoRiesgo, agente: string, control: string) => {
+    const k = claveRiesgo(g, agente);
+    set("evaluacion", { ...p.evaluacion, [k]: { ...(p.evaluacion[k] ?? { p: 0, s: 0 }), control } });
   };
   const valorar = (g: GrupoRiesgo, agente: string, campo: "p" | "s", v: number) => {
     const k = claveRiesgo(g, agente);
@@ -134,6 +138,12 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
                             {n ? `${n.texto} (${n.n})` : "Sin valorar"}
                           </span>
                           <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => alternar(g, a)}><X className="size-4" /></button>
+                          <input
+                            value={v?.control ?? ""}
+                            onChange={(e) => controlar(g, a, e.target.value)}
+                            placeholder="Medida de control existente o recomendada (sale en el informe del puesto)"
+                            className="h-8 rounded-md border bg-transparent px-2 text-xs outline-none focus:border-primary sm:col-span-5"
+                          />
                         </div>
                       );
                     })}
@@ -142,6 +152,11 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
               </div>
             );
           })}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><Label className="mb-1.5">Equipos de protección personal (EPP)</Label><Textarea rows={3} value={p.epp} onChange={(e) => set("epp", e.target.value)} placeholder="Uno por línea: casco, botas de seguridad, protector auditivo…" /></div>
+          <div><Label className="mb-1.5">Recomendaciones del puesto</Label><Textarea rows={3} value={p.recomendaciones} onChange={(e) => set("recomendaciones", e.target.value)} placeholder="Una por línea" /></div>
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}

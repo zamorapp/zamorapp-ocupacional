@@ -10,6 +10,7 @@ import type { Cita, EstadoCita } from "@/lib/citas";
 import { cn } from "@/lib/utils";
 import { iniciarConsulta } from "./acciones";
 import { cambiarEstadoCita } from "./citas-acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 // Tiempo de espera: normal, aviso desde 20 min y alerta desde 40 min
 const tonoEspera = (min: number) => (min >= 40 ? "text-alerta-texto" : min >= 20 ? "text-aviso-texto" : "text-muted-foreground");
@@ -33,7 +34,13 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
   );
 }
 
-export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: boolean; mensaje: { servicio: string; plantilla: string } }) {
+// Píldora «Faltan N resultados» de la consulta de la cita (no bloquea nada: solo recuerda)
+function Faltan({ n }: { n?: number }) {
+  if (!n) return null;
+  return <span className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px text-[11px] font-semibold whitespace-nowrap text-aviso-texto">Faltan {n} resultado{n === 1 ? "" : "s"}</span>;
+}
+
+export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {} }: { citas: Cita[]; esHoy: boolean; mensaje: { servicio: string; plantilla: string }; pendientes?: Record<string, number> }) {
   // Recordatorio de cita por WhatsApp (se abre en el WhatsApp del usuario, listo para enviar)
   const recordatorio = (c: Cita) =>
     enlaceWhatsApp(c.telefono, llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio }));
@@ -100,7 +107,7 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
               </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
-              <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={() => confirm(`¿Cancelar la cita de ${c.paciente}?`) && estado(c.id, "cancelada")}><X /></Button>
+              <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
             </Fila>
           ))}
         </Columna>
@@ -118,7 +125,7 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
 
         <Columna titulo="En consulta" icono={Stethoscope} n={enConsulta.length} tono="text-primary" destino="en_consulta">
           {enConsulta.map((c) => (
-            <Fila key={c.id} c={c}>
+            <Fila key={c.id} c={c} detalle={<Faltan n={c.consultaId ? pendientes[c.consultaId] : 0} />}>
               {c.consultaId && <Button size="sm" variant="ghost" asChild><Link href={`/atencion/${c.consultaId}`}>Abrir</Link></Button>}
             </Fila>
           ))}
@@ -131,6 +138,7 @@ export function ColaAtencion({ citas, esHoy, mensaje }: { citas: Cita[]; esHoy: 
               c={c}
               detalle={<span className={cn("font-medium", c.estado === "atendido" ? "text-ok-texto" : "text-muted-foreground")}>
                 {" · "}{{ atendido: "atendido", no_asistio: "no asistió", cancelada: "cancelada" }[c.estado as "atendido"]}
+                <Faltan n={c.consultaId ? pendientes[c.consultaId] : 0} />
               </span>}
             >
               {c.consultaId && <Button size="sm" variant="ghost" asChild><Link href={`/atencion/${c.consultaId}`}>Abrir</Link></Button>}

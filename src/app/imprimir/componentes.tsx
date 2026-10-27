@@ -7,19 +7,27 @@ import type { DatosDocumento } from "@/lib/documentos";
 export const fechaLarga = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T00:00:00Z"));
 export const fechaCorta = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
-const hora12 = (h: string | null | undefined) => {
+// Acepta "HH:MM" o una fecha y hora completa (timestamptz de la consulta), que se muestra en hora de Venezuela
+export const hora12 = (h: string | null | undefined) => {
   if (!h) return null;
+  if (h.length > 8) {
+    const f = new Date(h);
+    if (Number.isNaN(f.getTime())) return null;
+    h = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Caracas" }).format(f);
+  }
   const [hh, mm] = h.split(":").map(Number);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
   return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "a. m." : "p. m."}`;
 };
 // Folio legible del documento: prefijo por tipo + primeros 8 caracteres de la consulta
 export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
 // corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
-export function Hoja({ children, className = "", media, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; corte?: boolean }) {
+// horizontal: carta apaisada (récipe del Integral), usa la página con nombre «apaisada» de globals.css
+export function Hoja({ children, className = "", media, horizontal, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean }) {
   return (
     <section
-      className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full max-w-[216mm] flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
+      className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full ${horizontal ? "max-w-[279mm] [page:apaisada]" : "max-w-[216mm]"} flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${horizontal ? "min-h-[216mm] print:min-h-[186mm]" : media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
     >
       {children}
     </section>
@@ -38,7 +46,9 @@ function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: stri
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
 // Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
-export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa">; compacto?: boolean }) {
+// sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
+export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
+  if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
   return (
     <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
       <Marca logo={d.org.logo} nombre={d.org.nombre} />
@@ -172,6 +182,7 @@ export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { cla
 // Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
 export function imagenesMedico(d: DatosDocumento) {
   const m = d.medicoDatos;
+  if (d.sin.includes("firma")) return { firma: null, sello: null };
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
 }
 
@@ -182,7 +193,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   const img = imagenesMedico(d);
   return (
     <div className="flex items-end gap-3.5">
-      <div className="w-60 text-center text-[10.5px]">
+      <div className="w-64 text-center text-[10px] leading-[1.35]">
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
@@ -190,14 +201,12 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
           {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
         </div>
         <div className="text-[11.5px] font-bold">{m?.nombre_completo ?? d.medico ?? "—"}</div>
+        <div className="text-doc-tenue">{m?.especialidad || etiqueta}</div>
         <div className="text-doc-tenue">
-          {etiqueta}
-          {!compacto && m?.cedula && ` · C.I. ${m.cedula}`}
-        </div>
-        <div className="text-doc-tenue">
-          {[m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `CM ${m.colegio_medicos}`].filter(Boolean).join(" · ")}
+          {[!compacto && m?.cedula && `C.I. ${m.cedula}`, m?.mpps && `MPPS ${m.mpps}`, m?.colegio_medicos && `CM ${m.colegio_medicos}`].filter(Boolean).join(" · ")}
         </div>
         {!compacto && m?.registro_inpsasel && <div className="text-doc-tenue">INPSASEL {m.registro_inpsasel}</div>}
+        {!compacto && m?.correo && <div className="text-doc-tenue">{m.correo}</div>}
       </div>
       {separados && <CasillaSello imagen={img.sello} className={compacto ? "h-[70px] w-[124px]" : undefined} />}
     </div>
@@ -219,10 +228,15 @@ export function Firmas({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
 }
 
-export function Pie({ d, derecha }: { d: Pick<DatosDocumento, "impreso">; derecha?: string }) {
+export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string }) {
+  const revision = d.impreso.revision ?? 1;
   return (
     <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
-      <span>Impreso por {d.impreso.por} · {d.impreso.el}</span>
+      <span>
+        Impreso por {d.impreso.por} · {d.impreso.el}
+        {/* Una consulta corregida invalida los impresos de su revisión anterior */}
+        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores de esta consulta</b></>}
+      </span>
       {derecha && <span>{derecha}</span>}
     </footer>
   );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CONDICIONES, type EmpleoAnterior } from "@/lib/historia-laboral";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
 import { eliminarEmpleo, guardarEmpleo } from "./historia-acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 function Formulario({ trabajadorId, e, alTerminar }: { trabajadorId: string; e: EmpleoAnterior | null; alTerminar: () => void }) {
   const [estado, accion, enviando] = useActionState(guardarEmpleo, null);
@@ -66,7 +67,7 @@ export function HistoriaLaboral({ trabajadorId, empleos }: { trabajadorId: strin
               </div>
               <Button variant="ghost" size="icon" className="size-8" title="Editar" onClick={() => setEditando(e.id)}><Pencil /></Button>
               <Button variant="ghost" size="icon" className="size-8 hover:text-destructive" title="Eliminar"
-                onClick={() => confirm(`¿Eliminar el empleo en ${e.empresa}?`) && iniciar(async () => { await eliminarEmpleo(e.id, trabajadorId); })}><Trash2 /></Button>
+                onClick={async () => (await confirmar({ titulo: `¿Eliminar el empleo en ${e.empresa}?`, accion: "Eliminar", peligro: true })) && iniciar(async () => { await eliminarEmpleo(e.id, trabajadorId); })}><Trash2 /></Button>
             </div>
             <div className="mt-2 grid gap-1 sm:grid-cols-2">
               <Dato k="Tareas" v={e.descripcion} />

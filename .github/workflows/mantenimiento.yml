@@ -1,0 +1,79 @@
+# Mantenimiento semanal de GitHub (gratis: ~1 min en Linux). Borra solo lo que ya no sirve:
+# - ramas cuyo PR ya se fusionó o cerró sin commits nuevos (nunca main, ni ramas con PR abierto, ni bases de PR abiertos)
+# - artefactos de ramas sin PR abierto, salvo el instalador más reciente de main y el más reciente en general
+# - corridas de más de 30 días (registros viejos)
+# A mano: Actions → Mantenimiento → Run workflow (con «simular» solo lista lo que borraría).
+name: Mantenimiento
+
+on:
+  schedule:
+    - cron: "0 10 * * 0"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Solo listar, sin borrar"
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+concurrency: mantenimiento
+
+jobs:
+  limpiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          SIMULAR: ${{ inputs.simular }}
+        with:
+          script: |
+            const simular = process.env.SIMULAR === "true";
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const informe = [];
+            const borrar = async (texto, fn) => {
+              informe.push(`${simular ? "Borraría" : "Borrado"}: ${texto}`);
+              if (!simular) await fn().catch((e) => informe.push(`  no se pudo: ${e.message}`));
+            };
+
+            const prs = await github.paginate(github.rest.pulls.list, { ...repo, state: "all", per_page: 100 });
+            // Ramas de PR abiertos y sus bases (PR apilados): borrar una base por API cierra el PR de arriba
+            const abiertas = new Set(prs.filter((p) => p.state === "open").flatMap((p) => [p.head.ref, p.base.ref]));
+
+            // Ramas: PR fusionado o cerrado y la rama sigue en el mismo commit que tenía el PR
+            const ramas = await github.paginate(github.rest.repos.listBranches, { ...repo, per_page: 100 });
+            for (const r of ramas) {
+              if (r.name === "main" || abiertas.has(r.name)) continue;
+              const pr = prs.find((p) => p.head.ref === r.name && p.state === "closed" && p.head.sha === r.commit.sha);
+              if (pr) await borrar(`rama ${r.name} (PR #${pr.number} ${pr.merged_at ? "fusionado" : "cerrado"})`,
+                () => github.rest.git.deleteRef({ ...repo, ref: `heads/${r.name}` }));
+            }
+
+            // Artefactos: se quedan los de ramas con PR abierto y los dos instaladores de respaldo
+            const artefactos = (await github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, per_page: 100 }))
+              .filter((a) => !a.expired).sort((a, b) => b.created_at.localeCompare(a.created_at));
+            const instaladores = artefactos.filter((a) => a.name.includes("instalador"));
+            const conservar = new Set([instaladores[0]?.id, instaladores.find((a) => a.workflow_run?.head_branch === "main")?.id]);
+            for (const a of artefactos) {
+              const rama = a.workflow_run?.head_branch;
+              if (conservar.has(a.id) || abiertas.has(rama)) continue;
+              await borrar(`artefacto ${a.name} de ${rama} (${(a.size_in_bytes / 1048576).toFixed(1)} MB)`,
+                () => github.rest.actions.deleteArtifact({ ...repo, artifact_id: a.id }));
+            }
+
+            // Corridas de más de 30 días
+            const limite = new Date(Date.now() - 30 * 864e5).toISOString();
+            const corridas = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, { ...repo, per_page: 100, created: `<${limite}` });
+            for (const c of corridas) {
+              if (c.status !== "completed") continue;
+              await borrar(`corrida ${c.name} #${c.run_number} (${c.created_at.slice(0, 10)})`,
+                () => github.rest.actions.deleteWorkflowRun({ ...repo, run_id: c.id }));
+            }
+
+            await core.summary.addHeading(simular ? "Mantenimiento (simulación)" : "Mantenimiento")
+              .addRaw(informe.length ? informe.join("\n") : "Nada que limpiar.").addEOL().write();
+            console.log(informe.join("\n") || "Nada que limpiar.");

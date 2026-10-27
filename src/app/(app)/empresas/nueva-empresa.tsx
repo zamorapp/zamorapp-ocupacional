@@ -74,6 +74,9 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
             </select>
             <p className="mt-1 text-xs text-muted-foreground">Los trimestres del informe de vigilancia se cuentan desde este mes. Ejemplo: febrero → I trimestre febrero-abril.</p>
           </div>
+          <Campo id="periodicidad_meses" etiqueta="Examen periódico cada (meses)" type="number" min={1} max={60} defaultValue={e?.periodicidadMeses ?? 12} />
+          <Campo id="dias_aviso_examen" etiqueta="Avisar antes del vencimiento (días)" type="number" min={0} max={180} defaultValue={e?.diasAvisoExamen ?? 30} />
+          <p className="-mt-2 text-xs text-muted-foreground sm:col-span-2">Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esta periodicidad. El inicio y el portal avisan con la anticipación indicada.</p>
 
           {estado && !estado.ok && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">{estado.mensaje}</p>

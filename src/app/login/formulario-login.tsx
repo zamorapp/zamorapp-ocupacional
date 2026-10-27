@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
+import { BotonEntrarHuella, OfrecerHuella } from "@/components/app/huella";
+import { huellaActivaAqui, huellaDisponible, ofrecerHuella } from "@/lib/huella";
 
 type Modo = "ingresar" | "registro" | "recuperar";
 
@@ -17,6 +19,12 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<string | null>(null); // qué respondió exactamente el servicio, para soporte
   const [confirmar, setConfirmar] = useState<string | null>(null);
+  const [ofrecer, setOfrecer] = useState(false);
+
+  const alPanel = () => {
+    router.replace("/panel");
+    router.refresh();
+  };
 
   // Mensaje claro para cada caso: clave equivocada, demasiados intentos, sin internet o sin conexión con el servicio.
   function mensajeIngreso(error: { message: string; code?: string; status?: number; name?: string }) {
@@ -85,6 +93,11 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
           setDetalle(detalleTecnico(error));
           return;
         }
+        // Recién entró con la contraseña: se le ofrece (una vez) entrar con huella la próxima vez
+        if (ofrecerHuella() && (await huellaDisponible()) && !(await huellaActivaAqui())) {
+          setOfrecer(true);
+          return;
+        }
       }
     } catch (e) {
       // Un fallo antes de llegar al servicio (p. ej. una API que el navegador no ofrece) no puede quedar mudo
@@ -94,9 +107,10 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
     } finally {
       setCargando(false);
     }
-    router.replace("/panel");
-    router.refresh();
+    alPanel();
   }
+
+  if (ofrecer) return <OfrecerHuella alTerminar={alPanel} />;
 
   if (confirmar) {
     return (
@@ -118,6 +132,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
 
   return (
     <form onSubmit={enviar} className="space-y-5">
+      {modo === "ingresar" && !modoDemo && <BotonEntrarHuella alEntrar={alPanel} />}
       {registro && (
         <div className="space-y-2">
           <Label htmlFor="nombre">Nombre completo</Label>

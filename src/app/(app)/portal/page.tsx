@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock, FileSpreadsheet, Stethoscope, UserPlus, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
+import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { hoyVE, listarCitas } from "@/lib/citas";
@@ -10,6 +11,8 @@ import { opciones } from "@/lib/listas";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { listarTrabajadores } from "@/lib/pacientes-datos";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
+import { listarSolicitudes } from "@/lib/solicitudes";
+import { ETIQUETA_SOLICITUD } from "@/lib/solicitudes-tipos";
 import { cn } from "@/lib/utils";
 import { CancelarSolicitud } from "./cancelar";
 import { Refrescar } from "./refrescar";
@@ -36,13 +39,14 @@ const sumarDias = (iso: string, n: number) => {
 
 export default async function Portal() {
   const hoy = hoyVE();
-  const [sesion, citas, trabajadores, empresas, activa, listas] = await Promise.all([
+  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes] = await Promise.all([
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),
     listarTrabajadores(),
     listarEmpresas(),
     empresaActivaId(),
-    obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta"])),
+    obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
+    listarSolicitudes({ limite: 20 }),
   ]);
   const empresa = empresas.find((e) => e.id === activa) ?? (empresas.length === 1 ? empresas[0] : null);
   const deHoy = citas.filter((c) => c.fecha === hoy && c.estado !== "cancelada");
@@ -51,7 +55,10 @@ export default async function Portal() {
     .filter((t) => t.aptitud && t.aptitudFecha)
     .sort((a, b) => (b.aptitudFecha ?? "").localeCompare(a.aptitudFecha ?? ""))
     .slice(0, 8);
-  const vencidos = trabajadores.filter((t) => t.proximoExamen && t.proximoExamen < hoy && t.estado !== "egresado").length;
+  const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
+  const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
+  const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
+  const porVencer = vigentes.filter((t) => t.proximoExamen && t.proximoExamen >= hoy && t.proximoExamen <= aviso).length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -73,12 +80,13 @@ export default async function Portal() {
           { t: "Trabajadores", v: trabajadores.filter((x) => x.estado !== "egresado").length, i: Users },
           { t: "Citas hoy", v: deHoy.length, i: CalendarClock },
           { t: "Próximas citas", v: proximas.length, i: Clock },
-          { t: "Exámenes vencidos", v: vencidos, i: Stethoscope },
-        ].map(({ t, v, i: Icono }) => (
+          { t: "Exámenes vencidos", v: vencidos, i: Stethoscope, d: porVencer ? `${porVencer} vencen en ${empresa?.diasAvisoExamen ?? 30} días` : undefined },
+        ].map(({ t, v, i: Icono, d }) => (
           <Card key={t} className="gap-1 py-4">
             <CardContent className="px-5">
               <div className="flex items-center gap-2 text-sm text-muted-foreground"><Icono className="size-4" /> {t}</div>
               <div className="text-3xl font-semibold">{v}</div>
+              {d && <div className="text-xs text-aviso-texto">{d}</div>}
             </CardContent>
           </Card>
         ))}
@@ -138,6 +146,30 @@ export default async function Portal() {
             </ul>
           )}
           <p className="px-6 pt-2 text-[11px] text-muted-foreground">Por confidencialidad médica solo se muestra la aptitud y las restricciones, nunca diagnósticos.</p>
+        </CardContent>
+      </Card>
+
+      <Card id="solicitudes" className="scroll-mt-20">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base"><Inbox className="size-5 text-primary" /> Solicitudes al servicio médico</CardTitle>
+          <NuevaSolicitud tipos={listas.tipo_solicitud.map((t) => ({ id: t.id, nombre: t.nombre }))} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} />
+        </CardHeader>
+        <CardContent className="px-0">
+          {solicitudes.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">¿Necesitas un informe, una copia o una constancia? Usa «Nueva solicitud».</p> : (
+            <ul className="divide-y">
+              {solicitudes.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
+                  <span className="w-24 font-mono text-muted-foreground">{fecha(s.creadoEn.slice(0, 10))}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</div>
+                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                  </div>
+                  {s.documento && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

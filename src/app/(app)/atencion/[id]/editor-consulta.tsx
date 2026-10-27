@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +15,8 @@ import {
   clasificarImc,
   type DatosConsulta,
   type Diagnostico,
+  diasSolapados,
+  llenarModelo,
   ETIQUETA_ESTADO_CONSULTA,
   ETIQUETA_ORIGEN,
   type FilaExamen,
@@ -25,15 +28,24 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
+import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, reabrirConsulta } from "../acciones";
+import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
-import { Adjuntos } from "@/components/app/adjuntos";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
+import { contarResultados } from "@/lib/paraclinicos";
+import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
+import { AvisoDeclaracion } from "./aviso-declaracion";
+import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
+import { confirmar } from "@/components/app/confirmar";
+import { TextoDictado } from "./dictado";
+import { Evolucion } from "./evolucion";
+import { RegistrarAccidente } from "./registrar-accidente";
+import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 
 type Props = {
   inicial: DatosConsulta;
@@ -43,9 +55,18 @@ type Props = {
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
   envio: { servicio: string; plantilla: string; telefono: string | null; correo: string | null };
   puedeFirmar: boolean;
+  versiones: VersionConsulta[];
+  historial: HistorialConsulta;
+  plantillas: Plantilla[];
+  nueva: boolean;
 };
 
-const CONFIRMAR_FIRMA = "La firma bloquea la consulta para siempre (no se edita, reabre ni borra). ¿Firmar?";
+const CONFIRMAR_FIRMA = {
+  titulo: "¿Firmar la consulta?",
+  texto: "Al firmarla queda bloqueada y no se borra. Si después encuentras un error, podrás corregirla indicando el motivo: la versión firmada queda guardada en el historial.",
+  accion: "Firmar",
+};
+const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(iso));
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const APTITUDES: Aptitud[] = ["elegible", "elegible_con_restricciones", "no_elegible", "espera_resultados", "diferido"];
@@ -62,14 +83,14 @@ function Seccion({ titulo, children, accion }: { titulo: string; children: React
   );
 }
 
+// Campo de texto largo con dictado por voz
 function Texto({ etiqueta, valor, onChange, filas = 3, placeholder }: { etiqueta: string; valor: string; onChange: (v: string) => void; filas?: number; placeholder?: string }) {
-  return (
-    <div>
-      <Label className="mb-1.5">{etiqueta}</Label>
-      <Textarea value={valor} onChange={(e) => onChange(e.target.value)} rows={filas} placeholder={placeholder} />
-    </div>
-  );
+  return <TextoDictado id={`texto-${etiqueta}`} etiqueta={etiqueta} valor={valor} onChange={onChange} filas={filas} placeholder={placeholder} />;
 }
+
+// Días del rango [desde, hasta] que caen en los últimos 12 meses antes de «hoy»
+const diasUltimoAnio = (r: { desde: string; hasta: string }, hoy: string) =>
+  diasSolapados(r, { desde: new Date(Date.parse(hoy) - 364 * 864e5).toISOString().slice(0, 10), hasta: hoy });
 
 // Botón de examen normal (perfil con código "normal") y menú con los demás perfiles
 function AccionesExamen({ perfiles, etiquetaNormal, onAplicar }: { perfiles: Item[]; etiquetaNormal: string; onAplicar: (texto: string, comoNormal: boolean) => void }) {
@@ -132,20 +153,66 @@ function TablaExamen({ filas, onChange, bloqueado }: { filas: FilaExamen[]; onCh
   );
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar }: Props) {
+// Plantilla activa del motivo elegido (se busca por el código del motivo: PRE, PER, EGR, REI…)
+function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, motivoId: string | null) {
+  const codigo = listas.motivo_consulta?.find((m) => m.id === motivoId)?.codigo;
+  return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
+}
+
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva }: Props) {
   const router = useRouter();
-  const [d, setD] = useState<DatosConsulta>(inicial);
+  // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
+  const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
+  const [precarga] = useState(() => (plantillaInicial ? aplicarPlantilla(inicial, plantillaInicial.datos, listas) : inicial));
+  const [d, setD] = useState<DatosConsulta>(precarga);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
   const [paso, setPaso] = useState("generales");
+  // Corregir una consulta firmada: motivo obligatorio (lo exige también reabrir_consulta en la base)
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const [motivoCorreccion, setMotivoCorreccion] = useState("");
+  const [ignorarPendientes, setIgnorarPendientes] = useState(false);
+  const [accidente, setAccidente] = useState(false);
+  // Avisos que el médico decidió ignorar en esta consulta (no bloquean nada)
+  const [ignorados, setIgnorados] = useState<string[]>([]);
+  // Última plantilla aplicada, con la consulta como estaba antes para poder deshacer
+  // (despues: lo que dejó la plantilla; si el médico no tocó nada más, cambiar de motivo parte de «antes»)
+  const [deshacer, setDeshacer] = useState<{ nombre: string; antes: DatosConsulta; despues: DatosConsulta } | null>(
+    () => (plantillaInicial ? { nombre: plantillaInicial.nombre, antes: inicial, despues: precarga } : null));
 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
 
   const motivo = listas.motivo_consulta.find((m) => m.id === d.motivoId);
+  const plantilla = plantillaPara(plantillas, listas, d.motivoId);
+  // Aplica la plantilla sobre lo escrito (no borra nada) y deja «Deshacer» con la consulta como estaba
+  const usarPlantilla = (p: Plantilla, base: DatosConsulta) => {
+    const despues = aplicarPlantilla(base, p.datos, listas);
+    setDeshacer({ nombre: p.nombre, antes: base, despues });
+    setD(despues);
+  };
+  // Deshace directo si nada cambió desde la plantilla; si el médico siguió escribiendo, lo confirma antes
+  const deshacerPlantilla = async () => {
+    if (!deshacer) return;
+    if (deshacer.despues !== d && !(await confirmar({
+      titulo: "¿Deshacer la plantilla?",
+      texto: "La consulta vuelve a como estaba antes de aplicarla: también se pierde lo que escribiste después.",
+      accion: "Deshacer",
+    }))) return;
+    setD({ ...deshacer.antes, motivoId: d.motivoId });
+    setDeshacer(null);
+  };
+  const cambiarMotivo = (motivoId: string | null) => {
+    // Si la plantilla anterior quedó intacta, se quita antes de poner la del motivo nuevo (no se acumulan)
+    const intacta = deshacer && deshacer.despues === d;
+    const base = { ...(intacta ? deshacer.antes : d), motivoId };
+    const p = plantillaPara(plantillas, listas, motivoId);
+    if (p && !bloqueado) usarPlantilla(p, base);
+    else { setD(base); if (intacta) setDeshacer(null); }
+  };
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
@@ -155,7 +222,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     { id: "generales", titulo: "Generales", hecho: Boolean(d.motivoId) },
     { id: "antecedentes", titulo: "Antecedentes", hecho: d.antecedentes.length > 0 || d.habitos.some((h) => h.valor) },
     { id: "examen", titulo: "Examen", hecho: Boolean(d.signos.ta || d.signos.peso) },
-    { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 },
+    { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 && contarResultados(d.paraclinicos).pendientes === 0 },
     { id: "diagnostico", titulo: d.sano ? "Diagnóstico · sano" : d.diagnosticos.length ? `Diagnóstico (${d.diagnosticos.length})` : "Diagnóstico", hecho: d.sano || d.diagnosticos.length > 0 },
     { id: "aptitud", titulo: "Aptitud", hecho: Boolean(d.aptitud.clasificacion) },
     ...(mostrarTratamiento ? [{ id: "tratamiento", titulo: "Tratamiento y reposo", hecho: d.tratamiento.length > 0 || d.reposo.activo }] : []),
@@ -166,6 +233,49 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
   const valorImc = imc(d.signos.peso, d.signos.talla);
   const claseImc = clasificarImc(valorImc);
+
+  // Reposos de otras consultas que se cruzan con el de esta (aviso, no bloquea)
+  const solapados = d.reposo.activo && d.reposo.hasta >= d.reposo.desde
+    ? historial.reposos.map((r) => ({ ...r, dias: diasSolapados(r, d.reposo) })).filter((r) => r.dias > 0)
+    : [];
+  const claveSolape = `reposo:${d.reposo.desde}:${d.reposo.hasta}`;
+  const avisoSolape = solapados.length > 0 && !ignorados.includes(claveSolape);
+
+  // Potencial discapacidad: criterios que ya muestra el reporte (reposo ≥ 90 días en 12 meses, discapacidad
+  // registrada, no elegible o con restricciones, diagnóstico ocupacional) para que el médico decida
+  const diasReposoAnio = historial.reposos.filter((r) => !["prenatal", "postnatal", "paternidad", "lactancia"].includes(r.causa))
+    .reduce((t, r) => t + diasUltimoAnio(r, d.fecha), 0)
+    + (d.reposo.activo && !["prenatal", "postnatal", "paternidad", "lactancia"].includes(d.reposo.causa) ? diasUltimoAnio(d.reposo, d.fecha) : 0);
+  const criteriosDiscapacidad = [
+    historial.discapacidadRegistrada && "Discapacidad registrada en su ficha",
+    diasReposoAnio >= 90 && `${diasReposoAnio} días de reposo en los últimos 12 meses`,
+    d.aptitud.clasificacion === "no_elegible" && "Aptitud: no elegible",
+    d.aptitud.clasificacion === "elegible_con_restricciones" && "Aptitud: con restricciones",
+    d.diagnosticos.some((x) => x.origen === "ocupacional" || x.origen === "accidente_laboral") && "Diagnóstico de origen ocupacional",
+  ].filter(Boolean) as string[];
+
+  // Modelo de informe libre: llena {nombre}, {cedula}… con los datos de esta consulta
+  const aplicarModelo = async (it: Item) => {
+    if (d.informeLibre.cuerpo.trim() && !(await confirmar({ titulo: "¿Reemplazar el contenido?", texto: "El informe libre ya tiene texto. El modelo lo reemplaza.", accion: "Reemplazar" }))) return;
+    const diagnostico = d.sano ? "trabajador sano" : d.diagnosticos.filter((x) => x.descripcion.trim()).map((x) => (x.cie10 ? `${x.descripcion} (${x.cie10})` : x.descripcion)).join("; ");
+    const campos = { nombre: trabajador.nombre, cedula: trabajador.cedula, edad: trabajador.edad?.toString() ?? "", empresa: trabajador.empresa, cargo: trabajador.cargo,
+      fecha: d.fecha.split("-").reverse().join("/"), diagnostico, medico: medico ?? "" };
+    set("informeLibre", { titulo: d.informeLibre.titulo || it.nombre, dirigidoA: d.informeLibre.dirigidoA, cuerpo: llenarModelo(it.texto ?? "", campos) });
+  };
+
+  const duplicar = async () => {
+    if (!(await confirmar({ titulo: "¿Duplicar la consulta?", texto: "Se crea un borrador nuevo con fecha de hoy y los mismos datos, sin firma ni cierre. No se copian los signos vitales, los resultados de exámenes, la aptitud ni el reposo.", accion: "Duplicar" }))) return;
+    iniciar(async () => {
+      if (cambios && !bloqueado) {
+        const g = await guardarConsulta(d, false);
+        if (!g.ok) return setAviso(g);
+        setGuardado(JSON.stringify(d));
+      }
+      const r = await duplicarConsulta(d.id);
+      setAviso(r);
+      if (r.ok && r.id) router.push(`/atencion/${r.id}`);
+    });
+  };
 
   const guardar = useCallback(
     (cerrar: boolean) =>
@@ -182,8 +292,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   );
 
   // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
-  const firmarEImprimir = () => {
-    if (!confirm(CONFIRMAR_FIRMA)) return;
+  const firmarEImprimir = async () => {
+    if (!(await confirmar({ ...CONFIRMAR_FIRMA, accion: "Firmar e imprimir" }))) return;
     iniciar(async () => {
       if (d.estado === "borrador") {
         const g = await guardarConsulta(d, true);
@@ -205,6 +315,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     if (r.ok) setGuardado(JSON.stringify(d));
     return r.ok;
   };
+  // Paraclínicos: con la consulta cerrada solo se escriben resultados (guardar_resultados); firmada, solo lectura
+  const modoParaclinicos: ModoParaclinicos = d.estado === "borrador" ? "editar" : d.estado === "cerrada" ? "resultados" : "lectura";
+  const resultadosSinGuardar = JSON.stringify(d.paraclinicos) !== JSON.stringify((JSON.parse(guardado) as DatosConsulta).paraclinicos);
+  const guardarSoloResultados = () =>
+    iniciar(async () => {
+      const r = await guardarResultados(d.id, d.paraclinicos);
+      setAviso(r);
+      if (r.ok) setGuardado(JSON.stringify(d));
+    });
+  const pendientesResultado = contarResultados(d.paraclinicos).pendientes;
+
   const menuImprimir = (variante: "default" | "outline") => (
     <MenuImprimir
       consultaId={d.id}
@@ -215,6 +336,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       referencias={d.interconsultas.some((x) => x.especialidad)}
       reubicacion={d.reubicacion.activa}
       informeLibre={Boolean(d.informeLibre.cuerpo.trim())}
+      preoperatoria={/preoper/i.test(motivo?.nombre ?? "")}
+      anexos={Boolean(adjuntos)}
       antes={cambios && !bloqueado ? guardarAntes : undefined}
       ocupado={guardando}
       variante={variante}
@@ -246,6 +369,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     return [...g.entries()];
   }, [listas.paraclinico]);
 
+  const reglasDeclaracion = useMemo(() => reglasDeListas(listas), [listas]);
   const actualizarDiag = (i: number, cambio: Partial<Diagnostico>) =>
     set("diagnosticos", d.diagnosticos.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
   const actualizarMed = (i: number, cambio: Partial<Medicamento>) =>
@@ -276,6 +400,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
+              {puedeFirmar && !corrigiendo && (
+                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
+              )}
             </div>
           ) : bloqueado ? (
             <div className="flex flex-wrap gap-2">
@@ -285,7 +412,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               </Button>
               {puedeFirmar && (
                 <>
-                  <Button variant="outline" onClick={() => confirm(CONFIRMAR_FIRMA) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
+                  <Button variant="outline" onClick={async () => (await confirmar(CONFIRMAR_FIRMA)) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
                     <CheckCircle2 /> Firmar
                   </Button>
                   <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
@@ -302,7 +429,69 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>}
             </div>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Más acciones" disabled={guardando}><MoreHorizontal /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+        <RegistrarAccidente
+          abierto={accidente}
+          onAbierto={setAccidente}
+          consultaId={d.id}
+          trabajador={trabajador}
+          tipoSugerido={d.diagnosticos.some((x) => x.origen === "ocupacional") && !d.diagnosticos.some((x) => x.origen === "accidente_laboral") ? "enfermedad" : "accidente"}
+          descripcion={[d.motivoTexto, d.enfermedadActual, ...d.diagnosticos.filter((x) => x.descripcion.trim()).map((x) => `Dx: ${x.descripcion}${x.cie10 ? ` (${x.cie10})` : ""}`)].filter((x) => x.trim()).join("\n")}
+        />
+        {d.estado === "firmada" && corrigiendo && (
+          <div className="mt-4 space-y-3 rounded-lg border border-aviso/40 bg-aviso/10 p-4">
+            <p className="text-sm">
+              <b>Corregir la consulta firmada.</b> La versión firmada se guarda tal cual en el historial (no se pierde ni se edita)
+              y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
+              «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
+            </p>
+            <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
+            <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
+              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
+              <Button
+                disabled={guardando || motivoCorreccion.trim().length < 10}
+                title={motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
+                onClick={() => iniciar(async () => {
+                  const r = await corregirConsulta(d.id, motivoCorreccion);
+                  setAviso(r);
+                  if (!r.ok) return;
+                  const nuevo = { ...d, estado: "borrador" as const, revision: r.revision ?? d.revision + 1 };
+                  setD(nuevo);
+                  setGuardado(JSON.stringify(nuevo));
+                  setCorrigiendo(false);
+                  setMotivoCorreccion("");
+                  router.refresh();
+                })}
+              >
+                {guardando ? <Loader2 className="animate-spin" /> : <RotateCcw />} Abrir para corregir
+              </Button>
+            </div>
+          </div>
+        )}
+        {versiones.length > 0 && (
+          <details className="mt-3 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">Revisión {d.revision} · {versiones.length} versión{versiones.length === 1 ? "" : "es"} firmada{versiones.length === 1 ? "" : "s"} anterior{versiones.length === 1 ? "" : "es"}</summary>
+            <ul className="mt-2 space-y-1.5 pb-1">
+              {versiones.map((v) => (
+                <li key={v.revision} className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Revisión {v.revision}</span>
+                  {v.firmadaEn && <> · firmada {fechaHora(v.firmadaEn)}</>} · corregida {fechaHora(v.reabiertaEn)} por {v.por}: «{v.motivo}»
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {!cambios && d.aptitud.clasificacion && d.estado !== "borrador" && (() => {
           const texto = llenar(envio.plantilla, { nombre: trabajador.nombre, cedula: trabajador.cedula, fecha: d.fecha.split("-").reverse().join("/"), motivo: motivo?.nombre ?? "",
             empresa: trabajador.empresa, servicio: envio.servicio, aptitud: etiquetaAptitud(d.aptitud.clasificacion as Aptitud), observacion: d.aptitud.observacion ? " " + d.aptitud.observacion : "" });
@@ -316,6 +505,15 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         })()}
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
+        )}
+        {/* Falta resultado: solo avisa, no impide cerrar ni firmar */}
+        {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm">
+            <FlaskConical className="size-4 text-aviso-texto" />
+            <span className="min-w-0 flex-1">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
+            <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
+          </div>
         )}
         <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
           {pasos.map((p, i) => (
@@ -344,7 +542,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>
                   <Label className="mb-1.5">Motivo de consulta *</Label>
-                  <select value={d.motivoId ?? ""} onChange={(e) => set("motivoId", e.target.value || null)} className={SELECT}>
+                  <select value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT}>
                     <option value="">Elige el motivo</option>
                     {["preventivo", "no_preventivo", null].map((g) => {
                       const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
@@ -366,6 +564,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   </select>
                 </div>
               </div>
+              {!bloqueado && deshacer ? (
+                <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <Wand2 className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 basis-56">Plantilla de <b>{deshacer.nombre}</b> aplicada: revisa el examen, las recomendaciones y la vigencia.</span>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={deshacerPlantilla}>
+                    <RotateCcw /> Deshacer
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setDeshacer(null)}>Listo</Button>
+                </div>
+              ) : !bloqueado && plantilla && (
+                <Button type="button" size="sm" variant="outline" onClick={() => usarPlantilla(plantilla, d)} title={resumenPlantilla(plantilla.datos)}>
+                  <Wand2 /> Aplicar plantilla de {plantilla.nombre}
+                </Button>
+              )}
               {preventivo ? (
                 <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                   Evaluación de <b className="text-foreground">{motivo?.nombre}</b>: el motivo ya queda registrado y no requiere detalle.
@@ -438,6 +650,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 <p className="flex items-center gap-2 text-sm text-alerta-texto"><AlertTriangle className="size-4" /> Tensión arterial elevada.</p>
               )}
             </Seccion>
+            <Evolucion previas={historial.mediciones} actual={d.signos} hoy={d.fecha} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Seccion titulo="Examen funcional" accion={<AccionesExamen perfiles={listas.perfil_examen_funcional} etiquetaNormal="Funcional normal" onAplicar={(t, normal) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t, normal))} />}>
                 <TablaExamen filas={d.examenFuncional} onChange={(f) => set("examenFuncional", f)} bloqueado={bloqueado} />
@@ -450,8 +663,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </TabsContent>
 
           {/* ── Paraclínicos ── */}
-          <TabsContent value="paraclinicos" className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <Seccion titulo="Catálogo">
+          <TabsContent value="paraclinicos" className="mt-4 space-y-4">
+            {modoParaclinicos === "editar" && (
+            <details open={d.paraclinicos.length === 0} className="group rounded-xl border bg-card">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 font-semibold">
+                <span className="inline-flex items-center gap-2"><Plus className="size-4" /> Agregar exámenes</span>
+                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Perfiles y catálogo</span>
+              </summary>
+              <div className="space-y-4 border-t px-5 py-4">
               {listas.grupo_paraclinicos.length > 0 && (
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <div className="mb-2 text-sm font-medium">Perfiles</div>
@@ -514,26 +733,19 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   );
                 })}
               </div>
-            </Seccion>
-            <Seccion titulo={`Solicitados (${d.paraclinicos.length})`}>
-              {d.paraclinicos.length === 0 && <p className="text-sm text-muted-foreground">Elige exámenes del catálogo.</p>}
-              <div className="space-y-2">
-                {d.paraclinicos.map((p, i) => (
-                  <div key={p.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
-                    <span className="truncate text-sm">{p.nombre}</span>
-                    <Input value={p.resultado} placeholder="Resultado" className="h-8" onChange={(e) => set("paraclinicos", d.paraclinicos.map((x, j) => (j === i ? { ...x, resultado: e.target.value } : x)))} />
-                    <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("paraclinicos", d.paraclinicos.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                  </div>
-                ))}
               </div>
-            </Seccion>
-            {adjuntos && (
-              <div className="lg:col-span-2">
-                <Seccion titulo="Resultados adjuntos (PDF o fotos)">
-                  <Adjuntos orgId={adjuntos.orgId} trabajadorId={trabajador.id} consultaId={d.id} iniciales={adjuntos.lista} />
-                </Seccion>
-              </div>
+            </details>
             )}
+            <ParaclinicosDigitales
+              paraclinicos={d.paraclinicos}
+              onChange={(p) => set("paraclinicos", p)}
+              modo={modoParaclinicos}
+              catalogo={listas.paraclinico}
+              sexo={trabajador.sexo}
+              archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
+              asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
+              resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
+            />
           </TabsContent>
 
           {/* ── Diagnóstico ── */}
@@ -544,9 +756,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <input
                     type="checkbox"
                     checked={d.sano}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const sano = e.target.checked;
-                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !confirm("Se quitarán los diagnósticos escritos. ¿Continuar?")) return;
+                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !(await confirmar({ titulo: "¿Marcar como sano?", texto: "Se quitarán los diagnósticos que ya escribiste.", accion: "Marcar sano" }))) return;
                       setD((x) => ({
                         ...x,
                         sano,
@@ -591,11 +803,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   {i === 0 && <span className="text-xs text-muted-foreground sm:col-span-4">Diagnóstico principal</span>}
                 </div>
               ))}
-              {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
+              {d.diagnosticos.some((x) => x.origen === "accidente_laboral") && (
                 <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-                  <AlertTriangle className="size-4" /> Sospecha de enfermedad ocupacional: la declaración ante el INPSASEL vence 24 h después del diagnóstico.
+                  <HardHat className="size-4 shrink-0" /> Accidente laboral: regístralo para que corra el plazo de declaración ante el INPSASEL.
+                  <button type="button" onClick={() => setAccidente(true)} className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline">Registrar</button>
                 </p>
               )}
+              {/* Enfermedad ocupacional: aviso con el Anexo 1 (NT-02) y la lista del MPPS, «Iniciar declaración» e «Ignorar» */}
+              <AvisoDeclaracion consultaId={d.id} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
             </Seccion>
             )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
@@ -668,6 +883,26 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               </div>
               <p className="text-xs text-muted-foreground">La empresa cliente solo ve esta clasificación y las limitaciones, nunca el diagnóstico.</p>
             </Seccion>
+            <Card className={cn("gap-0 py-4", d.potencialDiscapacidad && "border-aviso/60 bg-aviso/5")}>
+              <CardContent className="space-y-3 px-6">
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" checked={d.potencialDiscapacidad} onChange={(e) => set("potencialDiscapacidad", e.target.checked)} className="mt-0.5 size-5 accent-[var(--primary)]" />
+                  <span>
+                    <span className="flex items-center gap-1.5 font-medium"><Accessibility className="size-4" /> Potencial discapacidad</span>
+                    <span className="block text-sm text-muted-foreground">Marca al trabajador para seguimiento: aparece en el reporte de potencial discapacidad y en la vigilancia.</span>
+                  </span>
+                </label>
+                {criteriosDiscapacidad.length > 0 && (
+                  <div className={cn("rounded-md px-3 py-2 text-sm", d.potencialDiscapacidad ? "bg-muted/50 text-muted-foreground" : "bg-aviso/10 text-aviso-texto")}>
+                    {d.potencialDiscapacidad ? "Criterios presentes:" : "Hay criterios para considerarlo:"} {criteriosDiscapacidad.join(" · ")}
+                  </div>
+                )}
+                {d.potencialDiscapacidad && (
+                  <Texto etiqueta="Motivo y seguimiento" valor={d.discapacidadNota} onChange={(v) => set("discapacidadNota", v)} filas={2}
+                    placeholder="Ej.: lumbalgia crónica con 120 días de reposo; evaluar por medicina física y CONAPDIS" />
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── Tratamiento y reposo ── */}
@@ -752,6 +987,25 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                         ? `${Math.round((Date.parse(d.reposo.hasta) - Date.parse(d.reposo.desde)) / 864e5) + 1} días · reintegro el día siguiente`
                         : "La fecha final es anterior a la inicial"}
                     </div>
+                    {avisoSolape && (
+                      <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-md border border-aviso/50 bg-aviso/10 px-3 py-2 text-sm text-aviso-texto sm:col-span-4">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <b>Se solapa con {solapados.length === 1 ? "otro reposo" : `${solapados.length} reposos`}:</b>
+                          <ul className="mt-0.5">
+                            {solapados.map((r, i) => (
+                              <li key={i}>
+                                {r.desde.split("-").reverse().join("/")} al {r.hasta.split("-").reverse().join("/")}
+                                {" · "}{listas.causa_reposo.find((c) => (c.codigo ?? c.nombre) === r.causa)?.nombre ?? r.causa}
+                                {" · "}{r.dias} día{r.dias === 1 ? "" : "s"} en común
+                                {r.consultaId && <> · <Link href={`/atencion/${r.consultaId}`} target="_blank" className="underline-offset-2 hover:underline">ver consulta</Link></>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <Button type="button" size="sm" variant="ghost" className="h-7 text-aviso-texto hover:bg-aviso/20 hover:text-aviso-texto" onClick={() => setIgnorados((x) => [...x, claveSolape])}>Ignorar</Button>
+                      </div>
+                    )}
                     {d.reposo.ente !== "servicio_medico" && (
                       <div className="sm:col-span-2">
                         <Label className="mb-1.5">Médico externo que lo indicó</Label>
@@ -847,7 +1101,16 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             </Seccion>
 
             <Seccion titulo="Informe médico libre">
-              <p className="text-sm text-muted-foreground">Para cartas o informes que no encajan en otro documento. Si escribes el contenido, aparece «Informe libre» en el botón Imprimir.</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">Para cartas o informes que no encajan en otro documento. Si escribes el contenido, aparece «Informe libre» en el botón Imprimir.</p>
+                {listas.modelo_informe_libre.length > 0 && (
+                  <select value="" onChange={(e) => { const it = listas.modelo_informe_libre.find((i) => i.id === e.target.value); if (it) aplicarModelo(it); }}
+                    aria-label="Usar un modelo de informe" className="h-8 max-w-56 rounded-md border bg-transparent px-2 text-xs">
+                    <option value="">Usar modelo…</option>
+                    {listas.modelo_informe_libre.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+                  </select>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <Label className="mb-1.5">Título</Label>
@@ -866,12 +1129,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       {/* Navegación entre pasos */}
       <div className="flex items-center justify-between gap-3 border-t pt-4">
         <Button type="button" variant="ghost" disabled={indicePaso === 0} onClick={() => irA(indicePaso - 1)}>
-          <ChevronLeft /> {indicePaso > 0 ? pasos[indicePaso - 1].titulo : "Anterior"}
+          <ChevronLeft /> <span className="max-sm:hidden">{indicePaso > 0 ? pasos[indicePaso - 1].titulo : "Anterior"}</span><span className="sm:hidden">Anterior</span>
         </Button>
         <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos</span>
         {indicePaso < pasos.length - 1 ? (
           <Button type="button" variant="outline" onClick={() => irA(indicePaso + 1)}>
-            {pasos[indicePaso + 1].titulo} <ChevronRight />
+            <span className="max-sm:hidden">{pasos[indicePaso + 1].titulo}</span><span className="sm:hidden">Siguiente</span> <ChevronRight />
           </Button>
         ) : !bloqueado ? (
           <Button type="button" onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>

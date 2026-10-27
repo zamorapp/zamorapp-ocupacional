@@ -9,7 +9,8 @@ import { obtenerTrabajador } from "@/lib/pacientes-datos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
-import { Bloque, DatosPaciente, fechaCorta, Firmas, Hoja, Membrete, Pie, Titulo } from "../../componentes";
+import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
+import { Bloque, DatosPaciente, fechaCorta, Firmas, FirmaTrabajador, Hoja, Membrete, Pie, Titulo } from "../../componentes";
 
 export const metadata: Metadata = { title: "Historia clínica" };
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function HistoriaClinica({ params }: { params: Promise<{ id
   }
   const ant = resumenAntecedentes(base.datos.antecedentes);
   const riesgos = GRUPOS_RIESGO.filter(([k]) => (t.riesgos[k] ?? []).length);
+  const certificacion = base.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
@@ -101,8 +103,9 @@ export default async function HistoriaClinica({ params }: { params: Promise<{ id
             })}
           </div>
         </Bloque>
+        {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
         <Firmas>
-          <span />
+          {certificacion ? <FirmaTrabajador d={base} /> : <span />}
           {/* Firma a mano de quien emite la copia: no se estampa la firma escaneada de otro médico */}
           <div className="w-60 text-center text-[10.5px]">
             <div className="mb-1 h-14 border-b border-[#15201e]" />

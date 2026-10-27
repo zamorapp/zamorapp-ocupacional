@@ -29,7 +29,21 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
     const lista = texto(datos, "lista")!;
     const nombre = texto(datos, "nombre");
     if (!nombre) return { ok: false, mensaje: "Escribe el nombre." };
-    const campos = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    const campos: Record<string, unknown> = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    // Paraclínicos: unidad y rango de referencia (se combinan con lo que ya tenga datos, p. ej. códigos del SAME)
+    if (lista === "paraclinico") {
+      const numero = (k: string) => {
+        const v = texto(datos, k);
+        if (v === null) return null;
+        const n = Number(v.replace(",", "."));
+        if (!Number.isFinite(n)) throw new Error("El rango debe ser un número (usa coma o punto para los decimales).");
+        return n;
+      };
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
+      if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+    }
 
     if (id) {
       const { error } = await supabase.from("lista_items").update(campos).eq("id", id).eq("org_id", sesion.orgId!);
@@ -106,16 +120,19 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
     const ajustes = {
       palabra_aptitud: texto(datos, "palabra_aptitud") ?? "Elegible",
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
-      observacion_idoneidad: texto(datos, "observacion_idoneidad"),
+      // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
+      observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
+      constancia_copias: datos.get("constancia_copias") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
       reposo_pie_original: texto(datos, "reposo_pie_original"),
       orden_nota: texto(datos, "orden_nota"),
+      orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
       mensaje_cita: texto(datos, "mensaje_cita"),
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),
-      certificado_nota: texto(datos, "certificado_nota"),
+      certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       membrete_lema: texto(datos, "membrete_lema"),
@@ -163,6 +180,8 @@ export async function guardarPerfil(_: Resultado | null, datos: FormData): Promi
         mpps: texto(datos, "mpps"),
         colegio_medicos: texto(datos, "colegio_medicos"),
         registro_inpsasel: texto(datos, "registro_inpsasel"),
+        especialidad: texto(datos, "especialidad"),
+        correo: texto(datos, "correo"),
       })
       .eq("id", sesion.usuarioId);
     if (error) throw error;
