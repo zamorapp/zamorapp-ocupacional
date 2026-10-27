@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-27";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-27", texto: "Ajustes clínicos: plantillas, paraclínicos por empresa y recomendaciones en una pantalla, con vista previa de la consulta", tema: "configuracion" },
   { fecha: "2026-10-27", texto: "Paraclínicos con rango y color, y los PDF o fotos ligados a cada examen", tema: "paraclinicos" },
   { fecha: "2026-10-27", texto: "Constancias de aptitud por lote en un PDF y envío a la empresa por correo o WhatsApp", tema: "envios" },
   { fecha: "2026-10-27", texto: "Consulta más ágil: dictado por voz, evolución de signos, duplicar y registrar accidente", tema: "consulta" },
@@ -334,6 +335,7 @@ export const MANUAL: TemaManual[] = [
       "Mi perfil: tus datos de médico (cédula, MPPS, colegio, INPSASEL) y las fotos de tu firma y tu sello. Marca si quieres que se impriman o dejar la casilla vacía para firmar y sellar a mano. Las fotos de firma y sello son privadas: solo las usa el personal de salud al imprimir; RR. HH. de las empresas no puede verlas.",
       "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar. En «Paraclínicos» cada examen lleva su unidad y su rango de referencia (y uno para mujeres si cambia por sexo), o «Normal / Alterado» para Rx, audiometría y otros informes: con eso se colorea el resultado.",
+      "Ajustes clínicos: una sola pantalla con todo lo que se precarga en la consulta. Arriba eliges empresa y motivo y ves cómo se abriría (examen, paraclínicos sugeridos, recomendaciones y vigencia) y de dónde sale cada cosa; la tabla «Paraclínicos por empresa» muestra qué perfil sale en cada combinación. Abajo, en pestañas, se editan plantillas, perfiles, recomendaciones y exámenes. El personal clínico la ve; guardan el administrador y el gerente médico.",
       "Plantillas de examen (administrador y gerente médico): una por motivo. Elige el perfil de examen funcional y físico, marca las frases de aptitud y de recomendaciones a la empresa y al trabajador, la vigencia en meses y unas conclusiones base. Se aplican al elegir ese motivo en la consulta; desmarca «Aplicar al elegir este motivo» para apagarla. Los paraclínicos por empresa y tipo de examen se arman en los perfiles de paraclínicos.",
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",
