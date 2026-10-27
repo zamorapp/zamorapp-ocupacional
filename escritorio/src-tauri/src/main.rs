@@ -145,6 +145,28 @@ fn revisar_recursos(recursos: &Path) -> Result<(), String> {
     }
 }
 
+// Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
+// por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
+// a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
+fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
+    let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
+    let compilacion = compilacion.trim();
+    if compilacion.is_empty() {
+        return;
+    }
+    let marca = carpeta_programa().join("perfil-web.txt");
+    if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
+        return;
+    }
+    match ventana.clear_all_browsing_data() {
+        Ok(()) => {
+            anotar(&format!("perfil del navegador interno limpiado para la compilación {compilacion}"));
+            let _ = std::fs::write(&marca, compilacion);
+        }
+        Err(e) => anotar(&format!("no se pudo limpiar el perfil del navegador interno: {e}")),
+    }
+}
+
 fn arrancar(recursos: &Path) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
@@ -257,6 +279,7 @@ fn main() {
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
+                limpiar_perfil_si_cambio(&ventana, &recursos);
                 match arrancar(&recursos) {
                     Ok(p) => {
                         *manejador.state::<Mutex<Procesos>>().lock().unwrap() = p;

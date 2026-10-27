@@ -38,7 +38,8 @@ async function conectar() {
       }
     }
   }
-  const { chromium } = await import("playwright");
+  // Local: el Chromium de Playwright (PLAYWRIGHT_MODULO apunta al paquete "playwright" si no está en node_modules)
+  const { chromium } = await import(process.env.PLAYWRIGHT_MODULO || "playwright");
   return { navegador: await chromium.launch(), local: true };
 }
 
@@ -59,7 +60,8 @@ try {
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
   pagina.on("console", (m) => { if (["error", "warning"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
   pagina.on("pageerror", (e) => anotar(`[error de página] ${e.message}`));
-  pagina.on("requestfailed", (r) => anotar(`[petición fallida] ${r.method()} ${r.url()}: ${r.failure()?.errorText}`));
+  // Los prefetch que Next cancela al navegar (net::ERR_ABORTED) son normales; lo demás sí es un fallo
+  pagina.on("requestfailed", (r) => { if (r.failure()?.errorText !== "net::ERR_ABORTED") anotar(`[petición fallida] ${r.method()} ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("response", (r) => { if (r.status() >= 400) anotar(`[respuesta ${r.status()}] ${r.request().method()} ${r.url()}`); });
   pagina.on("framenavigated", (f) => { if (f === pagina.mainFrame()) anotar(`[navega] ${f.url()}`); });
   if (local) await pagina.goto(URL_INICIO);
@@ -118,6 +120,10 @@ try {
 
   await paso("pantalla de ingreso de la app", async () => {
     await pagina.waitForURL(/\/login/, { timeout: 60_000 });
+    // La ventana debe seguir en el origen de la app (127.0.0.1:54332): si una redirección la manda a "localhost",
+    // cambia de origen y la puerta local rechaza todas sus llamadas (CORS) sin registrar nada
+    const origenEsperado = new URL(URL_INICIO).hostname === "localhost" ? "localhost" : "127.0.0.1";
+    if (new URL(pagina.url()).hostname !== origenEsperado) throw new Error(`La app redirigió la ventana a ${pagina.url()}: cambió el origen (debía seguir en ${origenEsperado})`);
     await pagina.waitForSelector("#correo", { timeout: 60_000 });
     const textoBoton = await pagina.evaluate(() => document.querySelector("button[type=submit]")?.textContent || "");
     anotar(`   botón: "${textoBoton.trim()}"`);
@@ -151,6 +157,15 @@ try {
     await pagina.reload({ waitUntil: "domcontentloaded" });
     await esperar(1500);
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
+  });
+
+  await paso("sin service worker ni cachés en el programa de escritorio", async () => {
+    // Un SW con caché de una versión anterior haría correr JavaScript viejo tras instalar encima
+    const { sw, caches: cachesVivas } = await pagina.evaluate(async () => ({
+      sw: (await navigator.serviceWorker?.getRegistrations?.() || []).map((r) => r.scope),
+      caches: typeof caches === "undefined" ? [] : await caches.keys(),
+    }));
+    if (sw.length || cachesVivas.length) throw new Error(`Quedó un service worker (${sw.join(", ") || "-"}) o cachés (${cachesVivas.join(", ") || "-"}) en la ventana`);
   });
 
   anotar("RESULTADO: ingreso por la ventana correcto");

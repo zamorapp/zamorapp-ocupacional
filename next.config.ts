@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Programa de escritorio: servidor autónomo que se empaca en el instalador de Windows
   output: process.env.ZAMORAPP_ESCRITORIO ? "standalone" : undefined,
+  // La app sabe en el navegador si corre dentro del programa de escritorio (sin service worker, p. ej.)
+  env: { NEXT_PUBLIC_ESCRITORIO: process.env.ZAMORAPP_ESCRITORIO ? "1" : "" },
+  // Next reescribe "127.0.0.1" como "localhost" en las redirecciones del middleware (NextURL). En el programa de
+  // escritorio eso cambiaba el origen de la ventana y la puerta local rechazaba el ingreso; con esto el
+  // middleware recibe y devuelve la dirección tal cual llegó.
+  skipMiddlewareUrlNormalize: true,
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: SEGURIDAD }];

@@ -208,6 +208,7 @@ test("solo atiende a esta PC: otro Host u otro origen se rechazan", { skip: omit
   assert.equal(await pedirCrudo({ Host: "atacante.com" }), 403, "DNS rebinding");
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "https://atacante.com" }), 403);
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://127.0.0.1:54332" }), 200);
+  assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://localhost:54332" }), 200, "la ventana también puede estar en localhost");
   assert.equal(await pedirCrudo({ Host: `localhost:${puerto}` }), 200);
 });
 

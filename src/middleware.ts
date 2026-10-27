@@ -32,11 +32,20 @@ export async function middleware(request: NextRequest) {
   const conSesion = Boolean(data?.claims?.sub);
   const enLogin = request.nextUrl.pathname.startsWith("/login");
 
+  // Las redirecciones conservan el host con el que llegó la petición. En el programa de escritorio Next arma
+  // request.url con "localhost": sin esto la ventana pasaba de 127.0.0.1:54332 a localhost:54332, cambiaba de
+  // origen y la puerta local (que solo atiende a la ventana) rechazaba todo lo que pedía la pantalla de ingreso.
+  const irA = (ruta: string) => {
+    const destino = new URL(ruta, request.url);
+    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+    if (host) destino.host = host;
+    return NextResponse.redirect(destino);
+  };
   if (!conSesion && !enLogin) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return irA("/login");
   }
   if (conSesion && enLogin && !request.nextUrl.pathname.startsWith("/login/nueva-clave")) {
-    return NextResponse.redirect(new URL("/panel", request.url));
+    return irA("/panel");
   }
   return respuesta;
 }

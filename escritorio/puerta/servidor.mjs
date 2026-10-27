@@ -19,6 +19,8 @@ const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se pue
 
 export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
   const d = () => estado.d;
+  // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
+  const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
 
   const responder = (res, status, cuerpo, extra = {}) => {
     const texto = cuerpo === undefined ? "" : typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo);
@@ -233,12 +235,13 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       res.writeHead(403); res.end();
     };
     if (!locales.includes(String(req.headers.host || "").toLowerCase())) return rechazar("el Host no es esta PC");
-    if (req.headers.origin && req.headers.origin !== origen && !locales.some((h) => req.headers.origin === `http://${h}`)) {
+    const desdeApp = origenesApp.includes(req.headers.origin);
+    if (req.headers.origin && !desdeApp && !locales.some((h) => req.headers.origin === `http://${h}`)) {
       return rechazar("el Origin no es la ventana de zamorApp");
     }
     // Solo la ventana de zamorApp (su propio origen) puede llamar a la puerta desde el navegador.
-    const cors = req.headers.origin === origen ? {
-      "Access-Control-Allow-Origin": origen, "Access-Control-Allow-Credentials": "true",
+    const cors = desdeApp ? {
+      "Access-Control-Allow-Origin": req.headers.origin, "Access-Control-Allow-Credentials": "true",
       // Se aceptan las cabeceras que pida el cliente de Supabase (cambian entre versiones, p. ej. x-supabase-api-version):
       // el origen ya está limitado a la ventana de zamorApp.
       "Access-Control-Allow-Headers": String(req.headers["access-control-request-headers"] || "").replace(/[^a-zA-Z0-9,\- ]/g, "") ||
@@ -247,7 +250,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     } : {};
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
     if (req.method === "OPTIONS") {
-      registro(`[cors] ${req.url} desde "${req.headers.origin || ""}": ${req.headers.origin === origen ? "permitido" : "sin cabeceras CORS"} (pide ${req.headers["access-control-request-headers"] || "-"})`);
+      registro(`[cors] ${req.url} desde "${req.headers.origin || ""}": ${desdeApp ? "permitido" : "sin cabeceras CORS"} (pide ${req.headers["access-control-request-headers"] || "-"})`);
       res.writeHead(204); return res.end();
     }
 

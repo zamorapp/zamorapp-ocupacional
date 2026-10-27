@@ -121,9 +121,8 @@ jobs:
       # Así una falla intermitente al arrancar o una reinstalación que rompe los datos nunca llega a su PC.
       - name: Instalar y abrir el programa (prueba de humo)
         shell: pwsh
-        timeout-minutes: 25
+        timeout-minutes: 35
         env:
-          ZAMORAPP_NUBE_URL: ${{ vars.ZAMORAPP_NUBE_URL }}
           GH_TOKEN: ${{ github.token }}
         run: |
           # Acceso directo de Cesar a la app web (Chrome --app): ni instalar ni desinstalar puede tocarlo
@@ -135,6 +134,16 @@ jobs:
           # Como en la PC de Cesar: sin ningún PostgreSQL del sistema en el PATH (el programa debe traer todo lo suyo)
           $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "postgres|pgsql" }) -join ";"
           $registros = "$env:LOCALAPPDATA/zamorApp"
+          New-Item -ItemType Directory -Force capturas | Out-Null
+
+          # Nube simulada en esta misma máquina (sobre la base "nube" de prueba), para entrar con usuarios de prueba.
+          # El programa instalado la usa solo porque ZAMORAPP_NUBE_URL apunta a 127.0.0.1 (en una PC real se ignora).
+          $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"; $env:PUERTO = "55500"
+          $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
+          $nube = Start-Process node -ArgumentList "escritorio/pruebas/nube-cli.mjs" -PassThru -NoNewWindow -RedirectStandardOutput capturas/nube.log -RedirectStandardError capturas/nube.err
+          $env:ZAMORAPP_NUBE_URL = "http://127.0.0.1:55500"
+          # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real)
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9333"
 
           function Instalar($setup) {
             Start-Process $setup -ArgumentList "/S" -Wait
@@ -144,7 +153,8 @@ jobs:
           }
 
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
-          function Abrir([string]$que, [bool]$cors = $false) {
+          # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
+          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false) {
             $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
             $inicio = Get-Date
             $proc = Start-Process $exe.FullName -PassThru
@@ -159,6 +169,11 @@ jobs:
                   if ($app.StatusCode -lt 500) { $ok = $true; Write-Host "$que listo en $([int]((Get-Date) - $inicio).TotalSeconds) s · Puerta: $($estado | ConvertTo-Json -Compress) · App: HTTP $($app.StatusCode)" }
                 } catch { }
               }
+              if ($ok -and $ui) {
+                $captura = "capturas/" + ($que -replace "[^a-z0-9]+", "-") + ".png"
+                node escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar "PC de prueba" --captura $captura 2>&1 | ForEach-Object { "   $_" }
+                if ($LASTEXITCODE) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló" }
+              }
               if ($ok -and $cors) {
                 # La pantalla de ingreso (54332) debe poder hablarle a la puerta (54331) con las cabeceras reales de supabase-js
                 $r = Invoke-WebRequest "http://127.0.0.1:54331/auth/v1/token?grant_type=password" -Method Options -UseBasicParsing -SkipHttpErrorCheck -Headers @{
@@ -169,6 +184,7 @@ jobs:
               if (-not $ok) {
                 Write-Host "== arranque.log"; Get-Content "$registros/arranque.log" -Tail 40 -ErrorAction SilentlyContinue
                 Write-Host "== puerta.log"; Get-Content "$registros/datos/puerta.log" -Tail 60 -ErrorAction SilentlyContinue
+                Write-Host "== app.log"; Get-Content "$registros/datos/app.log" -Tail 30 -ErrorAction SilentlyContinue
                 Write-Host "== base.log"; Get-Content "$registros/datos/base.log" -Tail 20 -ErrorAction SilentlyContinue
               }
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
@@ -208,10 +224,16 @@ jobs:
           foreach ($p in "recursos/puerta/puerta/index.mjs", "recursos/app/server.js", "recursos/app/.next/static", "recursos/pgsql/bin/postgres.exe", "recursos/postgrest/postgrest.exe", "recursos/node/node.exe") {
             if (-not (Test-Path (Join-Path $script:dir.FullName $p))) { throw "Falta $p en la instalación (¿recursos aplanados?)" }
           }
+          # Instalar encima debe dejar los archivos de ESTA compilación, no los de la anterior
+          foreach ($p in "puerta/servidor.mjs", "puerta/motor.mjs", "puerta/index.mjs") {
+            $instalado = (Get-FileHash (Join-Path $script:dir.FullName "recursos/puerta/$p")).Hash
+            if ($instalado -ne (Get-FileHash "escritorio/$p").Hash) { throw "Instalar encima no reemplazó $p" }
+          }
+          if ((Get-Content (Join-Path $script:dir.FullName "recursos/app/.next/BUILD_ID")) -ne (Get-Content .next/BUILD_ID)) { throw "Instalar encima no reemplazó la app" }
 
           # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
           $fallas = 0
-          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1))) { $fallas++ } }
+          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6))) { $fallas++ } }
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
 
@@ -221,13 +243,23 @@ jobs:
           Start-Sleep 5
           Remove-Item -Recurse -Force "$registros/datos" -ErrorAction SilentlyContinue
           Instalar $setup.FullName
-          if (-not (Abrir "primer arranque en PC nueva")) { throw "El programa no arrancó en una PC sin datos" }
+          if (-not (Abrir "primer arranque en PC nueva" $false $true)) { throw "El programa no arrancó o no dejó entrar en una PC sin datos" }
 
           $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
           Start-Sleep 5
           foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
           Write-Host "Accesos directos de la app web intactos tras instalar, reinstalar encima y desinstalar"
+          Stop-Process -Id $nube.Id -ErrorAction SilentlyContinue
+
+      # Capturas de la ventana y registros de la prueba de humo, pase o falle
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zamorapp-prueba-ventana
+          path: capturas/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - uses: actions/upload-artifact@v4
         with:
