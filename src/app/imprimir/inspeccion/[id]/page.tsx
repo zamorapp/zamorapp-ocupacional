@@ -27,7 +27,8 @@ export default async function PaqueteInspeccion({ params, searchParams }: { para
   const { id } = await params;
   const q = await searchParams;
   const sesion = await obtenerSesion();
-  if (sesion.demo || !sesion.orgId || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  // Como la pantalla /inspeccion, no es para usuarios del portal de empresas
+  if (sesion.demo || !sesion.orgId || sesion.rol === "gerente_empresa" || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { desde, hasta } = periodoInspeccion(q.desde, q.hasta);
   const [d, base] = await Promise.all([datosInspeccion(sesion, id, desde, hasta), documentoBase(sesion)]);
   if (!d) notFound();
