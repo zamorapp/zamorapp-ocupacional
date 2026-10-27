@@ -14,6 +14,7 @@ import { simularNube } from "./simulador-nube.mjs";
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.resolve(aqui, "../..");
 const NUBE_DB = process.env.NUBE_DB;
+const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa el real (no simula caídas)
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
@@ -207,6 +208,7 @@ test("solo atiende a esta PC: otro Host u otro origen se rechazan", { skip: omit
   assert.equal(await pedirCrudo({ Host: "atacante.com" }), 403, "DNS rebinding");
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "https://atacante.com" }), 403);
   assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://127.0.0.1:54332" }), 200);
+  assert.equal(await pedirCrudo({ Host: `127.0.0.1:${puerto}`, Origin: "http://localhost:54332" }), 200, "la ventana también puede estar en localhost");
   assert.equal(await pedirCrudo({ Host: `localhost:${puerto}` }), 200);
 });
 
@@ -254,6 +256,21 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   nube.usuarios["meda@x"].clave = "clave-med";
 });
 
+test("la ventana de la app puede llamar a la puerta (CORS con las cabeceras de supabase-js)", { skip: omitir }, async () => {
+  const pedidas = "apikey,authorization,content-type,x-client-info,x-supabase-api-version";
+  const r = await fetch(`${urlPuerta}/auth/v1/token?grant_type=password`, { method: "OPTIONS", headers: {
+    Origin: "http://127.0.0.1:54332", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": pedidas } });
+  assert.equal(r.status, 204);
+  assert.equal(r.headers.get("access-control-allow-origin"), "http://127.0.0.1:54332");
+  for (const h of pedidas.split(",")) assert.ok(r.headers.get("access-control-allow-headers").includes(h), `falta ${h}`);
+});
+
+test("recuperar clave: el enlace del correo abre la app web, no la PC", { skip: omitir }, async () => {
+  const r = await pedir(`/auth/v1/recover?redirect_to=${encodeURIComponent("http://127.0.0.1:54332/login/nueva-clave")}`, { metodo: "POST", cuerpo: { email: "meda@x" } });
+  assert.equal(r.status, 200);
+  assert.equal(nube.estado.ultimoRecuperar, "https://zamorapp-ocupacional.vercel.app/login/nueva-clave");
+});
+
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();
@@ -273,5 +290,37 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
     nube.estado.caida = false;
     await nubeDb.query("update public.miembros set activo = true where usuario_id = $1", [medA]);
     await nubeDb.end();
+  }
+});
+
+// En Windows PostgREST se caía a veces en su primer segundo (código 3): el motor debe relanzarlo solo
+test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
+  const marca = path.join(datos, "caer-postgrest");
+  if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3
+  process.env.SIMULAR_CAIDA_POSTGREST = marca;
+  try {
+    motor.hijos.find((h) => h.spawnargs.some((a) => /postgrest/.test(a)))?.kill();
+    await new Promise((r) => setTimeout(r, 500));
+    await motor.relanzando;
+    assert.ok(!fs.existsSync(marca), "pasó por las dos caídas");
+    const r = await pedir("/rest/v1/trabajadores?select=*", { token: tokenAdmin });
+    assert.equal(r.status, 200);
+  } finally {
+    delete process.env.SIMULAR_CAIDA_POSTGREST;
+  }
+});
+
+// Una base que quedó viva de una sesión anterior (cierre a la fuerza o versión instalada encima) no impide abrir
+test("si quedó abierta la base de una sesión anterior, el programa igual arranca", { skip: omitir }, async () => {
+  const { Motor } = await import("../puerta/motor.mjs");
+  const otro = new Motor(estado); // la base de "motor" sigue viva, como tras un cierre a la fuerza
+  try {
+    await otro.iniciar();
+    const r = await fetch(`http://127.0.0.1:${otro.puertoPostgrest}/`);
+    assert.ok(r.status < 500);
+  } finally {
+    otro.detener();
+    motor.deteniendo = true;
+    motor.baseIniciada = false; // ya la detuvo "otro"
   }
 });

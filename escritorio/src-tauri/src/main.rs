@@ -71,14 +71,58 @@ fn carpeta_datos() -> PathBuf {
 fn anotar(mensaje: &str) {
     let carpeta = carpeta_programa();
     let _ = std::fs::create_dir_all(&carpeta);
-    let archivo = carpeta.join("arranque.log");
-    if std::fs::metadata(&archivo).map(|m| m.len() > 1_000_000).unwrap_or(false) {
-        let _ = std::fs::rename(&archivo, carpeta.join("arranque.anterior.log"));
+    if let Ok(mut f) = abrir_registro(&carpeta.join("arranque.log")) {
+        let _ = writeln!(f, "{} {mensaje}", segundos());
     }
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&archivo) {
-        let segundos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-        let _ = writeln!(f, "{segundos} {mensaje}");
+}
+
+fn segundos() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+// Abre un registro para añadir; al pasar de 1 MB se guarda como *.anterior.log y se empieza otro.
+fn abrir_registro(archivo: &Path) -> std::io::Result<std::fs::File> {
+    if std::fs::metadata(archivo).map(|m| m.len() > 1_000_000).unwrap_or(false) {
+        let _ = std::fs::rename(archivo, archivo.with_extension("anterior.log"));
     }
+    std::fs::OpenOptions::new().create(true).append(true).open(archivo)
+}
+
+// Lo que un proceso hijo escriba (la app Next) queda en un archivo, línea por línea, en vez de perderse.
+fn volcar_a(lector: impl std::io::Read + Send + 'static, archivo: PathBuf) {
+    std::thread::spawn(move || {
+        let mut registro = abrir_registro(&archivo).ok();
+        for linea in BufReader::new(lector).lines().map_while(Result::ok) {
+            if let Some(f) = registro.as_mut() {
+                let _ = writeln!(f, "{} {linea}", segundos());
+            }
+        }
+    });
+}
+
+// Dirección de la nube: la grabada al compilar. Solo para las pruebas automáticas se admite una "nube"
+// simulada en esta misma PC (127.0.0.1); nunca una dirección externa, para que nadie desvíe el programa.
+fn nube_url() -> String {
+    match std::env::var("ZAMORAPP_NUBE_URL") {
+        Ok(v) if v.starts_with("http://127.0.0.1:") => {
+            anotar(&format!("nube de prueba (solo pruebas automáticas): {v}"));
+            v
+        }
+        _ => NUBE_URL.to_string(),
+    }
+}
+
+// Puerto de depuración del navegador interno (CDP), para que la prueba de humo maneje la ventana como una
+// persona. Solo se abre junto con la nube de prueba (pruebas automáticas); en una PC real se ignora.
+fn puerto_depuracion() -> Option<u16> {
+    let en_pruebas = std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false);
+    let puerto = std::env::var("ZAMORAPP_PUERTO_DEPURACION").ok()?.parse::<u16>().ok()?;
+    if !en_pruebas {
+        anotar("ZAMORAPP_PUERTO_DEPURACION se ignora fuera de las pruebas automáticas");
+        return None;
+    }
+    anotar(&format!("navegador interno con puerto de depuración {puerto} (solo pruebas automáticas)"));
+    Some(puerto)
 }
 
 // Windows entrega la carpeta del programa como ruta "verbatim" (\\?\C:\...). Node no sabe cargar módulos
@@ -114,6 +158,28 @@ fn revisar_recursos(recursos: &Path) -> Result<(), String> {
     }
 }
 
+// Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
+// por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
+// a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
+fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
+    let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
+    let compilacion = compilacion.trim();
+    if compilacion.is_empty() {
+        return;
+    }
+    let marca = carpeta_programa().join("perfil-web.txt");
+    if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
+        return;
+    }
+    match ventana.clear_all_browsing_data() {
+        Ok(()) => {
+            anotar(&format!("perfil del navegador interno limpiado para la compilación {compilacion}"));
+            let _ = std::fs::write(&marca, compilacion);
+        }
+        Err(e) => anotar(&format!("no se pudo limpiar el perfil del navegador interno: {e}")),
+    }
+}
+
 fn arrancar(recursos: &Path) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
@@ -127,7 +193,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .current_dir(&puerta_dir)
         .env("ZAMORAPP_DATOS", &datos)
         .env("ZAMORAPP_LLAVE", llave_pc()?)
-        .env("ZAMORAPP_NUBE_URL", NUBE_URL)
+        .env("ZAMORAPP_NUBE_URL", nube_url())
         .env("ZAMORAPP_NUBE_ANON", NUBE_ANON)
         .env("ZAMORAPP_PG_BIN", recursos.join("pgsql").join("bin"))
         .env("ZAMORAPP_POSTGREST", recursos.join("postgrest").join("postgrest.exe"))
@@ -164,17 +230,20 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         let _ = aviso.send(Err(texto.join(" ")));
     });
 
-    let app = comando(&node)
+    // Lo que diga la app (errores del servidor Next incluidos) queda en %LOCALAPPDATA%\zamorApp\datos\app.log
+    let mut app = comando(&node)
         .arg(recursos.join("app").join("server.js"))
         .current_dir(recursos.join("app"))
         .env("PORT", PUERTO_APP.to_string())
         .env("HOSTNAME", "127.0.0.1")
         .env("NODE_ENV", "production")
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("No arrancó la app: {e}"))?;
+    if let Some(s) = app.stdout.take() { volcar_a(s, datos.join("app.log")); }
+    if let Some(s) = app.stderr.take() { volcar_a(s, datos.join("app.log")); }
     anotar("app iniciada");
 
     let mut procesos = Procesos { puerta: Some(puerta), app: Some(app) };
@@ -220,9 +289,22 @@ fn main() {
         .setup(|app| {
             let recursos = ruta_normal(app.path().resource_dir()?.join("recursos"));
             anotar(&format!("programa: {}", std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()));
+            // La ventana está definida en tauri.conf.json ("create": false) y se crea aquí, para poder abrirle el
+            // puerto de depuración en las pruebas automáticas. Los argumentos repiten los que wry pasa por defecto.
+            let config = app.config().app.windows.iter().find(|w| w.label == "principal").cloned().expect("ventana principal en tauri.conf.json");
+            // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
+    let version = app.package_info().version.to_string();
+    anotar(&format!("versión del instalador {version}"));
+    let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+        .title(format!("zamorApp Escritorio v{version}"));
+            if let Some(puerto) = puerto_depuracion() {
+                constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
+            }
+            constructor.build()?;
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
+                limpiar_perfil_si_cambio(&ventana, &recursos);
                 match arrancar(&recursos) {
                     Ok(p) => {
                         *manejador.state::<Mutex<Procesos>>().lock().unwrap() = p;
