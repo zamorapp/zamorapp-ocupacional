@@ -139,7 +139,7 @@ jobs:
           # Nube simulada en esta misma máquina (sobre la base "nube" de prueba), para entrar con usuarios de prueba.
           # El programa instalado la usa solo porque ZAMORAPP_NUBE_URL apunta a 127.0.0.1 (en una PC real se ignora).
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"; $env:PUERTO = "55500"
-          $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
+          $env:ZAMORAPP_POSTGREST = (Resolve-Path escritorio/recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
           $nube = Start-Process node -ArgumentList "escritorio/pruebas/nube-cli.mjs" -PassThru -NoNewWindow -RedirectStandardOutput capturas/nube.log -RedirectStandardError capturas/nube.err
           $env:ZAMORAPP_NUBE_URL = "http://127.0.0.1:55500"
           # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real)
