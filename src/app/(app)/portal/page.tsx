@@ -58,7 +58,10 @@ export default async function Portal() {
     .slice(0, 8);
   // Supervisor, delegado, auditor y trabajador solo consultan: pedir citas, cargar nómina y solicitudes es de RR. HH.
   const gestiona = !empresaSoloLectura(sesion.rol);
-  const vencidos = trabajadores.filter((t) => t.proximoExamen && t.proximoExamen < hoy && t.estado !== "egresado").length;
+  const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
+  const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
+  const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
+  const porVencer = vigentes.filter((t) => t.proximoExamen && t.proximoExamen >= hoy && t.proximoExamen <= aviso).length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -80,12 +83,13 @@ export default async function Portal() {
           { t: "Trabajadores", v: trabajadores.filter((x) => x.estado !== "egresado").length, i: Users },
           { t: "Citas hoy", v: deHoy.length, i: CalendarClock },
           { t: "Próximas citas", v: proximas.length, i: Clock },
-          { t: "Exámenes vencidos", v: vencidos, i: Stethoscope },
-        ].map(({ t, v, i: Icono }) => (
+          { t: "Exámenes vencidos", v: vencidos, i: Stethoscope, d: porVencer ? `${porVencer} vencen en ${empresa?.diasAvisoExamen ?? 30} días` : undefined },
+        ].map(({ t, v, i: Icono, d }) => (
           <Card key={t} className="gap-1 py-4">
             <CardContent className="px-5">
               <div className="flex items-center gap-2 text-sm text-muted-foreground"><Icono className="size-4" /> {t}</div>
               <div className="text-3xl font-semibold">{v}</div>
+              {d && <div className="text-xs text-aviso-texto">{d}</div>}
             </CardContent>
           </Card>
         ))}

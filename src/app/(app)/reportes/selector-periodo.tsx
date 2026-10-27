@@ -61,7 +61,7 @@ export function SelectorPeriodo({ periodo, inicioEmpresa, empresa }: { periodo: 
                     : "hover:bg-muted",
                 )}
               >
-                <b>{ROMANOS[q.t! - 1]}</b> <span className="text-xs opacity-80">{corto(MESES[Number(q.desde.slice(5, 7)) - 1])}–{corto(MESES[Number(q.hasta.slice(5, 7)) - 1])}</span>
+                <b>{ROMANOS[q.t! - 1]}</b> <span className="text-xs opacity-90">{corto(MESES[Number(q.desde.slice(5, 7)) - 1])}–{corto(MESES[Number(q.hasta.slice(5, 7)) - 1])}</span>
               </button>
             ))}
           </div>

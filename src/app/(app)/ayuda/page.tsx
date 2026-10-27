@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { MANUAL, MANUAL_ACTUALIZADO } from "@/lib/manual";
+import { MANUAL, MANUAL_ACTUALIZADO, NOVEDADES } from "@/lib/manual";
 import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { BotonImprimir } from "./imprimir";
+import { ManualBuscable } from "./manual-buscable";
 
 export const metadata: Metadata = { title: "Manual de uso" };
 
@@ -23,28 +23,7 @@ export default async function Ayuda() {
         <BotonImprimir />
       </div>
 
-      <Card className="print:hidden">
-        <CardContent className="flex flex-wrap gap-2">
-          {temas.map((t) => (
-            <a key={t.id} href={`#${t.id}`} className="rounded-full border px-3 py-1 text-sm transition hover:border-primary/50 hover:text-primary">{t.titulo}</a>
-          ))}
-        </CardContent>
-      </Card>
-
-      {temas.map((t, i) => (
-        <section key={t.id} id={t.id} className="scroll-mt-20 break-inside-avoid rounded-xl border bg-card p-5 sm:p-6">
-          <h2 className="text-lg font-semibold">{i + 1}. {t.titulo}</h2>
-          <p className="mt-1 text-muted-foreground">{t.resumen}</p>
-          <ol className="mt-4 list-decimal space-y-2 pl-5">
-            {t.pasos.map((p) => <li key={p}>{p}</li>)}
-          </ol>
-          {t.consejos && (
-            <div className="mt-4 rounded-lg bg-primary/5 px-4 py-3 text-sm">
-              {t.consejos.map((c) => <p key={c}>💡 {c}</p>)}
-            </div>
-          )}
-        </section>
-      ))}
+      <ManualBuscable temas={temas} novedades={NOVEDADES} />
     </div>
   );
 }

@@ -191,6 +191,14 @@ export async function guardarResultados(id: string, paraclinicos: DatosConsulta[
   return { ok: true, mensaje: "Resultados guardados." };
 }
 
+// «No recordar más»: apaga el aviso de la campana por resultados pendientes de esta consulta (solo el médico autor)
+export async function noRecordarResultados(id: string): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("ignorar_recordatorio_resultados", { p_consulta: id });
+  if (error) return { ok: false, mensaje: error.message };
+  return data ? { ok: true, mensaje: "Listo: no te lo recordaremos más en la campana." } : { ok: false, mensaje: "Solo el médico de la consulta recibe ese recordatorio." };
+}
+
 // Duplicar: borrador nuevo de hoy con el contenido clínico de la consulta (sin signos, resultados, aptitud,
 // reposo, reubicación ni firma). Lo hace duplicar_consulta en la base, en una sola transacción.
 export async function duplicarConsulta(id: string): Promise<Resultado & { id?: string }> {

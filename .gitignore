@@ -51,3 +51,4 @@ next-env.d.ts
 /escritorio/node_modules
 /escritorio/src-tauri/target
 /escritorio/recursos
+escritorio/src-tauri/ajustes-ci.json

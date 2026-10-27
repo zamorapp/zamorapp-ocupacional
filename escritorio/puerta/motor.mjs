@@ -61,7 +61,8 @@ export class Motor {
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
     const log = path.join(CONFIG.datos, "base.log");
     const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
-      "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB`],
+      // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
+      "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(this.carpetaBase)}`}`],
       { stdio: "ignore", windowsHide: true, timeout: 90_000 });
     if (r.status !== 0) {
       const cola = fs.existsSync(log) ? fs.readFileSync(log, "utf8").slice(-800) : String(r.error || "");

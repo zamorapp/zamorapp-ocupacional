@@ -16,6 +16,8 @@ import { Dependencias } from "./dependencias";
 import { HorasTrabajadas } from "./horas-trabajadas";
 import { EditorPuesto } from "./editor-puesto";
 import { CargarLogo } from "@/components/app/cargar-logo";
+import { BotonNotificarPuesto } from "@/components/app/notificacion-riesgos";
+import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { guardarLogoEmpresa } from "../acciones";
 
@@ -108,6 +110,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
                               <a href={`/imprimir/puesto/${p.id}`} target="_blank" rel="noopener" title="Informe de evaluación del puesto"><Printer /> Informe</a>
                             </Button>
                           )}
+                          {!sesion.demo && ROLES_NOTIFICAN.includes(sesion.rol ?? "") && <BotonNotificarPuesto puestoId={p.id} trabajadores={p.trabajadores} />}
                           {editaPuestos && <EditorPuesto empresaId={id} puesto={p} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
                         </div>
                       </div>
