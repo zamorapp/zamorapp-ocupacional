@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Loader2, Lock, Plus, Save, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Loader2, Lock, Plus, Save, Trash2 } from "lucide-react";
 import { Semaforo } from "@/components/app/semaforo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { type Accion, ETIQUETA_ESTADO_EVENTO, ETIQUETA_TIPO, type Evento, fechaHoraVE, plazoDeclaracion, plazoInformeNt02, plazoInvestigacion } from "@/lib/eventos-tipos";
 import { type Cargo, diasCargados, ETIQUETA_INCAPACIDAD, type Incapacidad, TABLA_CARGOS, type Testigo } from "@/lib/covenin474";
+import { type Discapacidad, ETIQUETA_DISCAPACIDAD } from "@/lib/investigacion-tipos";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { cerrarEvento, guardarEvento } from "../acciones";
@@ -171,14 +172,11 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               Está en la lista de enfermedades ocupacionales (Anexo 1): informe en 15 días. Si no, 30 días.
             </label>
             <C etiqueta="Entrega del informe de investigación"><Input type="date" value={e.fechaInformeNt02 ?? ""} onChange={(x) => set("fechaInformeNt02", x.target.value || null)} /></C>
-            <C etiqueta="Estado de la certificación ante el INPSASEL">
-              <select value={e.estadoCertificacion} onChange={(x) => set("estadoCertificacion", x.target.value)} className={SELECT}>
-                <option value="">Sin iniciar</option>
-                <option value="en_tramite">En trámite</option>
-                <option value="certificada">Certificada</option>
-                <option value="no_certificada">No certificada</option>
-              </select>
-            </C>
+            {e.trabajadorId && (
+              <div className="flex items-end">
+                <Button type="button" variant="outline" asChild className="w-full"><Link href={`/accidentes/${e.id}/investigacion`}><FileText /> Informe de investigación (6 partes)</Link></Button>
+              </div>
+            )}
           </Seccion>
         ) : (
           <Seccion titulo="Lesión (COVENIN 474)">
@@ -263,6 +261,36 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               </div>
             </C>
             <C etiqueta="Nº de declaración INPSASEL"><Input value={e.numeroDeclaracion} onChange={(x) => set("numeroDeclaracion", x.target.value)} /></C>
+          </Seccion>
+        )}
+
+        {e.tipo !== "incidente" && (
+          <Seccion titulo="Certificación del INPSASEL (LOPCYMAT arts. 76 a 83)">
+            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <input type="checkbox" checked={e.potencialDiscapacidad} onChange={(x) => set("potencialDiscapacidad", x.target.checked)} className="size-4 accent-[var(--primary)]" />
+              Puede dejar discapacidad: hacer seguimiento hasta la certificación
+            </label>
+            <C etiqueta="Estado">
+              <select value={e.estadoCertificacion} onChange={(x) => set("estadoCertificacion", x.target.value)} className={SELECT}>
+                <option value="">Sin iniciar</option>
+                <option value="en_tramite">En trámite</option>
+                <option value="certificada">Certificada de origen ocupacional</option>
+                <option value="no_certificada">No certificada (origen común)</option>
+              </select>
+            </C>
+            <C etiqueta="Fecha de la certificación"><Input type="date" value={e.certificacionFecha ?? ""} onChange={(x) => set("certificacionFecha", x.target.value || null)} /></C>
+            <C etiqueta="Nº de certificación"><Input value={e.certificacionNumero} onChange={(x) => set("certificacionNumero", x.target.value)} /></C>
+            <C etiqueta="Discapacidad certificada">
+              <select value={e.discapacidad ?? ""} onChange={(x) => set("discapacidad", (x.target.value || null) as Discapacidad | null)} className={SELECT}>
+                <option value="">Sin discapacidad o pendiente</option>
+                {(Object.keys(ETIQUETA_DISCAPACIDAD) as Discapacidad[]).map((k) => <option key={k} value={k}>{ETIQUETA_DISCAPACIDAD[k]}</option>)}
+              </select>
+            </C>
+            {e.discapacidad && e.discapacidad !== "temporal" && (
+              <C etiqueta="Porcentaje de pérdida de capacidad">
+                <div className="flex items-center gap-1"><Input type="number" min={0} max={100} step="0.01" value={e.discapacidadPct ?? ""} onChange={(x) => set("discapacidadPct", x.target.value === "" ? null : Number(x.target.value))} /><span className="text-sm text-muted-foreground">%</span></div>
+              </C>
+            )}
           </Seccion>
         )}
 

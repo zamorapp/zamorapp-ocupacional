@@ -1,5 +1,6 @@
 // Accidentes, incidentes y enfermedades ocupacionales: tipos y plazos legales (servidor y cliente).
 import type { Cargo, Incapacidad, Testigo } from "@/lib/covenin474";
+import type { Discapacidad } from "@/lib/investigacion-tipos";
 
 export type TipoEvento = "accidente" | "incidente" | "enfermedad";
 export type EstadoEvento = "abierto" | "declarado" | "investigando" | "cerrado";
@@ -51,6 +52,11 @@ export type Evento = {
   incapacidad: Incapacidad | null;
   cargos: Cargo[];
   observaciones: string;
+  potencialDiscapacidad: boolean;
+  certificacionFecha: string | null;
+  certificacionNumero: string;
+  discapacidad: Discapacidad | null;
+  discapacidadPct: number | null;
   creadoEn: string;
 };
 

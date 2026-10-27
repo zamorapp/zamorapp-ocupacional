@@ -57,6 +57,11 @@ function aEvento(f: Fila): Evento {
     incapacidad: (f.incapacidad as Evento["incapacidad"]) ?? null,
     cargos: (f.cargos as Evento["cargos"]) ?? [],
     observaciones: s(f.observaciones),
+    potencialDiscapacidad: Boolean(f.potencial_discapacidad),
+    certificacionFecha: (f.certificacion_fecha as string | null) ?? null,
+    certificacionNumero: s(f.certificacion_numero),
+    discapacidad: (f.discapacidad as Evento["discapacidad"]) ?? null,
+    discapacidadPct: f.discapacidad_pct == null ? null : Number(f.discapacidad_pct),
     creadoEn: f.creado_en as string,
   };
 }
