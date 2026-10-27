@@ -117,6 +117,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       observacion_privada: d.observacionPrivada || null,
       autoriza_paciente: d.autorizaPaciente,
       sano: d.sano,
+      potencial_discapacidad: d.potencialDiscapacidad,
+      discapacidad_nota: d.potencialDiscapacidad ? d.discapacidadNota || null : null,
       reubicacion: d.reubicacion.activa
         ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
             desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,
@@ -187,4 +189,16 @@ export async function guardarResultados(id: string, paraclinicos: DatosConsulta[
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "Resultados guardados." };
+}
+
+// Duplicar: borrador nuevo de hoy con el contenido clínico de la consulta (sin signos, resultados, aptitud,
+// reposo, reubicación ni firma). Lo hace duplicar_consulta en la base, en una sola transacción.
+export async function duplicarConsulta(id: string): Promise<Resultado & { id?: string }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("duplicar_consulta", { p_id: id });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no tiene acceso clínico para crear consultas." : error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Consulta duplicada.", id: data as string };
 }

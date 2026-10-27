@@ -29,8 +29,9 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   grupo_paraclinicos: "Empresa a la que se sugiere (opcional)",
   medicina: "Laboratorio (opcional)",
   diagnostico: "Sistema orgánico (opcional)",
+  diagnostico_declarable: "Notificación (inmediata / semanal)",
 };
-const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *" };
+const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *", diagnostico_declarable: "Inicio del código CIE-10 (ej. A15 cubre A15.0 a A15.9)" };
 
 type Motivo = { codigo: string; nombre: string };
 

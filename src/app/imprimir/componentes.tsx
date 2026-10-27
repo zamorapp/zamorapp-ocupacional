@@ -46,7 +46,9 @@ function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: stri
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
 // Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
-export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa">; compacto?: boolean }) {
+// sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
+export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
+  if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
   return (
     <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
       <Marca logo={d.org.logo} nombre={d.org.nombre} />
@@ -180,6 +182,7 @@ export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { cla
 // Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
 export function imagenesMedico(d: DatosDocumento) {
   const m = d.medicoDatos;
+  if (d.sin.includes("firma")) return { firma: null, sello: null };
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
 }
 

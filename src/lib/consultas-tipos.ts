@@ -71,7 +71,33 @@ export type DatosConsulta = {
   observacionPrivada: string;
   autorizaPaciente: boolean;
   sano: boolean;
+  potencialDiscapacidad: boolean;
+  discapacidadNota: string;
 };
+
+// Mediciones anteriores del trabajador (consultas cerradas o firmadas) para los gráficos de evolución
+export type MedicionSignos = { fecha: string; signos: SignosVitales };
+
+// Reposos de otras consultas del trabajador, para avisar si el nuevo se solapa
+export type ReposoPrevio = { consultaId: string | null; desde: string; hasta: string; causa: string; ente: string };
+
+// Días en común entre dos rangos de fechas (aaaa-mm-dd), 0 si no se tocan
+export function diasSolapados(a: { desde: string; hasta: string }, b: { desde: string; hasta: string }) {
+  const ini = Math.max(Date.parse(a.desde), Date.parse(b.desde));
+  const fin = Math.min(Date.parse(a.hasta), Date.parse(b.hasta));
+  return Number.isFinite(ini) && Number.isFinite(fin) && fin >= ini ? Math.round((fin - ini) / 864e5) + 1 : 0;
+}
+
+// "120/80" → [120, 80]
+export function partirTa(ta?: string): [number, number] | null {
+  const m = String(ta ?? "").match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+// Llena los campos {nombre} {cedula}… de un modelo de texto; los que no tienen valor quedan como están para completarlos a mano
+export function llenarModelo(texto: string, campos: Record<string, string>) {
+  return texto.replace(/\{(\w+)\}/g, (todo, k: string) => (campos[k]?.trim() ? campos[k] : todo));
+}
 
 export function imc(peso?: string, talla?: string) {
   const p = Number(String(peso ?? "").replace(",", "."));

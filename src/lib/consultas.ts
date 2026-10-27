@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { DatosConsulta, EstadoConsulta, Paraclinico } from "@/lib/consultas-tipos";
+import type { DatosConsulta, EstadoConsulta, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
@@ -165,6 +165,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       observacionPrivada: c.observacion_privada ?? "",
       autorizaPaciente: c.autoriza_paciente,
       sano: c.sano ?? false,
+      potencialDiscapacidad: c.potencial_discapacidad ?? false,
+      discapacidadNota: c.discapacidad_nota ?? "",
     },
   };
 }
@@ -181,4 +183,28 @@ export async function listarVersiones(consultaId: string): Promise<VersionConsul
   const { data: perfiles } = ids.length ? await supabase.from("perfiles").select("id, nombre_completo").in("id", ids) : { data: [] };
   const nombre = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo as string]));
   return (data ?? []).map((v) => ({ revision: v.revision, firmadaEn: v.firmada_en, motivo: v.motivo, reabiertaEn: v.reabierta_en, por: nombre.get(v.reabierta_por) ?? "Usuario" }));
+}
+
+// Historial del trabajador para la consulta: signos de consultas anteriores (cerradas o firmadas, las más
+// recientes) y reposos de los últimos dos años, sin los de esta consulta. Solo personal clínico (RLS).
+export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean };
+
+export async function historialConsulta(trabajadorId: string, consultaId: string): Promise<HistorialConsulta> {
+  const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
+  if (!supabaseConfigurado) return vacio;
+  const supabase = await crearClienteServidor();
+  const hace2Anios = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+  const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
+    supabase.from("consultas").select("fecha, signos_vitales").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+      .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
+    supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
+      .order("desde", { ascending: false }).limit(60),
+    supabase.from("trabajadores").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
+  ]);
+  return {
+    mediciones: (cs ?? []).filter((c) => c.signos_vitales && Object.keys(c.signos_vitales).length).map((c) => ({ fecha: c.fecha, signos: c.signos_vitales })).reverse(),
+    reposos: (rs ?? []).filter((r) => r.consulta_id !== consultaId)
+      .map((r) => ({ consultaId: r.consulta_id, desde: r.desde, hasta: r.hasta, causa: r.causa, ente: r.ente_emisor })),
+    discapacidadRegistrada: t?.discapacidad ?? false,
+  };
 }
