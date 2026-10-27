@@ -277,6 +277,9 @@ jobs:
           foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
           Write-Host "Accesos directos de la app web intactos tras instalar, reinstalar encima y desinstalar"
           Stop-Process -Id $nube.Id -ErrorAction SilentlyContinue
+          # Todo fallo de arriba ya lanzó una excepción; un código de salida de un comando previo (p. ej. gh sin
+          # instalador anterior) no debe marcar el paso como fallido
+          exit 0
 
       # Capturas de la ventana y registros de la prueba de humo, pase o falle
       - uses: actions/upload-artifact@v4
