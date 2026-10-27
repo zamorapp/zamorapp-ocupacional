@@ -13,6 +13,10 @@ export type Rol =
   | "trabajador"
   | "auditor";
 
+// Roles de la empresa cliente: usan el portal (no el menú del servicio) y deben tener empresa asignada
+export const ROLES_EMPRESA: Rol[] = ["gerente_empresa", "trabajador", "supervisor", "delegado_prevencion", "auditor"];
+export const esRolEmpresa = (rol: Rol | null | undefined) => Boolean(rol && ROLES_EMPRESA.includes(rol));
+
 export const ETIQUETA_ROL: Record<Rol, string> = {
   administrador: "Administrador",
   gerente_medico: "Gerente médico",
