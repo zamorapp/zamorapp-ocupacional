@@ -14,6 +14,11 @@ export const MANUAL_ACTUALIZADO = "2026-10-27";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-27", texto: "Plantillas de examen por motivo: al elegir pre-empleo, periódico, egreso o reintegro se precarga el examen normal", tema: "consulta" },
+  { fecha: "2026-10-27", texto: "Paquete para la inspección del INPSASEL, con índice de cumplimiento por empresa", tema: "inspeccion" },
+  { fecha: "2026-10-27", texto: "Notificación de riesgos por escrito al trabajador, con acuse firmado", tema: "notificacion-riesgos" },
+  { fecha: "2026-10-27", texto: "Aviso de declaración obligatoria (Anexo 1 NT-02 y MPPS) e «Iniciar declaración» desde la consulta", tema: "declaracion-obligatoria" },
+  { fecha: "2026-10-27", texto: "Importar los contactos de todas las empresas desde una plantilla", tema: "envios" },
   { fecha: "2026-10-27", texto: "Paraclínicos con rango y color, y los PDF o fotos ligados a cada examen", tema: "paraclinicos" },
   { fecha: "2026-10-27", texto: "Constancias de aptitud por lote en un PDF y envío a la empresa por correo o WhatsApp", tema: "envios" },
   { fecha: "2026-10-27", texto: "Consulta más ágil: dictado por voz, evolución de signos, duplicar y registrar accidente", tema: "consulta" },
@@ -254,6 +259,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "En la consulta, pestaña Diagnóstico: al marcar un diagnóstico como «Enfermedad ocupacional» aparece el aviso con el plazo (24 h para declarar ante el INPSASEL; informe de investigación en 15 días si está en el Anexo 1 o 30 si no).",
       "«Iniciar declaración» crea la declaración en Accidentes y enfermedades con el trabajador, la empresa, el CIE-10 y el Anexo 1 ya puestos. Después el aviso muestra el número y si ya se declaró.",
+      "Importante: la declaración lleva el diagnóstico con su CIE-10, y RR. HH. de la empresa la puede ver porque la ley lo exige (LOPCYMAT y NT-02). El resto de la consulta sigue siendo confidencial.",
       "Si el diagnóstico está en el Anexo 1 pero lo marcaste como enfermedad común, el aviso lo recuerda y ofrece «Marcar como ocupacional».",
       "Los diagnósticos de notificación obligatoria al MPPS (dengue, tuberculosis, hepatitis y otros) muestran un recordatorio con su plazo (inmediata o semanal).",
       "Ningún aviso bloquea: «Ignorar» lo oculta en esa consulta.",
