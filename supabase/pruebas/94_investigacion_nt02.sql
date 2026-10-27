@@ -37,6 +37,19 @@ select 'sin marca en la consulta no hereda (debe 0): ' || potencial_discapacidad
 alter table clinico.consultas add column if not exists potencial_discapacidad boolean not null default false;
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,potencial_discapacidad) values
  ('40000000-0000-0000-0000-0000000000e9','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada','2026-06-02',true);
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 insert into public.eventos (id,org_id,empresa_id,trabajador_id,tipo,fecha_hora,consulta_id) values
  ('60000000-0000-0000-0000-0000000000e3','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','accidente','2026-06-02 08:00','40000000-0000-0000-0000-0000000000e9');
-select 'hereda la marca de la consulta (debe 1): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e3';
+select 'el médico hereda la marca de la consulta (debe 1): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e3';
+-- Un supervisor (no clínico) con la misma consulta no la hereda: no puede leer el dato clínico
+reset role;
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000a9','supA@x');
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
+ ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a9','supervisor','{20000000-0000-0000-0000-00000000000a}');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a9',false) \g /dev/null
+insert into public.eventos (id,org_id,empresa_id,trabajador_id,tipo,fecha_hora,consulta_id) values
+ ('60000000-0000-0000-0000-0000000000e4','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','accidente','2026-06-03 08:00','40000000-0000-0000-0000-0000000000e9');
+select 'un rol no clínico no hereda la marca (debe 0): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e4';
+reset role;

@@ -62,14 +62,17 @@ alter table public.eventos
     ('temporal', 'parcial_permanente', 'total_permanente', 'absoluta_permanente', 'gran_discapacidad')),
   add column if not exists discapacidad_pct numeric(5, 2) check (discapacidad_pct between 0 and 100);
 
--- El evento creado desde una consulta hereda su marca de potencial discapacidad (la pone el médico en la consulta).
+-- El evento creado desde una consulta del mismo trabajador hereda su marca de potencial discapacidad (la pone el médico).
 -- Se lee por to_jsonb para no depender del orden en que se publiquen las migraciones de la consulta.
 create or replace function public.heredar_potencial_discapacidad()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.consulta_id is not null and not new.potencial_discapacidad then
     select coalesce((to_jsonb(c) ->> 'potencial_discapacidad')::boolean, false) into new.potencial_discapacidad
-      from clinico.consultas c where c.id = new.consulta_id and c.org_id = new.org_id;
+      from clinico.consultas c
+     where c.id = new.consulta_id and c.org_id = new.org_id and c.trabajador_id = new.trabajador_id
+       -- Solo hereda quien puede ver esa consulta: no sirve para leer el dato clínico desde otro rol
+       and (auth.uid() is null or (public.es_clinico(c.org_id) and public.ve_consulta(c.org_id, c.id)));
     new.potencial_discapacidad := coalesce(new.potencial_discapacidad, false);
   end if;
   return new;
