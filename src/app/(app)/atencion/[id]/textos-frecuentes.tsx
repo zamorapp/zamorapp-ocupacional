@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
+import { TextoDictado } from "./dictado";
 
 type Props = {
   etiqueta: string;
@@ -75,7 +75,7 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
           </div>
         </div>
       )}
-      <Textarea value={valor} rows={filas} onChange={(e) => onChange(e.target.value)} placeholder="Elige frases arriba o escribe libremente" />
+      <TextoDictado id={`frecuentes-${etiqueta}`} valor={valor} filas={filas} onChange={onChange} placeholder="Elige frases arriba, escribe o dicta" />
     </div>
   );
 }
