@@ -52,7 +52,7 @@ export default async function Imprimir({ params, searchParams }: Props) {
           {tipo === "atencion" && d.datos.diagnosticos.length > 0 && (
             <div className="mx-auto -mt-3 mb-4 flex max-w-[216mm] justify-end px-1 text-sm print:hidden">
               <Link href={`/imprimir/atencion/${id}${dx === "1" ? "" : "?dx=1"}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
-                {dx === "1" ? "Quitar diagnóstico" : "Incluir diagnóstico"}
+                {dx === "1" ? "Quitar diagnóstico (versión para la empresa)" : "Incluir diagnóstico (solo para el trabajador)"}
               </Link>
             </div>
           )}
