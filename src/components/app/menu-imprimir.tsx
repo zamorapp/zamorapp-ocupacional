@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgeCheck, ChevronDown, Clock, ScanLine, FileCheck2, FileHeart, Files, FileText, FlaskConical, HeartPulse, UserRound, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, ChevronDown, ClipboardList, Clock, ScanLine, FileCheck2, FileHeart, Files, FileText, FlaskConical, HeartPulse, UserRound, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -48,6 +48,7 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
     informeLibre && { tipo: "libre", texto: "Informe libre", icono: NotebookPen },
     { tipo: "certificado", texto: "Certificado de salud", icono: BadgeCheck },
     { tipo: "atencion", texto: "Constancia de atención", nota: "asistencia", icono: Clock },
+    { tipo: "oam", texto: "Orden de atención ocupacional", nota: "OAM", icono: ClipboardList },
     anexos && { tipo: "anexos", texto: "Exámenes escaneados", icono: ScanLine },
   ].filter(Boolean) as { tipo: string; texto: string; nota?: string; icono: typeof FileText }[];
 

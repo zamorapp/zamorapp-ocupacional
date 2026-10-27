@@ -110,6 +110,27 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
         { titulo: "Médicos", valor: n(unicos("medico")) },
         { titulo: "Firmadas", valor: n(suma("firmadas")), detalle: suma("consultas") ? `${Math.round((suma("firmadas") * 100) / suma("consultas"))} %` : undefined },
       ];
+    case "medicos":
+      return [
+        { titulo: "Consultas", valor: n(suma("consultas")) },
+        { titulo: "Médicos", valor: n(filas.length) },
+        { titulo: "Pacientes", valor: n(suma("pacientes")), detalle: "suma por médico" },
+        { titulo: "Aptitudes", valor: n(suma("aptitudes")), detalle: `${n(suma("restringidas"))} restringidas o no elegibles` },
+      ];
+    case "declaracion":
+      return [
+        { titulo: "Casos", valor: n(filas.length) },
+        { titulo: "EDO (MPPS)", valor: n(filas.filter((f) => /MPPS/.test(String(f.notificacion))).length), detalle: `${n(filas.filter((f) => /inmediata/i.test(String(f.notificacion))).length)} inmediatas` },
+        { titulo: "INPSASEL", valor: n(filas.filter((f) => /INPSASEL/.test(String(f.notificacion))).length) },
+        { titulo: "Sin evento registrado", valor: n(filas.filter((f) => /INPSASEL/.test(String(f.notificacion)) && !f.evento).length), detalle: "ocupacionales por declarar" },
+      ];
+    case "examenes":
+      return [
+        { titulo: "Exámenes", valor: n(filas.length) },
+        { titulo: "Pacientes", valor: n(unicos("cedula")) },
+        { titulo: "Pendientes de resultado", valor: n(cuenta("estado_resultado", "Pendiente")) },
+        { titulo: "Tipos de examen", valor: n(unicos("examen")) },
+      ];
     case "pacientes":
       return [
         { titulo: "Trabajadores", valor: n(filas.length) },
