@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
 import { obtenerEvento } from "@/lib/eventos";
+import { conCodigo, diasCargados, ETIQUETA_INCAPACIDAD } from "@/lib/covenin474";
 import { ETIQUETA_TIPO, fechaHoraVE } from "@/lib/eventos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -26,13 +27,18 @@ export default async function DeclaracionEvento({ params }: { params: Promise<{ 
   const e = await obtenerEvento(id);
   if (!e || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
-  const [{ data: org }, { data: emp }, { data: trab }] = await Promise.all([
+  const [{ data: org }, { data: emp }, { data: trab }, { data: items }] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", sesion.orgId).single(),
     supabase.from("empresas").select("razon_social, rif, nil, direccion, logo").eq("id", e.empresaId).single(),
     e.trabajadorId
       ? supabase.from("trabajadores").select("fecha_nacimiento, sexo, fecha_ingreso, puestos(nombre)").eq("id", e.trabajadorId).maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase.from("lista_items").select("codigo, nombre").eq("org_id", sesion.orgId)
+      .in("lista", ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente", "acto_inseguro", "condicion_insegura"]),
   ]);
+  const catalogo = (items ?? []) as { codigo: string | null; nombre: string }[];
+  const cod = (v: string) => (v ? conCodigo(v, catalogo) : "");
+  const cargados = diasCargados(e.incapacidad, e.cargos);
   const t = trab as unknown as { fecha_nacimiento: string | null; sexo: string | null; fecha_ingreso: string | null; puestos: { nombre: string } | null } | null;
   const edad = t?.fecha_nacimiento ? Math.floor((Date.now() - Date.parse(t.fecha_nacimiento)) / (365.25 * 864e5)) : null;
   const doc = {
@@ -83,19 +89,34 @@ export default async function DeclaracionEvento({ params }: { params: Promise<{ 
         <Bloque titulo="Descripción del evento">
           <div className="mb-1"><span className="text-doc-tenue">Lugar: </span>{e.lugar || "—"}</div>
           {e.descripcion || "—"}
-          {e.testigos && <div className="mt-1"><span className="text-doc-tenue">Testigos: </span>{e.testigos}</div>}
+          {(e.turno || e.actividadMomento || e.motivoActividad) && (
+            <div className="mt-1">
+              {e.turno && <div><span className="text-doc-tenue">Turno: </span>{e.turno}</div>}
+              {e.actividadMomento && <div><span className="text-doc-tenue">Actividad que realizaba: </span>{e.actividadMomento}</div>}
+              {e.motivoActividad && <div><span className="text-doc-tenue">Motivo: </span>{e.motivoActividad}</div>}
+            </div>
+          )}
+          {e.lesiones && <div className="mt-1"><span className="text-doc-tenue">Lesiones: </span>{e.lesiones}</div>}
+          {e.testigosDetalle.length > 0
+            ? <div className="mt-1"><span className="text-doc-tenue">Testigos: </span>{e.testigosDetalle.map((x) => [x.nombre, x.cedula && `C.I. ${x.cedula}`, x.tipo].filter(Boolean).join(", ")).join(" · ")}</div>
+            : e.testigos && <div className="mt-1"><span className="text-doc-tenue">Testigos: </span>{e.testigos}</div>}
         </Bloque>
         {e.tipo !== "enfermedad" && e.trabajador && (
           <Bloque titulo="Lesión (COVENIN 474)">
             <Ficha celdas={[
-              { k: "Parte del cuerpo", v: e.parteCuerpo, ancho: 2 },
-              { k: "Naturaleza", v: e.naturalezaLesion, ancho: 2 },
-              { k: "Agente", v: e.agente, ancho: 2 },
-              { k: "Forma", v: e.forma, ancho: 2 },
-              { k: "Tiempo perdido", v: e.conTiempoPerdido ? "Sí" : "No" },
+              { k: "Parte del cuerpo (C.7)", v: cod(e.parteCuerpo), ancho: 2 },
+              { k: "Naturaleza (C.8)", v: cod(e.naturalezaLesion), ancho: 2 },
+              { k: "Agente (C.3)", v: cod(e.agente), ancho: 2 },
+              { k: "Tipo de accidente (C.4)", v: cod(e.forma), ancho: 2 },
+              { k: "Acto inseguro (C.5)", v: cod(e.actoInseguro), ancho: 2 },
+              { k: "Condición insegura (C.6)", v: cod(e.condicionInsegura), ancho: 2 },
+              { k: "Clasificación", v: e.incapacidad ? ETIQUETA_INCAPACIDAD[e.incapacidad] : e.conTiempoPerdido ? "Con tiempo perdido" : "Sin tiempo perdido", ancho: 2 },
               { k: "Días perdidos", v: String(e.diasPerdidos) },
-              { k: "Días cargados", v: String(e.diasCargados), ancho: 2 },
+              { k: "Días cargados", v: String(cargados ?? e.diasCargados) },
             ]} />
+            {e.cargos.length > 0 && (
+              <div className="mt-1 text-[10.5px]"><span className="text-doc-tenue">Tabla 1: </span>{e.cargos.map((c) => `${c.concepto} (${c.dias} días × ${c.porcentaje} %)`).join(" · ")}</div>
+            )}
           </Bloque>
         )}
         {e.tipo === "enfermedad" && (
@@ -117,6 +138,7 @@ export default async function DeclaracionEvento({ params }: { params: Promise<{ 
             {e.causasBasicas && <div><span className="text-doc-tenue">Básicas: </span>{e.causasBasicas}</div>}
           </Bloque>
         )}
+        {e.observaciones && <Bloque titulo="Observaciones">{e.observaciones}</Bloque>}
         {e.acciones.length > 0 && (
           <Bloque titulo="Acciones correctivas">
             <Lista columnas={1} texto={e.acciones.map((a) => [a.descripcion, a.responsable && `Responsable: ${a.responsable}`, a.fecha && `Fecha: ${fechaCorta(a.fecha)}`, a.estado.replace(/_/g, " ")].filter(Boolean).join(" · ")).join("\n")} />

@@ -4,7 +4,7 @@ import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO 
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
 import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
 import { listarEventos } from "@/lib/eventos";
-import { plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
+import { plazoDeclaracion, plazoInformeNt02, plazoInvestigacion } from "@/lib/eventos-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -56,9 +56,10 @@ export async function datosPanel(): Promise<DatosPanel> {
   }
   // Plazos legales de accidentes y enfermedades: primero, porque vencen en horas
   for (const ev of eventos) {
-    for (const p of [plazoDeclaracion(ev), plazoInformeNt02(ev)]) {
+    for (const p of [plazoDeclaracion(ev), plazoInformeNt02(ev), plazoInvestigacion(ev)]) {
       if (p && !p.cumplido) {
-        alertas.push({ texto: `${p.texto.split(" vence")[0].split(" vencida")[0]} ante el INPSASEL`, sujeto: `${ev.trabajador ?? "Evento"} · ${ev.empresa}`, plazo: p.texto, estado: p.estado, href: `/accidentes/${ev.id}` });
+        const que = p.texto.split(" vence")[0].split(" vencida")[0];
+        alertas.push({ texto: que.startsWith("Investigación") ? `${que} sin causas registradas` : `${que} ante el INPSASEL`, sujeto: `${ev.trabajador ?? "Evento"} · ${ev.empresa}`, plazo: p.texto, estado: p.estado, href: `/accidentes/${ev.id}` });
       }
     }
   }

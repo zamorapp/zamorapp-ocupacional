@@ -1,4 +1,5 @@
 // Accidentes, incidentes y enfermedades ocupacionales: tipos y plazos legales (servidor y cliente).
+import type { Cargo, Incapacidad, Testigo } from "@/lib/covenin474";
 
 export type TipoEvento = "accidente" | "incidente" | "enfermedad";
 export type EstadoEvento = "abierto" | "declarado" | "investigando" | "cerrado";
@@ -39,6 +40,18 @@ export type Evento = {
   causasBasicas: string;
   acciones: Accion[];
   estado: EstadoEvento;
+  // Planilla de notificación (COVENIN 474, Anexo D)
+  turno: "" | "diurno" | "nocturno" | "mixto";
+  actividadMomento: string;
+  motivoActividad: string;
+  lesiones: string;
+  testigosDetalle: Testigo[];
+  actoInseguro: string;
+  condicionInsegura: string;
+  incapacidad: Incapacidad | null;
+  cargos: Cargo[];
+  observaciones: string;
+  creadoEn: string;
 };
 
 export const ETIQUETA_TIPO: Record<TipoEvento, string> = {
@@ -86,6 +99,16 @@ export function plazoInformeNt02(e: Pick<Evento, "tipo" | "fechaDiagnostico" | "
   if (e.fechaInformeNt02) return { texto: "Informe NT-02 entregado", estado: "ok", vence: null, cumplido: true };
   const dias = e.enAnexo1 ? 15 : 30;
   return describir(new Date(new Date(e.fechaDiagnostico).getTime() + dias * 24 * HORA), ahora, `Informe NT-02 (${dias} días)`);
+}
+
+// Investigación del accidente: aviso si a los 7 días no tiene causas registradas (configurable más adelante)
+export const DIAS_INVESTIGACION = 7;
+export function plazoInvestigacion(e: Pick<Evento, "tipo" | "fechaHora" | "causasInmediatas" | "causasBasicas" | "estado">, ahora = new Date()): Plazo | null {
+  if (e.tipo === "enfermedad" || e.estado === "cerrado") return null;
+  // Los eventos de hace más de 60 días (históricos o importados) no generan aviso
+  if (ahora.getTime() - new Date(e.fechaHora).getTime() > 60 * 24 * HORA) return null;
+  if (e.causasInmediatas.trim() || e.causasBasicas.trim()) return { texto: "Investigación registrada", estado: "ok", vence: null, cumplido: true };
+  return describir(new Date(new Date(e.fechaHora).getTime() + DIAS_INVESTIGACION * 24 * HORA), ahora, "Investigación del accidente");
 }
 
 export const fechaHoraVE = (iso: string | null) =>

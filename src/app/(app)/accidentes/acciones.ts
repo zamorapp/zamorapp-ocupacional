@@ -95,6 +95,17 @@ export async function guardarEvento(e: Evento): Promise<Resultado> {
       causas_basicas: e.causasBasicas || null,
       acciones: e.acciones.filter((a) => a.descripcion.trim()),
       estado,
+      turno: e.turno || null,
+      actividad_momento: e.actividadMomento || null,
+      motivo_actividad: e.motivoActividad || null,
+      lesiones: e.lesiones || null,
+      testigos_detalle: e.testigosDetalle.filter((t) => t.nombre.trim()),
+      acto_inseguro: e.actoInseguro || null,
+      condicion_insegura: e.condicionInsegura || null,
+      incapacidad: e.incapacidad,
+      // Los días cargados los recalcula la base según la incapacidad (COVENIN 474, sección 4)
+      cargos: e.incapacidad === "parcial_permanente" ? e.cargos.filter((c) => c.concepto.trim() && c.dias > 0) : [],
+      observaciones: e.observaciones || null,
     })
     .eq("id", e.id);
   if (error) return { ok: false, mensaje: error.message };
