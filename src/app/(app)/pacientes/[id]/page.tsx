@@ -27,6 +27,8 @@ import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
+import { NotificacionesRiesgo } from "@/components/app/notificacion-riesgos";
+import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ id: string }> };
@@ -54,6 +56,16 @@ export default async function FichaPaciente({ params }: Props) {
     : [[], [] as EmpleoAnterior[]];
   // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
   const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
+  // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
+  const conBase = !sesion.demo && Boolean(sesion.orgId);
+  const [{ data: tp }, { data: notifs }] = conBase
+    ? await crearClienteServidor().then((s) => Promise.all([
+        s.from("trabajadores").select("puesto_id, puestos(nombre, evaluado_en)").eq("id", t.id).single(),
+        s.from("notificaciones_riesgo").select("id, puesto_id, puesto, entregada_en, firmada_en, contenido").eq("trabajador_id", t.id).order("entregada_en", { ascending: false }).order("creado_en", { ascending: false }).limit(20),
+      ]))
+    : [{ data: null }, { data: null }];
+  const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null } | null;
+  const notificaciones: NotificacionRiesgo[] = (notifs ?? []).map((n) => ({ id: n.id, puestoId: n.puesto_id, puesto: n.puesto, entregadaEn: n.entregada_en, firmadaEn: n.firmada_en, contenido: n.contenido }));
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
 
   return (
@@ -175,6 +187,19 @@ export default async function FichaPaciente({ params }: Props) {
               })}
             </CardContent>
           </Card>
+          {conBase && (
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Notificación de riesgos (LOPCYMAT art. 56.3)</CardTitle></CardHeader>
+              <CardContent>
+                <NotificacionesRiesgo
+                  trabajadorId={t.id}
+                  puesto={{ id: puestoActual?.puesto_id ?? null, nombre: puestoActual?.puestos?.nombre ?? "", evaluadoEn: puestoActual?.puestos?.evaluado_en ?? null }}
+                  iniciales={notificaciones}
+                  edita={ROLES_NOTIFICAN.includes(sesion.rol ?? "")}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="consultas" className="mt-4">

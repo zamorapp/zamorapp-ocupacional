@@ -157,3 +157,11 @@ returns table (empresa_id uuid, total bigint) language sql stable security invok
 $$;
 revoke execute on function public.trabajadores_por_empresa() from public, anon;
 grant execute on function public.trabajadores_por_empresa() to authenticated;
+
+-- Lo mismo por cargo de una empresa (inspección: trabajadores por puesto)
+create or replace function public.trabajadores_por_puesto(p_empresa uuid)
+returns table (puesto_id uuid, total bigint) language sql stable security invoker set search_path = public as $$
+  select t.puesto_id, count(*) from public.trabajadores t where t.empresa_id = p_empresa and t.puesto_id is not null group by t.puesto_id
+$$;
+revoke execute on function public.trabajadores_por_puesto(uuid) from public, anon;
+grant execute on function public.trabajadores_por_puesto(uuid) to authenticated;

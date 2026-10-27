@@ -23,6 +23,8 @@ export type Empresa = {
   activa: boolean;
   ignorarAlertaLegal: boolean;
   mesInicioGestion: number; // 1-12: los trimestres del informe de vigilancia se cuentan desde este mes
+  periodicidadMeses: number; // examen periódico: si la constancia no trae vigencia, vence a los N meses del último
+  diasAvisoExamen: number; // con cuántos días de anticipación se avisa que vence
 };
 
 // cache(): el layout y la página la piden en la misma carga; así va una sola consulta
@@ -48,6 +50,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
       activa: true,
       ignorarAlertaLegal: false,
       mesInicioGestion: 1,
+      periodicidadMeses: 12,
+      diasAvisoExamen: 30,
     }));
   }
   const supabase = await crearClienteServidor();
@@ -55,7 +59,7 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
     supabase
       .from("empresas")
-      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion")
+      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen")
       .order("razon_social"),
     supabase.rpc("trabajadores_por_empresa"),
   ]);
@@ -82,6 +86,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     activa: e.activa,
     ignorarAlertaLegal: e.ignorar_alerta_legal,
     mesInicioGestion: e.mes_inicio_gestion ?? 1,
+    periodicidadMeses: e.periodicidad_meses ?? 12,
+    diasAvisoExamen: e.dias_aviso_examen ?? 30,
   }));
 });
 

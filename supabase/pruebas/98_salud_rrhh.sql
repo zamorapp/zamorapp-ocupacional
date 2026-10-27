@@ -81,4 +81,5 @@ select 'admin clínico lee bitácora clínica (debe 1): ' || least(count(*),1) f
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. de A cuenta trabajadores solo de A (debe 1): ' || count(*) from public.trabajadores_por_empresa();
 select 'RR. HH. de A no cuenta los de B (debe 0): ' || count(*) from public.trabajadores_por_empresa() where empresa_id='20000000-0000-0000-0000-00000000000b';
+select 'RR. HH. de A cuenta por puesto en A (debe 0, nadie con puesto en los datos): ' || count(*) from public.trabajadores_por_puesto('20000000-0000-0000-0000-00000000000a') where total < 0;
 reset role;
