@@ -26,7 +26,8 @@ export function InstalarApp() {
     };
   }, []);
 
-  if (instalada) return null;
+  // Dentro del programa de escritorio no hay nada que instalar
+  if (instalada || process.env.NEXT_PUBLIC_ESCRITORIO === "1") return null;
   const boton = (
     <Button variant="outline" size="sm" className="gap-1.5" aria-label="Instalar app" onClick={evento ? async () => { await evento.prompt(); await evento.userChoice; setEvento(null); window.__eventoInstalar = null; } : undefined}>
       <MonitorDown /> <span className="hidden sm:inline">Instalar app</span>
