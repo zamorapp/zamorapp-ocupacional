@@ -287,6 +287,8 @@ export const MANUAL: TemaManual[] = [
       "Correo: llega desde la cuenta del servicio con tu texto y la fecha y hora del envío. Los de RR. HH. reciben solo las constancias; el personal de salud, también la consulta médica.",
       "WhatsApp: se crea un enlace seguro a las constancias que vence en 7 días. Toca «Abrir WhatsApp» y envía el mensaje ya escrito. La consulta médica nunca va por WhatsApp.",
       "Abajo queda el registro: a quién, cuándo, qué y si falló. Un enlace se puede anular; si reabres una consulta para corregirla, su enlace se anula solo.",
+      "Pestaña «Plantillas»: cambia el asunto y el texto de los envíos. Una general para todas las empresas (la cambia el gerente médico o el administrador) y, si una empresa lo pide, la suya. Puedes escribir un texto aparte para RR. HH. Al enviar eliges la plantilla y aún puedes retocar el texto.",
+      "Pestaña «Bitácora»: todos los envíos de todas las empresas, con filtros y «Exportar a Excel». Un número rojo avisa los correos que fallaron: «Reintentar» manda el mismo correo otra vez y queda anotado como reintento.",
     ],
     consejos: ["«Ver constancias» y «Ver consultas» muestran el PDF del lote para imprimirlo o revisarlo antes de enviar."],
   },
