@@ -2,7 +2,8 @@
 // El Integral solo se LEE (bcp queryout); no se modifica nada allí.
 // Uso:  $env:PGPW="<clave base>"; node scripts/importar-integral/cargar.mjs [--ensayo]
 //   --ensayo: hace todo dentro de una transacción y al final la deshace (no guarda nada); muestra los conteos.
-// La primera vez crea catalogos\medicos-same.csv con los usuarios del SAME: completarlo (quién es cada médico) y volver a correr.
+// OJO: la carga completa ya se hizo el 26/10/2026. Repetirla reescribe las consultas que nadie editó (borra y vuelve a crear sus
+// diagnósticos) y bloquea las escrituras clínicas unos minutos: para datos faltantes, usar un cargador puntual.
 // Se puede repetir: cada registro lleva origen 'integral' + su código del Integral y se actualiza en vez de duplicarse.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -44,7 +45,7 @@ const I = {
     txt("motivoconsulta"), txt("enfermedadactual"), txt("obsgeneral"), txt("otrasindicaciones"), txt("recipelibre"), txt("indicacionlibre"),
     "codaptitud", txt("obsaptitud"), "adultosano", "codorigendiagnostico", txt("impdiagnostica"), "reposo", "codmotivoreposo", "codenteemisorreposo",
     "fechareposodesde", "fechareposohasta", "fechareposoingreso", "diasreposo", "reposovalidadoivss", txt("conclusion"), txt("recomendaemp"),
-    txt("recomendapac"), txt("obsprivada"), "cargo", "cod_usrcreacion"], "Integral.consulta"),
+    txt("recomendapac"), txt("obsprivada"), "cargo"], "Integral.consulta"),
   consultaDiag: leer("consulta_diagnosticos", ["cod_consulta", "cod_diagnost", "aparatsistem"], "Integral.consultadiagnostico"),
   examenes: leer("examenes", ["ce.cod_consulta", "ce.cod_examen", "e.nombre", "e.tipoexamen", "e.valordefecto", "g.nombre grupo", "cast(ce.resultado as nvarchar(max)) resultado", "ce.observacion", "ce.ordenexamen"],
     "Integral.consultaexamen ce join Integral.examen e on e.codigo = ce.cod_examen left join Integral.grupoexamen g on g.codigo = ce.cod_grupoexamen"),
@@ -86,28 +87,6 @@ const rutaRevision = path.join(carpeta, "catalogos", "revision-diagnosticos.csv"
 for (const linea of fs.readFileSync(rutaRevision, "utf8").replace(/^﻿/, "").split(/\r?\n/).slice(1).filter(Boolean)) {
   const c = linea.slice(1, -1).split('";"');
   revision.set(c[0], (c[7] || c[4] || "").trim().toUpperCase());
-}
-
-// Médico de cada consulta: medicos-same.csv dice quién es cada usuario del SAME (cod_usrcreacion).
-//   titular "si" = la cuenta dueña de zamorApp (medico_id); los demás quedan como médicos históricos, sin firma ni sello.
-//   Si falta el archivo, se crea con los usuarios y sus consultas para completarlo; la carga real no sigue sin él.
-const rutaMedicos = path.join(carpeta, "catalogos", "medicos-same.csv");
-const medicosSame = new Map();
-if (fs.existsSync(rutaMedicos)) {
-  for (const linea of fs.readFileSync(rutaMedicos, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).slice(1).filter(Boolean)) {
-    const [codigo, consultas, nombre_completo, cedula, mpps, titular] = linea.split(";").map((v) => v.replace(/^"|"$/g, "").trim());
-    if (codigo && (nombre_completo || /^s/i.test(titular))) medicosSame.set(codigo, { nombre_completo, cedula: cedula || null, mpps: mpps || null, titular: /^s/i.test(titular ?? "") });
-  }
-}
-const usuariosSame = [...agrupar(I.consultas, (c) => c.cod_usrcreacion || "(sin usuario)")].map(([u, cs]) => [u, cs.length]).sort((a, b) => b[1] - a[1]);
-const sinMedico = usuariosSame.filter(([u]) => !medicosSame.has(u));
-if (sinMedico.length) {
-  fs.mkdirSync(path.dirname(rutaMedicos), { recursive: true });
-  const filas = usuariosSame.map(([u, n]) => { const m = medicosSame.get(u); return [u, n, m?.nombre_completo ?? "", m?.cedula ?? "", m?.mpps ?? "", m ? (m.titular ? "si" : "no") : ""].join(";"); });
-  fs.writeFileSync(rutaMedicos, "\uFEFFcodigo_usuario;consultas;nombre_completo;cedula;mpps;titular\n" + filas.join("\n") + "\n");
-  console.log(`\nFalta decir quién es cada usuario del SAME en ${rutaMedicos}: ${sinMedico.map(([u, n]) => `${u} (${n} consultas)`).join(", ")}`);
-  console.log("Escriba el nombre del médico y «si» en titular para su propia cuenta; los demás, «no».");
-  if (!ENSAYO) { fs.rmSync(tmp, { recursive: true, force: true }); process.exit(1); }
 }
 
 // Empresas: mismo nombre sin la sucursal entre paréntesis = una empresa con sedes
@@ -190,16 +169,6 @@ try {
   await q("begin");
   const { rows: [org] } = await q("select o.id, m.usuario_id from public.organizaciones o join public.miembros m on m.org_id = o.id and m.rol = 'administrador' order by m.creado_en limit 1");
   const ORG = org.id, MEDICO = org.usuario_id;
-  // Médicos históricos (los que no son la cuenta titular)
-  // Médicos históricos (los que no son la cuenta titular); si el administrador ya los corrigió en zamorApp, se respetan
-  const idsMed = new Map();
-  for (const [u, m] of medicosSame) {
-    if (m.titular) continue;
-    const { rows: [h] } = await q(`insert into public.medicos_historicos (org_id, origen, codigo_origen, nombre_completo, cedula, mpps) values ($1, $2, $3, $4, $5, $6)
-      on conflict (org_id, origen, codigo_origen) where origen is not null do update set origen = excluded.origen returning id`, [ORG, ORIGEN, `usr:${u}`, m.nombre_completo, m.cedula, m.mpps]);
-    idsMed.set(`usr:${u}`, h.id);
-  }
-  const historicoDe = (u) => idsMed.get(`usr:${u}`) ?? null;
   // Vigencia de la aptitud: la misma regla que usa la consulta (Configuración › Organización)
   const { rows: [aj] } = await q("select coalesce((ajustes->>'meses_examen_periodico')::int, 12) meses from public.organizaciones where id = $1", [ORG]);
   const vigencia = (f) => { if (!f) return null; const d = new Date(f + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + aj.meses); return d.toISOString().slice(0, 10); };
@@ -323,7 +292,7 @@ try {
   const { ids: idsCons, escritas: consEscritas } = await guardar("clinico.consultas", consultas.map((c) => {
     const ex = exPorCons.get(c.codigo) ?? [];
     const p = pacPorHistoria.get(c.cod_paciente);
-    return { ...base, codigo_origen: `cons:${c.codigo}`, empresa_id: empresaDe.get(c.cod_empresa), trabajador_id: idTrab(c.cod_paciente), medico_id: MEDICO, medico_historico_id: historicoDe(c.cod_usrcreacion || "(sin usuario)"),
+    return { ...base, codigo_origen: `cons:${c.codigo}`, empresa_id: empresaDe.get(c.cod_empresa), trabajador_id: idTrab(c.cod_paciente), medico_id: MEDICO,
       fecha: fecha(c.fecha), hora_inicio: marca(c.horainicio) ?? marca(c.fecha), hora_cierre: marca(c.horacierre), tipo: c.codtipo === "Sucesiva" ? "sucesiva" : "primera",
       motivo_id: motivos.get(MOTIVO[c.codmotivcons]) ?? null, dependencia_id: idsDep.get(`dep:${c.cod_empresa}:${c.cod_dependencia}`) ?? null,
       puesto_id: c.cargo ? idsPuesto.get(claveCargo(empresaDe.get(c.cod_empresa), c.cargo)) ?? null : null,
@@ -343,7 +312,7 @@ try {
       interconsultas: (refPorCons.get(c.codigo) ?? []).map((r) => ({ especialidad: r.especialidad ? titulo(r.especialidad) : "", motivo: r.cuerpo ?? "" })),
       recomendaciones_empresa: nulo(c.recomendaemp), recomendaciones_trabajador: nulo(c.recomendapac), observacion_privada: nulo(c.obsprivada),
       sano: c.adultosano === "S", estado: "cerrada" };
-  }), { ...T, empresa_id: "uuid", trabajador_id: "uuid", medico_id: "uuid", medico_historico_id: "uuid", fecha: "date", hora_inicio: "timestamptz", hora_cierre: "timestamptz", tipo: "text",
+  }), { ...T, empresa_id: "uuid", trabajador_id: "uuid", medico_id: "uuid", fecha: "date", hora_inicio: "timestamptz", hora_cierre: "timestamptz", tipo: "text",
     motivo_id: "uuid", dependencia_id: "uuid", puesto_id: "uuid", motivo_texto: "text", enfermedad_actual: "text", habitos: "jsonb", antecedentes: "jsonb",
     examen_funcional: "jsonb", examen_fisico: "jsonb", paraclinicos: "jsonb", signos_vitales: "jsonb", tratamiento: "jsonb", interconsultas: "jsonb", indicaciones: "text", conclusiones: "text",
     recomendaciones_empresa: "text", recomendaciones_trabajador: "text", observacion_privada: "text", sano: "boolean", estado: "text" }, { modo: "si_no_editado" });
