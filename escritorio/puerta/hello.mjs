@@ -64,6 +64,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       return responder(res, 200, sesionLocal(uid)), true;
     }
     if (!ruta.startsWith("/zamorapp/huella/")) return false;
+    registro(`[huella] ${req.method} ${ruta} (Origin "${req.headers.origin || ""}")`);
 
     // La ventana del programa intercepta esta dirección; si llega aquí, el programa instalado no trae Windows
     // Hello. 204: el navegador no cambia de página y la página avisa que hay que actualizar.

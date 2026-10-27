@@ -65,11 +65,15 @@ try {
   const contexto = persistente ? navegador : navegador.contexts()[0] || await navegador.newContext();
   pagina = contexto.pages()[0] || await contexto.newPage();
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
-  pagina.on("console", (m) => { if (["error", "warning"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
+  pagina.on("console", (m) => { if (["error", "warning", "log", "info"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
   pagina.on("pageerror", (e) => anotar(`[error de página] ${e.message}`));
   // Los prefetch que Next cancela al navegar (net::ERR_ABORTED) son normales; lo demás sí es un fallo
   pagina.on("requestfailed", (r) => { if (r.failure()?.errorText !== "net::ERR_ABORTED") anotar(`[petición fallida] ${r.method()} ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("response", (r) => { if (r.status() >= 400) anotar(`[respuesta ${r.status()}] ${r.request().method()} ${r.url()}`); });
+  // Windows Hello: cada pedido a la puerta queda en la salida (diagnóstico)
+  pagina.on("request", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] pide ${r.method()} ${r.url()}`); });
+  pagina.on("response", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] ${r.status()} ${r.url()} acao="${r.headers()["access-control-allow-origin"] || ""}"`); });
+  pagina.on("requestfailed", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] falló ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("framenavigated", (f) => { if (f === pagina.mainFrame()) anotar(`[navega] ${f.url()}`); });
   if (local) await pagina.goto(URL_INICIO);
 
@@ -185,7 +189,15 @@ try {
     await pagina.getByRole("menuitem", { name: "Salir" }).click();
     await pagina.waitForURL(/\/login/, { timeout: 60_000 });
     const boton = pagina.getByRole("button", { name: "Entrar con Windows Hello" });
-    await boton.waitFor({ timeout: 30_000 }).catch(() => { throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)"); });
+    await boton.waitFor({ timeout: 30_000 }).catch(async () => {
+      // Diagnóstico: ¿la página llega a la puerta para preguntar por Windows Hello?
+      const prueba = await pagina.evaluate(async () => {
+        try { const r = await fetch("http://127.0.0.1:54331/zamorapp/huella/estado"); return `${r.status} ${await r.text()}`; }
+        catch (e) { return `error: ${e}`; }
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   estado de Windows Hello desde la página: ${prueba}`);
+      throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
+    });
     await boton.click();
     const limite = Date.now() + 60_000;
     while (!/\/panel/.test(pagina.url())) {
