@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
-import { alcancePerfil } from "@/lib/perfiles-paraclinicos";
+import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -36,7 +36,7 @@ const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *
 
 type Motivo = { codigo: string; nombre: string };
 type Opcion = { id: string; nombre: string };
-type Alcance = { empresas: Opcion[]; motivos: Opcion[] };
+type Alcance = { empresas: Opcion[]; motivos: Opcion[]; catalogo: string[] };
 
 // Chips para elegir varias opciones; con muchas opciones aparece un buscador y se muestran primero las elegidas
 function SelectorVarios({ nombre, titulo, opciones, inicial }: { nombre: string; titulo: string; opciones: Opcion[]; inicial: string[] }) {
@@ -126,6 +126,7 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
     if (estado?.ok) alTerminar();
   }, [estado, alTerminar]);
   const conTexto = CON_TEXTO.has(lista) || Boolean(item?.texto);
+  const [faltantes, setFaltantes] = useState(() => (alcance ? examenesNoEncontrados(item?.texto ?? "", alcance.catalogo) : []));
 
   return (
     <form action={accion} className="grid gap-3 border-b bg-muted/30 p-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -150,7 +151,15 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
       )}
       {lista === "paraclinico" && <CamposResultado datos={item?.datos} />}
       {conTexto ? (
-        <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3} className="sm:col-span-3" />
+        <div className="sm:col-span-3">
+          <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3}
+            onChange={alcance ? (e) => setFaltantes(examenesNoEncontrados(e.target.value, alcance.catalogo)) : undefined} />
+          {faltantes.length > 0 && (
+            <p className="mt-1.5 text-xs text-aviso-texto">
+              No están en el catálogo: {faltantes.join(" · ")}. Se agregarán sin rango ni semáforo; revisa cómo están escritos o agrégalos en Paraclínicos.
+            </p>
+          )}
+        </div>
       ) : (
         <input type="hidden" name="texto" value={item?.texto ?? ""} />
       )}
@@ -248,7 +257,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                     </p>
                   );
                 })()}
-                {item.texto && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{item.texto}</p>}
+                {item.texto && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{alcance ? item.texto.split("\n").map((l) => l.trim()).filter(Boolean).join(" · ") : item.texto}</p>}
               </div>
               {editable && (
                 <div className="flex shrink-0 gap-0.5 opacity-60 transition group-hover:opacity-100">

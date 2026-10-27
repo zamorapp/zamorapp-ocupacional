@@ -16,9 +16,14 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
   const porCodigo = new Map(listas.map((x) => [x.codigo, x]));
   const actual = porCodigo.get(l ?? "") ?? porCodigo.get("motivo_consulta") ?? listas[0];
   const esPerfil = actual?.codigo === "grupo_paraclinicos";
-  const [items, motivos, empresas] = actual
-    ? await Promise.all([itemsDeLista(sesion.orgId, actual.codigo), itemsDeLista(sesion.orgId, "motivo_consulta", true), esPerfil ? listarEmpresas() : []])
-    : [[], [], []];
+  const [items, motivos, empresas, catalogo] = actual
+    ? await Promise.all([
+        itemsDeLista(sesion.orgId, actual.codigo),
+        itemsDeLista(sesion.orgId, "motivo_consulta", true),
+        esPerfil ? listarEmpresas() : [],
+        esPerfil ? itemsDeLista(sesion.orgId, "paraclinico", true) : [],
+      ])
+    : [[], [], [], []];
   const editable = !sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico");
 
   // Las listas que no estén en ninguna sección también se muestran
@@ -74,6 +79,7 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
               alcance={esPerfil ? {
                 empresas: empresas.filter((e) => e.activa).map((e) => ({ id: e.id, nombre: e.razonSocial })),
                 motivos: motivos.map((m) => ({ id: m.id, nombre: m.nombre })),
+                catalogo: catalogo.map((p) => p.nombre),
               } : undefined}
             />}
         </div>

@@ -26,3 +26,11 @@ export function perfilesSugeridos(perfiles: Item[], consulta: { empresaId: strin
     .sort((x, y) => y.puntos - x.puntos)
     .map((x) => x.perfil);
 }
+
+// Líneas del perfil que no coinciden con ningún examen del catálogo (mismo criterio que aplicarPerfilParaclinicos):
+// se agregan igual como examen libre, pero sin rango ni semáforo. Solo se avisa; no bloquea el guardado.
+const clave = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+export function examenesNoEncontrados(texto: string, catalogo: string[]) {
+  const nombres = new Set(catalogo.map(clave));
+  return texto.split("\n").map((l) => l.trim()).filter((l) => l && !nombres.has(clave(l)));
+}

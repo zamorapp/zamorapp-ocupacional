@@ -379,11 +379,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     () => perfilesSugeridos(listas.grupo_paraclinicos, { empresaId: trabajador.empresaId, empresa: trabajador.empresa, motivoId: d.motivoId }),
     [listas.grupo_paraclinicos, trabajador.empresaId, trabajador.empresa, d.motivoId],
   );
-  const faltanDePerfil = (pf: Item) => {
-    const tiene = aplicarPerfilParaclinicos(d.paraclinicos, pf.texto ?? "", listas.paraclinico);
-    return tiene.length - d.paraclinicos.length;
-  };
-  const perfilPropuesto = sugeridos.find((pf) => faltanDePerfil(pf) > 0);
+  const faltanDePerfil = (pf: Item) => aplicarPerfilParaclinicos(d.paraclinicos, pf.texto ?? "", listas.paraclinico).slice(d.paraclinicos.length);
+  const perfilPropuesto = sugeridos.find((pf) => faltanDePerfil(pf).length > 0);
 
   const actualizarDiag = (i: number, cambio: Partial<Diagnostico>) =>
     set("diagnosticos", d.diagnosticos.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
@@ -681,25 +678,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Paraclínicos ── */}
           <TabsContent value="paraclinicos" className="mt-4 space-y-4">
-            {modoParaclinicos === "editar" && perfilPropuesto && !ignorarPerfil && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
-                <FlaskConical className="size-5 shrink-0 text-primary" />
-                <div className="min-w-48 flex-1 text-sm">
-                  <div className="font-medium">Perfil sugerido: {perfilPropuesto.nombre}</div>
-                  <div className="truncate text-xs text-muted-foreground" title={examenesDePerfil(perfilPropuesto.texto).join(", ")}>
-                    {faltanDePerfil(perfilPropuesto) === examenesDePerfil(perfilPropuesto.texto).length
-                      ? `${examenesDePerfil(perfilPropuesto.texto).length} exámenes: ${examenesDePerfil(perfilPropuesto.texto).join(", ")}`
-                      : `Faltan ${faltanDePerfil(perfilPropuesto)} de ${examenesDePerfil(perfilPropuesto.texto).length} exámenes del perfil`}
+            {modoParaclinicos === "editar" && perfilPropuesto && !ignorarPerfil && (() => {
+              const faltan = faltanDePerfil(perfilPropuesto);
+              const total = examenesDePerfil(perfilPropuesto.texto).length;
+              const nombres = faltan.map((p) => p.nombre).join(", ");
+              return (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                  <FlaskConical className="size-5 shrink-0 text-primary" />
+                  <div className="min-w-48 flex-1 text-sm">
+                    <div className="font-medium">Perfil sugerido: {perfilPropuesto.nombre}</div>
+                    <div className="truncate text-xs text-muted-foreground" title={nombres}>
+                      {faltan.length === total ? `${total} exámenes: ${nombres}` : `Faltan ${faltan.length} de ${total}: ${nombres}`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => set("paraclinicos", [...d.paraclinicos, ...faltan])}>
+                      <Plus /> {faltan.length === total ? "Aplicar" : `Agregar ${faltan.length === 1 ? "el que falta" : `los ${faltan.length}`}`}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setIgnorarPerfil(true)}>Ignorar</Button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => set("paraclinicos", aplicarPerfilParaclinicos(d.paraclinicos, perfilPropuesto.texto ?? "", listas.paraclinico))}>
-                    <Plus /> Aplicar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setIgnorarPerfil(true)}>Ignorar</Button>
-                </div>
-              </div>
-            )}
+              );
+            })()}
             {modoParaclinicos === "editar" && (
             <details open={d.paraclinicos.length === 0} className="group rounded-xl border bg-card">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 font-semibold">
