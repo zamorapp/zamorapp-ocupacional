@@ -274,6 +274,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Menú Envíos → elige la empresa y el día. Aparecen las evaluaciones de ese día; las firmadas que aún no salieron ya vienen marcadas.",
       "Las sin firmar no entran: fírmalas y vuelve, o toca «Ignorar» para seguir con el resto.",
+      "Para cargar todos de una vez: «Importar contactos» → baja la plantilla (trae cada empresa con el correo y teléfono de su ficha), completa nombres y cargos y súbela. No se duplican.",
       "«Contactos» guarda los correos y teléfonos de la empresa. Marca como «Personal de salud» solo al médico o enfermera de la empresa: es el único que recibe la consulta médica (lo marca el gerente médico o el administrador).",
       "Correo: llega desde la cuenta del servicio con tu texto y la fecha y hora del envío. Los de RR. HH. reciben solo las constancias; el personal de salud, también la consulta médica.",
       "WhatsApp: se crea un enlace seguro a las constancias que vence en 7 días. Toca «Abrir WhatsApp» y envía el mensaje ya escrito. La consulta médica nunca va por WhatsApp.",

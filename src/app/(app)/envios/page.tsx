@@ -8,6 +8,7 @@ import { consultasDelDia, historialEnvios, listarContactos } from "@/lib/envios"
 import { obtenerSesion } from "@/lib/sesion";
 import { EnvioLote } from "./envio-lote";
 import { Filtros } from "./filtros";
+import { ImportarContactos } from "./importar-contactos";
 
 export const metadata: Metadata = { title: "Envíos a empresas" };
 export const dynamic = "force-dynamic";
@@ -27,9 +28,12 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Envíos a empresas</h1>
-        <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Envíos a empresas</h1>
+          <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado.</p>
+        </div>
+        <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} />
       </div>
       <Filtros empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresa={empresa?.id ?? ""} fecha={fecha} />
       {empresa ? (
