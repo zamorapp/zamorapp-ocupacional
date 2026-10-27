@@ -44,7 +44,7 @@ export type EnvioHistorial = {
   destinatario: string;
   documentos: string[];
   cantidad: number;
-  estado: "enviado" | "fallido" | "enlace";
+  estado: "enviando" | "enviado" | "fallido" | "enlace";
   error: string | null;
   enlace: { vence: string; revocado: boolean; aperturas: number } | null;
 };

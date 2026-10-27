@@ -71,7 +71,8 @@ drop trigger if exists bit_empresa_contactos on public.empresa_contactos;
 create trigger bit_empresa_contactos after insert or update or delete on public.empresa_contactos for each row execute function public.registrar_bitacora();
 
 -- ─── 2. Registro de envíos (solo agregar) ────────────────────
--- Una fila por destinatario y canal. estado: enviado (correo aceptado por Gmail), fallido (con el error) o enlace (WhatsApp).
+-- Una fila por destinatario y canal. La fila se registra ANTES de mandar el correo (estado enviando): si la base la
+-- rechaza, el correo no sale. Luego pasa una sola vez a enviado (aceptado por Gmail) o fallido (con el error). WhatsApp: enlace.
 create table if not exists public.envios (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizaciones (id) on delete cascade,
@@ -84,7 +85,7 @@ create table if not exists public.envios (
   documentos text[] not null check (documentos <@ array['constancia', 'consulta'] and cardinality(documentos) > 0),
   asunto text not null,
   mensaje text not null,
-  estado text not null check (estado in ('enviado', 'fallido', 'enlace')),
+  estado text not null check (estado in ('enviando', 'enviado', 'fallido', 'enlace')),
   error text,
   enviado_por uuid not null references auth.users (id) default auth.uid(),
   creado_en timestamptz not null default now()
@@ -102,6 +103,26 @@ create policy envios_agregar on public.envios for insert
 revoke all on public.envios from anon;
 revoke update, delete, truncate on public.envios from authenticated;
 grant select, insert on public.envios to authenticated;
+-- Única edición posible: quien envía cierra su propio envío pendiente (estado y error)
+grant update (estado, error) on public.envios to authenticated;
+drop policy if exists envios_cerrar on public.envios;
+create policy envios_cerrar on public.envios for update
+  using (enviado_por = auth.uid() and estado = 'enviando')
+  with check (enviado_por = auth.uid() and estado in ('enviado', 'fallido'));
+
+create or replace function public.cerrar_envio()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if old.estado <> 'enviando' or new.estado not in ('enviado', 'fallido')
+     or (auth.uid() is not null and auth.uid() is distinct from old.enviado_por)
+     or (to_jsonb(new) - 'estado' - 'error') is distinct from (to_jsonb(old) - 'estado' - 'error') then
+    raise exception 'El registro de envíos no se modifica';
+  end if;
+  new.error := left(new.error, 500);
+  return new;
+end $$;
+drop trigger if exists cerrar_envio on public.envios;
+create trigger cerrar_envio before update on public.envios for each row execute function public.cerrar_envio();
 
 -- Reglas que la RLS sola no cubre: el lote es de una sola empresa, todo firmado y visible para quien envía;
 -- la consulta médica solo va por correo a un contacto autorizado de esa empresa y solo la envía personal clínico.
@@ -111,6 +132,12 @@ declare v_total int; v_ok int; v_contacto public.empresa_contactos;
 begin
   if auth.uid() is not null then new.enviado_por := auth.uid(); end if;
   new.creado_en := now();
+  if new.canal = 'correo' and new.estado not in ('enviando', 'fallido') then
+    raise exception 'El correo se registra antes de enviarlo (estado enviando)';
+  end if;
+  if new.canal = 'whatsapp' and new.estado <> 'enlace' then
+    raise exception 'Un envío por WhatsApp se registra como enlace';
+  end if;
   if not exists (select 1 from public.empresas where id = new.empresa_id and org_id = new.org_id) then
     raise exception 'La empresa no pertenece a la organización';
   end if;

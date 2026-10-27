@@ -30,7 +30,7 @@ end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com',
-          '{49000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviado');
+          '{49000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviando');
   raise notice 'FALLA: se envió una consulta sin firmar';
 exception when others then
   if sqlerrm like '%Solo se envían consultas firmadas%' then raise notice 'consulta sin firmar no se envía (debe 1): 1';
@@ -39,7 +39,7 @@ end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com','59000000-0000-0000-0000-0000000000a1',
-          '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','x','x','enviado');
+          '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','x','x','enviando');
   raise notice 'FALLA: la consulta médica fue a RR. HH.';
 exception when others then
   if sqlerrm like '%solo va por correo al personal de salud autorizado%' then raise notice 'consulta médica no va a RR. HH. (debe 1): 1';
@@ -48,7 +48,7 @@ end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','otro@gmail.com',
-          '{49000000-0000-0000-0000-00000000000a}','{consulta}','x','x','enviado');
+          '{49000000-0000-0000-0000-00000000000a}','{consulta}','x','x','enviando');
   raise notice 'FALLA: la consulta médica fue a un correo escrito a mano';
 exception when others then
   if sqlerrm like '%solo va por correo al personal de salud autorizado%' then raise notice 'consulta médica no va a correo libre (debe 1): 1';
@@ -57,7 +57,7 @@ end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@b.com','59000000-0000-0000-0000-0000000000b1',
-          '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviado');
+          '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando');
   raise notice 'FALLA: se usó un contacto de otra empresa';
 exception when others then
   if sqlerrm like '%no pertenece a esta empresa%' then raise notice 'contacto de otra empresa rechazado (debe 1): 1';
@@ -66,12 +66,24 @@ end $$;
 with x as (
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,enviado_por)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','salud@a.com','59000000-0000-0000-0000-0000000000a2',
-          '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','Evaluaciones','Adjunto…','enviado','00000000-0000-0000-0000-0000000000a1')
+          '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','Evaluaciones','Adjunto…','enviando','00000000-0000-0000-0000-0000000000a1')
   returning enviado_por)
 select 'médico envía la consulta al autorizado, a su nombre (debe 1): ' || count(*) from x where enviado_por = '00000000-0000-0000-0000-0000000000a2';
 do $$ begin
-  update public.envios set estado = 'fallido';
-  raise notice 'FALLA: se editó el registro de envíos';
+  insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com',
+          '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviado');
+  raise notice 'FALLA: se registró un correo como enviado sin pasar por «enviando»';
+exception when others then
+  if sqlerrm like '%antes de enviarlo%' then raise notice 'el correo se registra antes de salir (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+with x as (update public.envios set estado = 'enviado' where destinatario = 'salud@a.com' returning 1)
+select 'quien envía cierra su envío (debe 1): ' || count(*) from x;
+with x as (update public.envios set estado = 'fallido' where destinatario = 'salud@a.com' returning 1)
+select 'un envío cerrado no se vuelve a cambiar (debe 0): ' || count(*) from x;
+do $$ begin
+  update public.envios set mensaje = 'otro';
+  raise notice 'FALLA: se editó el mensaje del registro';
 exception when insufficient_privilege then raise notice 'el registro no se edita (debe 1): 1';
 end $$;
 do $$ begin
@@ -84,7 +96,7 @@ end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
   values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b',current_date,'correo','rrhh@b.com',
-          '{40000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviado');
+          '{40000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviando');
   raise notice 'FALLA: médico de A envió a B';
 exception when others then raise notice 'médico de A no envía a B (debe 1): 1';
 end $$;

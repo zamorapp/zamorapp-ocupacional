@@ -191,6 +191,12 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
     };
 
     if (e.canal === "correo") {
+      // Primero se registra (la base valida firma, empresa y destinatario autorizado); si lo rechaza, el correo no sale
+      const { data: registro, error: errReg } = await supabase.from("envios").insert({ ...fila, estado: "enviando" }).select("id").single();
+      if (errReg || !registro) {
+        detalle.push({ destinatario: d.destino, estado: "fallido", error: `No se envió: ${errReg?.message ?? "sin registro"}` });
+        continue;
+      }
       let estado: "enviado" | "fallido" = "enviado";
       let error: string | undefined;
       try {
@@ -205,8 +211,8 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
         estado = "fallido";
         error = (err as Error).message.slice(0, 300);
       }
-      const { error: errReg } = await supabase.from("envios").insert({ ...fila, estado, error: error ?? null });
-      detalle.push({ destinatario: d.destino, estado, error: error ?? (errReg ? `Enviado, pero no quedó en el registro: ${errReg.message}` : undefined) });
+      const { error: errCierre } = await supabase.from("envios").update({ estado, error: error ?? null }).eq("id", registro.id);
+      detalle.push({ destinatario: d.destino, estado, error: error ?? (errCierre ? `Enviado; el registro quedó «sin confirmar»: ${errCierre.message}` : undefined) });
       continue;
     }
 
