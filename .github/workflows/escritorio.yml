@@ -1,10 +1,13 @@
 # Programa de escritorio para Windows: prueba la puerta local con PostgreSQL y PostgREST reales
-# y arma el instalador. Corre solo en ramas escritorio/* o a mano, para cuidar los minutos gratuitos.
+# y arma el instalador. Corre en ramas escritorio/*, en PR que tocan la base o el escritorio, o a mano.
 name: Escritorio (Windows)
 
 on:
   push:
     branches: ["escritorio/**"]
+  # Un cambio en la base o en el programa de escritorio que llega por otro PR también debe probarse aquí
+  pull_request:
+    paths: ["supabase/migrations/**", "escritorio/**", ".github/workflows/escritorio.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -13,6 +16,8 @@ concurrency:
 
 jobs:
   windows:
+    # Las ramas escritorio/* ya corren por push: su PR no repite la corrida
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'escritorio/')
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -64,6 +69,8 @@ jobs:
         working-directory: escritorio
         run: |
           npm ci
+          # Como en la PC de Cesar: sin ningún PostgreSQL del sistema en el PATH (el programa debe traer todo lo suyo)
+          $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "postgres|pgsql" }) -join ";"
           $env:PG_BIN = (Resolve-Path recursos/pgsql/bin).Path
           $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"
@@ -128,6 +135,8 @@ jobs:
           foreach ($p in "recursos/puerta/puerta/index.mjs", "recursos/app/server.js", "recursos/app/.next/static", "recursos/pgsql/bin/postgres.exe", "recursos/postgrest/postgrest.exe", "recursos/node/node.exe") {
             if (-not (Test-Path (Join-Path $dir.FullName $p))) { throw "Falta $p en la instalación (¿recursos aplanados?)" }
           }
+          # Como en la PC de Cesar: sin ningún PostgreSQL del sistema en el PATH (el programa debe traer todo lo suyo)
+          $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "postgres|pgsql" }) -join ";"
           $exe = Get-ChildItem $dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
           $proc = Start-Process $exe.FullName -PassThru
           $ok = $false

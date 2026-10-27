@@ -148,12 +148,12 @@ export class Replica {
     return rowCount > 0;
   }
 
-  // Inserta o reemplaza filas completas (solo columnas que existen localmente).
+  // Inserta o reemplaza filas completas (solo columnas que existen localmente; las calculadas las calcula la base).
   async #insertar(c, tabla, filas) {
     tabla = this.#seguro(tabla);
     const conId = await this.#tieneId(c, tabla);
     const cols = (await c.query(
-      "select column_name from information_schema.columns where table_schema || '.' || table_name = $1 order by ordinal_position", [tabla],
+      "select column_name from information_schema.columns where table_schema || '.' || table_name = $1 and is_generated = 'NEVER' order by ordinal_position", [tabla],
     )).rows.map((r) => r.column_name).filter((col) => col in filas[0]);
     const lista = cols.map((x) => `"${x}"`).join(", ");
     const actualizar = cols.filter((x) => x !== "id").map((x) => `"${x}" = excluded."${x}"`).join(", ");

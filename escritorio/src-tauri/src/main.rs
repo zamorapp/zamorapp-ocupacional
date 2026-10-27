@@ -178,7 +178,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
     anotar("app iniciada");
 
     let mut procesos = Procesos { puerta: Some(puerta), app: Some(app) };
-    match lista.recv_timeout(Duration::from_secs(180)) {
+    match lista.recv_timeout(Duration::from_secs(300)) {
         Ok(Ok(())) => {}
         Ok(Err(e)) => { detener(&mut procesos); return Err(format!("La base local no arrancó. {e}")); }
         Err(_) => { detener(&mut procesos); return Err("La base local tardó demasiado en arrancar.".into()); }
