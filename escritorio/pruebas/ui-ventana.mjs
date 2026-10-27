@@ -172,6 +172,21 @@ try {
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
   });
 
+  // Las descargas de la app (Excel, PDF) deben quedar en la carpeta Descargas de Windows (solo con la ventana real)
+  if (CDP) await paso("una descarga de la app queda en Descargas", async () => {
+    const { default: os } = await import("node:os");
+    const { default: fs } = await import("node:fs");
+    const { default: path } = await import("node:path");
+    const nombre = `prueba-zamorapp-${Date.now()}.txt`;
+    const destino = path.join(os.homedir(), "Downloads", nombre);
+    await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = "data:text/plain,hola"; a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre);
+    const limite = Date.now() + 20_000;
+    while (!fs.existsSync(destino) && Date.now() < limite) await esperar(500);
+    if (!fs.existsSync(destino)) throw new Error(`La descarga no apareció en ${destino} (¿el programa rechaza las descargas?)`);
+    anotar(`   guardada en ${destino}`);
+    fs.rmSync(destino, { force: true });
+  });
+
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {
     // Un SW con caché de una versión anterior haría correr JavaScript viejo tras instalar encima
     const { sw, caches: cachesVivas } = await pagina.evaluate(async () => ({

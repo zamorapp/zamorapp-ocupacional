@@ -391,6 +391,46 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
     });
 }
 
+// Descargas de la app (Excel, PDF, respaldos): el navegador interno no trae gestor de descargas, así que el
+// archivo se guarda en la carpeta Descargas de Windows con su nombre (sin pisar uno existente) y se avisa
+// con "Abrir carpeta". Devuelve false para rechazar la descarga.
+fn descarga(app: &AppHandle, evento: tauri::webview::DownloadEvent<'_>) -> bool {
+    match evento {
+        tauri::webview::DownloadEvent::Requested { url, destination } => {
+            let nombre = destination.file_name().map(|n| n.to_string_lossy().to_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| "descarga".into());
+            let carpeta = match app.path().download_dir() {
+                Ok(c) => c,
+                Err(e) => { anotar(&format!("descarga rechazada: sin carpeta Descargas ({e})")); return false; }
+            };
+            let (base, ext) = match nombre.rsplit_once('.') { Some((b, e)) if !b.is_empty() => (b.to_string(), format!(".{e}")), _ => (nombre.clone(), String::new()) };
+            let mut ruta = carpeta.join(&nombre);
+            for n in 2.. { if !ruta.exists() { break; } ruta = carpeta.join(format!("{base} ({n}){ext}")); }
+            anotar(&format!("descarga: {url} -> {}", ruta.display()));
+            *destination = ruta;
+            true
+        }
+        tauri::webview::DownloadEvent::Finished { path, success, .. } => {
+            let ruta = path.unwrap_or_default();
+            anotar(&format!("descarga {}: {}", if success { "guardada" } else { "FALLÓ" }, ruta.display()));
+            if success && !en_pruebas() {
+                let app = app.clone();
+                std::thread::spawn(move || {
+                    let abrir = app.dialog()
+                        .message(format!("Se guardó en tu carpeta Descargas:\n{}", ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()))
+                        .title("Archivo guardado")
+                        .buttons(MessageDialogButtons::OkCancelCustom("Abrir carpeta".into(), "Entendido".into()))
+                        .blocking_show();
+                    if abrir { let _ = Command::new("explorer").arg(format!("/select,{}", ruta.display())).spawn(); }
+                });
+            } else if !success && !en_pruebas() {
+                avisar(app, "No se pudo guardar", "La descarga no terminó. Vuelve a intentarlo.");
+            }
+            true
+        }
+        _ => true,
+    }
+}
+
 fn main() {
     anotar(&format!("--- zamorApp {} abriendo", env!("CARGO_PKG_VERSION")));
     std::panic::set_hook(Box::new(|info| anotar(&format!("PÁNICO: {info}"))));
@@ -424,8 +464,10 @@ fn main() {
             // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
             let version = app.package_info().version.to_string();
             anotar(&format!("versión del instalador {version}"));
+            let para_descargas = app.handle().clone();
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-                .title(format!("zamorApp Escritorio v{version}"));
+                .title(format!("zamorApp Escritorio v{version}"))
+                .on_download(move |_, evento| descarga(&para_descargas, evento));
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
