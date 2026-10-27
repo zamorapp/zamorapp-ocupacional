@@ -1,5 +1,5 @@
 # Mantenimiento semanal de GitHub (gratis: ~1 min en Linux). Borra solo lo que ya no sirve:
-# - ramas cuyo PR ya se fusionó o cerró sin commits nuevos (nunca main ni ramas con PR abierto)
+# - ramas cuyo PR ya se fusionó o cerró sin commits nuevos (nunca main, ni ramas con PR abierto, ni bases de PR abiertos)
 # - artefactos de ramas sin PR abierto, salvo el instalador más reciente de main y el más reciente en general
 # - corridas de más de 30 días (registros viejos)
 # A mano: Actions → Mantenimiento → Run workflow (con «simular» solo lista lo que borraría).
@@ -41,7 +41,8 @@ jobs:
             };
 
             const prs = await github.paginate(github.rest.pulls.list, { ...repo, state: "all", per_page: 100 });
-            const abiertas = new Set(prs.filter((p) => p.state === "open").map((p) => p.head.ref));
+            // Ramas de PR abiertos y sus bases (PR apilados): borrar una base por API cierra el PR de arriba
+            const abiertas = new Set(prs.filter((p) => p.state === "open").flatMap((p) => [p.head.ref, p.base.ref]));
 
             // Ramas: PR fusionado o cerrado y la rama sigue en el mismo commit que tenía el PR
             const ramas = await github.paginate(github.rest.repos.listBranches, { ...repo, per_page: 100 });
