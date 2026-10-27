@@ -262,6 +262,12 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       const ruta = req.url.split("?")[0];
       if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
+      // Solo con la nube de prueba (127.0.0.1): un archivo adjunto para probar que la ventana guarda descargas
+      if (ruta === "/zamorapp/descarga-prueba" && String(CONFIG.nube || "").startsWith("http://127.0.0.1:")) {
+        const nombre = (new URL(req.url, "http://x").searchParams.get("nombre") || "prueba.txt").replace(/[^\w.-]/g, "_");
+        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
+        return res.end("descarga de prueba de zamorApp\n");
+      }
       if (ruta === "/zamorapp/estado") {
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });

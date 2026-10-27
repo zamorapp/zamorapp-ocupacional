@@ -177,14 +177,24 @@ try {
     const { default: os } = await import("node:os");
     const { default: fs } = await import("node:fs");
     const { default: path } = await import("node:path");
-    const nombre = `prueba-zamorapp-${Date.now()}.txt`;
-    const destino = path.join(os.homedir(), "Downloads", nombre);
-    await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = "data:text/plain,hola"; a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre);
-    const limite = Date.now() + 20_000;
-    while (!fs.existsSync(destino) && Date.now() < limite) await esperar(500);
-    if (!fs.existsSync(destino)) throw new Error(`La descarga no apareció en ${destino} (¿el programa rechaza las descargas?)`);
-    anotar(`   guardada en ${destino}`);
-    fs.rmSync(destino, { force: true });
+    const descargas = path.join(os.homedir(), "Downloads");
+    const esperarArchivo = async (destino, que) => {
+      const limite = Date.now() + 20_000;
+      while (!fs.existsSync(destino) && Date.now() < limite) await esperar(500);
+      if (!fs.existsSync(destino)) throw new Error(`${que}: la descarga no apareció en ${destino} (¿el programa rechaza las descargas?)`);
+      anotar(`   ${que}: guardada en ${destino}`);
+      fs.rmSync(destino, { force: true });
+    };
+    // 1) Respuesta del servidor con Content-Disposition: attachment (como exportar a Excel), sin salir de la página
+    const puerta = new URL(URL_INICIO).origin;
+    const nombre1 = `prueba-zamorapp-${Date.now()}.txt`;
+    await pagina.evaluate((u) => { window.location.assign(u); }, `${puerta}/zamorapp/descarga-prueba?nombre=${nombre1}`);
+    await esperarArchivo(path.join(descargas, nombre1), "adjunto del servidor");
+    if (!/\/panel/.test(pagina.url())) throw new Error(`La descarga sacó la ventana del panel: ${pagina.url()}`);
+    // 2) Archivo armado en la página (blob + enlace con download), como un PDF o CSV generado en el navegador
+    const nombre2 = `prueba-zamorapp-${Date.now()}-blob.txt`;
+    await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["hola"], { type: "text/plain" })); a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre2);
+    await esperarArchivo(path.join(descargas, nombre2), "archivo generado en la página");
   });
 
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {
