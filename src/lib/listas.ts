@@ -12,12 +12,13 @@ export type Item = {
   texto: string | null;
   orden: number;
   activo: boolean;
+  datos?: Record<string, unknown>;
 };
 
 // Agrupa las listas en secciones para la pantalla de Configuración
 export const SECCIONES_LISTAS: { titulo: string; codigos: string[] }[] = [
   { titulo: "Pacientes y empresas", codigos: ["tipo_paciente", "turno", "tipo_riesgo"] },
-  { titulo: "Consulta", codigos: ["motivo_consulta", "diagnostico", "antecedente_medico", "habito", "examen_funcional", "perfil_examen_funcional", "examen_fisico", "perfil_examen_fisico", "paraclinico", "grupo_paraclinicos", "sistema_organico", "especialidad"] },
+  { titulo: "Consulta", codigos: ["motivo_consulta", "diagnostico", "antecedente_medico", "habito", "examen_funcional", "perfil_examen_funcional", "examen_fisico", "perfil_examen_fisico", "paraclinico", "grupo_paraclinicos", "sistema_organico", "especialidad", "diagnostico_declarable"] },
   { titulo: "Aptitud y reposo", codigos: ["clasificacion_aptitud", "recomendacion_aptitud", "limitacion_ocupacional", "resultado_reubicacion", "causa_reposo", "ente_emisor_reposo"] },
   { titulo: "Recomendaciones", codigos: ["recomendacion_empresa", "recomendacion_paciente"] },
   { titulo: "Accidentes (COVENIN 474)", codigos: ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente"] },
@@ -41,7 +42,7 @@ export async function itemsDeLista(orgId: string | null, lista: string, soloActi
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("lista_items")
-    .select("id, codigo, nombre, grupo, texto, orden, activo")
+    .select("id, codigo, nombre, grupo, texto, orden, activo, datos")
     .eq("org_id", orgId)
     .eq("lista", lista)
     .order("orden")
@@ -58,7 +59,7 @@ export async function opciones(orgId: string | null, listas: string[]): Promise<
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("lista_items")
-    .select("id, lista, codigo, nombre, grupo, texto, orden, activo")
+    .select("id, lista, codigo, nombre, grupo, texto, orden, activo, datos")
     .eq("org_id", orgId)
     .eq("activo", true)
     .in("lista", listas)

@@ -7,7 +7,7 @@ import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guardarOrganizacion } from "../acciones";
-import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
+import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 
 type Ajustes = {
   palabra_aptitud?: string;
@@ -17,6 +17,8 @@ type Ajustes = {
   firma_medico_ocupacional?: boolean;
   reposo_pie_copia?: string | null;
   orden_nota?: string | null;
+  orden_nota_preempleo?: string | null;
+  constancia_copias?: boolean;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
   certificado_titulo?: string | null;
@@ -69,14 +71,14 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="titulo_constancia" etiqueta="Título de la constancia" defaultValue={a.titulo_constancia ?? "Constancia de Aptitud"} />
             <CampoTexto
               id="observacion_idoneidad"
-              etiqueta="Nota de idoneidad (pie de la constancia)"
+              etiqueta="Nota de idoneidad (pie de la constancia; vacío para no imprimirla)"
               rows={2}
               className="sm:col-span-2"
-              defaultValue={a.observacion_idoneidad ?? "La clasificación de aptitud se basa en el protocolo de evaluación clínica ocupacional del servicio."}
+              defaultValue={a.observacion_idoneidad ?? NOTA_IDONEIDAD}
             />
             <CampoTexto
               id="certificacion_trabajador"
-              etiqueta="Certificación del trabajador (final del informe de consulta; vacío para no imprimirla)"
+              etiqueta="Certificación del trabajador (informe de consulta, historia y autorización pre-empleo; vacío para no imprimirla)"
               rows={3}
               className="sm:col-span-2"
               defaultValue={a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR}
@@ -84,6 +86,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />
+              <Casilla id="constancia_copias" etiqueta="Constancia en original (RR. HH.) y copia (servicio médico)" defecto={a.constancia_copias ?? true} />
               <Casilla id="firma_paciente_constancia" etiqueta="Espacio de firma del trabajador" defecto={a.firma_paciente_constancia ?? false} />
               <Casilla id="firma_sello_separados" etiqueta="Firma y sello del médico en casillas separadas (todos los documentos)" defecto={a.firma_sello_separados ?? true} />
             </div>
@@ -111,14 +114,15 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardHeader><CardTitle className="text-base">Certificado de salud</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="certificado_titulo" etiqueta="Título" defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
-            <Campo id="certificado_nota" etiqueta="Nota al pie (opcional)" defaultValue={a.certificado_nota ?? ""} />
+            <CampoTexto id="certificado_nota" etiqueta="Nota legal al pie (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.certificado_nota ?? NOTA_CERTIFICADO_SACS} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Orden de exámenes</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
             <Campo id="orden_nota" etiqueta="Nota al pie (ej. ayuno de 8 horas, laboratorio convenido)" defaultValue={a.orden_nota ?? ""} />
+            <CampoTexto id="orden_nota_preempleo" etiqueta="Nota de la autorización pre-empleo (vacío para no imprimirla)" rows={2} defaultValue={a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH} />
           </CardContent>
         </Card>
       </fieldset>

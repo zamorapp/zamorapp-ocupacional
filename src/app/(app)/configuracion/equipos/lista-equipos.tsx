@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { Equipo } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
 import { activarEquipo } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 const hace = (iso: string | null) => {
   if (!iso) return "Nunca";
@@ -25,8 +26,8 @@ const tono = (e: Equipo) => {
 export function ListaEquipos({ equipos }: { equipos: Equipo[] }) {
   const [ocupado, iniciar] = useTransition();
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
-  const cambiar = (e: Equipo) => {
-    if (e.activo && !confirm(`¿Revocar «${e.nombre}»? Dejará de sincronizar hasta que lo reactives.`)) return;
+  const cambiar = async (e: Equipo) => {
+    if (e.activo && !(await confirmar({ titulo: `¿Revocar «${e.nombre}»?`, texto: "Dejará de sincronizar hasta que lo reactives.", accion: "Revocar", peligro: true }))) return;
     iniciar(async () => setAviso(await activarEquipo(e.id, !e.activo)));
   };
 

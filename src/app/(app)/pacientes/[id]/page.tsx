@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, CalendarClock, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +89,11 @@ export default async function FichaPaciente({ params }: Props) {
                 {sesion.clinico && (
                   <Button variant="outline" asChild className="flex-1 xl:flex-none">
                     <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
+                  </Button>
+                )}
+                {sesion.clinico && (
+                  <Button variant="outline" asChild className="flex-1 xl:flex-none">
+                    <Link href={`/imprimir/historia-laboral/${t.id}`} target="_blank"><BriefcaseBusiness /> Historia laboral</Link>
                   </Button>
                 )}
               </>
@@ -189,7 +194,7 @@ export default async function FichaPaciente({ params }: Props) {
                     {c.aptitud && (
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_APTITUD[c.aptitud])}>{ETIQUETA_APTITUD[c.aptitud]}</span>
                     )}
-                    {!c.demo && <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.reposo} tratamiento={c.tratamiento} compacto />}
+                    {!c.demo && <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.reposo} tratamiento={c.tratamiento} preoperatoria={/preoper/i.test(c.motivo)} compacto />}
                   </li>
                 ))}
               </ul>

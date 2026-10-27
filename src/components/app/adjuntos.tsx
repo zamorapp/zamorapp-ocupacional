@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { FileImage, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { crearClienteNavegador } from "@/lib/supabase/client";
-import { MAX_ADJUNTO, TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
+import { TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
+import { subirAdjunto } from "@/lib/preparar-archivo";
+import { confirmar } from "@/components/app/confirmar";
 
 type Props = { orgId: string; trabajadorId: string; consultaId?: string; iniciales: Adjunto[] };
 
@@ -24,18 +26,12 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales }: Props) 
     setError(null);
     const supabase = crearClienteNavegador();
     for (const archivo of Array.from(archivos)) {
-      if (archivo.size > MAX_ADJUNTO) { setError(`${archivo.name} pesa más de 10 MB.`); continue; }
-      const limpio = archivo.name.normalize("NFD").replace(/[^\w.-]+/g, "_").slice(-80);
-      const ruta = `${orgId}/${trabajadorId}/${crypto.randomUUID()}-${limpio}`;
-      const { error: e1 } = await supabase.storage.from("adjuntos").upload(ruta, archivo, { contentType: archivo.type });
-      if (e1) { setError(`No se pudo subir ${archivo.name}: ${e1.message}`); continue; }
-      const { data, error: e2 } = await supabase
-        .from("adjuntos")
-        .insert({ org_id: orgId, trabajador_id: trabajadorId, consulta_id: consultaId ?? null, nombre: archivo.name, ruta, tipo_mime: archivo.type, tamano: archivo.size })
-        .select("id, nombre, ruta, tipo_mime, tamano, descripcion, consulta_id, creado_en")
-        .single();
-      if (e2) { await supabase.storage.from("adjuntos").remove([ruta]); setError(`No se pudo registrar ${archivo.name}: ${e2.message}`); continue; }
-      setLista((l) => [data as Adjunto, ...l]);
+      try {
+        const fila = await subirAdjunto(supabase, { orgId, trabajadorId, consultaId }, archivo);
+        setLista((l) => [fila, ...l]);
+      } catch (e) {
+        setError((e as Error).message);
+      }
     }
     if (entrada.current) entrada.current.value = "";
     setOcupado(false);
@@ -49,7 +45,7 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales }: Props) 
   };
 
   const borrar = async (a: Adjunto) => {
-    if (!confirm(`¿Borrar «${a.nombre}»? No se puede deshacer.`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: "El archivo se elimina y no se puede recuperar.", accion: "Borrar", peligro: true }))) return;
     const supabase = crearClienteNavegador();
     const { error: e } = await supabase.from("adjuntos").delete().eq("id", a.id);
     if (e) { setError(e.message); return; }

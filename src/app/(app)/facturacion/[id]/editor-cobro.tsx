@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { bs, type Cobro, type EstadoCobro, etiquetaEstado, type Servicio, totales, usd } from "@/lib/facturacion-tipos";
 import { cn } from "@/lib/utils";
 import { actualizarCobro, convertirPresupuesto, eliminarCobro } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 const f = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
@@ -111,8 +112,8 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
         <div className="flex flex-wrap items-center gap-2">
           {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
           <div className="ml-auto flex flex-wrap gap-2">
-            {borrador && <Button variant="ghost" className="text-destructive" disabled={ocupado} onClick={() => confirm(presupuesto ? "¿Eliminar este presupuesto?" : "¿Eliminar este borrador? Las atenciones vuelven a quedar pendientes.") && iniciar(async () => { const r = await eliminarCobro(c.id); if (r && !r.ok) setAviso(r); })}><Trash2 /> Eliminar</Button>}
-            {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={() => confirm("¿Anular esta nota de cobro?") && guardar("anulada")}><XCircle /> Anular</Button>}
+            {borrador && <Button variant="ghost" className="text-destructive" disabled={ocupado} onClick={async () => (await confirmar(presupuesto ? { titulo: "¿Eliminar este presupuesto?", accion: "Eliminar", peligro: true } : { titulo: "¿Eliminar este borrador?", texto: "Las atenciones vuelven a quedar pendientes de cobro.", accion: "Eliminar", peligro: true })) && iniciar(async () => { const r = await eliminarCobro(c.id); if (r && !r.ok) setAviso(r); })}><Trash2 /> Eliminar</Button>}
+            {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Anular esta nota de cobro?", texto: "Queda registrada como anulada y deja de contar como deuda.", accion: "Anular", peligro: true })) && guardar("anulada")}><XCircle /> Anular</Button>}
             <Button variant="outline" disabled={ocupado || !cambios} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
             {borrador && <Button disabled={ocupado || c.items.length === 0} onClick={() => guardar("emitida")}><Send /> {presupuesto ? "Marcar enviado" : "Emitir"}</Button>}
             {!presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("pagada")}><CheckCircle2 /> Marcar pagada</Button>}

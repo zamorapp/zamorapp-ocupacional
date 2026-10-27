@@ -39,7 +39,7 @@ export default async function Documentos() {
                   <Link href={`/atencion/${c.id}`} className="font-medium hover:text-primary">{c.paciente}</Link>
                   <div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"} · {c.empresa}</div>
                 </div>
-                <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} />
+                <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} preoperatoria={/preoper/i.test(c.motivo ?? "")} />
               </li>
             ))}
           </ul>

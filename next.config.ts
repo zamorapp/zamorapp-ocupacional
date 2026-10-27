@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
   // middleware recibe y devuelve la dirección tal cual llegó.
   skipMiddlewareUrlNormalize: true,
   poweredByHeader: false,
+  // PDF en el servidor (envíos a empresas): Chromium sin ventana. En Vercel su binario se incluye en las rutas que lo usan.
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  outputFileTracingIncludes: {
+    "/envios": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/solicitudes": ["./node_modules/@sparticuz/chromium/bin/**"],
+  },
   async headers() {
     const reglas = [{ source: "/:path*", headers: SEGURIDAD }];
     // Programa de escritorio: las páginas nunca se guardan en la caché del navegador interno. Tras instalar una

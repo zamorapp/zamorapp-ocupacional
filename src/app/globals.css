@@ -187,11 +187,20 @@
     color: #55625f;
   }
 }
+@page apaisada {
+  size: letter landscape;
+  margin: 12mm 14mm 14mm;
+}
+
 @media print {
   body {
     background: white;
   }
   .hoja {
     break-after: page;
+  }
+  /* La última hoja no abre una página en blanco al final */
+  .hoja:last-child {
+    break-after: auto;
   }
 }

@@ -15,6 +15,9 @@ export type Puesto = {
   turno: string;
   riesgos: Partial<Record<GrupoRiesgo, string[]>>;
   evaluacion: Record<string, Valoracion>; // clave "grupo|agente"
+  epp: string;
+  recomendaciones: string;
+  evaluadoEn: string | null;
   trabajadores: number;
 };
 

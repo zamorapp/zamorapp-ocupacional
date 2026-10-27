@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Cita } from "@/lib/citas";
 import { cambiarEstadoCita, confirmarSolicitud } from "./citas-acciones";
+import { confirmar } from "@/components/app/confirmar";
 
 function Solicitud({ c }: { c: Cita }) {
   const [fecha, setFecha] = useState(c.fecha);
@@ -25,7 +26,7 @@ function Solicitud({ c }: { c: Cita }) {
       <Button size="sm" disabled={ocupado} onClick={() => iniciar(async () => { const r = await confirmarSolicitud(c.id, fecha, hora || null); setError(r.ok ? null : r.mensaje); })}>
         {ocupado ? <Loader2 className="animate-spin" /> : <Check />} {cambiada ? "Reprogramar" : "Confirmar"}
       </Button>
-      <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => confirm("¿Rechazar la solicitud?") && iniciar(async () => { const r = await cambiarEstadoCita(c.id, "cancelada"); setError(r.ok ? null : r.mensaje); })}>
+      <Button size="sm" variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Rechazar la solicitud?", texto: "La empresa verá la cita como cancelada.", accion: "Rechazar", peligro: true })) && iniciar(async () => { const r = await cambiarEstadoCita(c.id, "cancelada"); setError(r.ok ? null : r.mensaje); })}>
         <X /> Rechazar
       </Button>
       {error && <span className="w-full text-xs text-destructive">{error}</span>}
