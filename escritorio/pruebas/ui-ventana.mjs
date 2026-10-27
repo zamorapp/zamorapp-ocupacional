@@ -21,6 +21,7 @@ const REGISTRAR = arg("registrar"); // nombre de la PC; sin él, se exige que la
 const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
+const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const bitacora = [];
@@ -43,6 +44,7 @@ async function conectar() {
   }
   // Local: el Chromium de Playwright (PLAYWRIGHT_MODULO apunta al paquete "playwright" si no está en node_modules)
   const { chromium } = await import(process.env.PLAYWRIGHT_MODULO || "playwright");
+  if (PERFIL) return { navegador: await chromium.launchPersistentContext(PERFIL), local: true, persistente: true };
   return { navegador: await chromium.launch(), local: true };
 }
 
@@ -56,10 +58,10 @@ async function paso(nombre, fn) {
 
 let salida = 0;
 let pagina;
-let navegador, local;
+let navegador, local, persistente;
 try {
-  ({ navegador, local } = await conectar());
-  const contexto = navegador.contexts()[0] || await navegador.newContext();
+  ({ navegador, local, persistente } = await conectar());
+  const contexto = persistente ? navegador : navegador.contexts()[0] || await navegador.newContext();
   pagina = contexto.pages()[0] || await contexto.newPage();
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
   pagina.on("console", (m) => { if (["error", "warning"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
@@ -122,12 +124,18 @@ try {
     });
   }
 
-  await paso("pantalla de ingreso de la app", async () => {
-    await pagina.waitForURL(/\/login/, { timeout: 60_000 });
+  // Si la sesión quedó guardada de una apertura anterior, la app abre directo en el panel (así debe ser)
+  const yaDentro = await paso("pantalla de ingreso de la app", async () => {
+    await pagina.waitForURL(/\/(login|panel)/, { timeout: 60_000 });
     // La ventana debe seguir en el origen de la app (127.0.0.1:54332): si una redirección la manda a "localhost",
     // cambia de origen y la puerta local rechaza todas sus llamadas (CORS) sin registrar nada
     const origenEsperado = new URL(URL_INICIO).hostname === "localhost" ? "localhost" : "127.0.0.1";
     if (new URL(pagina.url()).hostname !== origenEsperado) throw new Error(`La app redirigió la ventana a ${pagina.url()}: cambió el origen (debía seguir en ${origenEsperado})`);
+    if (/\/panel/.test(pagina.url())) {
+      await pagina.waitForSelector("h1", { timeout: 60_000 });
+      anotar(`   la sesión se conservó de una apertura anterior: ya está en el panel ("${(await pagina.evaluate(() => document.querySelector("h1")?.textContent || "")).trim()}")`);
+      return true;
+    }
     await pagina.waitForSelector("#correo", { timeout: 60_000 });
     const textoBoton = await pagina.evaluate(() => document.querySelector("button[type=submit]")?.textContent || "");
     anotar(`   botón: "${textoBoton.trim()}"`);
@@ -137,9 +145,10 @@ try {
       const f = document.querySelector("form");
       return !!f && Object.keys(f).some((k) => k.startsWith("__reactFiber"));
     }, null, { timeout: 60_000 }).catch(() => { throw new Error("La pantalla de ingreso no se hidrató: React nunca instaló los manejadores del formulario (¿no cargan los scripts /_next/static?)"); });
+    return false;
   });
 
-  await paso(`entrar como ${CORREO}`, async () => {
+  if (!yaDentro) await paso(`entrar como ${CORREO}`, async () => {
     await pagina.fill("#correo", CORREO);
     await pagina.fill("#clave", CLAVE);
     await pagina.click("button[type=submit]");
