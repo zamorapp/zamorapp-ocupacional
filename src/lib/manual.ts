@@ -19,6 +19,7 @@ export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-27", texto: "Consulta más ágil: dictado por voz, evolución de signos, duplicar y registrar accidente", tema: "consulta" },
   { fecha: "2026-10-27", texto: "Corregir una consulta firmada con motivo, sin perder la versión firmada", tema: "firmar" },
   { fecha: "2026-10-27", texto: "Declaración de accidentes con los códigos COVENIN 474 y los plazos del INPSASEL", tema: "accidentes" },
+  { fecha: "2026-10-27", texto: "Informe de investigación NT-02 de enfermedad ocupacional y seguimiento de la certificación del INPSASEL", tema: "accidentes" },
   { fecha: "2026-10-27", texto: "15 reportes del SAME con impresión y Excel, y nuevos documentos (OAM, constancia de atención, evaluación de puesto)", tema: "reportes-same" },
   { fecha: "2026-10-27", texto: "Solicitudes de las empresas desde el portal y respaldo diario en Google Drive", tema: "solicitudes" },
 ];
@@ -195,7 +196,7 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "accidentes",
-    titulo: "Accidentes e incidentes",
+    titulo: "Accidentes, enfermedades ocupacionales e investigación",
     para: "todos",
     resumen: "Registro de accidentes, incidentes y enfermedades ocupacionales según COVENIN, con índices de accidentalidad.",
     pasos: [
