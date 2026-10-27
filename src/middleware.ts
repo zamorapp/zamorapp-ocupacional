@@ -36,6 +36,8 @@ export async function middleware(request: NextRequest) {
   const enLogin = request.nextUrl.pathname.startsWith("/login");
   // Enlaces seguros de documentos enviados por WhatsApp: los abre la empresa sin cuenta (valida el token)
   if (request.nextUrl.pathname.startsWith("/e/")) return respuesta;
+  // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
+  if (request.nextUrl.pathname.startsWith("/invitacion/")) return respuesta;
 
   // En el programa de escritorio las redirecciones conservan el host con el que llegó la petición (solo
   // 127.0.0.1:54332 o localhost:54332): Next armaba request.url con "localhost", la ventana pasaba de

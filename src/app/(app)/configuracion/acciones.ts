@@ -1,6 +1,9 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { telefonoWhatsApp } from "@/lib/envios-tipos";
+import { URL_PUBLICA } from "@/lib/invitaciones";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -215,6 +218,53 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Invitación por enlace para RR. HH. de una empresa: 7 días, un solo uso. Devuelve el enlace (solo se ve ahora)
+// y, si hay teléfono, el mensaje de WhatsApp listo para mandarlo desde el teléfono del servicio.
+export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resultado & { enlace?: string; whatsapp?: string }> {
+  try {
+    const { sesion, supabase } = await contexto(["administrador"]);
+    const empresaId = texto(datos, "empresa_id");
+    if (!empresaId) return { ok: false, mensaje: "Elige la empresa." };
+    const nombre = texto(datos, "nombre")?.slice(0, 120) ?? null;
+    const telefono = texto(datos, "telefono")?.slice(0, 30) ?? null;
+    const token = randomBytes(32).toString("base64url");
+    const { data: empresa } = await supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle();
+    const { error } = await supabase.from("invitaciones").insert({
+      org_id: sesion.orgId,
+      empresa_id: empresaId,
+      nombre,
+      telefono,
+      token_hash: "\\x" + createHash("sha256").update(token).digest("hex"),
+    });
+    if (error) return { ok: false, mensaje: error.message };
+    revalidatePath("/configuracion/usuarios");
+    const enlace = `${URL_PUBLICA}/invitacion/${token}`;
+    const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "su empresa";
+    const mensajeWa = `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le invito al portal de salud ocupacional de ${sesion.organizacion} para ${nombreEmpresa}. Desde ahí puede pedir evaluaciones con fecha y hora y ver los resultados. Cree su cuenta con este enlace (vale 7 días y un solo uso): ${enlace}`;
+    const numero = telefono ? telefonoWhatsApp(telefono) : "";
+    return {
+      ok: true,
+      mensaje: "Enlace listo. Mándalo por WhatsApp o cópialo: solo se muestra ahora.",
+      enlace,
+      whatsapp: `https://wa.me/${numero.length >= 10 ? numero : ""}?text=${encodeURIComponent(mensajeWa)}`,
+    };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function anularInvitacion(id: string): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.from("invitaciones").update({ revocada_en: new Date().toISOString() }).eq("id", id).is("revocada_en", null);
+    if (error) throw error;
+    revalidatePath("/configuracion/usuarios");
+    return { ok: true, mensaje: "Invitación anulada." };
   } catch (e) {
     return fallo(e);
   }

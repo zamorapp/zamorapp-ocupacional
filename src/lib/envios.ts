@@ -14,6 +14,7 @@ import {
   type EntradaEnvio,
   type EnvioHistorial,
   type FilaBitacora,
+  type GrupoPorEnviar,
   type Plantilla,
   type ResultadoEnvio,
 } from "@/lib/envios-tipos";
@@ -415,4 +416,60 @@ export async function contarPendientes(): Promise<number> {
   const { data: hijos } = await supabase.from("envios").select("reintento_de").in("reintento_de", candidatos.map((e) => e.id));
   const hechos = new Set((hijos ?? []).map((h) => h.reintento_de));
   return candidatos.filter((e) => !hechos.has(e.id)).length;
+}
+
+// Bandeja «Por enviar»: lo firmado con constancia de aptitud en los últimos días que aún no salió a la empresa
+// (ni por correo ni por enlace). Se llena sola al firmar y se vacía al enviar.
+export async function porEnviar(dias = 14): Promise<GrupoPorEnviar[]> {
+  const supabase = await crearClienteServidor();
+  const desde = new Date(Date.now() - dias * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+  const [{ data: consultas }, { data: envios }] = await Promise.all([
+    supabase
+      .from("consultas")
+      .select("id, fecha, hora_inicio, empresa_id, empresas(razon_social, nombre_comercial), trabajadores(nombres, apellidos), aptitudes(clasificacion)")
+      .eq("estado", "firmada")
+      .gte("fecha", desde)
+      .order("fecha", { ascending: false })
+      .order("hora_inicio")
+      .limit(1000),
+    supabase.from("envios").select("consultas").gte("fecha_lote", desde).neq("estado", "fallido").limit(3000),
+  ]);
+  const enviadas = new Set((envios ?? []).flatMap((e) => e.consultas as string[]));
+  type Fila = {
+    id: string; fecha: string; empresa_id: string;
+    empresas: { razon_social: string; nombre_comercial: string | null } | null;
+    trabajadores: { nombres: string; apellidos: string } | null;
+    aptitudes: { clasificacion: string }[] | { clasificacion: string } | null;
+  };
+  const grupos = new Map<string, GrupoPorEnviar>();
+  for (const c of (consultas ?? []) as unknown as Fila[]) {
+    const apt = Array.isArray(c.aptitudes) ? c.aptitudes[0] : c.aptitudes;
+    if (!apt?.clasificacion || enviadas.has(c.id)) continue;
+    const clave = `${c.empresa_id}|${c.fecha}`;
+    if (!grupos.has(clave)) {
+      grupos.set(clave, {
+        empresaId: c.empresa_id,
+        empresa: c.empresas ? c.empresas.nombre_comercial || c.empresas.razon_social : "—",
+        fecha: c.fecha,
+        consultas: [],
+        contactos: [],
+      });
+    }
+    grupos.get(clave)!.consultas.push({ id: c.id, paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "—", aptitud: apt.clasificacion });
+  }
+  const empresas = [...new Set([...grupos.values()].map((g) => g.empresaId))];
+  if (empresas.length) {
+    const { data: cts } = await supabase
+      .from("empresa_contactos")
+      .select("id, empresa_id, nombre, cargo, correo, telefono, recibe_consulta")
+      .in("empresa_id", empresas)
+      .eq("activo", true)
+      .order("nombre");
+    for (const g of grupos.values()) {
+      g.contactos = (cts ?? [])
+        .filter((c) => c.empresa_id === g.empresaId)
+        .map((c) => ({ id: c.id, nombre: c.nombre, cargo: c.cargo, correo: c.correo, telefono: c.telefono, recibeConsulta: c.recibe_consulta }));
+    }
+  }
+  return [...grupos.values()];
 }
