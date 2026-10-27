@@ -38,7 +38,7 @@ async function principal() {
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
-  crearPuerta({ estado, nube, motor, replica, origen, registro }).listen(puerto, "127.0.0.1", () => {
+  crearPuerta({ estado, nube, motor, replica, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
