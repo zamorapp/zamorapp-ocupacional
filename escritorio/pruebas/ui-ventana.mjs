@@ -196,6 +196,16 @@ try {
         catch (e) { return `error: ${e}`; }
       }).catch((e) => `evaluate: ${e.message}`);
       anotar(`   estado de Windows Hello desde la página: ${prueba}`);
+      // ¿Los scripts que cargó la página traen el código de la huella, y en modo escritorio?
+      const scripts = await pagina.evaluate(async () => {
+        const salida = [];
+        for (const s of Array.from(document.scripts).map((x) => x.src).filter(Boolean)) {
+          const t = await fetch(s).then((r) => r.text()).catch(() => "");
+          if (t.includes("zamorapp.huella")) salida.push(`${s.split("/").pop()}: ${(t.match(/let [a-z]=![01],[a-z]="http[^"]*"/) || ["sin marca"])[0]}`);
+        }
+        return { total: document.scripts.length, conHuella: salida, texto: document.body.innerText.slice(0, 300) };
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   scripts: ${JSON.stringify(scripts)}`);
       throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
     });
     await boton.click();
