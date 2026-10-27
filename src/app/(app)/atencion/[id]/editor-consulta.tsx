@@ -34,6 +34,8 @@ import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
+import { AvisoDeclaracion } from "./aviso-declaracion";
+import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
 
@@ -259,6 +261,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     return [...g.entries()];
   }, [listas.paraclinico]);
 
+  const reglasDeclaracion = useMemo(() => reglasDeListas(listas), [listas]);
   const actualizarDiag = (i: number, cambio: Partial<Diagnostico>) =>
     set("diagnosticos", d.diagnosticos.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
   const actualizarMed = (i: number, cambio: Partial<Medicamento>) =>
@@ -652,11 +655,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   {i === 0 && <span className="text-xs text-muted-foreground sm:col-span-4">Diagnóstico principal</span>}
                 </div>
               ))}
-              {d.diagnosticos.some((x) => x.origen === "ocupacional") && (
-                <p className="flex items-center gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-                  <AlertTriangle className="size-4" /> Sospecha de enfermedad ocupacional: la declaración ante el INPSASEL vence 24 h después del diagnóstico.
-                </p>
-              )}
+              <AvisoDeclaracion consultaId={d.id} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
             </Seccion>
             )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>

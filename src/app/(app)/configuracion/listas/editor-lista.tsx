@@ -29,8 +29,9 @@ const ETIQUETA_GRUPO: Record<string, string> = {
   medicina: "Laboratorio (opcional)",
   diagnostico: "Sistema orgánico (opcional)",
   diagnostico_declarable: "Notificación (inmediata / semanal)",
+  declaracion_ocupacional: "Categoría del Anexo 1",
 };
-const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *", diagnostico_declarable: "Inicio del código CIE-10 (ej. A15 cubre A15.0 a A15.9)" };
+const ETIQUETA_CODIGO: Record<string, string> = { diagnostico: "Código CIE-10 *", diagnostico_declarable: "Inicio del código CIE-10 (ej. A15 cubre A15.0 a A15.9)", declaracion_ocupacional: "Códigos CIE-10 * (ej.: M54.5; varios con coma; !Z56.0 excluye)" };
 
 type Motivo = { codigo: string; nombre: string };
 
@@ -72,7 +73,7 @@ function Formulario({ lista, item, motivos, alTerminar }: { lista: string; item:
       <input type="hidden" name="lista" value={lista} />
       {item && <input type="hidden" name="id" value={item.id} />}
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
-      <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico"} />
+      <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico" || lista === "declaracion_ocupacional"} />
       {lista.startsWith("recomendacion_") ? (
         <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
       ) : (
