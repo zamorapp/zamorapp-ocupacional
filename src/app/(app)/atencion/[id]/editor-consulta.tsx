@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -28,12 +28,13 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, reabrirConsulta } from "../acciones";
+import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
-import { Adjuntos } from "@/components/app/adjuntos";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
+import { contarResultados } from "@/lib/paraclinicos";
+import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
@@ -158,6 +159,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   // Corregir una consulta firmada: motivo obligatorio (lo exige también reabrir_consulta en la base)
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [motivoCorreccion, setMotivoCorreccion] = useState("");
+  const [ignorarPendientes, setIgnorarPendientes] = useState(false);
   const [accidente, setAccidente] = useState(false);
   // Avisos que el médico decidió ignorar en esta consulta (no bloquean nada)
   const [ignorados, setIgnorados] = useState<string[]>([]);
@@ -176,7 +178,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     { id: "generales", titulo: "Generales", hecho: Boolean(d.motivoId) },
     { id: "antecedentes", titulo: "Antecedentes", hecho: d.antecedentes.length > 0 || d.habitos.some((h) => h.valor) },
     { id: "examen", titulo: "Examen", hecho: Boolean(d.signos.ta || d.signos.peso) },
-    { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 },
+    { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 && contarResultados(d.paraclinicos).pendientes === 0 },
     { id: "diagnostico", titulo: d.sano ? "Diagnóstico · sano" : d.diagnosticos.length ? `Diagnóstico (${d.diagnosticos.length})` : "Diagnóstico", hecho: d.sano || d.diagnosticos.length > 0 },
     { id: "aptitud", titulo: "Aptitud", hecho: Boolean(d.aptitud.clasificacion) },
     ...(mostrarTratamiento ? [{ id: "tratamiento", titulo: "Tratamiento y reposo", hecho: d.tratamiento.length > 0 || d.reposo.activo }] : []),
@@ -269,6 +271,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     if (r.ok) setGuardado(JSON.stringify(d));
     return r.ok;
   };
+  // Paraclínicos: con la consulta cerrada solo se escriben resultados (guardar_resultados); firmada, solo lectura
+  const modoParaclinicos: ModoParaclinicos = d.estado === "borrador" ? "editar" : d.estado === "cerrada" ? "resultados" : "lectura";
+  const resultadosSinGuardar = JSON.stringify(d.paraclinicos) !== JSON.stringify((JSON.parse(guardado) as DatosConsulta).paraclinicos);
+  const guardarSoloResultados = () =>
+    iniciar(async () => {
+      const r = await guardarResultados(d.id, d.paraclinicos);
+      setAviso(r);
+      if (r.ok) setGuardado(JSON.stringify(d));
+    });
+  const pendientesResultado = contarResultados(d.paraclinicos).pendientes;
+
   const menuImprimir = (variante: "default" | "outline") => (
     <MenuImprimir
       consultaId={d.id}
@@ -448,6 +461,15 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}
+        {/* Falta resultado: solo avisa, no impide cerrar ni firmar */}
+        {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm">
+            <FlaskConical className="size-4 text-aviso-texto" />
+            <span className="min-w-0 flex-1">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
+            <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
+          </div>
+        )}
         <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
           {pasos.map((p, i) => (
             <TabsTrigger
@@ -582,8 +604,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </TabsContent>
 
           {/* ── Paraclínicos ── */}
-          <TabsContent value="paraclinicos" className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <Seccion titulo="Catálogo">
+          <TabsContent value="paraclinicos" className="mt-4 space-y-4">
+            {modoParaclinicos === "editar" && (
+            <details open={d.paraclinicos.length === 0} className="group rounded-xl border bg-card">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 font-semibold">
+                <span className="inline-flex items-center gap-2"><Plus className="size-4" /> Agregar exámenes</span>
+                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Perfiles y catálogo</span>
+              </summary>
+              <div className="space-y-4 border-t px-5 py-4">
               {listas.grupo_paraclinicos.length > 0 && (
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <div className="mb-2 text-sm font-medium">Perfiles</div>
@@ -646,26 +674,19 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   );
                 })}
               </div>
-            </Seccion>
-            <Seccion titulo={`Solicitados (${d.paraclinicos.length})`}>
-              {d.paraclinicos.length === 0 && <p className="text-sm text-muted-foreground">Elige exámenes del catálogo.</p>}
-              <div className="space-y-2">
-                {d.paraclinicos.map((p, i) => (
-                  <div key={p.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
-                    <span className="truncate text-sm">{p.nombre}</span>
-                    <Input value={p.resultado} placeholder="Resultado" className="h-8" onChange={(e) => set("paraclinicos", d.paraclinicos.map((x, j) => (j === i ? { ...x, resultado: e.target.value } : x)))} />
-                    <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("paraclinicos", d.paraclinicos.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                  </div>
-                ))}
               </div>
-            </Seccion>
-            {adjuntos && (
-              <div className="lg:col-span-2">
-                <Seccion titulo="Resultados adjuntos (PDF o fotos)">
-                  <Adjuntos orgId={adjuntos.orgId} trabajadorId={trabajador.id} consultaId={d.id} iniciales={adjuntos.lista} />
-                </Seccion>
-              </div>
+            </details>
             )}
+            <ParaclinicosDigitales
+              paraclinicos={d.paraclinicos}
+              onChange={(p) => set("paraclinicos", p)}
+              modo={modoParaclinicos}
+              catalogo={listas.paraclinico}
+              sexo={trabajador.sexo}
+              archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
+              asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
+              resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
+            />
           </TabsContent>
 
           {/* ── Diagnóstico ── */}
