@@ -26,34 +26,35 @@ fn es_de_la_app(url: &Url) -> bool {
 
 // window.open / target="_blank": lo de la app abre en una ventana propia de zamorApp (misma sesión, mismo
 // navegador interno, con Imprimir y Guardar PDF); WhatsApp, correo y demás enlaces externos, en el navegador
-// de Windows. Nada se descarta en silencio.
+// de Windows. Nada se descarta en silencio. La ventana navega sola a la dirección y la petición original se
+// rechaza: entregarle a WebView2 una ventana ya creada (SetNewWindow) no funciona porque Tauri ya la navegó
+// a about:blank. Por eso window.open devuelve null en el escritorio y la página abre ya con la dirección final
+// (src/lib/escritorio.ts, abrirEnVentana); un about:blank suelto no abre nada.
 pub fn ventana_nueva<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeatures) -> NewWindowResponse<R> {
-    if url.as_str() == "about:blank" || es_de_la_app(&url) {
+    if es_de_la_app(&url) {
         let etiqueta = format!("documento-{}", VENTANAS.fetch_add(1, Ordering::Relaxed));
         let otra = app.clone();
-        let ventana = WebviewWindowBuilder::new(app, &etiqueta, WebviewUrl::External("about:blank".parse().expect("about:blank")))
+        // window_features comparte el entorno WebView2 de la ventana que la pidió (mismos argumentos y sesión)
+        let ventana = WebviewWindowBuilder::new(app, &etiqueta, WebviewUrl::External(url.clone()))
             .window_features(features)
             .title("zamorApp · documento")
             .inner_size(1100.0, 900.0)
             .min_inner_size(640.0, 480.0)
             .on_document_title_changed(|v, titulo| {
-                if !titulo.is_empty() && titulo != "about:blank" {
+                if !titulo.is_empty() {
                     let _ = v.set_title(&format!("{titulo} · zamorApp"));
                 }
             })
             .on_new_window(move |u, f| ventana_nueva(&otra, u, f))
             .build();
-        return match ventana {
+        match ventana {
             Ok(window) => {
                 anotar(&format!("documento abierto en la ventana {etiqueta}: {url}"));
                 window.set_focus().ok();
-                NewWindowResponse::Create { window }
             }
-            Err(e) => {
-                anotar(&format!("ERROR al abrir la ventana del documento {url}: {e}"));
-                NewWindowResponse::Deny
-            }
-        };
+            Err(e) => anotar(&format!("ERROR al abrir la ventana del documento {url}: {e}")),
+        }
+        return NewWindowResponse::Deny;
     }
     if matches!(url.scheme(), "https" | "http" | "mailto" | "tel" | "whatsapp") {
         anotar(&format!("enlace externo al navegador de Windows: {}", url.scheme()));

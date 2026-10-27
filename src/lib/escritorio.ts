@@ -10,6 +10,24 @@ function puente(): Puente | null {
 
 export const enEscritorio = () => puente() !== null;
 
+// Abre un documento en otra ventana. Si la dirección sale de algo asíncrono (guardar antes, pedir un enlace firmado):
+// en la web la pestaña se abre ya con el clic (si se abre después, el navegador la bloquea) y luego se dirige; en el
+// escritorio se pide la ventana ya con la dirección final, porque el programa abre ventanas propias y window.open
+// devuelve null (ver ventana_nueva en escritorio/src-tauri/src/documentos.rs).
+export async function abrirEnVentana(destino: string | (() => Promise<string | null>)): Promise<void> {
+  if (typeof destino === "string") return void window.open(destino, "_blank");
+  if (enEscritorio()) {
+    const url = await destino();
+    if (url) window.open(url, "_blank");
+    return;
+  }
+  const pestana = window.open("about:blank", "_blank");
+  const url = await destino();
+  if (!url) return void pestana?.close();
+  if (pestana) pestana.location.href = url;
+  else window.location.href = url;
+}
+
 const mensaje = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "No se pudo completar la acción.");
 
 // Diálogo de impresoras (Windows en el escritorio; el del navegador en la web)

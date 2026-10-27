@@ -201,7 +201,8 @@ jobs:
                 }
               }
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
-              [void]$proc.CloseMainWindow()
+              # Con un documento abierto en otra ventana, la «principal» de Windows puede ser esa: se cierran hasta que salga
+              for ($c = 0; $c -lt 4 -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); [void]$proc.WaitForExit(10000) }
               if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
               # Solo cuentan los procesos del programa (el PostgreSQL "nube" de las pruebas sigue vivo y no es suyo).
               # La base puede tardar unos segundos en cerrar con calma; cuenta lo que siga vivo a los 30 s.

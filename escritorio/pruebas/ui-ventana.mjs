@@ -187,17 +187,21 @@ try {
   });
 
   if (IMPRIMIR) {
-    const contexto = pagina.context();
     const documento = await paso("abrir el informe de vigilancia en su propia ventana", async () => {
       await pagina.goto(new URL("/reportes", pagina.url()).href, { waitUntil: "domcontentloaded" });
       const enlace = pagina.getByRole("link", { name: /Imprimir informe trimestral/ });
       await enlace.waitFor({ timeout: 60_000 });
-      // Antes, en el escritorio, este clic no hacía nada: el navegador interno descartaba las ventanas nuevas
-      const [doc] = await Promise.all([contexto.waitForEvent("page", { timeout: 30_000 }).catch(() => null), enlace.click()]);
-      if (!doc) throw new Error("«Imprimir informe trimestral» no abrió ninguna ventana");
+      // Antes, en el escritorio, este clic no hacía nada: el navegador interno descartaba las ventanas nuevas.
+      // El programa abre su propia ventana (un destino nuevo para CDP): se busca entre todas las páginas.
+      await enlace.click();
+      const todas = () => navegador.contexts().flatMap((c) => c.pages());
+      let doc = null;
+      for (const limite = Date.now() + 60_000; !doc && Date.now() < limite; await esperar(500)) {
+        doc = todas().find((p) => p !== pagina && /\/imprimir\/vigilancia/.test(p.url())) ?? null;
+      }
+      if (!doc) throw new Error(`«Imprimir informe trimestral» no abrió la ventana del informe; páginas: ${todas().map((p) => p.url()).join(" | ")}`);
       doc.on("pageerror", (e) => anotar(`[error de página en el documento] ${e.message}`));
       doc.on("console", (m) => { if (m.type() === "error") anotar(`[consola del documento] ${m.text()}`); });
-      await doc.waitForURL(/\/imprimir\/vigilancia/, { timeout: 60_000 });
       await doc.waitForSelector("[data-accion=guardar-pdf]", { timeout: 60_000 }).catch(async () => {
         const texto = (await doc.evaluate(() => document.body.innerText).catch(() => "")).slice(0, 300);
         throw new Error(`El documento abrió sin los botones del escritorio (Guardar PDF / Imprimir); muestra: ${texto}`);
