@@ -114,6 +114,11 @@ export async function guardarEvento(e: Evento): Promise<Resultado> {
       // Los días cargados los recalcula la base según la incapacidad (COVENIN 474, sección 4)
       cargos: e.incapacidad === "parcial_permanente" ? e.cargos.filter((c) => c.concepto.trim() && c.dias > 0) : [],
       observaciones: e.observaciones || null,
+      potencial_discapacidad: e.potencialDiscapacidad,
+      certificacion_fecha: e.certificacionFecha || null,
+      certificacion_numero: e.certificacionNumero || null,
+      discapacidad: e.discapacidad,
+      discapacidad_pct: e.discapacidad ? e.discapacidadPct : null,
     })
     .eq("id", e.id);
   if (error) return { ok: false, mensaje: error.message };
@@ -127,4 +132,54 @@ export async function cerrarEvento(id: string, cerrar: boolean): Promise<Resulta
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
   return { ok: true, mensaje: cerrar ? "Evento cerrado." : "Evento reabierto." };
+}
+
+export type DeclaracionConsulta = { id: string; numero: number; cie10: string | null; estado: string; fechaDeclaracion: string | null };
+
+// Declaraciones de enfermedad ocupacional ya iniciadas desde esta consulta
+export async function declaracionesDeConsulta(consultaId: string): Promise<DeclaracionConsulta[]> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase
+    .from("eventos")
+    .select("id, numero, cie10, estado, fecha_declaracion")
+    .eq("consulta_id", consultaId)
+    .eq("tipo", "enfermedad")
+    .order("numero");
+  return (data ?? []).map((e) => ({ id: e.id, numero: e.numero, cie10: e.cie10, estado: e.estado, fechaDeclaracion: e.fecha_declaracion }));
+}
+
+// Abre la declaración de enfermedad ocupacional desde el diagnóstico de la consulta: trabajador, empresa, CIE-10 y
+// Anexo 1 ya puestos. El plazo de 24 h corre desde el inicio de la consulta (momento del diagnóstico).
+// Si ya existe una para ese código en esta consulta, devuelve esa.
+export async function declararDesdeConsulta(consultaId: string, cie10: string, diagnostico: string, enAnexo1: boolean): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar la declaración." };
+  const supabase = await crearClienteServidor();
+  const { data: c } = await supabase.from("consultas").select("org_id, empresa_id, trabajador_id, hora_inicio").eq("id", consultaId).single();
+  if (!c) return { ok: false, mensaje: "Guarda la consulta antes de declarar." };
+
+  const previa = await supabase.from("eventos").select("id").eq("consulta_id", consultaId).eq("tipo", "enfermedad").eq("cie10", cie10 || "").limit(1);
+  if (cie10 && previa.data?.[0]) return { ok: true, mensaje: "Ya estaba iniciada.", id: previa.data[0].id };
+
+  const { data, error } = await supabase
+    .from("eventos")
+    .insert({
+      org_id: c.org_id,
+      empresa_id: c.empresa_id,
+      trabajador_id: c.trabajador_id,
+      tipo: "enfermedad",
+      fecha_hora: c.hora_inicio,
+      fecha_diagnostico: c.hora_inicio,
+      cie10: cie10 || null,
+      diagnostico: diagnostico || null,
+      en_anexo1: enAnexo1,
+      consulta_id: consultaId,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar declaraciones." : error.message };
+  revalidatePath("/accidentes");
+  return { ok: true, mensaje: "Declaración iniciada.", id: data.id };
 }

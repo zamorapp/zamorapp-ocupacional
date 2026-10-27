@@ -9,7 +9,8 @@ $P -c "drop database if exists zamorapp_prueba" -c "create database zamorapp_pru
 $P -d zamorapp_prueba -f supabase/pruebas/00_stubs_supabase.sql
 for f in supabase/migrations/*.sql; do $P -1 -d zamorapp_prueba -f "$f" > /dev/null; done
 $P -d zamorapp_prueba -f supabase/pruebas/10_datos.sql
-for f in supabase/pruebas/[2-9]*.sql; do psql -q -d zamorapp_prueba -f "$f" 2>&1; done | grep -v '^$' | tee /tmp/zamorapp_prueba.txt
+# Todas las pruebas numeradas desde la 20, en orden numérico (sort -V: la 100 va después de la 99)
+for f in $(ls supabase/pruebas/[0-9]*.sql | sort -V | grep -Ev "/(00|10)_"); do psql -q -d zamorapp_prueba -f "$f" 2>&1; done | grep -v '^$' | tee /tmp/zamorapp_prueba.txt
 # Falla si algún resultado no coincide con lo esperado
 malos=$(awk '/debe [0-9]+/ { match($0, /debe [0-9]+/); esperado = substr($0, RSTART + 5, RLENGTH - 5); if ($NF != esperado) print "NO COINCIDE: " $0 } /FALLA|ERROR:/ { print }' /tmp/zamorapp_prueba.txt)
 if [ -n "$malos" ]; then echo "$malos"; exit 1; fi

@@ -138,6 +138,24 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
         { titulo: "Sin consulta", valor: n(filas.filter((f) => !f.ultima_consulta).length) },
         { titulo: "Aptitud vencida", valor: n(filas.filter((f) => f.vigente_hasta && String(f.vigente_hasta) < hoy()).length) },
       ];
+    case "vencimientos":
+      return [
+        { titulo: "Vencidos", valor: n(cuenta("situacion", "Vencido")), detalle: "examen atrasado" },
+        { titulo: "Por vencer", valor: n(cuenta("situacion", "Por vencer")) },
+        { titulo: "Sin evaluación", valor: n(cuenta("situacion", "Sin evaluación")), detalle: "activos sin aptitud" },
+        { titulo: "Empresas", valor: n(unicos("empresa")) },
+      ];
+    case "accidentalidad": {
+      // Índices del período completo: se calculan sobre los totales, no se promedian los meses
+      const hht = suma("hht");
+      const indice = (x: number) => (hht > 0 ? ((x * 1_000_000) / hht).toLocaleString("es-VE", { maximumFractionDigits: 2 }) : "—");
+      return [
+        { titulo: "IF neta", valor: indice(suma("con_tiempo_perdido")), detalle: `${n(suma("con_tiempo_perdido"))} con tiempo perdido` },
+        { titulo: "IF bruta", valor: indice(suma("accidentes")), detalle: `${n(suma("accidentes"))} accidentes` },
+        { titulo: "Índice de severidad", valor: indice(suma("dias_perdidos") + suma("dias_cargados")), detalle: `${n(suma("dias_perdidos") + suma("dias_cargados"))} días perdidos y cargados` },
+        { titulo: "Horas hombre", valor: n(hht), detalle: filas.some((f) => f.metodo !== "Nómina") ? "incluye horas estimadas" : "según nómina" },
+      ];
+    }
     default:
       return [
         { titulo: "Registros", valor: n(filas.length) },
@@ -169,7 +187,7 @@ export async function cargarListado(clave: string, q: ConsultaReporte) {
     listo
       ? (async () => {
           const supabase = await crearClienteServidor();
-          const { data, error } = await supabase.rpc("reporte_listado", {
+          const { data, error } = await supabase.rpc(def.funcion ?? "reporte_listado", {
             p_tipo: def.fuente, p_empresa: empresa?.id ?? null, p_desde: periodo.desde, p_hasta: periodo.hasta, p_opciones: pOpciones,
           });
           if (error) throw error;

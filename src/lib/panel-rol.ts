@@ -101,6 +101,19 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
   };
 }
 
+// Exámenes vencidos o por vencer: tarea de quienes agendan (recepción, SST y operación). El personal de salud ya tiene cuatro.
+export function conVencimientos(enfoque: Enfoque, rol: Sesion["rol"], clinico: boolean, vencidos: number, porVencer: number): Enfoque {
+  if (clinico || !rol || rol === "gerente_empresa") return enfoque;
+  const tarea: Tarea = {
+    titulo: "Exámenes por programar",
+    valor: vencidos + porVencer,
+    detalle: vencidos ? `${vencidos} vencidos y ${porVencer} por vencer` : "Por vencer: agenda sus citas",
+    href: "/reportes/vencimientos",
+    urgente: vencidos > 0,
+  };
+  return { ...enfoque, tareas: [...enfoque.tareas, tarea] };
+}
+
 const ACCIONES: Record<string, Enfoque["acciones"]> = {
   clinico: [
     { titulo: "Nueva consulta", href: "/atencion", icono: "consulta" },
