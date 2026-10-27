@@ -178,6 +178,13 @@ try {
     const { default: fs } = await import("node:fs");
     const { default: path } = await import("node:path");
     const descargas = path.join(os.homedir(), "Downloads");
+    // Playwright, al conectarse por CDP, se queda con las descargas del navegador (Browser.setDownloadBehavior) y el
+    // programa nunca las ve. Se devuelve el comportamiento normal para probar el gestor de descargas del programa.
+    const sesion = await navegador.newBrowserCDPSession();
+    await sesion.send("Browser.setDownloadBehavior", { behavior: "default", eventsEnabled: true });
+    sesion.on("Browser.downloadWillBegin", (e) => anotar(`   [descarga empieza] ${e.suggestedFilename} ${e.url.slice(0, 80)}`));
+    sesion.on("Browser.downloadProgress", (e) => { if (e.state !== "inProgress") anotar(`   [descarga ${e.state}]`); });
+    pagina.on("response", (r) => { if (r.url().includes("descarga-prueba")) anotar(`   [respuesta ${r.status()}] ${r.url()} ${r.headers()["content-disposition"] || ""}`); });
     const esperarArchivo = async (destino, que) => {
       const limite = Date.now() + 20_000;
       while (!fs.existsSync(destino) && Date.now() < limite) await esperar(500);
@@ -188,7 +195,7 @@ try {
     // 1) Respuesta del servidor con Content-Disposition: attachment (como exportar a Excel), sin salir de la página
     const puerta = new URL(URL_INICIO).origin;
     const nombre1 = `prueba-zamorapp-${Date.now()}.txt`;
-    await pagina.evaluate((u) => { window.location.assign(u); }, `${puerta}/zamorapp/descarga-prueba?nombre=${nombre1}`);
+    await pagina.evaluate((u) => { const a = document.createElement("a"); a.href = u; a.textContent = "Exportar"; document.body.append(a); a.click(); a.remove(); }, `${puerta}/zamorapp/descarga-prueba?nombre=${nombre1}`);
     await esperarArchivo(path.join(descargas, nombre1), "adjunto del servidor");
     if (!/\/panel/.test(pagina.url())) throw new Error(`La descarga sacó la ventana del panel: ${pagina.url()}`);
     // 2) Archivo armado en la página (blob + enlace con download), como un PDF o CSV generado en el navegador

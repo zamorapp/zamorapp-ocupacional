@@ -265,6 +265,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       // Solo con la nube de prueba (127.0.0.1): un archivo adjunto para probar que la ventana guarda descargas
       if (ruta === "/zamorapp/descarga-prueba" && String(CONFIG.nube || "").startsWith("http://127.0.0.1:")) {
         const nombre = (new URL(req.url, "http://x").searchParams.get("nombre") || "prueba.txt").replace(/[^\w.-]/g, "_");
+        registro(`[puerta] descarga de prueba: ${nombre}`);
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
         return res.end("descarga de prueba de zamorApp\n");
       }
