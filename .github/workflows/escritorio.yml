@@ -302,8 +302,12 @@ jobs:
           # Nunca se toca la firma original, que es la que se publica.
           $copia = "$env:RUNNER_TEMP/actualizacion"; New-Item -ItemType Directory -Force $copia | Out-Null
           $setupNuevo = Join-Path $copia $setup.Name; Copy-Item $setup.FullName $setupNuevo
-          if ($env:TAURI_SIGNING_PRIVATE_KEY) { npx --yes @tauri-apps/cli@2 signer sign --app-version $versionNueva $setupNuevo }
-          else { npx --yes @tauri-apps/cli@2 signer sign -f "$env:RUNNER_TEMP/prueba.key" -p "" --app-version $versionNueva $setupNuevo }
+          # Igual que al compilar: la llave va por variable de entorno (vacía, la CLI la toma como puesta y choca con -f)
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content "$env:RUNNER_TEMP/prueba.key" -Raw).Trim()
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+          }
+          npx --yes @tauri-apps/cli@2 signer sign --app-version $versionNueva $setupNuevo
           if ($LASTEXITCODE -or -not (Test-Path "$setupNuevo.sig")) { throw "No se pudo firmar la actualización de prueba como $versionNueva" }
           $servidor = Start-Process node -ArgumentList "escritorio/pruebas/actualizacion-cli.mjs --setup `"$setupNuevo`" --version $versionNueva" -PassThru -NoNewWindow -RedirectStandardOutput capturas/actualizacion.log -RedirectStandardError capturas/actualizacion.err
           $env:ZAMORAPP_ACTUALIZACIONES_URL = "http://127.0.0.1:55600/latest.json"
