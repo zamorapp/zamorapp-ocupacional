@@ -15,6 +15,7 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
   const [modo, setModo] = useState<Modo>("ingresar");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detalle, setDetalle] = useState<string | null>(null); // qué respondió exactamente el servicio, para soporte
   const [confirmar, setConfirmar] = useState<string | null>(null);
 
   // Mensaje claro para cada caso: clave equivocada, demasiados intentos, sin internet o sin conexión con el servicio.
@@ -28,9 +29,15 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
     return "Correo o contraseña incorrectos.";
   }
 
+  // Lo que respondió el servicio, tal cual: aparece en letra pequeña bajo el aviso para que soporte sepa qué pasó
+  function detalleTecnico(error: { message: string; code?: string; status?: number; name?: string }) {
+    return `${[error.name, error.status, error.code].filter(Boolean).join(" · ")}: ${error.message}`;
+  }
+
   async function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setDetalle(null);
     if (modoDemo) {
       router.push("/panel");
       return;
@@ -39,44 +46,53 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
     const datos = new FormData(e.currentTarget);
     const correo = String(datos.get("correo"));
     const clave = String(datos.get("clave"));
-    const supabase = crearClienteNavegador();
+    try {
+      const supabase = crearClienteNavegador();
 
-    if (modo === "recuperar") {
-      const { error } = await supabase.auth.resetPasswordForEmail(correo, { redirectTo: `${window.location.origin}/login/nueva-clave` });
-      setCargando(false);
-      if (error) {
-        setError(error.message.includes("rate") ? "Ya enviamos un correo hace poco. Espera un minuto y vuelve a intentar." : "No se pudo enviar el correo. Revisa la dirección.");
-        return;
-      }
-      setConfirmar(correo);
-      return;
-    }
-
-    if (modo === "registro") {
-      const { data, error } = await supabase.auth.signUp({
-        email: correo,
-        password: clave,
-        options: {
-          data: { nombre_completo: String(datos.get("nombre")) },
-          emailRedirectTo: `${window.location.origin}/panel`,
-        },
-      });
-      setCargando(false);
-      if (error) {
-        setError(error.message.includes("already") ? "Ese correo ya tiene cuenta." : "No se pudo crear la cuenta. La contraseña debe tener al menos 6 caracteres.");
-        return;
-      }
-      if (!data.session) {
+      if (modo === "recuperar") {
+        const { error } = await supabase.auth.resetPasswordForEmail(correo, { redirectTo: `${window.location.origin}/login/nueva-clave` });
+        if (error) {
+          setError(error.message.includes("rate") ? "Ya enviamos un correo hace poco. Espera un minuto y vuelve a intentar." : "No se pudo enviar el correo. Revisa la dirección.");
+          setDetalle(detalleTecnico(error));
+          return;
+        }
         setConfirmar(correo);
         return;
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
-      setCargando(false);
-      if (error) {
-        setError(mensajeIngreso(error));
-        return;
+
+      if (modo === "registro") {
+        const { data, error } = await supabase.auth.signUp({
+          email: correo,
+          password: clave,
+          options: {
+            data: { nombre_completo: String(datos.get("nombre")) },
+            emailRedirectTo: `${window.location.origin}/panel`,
+          },
+        });
+        if (error) {
+          setError(error.message.includes("already") ? "Ese correo ya tiene cuenta." : "No se pudo crear la cuenta. La contraseña debe tener al menos 6 caracteres.");
+          setDetalle(detalleTecnico(error));
+          return;
+        }
+        if (!data.session) {
+          setConfirmar(correo);
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
+        if (error) {
+          setError(mensajeIngreso(error));
+          setDetalle(detalleTecnico(error));
+          return;
+        }
       }
+    } catch (e) {
+      // Un fallo antes de llegar al servicio (p. ej. una API que el navegador no ofrece) no puede quedar mudo
+      setError("No se pudo iniciar el ingreso en este equipo.");
+      setDetalle(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+      return;
+    } finally {
+      setCargando(false);
     }
     router.replace("/panel");
     router.refresh();
@@ -128,7 +144,12 @@ export function FormularioLogin({ modoDemo }: { modoDemo: boolean }) {
           className="h-11"
         />
       </div>}
-      {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {error && (
+        <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p>{error}</p>
+          {detalle && <p className="mt-1 break-words text-xs opacity-75">Detalle técnico: {detalle}</p>}
+        </div>
+      )}
       <Button type="submit" className="h-11 w-full text-base" disabled={cargando}>
         {cargando && <Loader2 className="animate-spin" />}
         {modoDemo ? "Entrar en modo demo" : registro ? "Crear cuenta" : recuperar ? "Enviar enlace" : "Ingresar"}

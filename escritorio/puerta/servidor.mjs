@@ -227,9 +227,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
     // apunte a 127.0.0.1, puede hablarle a la puerta ni probar claves.
     const puerto = req.socket.localPort;
     const locales = [`127.0.0.1:${puerto}`, `localhost:${puerto}`];
-    if (!locales.includes(String(req.headers.host || "").toLowerCase())) { res.writeHead(403); return res.end(); }
+    // Un rechazo también se registra: así se distingue "nunca llegó" de "llegó y se rechazó"
+    const rechazar = (motivo) => {
+      registro(`[puerta] rechazado ${req.method} ${req.url}: ${motivo} (Host "${req.headers.host || ""}", Origin "${req.headers.origin || ""}")`);
+      res.writeHead(403); res.end();
+    };
+    if (!locales.includes(String(req.headers.host || "").toLowerCase())) return rechazar("el Host no es esta PC");
     if (req.headers.origin && req.headers.origin !== origen && !locales.some((h) => req.headers.origin === `http://${h}`)) {
-      res.writeHead(403); return res.end();
+      return rechazar("el Origin no es la ventana de zamorApp");
     }
     // Solo la ventana de zamorApp (su propio origen) puede llamar a la puerta desde el navegador.
     const cors = req.headers.origin === origen ? {
@@ -241,7 +246,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Expose-Headers": "content-range, content-type",
     } : {};
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
-    if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+    if (req.method === "OPTIONS") {
+      registro(`[cors] ${req.url} desde "${req.headers.origin || ""}": ${req.headers.origin === origen ? "permitido" : "sin cabeceras CORS"} (pide ${req.headers["access-control-request-headers"] || "-"})`);
+      res.writeHead(204); return res.end();
+    }
 
     try {
       const partes = [];
@@ -249,6 +257,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       const crudo = Buffer.concat(partes);
       const json = () => { try { return JSON.parse(crudo.toString("utf8") || "null"); } catch { return null; } };
       const ruta = req.url.split("?")[0];
+      if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
       if (ruta === "/zamorapp/estado") {
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
