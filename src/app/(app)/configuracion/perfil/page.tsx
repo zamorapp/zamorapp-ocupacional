@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { Volver } from "../volver";
 import { FormPerfil } from "./form-perfil";
 import { FirmaSello } from "./firma-sello";
+import { HuellaCuenta } from "@/components/app/huella";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
@@ -35,6 +36,7 @@ export default async function Perfil() {
       </div>
       <FormPerfil perfil={perfil} editable={!sesion.demo} />
       {!sesion.demo && <FirmaSello firma={perfil?.firma_url ?? null} sello={perfil?.sello_url ?? null} mostrarFirma={perfil?.mostrar_firma ?? true} mostrarSello={perfil?.mostrar_sello ?? true} />}
+      {!sesion.demo && <HuellaCuenta />}
     </div>
   );
 }
