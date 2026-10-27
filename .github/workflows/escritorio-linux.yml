@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   linux:
+    # Las ramas escritorio/* ya corren por push: su PR no repite la corrida
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'escritorio/')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
