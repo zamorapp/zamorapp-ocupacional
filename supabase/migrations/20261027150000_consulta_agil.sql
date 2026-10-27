@@ -124,7 +124,9 @@ begin
   values (o.org_id, coalesce(t.empresa_id, o.empresa_id), o.trabajador_id, t.dependencia_id, t.puesto_id,
     (now() at time zone 'America/Caracas')::date, 'sucesiva', o.motivo_id,
     o.motivo_texto, o.enfermedad_actual, o.antecedentes, o.habitos, o.examen_funcional, o.examen_fisico,
-    coalesce((select jsonb_agg(x || '{"resultado": ""}'::jsonb) from jsonb_array_elements(o.paraclinicos) x), '[]'),
+    -- Datos importados pueden traer paraclinicos como objeto: solo se recorren si es un arreglo
+    coalesce((select jsonb_agg(x || '{"resultado": ""}'::jsonb)
+      from jsonb_array_elements(case when jsonb_typeof(o.paraclinicos) = 'array' then o.paraclinicos else '[]'::jsonb end) x), '[]'),
     o.tratamiento, o.indicaciones, o.interconsultas, o.conclusiones, o.recomendaciones_empresa, o.recomendaciones_trabajador,
     o.autoriza_paciente, o.sano, o.informe_libre, o.potencial_discapacidad, o.discapacidad_nota, o.id)
   returning id into v_id;

@@ -5,6 +5,7 @@ import { Mic, Square } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { confirmar } from "@/components/app/confirmar";
 
 // Dictado por voz con el reconocimiento del navegador (Chrome y Edge; sin costo). Solo escribe en el campo:
 // nunca guarda. Un solo campo graba a la vez y el texto se inserta donde está el cursor.
@@ -43,6 +44,20 @@ function puntuar(texto: string, previo: string) {
   return espacio + t;
 }
 
+// El reconocimiento del navegador envía el audio a Google (Chrome) o Microsoft (Edge): se avisa y se pide
+// aceptarlo una vez en cada equipo antes de dictar
+const CLAVE_PRIVACIDAD = "zamorapp.dictado.aceptado";
+async function aceptoPrivacidad() {
+  try { if (localStorage.getItem(CLAVE_PRIVACIDAD) === "1") return true; } catch {}
+  const si = await confirmar({
+    titulo: "¿Dictar con el reconocimiento del navegador?",
+    texto: "Para convertir la voz en texto, el audio se envía a los servidores de Google (Chrome) o Microsoft (Edge). No dictes nombres ni datos que no deban salir del consultorio. Solo se pregunta una vez en este equipo.",
+    accion: "Aceptar y dictar",
+  });
+  if (si) try { localStorage.setItem(CLAVE_PRIVACIDAD, "1"); } catch {}
+  return si;
+}
+
 export function useDictado(id: string, alTexto: (texto: string) => void) {
   const soportado = useSyncExternalStore(() => () => {}, () => Boolean(constructor()), () => false);
   const grabando = useSyncExternalStore(suscribir, () => activo?.id === id, () => false);
@@ -57,9 +72,10 @@ export function useDictado(id: string, alTexto: (texto: string) => void) {
     if (activo?.id === id) { activo = null; avisar(); }
   };
 
-  const iniciar = () => {
+  const iniciar = async () => {
     const C = constructor();
     if (!C) return;
+    if (!(await aceptoPrivacidad())) return;
     activo?.detener();
     setError("");
     const r = new C();
@@ -83,7 +99,7 @@ export function useDictado(id: string, alTexto: (texto: string) => void) {
 
   useEffect(() => () => { if (activo?.id === id) { rec.current?.stop(); activo = null; avisar(); } }, [id]);
 
-  return { soportado, grabando, error, alternar: () => (grabando ? detener() : iniciar()) };
+  return { soportado, grabando, error, alternar: () => (grabando ? detener() : void iniciar()) };
 }
 
 // Textarea con botón de micrófono dentro (abajo a la derecha)
@@ -124,7 +140,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
             type="button"
             onClick={alternar}
             aria-label={grabando ? "Detener dictado" : "Dictar"}
-            title={grabando ? "Detener dictado" : "Dictar (di «punto», «coma», «punto y aparte»)"}
+            title={grabando ? "Detener dictado" : "Dictar (el audio lo procesa Google o Microsoft). Di «punto», «coma», «punto y aparte»"}
             className={cn(
               "absolute bottom-2 right-2 grid size-8 place-items-center rounded-full transition",
               grabando ? "animate-pulse bg-alerta text-white motion-reduce:animate-none" : "text-muted-foreground hover:bg-muted hover:text-foreground",

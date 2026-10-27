@@ -18,6 +18,11 @@ select 'paraclínicos sin resultado (debe 1): ' || count(*) from public.consulta
 select 'copia diagnósticos (debe 1): ' || count(*) from public.diagnosticos d join public.consultas c on c.id=d.consulta_id where c.duplicada_de='40000000-0000-0000-0000-0000000000d1' and d.cie10='M54';
 select 'sin aptitud ni reposo (debe 0): ' || ((select count(*) from public.aptitudes a join public.consultas c on c.id=a.consulta_id where c.duplicada_de='40000000-0000-0000-0000-0000000000d1') + (select count(*) from public.reposos r join public.consultas c on c.id=r.consulta_id where c.duplicada_de='40000000-0000-0000-0000-0000000000d1'));
 select 'autor de la copia es quien duplica (debe 1): ' || count(*) from public.consultas where duplicada_de='40000000-0000-0000-0000-0000000000d1' and medico_id='00000000-0000-0000-0000-0000000000a2';
+-- Datos importados con paraclinicos como objeto: duplicar no falla
+reset role;
+update clinico.consultas set paraclinicos='{}' where id='40000000-0000-0000-0000-0000000000d1';
+set role authenticated;
+select 'duplica con paraclínicos no arreglo (debe 1): ' || count(*) from (select public.duplicar_consulta('40000000-0000-0000-0000-0000000000d1') as id) x where x.id is not null;
 -- RR. HH. de la empresa y médico de otra organización no pueden duplicar
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 do $$ begin perform public.duplicar_consulta('40000000-0000-0000-0000-0000000000d1'); raise notice 'RRHH duplicó: FALLA'; exception when others then raise notice 'RRHH rechazado (ok): %', sqlerrm; end $$;
