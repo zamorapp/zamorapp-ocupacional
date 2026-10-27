@@ -11,6 +11,7 @@
     "windows": [
       {
         "label": "principal",
+        "create": false,
         "title": "zamorApp Escritorio",
         "width": 1366,
         "height": 860,
@@ -25,17 +26,26 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "TIPURO SERVI MEDIC, C.A.",
     "shortDescription": "Salud ocupacional con datos en la PC y en la nube",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
     "resources": {
       "../recursos/": "recursos/"
     },
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Spanish"],
+        "languages": [
+          "Spanish"
+        ],
         "displayLanguageSelector": false
       }
     }

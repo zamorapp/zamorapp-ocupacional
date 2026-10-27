@@ -112,6 +112,19 @@ fn nube_url() -> String {
     }
 }
 
+// Puerto de depuración del navegador interno (CDP), para que la prueba de humo maneje la ventana como una
+// persona. Solo se abre junto con la nube de prueba (pruebas automáticas); en una PC real se ignora.
+fn puerto_depuracion() -> Option<u16> {
+    let en_pruebas = std::env::var("ZAMORAPP_NUBE_URL").map(|v| v.starts_with("http://127.0.0.1:")).unwrap_or(false);
+    let puerto = std::env::var("ZAMORAPP_PUERTO_DEPURACION").ok()?.parse::<u16>().ok()?;
+    if !en_pruebas {
+        anotar("ZAMORAPP_PUERTO_DEPURACION se ignora fuera de las pruebas automáticas");
+        return None;
+    }
+    anotar(&format!("navegador interno con puerto de depuración {puerto} (solo pruebas automáticas)"));
+    Some(puerto)
+}
+
 // Windows entrega la carpeta del programa como ruta "verbatim" (\\?\C:\...). Node no sabe cargar módulos
 // desde esas rutas (falla con EISDIR lstat 'C:'), así que se pasa a la forma normal C:\...
 fn ruta_normal(ruta: PathBuf) -> PathBuf {
@@ -276,6 +289,14 @@ fn main() {
         .setup(|app| {
             let recursos = ruta_normal(app.path().resource_dir()?.join("recursos"));
             anotar(&format!("programa: {}", std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()));
+            // La ventana está definida en tauri.conf.json ("create": false) y se crea aquí, para poder abrirle el
+            // puerto de depuración en las pruebas automáticas. Los argumentos repiten los que wry pasa por defecto.
+            let config = app.config().app.windows.iter().find(|w| w.label == "principal").cloned().expect("ventana principal en tauri.conf.json");
+            let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+            if let Some(puerto) = puerto_depuracion() {
+                constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
+            }
+            constructor.build()?;
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");

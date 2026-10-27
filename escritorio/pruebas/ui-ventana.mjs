@@ -3,7 +3,7 @@
 // Así el CI detecta lo que una petición HTTP a la puerta no ve: un formulario que no se hidrata, un
 // error de consola, una petición que el navegador bloquea o un rebote a la pantalla de ingreso.
 //
-// Windows (CI): abrir el programa con WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 y luego
+// Windows (CI): abrir el programa con ZAMORAPP_PUERTO_DEPURACION=9333 (junto con la nube de prueba) y luego
 //   node ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar "PC de prueba" --captura capturas/1.png
 // Local (Linux, con el Chromium de Playwright, puerta y app ya corriendo):
 //   node ui-ventana.mjs --url http://127.0.0.1:54331/zamorapp/inicio --correo admin@x --clave clave-admin --registrar "PC de prueba"
@@ -36,7 +36,7 @@ async function conectar() {
       catch (e) {
         ultimo = e.message.split("\n")[0];
         if (intento % 10 === 0) anotar(`   esperando el puerto de depuración de la ventana (${CDP}): ${ultimo}`);
-        if (Date.now() > limite) throw new Error(`No se pudo conectar a la ventana por CDP (${CDP}) en 90 s: ${ultimo}. ¿El programa se abrió con WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 y sin otro WebView2 de zamorApp vivo?`);
+        if (Date.now() > limite) throw new Error(`No se pudo conectar a la ventana por CDP (${CDP}) en 90 s: ${ultimo}. ¿El programa se abrió con ZAMORAPP_PUERTO_DEPURACION=9333 (y la nube de prueba) y sin otro WebView2 de zamorApp vivo?`);
         await esperar(1000);
       }
     }

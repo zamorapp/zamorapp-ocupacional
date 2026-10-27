@@ -142,8 +142,9 @@ jobs:
           $env:ZAMORAPP_POSTGREST = (Resolve-Path escritorio/recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
           $nube = Start-Process node -ArgumentList "escritorio/pruebas/nube-cli.mjs" -PassThru -NoNewWindow -RedirectStandardOutput capturas/nube.log -RedirectStandardError capturas/nube.err
           $env:ZAMORAPP_NUBE_URL = "http://127.0.0.1:55500"
-          # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real)
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9333"
+          # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real). El puerto lo abre
+          # el programa solo cuando también apunta a la nube de prueba (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS no surte efecto).
+          $env:ZAMORAPP_PUERTO_DEPURACION = "9333"
 
           function Instalar($setup) {
             Start-Process $setup -ArgumentList "/S" -Wait
@@ -170,7 +171,7 @@ jobs:
                 } catch { }
               }
               if ($ok -and $ui) {
-                # ¿El WebView2 de zamorApp abrió el puerto de depuración? (lo pide WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS)
+                # ¿El WebView2 de zamorApp abrió el puerto de depuración? (lo pide ZAMORAPP_PUERTO_DEPURACION)
                 $web = Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -match "zamorapp" -and $_.CommandLine -notmatch "--type=" }
                 Write-Host "   WebView2 de zamorApp: $(@($web).Count) proceso(s); con puerto de depuración: $(@($web | Where-Object CommandLine -match 'remote-debugging-port').Count)"
                 try { Write-Host "   CDP 9333: $((Invoke-RestMethod http://127.0.0.1:9333/json/version -TimeoutSec 3).Browser)" } catch { Write-Host "   CDP 9333 no responde: $($_.Exception.Message)" }
