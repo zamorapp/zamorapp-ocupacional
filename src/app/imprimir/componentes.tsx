@@ -7,9 +7,16 @@ import type { DatosDocumento } from "@/lib/documentos";
 export const fechaLarga = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T00:00:00Z"));
 export const fechaCorta = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
-const hora12 = (h: string | null | undefined) => {
+// Acepta "HH:MM" o una fecha y hora completa (timestamptz de la consulta), que se muestra en hora de Venezuela
+export const hora12 = (h: string | null | undefined) => {
   if (!h) return null;
+  if (h.length > 8) {
+    const f = new Date(h);
+    if (Number.isNaN(f.getTime())) return null;
+    h = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Caracas" }).format(f);
+  }
   const [hh, mm] = h.split(":").map(Number);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
   return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "a. m." : "p. m."}`;
 };
 // Folio legible del documento: prefijo por tipo + primeros 8 caracteres de la consulta

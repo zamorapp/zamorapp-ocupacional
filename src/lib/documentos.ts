@@ -31,7 +31,7 @@ export async function obtenerDocumento(consultaId: string) {
   if (!consulta) return null;
   const supabase = await crearClienteServidor();
 
-  const { data: c } = await supabase.from("consultas").select("org_id, medico_id, motivo_id, dependencia_id, empresa_id, hora_inicio").eq("id", consultaId).single();
+  const { data: c } = await supabase.from("consultas").select("org_id, medico_id, motivo_id, dependencia_id, empresa_id, hora_inicio, hora_cierre").eq("id", consultaId).single();
   if (!c) return null;
 
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
@@ -68,6 +68,7 @@ export async function obtenerDocumento(consultaId: string) {
     // Pie de página: quién imprime y cuándo (hora de Venezuela)
     impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
     hora: c.hora_inicio as string,
+    cierre: (c.hora_cierre as string | null) ?? null,
   };
 }
 
@@ -89,4 +90,24 @@ export function faltantesRecipe(d: DatosDocumento) {
     if (falta.length) f.push(`${x.medicina}: ${falta.join(", ")}`);
   });
   return f;
+}
+
+export type Anexo = { id: string; nombre: string; tipo: string; descripcion: string | null; url: string | null; fecha: string };
+
+// Exámenes escaneados para anexar al imprimir: los subidos en la consulta y los que se subieron a la ficha
+// del trabajador ese mismo día sin consulta. URLs firmadas de corta duración (el bucket es privado; RLS: solo clínicos).
+export async function obtenerAnexos(d: Pick<DatosDocumento, "datos" | "trabajador">): Promise<Anexo[]> {
+  const supabase = await crearClienteServidor();
+  const dia = d.datos.fecha.slice(0, 10);
+  const { data } = await supabase
+    .from("adjuntos")
+    .select("id, nombre, ruta, tipo_mime, descripcion, consulta_id, creado_en")
+    .eq("trabajador_id", d.trabajador.id)
+    .or(`consulta_id.eq.${d.datos.id},and(consulta_id.is.null,creado_en.gte.${dia}T00:00:00-04:00,creado_en.lt.${dia}T23:59:59.999-04:00)`)
+    .order("creado_en");
+  const lista = data ?? [];
+  if (!lista.length) return [];
+  const { data: firmadas } = await supabase.storage.from("adjuntos").createSignedUrls(lista.map((a) => a.ruta), 1800);
+  const url = new Map((firmadas ?? []).map((f) => [f.path, f.signedUrl]));
+  return lista.map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo_mime, descripcion: a.descripcion, url: url.get(a.ruta) ?? null, fecha: a.creado_en }));
 }

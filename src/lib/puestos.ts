@@ -13,7 +13,7 @@ export async function estructuraEmpresa(empresaId: string): Promise<{ dependenci
     supabase.from("dependencias").select("id, nombre").eq("empresa_id", empresaId).eq("activa", true).order("nombre"),
     supabase
       .from("puestos")
-      .select("id, codigo, nombre, descripcion, tareas, herramientas, turno, riesgos, evaluacion, dependencia_id, dependencias(nombre)")
+      .select("id, codigo, nombre, descripcion, tareas, herramientas, turno, riesgos, evaluacion, epp, recomendaciones, evaluado_en, dependencia_id, dependencias(nombre)")
       .eq("empresa_id", empresaId)
       .eq("activo", true)
       .order("nombre"),
@@ -38,6 +38,9 @@ export async function estructuraEmpresa(empresaId: string): Promise<{ dependenci
     turno: p.turno ?? "",
     riesgos: (p.riesgos ?? {}) as Puesto["riesgos"],
     evaluacion: (p.evaluacion ?? {}) as Puesto["evaluacion"],
+    epp: p.epp ?? "",
+    recomendaciones: p.recomendaciones ?? "",
+    evaluadoEn: p.evaluado_en ?? null,
     trabajadores: porPuesto.get(p.id) ?? 0,
   }));
   const dependencias = (deps ?? []).map((d) => ({
