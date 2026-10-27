@@ -61,7 +61,8 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (!uid) return errorAuth(res, 400, "Tardó demasiado. Vuelve a tocar «Entrar con Windows Hello».", "hello_code_invalid"), true;
       d().helloUltimo = uid;
       estado.guardar();
-      return responder(res, 200, sesionLocal(uid)), true;
+      // Windows Hello cuenta como segundo paso (decisión de Cesar): la sesión sale verificada aunque no haya internet
+      return responder(res, 200, sesionLocal(uid, true)), true;
     }
     if (!ruta.startsWith("/zamorapp/huella/")) return false;
     registro(`[huella] ${req.method} ${ruta} (Origin "${req.headers.origin || ""}")`);
