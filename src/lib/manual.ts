@@ -161,6 +161,26 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "reportes-same",
+    titulo: "Reportes del servicio (atendidos, morbilidad, aptitud, reposos…)",
+    para: "servicio",
+    resumen: "Los reportes del SAME y más: pacientes atendidos (resumen y detalle), estadística por médico, citas, morbilidad CIE-10, diagnósticos, potencial discapacidad, aptitud, limitaciones, reposos, interconsultas, exámenes aplicados y padrón de pacientes.",
+    pasos: [
+      "Entra a Reportes y elige el reporte en la barra de arriba (en el celular, deslízala hacia los lados). Al cambiar de reporte se conserva el período.",
+      "Elige la empresa en el encabezado (o «Todas las empresas» para el consolidado) y el período: trimestre, mes, año de gestión o un rango de fechas.",
+      "Usa el buscador y los filtros (motivo, aptitud, médico, causa, origen…). Las opciones en verde cambian el reporte: «Resumir por» empresa, médico o dependencia; «Agrupar por» en la morbilidad; incluir o no los reposos que vienen de antes; el umbral de reposo prolongado.",
+      "En Aptitud, «Mostrar» agrega columnas: observación, conclusiones y recomendaciones a la empresa y al trabajador.",
+      "Toca el encabezado de una columna para ordenar. En pantalla se ven de 100 en 100; la impresión y el Excel llevan todos los registros.",
+      "«Imprimir o PDF» abre el reporte con los logos del servicio y de la empresa, el resumen y la tabla completa (en el consolidado, agrupada por empresa con subtotales). «Excel» descarga el archivo con fechas y números reales y una hoja «Resumen».",
+    ],
+    consejos: [
+      "Solo cuentan las consultas cerradas o firmadas; las que están en curso no entran.",
+      "Morbilidad: «% atendidos» es la proporción de pacientes atendidos afectados por ese diagnóstico (el % del SAME); «% casos» es sobre el total de diagnósticos.",
+      "Los reportes con datos médicos (morbilidad, diagnósticos, aptitud, reposos…) solo los ve el personal de salud o quien tenga acceso clínico activado. Cada quien ve solo las empresas que tiene permitidas.",
+      "El padrón de pacientes no depende del período: muestra la situación de hoy.",
+    ],
+  },
+  {
     id: "facturacion",
     titulo: "Facturación",
     para: "servicio",
