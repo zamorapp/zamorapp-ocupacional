@@ -15,7 +15,7 @@ import { LoteAptitud } from "./lote-aptitud";
 import { estadosDeLote } from "@/lib/lote-aptitud";
 import { hoyVE } from "@/lib/citas";
 import { correoConfigurado, remitente } from "@/lib/correo";
-import { listarContactos } from "@/lib/envios";
+import { listarContactos, listarPlantillas } from "@/lib/envios";
 
 export const dynamic = "force-dynamic";
 // El envío de constancias genera el PDF en el servidor y puede tardar más que el límite normal
@@ -37,9 +37,9 @@ export default async function ReporteSame({ params, searchParams }: Props) {
   const enlace = parametrosListado(q, empresa?.id ?? null).toString();
   // Aptitud emitida de una empresa: lista para marcar y sacar las constancias en un solo PDF
   const lote = def.clave === "aptitud" && empresa && l.listo && !l.sinAccesoClinico && l.filas.length > 0;
-  const [estados, contactos] = lote && empresa
-    ? await Promise.all([estadosDeLote(l.filas.map((f) => String(f.id))), listarContactos(empresa.id)])
-    : [{}, []];
+  const [estados, contactos, plantillas] = lote && empresa
+    ? await Promise.all([estadosDeLote(l.filas.map((f) => String(f.id))), listarContactos(empresa.id), listarPlantillas()])
+    : [{}, [], []];
 
   return (
     <div className="space-y-5">
@@ -116,7 +116,7 @@ export default async function ReporteSame({ params, searchParams }: Props) {
           empresa={{ id: empresa.id, nombre: empresa.razonSocial }}
           usuarioId={l.sesion.usuarioId}
           puedeFirmar={l.sesion.clinico && l.sesion.rol !== "enfermeria"}
-          envio={l.sesion.clinico ? { fecha: hoyVE(), contactos, correo: correoConfigurado() ? remitente() : null, puedeAutorizar: l.sesion.rol === "administrador" || l.sesion.rol === "gerente_medico" } : null}
+          envio={l.sesion.clinico ? { fecha: hoyVE(), contactos, plantillas, correo: correoConfigurado() ? remitente() : null, puedeAutorizar: l.sesion.rol === "administrador" || l.sesion.rol === "gerente_medico" } : null}
         />
       ) : l.pivote ? <TablaPivote p={l.pivote} /> : <TablaReporte columnas={l.columnas} filas={l.filas} totales={l.totales} />}
       {def.nota && <p className="text-xs text-muted-foreground">{def.nota}</p>}

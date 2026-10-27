@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Semaforo } from "@/components/app/semaforo";
 import { datosPanel } from "@/lib/panel";
-import { enfoqueDelRol } from "@/lib/panel-rol";
+import { conVencimientos, enfoqueDelRol } from "@/lib/panel-rol";
+import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
+import { recordarResultados } from "@/lib/recordatorios";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -31,7 +33,9 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  const [datos, enfoque] = await Promise.all([datosPanel(), enfoqueDelRol(sesion)]);
+  const [datos, enfoqueBase] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion)]);
+  const suma = (k: "vencidos" | "por_vencer") => datos.vencimientos.reduce((s, v) => s + v[k], 0);
+  const enfoque = conVencimientos(enfoqueBase, sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
   const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);
   const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date());
 
@@ -206,6 +210,13 @@ export default async function Panel() {
           </CardContent>
         </Card>
       </div>
+
+      {(datos.vencimientos.length > 0 || datos.accidentes) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          {datos.vencimientos.length > 0 && <VencimientosPorEmpresa filas={datos.vencimientos} />}
+          {datos.accidentes && <AccidentabilidadAnual datos={datos.accidentes} />}
+        </div>
+      )}
     </div>
   );
 }

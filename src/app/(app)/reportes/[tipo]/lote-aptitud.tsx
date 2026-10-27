@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, Loader2, PenLine, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/app/confirmar";
-import type { Contacto } from "@/lib/envios-tipos";
+import type { Contacto, Plantilla } from "@/lib/envios-tipos";
 import { MAX_LOTE } from "@/lib/envios-tipos";
 import type { EstadoLote } from "@/lib/lote-aptitud";
 import { PanelEnvio } from "../../envios/panel-envio";
@@ -22,7 +22,7 @@ const fecha = (iso: unknown) => (typeof iso === "string" && iso ? iso.slice(0, 1
 export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, envio }: {
   filas: Fila[]; estados: Record<string, EstadoLote>; empresa: { id: string; nombre: string }; usuarioId: string; puedeFirmar: boolean;
   // Envío a la empresa (correo con PDF o enlace por WhatsApp): mismo módulo que la pantalla Envíos
-  envio: { fecha: string; contactos: Contacto[]; correo: string | null; puedeAutorizar: boolean } | null;
+  envio: { fecha: string; contactos: Contacto[]; plantillas: Plantilla[]; correo: string | null; puedeAutorizar: boolean } | null;
 }) {
   const router = useRouter();
   const firmada = (id: unknown) => estados[String(id)]?.estado === "firmada";
@@ -171,7 +171,7 @@ export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, e
         )}
       </div>
       {envio && enviando && listas.length > 0 && (
-        <PanelEnvio key={ids.join(",")} empresa={empresa} fecha={envio.fecha} consultaIds={ids} contactos={envio.contactos} correo={envio.correo} puedeAutorizar={envio.puedeAutorizar} historial={`/envios?empresa=${empresa.id}`} />
+        <PanelEnvio key={ids.join(",")} empresa={empresa} fecha={envio.fecha} consultaIds={ids} contactos={envio.contactos} plantillas={envio.plantillas} correo={envio.correo} puedeAutorizar={envio.puedeAutorizar} historial={`/envios?empresa=${empresa.id}`} />
       )}
     </div>
   );

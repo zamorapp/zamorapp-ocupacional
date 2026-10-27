@@ -21,7 +21,7 @@ const CON_DOS_PASOS = ["administrador", "gerente_medico"];
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
 const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
-export function crearPuerta({ estado, nube, motor, replica, origen, registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
@@ -314,11 +314,27 @@ export function crearPuerta({ estado, nube, motor, replica, origen, registro = (
       const ruta = req.url.split("?")[0];
       if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
+      // Solo con la nube de prueba (127.0.0.1): un archivo adjunto para probar que la ventana guarda descargas
+      if (ruta === "/zamorapp/descarga-prueba" && String(CONFIG.nube || "").startsWith("http://127.0.0.1:")) {
+        const nombre = (new URL(req.url, "http://x").searchParams.get("nombre") || "prueba.txt").replace(/[^\w.-]/g, "_");
+        registro(`[puerta] descarga de prueba: ${nombre}`);
+        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
+        return res.end("descarga de prueba de zamorApp\n");
+      }
       if (ruta === "/zamorapp/estado") {
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
+      // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
+      if (ruta === "/zamorapp/sincronizar" && req.method === "POST") {
+        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
+        const esperada = Buffer.from(control);
+        if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
+        await nube.comprobar();
+        await replica.ciclo();
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
+      }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
         return res.end(PAGINA_INICIO.replace("__ORIGEN__", origen));

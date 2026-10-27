@@ -26,6 +26,7 @@ export type DefReporte = {
   grupo: "Atención" | "Morbilidad" | "Aptitud y ausentismo" | "Gestión";
   descripcion: string;
   fuente: string;
+  funcion?: "reporte_indicadores"; // función de la base; por defecto reporte_listado
   columnas: Columna[];
   filtros: string[];
   resumenes: Resumen[];
@@ -435,6 +436,70 @@ export const REPORTES: DefReporte[] = [
     filtros: ["estado", "tipo_paciente", "turno", "vigilancia", "aptitud", "dependencia", "sexo"],
     resumenes: [{ titulo: "Por estado", por: "estado" }, { titulo: "Por aptitud vigente", por: "aptitud" }, { titulo: "Bajo vigilancia clínica", por: "vigilancia" }, { titulo: "Por empresa", por: "empresa" }],
     nota: "Vigilancia clínica: trabajadores con diagnósticos en su historia; de origen ocupacional si alguno es ocupacional o accidente laboral.",
+  },  {
+    clave: "vencimientos",
+    titulo: "Vencimientos de aptitud y examen periódico",
+    corto: "Vencimientos",
+    grupo: "Aptitud y ausentismo",
+    descripcion: "Trabajadores activos con el examen vencido, por vencer o sin evaluación, para programar las citas. No depende del período.",
+    fuente: "vencimientos",
+    funcion: "reporte_indicadores",
+    periodo: false,
+    horizontal: true,
+    opciones: [{
+      k: "horizonte", t: "Incluir", sql: true,
+      valores: [["", "Vencidos y por vencer (aviso de cada empresa)"], ["30", "Vencidos y los que vencen en 30 días"], ["60", "… en 60 días"], ["90", "… en 90 días"], ["todos", "Todos, también los que están al día"]],
+    }],
+    columnas: [
+      { k: "historia", t: "Historia", tipo: "num", ancho: 9 },
+      ...PACIENTE,
+      { k: "empresa", t: "Empresa", ancho: 26 },
+      { k: "dependencia", t: "Dependencia", ancho: 18 },
+      { k: "cargo", t: "Cargo", ancho: 20 },
+      { k: "estado", t: "Estado", etiqueta: "estado_trabajador", ancho: 11 },
+      fecha("ultimo_examen", "Último examen"),
+      { k: "aptitud", t: "Aptitud", etiqueta: "aptitud", ancho: 16 },
+      fecha("vence", "Vence"),
+      { k: "dias", t: "Días", tipo: "num", ancho: 7 },
+      { k: "situacion", t: "Situación", ancho: 14 },
+      { k: "base", t: "Cálculo", ancho: 22, opcional: true },
+      { ...fecha("fecha_ingreso", "Ingreso"), opcional: true },
+    ],
+    filtros: ["situacion", "dependencia", "cargo", "estado"],
+    resumenes: [{ titulo: "Por situación", por: "situacion" }, { titulo: "Por empresa", por: "empresa" }, { titulo: "Por dependencia", por: "dependencia" }],
+    nota: "Vence: la vigencia indicada en la constancia de aptitud o, si no la trae, el último examen más la periodicidad de la empresa (Empresas › editar). Días negativos: días de atraso.",
+  },
+  {
+    clave: "accidentalidad",
+    titulo: "Índices de accidentabilidad mensual",
+    corto: "Accidentabilidad",
+    grupo: "Gestión",
+    descripcion: "Mes a mes: horas hombre, accidentes con y sin tiempo perdido, días perdidos y cargados, e índices de frecuencia y severidad (COVENIN 474).",
+    fuente: "accidentalidad",
+    funcion: "reporte_indicadores",
+    horizontal: true,
+    opciones: [{ k: "nivel", t: "Empresas", sql: true, valores: [["", "Cada empresa por separado"], ["consolidado", "Todas las empresas juntas"]] }],
+    columnas: [
+      { k: "periodo", t: "Mes", ancho: 15 },
+      { k: "empresa", t: "Empresa", ancho: 26 },
+      { k: "trabajadores", t: "Trabajadores", tipo: "num", ancho: 11 },
+      { k: "hht", t: "Horas hombre", tipo: "num", ancho: 13, total: true },
+      { k: "metodo", t: "Horas según", ancho: 18 },
+      { k: "accidentes", t: "Accidentes", tipo: "num", ancho: 10, total: true },
+      { k: "con_tiempo_perdido", t: "Con tiempo perdido", tipo: "num", ancho: 10, total: true },
+      { k: "sin_tiempo_perdido", t: "Sin tiempo perdido", tipo: "num", ancho: 10, total: true },
+      { k: "dias_perdidos", t: "Días perdidos", tipo: "num", ancho: 9, total: true },
+      { k: "dias_cargados", t: "Días cargados", tipo: "num", ancho: 9, total: true },
+      { k: "ifn", t: "IF neta", tipo: "num", ancho: 9 },
+      { k: "ifb", t: "IF bruta", tipo: "num", ancho: 9 },
+      { k: "isev", t: "Í. severidad", tipo: "num", ancho: 10 },
+      { k: "dias_por_lesion", t: "Días por lesión", tipo: "num", ancho: 9 },
+      { k: "incidentes", t: "Incidentes", tipo: "num", ancho: 9, total: true, opcional: true },
+      { k: "enfermedades", t: "Enfermedades ocupacionales", tipo: "num", ancho: 11, total: true, opcional: true },
+    ],
+    filtros: ["metodo"],
+    resumenes: [{ titulo: "Accidentes por mes", por: "periodo", valor: "accidentes" }, { titulo: "Días perdidos por empresa", por: "empresa", valor: "dias_perdidos" }],
+    nota: "COVENIN 474:1997, por millón de horas hombre trabajadas: IF neta = accidentes con tiempo perdido; IF bruta = todos los accidentes; Í. severidad = días perdidos + días cargados. Sin horas cargadas en Empresas › Horas trabajadas, se estiman: trabajadores activos × 8 h × días hábiles del mes (5.2).",
   },
 ];
 

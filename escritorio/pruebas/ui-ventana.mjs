@@ -172,6 +172,38 @@ try {
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
   });
 
+  // Las descargas de la app (Excel, PDF) deben quedar en la carpeta Descargas de Windows (solo con la ventana real)
+  if (CDP) await paso("una descarga de la app queda en Descargas", async () => {
+    const { default: os } = await import("node:os");
+    const { default: fs } = await import("node:fs");
+    const { default: path } = await import("node:path");
+    const descargas = path.join(os.homedir(), "Downloads");
+    // Playwright, al conectarse por CDP, se queda con las descargas del navegador (Browser.setDownloadBehavior) y el
+    // programa nunca las ve. Se devuelve el comportamiento normal para probar el gestor de descargas del programa.
+    const sesion = await navegador.newBrowserCDPSession();
+    await sesion.send("Browser.setDownloadBehavior", { behavior: "default", eventsEnabled: true });
+    sesion.on("Browser.downloadWillBegin", (e) => anotar(`   [descarga empieza] ${e.suggestedFilename} ${e.url.slice(0, 80)}`));
+    sesion.on("Browser.downloadProgress", (e) => { if (e.state !== "inProgress") anotar(`   [descarga ${e.state}]`); });
+    pagina.on("response", (r) => { if (r.url().includes("descarga-prueba")) anotar(`   [respuesta ${r.status()}] ${r.url()} ${r.headers()["content-disposition"] || ""}`); });
+    const esperarArchivo = async (destino, que) => {
+      const limite = Date.now() + 20_000;
+      while (!fs.existsSync(destino) && Date.now() < limite) await esperar(500);
+      if (!fs.existsSync(destino)) throw new Error(`${que}: la descarga no apareció en ${destino} (¿el programa rechaza las descargas?)`);
+      anotar(`   ${que}: guardada en ${destino}`);
+      fs.rmSync(destino, { force: true });
+    };
+    // 1) Respuesta del servidor con Content-Disposition: attachment (como exportar a Excel), sin salir de la página
+    const puerta = new URL(URL_INICIO).origin;
+    const nombre1 = `prueba-zamorapp-${Date.now()}.txt`;
+    await pagina.evaluate((u) => { const a = document.createElement("a"); a.href = u; a.textContent = "Exportar"; document.body.append(a); a.click(); a.remove(); }, `${puerta}/zamorapp/descarga-prueba?nombre=${nombre1}`);
+    await esperarArchivo(path.join(descargas, nombre1), "adjunto del servidor");
+    if (!/\/panel/.test(pagina.url())) throw new Error(`La descarga sacó la ventana del panel: ${pagina.url()}`);
+    // 2) Archivo armado en la página (blob + enlace con download), como un PDF o CSV generado en el navegador
+    const nombre2 = `prueba-zamorapp-${Date.now()}-blob.txt`;
+    await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["hola"], { type: "text/plain" })); a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre2);
+    await esperarArchivo(path.join(descargas, nombre2), "archivo generado en la página");
+  });
+
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {
     // Un SW con caché de una versión anterior haría correr JavaScript viejo tras instalar encima
     const { sw, caches: cachesVivas } = await pagina.evaluate(async () => ({
