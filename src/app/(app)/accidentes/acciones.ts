@@ -106,6 +106,11 @@ export async function guardarEvento(e: Evento): Promise<Resultado> {
       // Los días cargados los recalcula la base según la incapacidad (COVENIN 474, sección 4)
       cargos: e.incapacidad === "parcial_permanente" ? e.cargos.filter((c) => c.concepto.trim() && c.dias > 0) : [],
       observaciones: e.observaciones || null,
+      potencial_discapacidad: e.potencialDiscapacidad,
+      certificacion_fecha: e.certificacionFecha || null,
+      certificacion_numero: e.certificacionNumero || null,
+      discapacidad: e.discapacidad,
+      discapacidad_pct: e.discapacidad ? e.discapacidadPct : null,
     })
     .eq("id", e.id);
   if (error) return { ok: false, mensaje: error.message };

@@ -148,6 +148,8 @@ export const MANUAL: TemaManual[] = [
       "En «Clasificación de la lesión» elige sin tiempo perdido, temporal, parcial permanente, absoluta permanente o fatal: los días cargados se calculan solos (6.000 por muerte o incapacidad absoluta; parcial con la Tabla 1 por el % de pérdida, tope 6.000).",
       "Para el accidente, anota turno, actividad que realizaba, motivo, lesiones, testigos (presencial o referencial) y observaciones: son los datos del Anexo D para el INPSASEL.",
       "La app avisa del plazo de 24 horas para declarar, de 7 días para registrar las causas de la investigación y del informe NT-02 (15 o 30 días).",
+      "En una enfermedad ocupacional, «Informe de investigación (6 partes)» abre el informe de la NT-02: «Llenar las partes vacías» propone cada parte con la historia, el puesto, los reposos, la morbilidad de la empresa y los paraclínicos. Completa lo marcado «[por completar]», agrega los participantes y pulsa «Terminar informe»: queda anotada la fecha de entrega. Solo lo ve el personal de salud.",
+      "En «Certificación del INPSASEL» lleva el estado, la fecha y el número de la certificación, la discapacidad certificada y su porcentaje. Marca «Puede dejar discapacidad» para hacer seguimiento hasta que llegue.",
       "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad. En la parcial permanente, el índice de severidad toma el mayor entre el cargo y los días de reposo.",
     ],
   },
