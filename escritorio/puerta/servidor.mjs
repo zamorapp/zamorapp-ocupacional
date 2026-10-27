@@ -260,7 +260,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
     if (!nube.enLinea) await nube.comprobar();
     const token = nube.enLinea ? await nube.token(quien.uid) : null;
-    if (!token) return errorAuth(res, 503, "La verificación en dos pasos necesita internet. Conecta la PC y vuelve a intentar.", "offline");
+    if (!token) return errorAuth(res, 503, "La verificación en dos pasos necesita internet. Sin conexión, sal y entra con Windows Hello (PIN, huella o rostro), que cuenta como segundo paso.", "offline");
     const ruta = `factors${factor ? `/${factor}` : ""}${accion ? `/${accion}` : ""}`;
     const r = await nube.auth(ruta, req.method === "DELETE" ? null : cuerpo ?? {}, token, req.method);
     registro(`[auth] ${req.method} ${ruta}: ${r.status}`);

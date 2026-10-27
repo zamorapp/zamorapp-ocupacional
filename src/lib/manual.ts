@@ -52,6 +52,7 @@ export const MANUAL: TemaManual[] = [
       "Entrar con huella: después de entrar con tu contraseña, zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses.",
       "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
       "Verificación en dos pasos (obligatoria para administradores y gerentes médicos): la primera vez zamorApp muestra un código QR; escanéalo con Google Authenticator o Microsoft Authenticator en tu teléfono y escribe el código de 6 dígitos. Después, al entrar en un equipo nuevo o tras salir, te pedirá el código que muestre la app en ese momento.",
+      "En el programa de escritorio sin internet, Windows Hello (PIN de Windows, huella o rostro) cuenta como segundo paso: entra con «Entrar con Windows Hello» y no hace falta el código.",
       "Para cambiar de teléfono: Configuración → Mi perfil → «Verificación en dos pasos» → «Cambiar de teléfono». Si perdiste el teléfono, pide a soporte de zamorApp que reinicie tu verificación.",
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],
