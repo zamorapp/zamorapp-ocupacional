@@ -292,7 +292,11 @@ fn main() {
             // La ventana está definida en tauri.conf.json ("create": false) y se crea aquí, para poder abrirle el
             // puerto de depuración en las pruebas automáticas. Los argumentos repiten los que wry pasa por defecto.
             let config = app.config().app.windows.iter().find(|w| w.label == "principal").cloned().expect("ventana principal en tauri.conf.json");
-            let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+            // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
+    let version = app.package_info().version.to_string();
+    anotar(&format!("versión del instalador {version}"));
+    let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+        .title(format!("zamorApp Escritorio v{version}"));
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }

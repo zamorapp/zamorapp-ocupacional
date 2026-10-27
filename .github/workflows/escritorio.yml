@@ -113,7 +113,11 @@ jobs:
         run: |
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
           npx --yes @tauri-apps/cli@2 icon ../public/icono-512.png
-          npx --yes @tauri-apps/cli@2 build
+          # Versión 0.1.<número de corrida>: cada instalador es una versión nueva (se ve en el título de la ventana,
+          # en arranque.log y en el nombre del setup), e instalar encima es una actualización de verdad
+          $version = "0.1.$env:GITHUB_RUN_NUMBER"
+          Write-Host "Versión del instalador: $version"
+          npx --yes @tauri-apps/cli@2 build --config "{`"version`":`"$version`"}"
           if ($LASTEXITCODE) { throw "Falló el instalador" }
 
       # Prueba de humo del instalador real, como lo vive Cesar: primero la versión anterior (el último instalador
