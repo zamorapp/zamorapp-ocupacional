@@ -3,7 +3,7 @@ import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { listarTiposPaciente, listarTrabajadores } from "@/lib/pacientes-datos";
 import { obtenerSesion } from "@/lib/sesion";
-import { esRolEmpresa } from "@/lib/sesion-roles";
+import { empresaSoloLectura, esRolEmpresa } from "@/lib/sesion-roles";
 import { ListaPacientes } from "./lista-pacientes";
 import { NuevoPaciente } from "./nuevo-paciente";
 import { DepurarNomina } from "./depurar-nomina";
@@ -25,14 +25,15 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
       busquedaInicial={q ?? ""}
       clinico={sesion.clinico}
       depurar={!sesion.demo && !esRolEmpresa(sesion.rol) ? <DepurarNomina empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={activa ?? ""} /> : null}
-      nuevo={
+      importar={!empresaSoloLectura(sesion.rol)}
+      nuevo={empresaSoloLectura(sesion.rol) ? null : (
         <NuevoPaciente
           habilitado={!sesion.demo && empresas.length > 0}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))}
           empresaInicial={activa ?? empresas[0]?.id ?? ""}
           tipos={tipos}
         />
-      }
+      )}
     />
   );
 }
