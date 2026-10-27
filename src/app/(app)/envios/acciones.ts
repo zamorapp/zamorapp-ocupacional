@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { enviarLote, revocarEnlace } from "@/lib/envios";
+import { enviarLote, reintentarEnvios, revocarEnlace } from "@/lib/envios";
 import type { EntradaEnvio, ResultadoEnvio } from "@/lib/envios-tipos";
 import { CORREO_VALIDO } from "@/lib/envios-tipos";
 import { obtenerSesion } from "@/lib/sesion";
@@ -12,6 +12,12 @@ export type Resultado = { ok: boolean; mensaje: string };
 export async function enviar(entrada: EntradaEnvio): Promise<ResultadoEnvio> {
   const r = await enviarLote(entrada);
   revalidatePath("/envios");
+  return r;
+}
+
+export async function reintentar(ids: string[]): Promise<ResultadoEnvio> {
+  const r = await reintentarEnvios(ids);
+  revalidatePath("/envios", "layout");
   return r;
 }
 
@@ -105,3 +111,46 @@ export async function importarContactos(filas: FilaContacto[]): Promise<Resultad
   ].filter(Boolean);
   return { ok: nuevas.length > 0 || repetidos > 0, mensaje: partes.join(" · ") + "." };
 }
+// Plantillas de correo: la general la cambia el gerente médico o el administrador; la de cada empresa, quien envía (lo valida la base)
+export async function guardarPlantilla(_: Resultado | null, d: FormData): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  const fila = {
+    nombre: texto(d, "nombre") ?? "",
+    asunto: texto(d, "asunto") ?? "",
+    mensaje: texto(d, "mensaje") ?? "",
+    mensaje_constancias: texto(d, "mensaje_constancias"),
+    predeterminada: d.get("predeterminada") === "on",
+  };
+  if (!fila.nombre || !fila.asunto || !fila.mensaje) return { ok: false, mensaje: "Completa nombre, asunto y mensaje." };
+  const supabase = await crearClienteServidor();
+  const id = texto(d, "id");
+  const empresaId = id ? null : texto(d, "empresa_id");
+  // Solo una predeterminada por empresa: la nueva desplaza a la anterior
+  if (fila.predeterminada) {
+    const { data: actual } = id
+      ? await supabase.from("plantillas_correo").select("empresa_id").eq("id", id).maybeSingle()
+      : { data: { empresa_id: empresaId } };
+    let q = supabase.from("plantillas_correo").update({ predeterminada: false }).eq("predeterminada", true).eq("activo", true);
+    q = actual?.empresa_id ? q.eq("empresa_id", actual.empresa_id) : q.is("empresa_id", null);
+    if (id) q = q.neq("id", id);
+    const { error } = await q;
+    if (error) return { ok: false, mensaje: traducir(error.message) };
+  }
+  const { error } = id
+    ? await supabase.from("plantillas_correo").update(fila).eq("id", id)
+    : await supabase.from("plantillas_correo").insert({ ...fila, org_id: sesion.orgId, empresa_id: empresaId });
+  if (error) return { ok: false, mensaje: traducir(error.message) };
+  revalidatePath("/envios", "layout");
+  return { ok: true, mensaje: "Plantilla guardada." };
+}
+
+export async function quitarPlantilla(id: string): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("plantillas_correo").update({ activo: false, predeterminada: false }).eq("id", id);
+  revalidatePath("/envios", "layout");
+  return error ? { ok: false, mensaje: traducir(error.message) } : { ok: true, mensaje: "" };
+}
+
+const traducir = (m: string) =>
+  m.includes("plantillas generales") ? "Solo el gerente médico o el administrador cambia las plantillas para todas las empresas." : m.includes("row-level security") ? "No tienes permiso para esa empresa." : m;
