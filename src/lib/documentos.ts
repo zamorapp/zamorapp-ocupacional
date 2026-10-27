@@ -31,13 +31,13 @@ export async function obtenerDocumento(consultaId: string) {
   if (!consulta) return null;
   const supabase = await crearClienteServidor();
 
-  const { data: c } = await supabase.from("consultas").select("org_id, medico_id, medico_historico_id, motivo_id, dependencia_id, empresa_id, hora_inicio").eq("id", consultaId).single();
+  const { data: c } = await supabase.from("consultas").select("org_id, origen, medico_id, medico_historico_id, motivo_id, dependencia_id, empresa_id, hora_inicio").eq("id", consultaId).single();
   if (!c) return null;
 
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", c.org_id).single(),
-    // Consulta del SAME atendida por un médico sin cuenta: se muestra su nombre, nunca firma ni sello
-    c.medico_historico_id
+    // Consulta importada del SAME atendida por un médico sin cuenta: se muestra su nombre, nunca firma ni sello
+    c.origen && c.medico_historico_id
       ? supabase.from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", c.medico_historico_id).maybeSingle()
           .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null }))
       : c.medico_id
