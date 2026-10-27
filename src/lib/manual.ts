@@ -149,6 +149,21 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "notificacion-riesgos",
+    titulo: "Notificación de riesgos",
+    para: "servicio",
+    resumen: "Entrega por escrito de los riesgos del puesto a cada trabajador, con su acuse firmado (LOPCYMAT arts. 53.1 y 56.3).",
+    pasos: [
+      "En la ficha del paciente, pestaña laboral, «Notificar riesgos» toma la evaluación del puesto (tareas, peligros con su nivel y control, EPP y recomendaciones), registra la entrega con fecha de hoy y abre la hoja para imprimir.",
+      "El trabajador firma el acuse en la hoja; luego marca «Acuse firmado». Desde ese momento lo notificado queda fijo como prueba: no se cambia ni se borra (si hubo un error, registra una nueva).",
+      "Para todo un puesto: Empresas → la empresa → en el puesto, «Notificar». Se registra una notificación por cada trabajador activo y salen todas las hojas juntas.",
+    ],
+    consejos: [
+      "Si reevalúas el puesto o cambias al trabajador de puesto, la notificación queda «desactualizada» y la ficha pide notificar de nuevo.",
+      "Cada notificación guarda una copia de lo entregado: aunque el puesto cambie después, se puede reimprimir tal como se entregó.",
+    ],
+  },
+  {
     id: "accidentes",
     titulo: "Accidentes e incidentes",
     para: "todos",
