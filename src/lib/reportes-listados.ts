@@ -187,7 +187,7 @@ export async function cargarListado(clave: string, q: ConsultaReporte) {
     listo
       ? (async () => {
           const supabase = await crearClienteServidor();
-          const { data, error } = await supabase.rpc("reporte_listado", {
+          const { data, error } = await supabase.rpc(def.funcion ?? "reporte_listado", {
             p_tipo: def.fuente, p_empresa: empresa?.id ?? null, p_desde: periodo.desde, p_hasta: periodo.hasta, p_opciones: pOpciones,
           });
           if (error) throw error;

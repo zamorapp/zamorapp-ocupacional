@@ -37,7 +37,7 @@ async function accidentabilidad(empresa: string | null): Promise<Accidentabilida
   const [a, m] = hoy.split("-").map(Number);
   const desde = new Date(Date.UTC(a, m - 12, 1)).toISOString().slice(0, 10);
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.rpc("reporte_listado", { p_tipo: "accidentalidad", p_empresa: empresa, p_desde: desde, p_hasta: hoy, p_opciones: { nivel: "consolidado" } });
+  const { data } = await supabase.rpc("reporte_indicadores", { p_tipo: "accidentalidad", p_empresa: empresa, p_desde: desde, p_hasta: hoy, p_opciones: { nivel: "consolidado" } });
   return { meses: (data ?? []) as MesAccidentes[], desde, hasta: hoy };
 }
 

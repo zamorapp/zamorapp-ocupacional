@@ -26,6 +26,7 @@ export type DefReporte = {
   grupo: "Atención" | "Morbilidad" | "Aptitud y ausentismo" | "Gestión";
   descripcion: string;
   fuente: string;
+  funcion?: "reporte_indicadores"; // función de la base; por defecto reporte_listado
   columnas: Columna[];
   filtros: string[];
   resumenes: Resumen[];
@@ -442,6 +443,7 @@ export const REPORTES: DefReporte[] = [
     grupo: "Aptitud y ausentismo",
     descripcion: "Trabajadores activos con el examen vencido, por vencer o sin evaluación, para programar las citas. No depende del período.",
     fuente: "vencimientos",
+    funcion: "reporte_indicadores",
     periodo: false,
     horizontal: true,
     opciones: [{
@@ -474,6 +476,7 @@ export const REPORTES: DefReporte[] = [
     grupo: "Gestión",
     descripcion: "Mes a mes: horas hombre, accidentes con y sin tiempo perdido, días perdidos y cargados, e índices de frecuencia y severidad (COVENIN 474).",
     fuente: "accidentalidad",
+    funcion: "reporte_indicadores",
     horizontal: true,
     opciones: [{ k: "nivel", t: "Empresas", sql: true, valores: [["", "Cada empresa por separado"], ["consolidado", "Todas las empresas juntas"]] }],
     columnas: [
