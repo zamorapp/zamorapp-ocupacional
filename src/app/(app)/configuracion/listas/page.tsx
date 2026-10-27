@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { itemsDeLista, listarListas, SECCIONES_LISTAS } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
+import { listarEmpresas } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 import { Volver } from "../volver";
 import { EditorLista } from "./editor-lista";
@@ -10,12 +11,19 @@ export const metadata: Metadata = { title: "Listas configurables" };
 
 export default async function Listas({ searchParams }: { searchParams: Promise<{ l?: string }> }) {
   const [{ l }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
-  const listas = await listarListas(sesion.orgId);
+  // Las plantillas de examen tienen su propia pantalla (Configuración › Plantillas de examen)
+  const listas = (await listarListas(sesion.orgId)).filter((x) => x.codigo !== "plantilla_examen");
   const porCodigo = new Map(listas.map((x) => [x.codigo, x]));
   const actual = porCodigo.get(l ?? "") ?? porCodigo.get("motivo_consulta") ?? listas[0];
-  const [items, motivos] = actual
-    ? await Promise.all([itemsDeLista(sesion.orgId, actual.codigo), itemsDeLista(sesion.orgId, "motivo_consulta", true)])
-    : [[], []];
+  const esPerfil = actual?.codigo === "grupo_paraclinicos";
+  const [items, motivos, empresas, catalogo] = actual
+    ? await Promise.all([
+        itemsDeLista(sesion.orgId, actual.codigo),
+        itemsDeLista(sesion.orgId, "motivo_consulta", true),
+        esPerfil ? listarEmpresas() : [],
+        esPerfil ? itemsDeLista(sesion.orgId, "paraclinico", true) : [],
+      ])
+    : [[], [], [], []];
   const editable = !sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico");
 
   // Las listas que no estén en ninguna sección también se muestran
@@ -68,6 +76,11 @@ export default async function Listas({ searchParams }: { searchParams: Promise<{
               items={items}
               editable={editable}
               motivos={motivos.filter((m) => m.codigo).map((m) => ({ codigo: m.codigo!, nombre: m.nombre }))}
+              alcance={esPerfil ? {
+                empresas: empresas.filter((e) => e.activa).map((e) => ({ id: e.id, nombre: e.razonSocial })),
+                motivos: motivos.map((m) => ({ id: m.id, nombre: m.nombre })),
+                catalogo: catalogo.map((p) => p.nombre),
+              } : undefined}
             />}
         </div>
       )}

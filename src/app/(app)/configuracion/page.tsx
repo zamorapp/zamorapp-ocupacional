@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building, Laptop, ListChecks, ShieldCheck, UserCog, Users } from "lucide-react";
+import { ArrowRight, Building, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 const OPCIONES = [
   { href: "/configuracion/listas", titulo: "Listas configurables", texto: "Motivos, aptitud, paraclínicos, medicinas, recomendaciones y todos los maestros.", icono: ListChecks },
+  { href: "/configuracion/plantillas", titulo: "Plantillas de examen", texto: "Qué se precarga en pre-empleo, periódico, egreso o reintegro: examen, recomendaciones y vigencia.", icono: Wand2 },
   { href: "/configuracion/organizacion", titulo: "Organización y documentos", texto: "Datos del servicio, palabra de aptitud, títulos y notas de los documentos.", icono: Building },
   { href: "/configuracion/usuarios", titulo: "Usuarios y roles", texto: "Quién entra a la app y qué puede ver o hacer.", icono: Users },
   { href: "/configuracion/auditoria", titulo: "Auditoría", texto: "Quién abrió cada historia y qué se cambió, día por día y con el equipo de origen.", icono: ShieldCheck },

@@ -30,7 +30,7 @@ type Fila = {
   tipo: { nombre: string } | null;
 };
 
-type AptitudFila = { trabajador_id: string; fecha: string; clasificacion: Aptitud; vigente_hasta: string | null };
+type AptitudFila = { trabajador_id: string; fecha: string; clasificacion: Aptitud; proximo_examen: string | null };
 
 function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
   return {
@@ -54,7 +54,7 @@ function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
     estado: f.estado,
     aptitud: apt?.clasificacion ?? null,
     aptitudFecha: apt?.fecha ?? null,
-    proximoExamen: apt?.vigente_hasta ?? null,
+    proximoExamen: apt?.proximo_examen ?? null, // vigencia de la constancia o periodicidad de la empresa
     riesgos: f.puestos?.riesgos ?? {},
   };
 }
@@ -66,9 +66,9 @@ async function aptitudes(ids: string[], empresa?: string | null) {
   const supabase = await crearClienteServidor();
   // Pocos trabajadores: se piden por id. Muchos: toda la vista (ya trae solo la última por trabajador)
   const filas = ids.length <= 100
-    ? ((await supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, vigente_hasta").in("trabajador_id", ids)).data ?? []) as AptitudFila[]
+    ? ((await supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, proximo_examen").in("trabajador_id", ids)).data ?? []) as AptitudFila[]
     : await todas<AptitudFila>((d, h) => {
-        let q = supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, vigente_hasta", { count: "exact" }).order("trabajador_id").range(d, h);
+        let q = supabase.from("ultima_aptitud").select("trabajador_id, fecha, clasificacion, proximo_examen", { count: "exact" }).order("trabajador_id").range(d, h);
         if (empresa) q = q.eq("empresa_id", empresa);
         return q;
       });

@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { DatosConsulta, EstadoConsulta } from "@/lib/consultas-tipos";
+import type { DatosConsulta, EstadoConsulta, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
+import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -19,6 +20,7 @@ export type ResumenConsulta = {
   aptitud: Aptitud | null;
   tieneReposo: boolean;
   tieneTratamiento: boolean;
+  pendientes: number; // paraclínicos solicitados sin resultado (las consultas importadas del SAME no cuentan)
 };
 
 type FilaResumen = {
@@ -34,6 +36,8 @@ type FilaResumen = {
   aptitudes: { clasificacion: Aptitud }[] | { clasificacion: Aptitud } | null;
   reposos: { id: string }[] | null;
   tratamiento: unknown[] | null;
+  paraclinicos: Paraclinico[] | null;
+  origen: string | null;
 };
 
 const hora = (iso: string) =>
@@ -44,7 +48,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("consultas")
-    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion), reposos(id), tratamiento")
+    .select("id, fecha, hora_inicio, estado, tipo, trabajador_id, motivo:lista_items(nombre), trabajadores(nombres, apellidos, cedula), empresas(razon_social), aptitudes(clasificacion), reposos(id), tratamiento, paraclinicos, origen")
     .order("fecha", { ascending: false })
     .order("hora_inicio", { ascending: false })
     .limit(opciones.limite ?? 200);
@@ -72,15 +76,18 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
       aptitud: apt?.clasificacion ?? null,
       tieneReposo: (c.reposos ?? []).length > 0,
       tieneTratamiento: (c.tratamiento ?? []).length > 0,
+      pendientes: c.origen ? 0 : contarResultados(c.paraclinicos ?? []).pendientes,
     };
   });
 }
 
 export type ConsultaCompleta = {
   datos: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
+  // Recién creada y nunca guardada: la plantilla del motivo se aplica sola al abrirla
+  nueva: boolean;
 };
 
 export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | null> {
@@ -94,7 +101,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
     supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
-    c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+    c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
+      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
   const tr = t as unknown as {
@@ -107,6 +115,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
   return {
     medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,
     medicoId: c.medico_id ?? null,
+    nueva: c.estado === "borrador" && c.actualizado_en === c.creado_en,
     trabajador: {
       id: c.trabajador_id,
       nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
@@ -114,12 +123,14 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       edad,
       sexo: tr?.sexo ?? null,
       empresa: tr?.empresas?.razon_social ?? "",
+      empresaId: c.empresa_id ?? null, // empresa de la consulta (la del trabajador al atenderlo)
       cargo: tr?.puestos?.nombre ?? "",
       riesgos: tr?.puestos?.riesgos ?? {},
     },
     datos: {
       id: c.id,
       estado: c.estado,
+      revision: c.revision ?? 1,
       fecha: c.fecha,
       tipo: c.tipo,
       motivoId: c.motivo_id,
@@ -158,6 +169,46 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       observacionPrivada: c.observacion_privada ?? "",
       autorizaPaciente: c.autoriza_paciente,
       sano: c.sano ?? false,
+      potencialDiscapacidad: c.potencial_discapacidad ?? false,
+      discapacidadNota: c.discapacidad_nota ?? "",
     },
+  };
+}
+
+// Versiones firmadas anteriores de una consulta corregida (la más reciente primero). Solo personal clínico (RLS).
+export type VersionConsulta = { revision: number; firmadaEn: string | null; motivo: string; reabiertaEn: string; por: string };
+
+export async function listarVersiones(consultaId: string): Promise<VersionConsulta[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("consultas_versiones").select("revision, firmada_en, motivo, reabierta_en, reabierta_por")
+    .eq("consulta_id", consultaId).order("revision", { ascending: false });
+  const ids = [...new Set((data ?? []).map((v) => v.reabierta_por))];
+  const { data: perfiles } = ids.length ? await supabase.from("perfiles").select("id, nombre_completo").in("id", ids) : { data: [] };
+  const nombre = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo as string]));
+  return (data ?? []).map((v) => ({ revision: v.revision, firmadaEn: v.firmada_en, motivo: v.motivo, reabiertaEn: v.reabierta_en, por: nombre.get(v.reabierta_por) ?? "Usuario" }));
+}
+
+// Historial del trabajador para la consulta: signos de consultas anteriores (cerradas o firmadas, las más
+// recientes) y reposos de los últimos dos años, sin los de esta consulta. Solo personal clínico (RLS).
+export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean };
+
+export async function historialConsulta(trabajadorId: string, consultaId: string): Promise<HistorialConsulta> {
+  const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
+  if (!supabaseConfigurado) return vacio;
+  const supabase = await crearClienteServidor();
+  const hace2Anios = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+  const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
+    supabase.from("consultas").select("fecha, signos_vitales").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+      .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
+    supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
+      .order("desde", { ascending: false }).limit(60),
+    supabase.from("trabajadores").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
+  ]);
+  return {
+    mediciones: (cs ?? []).filter((c) => c.signos_vitales && Object.keys(c.signos_vitales).length).map((c) => ({ fecha: c.fecha, signos: c.signos_vitales })).reverse(),
+    reposos: (rs ?? []).filter((r) => r.consulta_id !== consultaId)
+      .map((r) => ({ consultaId: r.consulta_id, desde: r.desde, hasta: r.hasta, causa: r.causa, ente: r.ente_emisor })),
+    discapacidadRegistrada: t?.discapacidad ?? false,
   };
 }

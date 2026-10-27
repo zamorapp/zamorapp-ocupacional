@@ -26,6 +26,7 @@ type Ajustes = {
   firma_sello_separados?: boolean;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
+  recordatorio_resultados_dias?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
 };
@@ -83,7 +84,10 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
               className="sm:col-span-2"
               defaultValue={a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR}
             />
-            <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
+            <div className="space-y-3">
+              <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
+              <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días; 0 = no recordar)" type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
+            </div>
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />
               <Casilla id="constancia_copias" etiqueta="Constancia en original (RR. HH.) y copia (servicio médico)" defecto={a.constancia_copias ?? true} />

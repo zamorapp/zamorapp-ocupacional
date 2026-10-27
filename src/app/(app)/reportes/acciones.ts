@@ -47,3 +47,22 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
   revalidatePath("/reportes");
   return { ok: true, mensaje: "Guardado en zamorApp: este texto sale en el informe impreso de esta empresa y trimestre, desde cualquier equipo." };
 }
+
+// «Firmar las mías» del lote de aptitud: firma solo las consultas cerradas cuyo autor es quien firma.
+// Cada una pasa por firmar_consulta (misma regla que el botón Firmar de la consulta).
+export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.clinico || sesion.rol === "enfermeria") return { ok: false, mensaje: "Tu rol no firma consultas." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("consultas").select("id").in("id", ids.slice(0, 300)).eq("estado", "cerrada").eq("medico_id", sesion.usuarioId);
+  if (error) return { ok: false, mensaje: error.message };
+  let firmadas = 0;
+  const fallos: string[] = [];
+  for (const c of data ?? []) {
+    const { error: e } = await supabase.rpc("firmar_consulta", { p_id: c.id });
+    if (e) fallos.push(e.message); else firmadas++;
+  }
+  revalidatePath("/reportes", "layout");
+  if (!firmadas && !fallos.length) return { ok: false, mensaje: "No hay constancias cerradas tuyas por firmar. Las que están en curso se cierran desde la consulta." };
+  return { ok: !fallos.length, mensaje: `${firmadas} constancia${firmadas === 1 ? "" : "s"} firmada${firmadas === 1 ? "" : "s"}.${fallos.length ? ` ${fallos.length} no se pudieron firmar: ${fallos[0]}` : ""}` };
+}

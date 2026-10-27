@@ -29,7 +29,28 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
     const lista = texto(datos, "lista")!;
     const nombre = texto(datos, "nombre");
     if (!nombre) return { ok: false, mensaje: "Escribe el nombre." };
-    const campos = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    const campos: Record<string, unknown> = { nombre, codigo: texto(datos, "codigo"), grupo: texto(datos, "grupo"), texto: texto(datos, "texto") };
+    // Paraclínicos: unidad y rango de referencia (se combinan con lo que ya tenga datos, p. ej. códigos del SAME)
+    if (lista === "paraclinico") {
+      const numero = (k: string) => {
+        const v = texto(datos, k);
+        if (v === null) return null;
+        const n = Number(v.replace(",", "."));
+        if (!Number.isFinite(n)) throw new Error("El rango debe ser un número (usa coma o punto para los decimales).");
+        return n;
+      };
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
+      if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+    }
+
+    // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
+    if (lista === "grupo_paraclinicos" && (datos.has("d_empresas") || datos.has("d_motivos"))) {
+      const uuids = (k: string) => (texto(datos, k) ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), empresas: uuids("d_empresas"), motivos: uuids("d_motivos") };
+    }
 
     if (id) {
       const { error } = await supabase.from("lista_items").update(campos).eq("id", id).eq("org_id", sesion.orgId!);
@@ -121,6 +142,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
+      // 0 = sin recordatorio de resultados pendientes en la campana
+      recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
     };

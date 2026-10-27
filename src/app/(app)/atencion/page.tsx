@@ -16,6 +16,7 @@ import { EnVivo } from "@/components/app/en-vivo";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
+import { recordarResultados } from "@/lib/recordatorios";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
 
@@ -45,6 +46,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     opciones(sesion.orgId, ["motivo_consulta"]),
     sesion.demo ? [] : listarSolicitudes(),
     datosOrganizacion(),
+    recordarResultados(sesion),
   ]);
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
@@ -92,11 +94,11 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
             {citas.length} citas
           </span>
         </div>
-        <ColaAtencion citas={citas} esHoy={dia === hoy} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
+        <ColaAtencion citas={citas} esHoy={dia === hoy} pendientes={Object.fromEntries(consultas.filter((c) => c.pendientes).map((c) => [c.id, c.pendientes]))} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
       </section>
 
       {/* Consultas recientes */}
-      <section className="space-y-3">
+      <section id="consultas" className="scroll-mt-20 space-y-3">
         <h2 className="text-lg font-semibold">Consultas de los últimos 30 días</h2>
         <Card className="overflow-hidden py-0">
           {consultas.length === 0 ? (
@@ -137,6 +139,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
                     </TableCell>
                     <TableCell className="pr-5">
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_ESTADO[c.estado])}>{ETIQUETA_ESTADO_CONSULTA[c.estado]}</span>
+                      {c.pendientes > 0 && <div className="mt-1 text-xs font-medium whitespace-nowrap text-aviso-texto">Faltan {c.pendientes} resultado{c.pendientes === 1 ? "" : "s"}</div>}
                     </TableCell>
                   </TableRow>
                 ))}

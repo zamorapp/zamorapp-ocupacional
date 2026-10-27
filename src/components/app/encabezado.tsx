@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { Building2, ChevronDown, Fingerprint, LogOut, Menu, Search, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +13,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
 import { abrirBuscador } from "./buscador-global";
 import { SelectorTema } from "./selector-tema";
 import { InstalarApp } from "./instalar-app";
 import { Notificaciones } from "./notificaciones";
+import { HuellaCuenta } from "./huella";
 import { elegirEmpresa, salir } from "./acciones";
 
 type Props = {
@@ -36,6 +38,7 @@ function iniciales(nombre: string) {
 
 export function Encabezado({ usuario, empresas, empresaActiva, organizacion, portal = false }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [huellaAbierta, setHuellaAbierta] = useState(false);
   const [, iniciar] = useTransition();
   const actual = empresas.find((e) => e.id === empresaActiva)?.nombre ?? "Todas las empresas";
   const cambiar = (id: string | null) => iniciar(() => elegirEmpresa(id));
@@ -117,11 +120,23 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
           <DropdownMenuItem asChild>
             <Link href="/configuracion"><UserRound /> Mi perfil y firma</Link>
           </DropdownMenuItem>
+          {!usuario.demo && (
+            <DropdownMenuItem onSelect={() => setHuellaAbierta(true)}>
+              <Fingerprint /> Entrar con huella
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => salir()}>
             <LogOut /> Salir
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={huellaAbierta} onOpenChange={setHuellaAbierta}>
+        <DialogContent className="p-0 sm:max-w-md">
+          <DialogTitle className="sr-only">Entrar con huella</DialogTitle>
+          {huellaAbierta && <HuellaCuenta />}
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

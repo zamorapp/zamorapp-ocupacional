@@ -5,17 +5,26 @@ import Link from "next/link";
 import { ArrowLeft, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
+import { ANEXOS_LISTOS } from "./anexos";
 
 const hoy = () => new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
 
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).
-export function BarraImpresion({ volver, titulo, bloqueado }: { volver: string; titulo: string; bloqueado?: boolean }) {
+// esperarAnexos: los botones se habilitan cuando los exámenes escaneados terminan de dibujarse (si no, saldrían en blanco).
+export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean }) {
   const [escritorio, setEscritorio] = useState(false);
   const [ocupado, setOcupado] = useState<"imprimir" | "pdf" | null>(null);
   const [guardado, setGuardado] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [preparando, setPreparando] = useState(Boolean(esperarAnexos));
   useEffect(() => setEscritorio(enEscritorio()), []);
+  useEffect(() => {
+    if (!esperarAnexos) return;
+    const listo = () => setPreparando(false);
+    window.addEventListener(ANEXOS_LISTOS, listo);
+    return () => window.removeEventListener(ANEXOS_LISTOS, listo);
+  }, [esperarAnexos]);
 
   const hacer = async (que: "imprimir" | "pdf") => {
     setError("");
@@ -33,6 +42,7 @@ export function BarraImpresion({ volver, titulo, bloqueado }: { volver: string; 
     }
   };
   const ver = (abrir: boolean) => guardado && mostrarPdf(guardado, abrir).catch((e: Error) => setError(e.message));
+  const inactivo = bloqueado || preparando || !!ocupado;
 
   return (
     <div className="sticky top-0 z-10 mb-6 border-b bg-background/90 px-4 py-3 backdrop-blur print:hidden">
@@ -41,18 +51,18 @@ export function BarraImpresion({ volver, titulo, bloqueado }: { volver: string; 
         <span className="min-w-0 flex-1 truncate font-medium">{titulo}</span>
         {escritorio ? (
           <div className="flex gap-2">
-            <Button variant="outline" disabled={bloqueado || !!ocupado} onClick={() => hacer("pdf")} data-accion="guardar-pdf">
+            <Button variant="outline" disabled={inactivo} onClick={() => hacer("pdf")} data-accion="guardar-pdf">
               {ocupado === "pdf" ? <Loader2 className="animate-spin" /> : <FileDown />} Guardar PDF
             </Button>
-            <Button disabled={bloqueado || !!ocupado} onClick={() => hacer("imprimir")} data-accion="imprimir">
-              {ocupado === "imprimir" ? <Loader2 className="animate-spin" /> : <Printer />} Imprimir
+            <Button disabled={inactivo} onClick={() => hacer("imprimir")} data-accion="imprimir">
+              {ocupado === "imprimir" || preparando ? <Loader2 className="animate-spin" /> : <Printer />} {preparando ? "Preparando anexos…" : "Imprimir"}
             </Button>
           </div>
         ) : (
           <>
             <span className="hidden text-xs text-muted-foreground lg:inline">Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».</span>
-            <Button disabled={bloqueado} onClick={() => hacer("imprimir")}>
-              <Printer /> Imprimir o guardar PDF
+            <Button disabled={inactivo} onClick={() => hacer("imprimir")}>
+              {preparando ? <Loader2 className="animate-spin" /> : <Printer />} {preparando ? "Preparando anexos…" : "Imprimir o guardar PDF"}
             </Button>
           </>
         )}

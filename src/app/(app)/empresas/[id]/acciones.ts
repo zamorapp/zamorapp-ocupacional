@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { Puesto } from "@/lib/puestos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+
+const hoyCaracas = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -35,6 +37,10 @@ export async function guardarPuesto(empresaId: string, p: Puesto): Promise<Resul
     turno: p.turno || null,
     riesgos: p.riesgos,
     evaluacion,
+    epp: p.epp.trim() || null,
+    recomendaciones: p.recomendaciones.trim() || null,
+    // Quien guarda la valoración firma el informe de evaluación del puesto
+    ...(Object.values(evaluacion).some((v) => v.p && v.s) ? { evaluado_por: c.sesion.usuarioId, evaluado_en: hoyCaracas() } : {}),
   };
   const { error } = p.id
     ? await c.supabase.from("puestos").update(campos).eq("id", p.id)

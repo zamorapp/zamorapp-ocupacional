@@ -7,9 +7,16 @@ import type { DatosDocumento } from "@/lib/documentos";
 export const fechaLarga = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T00:00:00Z"));
 export const fechaCorta = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
-const hora12 = (h: string | null | undefined) => {
+// Acepta "HH:MM" o una fecha y hora completa (timestamptz de la consulta), que se muestra en hora de Venezuela
+export const hora12 = (h: string | null | undefined) => {
   if (!h) return null;
+  if (h.length > 8) {
+    const f = new Date(h);
+    if (Number.isNaN(f.getTime())) return null;
+    h = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Caracas" }).format(f);
+  }
   const [hh, mm] = h.split(":").map(Number);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
   return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "a. m." : "p. m."}`;
 };
 // Folio legible del documento: prefijo por tipo + primeros 8 caracteres de la consulta
@@ -39,7 +46,9 @@ function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: stri
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
 // Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
-export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa">; compacto?: boolean }) {
+// sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
+export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
+  if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
   return (
     <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
       <Marca logo={d.org.logo} nombre={d.org.nombre} />
@@ -173,6 +182,7 @@ export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { cla
 // Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
 export function imagenesMedico(d: DatosDocumento) {
   const m = d.medicoDatos;
+  if (d.sin.includes("firma")) return { firma: null, sello: null };
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
 }
 
@@ -218,10 +228,15 @@ export function Firmas({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
 }
 
-export function Pie({ d, derecha }: { d: Pick<DatosDocumento, "impreso">; derecha?: string }) {
+export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string }) {
+  const revision = d.impreso.revision ?? 1;
   return (
     <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
-      <span>Impreso por {d.impreso.por} · {d.impreso.el}</span>
+      <span>
+        Impreso por {d.impreso.por} · {d.impreso.el}
+        {/* Una consulta corregida invalida los impresos de su revisión anterior */}
+        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores de esta consulta</b></>}
+      </span>
       {derecha && <span>{derecha}</span>}
     </footer>
   );
