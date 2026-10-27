@@ -14,6 +14,8 @@ type Perfil = {
   mpps: string | null;
   colegio_medicos: string | null;
   registro_inpsasel: string | null;
+  especialidad?: string | null;
+  correo?: string | null;
 } | null;
 
 export function FormPerfil({ perfil, editable }: { perfil: Perfil; editable: boolean }) {
@@ -25,6 +27,8 @@ export function FormPerfil({ perfil, editable }: { perfil: Perfil; editable: boo
           <Campo id="nombre_completo" etiqueta="Nombre completo *" defaultValue={perfil?.nombre_completo ?? ""} required className="sm:col-span-2" />
           <Campo id="cedula" etiqueta="Cédula" defaultValue={perfil?.cedula ?? ""} placeholder="V-12345678" />
           <Campo id="telefono" etiqueta="Teléfono" defaultValue={perfil?.telefono ?? ""} />
+          <Campo id="especialidad" etiqueta="Especialidad" defaultValue={perfil?.especialidad ?? ""} placeholder="Medicina del Trabajo" ayuda="Sale bajo tu nombre en los documentos" />
+          <Campo id="correo" etiqueta="Correo (sale impreso bajo tu firma y lo ve tu equipo)" type="email" defaultValue={perfil?.correo ?? ""} />
           <Campo id="mpps" etiqueta="Nº MPPS" defaultValue={perfil?.mpps ?? ""} ayuda="Obligatorio en el récipe (Res. MPPS 028)" />
           <Campo id="colegio_medicos" etiqueta="Nº Colegio de Médicos" defaultValue={perfil?.colegio_medicos ?? ""} />
           <Campo

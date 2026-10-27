@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Certificado, Constancia, Informe, InformeLibre, Orden, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
+import { Certificado, Constancia, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
 
 const TIPOS = {
   constancia: { titulo: "Constancia de aptitud", Componente: Constancia },
   reposo: { titulo: "Reposo médico", Componente: Reposo },
   informe: { titulo: "Informe médico", Componente: Informe },
+  "informe-trabajador": { titulo: "Informe para el trabajador", Componente: InformeTrabajador },
+  preoperatoria: { titulo: "Evaluación preoperatoria", Componente: Preoperatoria },
   recipe: { titulo: "Récipe e indicaciones", Componente: Recipe },
   orden: { titulo: "Orden de exámenes", Componente: Orden },
   certificado: { titulo: "Certificado de salud", Componente: Certificado },

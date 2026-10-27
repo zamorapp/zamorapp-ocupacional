@@ -106,16 +106,19 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
     const ajustes = {
       palabra_aptitud: texto(datos, "palabra_aptitud") ?? "Elegible",
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
-      observacion_idoneidad: texto(datos, "observacion_idoneidad"),
+      // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
+      observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
+      constancia_copias: datos.get("constancia_copias") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
       reposo_pie_original: texto(datos, "reposo_pie_original"),
       orden_nota: texto(datos, "orden_nota"),
+      orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
       mensaje_cita: texto(datos, "mensaje_cita"),
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),
-      certificado_nota: texto(datos, "certificado_nota"),
+      certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       membrete_lema: texto(datos, "membrete_lema"),
@@ -163,6 +166,8 @@ export async function guardarPerfil(_: Resultado | null, datos: FormData): Promi
         mpps: texto(datos, "mpps"),
         colegio_medicos: texto(datos, "colegio_medicos"),
         registro_inpsasel: texto(datos, "registro_inpsasel"),
+        especialidad: texto(datos, "especialidad"),
+        correo: texto(datos, "correo"),
       })
       .eq("id", sesion.usuarioId);
     if (error) throw error;

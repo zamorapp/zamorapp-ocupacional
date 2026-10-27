@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgeCheck, ChevronDown, FileCheck2, FileHeart, Files, FileText, FlaskConical, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, ChevronDown, FileCheck2, FileHeart, Files, FileText, FlaskConical, HeartPulse, UserRound, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ type Props = {
   referencias?: boolean;
   reubicacion?: boolean;
   informeLibre?: boolean;
+  preoperatoria?: boolean;
   // Si hay cambios sin guardar: se guarda antes de abrir el documento (devuelve false si no se pudo)
   antes?: () => Promise<boolean>;
   ocupado?: boolean;
@@ -30,11 +31,13 @@ type Props = {
 };
 
 // Botón único «Imprimir» con los documentos que aplican a la consulta. Cada uno abre en otra pestaña lista para imprimir o guardar en PDF.
-export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, antes, ocupado, variante = "outline", compacto, className }: Props) {
+export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, antes, ocupado, variante = "outline", compacto, className }: Props) {
   const docs = [
     { tipo: "paquete", texto: "Todo lo de esta consulta", nota: "uno por hoja", icono: Files },
     aptitud && { tipo: "constancia", texto: "Constancia de aptitud", icono: FileCheck2 },
     { tipo: "informe", texto: "Consulta médica (informe)", icono: FileText },
+    { tipo: "informe-trabajador", texto: "Informe para el trabajador", nota: "corto", icono: UserRound },
+    preoperatoria && { tipo: "preoperatoria", texto: "Evaluación preoperatoria", icono: HeartPulse },
     reposo && { tipo: "reposo", texto: "Reposo", nota: "original y copia", icono: FileHeart },
     tratamiento && { tipo: "recipe", texto: "Récipe e indicaciones", icono: Pill },
     examenes && { tipo: "orden", texto: "Orden de exámenes", icono: FlaskConical },

@@ -1,7 +1,7 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import { faltantesRecipe } from "@/lib/documentos";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes } from "@/lib/consultas-tipos";
-import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
+import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import {
   Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
@@ -27,7 +27,18 @@ const COLOR_APTITUD: Record<Aptitud, string> = {
 
 const alteradosDe = (d: DatosDocumento) => [...d.datos.examenFuncional, ...d.datos.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
 
+// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja
 export function Constancia({ d }: { d: DatosDocumento }) {
+  if (d.org.ajustes.constancia_copias === false) return <CuerpoConstancia d={d} />;
+  return (
+    <>
+      <CuerpoConstancia d={d} copia="Original · Recursos humanos" />
+      <CuerpoConstancia d={d} copia="Copia · Servicio médico" />
+    </>
+  );
+}
+
+function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
   const a = d.org.ajustes;
   const etiquetas = etiquetasAptitud(a.palabra_aptitud);
   const apt = d.datos.aptitud;
@@ -36,7 +47,7 @@ export function Constancia({ d }: { d: DatosDocumento }) {
   return (
     <Hoja>
       <Membrete d={d} />
-      <Titulo d={d} prefijo="CA" sub={d.motivo?.nombre ? `Evaluación ${d.motivo.nombre.toLowerCase()}` : null}>{a.titulo_constancia || "Constancia de aptitud"}</Titulo>
+      <Titulo d={d} prefijo="CA" copia={copia} sub={d.motivo?.nombre ? `Evaluación ${d.motivo.nombre.toLowerCase()}` : null}>{a.titulo_constancia || "Constancia de aptitud"}</Titulo>
       <DatosPaciente d={d} />
       <Bloque titulo="Resultado de la evaluación">
         {clase ? (
@@ -64,7 +75,7 @@ export function Constancia({ d }: { d: DatosDocumento }) {
       )}
       {apt.observacion && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={apt.observacion} /></Bloque>}
       {d.datos.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={d.datos.recomendacionesEmpresa} /></Bloque>}
-      {a.observacion_idoneidad && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue">{a.observacion_idoneidad}</p>}
+      {(a.observacion_idoneidad ?? NOTA_IDONEIDAD) && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue">{a.observacion_idoneidad ?? NOTA_IDONEIDAD}</p>}
       <Firmas>
         {a.firma_paciente_constancia ? <FirmaTrabajador d={d} /> : <span />}
         {a.firma_medico_ocupacional !== false && <FirmaMedico d={d} etiqueta="Médico ocupacional" />}
@@ -121,8 +132,20 @@ export function Reposo({ d }: { d: DatosDocumento }) {
   );
 }
 
-// Informe de la consulta (equivale a la «Consulta médica» del SAME)
-export function Informe({ d }: { d: DatosDocumento }) {
+// Informe de la consulta (equivale a la «Consulta médica» del SAME).
+// «trabajador»: versión corta que se entrega al paciente, sin aptitud ni datos para la empresa.
+// «preoperatorio»: evaluación preoperatoria (riesgo quirúrgico en lugar de aptitud laboral).
+export type VarianteInforme = "completo" | "trabajador" | "preoperatorio";
+const TITULO_INFORME: Record<VarianteInforme, [string, string]> = {
+  completo: ["CM", "Consulta médica"],
+  trabajador: ["IT", "Informe médico para el trabajador"],
+  preoperatorio: ["EP", "Evaluación preoperatoria"],
+};
+export const InformeTrabajador = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="trabajador" />;
+export const Preoperatoria = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="preoperatorio" />;
+
+export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
+  const laboral = variante === "completo";
   const c = d.datos;
   const sv = c.signos;
   const valImc = imc(sv.peso, sv.talla);
@@ -131,7 +154,8 @@ export function Informe({ d }: { d: DatosDocumento }) {
   const habitos = c.habitos.filter((h) => h.valor.trim());
   const etiquetas = etiquetasAptitud(d.org.ajustes.palabra_aptitud);
   const clase = c.aptitud.clasificacion || null;
-  const certificacion = d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
+  const certificacion = laboral ? d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR : null;
+  const [prefijo, titulo] = TITULO_INFORME[variante];
   const signos = [
     ["TA", sv.ta, "mmHg"], ["FC", sv.fc, "lpm"], ["FR", sv.fr, "rpm"], ["Temp.", sv.temp, "°C"], ["SatO₂", sv.sat, "%"],
     ["Peso · Talla", sv.peso || sv.talla ? `${sv.peso ?? "—"} kg · ${sv.talla ?? "—"} cm` : "", ""],
@@ -141,8 +165,8 @@ export function Informe({ d }: { d: DatosDocumento }) {
   return (
     <Hoja className="print:block">
       <Membrete d={d} />
-      <Titulo d={d} prefijo="CM" sub={[d.motivo?.nombre, c.tipo].filter(Boolean).join(" · ")}>Consulta médica</Titulo>
-      <DatosPaciente d={d} />
+      <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, c.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
+      <DatosPaciente d={d} completo={variante !== "trabajador"} />
       {(c.motivoTexto || c.enfermedadActual) && (
         <Bloque titulo="Motivo y enfermedad actual">{[c.motivoTexto, c.enfermedadActual].filter(Boolean).join("\n")}</Bloque>
       )}
@@ -194,7 +218,7 @@ export function Informe({ d }: { d: DatosDocumento }) {
           </table>
         ) : "—"}
       </Bloque>
-      {clase && (
+      {laboral && clase && (
         <Bloque titulo="Aptitud">
           <b className={COLOR_APTITUD[clase]}>{etiquetas[clase]}.</b>
           {c.aptitud.vigenteHasta && ` Vigente hasta el ${fechaCorta(c.aptitud.vigenteHasta)}.`}
@@ -209,9 +233,9 @@ export function Informe({ d }: { d: DatosDocumento }) {
       )}
       {c.reposo.activo && <Bloque titulo="Reposo">Del {fechaCorta(c.reposo.desde)} al {fechaCorta(c.reposo.hasta)}.</Bloque>}
       {c.interconsultas.length > 0 && <Bloque titulo="Referencias">{c.interconsultas.map((x) => `${x.especialidad}: ${x.motivo}`).join("\n")}</Bloque>}
-      {c.conclusiones && <Bloque titulo="Conclusiones"><Lista texto={c.conclusiones} /></Bloque>}
+      {c.conclusiones && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
       {(c.recomendacionesTrabajador || c.aptitud.observacion) && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={c.recomendacionesTrabajador || c.aptitud.observacion} /></Bloque>}
-      {c.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={c.recomendacionesEmpresa} /></Bloque>}
+      {laboral && c.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={c.recomendacionesEmpresa} /></Bloque>}
       {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
       <Firmas>
         {certificacion ? <FirmaTrabajador d={d} /> : <span />}
@@ -270,8 +294,8 @@ export function Recipe({ d }: { d: DatosDocumento }) {
   const meds = d.datos.tratamiento.filter((x) => x.medicina);
   if (faltantesRecipe(d).length) return null;
   return (
-    <Hoja media>
-      <div className="grid flex-1 grid-cols-2 gap-4">
+    <Hoja horizontal>
+      <div className="grid flex-1 grid-cols-2 gap-5">
         <MitadRecipe d={d} titulo="Récipe">
           {meds.map((x, i) => `${i + 1}. ${x.medicina} ${x.concentracion} · ${x.presentacion}${x.notaFarmacia ? `\n   Farmacia: ${x.notaFarmacia}` : ""}`).join("\n")}
         </MitadRecipe>
@@ -285,14 +309,21 @@ export function Recipe({ d }: { d: DatosDocumento }) {
   );
 }
 
+// Pre-empleo: sale como «Autorización de exámenes pre-empleo», con la nota del VIH y la autorización firmada por el aspirante
+const esPreempleo = (d: DatosDocumento) => /pre.?empleo|ingreso/i.test(d.motivo?.nombre ?? "");
+
 export function Orden({ d }: { d: DatosDocumento }) {
+  const a = d.org.ajustes;
+  const pre = esPreempleo(d);
+  const notaPre = pre ? a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH : null;
+  const certificacion = pre ? a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR : null;
   const examenes = d.datos.paraclinicos;
   const grupos = new Map<string, string[]>();
   for (const p of examenes) grupos.set(p.grupo ?? "Otros", [...(grupos.get(p.grupo ?? "Otros") ?? []), p.nombre]);
   return (
     <Hoja>
       <Membrete d={d} />
-      <Titulo d={d} prefijo="OE" sub={d.motivo?.nombre ?? null}>Orden de exámenes paraclínicos</Titulo>
+      <Titulo d={d} prefijo="OE" sub={d.motivo?.nombre ?? null}>{pre ? "Autorización de exámenes pre-empleo" : "Orden de exámenes paraclínicos"}</Titulo>
       <DatosPaciente d={d} completo={false} />
       {examenes.length === 0 ? (
         <p>Esta consulta no tiene exámenes solicitados.</p>
@@ -306,9 +337,10 @@ export function Orden({ d }: { d: DatosDocumento }) {
           ))}
         </div>
       )}
-      {d.org.ajustes.orden_nota && <p className="mt-6 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[11px] text-doc-tenue">{d.org.ajustes.orden_nota}</p>}
+      {[notaPre, a.orden_nota].filter(Boolean).map((n) => <p key={n} className="mt-4 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[11px] text-doc-tenue">{n}</p>)}
+      {certificacion && <p className="mt-3 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Autorización del aspirante.</b> {certificacion}</p>}
       <Firmas>
-        <span />
+        {certificacion ? <FirmaTrabajador d={d} /> : <span />}
         <FirmaMedico d={d} etiqueta="Médico solicitante" />
       </Firmas>
       <Pie d={d} />
@@ -340,7 +372,7 @@ export function Certificado({ d }: { d: DatosDocumento }) {
         {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}
       </Bloque>
       {clase && <div className="mb-3"><Veredicto tono={TONO_APTITUD[clase]} texto={etiquetasAptitud(a.palabra_aptitud)[clase]} /></div>}
-      {a.certificado_nota && <p className="mt-2 text-[11.5px]">{a.certificado_nota}</p>}
+      {(a.certificado_nota ?? NOTA_CERTIFICADO_SACS) && <p className="mt-2 text-[11.5px]">{a.certificado_nota ?? NOTA_CERTIFICADO_SACS}</p>}
       <p className="mt-2 text-[11.5px] text-doc-tenue">Certificado que se expide a solicitud de la parte interesada.</p>
       <Firmas>
         <span />
