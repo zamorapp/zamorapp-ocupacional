@@ -29,10 +29,12 @@ create policy investigaciones_empresa on clinico.investigaciones as restrictive 
   using (public.ve_trabajador(org_id, trabajador_id)) with check (public.ve_trabajador(org_id, trabajador_id));
 grant select, insert, update, delete on clinico.investigaciones to authenticated;
 
--- El evento y el trabajador deben ser de la misma organización
+-- El evento y el trabajador deben ser de la misma organización; el autor es quien lo crea y no se cambia después
 create or replace function public.validar_investigacion()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
+  if tg_op = 'INSERT' and auth.uid() is not null then new.elaborado_por := auth.uid(); end if;
+  if tg_op = 'UPDATE' then new.elaborado_por := old.elaborado_por; end if;
   if not exists (select 1 from public.eventos e
                  where e.id = new.evento_id and e.org_id = new.org_id and e.trabajador_id = new.trabajador_id) then
     raise exception 'El informe debe ser del mismo evento y trabajador.' using errcode = '23514';
@@ -41,7 +43,7 @@ begin
 end $$;
 revoke execute on function public.validar_investigacion() from public, authenticated, anon;
 drop trigger if exists validar_investigacion on clinico.investigaciones;
-create trigger validar_investigacion before insert or update of org_id, evento_id, trabajador_id on clinico.investigaciones
+create trigger validar_investigacion before insert or update on clinico.investigaciones
   for each row execute function public.validar_investigacion();
 
 drop trigger if exists upd_investigaciones on clinico.investigaciones;

@@ -12,6 +12,8 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2'
 insert into public.investigaciones (org_id,evento_id,trabajador_id,secciones) values
  ('10000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-0000000000e1','30000000-0000-0000-0000-00000000000a','{"clinico":"Dolor lumbar"}');
 select 'médico A ve su informe (debe 1): ' || count(*) from public.investigaciones;
+update public.investigaciones set elaborado_por='00000000-0000-0000-0000-0000000000a4' where evento_id='60000000-0000-0000-0000-0000000000e1';
+select 'el autor no se cambia (debe 1): ' || count(*) from public.investigaciones where elaborado_por='00000000-0000-0000-0000-0000000000a2';
 do $$ begin
   insert into public.investigaciones (org_id,evento_id,trabajador_id) values
    ('10000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-0000000000e2','30000000-0000-0000-0000-00000000000b');
@@ -28,7 +30,7 @@ select 'RRHH no ve el informe clínico (debe 0): ' || count(*) from public.inves
 select 'RRHH sí ve el evento (debe 1): ' || count(*) from public.eventos where id='60000000-0000-0000-0000-0000000000e1';
 reset role;
 with x as (update clinico.investigaciones set estado='terminado' where evento_id='60000000-0000-0000-0000-0000000000e1' returning version)
-select 'versión de sincronía al editar (debe 2): ' || version from x;
+select 'versión de sincronía tras dos ediciones (debe 3): ' || version from x;
 -- Potencial discapacidad heredada de la consulta (columna de la consulta opcional)
 reset role;
 select 'sin marca en la consulta no hereda (debe 0): ' || potencial_discapacidad::int from public.eventos where id='60000000-0000-0000-0000-0000000000e1';
