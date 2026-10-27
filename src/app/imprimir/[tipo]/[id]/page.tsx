@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { faltantesRecipe, obtenerDocumento } from "@/lib/documentos";
 import { BarraImpresion } from "../../barra";
-import { Certificado, Constancia, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
+import { Certificado, Constancia, ConstanciaAtencion, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
 
 const TIPOS = {
   constancia: { titulo: "Constancia de aptitud", Componente: Constancia },
@@ -17,17 +18,19 @@ const TIPOS = {
   referencia: { titulo: "Referencia médica", Componente: Referencia },
   reubicacion: { titulo: "Reubicación laboral", Componente: Reubicacion },
   libre: { titulo: "Informe libre", Componente: InformeLibre },
+  atencion: { titulo: "Constancia de atención médica", Componente: ConstanciaAtencion },
 } as const;
 
-type Props = { params: Promise<{ tipo: string; id: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
   return { title: TIPOS[tipo as keyof typeof TIPOS]?.titulo ?? "Documento" };
 }
 
-export default async function Imprimir({ params }: Props) {
+export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
+  const { dx } = await searchParams;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
   const d = await obtenerDocumento(id);
@@ -45,7 +48,16 @@ export default async function Imprimir({ params }: Props) {
           <ul className="list-disc space-y-1 pl-6 text-sm">{faltan.map((f) => <li key={f}>{f}</li>)}</ul>
         </div>
       ) : (
-        <t.Componente d={d} />
+        <>
+          {tipo === "atencion" && d.datos.diagnosticos.length > 0 && (
+            <div className="mx-auto -mt-3 mb-4 flex max-w-[216mm] justify-end px-1 text-sm print:hidden">
+              <Link href={`/imprimir/atencion/${id}${dx === "1" ? "" : "?dx=1"}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
+                {dx === "1" ? "Quitar diagnóstico (versión para la empresa)" : "Incluir diagnóstico (solo para el trabajador)"}
+              </Link>
+            </div>
+          )}
+          {tipo === "atencion" ? <ConstanciaAtencion d={d} diagnostico={dx === "1"} /> : <t.Componente d={d} />}
+        </>
       )}
     </div>
   );

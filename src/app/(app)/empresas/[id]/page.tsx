@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, Building2, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, Printer, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarEmpresas } from "@/lib/empresas";
@@ -101,7 +102,12 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
                         {p.codigo && <span className="rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground">{p.codigo}</span>}
                         <span className="text-sm text-muted-foreground">{[p.dependencia, p.turno, `${p.trabajadores} trab.`].filter(Boolean).join(" · ")}</span>
                         {max && <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", max.clase)}>Riesgo máx.: {max.texto}</span>}
-                        <div className="ml-auto">
+                        <div className="ml-auto flex items-center gap-1">
+                          {!sesion.demo && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={`/imprimir/puesto/${p.id}`} target="_blank" rel="noopener" title="Informe de evaluación del puesto"><Printer /> Informe</a>
+                            </Button>
+                          )}
                           {editaPuestos && <EditorPuesto empresaId={id} puesto={p} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
                         </div>
                       </div>

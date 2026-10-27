@@ -4,7 +4,7 @@ import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes } from "@/lib/
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import {
-  Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
+  Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
 
 // "Elegible" / "Apto" / "Recomendable" según Configuración › Organización
@@ -483,6 +483,54 @@ export function InformeLibre({ d }: { d: DatosDocumento }) {
         <FirmaMedico d={d} />
       </Firmas>
       <Pie d={d} />
+    </Hoja>
+  );
+}
+
+// Constancia de atención médica (asistencia): deja constancia de que el trabajador acudió al servicio, a qué hora
+// llegó y salió y, si lo hubo, el reposo. Por confidencialidad no lleva diagnóstico salvo que se pida (?dx=1).
+// Media carta, como la plantilla «Constancia de atención médica» del SAME.
+export function ConstanciaAtencion({ d, diagnostico = false }: { d: DatosDocumento; diagnostico?: boolean }) {
+  const c = d.datos;
+  const t = d.trabajador;
+  const llegada = hora12(d.hora);
+  const salida = hora12(d.cierre);
+  const minutos = d.cierre ? Math.round((Date.parse(d.cierre) - Date.parse(d.hora)) / 6e4) : null;
+  const duracion = minutos !== null && minutos > 0 && minutos < 12 * 60 ? (minutos >= 60 ? `${Math.floor(minutos / 60)} h ${minutos % 60} min` : `${minutos} min`) : null;
+  const r = c.reposo;
+  const dias = r.activo && r.desde && r.hasta ? Math.round((Date.parse(r.hasta) - Date.parse(r.desde)) / 864e5) + 1 : null;
+  const reintegro = r.activo && r.hasta ? new Date(Date.parse(r.hasta) + 864e5).toISOString().slice(0, 10) : null;
+  const linea = <span className="inline-block w-24 border-b border-[#15201e] align-baseline" />;
+  return (
+    <Hoja media>
+      <Membrete d={d} compacto />
+      <Titulo d={d} prefijo="AT" compacto sub={d.motivo?.nombre ?? null}>Constancia de atención médica</Titulo>
+      <p className="mb-2 text-[12.5px] font-bold">A quien pueda interesar:</p>
+      <p className="mb-3 text-[12.5px] leading-relaxed">
+        Quien suscribe, médico del servicio de salud ocupacional, hace constar que <b>{t.nombre}</b>, C.I. <b>{t.cedula}</b>
+        {t.cargo ? <>, {t.cargo.toLowerCase()}</> : null} de <b>{d.empresa.razon_social}</b>, acudió a este servicio médico el día {fechaLarga(c.fecha)}, de {llegada ?? linea} a {salida ?? linea}
+        {d.motivo?.nombre ? `, con motivo de ${d.motivo.nombre.toLowerCase()}.` : salida ? "" : "."}
+      </p>
+      <div className="mb-3 grid grid-cols-4 gap-2.5">
+        {[["Fecha", fechaCorta(c.fecha)], ["Llegada", llegada ?? ""], ["Salida", salida ?? ""], ["Tiempo", duracion ?? ""]].map(([k, v]) => (
+          <div key={k} className="rounded-lg border border-doc-linea px-3 py-1.5">
+            <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">{k}</div>
+            <div className="h-6 font-cifra text-[15px] font-medium">{v}</div>
+          </div>
+        ))}
+      </div>
+      {diagnostico && c.diagnosticos.length > 0 && <p className="mb-1.5"><b>Diagnóstico:</b> {c.diagnosticos.map((x) => `${x.cie10} ${x.descripcion}`).join("; ")}</p>}
+      {dias !== null && (
+        <p className="mb-1.5">
+          Se indicó <b>reposo médico por {dias} día{dias === 1 ? "" : "s"}</b>, del {fechaCorta(r.desde)} al {fechaCorta(r.hasta)}, con reintegro el {fechaCorta(reintegro)}.
+        </p>
+      )}
+      <p className="text-[11px] text-doc-tenue">Constancia que se expide a petición de la parte interesada.</p>
+      <Firmas>
+        <span />
+        <FirmaMedico d={d} compacto />
+      </Firmas>
+      <Pie d={d} derecha={`Folio ${folio("AT", c.id)}`} />
     </Hoja>
   );
 }

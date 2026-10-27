@@ -227,6 +227,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       reubicacion={d.reubicacion.activa}
       informeLibre={Boolean(d.informeLibre.cuerpo.trim())}
       preoperatoria={/preoper/i.test(motivo?.nombre ?? "")}
+      anexos={Boolean(adjuntos)}
       antes={cambios && !bloqueado ? guardarAntes : undefined}
       ocupado={guardando}
       variante={variante}
