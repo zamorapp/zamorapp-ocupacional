@@ -167,7 +167,11 @@ try {
   // Vigencia de la aptitud: la misma regla que usa la consulta (Configuración › Organización)
   const { rows: [aj] } = await q("select coalesce((ajustes->>'meses_examen_periodico')::int, 12) meses from public.organizaciones where id = $1", [ORG]);
   const vigencia = (f) => { if (!f) return null; const d = new Date(f + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + aj.meses); return d.toISOString().slice(0, 10); };
-  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores", "clinico.historia_laboral"]) await q(`alter table ${t} disable trigger user`);
+  // Se apagan solo los disparadores de avisos, autoría y bitácora; sync_anotar y sync_version siguen (la PC recibe lo importado)
+  const APAGAR = { "clinico.consultas": ["avisar_aptitud_al_cerrar", "bit_consultas", "proteger_autoria", "proteger_medico_historico", "revocar_enlaces_consulta", "validar_firma"],
+    "clinico.aptitudes": ["avisar_aptitud", "bit_aptitudes"], "clinico.reposos": ["bit_reposos"], "public.trabajadores": ["bit_trabajadores"] };
+  const disparadores = async (accion) => { for (const [t, ds] of Object.entries(APAGAR)) for (const d of ds) await q(`alter table ${t} ${accion} trigger ${d}`); };
+  await disparadores("disable");
   const { rows: [lote] } = await q("insert into public.importaciones (org_id, origen, etapa, creado_por) values ($1, $2, 'completa', $3) returning id", [ORG, ORIGEN, MEDICO]);
   const base = { org_id: ORG, origen: ORIGEN, lote_importacion: lote.id };
   const T = { org_id: "uuid", origen: "text", codigo_origen: "text", lote_importacion: "uuid" };
@@ -350,7 +354,10 @@ try {
   // Historia laboral (empleos anteriores)
   const lista = (v) => (v ?? "").split("|").map((x) => x.trim()).filter(Boolean);
   const niega = (v) => (v && v.toUpperCase() !== "NIEGA" ? v : v ? "Niega" : null);
-  const filasHist = I.historiaLab.filter((h) => idTrab(h.cod_paciente) && h.empresa).map((h) => ({ ...base, codigo_origen: `hl:${h.cod_paciente}`, trabajador_id: idTrab(h.cod_paciente),
+  // Un paciente puede tener varios empleos anteriores: el primero conserva la clave de siempre (hl:historia), los demás llevan :n
+  const empleosDe = new Map();
+  const claveEmpleo = (h) => { const n = empleosDe.get(h.cod_paciente) ?? 0; empleosDe.set(h.cod_paciente, n + 1); return n ? `hl:${h.cod_paciente}:${n}` : `hl:${h.cod_paciente}`; };
+  const filasHist = I.historiaLab.filter((h) => idTrab(h.cod_paciente) && h.empresa).map((h) => ({ ...base, codigo_origen: claveEmpleo(h), trabajador_id: idTrab(h.cod_paciente),
     empresa: titulo(h.empresa), industria: nulo(h.industria) && titulo(h.industria), cargo: nulo(h.cargo) && titulo(h.cargo), descripcion: nulo(h.descripcargo), duracion: nulo(h.duracion), horario: nulo(h.horario),
     condiciones: Object.fromEntries([["ambiente", h.codscondambtraant], ["actividad", h.codscondacttraant], ["traslado", h.codscondtratraant], ["carga", h.codscondrietraant]].filter(([, v]) => v)),
     riesgos: Object.fromEntries([["fisico", h.codsriefistraant], ["quimico", h.codsriequitraant], ["mecanico", h.codsriemectraant], ["disergonomico", h.codsriedistraant],
@@ -370,10 +377,10 @@ try {
       fecha_declaracion: fecha(a.fechadeclaracion) ? `${fecha(a.fechadeclaracion)}T${hora(a.horadeclaracion)}-04:00` : null,
       estado: fecha(a.fechadeclaracion) ? "declarado" : "abierto", creado_por: MEDICO };
   });
-  await q("alter table public.eventos disable trigger user");
+  for (const d of ["bit_eventos", "heredar_potencial_discapacidad"]) await q(`alter table public.eventos disable trigger ${d}`);
   await guardar("public.eventos", filasAcc, { ...T, empresa_id: "uuid", trabajador_id: "uuid", consulta_id: "uuid", tipo: "text", subtipo: "text", fecha_hora: "timestamptz", lugar: "text",
     naturaleza_lesion: "text", testigos: "text", descripcion: "text", fecha_declaracion: "timestamptz", estado: "text", creado_por: "uuid" }, { modo: "si_no_editado" });
-  await q("alter table public.eventos enable trigger user");
+  for (const d of ["bit_eventos", "heredar_potencial_discapacidad"]) await q(`alter table public.eventos enable trigger ${d}`);
 
   // Riesgos de cada cargo: unión de lo marcado en las fichas de sus trabajadores (solo si el puesto aún no tiene riesgos)
   const riesgosPuesto = new Map();
@@ -391,7 +398,7 @@ try {
     pacientes: idsPac.size, consultas: idsCons.size, consultas_reescritas: consEscritas.size, diagnosticos: filasDiag.length, aptitudes: consultas.filter((c) => APTITUD[c.codaptitud]).length, reposos: filasReposo.length, historia_laboral: filasHist.length, limitaciones: I.limitacionCat.length, textos: I.notas.length, accidentes: filasAcc.length,
     referencias: I.referencias.length, especialidades: I.especialidades.length, perfiles_paraclinicos: paraGrupos.size, puestos_con_riesgos: riesgosPuesto.size };
   await q("update public.importaciones set resumen = $1 where id = $2", [resumen, lote.id]);
-  for (const t of ["clinico.aptitudes", "clinico.consultas", "clinico.reposos", "public.trabajadores", "clinico.historia_laboral"]) await q(`alter table ${t} enable trigger user`);
+  await disparadores("enable");
   await q(ENSAYO ? "rollback" : "commit");
   console.log(ENSAYO ? "\nENSAYO (no se guardó nada):" : `\nCARGA GUARDADA · lote ${lote.id}:`, resumen);
   const sinEmpresa = I.pacientes.length - pacientes.length, consSinPac = I.consultas.length - consultas.length;
