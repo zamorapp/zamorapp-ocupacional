@@ -5,6 +5,7 @@ import { FileImage, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { MAX_ADJUNTO, TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
+import { confirmar } from "@/components/app/confirmar";
 
 type Props = { orgId: string; trabajadorId: string; consultaId?: string; iniciales: Adjunto[] };
 
@@ -49,7 +50,7 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales }: Props) 
   };
 
   const borrar = async (a: Adjunto) => {
-    if (!confirm(`¿Borrar «${a.nombre}»? No se puede deshacer.`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: "El archivo se elimina y no se puede recuperar.", accion: "Borrar", peligro: true }))) return;
     const supabase = crearClienteNavegador();
     const { error: e } = await supabase.from("adjuntos").delete().eq("id", a.id);
     if (e) { setError(e.message); return; }

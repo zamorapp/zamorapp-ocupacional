@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { Confirmador } from "@/components/app/confirmar";
 import { RegistroSW } from "@/components/app/registro-sw";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_NOMBRE } from "@/lib/config";
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* Guarda el aviso de instalación aunque llegue antes de que cargue React (lo usa InstalarApp). */}
         <script dangerouslySetInnerHTML={{ __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__eventoInstalar=e});" }} />
         <TooltipProvider>{children}</TooltipProvider>
+        <Confirmador />
         <RegistroSW />
       </body>
     </html>

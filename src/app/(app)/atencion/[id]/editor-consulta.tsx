@@ -34,6 +34,7 @@ import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { TextosFrecuentes } from "./textos-frecuentes";
+import { confirmar } from "@/components/app/confirmar";
 
 type Props = {
   inicial: DatosConsulta;
@@ -45,7 +46,11 @@ type Props = {
   puedeFirmar: boolean;
 };
 
-const CONFIRMAR_FIRMA = "La firma bloquea la consulta para siempre (no se edita, reabre ni borra). ¿Firmar?";
+const CONFIRMAR_FIRMA = {
+  titulo: "¿Firmar la consulta?",
+  texto: "Al firmarla queda cerrada para siempre: ya no se puede editar, reabrir ni borrar.",
+  accion: "Firmar",
+};
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const APTITUDES: Aptitud[] = ["elegible", "elegible_con_restricciones", "no_elegible", "espera_resultados", "diferido"];
@@ -182,8 +187,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   );
 
   // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
-  const firmarEImprimir = () => {
-    if (!confirm(CONFIRMAR_FIRMA)) return;
+  const firmarEImprimir = async () => {
+    if (!(await confirmar({ ...CONFIRMAR_FIRMA, accion: "Firmar e imprimir" }))) return;
     iniciar(async () => {
       if (d.estado === "borrador") {
         const g = await guardarConsulta(d, true);
@@ -286,7 +291,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               </Button>
               {puedeFirmar && (
                 <>
-                  <Button variant="outline" onClick={() => confirm(CONFIRMAR_FIRMA) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
+                  <Button variant="outline" onClick={async () => (await confirmar(CONFIRMAR_FIRMA)) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
                     <CheckCircle2 /> Firmar
                   </Button>
                   <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
@@ -545,9 +550,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <input
                     type="checkbox"
                     checked={d.sano}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const sano = e.target.checked;
-                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !confirm("Se quitarán los diagnósticos escritos. ¿Continuar?")) return;
+                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !(await confirmar({ titulo: "¿Marcar como sano?", texto: "Se quitarán los diagnósticos que ya escribiste.", accion: "Marcar sano" }))) return;
                       setD((x) => ({
                         ...x,
                         sano,
