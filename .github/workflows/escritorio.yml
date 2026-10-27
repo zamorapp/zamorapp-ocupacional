@@ -92,6 +92,13 @@ jobs:
           npm ci
           npx next build
           if ($LASTEXITCODE) { throw "Falló la compilación de la app" }
+          # La pantalla de ingreso debe traer el código de la huella (diagnóstico de la prueba de Windows Hello)
+          $login = Get-Content .next/server/app/login.html -Raw
+          $chunks = [regex]::Matches($login, 'static/chunks/[^"]+\.js') | ForEach-Object Value | Sort-Object -Unique
+          Write-Host "Scripts de /login: $($chunks -join ' ')"
+          $conHuella = $chunks | Where-Object { Select-String -Path ".next/$_" -Pattern "zamorapp.huella" -SimpleMatch -Quiet }
+          Write-Host "Con la huella: $($conHuella -join ' ')"
+          Write-Host "En .next/static: $((Get-ChildItem .next/static -Recurse -Filter *.js | Select-String -Pattern 'zamorapp.huella' -SimpleMatch -List | ForEach-Object Filename) -join ' ')"
           $r = "escritorio/recursos"
           Copy-Item -Recurse .next/standalone "$r/app"
           Copy-Item -Recurse .next/static "$r/app/.next/static"
@@ -247,6 +254,8 @@ jobs:
             if ($instalado -ne (Get-FileHash "escritorio/$p").Hash) { throw "Instalar encima no reemplazó $p" }
           }
           if ((Get-Content (Join-Path $script:dir.FullName "recursos/app/.next/BUILD_ID")) -ne (Get-Content .next/BUILD_ID)) { throw "Instalar encima no reemplazó la app" }
+          $instalada = Get-ChildItem (Join-Path $script:dir.FullName "recursos/app/.next/static") -Recurse -Filter *.js | Select-String -Pattern "zamorapp.huella" -SimpleMatch -List | ForEach-Object Filename
+          Write-Host "App instalada, scripts con la huella: $($instalada -join ' ')"
 
           # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
           $fallas = 0
