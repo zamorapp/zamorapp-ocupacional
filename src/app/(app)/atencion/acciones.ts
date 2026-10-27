@@ -159,11 +159,21 @@ export async function reabrirConsulta(id: string): Promise<Resultado> {
   return { ok: true, mensaje: "Consulta reabierta." };
 }
 
-// Firma: la consulta queda bloqueada para siempre (no se edita, no se reabre, no se borra)
+// Firma: la consulta queda bloqueada; si hay un error se corrige con corregirConsulta (motivo obligatorio)
 export async function firmarConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("firmar_consulta", { p_id: id });
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath(`/atencion/${id}`);
-  return { ok: true, mensaje: "Consulta firmada. Ya no se puede modificar." };
+  return { ok: true, mensaje: "Consulta firmada. Si encuentras un error, usa «Corregir» e indica el motivo." };
+}
+
+// Corregir una consulta firmada: guarda la versión firmada (no se pierde ni se edita) y la devuelve a borrador.
+// Solo el médico autor, el gerente médico o el administrador con acceso clínico (lo valida reabrir_consulta en la base).
+export async function corregirConsulta(id: string, motivo: string): Promise<Resultado & { revision?: number }> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("reabrir_consulta", { p_id: id, p_motivo: motivo.trim() });
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath(`/atencion/${id}`);
+  return { ok: true, mensaje: "Consulta abierta para corregir. La versión firmada quedó guardada en el historial.", revision: data as number };
 }
