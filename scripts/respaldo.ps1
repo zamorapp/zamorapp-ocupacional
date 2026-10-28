@@ -1,7 +1,7 @@
 ﻿# Respaldo diario de zamorApp: copia los datos de Supabase a la PC y a Google Drive.
 # Primera vez (guarda la clave de la base cifrada para este usuario de Windows):
 #   $env:PGPW = "<clave de la base>"; powershell -File scripts\respaldo.ps1 -Configurar
-# Programar el respaldo diario en Windows:  powershell -File scripts\respaldo.ps1 -Programar
+# Programar el respaldo diario en Windows:  powershell -File scripts\respaldo.ps1 -Programar (luego se mantiene sola)
 # Respaldo manual en cualquier momento:     powershell -File scripts\respaldo.ps1
 param([switch]$Configurar, [switch]$Programar)
 $ErrorActionPreference = "Stop"
@@ -23,13 +23,31 @@ if ($Configurar) {
   Write-Host "Clave guardada." -ForegroundColor Green
 }
 
-if ($Programar) {
-  # Por wscript: powershell.exe directo deja ver un cuadro negro un instante al iniciar la PC
+# Tarea oculta: wscript lanza el respaldo sin ventana (powershell.exe directo abre una consola en Windows Terminal).
+# Al iniciar sesión espera 2 minutos para que Google Drive ya esté montado.
+function Registrar-Tarea {
   $accion = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$(Join-Path $PSScriptRoot 'respaldo-oculto.vbs')`""
-  $disparadores = @((New-ScheduledTaskTrigger -Daily -At "12:30"), (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME))
-  $ajustes = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  $alIniciar = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+  $alIniciar.Delay = "PT2M"
+  $disparadores = @((New-ScheduledTaskTrigger -Daily -At "12:30"), $alIniciar)
+  $ajustes = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
   Register-ScheduledTask -TaskName "zamorApp respaldo" -Action $accion -Trigger $disparadores -Settings $ajustes -Force | Out-Null
-  Write-Host "Respaldo diario programado (12:30 y al iniciar sesión)." -ForegroundColor Green
+}
+
+if ($Programar) {
+  Registrar-Tarea
+  Write-Host "Respaldo diario programado (12:30 y 2 minutos después de iniciar sesión, sin ventanas)." -ForegroundColor Green
+} else {
+  # Se repara sola: si la tarea quedó con la acción vieja (powershell.exe con ventana) o sin la espera al iniciar,
+  # cada respaldo la vuelve a registrar bien, sin que haga falta el doble clic en programar-respaldo.cmd
+  $tarea = Get-ScheduledTask -TaskName "zamorApp respaldo" -ErrorAction SilentlyContinue
+  $vieja = $tarea -and ($tarea.Actions[0].Execute -ne "wscript.exe" -or
+    -not ($tarea.Triggers | Where-Object { $_.CimClass.CimClassName -eq "MSFT_TaskLogonTrigger" -and $_.Delay -eq "PT2M" }))
+  if ($vieja) {
+    try { Registrar-Tarea; "$(Get-Date -Format 'yyyy-MM-dd HH:mm') Tarea del respaldo actualizada (oculta, con espera al iniciar)" | Add-Content $registro }
+    catch { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no pude actualizar la tarea del respaldo: $_" | Add-Content $registro }
+  }
 }
 
 $segura = Get-Content $credencial | ConvertTo-SecureString
