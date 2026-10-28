@@ -8,9 +8,11 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::{AppHandle, Manager, RunEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
+
+mod documentos;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -442,6 +444,8 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(Procesos::default()))
+        .manage(documentos::Guardados::default())
+        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf])
         .on_menu_event(|app, evento| match evento.id().0.as_str() {
             "sincronizar" => sincronizar_ahora(app.clone()),
             "actualizar" => buscar_actualizacion(app.clone(), true),
@@ -464,9 +468,13 @@ fn main() {
             // La versión en el título (0.1.<número de compilación>): así nunca se duda cuál instalador está corriendo
             let version = app.package_info().version.to_string();
             anotar(&format!("versión del instalador {version}"));
+            // Documentos (target="_blank", window.open) en su propia ventana; sin esto el navegador interno los descarta.
+            // Descargas (Excel, archivos): a la carpeta Descargas con aviso.
+            let manejador_docs = app.handle().clone();
             let para_descargas = app.handle().clone();
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .title(format!("zamorApp Escritorio v{version}"))
+                .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
                 .on_download(move |_, evento| descarga(&para_descargas, evento));
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
@@ -498,10 +506,13 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("no se pudo crear la ventana de zamorApp");
 
-    app.run(|manejador, evento| {
-        if let RunEvent::Exit = evento {
+    app.run(|manejador, evento| match evento {
+        // Cerrar la ventana principal cierra el programa entero, aunque queden documentos abiertos en otras ventanas
+        RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "principal" => manejador.exit(0),
+        RunEvent::Exit => {
             anotar("cerrando");
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
         }
+        _ => {}
     });
 }

@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { abrirEnVentana } from "@/lib/escritorio";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -52,15 +53,10 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
     anexos && { tipo: "anexos", texto: "Exámenes escaneados", icono: ScanLine },
   ].filter(Boolean) as { tipo: string; texto: string; nota?: string; icono: typeof FileText }[];
 
-  const abrir = async (tipo: string) => {
+  const abrir = (tipo: string) => {
     const url = `/imprimir/${tipo}/${consultaId}`;
-    if (!antes) return void window.open(url, "_blank");
-    // La pestaña se abre ya (si se abre después de esperar, el navegador la bloquea) y se dirige al documento al terminar de guardar
-    const pestana = window.open("about:blank", "_blank");
-    if (await antes()) {
-      if (pestana) pestana.location.href = url;
-      else window.location.href = url;
-    } else pestana?.close();
+    // Con cambios sin guardar, se guarda primero y el documento abre al terminar (o no abre si falló)
+    return abrirEnVentana(antes ? async () => ((await antes()) ? url : null) : url);
   };
 
   return (
