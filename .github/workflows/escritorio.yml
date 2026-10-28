@@ -123,6 +123,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
+          # Al publicar, sin la llave real (privada y pública) ninguna PC aceptaría la actualización: se corta aquí
+          if ("${{ github.ref == 'refs/heads/main' && inputs.publicar }}" -eq "true") {
+            if (-not $env:ZAMORAPP_UPDATER_PUBKEY) { throw "Falta la variable ZAMORAPP_UPDATER_PUBKEY: no se puede publicar" }
+            if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "Falta el secreto TAURI_SIGNING_PRIVATE_KEY: no se puede publicar" }
+          }
           # El instalador siempre sale firmado (así la prueba de humo prueba una actualización de verdad). Con la llave
           # real solo al publicar desde main; en cualquier otra corrida, con una llave de prueba de un solo uso.
           if ($env:TAURI_SIGNING_PRIVATE_KEY) {
@@ -179,6 +184,7 @@ jobs:
           # El programa instalado la usa solo porque ZAMORAPP_NUBE_URL apunta a 127.0.0.1 (en una PC real se ignora).
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"; $env:PUERTO = "55500"
           $env:ZAMORAPP_POSTGREST = (Resolve-Path escritorio/recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
+          $env:ZAMORAPP_NUBE_MARCA_MIGRADA = "$env:RUNNER_TEMP/zamorapp-nube-migrada"  # la prueba de la ventana lo crea para simular una nube migrada por delante
           $nube = Start-Process node -ArgumentList "escritorio/pruebas/nube-cli.mjs" -PassThru -NoNewWindow -RedirectStandardOutput capturas/nube.log -RedirectStandardError capturas/nube.err
           $env:ZAMORAPP_NUBE_URL = "http://127.0.0.1:55500"
           # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real). El puerto lo abre
@@ -219,7 +225,7 @@ jobs:
                 try { Write-Host "   CDP 9333: $((Invoke-RestMethod http://127.0.0.1:9333/json/version -TimeoutSec 3).Browser)" } catch { Write-Host "   CDP 9333 no responde: $($_.Exception.Message)" }
                 $base = "capturas/" + ($que -replace "[^a-z0-9]+", "-")
                 $extra = if ($imprimir) { " --imprimir $env:ZAMORAPP_PDF_PRUEBA" } else { "" }  # carpeta sin espacios (capturas/pdf)
-                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png$extra" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
+                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png$extra --nube-marca $env:ZAMORAPP_NUBE_MARCA_MIGRADA" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
                 Get-Content "$base.salida.txt", "$base.errores.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
                 if ($prueba.ExitCode) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló (ver capturas/)" }
               }
@@ -337,6 +343,13 @@ jobs:
               if (($lineas -match "abriendo").Count -ge 2 -and ($lineas -match "app lista").Count -ge 1) { $ok = $true }
             }
             if (-not $ok) { throw "El programa no se volvió a abrir tras instalar la actualización" }
+            # El avance de la descarga y el resultado al volver a abrir quedan anotados (antes no se veía nada)
+            for ($s = 0; $s -lt 30 -and -not ((& $nuevo) -match "actualización instalada:"); $s++) { Start-Sleep 1 }
+            $lineas = & $nuevo
+            if (-not ($lineas -match "descargando la actualización: 100 %")) { throw "No se anotó el avance de la descarga hasta 100 %" }
+            if (-not ($lineas -match "actualización instalada:")) { throw "Al volver a abrir, el programa no anotó el resultado de la actualización" }
+            Write-Host "actualización: $(($lineas -match 'descargando la actualización:') -join ' | ')"
+            Write-Host "actualización: $(($lineas -match 'actualización instalada:') | Select-Object -Last 1)"
             $relanzado = Get-Process zamorapp -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } | Select-Object -First 1
             if (-not $relanzado) { throw "El programa actualizado no está corriendo" }
             Write-Host "actualización: instalada y el programa se volvió a abrir solo (versión $((& $nuevo | Select-String 'versión del instalador' | Select-Object -Last 1).Line))"

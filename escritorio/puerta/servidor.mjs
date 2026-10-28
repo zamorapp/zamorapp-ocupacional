@@ -1,6 +1,7 @@
 // Puerta local: la app de escritorio le habla como si fuera Supabase (auth, rest, storage).
 // Con internet desvía todo a la nube con el token de la nube del usuario; sin internet atiende
 // desde la copia local, por ahora solo para consultar (fase F1).
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
@@ -8,6 +9,7 @@ import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
 // Los enlaces de los correos (recuperar clave, confirmar) abren la app web: la PC no recibe visitas de afuera.
@@ -21,14 +23,18 @@ const CON_DOS_PASOS = ["administrador", "gerente_medico"];
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
 const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
+const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
+
 export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+  let pedidaActualizacion = false;
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
 
   const responder = (res, status, cuerpo, extra = {}) => {
     const texto = cuerpo === undefined ? "" : typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo);
-    res.writeHead(status, { "Content-Type": "application/json", ...extra });
+    // Content-Length (no «chunked»): el programa (main.rs) lee la respuesta con HTTP crudo y la toma tal cual
+    res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(texto), ...extra });
     res.end(texto);
   };
 
@@ -178,8 +184,20 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       });
       const salida = {};
       for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+      let cuerpoRespuesta = Buffer.from(await r.arrayBuffer());
+      if (r.status >= 400 && r.status < 500) {
+        // La nube ya cambió y esta versión pide algo que ya no existe: se avisa claro (y /zamorapp/estado lo
+        // marca para que la ventana ofrezca actualizar) en vez de dejar caer la pantalla con un error mudo.
+        let json = null;
+        try { json = JSON.parse(cuerpoRespuesta.toString("utf8")); } catch { /* no es JSON */ }
+        if (json && nube.anotarIncompatibilidad(r.status, json, req.url.split("?")[0])) {
+          registro(`[puerta] la nube cambió y esta versión no la entiende (${json.code} en ${req.method} ${req.url.split("?")[0]}): ${json.message}`);
+          cuerpoRespuesta = Buffer.from(JSON.stringify({ ...json, message: `${MENSAJE_ACTUALIZAR} (${json.message})` }));
+          salida["content-type"] = "application/json; charset=utf-8";
+        }
+      }
       res.writeHead(r.status, salida);
-      res.end(Buffer.from(await r.arrayBuffer()));
+      res.end(cuerpoRespuesta);
       return true;
     } catch (e) {
       registro(`[puerta] nube no responde: ${e.message}`);
@@ -321,9 +339,36 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
         return res.end("descarga de prueba de zamorApp\n");
       }
+      const conControl = () => {
+        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
+        const esperada = Buffer.from(control);
+        return Boolean(control) && dada.length === esperada.length && crypto.timingSafeEqual(dada, esperada);
+      };
       if (ruta === "/zamorapp/estado") {
+        // buscarActualizacion: la pantalla «hay una versión nueva» lo pidió; solo el programa (con su clave de
+        // control) lo recibe, y una sola vez, para lanzar el actualizador.
+        const buscar = pedidaActualizacion && conControl();
+        if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
+          actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
+      }
+      // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
+      // al programa y abrir la web en el navegador de Windows (dentro del WebView2 un enlace externo no abre nada).
+      if (ruta === "/zamorapp/buscar-actualizacion" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        pedidaActualizacion = true;
+        registro("[puerta] la pantalla pidió buscar actualización");
+        return responder(res, 200, { pedida: true });
+      }
+      if (ruta === "/zamorapp/abrir-web" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        registro(`[puerta] abrir la web en el navegador: ${URL_WEB}`);
+        let abierto = false;
+        if (process.platform === "win32") {
+          try { spawn("cmd", ["/c", "start", "", URL_WEB], { detached: true, stdio: "ignore", windowsHide: true }).unref(); abierto = true; } catch (e) { registro(`[puerta] no se pudo abrir el navegador: ${e.message}`); }
+        }
+        return responder(res, 200, { abierto, url: URL_WEB });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
