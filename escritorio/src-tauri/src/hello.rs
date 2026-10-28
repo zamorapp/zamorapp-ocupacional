@@ -81,7 +81,7 @@ fn verificar(ventana: &WebviewWindow, mensaje: &str) -> Result<(), String> {
         return Ok(());
     }
     let no_disponible = "Esta PC no tiene Windows Hello configurado. Actívalo en Configuración de Windows → Cuentas → Opciones de inicio de sesión (huella o PIN).";
-    let disponible = UserConsentVerifier::CheckAvailabilityAsync().and_then(|op| op.get()).map_err(|_| no_disponible.to_string())?;
+    let disponible = UserConsentVerifier::CheckAvailabilityAsync().and_then(|op| op.join()).map_err(|_| no_disponible.to_string())?;
     if disponible != D::Available {
         return Err(no_disponible.into());
     }
@@ -89,7 +89,7 @@ fn verificar(ventana: &WebviewWindow, mensaje: &str) -> Result<(), String> {
     let hwnd = ventana.hwnd().map_err(|e| e.to_string())?.0 as isize;
     let interop = factory::<UserConsentVerifier, IUserConsentVerifierInterop>().map_err(|e| e.to_string())?;
     let operacion: IAsyncOperation<R> = unsafe { interop.RequestVerificationForWindowAsync(HWND(hwnd as _), &HSTRING::from(mensaje)) }.map_err(|e| e.to_string())?;
-    match operacion.get().map_err(|e| e.to_string())? {
+    match operacion.join().map_err(|e| e.to_string())? {
         R::Verified => Ok(()),
         R::Canceled => Err("Se canceló Windows Hello. Puedes intentarlo de nuevo o usar tu contraseña.".into()),
         R::RetriesExhausted => Err("Demasiados intentos con Windows Hello. Entra con tu contraseña.".into()),
