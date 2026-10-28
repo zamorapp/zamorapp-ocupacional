@@ -8,12 +8,14 @@ import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { RUTAS_EMPRESA } from "@/lib/navegacion";
 import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const [sesion, empresas, activa, cabeceras] = await Promise.all([obtenerSesion(), listarEmpresas(), empresaActivaId(), headers()]);
 
-  // Los usuarios de empresas cliente solo ven el portal, sus trabajadores y accidentes
-  const portal = sesion.rol === "gerente_empresa";
+  // Los usuarios de empresas cliente (RR. HH., supervisor, delegado, auditor, trabajador) solo ven el portal,
+  // sus trabajadores y accidentes; cualquier otra ruta los devuelve al portal
+  const portal = esRolEmpresa(sesion.rol);
   const ruta = cabeceras.get("x-ruta") ?? "";
   if (portal && ruta && !RUTAS_EMPRESA.some((r) => ruta === r || ruta.startsWith(r + "/"))) redirect("/portal");
 

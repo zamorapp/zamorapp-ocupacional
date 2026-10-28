@@ -45,7 +45,7 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
   if (!emp) return null;
   const hoy = hoyVE();
 
-  const [eventos, trabs, apts, notifs, { data: puestos }, { data: informes }] = await Promise.all([
+  const [eventos, trabs, apts, notifs, { data: puestos }, { data: informes }, { data: porPuesto }] = await Promise.all([
     eventosDeEmpresa(empresaId, desde, hasta),
     todas<{ id: string; nombres: string; apellidos: string; cedula: string; puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null }>((d, h) =>
       supabase.from("trabajadores").select("id, nombres, apellidos, cedula, puesto_id, puestos(nombre, evaluado_en)", { count: "exact" })
@@ -55,8 +55,10 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
     todas<{ id: string; trabajador_id: string; puesto_id: string | null; entregada_en: string; firmada_en: string | null }>((d, h) =>
       supabase.from("notificaciones_riesgo").select("id, trabajador_id, puesto_id, entregada_en, firmada_en", { count: "exact" })
         .eq("empresa_id", empresaId).order("entregada_en", { ascending: false }).order("creado_en", { ascending: false }).range(d, h)),
-    supabase.from("puestos").select("id, nombre, evaluado_en, trabajadores(count)").eq("empresa_id", empresaId).eq("activo", true).order("nombre"),
+    supabase.from("puestos").select("id, nombre, evaluado_en").eq("empresa_id", empresaId).eq("activo", true).order("nombre"),
     supabase.from("informes_vigilancia").select("desde, hasta, actualizado_en").eq("empresa_id", empresaId).gte("hasta", desde).lte("desde", hasta).order("desde"),
+    // trabajadores(count) necesita SELECT sobre toda la tabla (sus datos de salud son privados): se cuenta aparte
+    supabase.rpc("trabajadores_por_puesto", { p_empresa: empresaId }),
   ]);
 
   // El informe de investigación es clínico: solo lo cuenta quien puede verlo
@@ -86,8 +88,9 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
       notificacionVigente: Boolean(n?.firmada_en && t.puesto_id && !desactualizada({ entregadaEn: n.entregada_en, puestoId: n.puesto_id }, { id: t.puesto_id, evaluadoEn: t.puestos?.evaluado_en ?? null })),
     };
   });
-  const listaPuestos = ((puestos ?? []) as unknown as { id: string; nombre: string; evaluado_en: string | null; trabajadores: { count: number }[] }[])
-    .map((p) => ({ id: p.id, nombre: p.nombre, evaluadoEn: p.evaluado_en, trabajadores: p.trabajadores?.[0]?.count ?? 0 }));
+  const totalPuesto = new Map(((porPuesto ?? []) as { puesto_id: string; total: number }[]).map((p) => [p.puesto_id, Number(p.total)]));
+  const listaPuestos = ((puestos ?? []) as { id: string; nombre: string; evaluado_en: string | null }[])
+    .map((p) => ({ id: p.id, nombre: p.nombre, evaluadoEn: p.evaluado_en, trabajadores: totalPuesto.get(p.id) ?? 0 }));
   const conPersonal = listaPuestos.filter((p) => p.trabajadores > 0);
 
   const declarables = eventos.filter((e) => e.tipo !== "incidente");

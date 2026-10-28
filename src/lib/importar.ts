@@ -83,7 +83,7 @@ function aFechaISO(v: string): string | null {
   return null;
 }
 
-function normalizarCedula(v: string): string | null {
+export function normalizarCedula(v: string): string | null {
   const limpio = v.toUpperCase().replace(/[.\s]/g, "");
   const m = limpio.match(/^([VEP])?-?(\d{5,9})$/);
   return m ? `${m[1] ?? "V"}-${m[2]}` : null;

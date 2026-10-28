@@ -114,7 +114,7 @@ test("con internet, la app lee de la nube", { skip: omitir }, async () => {
   const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   assert.equal(r.status, 200);
   tokenMed = r.json.access_token;
-  const t = await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed });
+  const t = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed });
   assert.equal(t.status, 200);
   assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"));
 });
@@ -123,7 +123,7 @@ test("sin internet: consulta la copia local con las mismas reglas de acceso", { 
   nube.estado.caida = true;
   await nubeObj.comprobar();
   assert.equal(nubeObj.enLinea, false);
-  const t = await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed });
+  const t = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed });
   assert.equal(t.status, 200, JSON.stringify(t.json));
   assert.ok(t.json.length >= 1);
   assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"), "el médico de A no ve trabajadores de B");
@@ -188,7 +188,7 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
 });
 
 test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
-  assert.equal((await pedir("/rest/v1/trabajadores?select=*")).status, 401);
+  assert.equal((await pedir("/rest/v1/trabajadores?select=id,empresa_id")).status, 401);
   const crudo = fs.readFileSync(path.join(datos, "estado.zamorapp"));
   assert.ok(!crudo.includes("admin@x") && !crudo.includes(estado.d.equipo.secreto));
   // Ningún archivo de la carpeta de datos (fuera de la base) guarda el secreto JWT ni la clave de PostgREST.
@@ -232,7 +232,7 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   u().nube.expires_at = 0;
   await replicaObj.ciclo();
   assert.equal(u().requiereNube, true);
-  assert.equal((await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed })).status, 401, "sus sesiones locales se cortan");
+  assert.equal((await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed })).status, 401, "sus sesiones locales se cortan");
   nube.estado.caida = true;
   await nubeObj.comprobar();
   const fuera = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
@@ -328,7 +328,7 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
     estado.d.usuarios[medA].ultimoOnline = Date.now(); // que sea el usuario de la sincronía
     await replicaObj.ciclo();
     assert.equal(estado.d.usuarios[medA].bloqueado, true);
-    assert.equal((await pedir("/rest/v1/trabajadores?select=*", { token: tokenMed })).status, 401);
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed })).status, 401);
     nube.estado.caida = true;
     await nubeObj.comprobar();
     const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
@@ -350,7 +350,7 @@ test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)
     await new Promise((r) => setTimeout(r, 500));
     await motor.relanzando;
     assert.ok(!fs.existsSync(marca), "pasó por las dos caídas");
-    const r = await pedir("/rest/v1/trabajadores?select=*", { token: tokenAdmin });
+    const r = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenAdmin });
     assert.equal(r.status, 200);
   } finally {
     delete process.env.SIMULAR_CAIDA_POSTGREST;
