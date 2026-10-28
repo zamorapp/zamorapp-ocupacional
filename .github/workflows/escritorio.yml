@@ -110,6 +110,18 @@ jobs:
           Copy-Item -Recurse escritorio/base "$r/puerta/base"
           Copy-Item escritorio/package.json, escritorio/package-lock.json "$r/puerta/"
           Push-Location "$r/puerta"; npm ci --omit=dev; Pop-Location
+          # Huella de las piezas pesadas (PostgreSQL, PostgREST, Node). Las actualizaciones van en un instalador liviano
+          # sin ellas mientras la huella no cambie; el completo trae pgsql/componentes.txt y todos traen la esperada.
+          $lista = foreach ($d in "pgsql", "postgrest", "node") {
+            Get-ChildItem -Recurse -File "$r/$d" | Sort-Object FullName | ForEach-Object { "$d/$($_.FullName.Substring((Resolve-Path "$r/$d").Path.Length + 1)) $((Get-FileHash $_.FullName).Hash)" }
+          }
+          $suma = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(($lista -join "`n")))).Substring(0, 16)
+          $huella = "pg$env:PG_VERSION-postgrest$env:POSTGREST_VERSION-node$(node -v)-$suma"
+          Set-Content -NoNewline "$r/pgsql/componentes.txt" $huella
+          Set-Content -NoNewline "$r/componentes-esperados.txt" $huella
+          "COMPONENTES=$huella" >> $env:GITHUB_ENV
+          foreach ($d in Get-ChildItem $r -Directory) { Write-Host ("{0,-12} {1,8:N1} MB" -f $d.Name, ((Get-ChildItem -Recurse -File $d.FullName | Measure-Object Length -Sum).Sum / 1MB)) }
+          Write-Host "Huella de componentes: $huella"
 
       - name: Instalador (Tauri, NSIS por usuario, sin permisos de administrador)
         shell: pwsh
@@ -156,6 +168,23 @@ jobs:
           if ($LASTEXITCODE) { throw "Falló el instalador" }
           $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado" }
+          # Instalador liviano para las actualizaciones: lo mismo sin PostgreSQL, PostgREST ni Node (quedan de la
+          # instalación completa: en modo /UPDATE el instalador no desinstala nada antes). Se compila después y el
+          # completo vuelve a su lugar: todo lo que sigue (pruebas, artefacto, publicar) usa el completo.
+          $completo = "$env:RUNNER_TEMP/completo"; New-Item -ItemType Directory -Force $completo | Out-Null
+          Copy-Item "$($exe.FullName)", "$($exe.FullName).sig" $completo
+          # Las piezas pesadas se apartan durante esta compilación y vuelven después (la configuración no cambia)
+          $pesados = "$env:RUNNER_TEMP/pesados"; New-Item -ItemType Directory -Force $pesados | Out-Null
+          foreach ($d in "pgsql", "postgrest", "node") { Move-Item "../escritorio/recursos/$d" "$pesados/$d" }
+          try { npx --yes @tauri-apps/cli@2 build --config src-tauri/ajustes-ci.json }
+          finally { foreach ($d in "pgsql", "postgrest", "node") { Move-Item "$pesados/$d" "../escritorio/recursos/$d" } }
+          if ($LASTEXITCODE) { throw "Falló el instalador liviano" }
+          New-Item -ItemType Directory -Force liviano | Out-Null
+          Move-Item -Force "$($exe.FullName)", "$($exe.FullName).sig" liviano/
+          Copy-Item "$completo/*" src-tauri/target/release/bundle/nsis/
+          $mbCompleto = (Get-Item $exe.FullName).Length / 1MB; $mbLiviano = (Get-Item "liviano/$($exe.Name)").Length / 1MB
+          Write-Host ("Instalador completo: {0:N1} MB · liviano (actualizaciones): {1:N1} MB" -f $mbCompleto, $mbLiviano)
+          if ($mbLiviano -gt $mbCompleto * 0.7) { throw "El instalador liviano no quedó liviano: ¿siguen adentro PostgreSQL/Node?" }
 
       # Prueba de humo del instalador real, como lo vive Cesar: primero la versión anterior (el último instalador
       # que pasó este CI) con sus datos, luego la nueva instalada ENCIMA, y se abre y cierra varias veces seguidas.
@@ -274,7 +303,7 @@ jobs:
           $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $setupPrevio) {
             # Los artefactos duran 3 días: si no hay, se usa la última versión publicada (lo que Cesar tiene de verdad)
-            gh release download --repo zamorapp/zamorapp-descargas --pattern "*.exe" --dir previa 2>$null
+            gh release download --repo zamorapp/zamorapp-descargas --pattern "*-setup.exe" --dir previa 2>$null
             $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($setupPrevio) { $previa = "última publicada" }
           }
@@ -312,7 +341,8 @@ jobs:
           # La firma lleva la versión (requireSignedVersion): el instalador se copia y se firma de nuevo como $versionNueva.
           # Nunca se toca la firma original, que es la que se publica.
           $copia = "$env:RUNNER_TEMP/actualizacion"; New-Item -ItemType Directory -Force $copia | Out-Null
-          $setupNuevo = Join-Path $copia $setup.Name; Copy-Item $setup.FullName $setupNuevo
+          # Se prueba el instalador LIVIANO (el que recibirá Cesar): debe arrancar con las piezas de la instalación completa
+          $setupNuevo = Join-Path $copia $setup.Name; Copy-Item (Get-ChildItem escritorio/liviano/*-setup.exe | Select-Object -First 1).FullName $setupNuevo
           # Igual que al compilar: la llave va por variable de entorno (vacía, la CLI la toma como puesta y choca con -f)
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
             $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content "$env:RUNNER_TEMP/prueba.key" -Raw).Trim()
@@ -376,6 +406,8 @@ jobs:
           $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
           Start-Sleep 5
+          # Tras una actualización liviana, el desinstalador también debe llevarse PostgreSQL, PostgREST y Node
+          foreach ($d in "pgsql", "postgrest", "node") { if (Test-Path "$($script:dir.FullName)/recursos/$d") { throw "Desinstalar dejó recursos/$d" } }
           Remove-Item -Recurse -Force "$registros/datos" -ErrorAction SilentlyContinue
           Instalar $setup.FullName
           if (-not (Abrir "primer arranque en PC nueva" $false $true)) { throw "El programa no arrancó o no dejó entrar en una PC sin datos" }
@@ -407,19 +439,34 @@ jobs:
           $v = "0.1.${{ github.run_number }}"
           $exe = Get-ChildItem escritorio/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado (¿falta TAURI_SIGNING_PRIVATE_KEY?)" }
+          $liviano = Get-ChildItem escritorio/liviano/*-setup.exe | Select-Object -First 1
+          if (-not (Test-Path "$($liviano.FullName).sig")) { throw "El instalador liviano no quedó firmado" }
           $nombre = "zamorapp-escritorio-$v-setup.exe"
+          $nombreLiviano = "zamorapp-escritorio-$v-actualizacion.exe"
           Copy-Item $exe.FullName $nombre
+          Copy-Item $liviano.FullName $nombreLiviano
           $repo = "zamorapp/zamorapp-descargas"
-          @{
+          # Si las piezas pesadas no cambiaron desde la última versión publicada, la actualización va liviana.
+          # Si cambiaron (o no se sabe), va la completa. Una PC que se saltó el cambio lo nota al abrir y baja
+          # latest-completo.json (ver revisar_componentes en main.rs).
+          gh release download --repo $repo --pattern componentes.txt --dir previa-componentes 2>$null
+          $anterior = (Get-Content previa-componentes/componentes.txt -Raw -ErrorAction SilentlyContinue)
+          $global:LASTEXITCODE = 0
+          $usarLiviano = $anterior -and ($anterior.Trim() -eq $env:COMPONENTES)
+          Write-Host "Componentes: antes '$anterior' · ahora '$env:COMPONENTES' → actualización $(if ($usarLiviano) { 'liviana' } else { 'completa' })"
+          Set-Content -NoNewline componentes.txt $env:COMPONENTES
+          $anuncio = { param($archivo, $firma) @{
             version = $v
             notes = "zamorApp Escritorio $v (${{ github.sha }})"
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{ "windows-x86_64" = @{
-              signature = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
-              url = "https://github.com/$repo/releases/download/v$v/$nombre"
+              signature = (Get-Content $firma -Raw).Trim()
+              url = "https://github.com/$repo/releases/download/v$v/$archivo"
             } }
-          } | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8NoBOM latest.json
-          gh release create "v$v" $nombre latest.json --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
+          } | ConvertTo-Json -Depth 5 }
+          & $anuncio $nombre "$($exe.FullName).sig" | Out-File -Encoding utf8NoBOM latest-completo.json
+          if ($usarLiviano) { & $anuncio $nombreLiviano "$($liviano.FullName).sig" | Out-File -Encoding utf8NoBOM latest.json } else { Copy-Item latest-completo.json latest.json }
+          gh release create "v$v" $nombre $nombreLiviano latest.json latest-completo.json componentes.txt --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
           if ($LASTEXITCODE) { throw "No se pudo publicar la versión" }
 
       - uses: actions/upload-artifact@v4
