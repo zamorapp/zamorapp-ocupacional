@@ -259,7 +259,9 @@ try {
     });
 
     await paso("Imprimir: diálogo de impresoras de Windows", async () => {
-      await documento.click("[data-accion=imprimir]");
+      // El diálogo de impresoras es modal y bloquea la página: un click de Playwright se queda esperando que la página
+      // responda. Se pulsa el botón desde la propia página, sin esperarla, y el diálogo se busca afuera.
+      await documento.evaluate(() => { setTimeout(() => document.querySelector("[data-accion=imprimir]")?.click(), 100); });
       // El diálogo es una ventana de Windows (no de la página): se busca por UI Automation, se informa y se cierra
       const ps = `
         Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
