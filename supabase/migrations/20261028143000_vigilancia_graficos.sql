@@ -82,4 +82,5 @@ select jsonb_build_object(
 )
 $$;
 
+revoke execute on function public.vigilancia_series(uuid, date, date) from public, anon;
 grant execute on function public.vigilancia_series(uuid, date, date) to authenticated;

@@ -114,6 +114,8 @@ function Kpi({ titulo, valor, detalle, delta }: { titulo: string; valor: string;
   );
 }
 
+// Dato legal faltante: aviso en pantalla, raya en el papel
+const Falta = () => <><span className="font-semibold text-red-700 print:hidden">Falta</span><span className="hidden print:inline">—</span></>;
 const Texto = ({ children }: { children: string }) => <div className="whitespace-pre-line text-[12px] leading-relaxed">{children}</div>;
 const causasFilas = (c: Causa[], pob: number): Celda[][] => c.map((x) => [`${x.cie10} ${x.descripcion}`, porc(x.pacientes ?? 0, pob), x.n]);
 const variacion = (actual: number, base: number | undefined, contra: string) => {
@@ -237,21 +239,21 @@ export default async function Vigilancia({ searchParams }: Props) {
           <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[.12em] text-doc-tenue">Identificación de la empresa</div>
           {empresa ? (
             <div className="grid grid-cols-3 gap-x-5 gap-y-0.5">
-              <div><b>NIL:</b> {empresa.nil ?? <span className="font-semibold text-red-700">Falta</span>}</div>
+              <div><b>NIL:</b> {empresa.nil ?? <Falta />}</div>
               <div><b>Sector:</b> {empresa.sector ?? "—"}</div>
               <div><b>Teléfono:</b> {empresa.telefono ?? "—"}</div>
-              <div className="col-span-3"><b>Actividad económica:</b> {empresa.actividad ?? <span className="font-semibold text-red-700">Falta</span>}</div>
+              <div className="col-span-3"><b>Actividad económica:</b> {empresa.actividad ?? <Falta />}</div>
               <div><b>Municipio:</b> {empresa.municipio ?? "—"}</div>
               <div><b>Parroquia:</b> {empresa.parroquia ?? "—"}</div>
               <div><b>Servicio de SST:</b> {empresa.servicioSst ?? "—"}</div>
-              <div><b>Registro Servicio SST:</b> {empresa.servicioSstRegistro ? fechaCorta(empresa.servicioSstRegistro) : <span className="font-semibold text-red-700">Falta</span>}</div>
-              <div><b>Registro PSST:</b> {empresa.psstRegistro ? fechaCorta(empresa.psstRegistro) : <span className="font-semibold text-red-700">Falta</span>}</div>
+              <div><b>Registro Servicio SST:</b> {empresa.servicioSstRegistro ? fechaCorta(empresa.servicioSstRegistro) : <Falta />}</div>
+              <div><b>Registro PSST:</b> {empresa.psstRegistro ? fechaCorta(empresa.psstRegistro) : <Falta />}</div>
               <div><b>Trabajadores:</b> {pob} ({r.poblacion.femenino} F · {r.poblacion.masculino} M)</div>
             </div>
           ) : (
             <div>Consolidado de todas las empresas clientes del servicio.</div>
           )}
-          {faltan.length > 0 && <p className="mt-1 font-semibold text-red-700">Datos legales incompletos: {faltan.join(", ")}. Complétalos en Empresas antes de consignar el informe.</p>}
+          {faltan.length > 0 && <p className="mt-1 font-semibold text-red-700 print:hidden">Datos legales incompletos: {faltan.join(", ")}. Complétalos en Empresas antes de consignar el informe.</p>}
         </div>
       </Hoja>
 
@@ -409,8 +411,9 @@ export default async function Vigilancia({ searchParams }: Props) {
               <div key={g} className="space-y-2">
                 <div className="text-[11px] font-bold text-doc-acento">Diez primeras causas de morbilidad por {nombre.toLowerCase()}</div>
                 <div className="grid grid-cols-2 items-start gap-3">
-                  {Object.keys(cortes[g]).sort().map((k) => (
-                    <Panel key={k} titulo={ETIQUETA_CLAVE[k] ?? k}><Tabla columnas={["Diagnóstico", "Prev. %", "Fcia."]} filas={causasFilas(cortes[g][k], pob)} /></Panel>
+                  {Object.keys(cortes[g]).sort().map((k, i, todas) => (
+                    // Si quedan impares, el último ocupa el ancho completo (sin media columna vacía)
+                    <Panel key={k} titulo={ETIQUETA_CLAVE[k] ?? k} className={todas.length % 2 && i === todas.length - 1 ? "col-span-2" : ""}><Tabla columnas={["Diagnóstico", "Prev. %", "Fcia."]} filas={causasFilas(cortes[g][k], pob)} /></Panel>
                   ))}
                 </div>
               </div>

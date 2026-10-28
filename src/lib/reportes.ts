@@ -53,7 +53,26 @@ export async function obtenerReporte(empresaId: string | null, p: Periodo): Prom
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("reporte_vigilancia", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
   if (error) throw error;
-  return data as Reporte;
+  const r = data as Reporte;
+  await nombresCie10(r, supabase);
+  return r;
+}
+
+// Diagnósticos registrados sin nombre (vacío, igual al código o abreviado, p. ej. migrados del SAME):
+// se muestran con el nombre del catálogo CIE-10, para que ningún cuadro salga con códigos crudos
+async function nombresCie10(r: Reporte, supabase: Awaited<ReturnType<typeof crearClienteServidor>>) {
+  const listas: { cie10: string | null; descripcion: string | null }[][] = [
+    r.morbilidad.primeras_causas,
+    ...Object.values(r.morbilidad.cortes ?? {}).flatMap((g) => Object.values(g)),
+    r.ausentismo.primeras_causas ?? [],
+    r.ausentismo.detalle ?? [],
+  ];
+  const pobre = (c: { cie10: string | null; descripcion: string | null }) => c.cie10 && (!c.descripcion || c.descripcion.trim().length < 4 || c.descripcion.trim().toUpperCase() === c.cie10.toUpperCase());
+  const codigos = [...new Set(listas.flat().filter(pobre).map((c) => c.cie10!))];
+  if (!codigos.length) return;
+  const { data } = await supabase.from("cie10").select("codigo, descripcion").in("codigo", codigos.slice(0, 500));
+  const nombre = new Map((data ?? []).map((x) => [x.codigo as string, x.descripcion as string]));
+  for (const c of listas.flat()) if (pobre(c) && nombre.has(c.cie10!)) c.descripcion = nombre.get(c.cie10!)!;
 }
 
 // Tendencia mensual, pirámide de la población y morbilidad por capítulo CIE-10 (gráficos del informe)

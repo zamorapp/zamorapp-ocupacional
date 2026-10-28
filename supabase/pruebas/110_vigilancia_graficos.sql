@@ -15,3 +15,4 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3'
 select 'RRHH-A: pirámide de B (debe 0): ' || jsonb_array_length(s -> 'piramide') from public.vigilancia_series('20000000-0000-0000-0000-00000000000b','2026-02-01','2026-04-30') s;
 select 'RRHH-A: capítulos CIE-10 (debe 0): ' || jsonb_array_length(s -> 'capitulos') from public.vigilancia_series(null,'2026-01-01','2026-12-31') s;
 reset role;
+select 'anon no ejecuta vigilancia_series (debe 0): ' || has_function_privilege('anon','public.vigilancia_series(uuid,date,date)','execute')::int;

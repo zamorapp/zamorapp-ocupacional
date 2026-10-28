@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+// Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
+import { olvidar } from "@/lib/memo";
 import type { Firmantes } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
@@ -52,6 +54,7 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     : await supabase.from("informes_vigilancia").insert({ ...campos, org_id: sesion.orgId, empresa_id: empresaId, desde, hasta });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "No tienes permiso para esta empresa." : error.message };
   revalidatePath("/reportes");
+  olvidar("");
   return { ok: true, mensaje: "Guardado en zamorApp: este texto sale en el informe impreso de esta empresa y trimestre, desde cualquier equipo." };
 }
 
@@ -70,6 +73,7 @@ export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
     if (e) fallos.push(e.message); else firmadas++;
   }
   revalidatePath("/reportes", "layout");
+  olvidar("");
   if (!firmadas && !fallos.length) return { ok: false, mensaje: "No hay constancias cerradas tuyas por firmar. Las que están en curso se cierran desde la consulta." };
   return { ok: !fallos.length, mensaje: `${firmadas} constancia${firmadas === 1 ? "" : "s"} firmada${firmadas === 1 ? "" : "s"}.${fallos.length ? ` ${fallos.length} no se pudieron firmar: ${fallos[0]}` : ""}` };
 }

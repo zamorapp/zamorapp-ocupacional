@@ -13,7 +13,7 @@ import { generarAnalisis, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { textosSugeridos } from "@/lib/vigilancia-textos";
 
 // Los cálculos del período se recuerdan 3 minutos por usuario: cambiar de trimestre y volver, o pasar de la
-// pantalla al informe impreso, no repite las consultas a la base. Guardar el informe no los afecta (son datos clínicos).
+// pantalla al informe impreso, no repite las consultas a la base. Guardar una consulta, un paciente, un accidente o el informe los borra (olvidar).
 const TRES_MINUTOS = 3 * 60 * 1000;
 const clave = (sesion: Sesion, que: string, empresaId: string | null, p: Pick<Periodo, "desde" | "hasta">) => `${sesion.orgId}|${sesion.usuarioId}|${que}|${empresaId ?? "*"}|${p.desde}|${p.hasta}`;
 
