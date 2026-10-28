@@ -338,6 +338,45 @@ test("la nube cambió y esta versión no la entiende: se avisa que hay que actua
   nubeObj.incompatible = null; // para las pruebas que siguen
 });
 
+test("botones de la pantalla «hay una versión nueva»: solo desde la ventana de zamorApp", { skip: omitir }, async () => {
+  const origenVentana = "http://127.0.0.1:54332";
+  // Sin Origin de la ventana: rechazados
+  assert.equal((await pedir("/zamorapp/buscar-actualizacion", { metodo: "POST" })).status, 403);
+  assert.equal((await pedir("/zamorapp/abrir-web", { metodo: "POST" })).status, 403);
+  // Desde la ventana: la petición queda guardada y solo el programa (clave de control) la recibe, una sola vez
+  let r = await fetch(`${urlPuerta}/zamorapp/buscar-actualizacion`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).pedida, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.buscarActualizacion, false, "sin clave de control no se entrega");
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, true);
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, false, "se entrega una sola vez");
+  // Abrir la web: responde la dirección (en Windows además abre el navegador)
+  r = await fetch(`${urlPuerta}/zamorapp/abrir-web`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.url, "https://zamorapp-ocupacional.vercel.app");
+  assert.equal(j.abierto, process.platform === "win32");
+});
+
+test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
+  nube.estado.rlsNiega = true;
+  try {
+    const r = await pedir("/rest/v1/consultas?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { motivo: "x" } });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /^new row violates row-level security policy/);
+    assert.doesNotMatch(r.json.message, /necesita actualizarse/);
+    const e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, false);
+    assert.equal(e.json.incompatible, null);
+  } finally {
+    nube.estado.rlsNiega = false;
+  }
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3

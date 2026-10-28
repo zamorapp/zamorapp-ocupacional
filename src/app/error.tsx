@@ -2,15 +2,18 @@
 
 // Pantalla de error de toda la app (en vez del «Application error» mudo de Next). En zamorApp Escritorio
 // además pregunta a la puerta local si la nube ya va por delante del programa: entonces lo que toca es actualizar.
+import { Download, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
 const PUERTA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
+
+const pedirPuerta = (ruta: string) => fetch(`${PUERTA}${ruta}`, { method: "POST", credentials: "include" }).then((r) => r.json()).catch(() => null);
 
 export default function ErrorApp({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const [actualizar, setActualizar] = useState(false);
+  const [aviso, setAviso] = useState("");
 
   useEffect(() => {
     if (!ESCRITORIO || !PUERTA) return;
@@ -20,20 +23,32 @@ export default function ErrorApp({ error, reset }: { error: Error & { digest?: s
       .catch(() => {});
   }, [error]);
 
+  const buscar = async () => {
+    const r = await pedirPuerta("/zamorapp/buscar-actualizacion");
+    setAviso(r?.pedida ? "Buscando la versión nueva… si está lista, zamorApp te pregunta para instalarla." : "No se pudo pedir la actualización. Usa el menú zamorApp → Buscar actualizaciones.");
+  };
+  const web = async () => {
+    const r = await pedirPuerta("/zamorapp/abrir-web");
+    setAviso(r?.abierto ? "Se abrió la web en tu navegador." : `Abre en tu navegador: ${r?.url ?? "zamorapp-ocupacional.vercel.app"}`);
+  };
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background p-6" data-estado={actualizar ? "actualizar" : "error"}>
       <div className="w-full max-w-md space-y-4 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
         {actualizar ? (
           <>
-            <h1 className="text-lg font-semibold">zamorApp Escritorio necesita actualizarse</h1>
-            <p className="text-sm text-muted-foreground">
-              La nube ya tiene cambios que esta versión del programa no entiende. Tus datos están intactos.
-            </p>
-            <ol className="list-decimal space-y-1 pl-5 text-sm">
-              <li>Menú <strong>zamorApp</strong> (arriba) → <strong>Buscar actualizaciones</strong> → «Actualizar ahora».</li>
-              <li>Si dice que ya tienes la más reciente, la nueva versión aún se está publicando: vuelve a intentarlo en unos minutos.</li>
-              <li>Mientras tanto puedes trabajar en la web: <a className="text-primary underline" href={URL_WEB} target="_blank" rel="noreferrer">{URL_WEB.replace("https://", "")}</a>.</li>
-            </ol>
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Download className="size-5" aria-hidden /></span>
+              <h1 className="text-lg font-semibold">Hay una versión nueva de zamorApp</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">Esta PC necesita instalarla para seguir. Tus datos están a salvo.</p>
+            <p className="text-sm">Menú <strong>zamorApp</strong> › <strong>Buscar actualizaciones</strong>. Si aún no aparece, espera unos minutos; mientras tanto puedes trabajar en la web.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={buscar}><Download aria-hidden /> Buscar actualización</Button>
+              <Button variant="outline" onClick={web}><Globe aria-hidden /> Trabajar en la web</Button>
+            </div>
+            {aviso && <p className="text-sm text-muted-foreground" role="status">{aviso}</p>}
+            <button type="button" onClick={() => reset()} className="text-xs text-muted-foreground underline-offset-4 hover:underline">Reintentar</button>
           </>
         ) : (
           <>
@@ -42,12 +57,12 @@ export default function ErrorApp({ error, reset }: { error: Error & { digest?: s
               Algo falló al preparar los datos. No se perdió nada de lo ya guardado. Revisa la conexión y vuelve a intentarlo.
             </p>
             {error.digest && <p className="text-xs text-muted-foreground">Código: {error.digest}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => reset()}>Reintentar</Button>
+              <Button variant="outline" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
+            </div>
           </>
         )}
-        <div className="flex gap-2">
-          <Button onClick={() => reset()}>Reintentar</Button>
-          <Button variant="outline" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
-        </div>
       </div>
     </main>
   );

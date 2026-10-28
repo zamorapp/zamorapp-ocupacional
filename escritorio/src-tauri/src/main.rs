@@ -404,17 +404,22 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
 
 // La nube puede recibir una migración antes de que esta PC se actualice (27/10/2026: la 0.1.0 quedó con
 // «Application error» cuando la nube dejó de entregar dos columnas). La puerta lo detecta y lo marca en
-// /zamorapp/estado; aquí se mira cada 30 s y, la primera vez, se ofrece la actualización en vez de dejar
+// /zamorapp/estado; aquí se mira cada 10 s y, la primera vez, se ofrece la actualización en vez de dejar
 // la pantalla caída. Nunca obliga: si Cesar dice «Más tarde», la app sigue (lo que se pueda leer, se lee).
 fn vigilar_nube(app: AppHandle) {
     std::thread::spawn(move || {
         let mut avisado = false;
         loop {
-            std::thread::sleep(Duration::from_secs(30));
+            std::thread::sleep(Duration::from_secs(10));
             let estado = match llamar_puerta("GET", "/zamorapp/estado").map(|c| serde_json::from_str::<serde_json::Value>(&c)) {
                 Ok(Ok(v)) => v,
                 _ => continue,
             };
+            if estado["buscarActualizacion"] == true {
+                // Botón «Buscar actualización» de la pantalla: responde siempre, como desde el menú
+                anotar("actualización pedida desde la pantalla");
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, true); }
+            }
             if estado["actualizar"] == true && !avisado {
                 avisado = true;
                 anotar(&format!("la nube va por delante de esta versión: {}", estado["incompatible"]));

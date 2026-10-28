@@ -1,6 +1,7 @@
 // Puerta local: la app de escritorio le habla como si fuera Supabase (auth, rest, storage).
 // Con internet desvía todo a la nube con el token de la nube del usuario; sin internet atiende
 // desde la copia local, por ahora solo para consultar (fase F1).
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
@@ -18,7 +19,10 @@ const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplic
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 
+const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
+
 export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+  let pedidaActualizacion = false;
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
@@ -282,10 +286,36 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
         return res.end("descarga de prueba de zamorApp\n");
       }
+      const conControl = () => {
+        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
+        const esperada = Buffer.from(control);
+        return Boolean(control) && dada.length === esperada.length && crypto.timingSafeEqual(dada, esperada);
+      };
       if (ruta === "/zamorapp/estado") {
+        // buscarActualizacion: la pantalla «hay una versión nueva» lo pidió; solo el programa (con su clave de
+        // control) lo recibe, y una sola vez, para lanzar el actualizador.
+        const buscar = pedidaActualizacion && conControl();
+        if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
-          actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible });
+          actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
+      }
+      // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
+      // al programa y abrir la web en el navegador de Windows (dentro del WebView2 un enlace externo no abre nada).
+      if (ruta === "/zamorapp/buscar-actualizacion" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        pedidaActualizacion = true;
+        registro("[puerta] la pantalla pidió buscar actualización");
+        return responder(res, 200, { pedida: true });
+      }
+      if (ruta === "/zamorapp/abrir-web" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        registro(`[puerta] abrir la web en el navegador: ${URL_WEB}`);
+        let abierto = false;
+        if (process.platform === "win32") {
+          try { spawn("cmd", ["/c", "start", "", URL_WEB], { detached: true, stdio: "ignore", windowsHide: true }).unref(); abierto = true; } catch (e) { registro(`[puerta] no se pudo abrir el navegador: ${e.message}`); }
+        }
+        return responder(res, 200, { abierto, url: URL_WEB });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.

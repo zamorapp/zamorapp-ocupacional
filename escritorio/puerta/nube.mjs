@@ -13,11 +13,14 @@ export class Nube {
   }
 
   // Códigos con los que la nube dice «eso no existe o no se puede» a una consulta que esta versión creía válida:
-  // permiso sobre tabla o columna quitado (42501), columna/tabla/función que ya no existe (42703, 42P01, 42883)
-  // o que PostgREST no encuentra (PGRST202/204/205). No es un fallo de red ni de datos: es el programa viejo.
+  // permiso sobre tabla o columna quitado (42501 «permission denied for …»), columna/tabla/función que ya no
+  // existe (42703, 42P01, 42883) o que PostgREST no encuentra (PGRST202/204/205). No es un fallo de red ni de
+  // datos: es el programa viejo. Ojo: 42501 también es una RLS que niega una escritura con razón («new row
+  // violates row-level security policy», p. ej. editar una consulta firmada): eso NO es incompatibilidad.
   anotarIncompatibilidad(status, cuerpo, donde) {
     const codigo = String(cuerpo?.code || "");
     if (!(status >= 400 && status < 500) || !/^(42501|42703|42P01|42883|PGRST20[245])$/.test(codigo)) return false;
+    if (codigo === "42501" && !/^permission denied for (table|view|column|function|schema|sequence)\b/.test(String(cuerpo?.message || ""))) return false;
     if (!this.incompatible) this.incompatible = { codigo, mensaje: String(cuerpo?.message || ""), donde, en: new Date().toISOString() };
     return true;
   }

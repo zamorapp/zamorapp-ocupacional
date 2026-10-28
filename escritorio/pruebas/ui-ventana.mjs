@@ -215,7 +215,7 @@ try {
       const aviso = pagina.locator('main[data-estado="actualizar"] h1');
       await aviso.waitFor({ timeout: 30_000 });
       anotar(`   pantalla: "${(await aviso.textContent())?.trim()}"`);
-      if (!/necesita actualizarse/.test(await aviso.textContent() || "")) throw new Error("La pantalla no dice que hay que actualizar");
+      if (!/versión nueva/.test(await aviso.textContent() || "")) throw new Error("La pantalla no dice que hay una versión nueva");
       const estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), new URL(URL_INICIO).origin);
       if (estado.actualizar !== true) throw new Error(`La puerta no marcó la nube como adelantada: ${JSON.stringify(estado)}`);
       anotar(`   puerta: incompatible ${JSON.stringify(estado.incompatible)}`);
@@ -227,7 +227,21 @@ try {
         while (!visto && Date.now() < limite) { visto = /la nube va por delante/.test(fs.readFileSync(registro, "utf8")); if (!visto) await esperar(1000); }
         if (!visto) throw new Error("El programa no anotó «la nube va por delante» en arranque.log en 45 s");
         anotar("   el programa lo detectó (arranque.log)");
+        // Botón «Buscar actualización»: la puerta se lo pasa al programa (en pruebas solo lo anota)
+        await pagina.getByRole("button", { name: "Buscar actualización" }).click();
+        const limite2 = Date.now() + 30_000;
+        visto = false;
+        while (!visto && Date.now() < limite2) { visto = /actualización pedida desde la pantalla/.test(fs.readFileSync(registro, "utf8")); if (!visto) await esperar(1000); }
+        if (!visto) throw new Error("El botón «Buscar actualización» no llegó al programa (arranque.log) en 30 s");
+        anotar("   «Buscar actualización» llegó al programa");
       }
+      // Botón «Trabajar en la web»: abre el navegador de Windows (la puerta responde qué hizo)
+      const respuestaWeb = pagina.waitForResponse((r) => r.url().includes("/zamorapp/abrir-web"));
+      await pagina.getByRole("button", { name: "Trabajar en la web" }).click();
+      const rw = await (await respuestaWeb).json();
+      anotar(`   «Trabajar en la web»: ${JSON.stringify(rw)}`);
+      if (!/vercel\.app/.test(rw.url || "")) throw new Error("«Trabajar en la web» no apunta a la web de zamorApp");
+      if (process.platform === "win32" && !rw.abierto) throw new Error("«Trabajar en la web» no abrió el navegador");
     } finally {
       fs.rmSync(NUBE_MARCA, { force: true });
     }
