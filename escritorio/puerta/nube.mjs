@@ -5,9 +5,11 @@ import { CONFIG } from "./config.mjs";
 export const MENSAJE_ACTUALIZAR = "zamorApp Escritorio necesita actualizarse: la nube tiene cambios que esta versión no entiende";
 
 export class Nube {
-  constructor(estado) {
+  constructor(estado, registro = () => {}) {
     this.estado = estado;
+    this.registro = registro;
     this.enLinea = false;
+    this.revisadaEn = 0;
     // La nube cambió (migración nueva) y esta versión del programa aún no la entiende: hay que actualizar.
     this.incompatible = null;
   }
@@ -31,15 +33,40 @@ export class Nube {
     return { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json" };
   }
 
+  // Pregunta a la nube si responde. Cada cambio (en línea ⇄ sin conexión) queda en puerta.log con el motivo,
+  // para que un «sin conexión» se pueda explicar después. 10 s: el internet de Venezuela a veces tarda.
   async comprobar() {
-    if (!CONFIG.nube) return (this.enLinea = false);
-    try {
-      const r = await fetch(`${CONFIG.nube}/auth/v1/health`, { headers: this.cabeceras(), signal: AbortSignal.timeout(5000) });
-      this.enLinea = r.status < 500;
-    } catch {
-      this.enLinea = false;
-    }
+    const antes = this.enLinea;
+    let motivo = "sin dirección de la nube";
+    if (CONFIG.nube) {
+      try {
+        const r = await fetch(`${CONFIG.nube}/auth/v1/health`, { headers: this.cabeceras(), signal: AbortSignal.timeout(10000) });
+        this.enLinea = r.status < 500;
+        motivo = `la nube respondió ${r.status}`;
+      } catch (e) {
+        this.enLinea = false;
+        motivo = e?.cause?.code || e?.name || e?.message || "sin respuesta";
+      }
+    } else this.enLinea = false;
+    this.revisadaEn = Date.now();
+    if (antes !== this.enLinea || !this.anotada) this.registro(`[nube] ${this.enLinea ? "en línea" : "sin conexión"} (${motivo})`);
+    this.anotada = true;
     return this.enLinea;
+  }
+
+  // Una llamada a la nube falló por red: se pasa a «sin conexión» y se anota (confirmar() vuelve a preguntar en 15 s)
+  marcarCaida(motivo) {
+    if (this.enLinea) this.registro(`[nube] sin conexión (${motivo})`);
+    this.enLinea = false;
+    this.revisadaEn = Date.now();
+  }
+
+  // Antes de tratar algo como «sin conexión» se vuelve a preguntar, como mucho cada 15 s: un corte al
+  // arrancar (red de Windows aún no lista) o un fallo de un instante no deja la PC «sin internet» hasta la
+  // próxima sincronía.
+  async confirmar() {
+    if (this.enLinea || Date.now() - this.revisadaEn < 15000) return this.enLinea;
+    return this.comprobar();
   }
 
   // Devuelve { ok, status, cuerpo } tal como responde Supabase Auth.

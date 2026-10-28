@@ -265,6 +265,40 @@ try {
     anotar("   con la nube normal, el panel volvió");
   });
 
+  // 28/10/2026: la 0.1.168 no abría en la PC de Cesar: al cargar, el panel llamaba a una función de lectura por
+  // POST (trabajadores_por_empresa), la puerta la tomó por escritura, respondió «Sin conexión…» y la pantalla
+  // entera se cayó. Con la nube cortada, el panel debe abrir desde la copia local, sin pantalla de error.
+  if (NUBE_MARCA) await paso("sin internet: el panel abre desde la copia local, sin error", async () => {
+    const caida = `${NUBE_MARCA}.caida`;
+    const origenPuerta = new URL(URL_INICIO).origin;
+    fs.writeFileSync(caida, String(Date.now()));
+    try {
+      await esperar(1500); // la nube simulada mira la marca cada 300 ms
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      await pagina.waitForURL(/\/panel/, { timeout: 60_000 });
+      await pagina.waitForSelector("h1", { timeout: 60_000 });
+      const texto = (await pagina.evaluate(() => document.body.innerText || "")).replace(/\s+/g, " ");
+      if (await pagina.locator("main[data-estado]").count() || /Application error|Sin conexión a internet: en esta PC/.test(texto)) {
+        throw new Error(`Sin internet el panel se cayó: ${texto.slice(0, 200)}`);
+      }
+      const estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), origenPuerta);
+      if (estado.enLinea !== false) throw new Error(`La puerta no notó el corte: ${JSON.stringify(estado)}`);
+      anotar(`   sin internet, el panel abrió: "${(await pagina.locator("h1").first().textContent())?.trim()}"`);
+    } finally {
+      fs.rmSync(caida, { force: true });
+    }
+    // Al volver internet, la puerta lo nota sola (vuelve a preguntar a los 15 s) sin reiniciar el programa
+    const limite = Date.now() + 60_000;
+    let enLinea = false;
+    while (!enLinea && Date.now() < limite) {
+      await esperar(5000);
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      enLinea = (await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), origenPuerta)).enLinea === true;
+    }
+    if (!enLinea) throw new Error("Volvió internet y la puerta siguió «sin conexión» después de 60 s");
+    anotar("   volvió internet y la puerta lo notó sola");
+  });
+
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {
     // Un SW con caché de una versión anterior haría correr JavaScript viejo tras instalar encima
     const { sw, caches: cachesVivas } = await pagina.evaluate(async () => ({

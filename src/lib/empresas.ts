@@ -64,7 +64,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     supabase.rpc("trabajadores_por_empresa"),
   ]);
   if (error) throw error;
-  if (errorConteo) throw errorConteo;
+  // El conteo es un dato de apoyo: si falla (p. ej. sin conexión en el escritorio) la app abre igual, sin totales
+  if (errorConteo) console.error("trabajadores_por_empresa:", errorConteo.message);
   const totales = new Map(((conteos ?? []) as { empresa_id: string; total: number }[]).map((c) => [c.empresa_id, Number(c.total)]));
   return (data ?? []).map((e) => ({
     id: e.id,

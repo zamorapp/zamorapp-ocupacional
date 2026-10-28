@@ -28,7 +28,7 @@ const bitacora = fs.createWriteStream(path.join(CONFIG.datos, "puerta.log"), { f
 const registro = (m) => bitacora.write(`${new Date().toISOString()} ${String(m).trimEnd()}\n`);
 const motor = new Motor(estado);
 motor.registro = registro;
-const nube = new Nube(estado);
+const nube = new Nube(estado, registro);
 const replica = new Replica(estado, nube, motor, registro);
 
 async function principal() {
