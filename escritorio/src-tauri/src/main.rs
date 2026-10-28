@@ -15,6 +15,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons}
 use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
+mod hello;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -197,13 +198,16 @@ fn revisar_recursos(recursos: &Path) -> Result<(), String> {
 // Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
 // por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
 // a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
+// La marca vive junto a los datos: si se borran (PC reinstalada tras un daño), el perfil también se limpia,
+// porque WebView2 lo guarda aparte y sobrevive a desinstalar (p. ej. el «Ahora no» de Windows Hello).
 fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
     let compilacion = compilacion.trim();
     if compilacion.is_empty() {
         return;
     }
-    let marca = carpeta_programa().join("perfil-web.txt");
+    let _ = std::fs::create_dir_all(carpeta_datos());
+    let marca = carpeta_datos().join("perfil-web.txt");
     if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
         return;
     }
@@ -680,7 +684,21 @@ fn main() {
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .title(format!("zamorApp Escritorio v{version}"))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
-                .on_download(move |_, evento| descarga(&para_descargas, evento));
+                .on_download(move |_, evento| descarga(&para_descargas, evento))
+                // "Entrar con Windows Hello": la página pide la huella navegando a una dirección de la puerta que se
+                // intercepta aquí (la página no cambia). Ver hello.rs.
+                .on_navigation({
+                    let manejador = app.handle().clone();
+                    move |url| match hello::pedido(url, PUERTO_PUERTA) {
+                        Some((accion, codigo)) => {
+                            if let Some(ventana) = manejador.get_webview_window("principal") {
+                                hello::atender(ventana, accion, codigo, pedir_puerta, anotar);
+                            }
+                            false
+                        }
+                        None => true,
+                    }
+                });
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }

@@ -21,7 +21,9 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
   useEffect(() => {
     (async () => {
       if (!(await huellaDisponible())) return;
-      setEstado((await huellaActivaAqui()) ? "activa" : "posible");
+      const activa = await huellaActivaAqui();
+      // En escritorio el botón solo aparece si alguien activó Windows Hello en esta PC
+      if (activa || !ES_ESCRITORIO) setEstado(activa ? "activa" : "posible");
     })();
   }, []);
 
@@ -67,7 +69,9 @@ export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
     setCargando(true);
     const r = await activarHuella(crearClienteNavegador());
     setCargando(false);
-    if (r.ok) { noOfrecerHuella(); alTerminar(); } else setError(r.mensaje);
+    // Activada no se marca "no ofrecer": la web ya recuerda la llave y el escritorio lo sabe por la puerta (si la
+    // PC se reinstala sin datos, vuelve a ofrecerla)
+    if (r.ok) alTerminar(); else setError(r.mensaje);
   };
   return (
     <div className="space-y-4 rounded-xl border bg-card p-6 text-center">
@@ -87,7 +91,7 @@ export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
         <Button className="h-11" onClick={activar} disabled={cargando}>
           {cargando ? <Loader2 className="animate-spin" /> : <Fingerprint />} Activar {NOMBRE}
         </Button>
-        <Button variant="ghost" onClick={() => { noOfrecerHuella(); alTerminar(); }} disabled={cargando}>Ahora no</Button>
+        <Button variant="ghost" onClick={() => { void noOfrecerHuella(); alTerminar(); }} disabled={cargando}>Ahora no</Button>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearHello } from "./hello.mjs";
 import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
@@ -318,6 +319,17 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     return responder(res, r.status, r.cuerpo ?? r.texto);
   }
 
+  // Con internet, la nube decide el segundo paso: si la sesión guardada en la nube de un administrador o gerente
+  // médico aún es aal1, Windows Hello no basta (la nube rechazaría sus pedidos con 403 «dos_pasos») y se pide el código.
+  async function cumpleDosPasosEnNube(uid) {
+    const u = d().usuarios[uid];
+    if (!exigeDosPasos(u) || !nube.enLinea) return true;
+    return aalDe(await nube.token(uid)) !== "aal1";
+  }
+
+  // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
+
   const servidor = http.createServer(async (req, res) => {
     // Solo se atiende a esta PC por su nombre local (Host) y, desde un navegador, solo a la ventana de
     // zamorApp o a la propia puerta (Origin). Así una página web cualquiera, ni siquiera con un DNS que
@@ -357,6 +369,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       const ruta = req.url.split("?")[0];
       if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
+      if (await atenderHello(req, res, ruta, json)) return;
       // Solo con la nube de prueba (127.0.0.1): un archivo adjunto para probar que la ventana guarda descargas
       if (ruta === "/zamorapp/descarga-prueba" && String(CONFIG.nube || "").startsWith("http://127.0.0.1:")) {
         const nombre = (new URL(req.url, "http://x").searchParams.get("nombre") || "prueba.txt").replace(/[^\w.-]/g, "_");

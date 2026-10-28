@@ -13,6 +13,8 @@ export const ES_ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
 const PUERTA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const MARCA = "zamorapp.huella"; // este navegador ya tiene una llave de acceso de esta cuenta
 const NO_OFRECER = "zamorapp.huella.no-ofrecer";
+/** Marca para la pantalla de dos pasos: se llega desde Windows Hello con internet (la nube pide el código). */
+export const MOTIVO_HELLO = "zamorapp.dos-pasos.hello";
 
 export type Resultado = { ok: true } | { ok: false; mensaje: string };
 
@@ -38,8 +40,11 @@ export async function huellaActivaAqui(): Promise<boolean> {
   return leer(MARCA) === "1";
 }
 
-export const ofrecerHuella = () => leer(NO_OFRECER) !== "1" && leer(MARCA) !== "1";
-export const noOfrecerHuella = () => escribir(NO_OFRECER, "1");
+// En escritorio el «Ahora no» vale solo para esta instalación: la memoria de la ventana (WebView2) sobrevive a
+// desinstalar el programa, y en una PC reinstalada hay que volver a ofrecer Windows Hello.
+const claveNoOfrecer = async () => ES_ESCRITORIO ? `${NO_OFRECER}.${(await estadoEscritorio())?.instalacion ?? ""}` : NO_OFRECER;
+export const ofrecerHuella = async () => leer(await claveNoOfrecer()) !== "1" && (ES_ESCRITORIO || leer(MARCA) !== "1");
+export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1");
 
 /** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */
 export async function activarHuella(supabase: SupabaseClient): Promise<Resultado> {
@@ -71,6 +76,7 @@ export async function entrarConHuella(supabase: SupabaseClient): Promise<Resulta
     }).catch(() => null);
     const sesion = r ? await r.json().catch(() => null) : null;
     if (!r?.ok || !sesion?.access_token) return { ok: false, mensaje: sesion?.msg ?? "No se pudo entrar con la huella. Usa tu contraseña." };
+    if (sesion.dos_pasos) { try { sessionStorage.setItem(MOTIVO_HELLO, "1"); } catch { /* sin almacenamiento */ } }
     const { error } = await supabase.auth.setSession({ access_token: sesion.access_token, refresh_token: sesion.refresh_token });
     return error ? { ok: false, mensaje: "No se pudo abrir la sesión. Usa tu contraseña." } : { ok: true };
   }
@@ -107,7 +113,7 @@ export async function huellaActivaEscritorio(supabase: SupabaseClient): Promise<
   return Boolean(r?.ok && (await r.json().catch(() => null))?.activa);
 }
 
-async function estadoEscritorio(): Promise<{ usuarios: number } | null> {
+async function estadoEscritorio(): Promise<{ usuarios: number; instalacion?: string } | null> {
   const r = await fetch(`${PUERTA}/zamorapp/huella/estado`).catch(() => null);
   return r?.ok ? await r.json().catch(() => null) : null;
 }

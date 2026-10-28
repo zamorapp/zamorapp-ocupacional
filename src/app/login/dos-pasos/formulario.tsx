@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
+import { MOTIVO_HELLO } from "@/lib/huella";
 
 export function FormularioDosPasos() {
   const router = useRouter();
@@ -16,12 +17,17 @@ export function FormularioDosPasos() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [desdeHello, setDesdeHello] = useState(false);
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
     if (preparado.current) return;
     preparado.current = true;
     const supabase = crearClienteNavegador();
+    // Entró con Windows Hello y hay internet, pero la nube aún no tiene el segundo paso de esta cuenta
+    try {
+      if (sessionStorage.getItem(MOTIVO_HELLO)) { setDesdeHello(true); sessionStorage.removeItem(MOTIVO_HELLO); }
+    } catch { /* sin almacenamiento */ }
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) { router.replace("/login"); return; }
@@ -106,6 +112,12 @@ export function FormularioDosPasos() {
           onChange={(e) => { setCodigo(e.target.value); setError(null); }}
         />
       </div>
+      {desdeHello && paso.tipo !== "activar" && (
+        <p className="rounded-md bg-primary/10 px-3 py-2 text-sm">
+          Windows Hello abrió tu sesión en esta PC. Como hay internet, la nube pide una vez el código de tu teléfono para
+          proteger los datos de salud. Sin internet, Windows Hello basta.
+        </p>
+      )}
       {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <Button type="submit" className="h-11 w-full" disabled={cargando || codigo.replace(/\D/g, "").length !== 6}>
         {cargando && <Loader2 className="animate-spin" />} {paso.tipo === "activar" ? "Activar y entrar" : "Entrar"}

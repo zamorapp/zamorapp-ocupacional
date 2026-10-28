@@ -25,6 +25,7 @@ const REGISTRAR = arg("registrar"); // nombre de la PC; sin él, se exige que la
 const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
+const HELLO = process.argv.includes("--hello"); // además: activar Windows Hello, salir y volver a entrar con él
 const NUBE_MARCA = arg("nube-marca"); // archivo que pone a la nube simulada «migrada por delante» (ver nube-cli.mjs)
 const IMPRIMIR = arg("imprimir"); // carpeta donde el programa guarda el PDF de prueba (ZAMORAPP_PDF_PRUEBA)
 const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
@@ -70,11 +71,15 @@ try {
   const contexto = persistente ? navegador : navegador.contexts()[0] || await navegador.newContext();
   pagina = contexto.pages()[0] || await contexto.newPage();
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
-  pagina.on("console", (m) => { if (["error", "warning"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
+  pagina.on("console", (m) => { if (["error", "warning", "log", "info"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
   pagina.on("pageerror", (e) => anotar(`[error de página] ${e.message}`));
   // Los prefetch que Next cancela al navegar (net::ERR_ABORTED) son normales; lo demás sí es un fallo
   pagina.on("requestfailed", (r) => { if (r.failure()?.errorText !== "net::ERR_ABORTED") anotar(`[petición fallida] ${r.method()} ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("response", (r) => { if (r.status() >= 400) anotar(`[respuesta ${r.status()}] ${r.request().method()} ${r.url()}`); });
+  // Windows Hello: cada pedido a la puerta queda en la salida (diagnóstico)
+  pagina.on("request", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] pide ${r.method()} ${r.url()}`); });
+  pagina.on("response", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] ${r.status()} ${r.url()} acao="${r.headers()["access-control-allow-origin"] || ""}"`); });
+  pagina.on("requestfailed", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] falló ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("framenavigated", (f) => { if (f === pagina.mainFrame()) anotar(`[navega] ${f.url()}`); });
   if (local) await pagina.goto(URL_INICIO);
 
@@ -162,6 +167,12 @@ try {
     for (;;) {
       const url = pagina.url();
       if (/\/panel/.test(url)) break;
+      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no"
+      const oferta = pagina.getByRole("button", { name: HELLO ? "Activar Windows Hello" : "Ahora no" });
+      if (await oferta.isVisible().catch(() => false)) {
+        anotar(`   la app ofrece Windows Hello: "${HELLO ? "Activar" : "Ahora no"}"`);
+        await oferta.click();
+      }
       if (/[?&]correo=/.test(url)) throw new Error("El formulario se envió sin JavaScript (GET /login?correo=...): la pantalla no estaba hidratada");
       const error = await pagina.evaluate(() => document.querySelector("[role=alert], .text-destructive")?.textContent || "").catch(() => "");
       if (error) throw new Error(`La app mostró un error al entrar: ${error}`);
@@ -176,6 +187,50 @@ try {
     await pagina.reload({ waitUntil: "domcontentloaded" });
     await esperar(1500);
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
+  });
+
+  if (HELLO) await paso("salir y volver a entrar con Windows Hello (sin escribir la clave)", async () => {
+    // En el CI no hay huella: el programa la da por verificada solo con la nube de prueba y ZAMORAPP_HELLO_PRUEBA=1
+    await pagina.click("button[aria-label='Mi cuenta']");
+    await pagina.getByRole("menuitem", { name: "Salir" }).click();
+    await pagina.waitForURL(/\/login/, { timeout: 60_000 });
+    const boton = pagina.getByRole("button", { name: "Entrar con Windows Hello" });
+    await boton.waitFor({ timeout: 30_000 }).catch(async () => {
+      // Diagnóstico: ¿la página llega a la puerta para preguntar por Windows Hello?
+      const prueba = await pagina.evaluate(async () => {
+        try { const r = await fetch("http://127.0.0.1:54331/zamorapp/huella/estado"); return `${r.status} ${await r.text()}`; }
+        catch (e) { return `error: ${e}`; }
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   estado de Windows Hello desde la página: ${prueba}`);
+      // ¿Los scripts que cargó la página traen el código de la huella, y en modo escritorio?
+      const scripts = await pagina.evaluate(async () => {
+        const salida = [];
+        for (const s of [...new Set(performance.getEntriesByType("resource").map((x) => x.name).filter((n) => n.endsWith(".js")))]) {
+          const t = await fetch(s).then((r) => r.text()).catch(() => "");
+          if (t.includes("zamorapp.huella")) salida.push(`${s.split("/").pop()}: ${(t.match(/let [a-z]=![01],[a-z]="http[^"]*"/) || ["sin marca"])[0]}`);
+        }
+        const nav = performance.getEntriesByType("navigation")[0];
+        const fresca = await fetch(location.pathname, { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+        const srcs = (html) => [...html.matchAll(/static\/chunks\/[^"]+\.js/g)].map((m) => m[0].split("/").pop()).sort().join(",");
+        return { nav: nav && { tipo: nav.type, transfer: nav.transferSize, entrega: nav.deliveryType },
+          htmlIgual: srcs(document.documentElement.outerHTML) === srcs(fresca), js: performance.getEntriesByType("resource").map((x) => x.name.split("/").pop()).filter((n) => n.endsWith(".js")),
+          total: performance.getEntriesByType("resource").length, pk: typeof PublicKeyCredential, ls: Object.keys(localStorage), conHuella: salida, texto: document.body.innerText.slice(0, 300) };
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   scripts: ${JSON.stringify(scripts)}`);
+      throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
+    });
+    const estadoHello = await pagina.evaluate(() => fetch("http://127.0.0.1:54331/zamorapp/huella/estado").then((r) => r.text())).catch((e) => `error: ${e.message}`);
+    anotar(`   estado de Windows Hello antes de tocar el botón: ${estadoHello}`);
+    await boton.click();
+    const limite = Date.now() + 60_000;
+    while (!/\/panel/.test(pagina.url())) {
+      const error = await pagina.evaluate(() => document.querySelector(".text-destructive")?.textContent || "").catch(() => "");
+      if (error) throw new Error(`Windows Hello no entró: ${error}`);
+      if (Date.now() > limite) throw new Error(`Con Windows Hello la app no llegó al panel; quedó en ${pagina.url()}`);
+      await esperar(500);
+    }
+    await pagina.waitForSelector("h1", { timeout: 60_000 });
+    anotar("   entró con Windows Hello");
   });
 
   // Las descargas de la app (Excel, PDF) deben quedar en la carpeta Descargas de Windows (solo con la ventana real)
