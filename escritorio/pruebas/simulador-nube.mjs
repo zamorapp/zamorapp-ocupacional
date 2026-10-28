@@ -100,6 +100,14 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       return factor[1] === usuarios[correoDe(uid)]?.factor && b.code === "123456"
         ? enviar(200, emitir(uid, "aal2")) : enviar(422, { error_code: "mfa_verification_failed", msg: "Invalid TOTP code entered" });
     }
+    // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
+    // Simula una RLS que niega una escritura con razón (mismo código 42501): NO es «hay que actualizar»
+    if (estado.rlsNiega && url.pathname.startsWith("/rest/v1/")) {
+      return enviar(403, { code: "42501", details: null, hint: null, message: 'new row violates row-level security policy for table "consultas"' });
+    }
+    if (estado.migradaPorDelante && url.pathname.startsWith("/rest/v1/")) {
+      return enviar(403, { code: "42501", details: null, hint: "Grant the required privileges to the current role with: GRANT SELECT ON public.trabajadores TO authenticated;", message: "permission denied for table trabajadores" });
+    }
     if (pgrst && url.pathname.startsWith("/rest/v1/")) {
       // PostgREST real: se le pasa la petición tal cual (el token ya va firmado con su secreto)
       let p;

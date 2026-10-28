@@ -34,12 +34,20 @@ export function Hoja({ children, className = "", media, horizontal, corte = true
   );
 }
 
+// Marca de una palabra con mayúsculas internas («OcupaVida» → «OV»); si no, primeras letras de dos palabras
+function iniciales(nombre: string) {
+  const primera = nombre.trim().split(/\s+/)[0] ?? "";
+  const internas = /\p{Ll}/u.test(primera) ? (primera.match(/\p{Lu}/gu) ?? []) : [];
+  if (internas.length >= 2) return internas.slice(0, 2).join("");
+  return nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+";
+}
+
 function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   if (logo) return <img src={logo} alt="" className="h-12 max-w-32 object-contain" />;
   return (
     <span className="grid size-12 shrink-0 place-items-center rounded-[11px] bg-doc-acento text-lg font-extrabold text-white">
-      {nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+"}
+      {iniciales(nombre)}
     </span>
   );
 }
