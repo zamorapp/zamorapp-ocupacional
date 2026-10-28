@@ -195,6 +195,25 @@ fn revisar_recursos(recursos: &Path) -> Result<(), String> {
     }
 }
 
+// Las actualizaciones automáticas traen un instalador liviano, sin PostgreSQL, PostgREST ni Node: usan las
+// piezas que dejó la instalación completa. Si esta versión necesita otras (cambió alguna) y la PC se saltó la
+// versión completa que las trajo, se dice claro qué hacer en vez de arrancar con piezas que no corresponden.
+// componentes-esperados.txt viene en todos los instaladores; pgsql/componentes.txt solo en el completo.
+fn revisar_componentes(recursos: &Path) -> Result<(), String> {
+    let leer = |p: PathBuf| std::fs::read_to_string(p).unwrap_or_default().trim().to_string();
+    let esperado = leer(recursos.join("componentes-esperados.txt"));
+    let instalado = leer(recursos.join("pgsql").join("componentes.txt"));
+    anotar(&format!("componentes: esperados {} · instalados {}", if esperado.is_empty() { "-" } else { &esperado }, if instalado.is_empty() { "-" } else { &instalado }));
+    // Sin huella esperada (instalador anterior a esto) no hay nada que comparar; con ella, la instalada debe coincidir
+    // (si falta, las piezas no vienen de un instalador completo que la conozca: se pide el completo)
+    if esperado.is_empty() || esperado == instalado {
+        Ok(())
+    } else {
+        FALTAN_COMPONENTES.store(true, Ordering::SeqCst);
+        Err("Esta versión de zamorApp necesita piezas nuevas (base de datos local). En unos segundos te ofrecerá descargarlas: pulsa «Actualizar ahora». Si no aparece, instala el completo desde https://github.com/zamorapp/zamorapp-descargas/releases/latest. Tus datos no se pierden.".into())
+    }
+}
+
 // Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
 // por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
 // a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
@@ -223,6 +242,7 @@ fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
 fn arrancar(recursos: &Path) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
+    revisar_componentes(recursos)?;
     let datos = carpeta_datos();
     std::fs::create_dir_all(&datos).map_err(|e| format!("No se pudo crear {}: {e}", datos.display()))?;
     let node = recursos.join("node").join("node.exe");
@@ -401,6 +421,10 @@ fn sincronizar_ahora(app: AppHandle) {
 
 // Evita dos descargas a la vez (menú, aviso de la nube y búsqueda al abrir).
 static ACTUALIZANDO: AtomicBool = AtomicBool::new(false);
+// Faltan las piezas pesadas que esta versión necesita (ver revisar_componentes): se pide el instalador completo
+// de la última versión, aunque sea la misma que ya corre.
+static FALTAN_COMPONENTES: AtomicBool = AtomicBool::new(false);
+const ACTUALIZACION_COMPLETA: &str = "https://github.com/zamorapp/zamorapp-descargas/releases/latest/download/latest-completo.json";
 // Actualización descargada que el usuario pidió instalar al cerrar: (versión, instalador, versión actual).
 static PENDIENTE: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>, String)>> = Mutex::new(None);
 
@@ -476,6 +500,11 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         let actual = app.package_info().version.to_string();
         let consulta = tauri::async_runtime::block_on(async {
             let mut constructor = app.updater_builder().pubkey(llave);
+            if FALTAN_COMPONENTES.load(Ordering::SeqCst) && prueba.is_none() {
+                constructor = constructor
+                    .endpoints(vec![ACTUALIZACION_COMPLETA.parse().map_err(|_| tauri_plugin_updater::Error::EmptyEndpoints)?])?
+                    .version_comparator(|actual, remota| remota.version >= actual);
+            }
             if let Some(p) = &prueba {
                 constructor = constructor.endpoints(vec![p.url.parse().map_err(|_| tauri_plugin_updater::Error::EmptyEndpoints)?])?;
             }
@@ -484,7 +513,11 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
+                        format!("A zamorApp {} le faltan piezas de la base de datos local: hay que descargar el instalador completo.\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version)
+                    } else {
+                        format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nSe descarga mientras trabajas y al final te pregunta cuándo instalar. No se borra ningún dato.", nueva.version)
+                    })
                     .title("Actualización disponible")
                     .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
                     .blocking_show();
@@ -723,6 +756,8 @@ fn main() {
                         let texto = format!("No se pudo abrir zamorApp: {e} Cierra y vuelve a abrir el programa. Si sigue igual, avisa al soporte y envía el archivo %LOCALAPPDATA%\\zamorApp\\arranque.log.")
                             .replace('\\', "\\\\").replace('\'', "\\'");
                         let _ = ventana.eval(&format!("document.querySelector('.c').replaceChildren(Object.assign(document.createElement('strong'), {{ textContent: '{texto}' }}))"));
+                        // Aunque no arranque, se busca una versión nueva: así un arreglo publicado llega igual a esta PC
+                        buscar_actualizacion(manejador.clone(), false);
                     }
                 }
             });
