@@ -251,6 +251,7 @@ try {
       if (await ignorar.count()) { await ignorar.click(); await aviso.waitFor({ state: "detached", timeout: 10_000 }); anotar("   «Ignorar» lo escondió"); }
     } finally {
       fs.rmSync(NUBE_MARCA, { force: true });
+      await esperar(1500); // la nube simulada mira la marca cada 300 ms
     }
     // Con la nube normal otra vez, el panel vuelve a cargar
     await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
