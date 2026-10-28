@@ -203,7 +203,9 @@ fn revisar_componentes(recursos: &Path) -> Result<(), String> {
     let esperado = leer(recursos.join("componentes-esperados.txt"));
     let instalado = leer(recursos.join("pgsql").join("componentes.txt"));
     anotar(&format!("componentes: esperados {} · instalados {}", if esperado.is_empty() { "-" } else { &esperado }, if instalado.is_empty() { "-" } else { &instalado }));
-    if esperado.is_empty() || instalado.is_empty() || esperado == instalado {
+    // Sin huella esperada (instalador anterior a esto) no hay nada que comparar; con ella, la instalada debe coincidir
+    // (si falta, las piezas no vienen de un instalador completo que la conozca: se pide el completo)
+    if esperado.is_empty() || esperado == instalado {
         Ok(())
     } else {
         FALTAN_COMPONENTES.store(true, Ordering::SeqCst);

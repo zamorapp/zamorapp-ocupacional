@@ -408,6 +408,8 @@ jobs:
           Start-Sleep 5
           # Tras una actualización liviana, el desinstalador también debe llevarse PostgreSQL, PostgREST y Node
           foreach ($d in "pgsql", "postgrest", "node") { if (Test-Path "$($script:dir.FullName)/recursos/$d") { throw "Desinstalar dejó recursos/$d" } }
+          # ...y nunca los datos: el gancho solo toca la carpeta del programa
+          if (-not (Test-Path "$registros/datos/base/PG_VERSION")) { throw "Desinstalar borró los datos de %LOCALAPPDATA%\zamorApp" }
           Remove-Item -Recurse -Force "$registros/datos" -ErrorAction SilentlyContinue
           Instalar $setup.FullName
           if (-not (Abrir "primer arranque en PC nueva" $false $true)) { throw "El programa no arrancó o no dejó entrar en una PC sin datos" }
