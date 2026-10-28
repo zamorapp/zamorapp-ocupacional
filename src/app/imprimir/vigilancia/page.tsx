@@ -138,7 +138,7 @@ export default async function Vigilancia({ searchParams }: Props) {
 
   return (
     <div className="min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
-      <BarraImpresion volver={volver} titulo="Informe trimestral de vigilancia epidemiológica" />
+      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} />
       <Hoja>
         <header className="mb-4 flex items-start justify-between border-b-2 border-teal-700 pb-3">
           <div>

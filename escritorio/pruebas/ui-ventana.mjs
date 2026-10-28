@@ -7,10 +7,14 @@
 //   node ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar "PC de prueba" --captura capturas/1.png
 // Local (Linux, con el Chromium de Playwright, puerta y app ya corriendo):
 //   node ui-ventana.mjs --url http://127.0.0.1:54331/zamorapp/inicio --correo admin@x --clave clave-admin --registrar "PC de prueba"
+// Impresión (--imprimir <carpeta>, solo Windows): abre el informe de vigilancia como Cesar (su propia ventana), lo guarda
+//   en PDF (el programa lo deja en esa carpeta sin diálogo: ZAMORAPP_PDF_PRUEBA) y comprueba que «Imprimir» abra el
+//   diálogo de impresoras de Windows (lo busca y lo cierra con UI Automation).
 // Diagnóstico en la PC de una persona (no toca nada: solo mira lo que hace la ventana mientras ella entra):
 //   node ui-ventana.mjs --cdp http://127.0.0.1:9333 --observar 120 --captura diagnostico.png
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const arg = (nombre, def) => { const i = process.argv.indexOf(`--${nombre}`); return i >= 0 ? process.argv[i + 1] : def; };
 const CDP = arg("cdp");
@@ -22,6 +26,7 @@ const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
 const HELLO = process.argv.includes("--hello"); // además: activar Windows Hello, salir y volver a entrar con él
+const IMPRIMIR = arg("imprimir"); // carpeta donde el programa guarda el PDF de prueba (ZAMORAPP_PDF_PRUEBA)
 const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -267,6 +272,79 @@ try {
     }));
     if (sw.length || cachesVivas.length) throw new Error(`Quedó un service worker (${sw.join(", ") || "-"}) o cachés (${cachesVivas.join(", ") || "-"}) en la ventana`);
   });
+
+  if (IMPRIMIR) {
+    const documento = await paso("abrir el informe de vigilancia en su propia ventana", async () => {
+      await pagina.goto(new URL("/reportes", pagina.url()).href, { waitUntil: "domcontentloaded" });
+      const enlace = pagina.getByRole("link", { name: /Imprimir informe trimestral/ });
+      await enlace.waitFor({ timeout: 60_000 });
+      // Antes, en el escritorio, este clic no hacía nada: el navegador interno descartaba las ventanas nuevas.
+      // El programa abre su propia ventana (un destino nuevo para CDP): se busca entre todas las páginas.
+      await enlace.click();
+      const todas = () => navegador.contexts().flatMap((c) => c.pages());
+      let doc = null;
+      for (const limite = Date.now() + 60_000; !doc && Date.now() < limite; await esperar(500)) {
+        doc = todas().find((p) => p !== pagina && /\/imprimir\/vigilancia/.test(p.url())) ?? null;
+      }
+      if (!doc) throw new Error(`«Imprimir informe trimestral» no abrió la ventana del informe; páginas: ${todas().map((p) => p.url()).join(" | ")}`);
+      doc.on("pageerror", (e) => anotar(`[error de página en el documento] ${e.message}`));
+      doc.on("console", (m) => { if (m.type() === "error") anotar(`[consola del documento] ${m.text()}`); });
+      await doc.waitForSelector("[data-accion=guardar-pdf]", { timeout: 60_000 }).catch(async () => {
+        const texto = (await doc.evaluate(() => document.body.innerText).catch(() => "")).slice(0, 300);
+        throw new Error(`El documento abrió sin los botones del escritorio (Guardar PDF / Imprimir); muestra: ${texto}`);
+      });
+      anotar(`   ${doc.url()}`);
+      return doc;
+    });
+
+    await paso("Guardar PDF", async () => {
+      const antes = new Set(fs.existsSync(IMPRIMIR) ? fs.readdirSync(IMPRIMIR) : []);
+      await documento.click("[data-accion=guardar-pdf]");
+      const estado = await Promise.race([
+        documento.waitForSelector("[data-estado=pdf-guardado]", { timeout: 120_000 }).then((e) => e.textContent()),
+        documento.waitForSelector("[data-estado=error]", { timeout: 120_000 }).then(async (e) => { throw new Error(`Guardar PDF falló: ${await e.textContent()}`); }),
+      ]);
+      anotar(`   ${estado?.trim()}`);
+      const nuevos = fs.readdirSync(IMPRIMIR).filter((f) => !antes.has(f) && f.endsWith(".pdf"));
+      if (!nuevos.length) throw new Error(`No apareció ningún PDF nuevo en ${IMPRIMIR}`);
+      const pdf = fs.readFileSync(path.join(IMPRIMIR, nuevos[0]));
+      const paginas = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
+      anotar(`   ${nuevos[0]}: ${(pdf.length / 1024).toFixed(0)} KB, ${paginas} página(s)`);
+      if (pdf.subarray(0, 4).toString() !== "%PDF" || pdf.length < 5000) throw new Error("El PDF guardado está vacío o dañado");
+    });
+
+    await paso("Imprimir: diálogo de impresoras de Windows", async () => {
+      // El diálogo de impresoras es modal y bloquea la página: un click de Playwright se queda esperando que la página
+      // responda. Se pulsa el botón desde la propia página, sin esperarla, y el diálogo se busca afuera.
+      await documento.evaluate(() => { setTimeout(() => document.querySelector("[data-accion=imprimir]")?.click(), 100); });
+      // El diálogo es una ventana de Windows (no de la página): se busca por UI Automation, se informa y se cierra
+      const ps = `
+        Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+        $raiz = [Windows.Automation.AutomationElement]::RootElement
+        $ventana = [Windows.Automation.Condition]::TrueCondition
+        for ($i = 0; $i -lt 40; $i++) {
+          foreach ($v in $raiz.FindAll([Windows.Automation.TreeScope]::Children, $ventana)) {
+            foreach ($d in @($v) + @($v.FindAll([Windows.Automation.TreeScope]::Children, $ventana))) {
+              if ($d.Current.Name -match '^(Print|Imprimir)$' -and $d.Current.ControlType.ProgrammaticName -eq 'ControlType.Window') {
+                $proc = (Get-Process -Id $d.Current.ProcessId).ProcessName
+                Write-Output "DIALOGO '$($d.Current.Name)' de $proc (dentro de '$($v.Current.Name)')"
+                try { $d.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() } catch { Write-Output "no se pudo cerrar: $_" }
+                exit 0
+              }
+            }
+          }
+          Start-Sleep -Milliseconds 500
+        }
+        Write-Output "SIN DIALOGO; ventanas: $(($raiz.FindAll([Windows.Automation.TreeScope]::Children, $ventana) | ForEach-Object { $_.Current.Name }) -join ' | ')"
+        exit 1`;
+      let salidaPs;
+      try { salidaPs = execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { encoding: "utf8", timeout: 60_000 }); }
+      catch (e) { throw new Error(`«Imprimir» no abrió el diálogo de impresoras: ${(e.stdout || e.message).trim()}`); }
+      anotar(`   ${salidaPs.trim()}`);
+      const error = await documento.evaluate(() => document.querySelector("[data-estado=error]")?.textContent || "");
+      if (error) throw new Error(`La página avisó un error al imprimir: ${error}`);
+    });
+  }
 
   anotar("RESULTADO: ingreso por la ventana correcto");
 } catch (e) {

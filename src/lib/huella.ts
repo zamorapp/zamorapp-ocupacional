@@ -13,6 +13,8 @@ export const ES_ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
 const PUERTA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const MARCA = "zamorapp.huella"; // este navegador ya tiene una llave de acceso de esta cuenta
 const NO_OFRECER = "zamorapp.huella.no-ofrecer";
+/** Marca para la pantalla de dos pasos: se llega desde Windows Hello con internet (la nube pide el código). */
+export const MOTIVO_HELLO = "zamorapp.dos-pasos.hello";
 
 export type Resultado = { ok: true } | { ok: false; mensaje: string };
 
@@ -74,6 +76,7 @@ export async function entrarConHuella(supabase: SupabaseClient): Promise<Resulta
     }).catch(() => null);
     const sesion = r ? await r.json().catch(() => null) : null;
     if (!r?.ok || !sesion?.access_token) return { ok: false, mensaje: sesion?.msg ?? "No se pudo entrar con la huella. Usa tu contraseña." };
+    if (sesion.dos_pasos) { try { sessionStorage.setItem(MOTIVO_HELLO, "1"); } catch { /* sin almacenamiento */ } }
     const { error } = await supabase.auth.setSession({ access_token: sesion.access_token, refresh_token: sesion.refresh_token });
     return error ? { ok: false, mensaje: "No se pudo abrir la sesión. Usa tu contraseña." } : { ok: true };
   }

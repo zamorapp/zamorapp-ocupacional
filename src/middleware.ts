@@ -47,12 +47,28 @@ export async function middleware(request: NextRequest) {
     const destino = new URL(ruta, request.url);
     const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
     if (process.env.NEXT_PUBLIC_ESCRITORIO === "1" && host && HOSTS_ESCRITORIO.includes(host)) destino.host = host;
-    return NextResponse.redirect(destino);
+    const redireccion = NextResponse.redirect(destino);
+    // La sesión refrescada en esta misma petición viaja con la redirección
+    respuesta.cookies.getAll().forEach((c) => redireccion.cookies.set(c));
+    return redireccion;
   };
   if (!conSesion && !enLogin) {
     return irA("/login");
   }
-  if (conSesion && enLogin && !request.nextUrl.pathname.startsWith("/login/nueva-clave")) {
+
+  // Verificación en dos pasos (administrador y gerente médico): sin el código de 6 dígitos no se abre nada.
+  // La puerta local del escritorio pone "aal" solo a quien la necesita (la verificación pasa por ella a la nube).
+  const ruta = request.nextUrl.pathname;
+  const enDosPasos = ruta.startsWith("/login/dos-pasos");
+  const aal = data?.claims?.aal;
+  if (conSesion && aal === "aal2" && enDosPasos) return irA("/panel");
+  if (conSesion && aal === "aal1" && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
+    // Sin caché: una cookie se podría falsificar. Es una consulta liviana y solo para sesiones aal1.
+    const { data: requiere } = await supabase.rpc("requiere_dos_pasos");
+    if (requiere === true) return irA("/login/dos-pasos");
+  }
+
+  if (conSesion && enLogin && !ruta.startsWith("/login/nueva-clave") && !enDosPasos) {
     return irA("/panel");
   }
   return respuesta;

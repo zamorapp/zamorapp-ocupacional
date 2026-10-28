@@ -17,6 +17,10 @@ const DEVOLVER = ["content-type", "content-range", "preference-applied", "locati
 const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
+// Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
+const CON_DOS_PASOS = ["administrador", "gerente_medico"];
+// "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
+const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
 export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
   const d = () => estado.d;
@@ -29,14 +33,18 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     res.end(texto);
   };
 
-  const sesionLocal = (uid) => {
+  // Verificación en dos pasos: la sesión local de un administrador o gerente médico lleva "aal" (aal1 tras la clave,
+  // aal2 tras el código de 6 dígitos) y la app le pide el código igual que en la web. Sin "aal" la app no lo pide.
+  const exigeDosPasos = (u) => Boolean(u?.nubeConAal && CON_DOS_PASOS.includes(u.rol));
+  const sesionLocal = (uid, segundoPaso = false) => {
     const u = d().usuarios[uid];
     const ahora = Math.floor(Date.now() / 1000);
     const exp = ahora + CONFIG.sesionSegundos;
-    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID() }, d().jwtSecreto);
+    const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID(), ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
     for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < Date.now()) delete d().refrescos[t];
-    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5 };
+    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5, segundoPaso };
     estado.guardar();
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
@@ -69,7 +77,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   async function rolEnNube(uid) {
     try {
       const filas = await nube.leer(uid, `miembros?usuario_id=eq.${uid}&activo=is.true&select=rol,org_id`);
-      return filas[0]?.rol || null;
+      return filas.find((f) => CON_DOS_PASOS.includes(f.rol))?.rol || filas[0]?.rol || null;
     } catch { return undefined; }
   }
 
@@ -104,7 +112,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         }
         const uid = r.cuerpo.user.id;
         // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
-        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user };
+        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user, nubeConAal: Boolean(aalDe(r.cuerpo.access_token)) };
         nube.guardarSesion(uid, r.cuerpo);
         const rol = await rolEnNube(uid);
         if (rol === null) {
@@ -156,7 +164,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     delete d().refrescos[cuerpo.refresh_token];
-    return responder(res, 200, sesionLocal(r.uid));
+    return responder(res, 200, sesionLocal(r.uid, r.segundoPaso));
   }
 
   // Reenvía la petición a la nube con el token de la nube de ese usuario. Devuelve false si la nube no responde.
@@ -205,6 +213,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!nube.enLinea) return responder(res, 503, { message: "Para registrar esta PC hace falta internet" });
     const filas = await nube.leer(quien.uid, `miembros?usuario_id=eq.${quien.uid}&rol=eq.administrador&activo=is.true&select=org_id`);
     if (!filas.length) return responder(res, 403, { message: "Solo el administrador registra la PC" });
+    // Registrar una PC le da copia de todos los datos: la nube exige la verificación en dos pasos (aal2)
+    if (aalDe(await nube.token(quien.uid)) === "aal1") {
+      const factor = (quien.u.user?.factors || []).find((f) => f.factor_type === "totp" && f.status === "verified");
+      if (!factor) return responder(res, 403, { code: "dos_pasos_sin_activar", message: "Primero activa la verificación en dos pasos: entra en zamorapp-ocupacional.vercel.app con tu cuenta y sigue los pasos. Luego vuelve aquí." });
+      if (!cuerpo?.codigo) return responder(res, 401, { code: "dos_pasos", message: "Escribe el código de 6 dígitos de tu app autenticadora." });
+      const fallo = await verificarEnNube(quien.uid, factor.id, String(cuerpo.codigo));
+      if (fallo) return responder(res, 401, { code: "dos_pasos", message: fallo });
+    }
     // Serie de numeración: la primera libre (A, B, C… sin la W, que es de la web)
     const series = cuerpo?.serie ? [String(cuerpo.serie)] : [..."ABCDEFGHIJKLMNOPQRSTUVXYZ"];
     let r = null;
@@ -224,8 +240,52 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     return responder(res, 200, { ok: true, id: r.id });
   }
 
+  // Pide a la nube el reto y lo verifica con el código; si es correcto guarda la sesión aal2 de la nube.
+  // Devuelve null si salió bien o el motivo para mostrarlo.
+  async function verificarEnNube(uid, factorId, codigo) {
+    const token = await nube.token(uid);
+    if (!token) return "La verificación en dos pasos necesita internet.";
+    const reto = await nube.auth(`factors/${factorId}/challenge`, {}, token);
+    if (!reto.ok) return "No se pudo pedir la verificación a la nube. Intenta de nuevo.";
+    const r = await nube.auth(`factors/${factorId}/verify`, { challenge_id: reto.cuerpo.id, code: codigo.replace(/\D/g, "") }, token);
+    registro(`[auth] verificación en dos pasos: ${r.ok ? "ok" : r.status}`);
+    if (!r.ok) return r.status === 429 ? "Demasiados intentos. Espera unos minutos." : "El código no es correcto o ya cambió. Escribe el que muestra ahora la app.";
+    nube.guardarSesion(uid, r.cuerpo);
+    return null;
+  }
+
+  // Inscribir, borrar, retar y verificar el segundo paso (rutas /auth/v1/factors de Supabase): se pasan a la nube
+  // con la sesión de la persona. Al verificar, la nube da una sesión aal2 y la puerta entrega una local aal2.
+  async function dosPasos(req, res, factor, accion, cuerpo) {
+    const quien = usuarioDe(req);
+    if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+    if (!nube.enLinea) await nube.comprobar();
+    const token = nube.enLinea ? await nube.token(quien.uid) : null;
+    if (!token) return errorAuth(res, 503, "La verificación en dos pasos necesita internet. Sin conexión, sal y entra con Windows Hello (PIN, huella o rostro), que cuenta como segundo paso.", "offline");
+    const ruta = `factors${factor ? `/${factor}` : ""}${accion ? `/${accion}` : ""}`;
+    const r = await nube.auth(ruta, req.method === "DELETE" ? null : cuerpo ?? {}, token, req.method);
+    registro(`[auth] ${req.method} ${ruta}: ${r.status}`);
+    if (r.ok && accion === "verify") {
+      nube.guardarSesion(quien.uid, r.cuerpo);
+      return responder(res, 200, sesionLocal(quien.uid, true));
+    }
+    if (r.ok && !accion) { // inscribir o borrar: la lista de factores de la persona cambió
+      const u = await nube.auth("user", undefined, token);
+      if (u.ok) { quien.u.user = u.cuerpo; estado.guardar(); }
+    }
+    return responder(res, r.status, r.cuerpo ?? r.texto);
+  }
+
+  // Con internet, la nube decide el segundo paso: si la sesión guardada en la nube de un administrador o gerente
+  // médico aún es aal1, Windows Hello no basta (la nube rechazaría sus pedidos con 403 «dos_pasos») y se pide el código.
+  async function cumpleDosPasosEnNube(uid) {
+    const u = d().usuarios[uid];
+    if (!exigeDosPasos(u) || !nube.enLinea) return true;
+    return aalDe(await nube.token(uid)) !== "aal1";
+  }
+
   // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
-  const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro });
+  const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 
   const servidor = http.createServer(async (req, res) => {
     // Solo se atiende a esta PC por su nombre local (Host) y, desde un navegador, solo a la ventana de
@@ -303,6 +363,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const quien = usuarioDe(req);
         return quien ? responder(res, 200, quien.u.user) : errorAuth(res, 401, "Sesión no válida", "bad_jwt");
       }
+      const factores = /^\/auth\/v1\/factors(?:\/([\w-]+)(?:\/(challenge|verify))?)?$/.exec(ruta);
+      if (factores) return await dosPasos(req, res, factores[1], factores[2], json());
       if (ruta === "/auth/v1/logout") {
         const quien = usuarioDe(req);
         if (quien) for (const [t, r] of Object.entries(d().refrescos)) if (r.uid === quien.uid) delete d().refrescos[t];

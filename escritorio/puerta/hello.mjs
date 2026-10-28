@@ -6,7 +6,7 @@
 import crypto from "node:crypto";
 import { CONFIG } from "./config.mjs";
 
-export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro }) {
+export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube }) {
   const d = () => estado.d;
   const codigos = new Map(); // código → { uid, tipo, vence }; solo en memoria
 
@@ -61,8 +61,11 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (!uid) return errorAuth(res, 400, "Tardó demasiado. Vuelve a tocar «Entrar con Windows Hello».", "hello_code_invalid"), true;
       d().helloUltimo = uid;
       estado.guardar();
-      // Windows Hello cuenta como segundo paso (decisión de Cesar): la sesión sale verificada aunque no haya internet
-      return responder(res, 200, sesionLocal(uid, true)), true;
+      // Windows Hello cuenta como segundo paso (decisión de Cesar), también sin internet. Con internet, si la sesión
+      // de la nube aún no pasó el segundo paso, la local sale sin él y la app pide el código (dos_pasos: aviso)
+      const cumple = await cumpleDosPasosEnNube(uid);
+      if (!cumple) registro("[auth] Windows Hello: la nube pide el código de dos pasos");
+      return responder(res, 200, { ...sesionLocal(uid, cumple), ...(cumple ? {} : { dos_pasos: true }) }), true;
     }
     if (!ruta.startsWith("/zamorapp/huella/")) return false;
     registro(`[huella] ${req.method} ${ruta} (Origin "${req.headers.origin || ""}")`);
