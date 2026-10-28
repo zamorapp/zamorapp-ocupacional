@@ -171,7 +171,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           autoComplete={modo === "ingresar" ? "username" : "email"}
           autoCapitalize="none"
           spellCheck={false}
-          placeholder={modo === "ingresar" ? "cesar o medico@empresa.com" : siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"}
+          placeholder={modo === "ingresar" ? "usuario o correo@empresa.com" : siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"}
           required={!modoDemo}
           className="h-11"
         />

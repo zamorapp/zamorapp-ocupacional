@@ -69,11 +69,11 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
         {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
         <ul className="divide-y">
           {miembros.map((m) => (
-            <li key={m.id} className={`flex flex-wrap items-center gap-3 px-5 py-3 ${m.activo ? "" : "opacity-50"}`}>
+            <li key={m.id} className={`flex flex-wrap items-start gap-3 px-5 py-3 sm:items-center ${m.activo ? "" : "opacity-50"}`}>
               <Avatar className="size-9">
                 <AvatarFallback className="bg-primary/10 text-sm text-primary">{iniciales(m.nombre || m.correo)}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-0">
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
                 <div className="truncate text-sm text-muted-foreground">{m.correo}{ROLES_EMPRESA.includes(m.rol) && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
                 {(esAdmin || m.usuario) && <UsuarioCorto miembro={m} editable={esAdmin} alGuardar={setAviso} />}
@@ -137,7 +137,7 @@ function UsuarioCorto({ miembro, editable, alGuardar }: { miembro: Miembro; edit
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); guardar(); }} className="mt-1.5 flex flex-wrap items-center gap-1.5">
-      <div className="relative">
+      <div className="relative w-full sm:w-auto">
         <AtSign className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           autoFocus
@@ -150,7 +150,7 @@ function UsuarioCorto({ miembro, editable, alGuardar }: { miembro: Miembro; edit
           aria-label="Usuario de ingreso"
           autoCapitalize="none"
           spellCheck={false}
-          className="h-8 w-40 rounded-md border bg-transparent pl-7 pr-2 font-mono text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="h-8 w-full rounded-md border bg-transparent pl-7 pr-2 font-mono text-sm outline-none sm:w-40 focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
       </div>
       <Button type="submit" size="sm" className="h-8" disabled={guardando}>
