@@ -12,13 +12,13 @@ insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos,e
  ('3c000000-0000-0000-0000-0000000000c4','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','c4','Aldia','C','activo'),
  ('3c000000-0000-0000-0000-0000000000c5','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','c5','Egresado','C','egresado');
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha) values
- ('4c000000-0000-0000-0000-0000000000c1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c1','cerrada',current_date - 400),
- ('4c000000-0000-0000-0000-0000000000c2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c2','firmada',(current_date - interval '5 months')::date),
- ('4c000000-0000-0000-0000-0000000000c4','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c4','cerrada',current_date - 10);
+ ('4c000000-0000-0000-0000-0000000000c1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c1','cerrada',public.hoy_caracas() - 400),
+ ('4c000000-0000-0000-0000-0000000000c2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c2','firmada',(public.hoy_caracas() - interval '5 months')::date),
+ ('4c000000-0000-0000-0000-0000000000c4','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','3c000000-0000-0000-0000-0000000000c4','cerrada',public.hoy_caracas() - 10);
 insert into clinico.aptitudes (org_id,consulta_id,trabajador_id,clasificacion,vigente_hasta) values
- ('10000000-0000-0000-0000-000000000001','4c000000-0000-0000-0000-0000000000c1','3c000000-0000-0000-0000-0000000000c1','elegible',current_date - 1),
+ ('10000000-0000-0000-0000-000000000001','4c000000-0000-0000-0000-0000000000c1','3c000000-0000-0000-0000-0000000000c1','elegible',public.hoy_caracas() - 1),
  ('10000000-0000-0000-0000-000000000001','4c000000-0000-0000-0000-0000000000c2','3c000000-0000-0000-0000-0000000000c2','elegible',null),
- ('10000000-0000-0000-0000-000000000001','4c000000-0000-0000-0000-0000000000c4','3c000000-0000-0000-0000-0000000000c4','elegible',current_date + 200);
+ ('10000000-0000-0000-0000-000000000001','4c000000-0000-0000-0000-0000000000c4','3c000000-0000-0000-0000-0000000000c4','elegible',public.hoy_caracas() + 200);
 insert into public.horas_trabajadas (org_id,empresa_id,mes,horas,trabajadores,metodo) values
  ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000c9','2026-03-01',100000,60,'nomina');
 insert into public.eventos (org_id,empresa_id,trabajador_id,tipo,fecha_hora,incapacidad,dias_perdidos) values
@@ -27,7 +27,7 @@ insert into public.eventos (org_id,empresa_id,trabajador_id,tipo,fecha_hora,inca
 
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select 'sin vigencia: próximo examen = último + 6 meses (debe 1): ' || (proximo_examen = (current_date - interval '5 months' + interval '6 months')::date)::int from public.ultima_aptitud where trabajador_id = '3c000000-0000-0000-0000-0000000000c2';
+select 'sin vigencia: próximo examen = último + 6 meses (debe 1): ' || (proximo_examen = (public.hoy_caracas() - interval '5 months' + interval '6 months')::date)::int from public.ultima_aptitud where trabajador_id = '3c000000-0000-0000-0000-0000000000c2';
 select 'empresa C: vencidos (debe 1): ' || (x ->> 'vencidos') from jsonb_array_elements(public.vencimientos_empresas()) x where x ->> 'empresa' = 'C';
 select 'empresa C: por vencer en 45 días (debe 1): ' || (x ->> 'por_vencer') from jsonb_array_elements(public.vencimientos_empresas()) x where x ->> 'empresa' = 'C';
 select 'empresa C: sin evaluación, sin el egresado (debe 1): ' || (x ->> 'sin_evaluar') from jsonb_array_elements(public.vencimientos_empresas()) x where x ->> 'empresa' = 'C';
