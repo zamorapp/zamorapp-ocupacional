@@ -337,6 +337,13 @@ jobs:
               if (($lineas -match "abriendo").Count -ge 2 -and ($lineas -match "app lista").Count -ge 1) { $ok = $true }
             }
             if (-not $ok) { throw "El programa no se volvió a abrir tras instalar la actualización" }
+            # El avance de la descarga y el resultado al volver a abrir quedan anotados (antes no se veía nada)
+            for ($s = 0; $s -lt 30 -and -not ((& $nuevo) -match "actualización instalada:"); $s++) { Start-Sleep 1 }
+            $lineas = & $nuevo
+            if (-not ($lineas -match "descargando la actualización: 100 %")) { throw "No se anotó el avance de la descarga hasta 100 %" }
+            if (-not ($lineas -match "actualización instalada:")) { throw "Al volver a abrir, el programa no anotó el resultado de la actualización" }
+            Write-Host "actualización: $(($lineas -match 'descargando la actualización:') -join ' | ')"
+            Write-Host "actualización: $(($lineas -match 'actualización instalada:') | Select-Object -Last 1)"
             $relanzado = Get-Process zamorapp -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } | Select-Object -First 1
             if (-not $relanzado) { throw "El programa actualizado no está corriendo" }
             Write-Host "actualización: instalada y el programa se volvió a abrir solo (versión $((& $nuevo | Select-String 'versión del instalador' | Select-Object -Last 1).Line))"

@@ -5,9 +5,11 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::window::{ProgressBarState, ProgressBarStatus};
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
@@ -341,6 +343,27 @@ fn sincronizar_ahora(app: AppHandle) {
     });
 }
 
+// Evita dos descargas a la vez (menú, aviso de la nube y búsqueda al abrir).
+static ACTUALIZANDO: AtomicBool = AtomicBool::new(false);
+
+// Si la última vez se instaló una actualización, anota cómo terminó y se lo dice al usuario.
+fn revisar_actualizacion_anterior(app: &AppHandle) {
+    let marca = carpeta_programa().join("actualizando.txt");
+    let Ok(texto) = std::fs::read_to_string(&marca) else { return };
+    let _ = std::fs::remove_file(&marca);
+    let mut lineas = texto.lines();
+    let (antes, pedida) = (lineas.next().unwrap_or("?").to_string(), lineas.next().unwrap_or("?").to_string());
+    let actual = app.package_info().version.to_string();
+    anotar(&format!("actualización instalada: de {antes} a {pedida}; ahora corre la {actual}"));
+    if en_pruebas() { return; }
+    let (titulo, mensaje) = if actual == pedida {
+        ("zamorApp actualizado", format!("Listo: zamorApp se actualizó a la versión {actual}. Tus datos siguen intactos."))
+    } else {
+        ("La actualización no terminó", format!("Se pidió la versión {pedida} pero sigue la {actual}. Vuelve a intentarlo desde el menú zamorApp › Buscar actualizaciones."))
+    };
+    app.dialog().message(mensaje).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).show(|_| {});
+}
+
 // Busca una versión nueva. Al abrir, solo avisa si la hay; desde el menú, responde siempre.
 // Nunca obliga: "Más tarde" deja todo como está. Instalar no toca los datos (%LOCALAPPDATA%\zamorApp).
 fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
@@ -368,19 +391,63 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
                     .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
                     .blocking_show();
                 if !aceptar { anotar("actualización pospuesta"); return; }
-                match tauri::async_runtime::block_on(nueva.download(|_, _| {}, || {})) {
+                if ACTUALIZANDO.swap(true, Ordering::SeqCst) { anotar("ya hay una actualización en curso"); return; }
+                // Sin avance a la vista, una descarga de 140 MB parecía «no hacer nada»: el título de la ventana y la
+                // barra de la tarea muestran el porcentaje, y el programa avisa al empezar y al volver a abrirse.
+                let ventana = app.get_webview_window("principal");
+                let titulo = format!("zamorApp Escritorio v{actual}");
+                let mostrar = |texto: &str, estado: ProgressBarState| if let Some(v) = &ventana {
+                    let _ = v.set_title(&if texto.is_empty() { titulo.clone() } else { format!("{titulo} — {texto}") });
+                    let _ = v.set_progress_bar(estado);
+                };
+                anotar(&format!("descargando la actualización {}", nueva.version));
+                mostrar("Descargando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
+                if prueba.is_none() {
+                    app.dialog()
+                        .message("Se está descargando la actualización. Puedes seguir trabajando: el avance se ve en el título de la ventana.\n\nAl terminar, zamorApp se cierra unos segundos, se instala y se vuelve a abrir solo.")
+                        .title("Descargando actualización")
+                        .buttons(MessageDialogButtons::OkCustom("Entendido".into()))
+                        .show(|_| {});
+                }
+                let (mut recibido, mut ultimo) = (0u64, u64::MAX);
+                let descarga = tauri::async_runtime::block_on(nueva.download(
+                    |trozo, total| {
+                        recibido += trozo as u64;
+                        let Some(total) = total.filter(|t| *t > 0) else {
+                            // Sin tamaño anunciado: se muestran los MB recibidos
+                            let mb = recibido / 1_048_576;
+                            if mb != ultimo { ultimo = mb; mostrar(&format!("Descargando actualización {mb} MB"), ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None }); }
+                            return;
+                        };
+                        let pct = (recibido * 100 / total).min(100);
+                        if pct == ultimo { return; }
+                        if pct / 25 != ultimo.min(100) / 25 || ultimo == u64::MAX { anotar(&format!("descargando la actualización: {pct} % de {} MB", total / 1_048_576)); }
+                        ultimo = pct;
+                        mostrar(&format!("Descargando actualización {pct} %"), ProgressBarState { status: Some(ProgressBarStatus::Normal), progress: Some(pct) });
+                    },
+                    || {},
+                ));
+                match descarga {
                     Ok(paquete) => {
                         anotar("actualización descargada y verificada; instalando");
+                        mostrar("Instalando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
+                        // Al volver a abrir, el programa ve esta marca, anota el resultado y avisa que ya está al día.
+                        let _ = std::fs::write(carpeta_programa().join("actualizando.txt"), format!("{actual}\n{}\n", nueva.version));
                         // La base local se detiene con calma antes de que el instalador reemplace los archivos.
                         detener(&mut app.state::<Mutex<Procesos>>().lock().unwrap());
                         if let Err(e) = nueva.install(paquete) {
+                            let _ = std::fs::remove_file(carpeta_programa().join("actualizando.txt"));
                             anotar(&format!("ERROR al instalar la actualización: {e}"));
+                            mostrar("", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                            ACTUALIZANDO.store(false, Ordering::SeqCst);
                             avisar(&app, "No se pudo actualizar", "La actualización no se instaló. Cierra y vuelve a abrir zamorApp; tus datos están intactos.");
                         }
                     }
                     Err(e) => {
                         anotar(&format!("ERROR al descargar la actualización: {e}"));
-                        avisar(&app, "No se pudo actualizar", "No se pudo descargar la actualización. Revisa internet y vuelve a intentarlo desde el menú zamorApp.");
+                        mostrar("", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                        ACTUALIZANDO.store(false, Ordering::SeqCst);
+                        avisar(&app, "No se pudo actualizar", "No se pudo descargar la actualización. Revisa internet y vuelve a intentarlo desde el menú zamorApp › Buscar actualizaciones.");
                     }
                 }
             }
@@ -490,6 +557,7 @@ fn main() {
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
                         let _ = ventana.navigate(destino.parse().expect("dirección local"));
                         anotar("ventana abierta en la pantalla de inicio");
+                        revisar_actualizacion_anterior(&manejador);
                         std::thread::sleep(Duration::from_secs(20));
                         buscar_actualizacion(manejador.clone(), false);
                     }
