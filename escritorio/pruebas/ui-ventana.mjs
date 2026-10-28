@@ -213,6 +213,8 @@ try {
       anotar(`   scripts: ${JSON.stringify(scripts)}`);
       throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
     });
+    const estadoHello = await pagina.evaluate(() => fetch("http://127.0.0.1:54331/zamorapp/huella/estado").then((r) => r.text())).catch((e) => `error: ${e.message}`);
+    anotar(`   estado de Windows Hello antes de tocar el botón: ${estadoHello}`);
     await boton.click();
     const limite = Date.now() + 60_000;
     while (!/\/panel/.test(pagina.url())) {
