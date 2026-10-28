@@ -29,7 +29,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
 
   const responder = (res, status, cuerpo, extra = {}) => {
     const texto = cuerpo === undefined ? "" : typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo);
-    res.writeHead(status, { "Content-Type": "application/json", ...extra });
+    // Content-Length (no «chunked»): el programa (main.rs) lee la respuesta con HTTP crudo y la toma tal cual
+    res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(texto), ...extra });
     res.end(texto);
   };
 

@@ -321,13 +321,46 @@ fn pedir_puerta(ruta: &str) -> Result<String, String> {
 
 fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
     let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
-    c.set_read_timeout(Some(Duration::from_secs(300))).ok();
+    // Las consultas (GET) responden al instante; las acciones (sincronizar) pueden tardar minutos
+    c.set_read_timeout(Some(Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))).ok();
     write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
         .map_err(|e| e.to_string())?;
-    let mut respuesta = String::new();
-    c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
+    // Se lee hasta que la puerta cierra (Connection: close) o hasta tener el cuerpo completo (Content-Length):
+    // así una conexión que quede abierta no deja al programa esperando el tiempo límite.
+    let mut bytes = Vec::new();
+    let mut trozo = [0u8; 8192];
+    loop {
+        match c.read(&mut trozo) {
+            Ok(0) => break,
+            Ok(n) => {
+                bytes.extend_from_slice(&trozo[..n]);
+                let texto = String::from_utf8_lossy(&bytes);
+                if let Some((cab, cuerpo)) = texto.split_once("\r\n\r\n") {
+                    let esperado = cab.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(usize::MAX)));
+                    if esperado.map(|e| cuerpo.len() >= e).unwrap_or(false) { break; }
+                }
+            }
+            Err(e) => { if bytes.is_empty() { return Err(e.to_string()); } break; }
+        }
+    }
+    let respuesta = String::from_utf8_lossy(&bytes).to_string();
     let (cabecera, cuerpo) = respuesta.split_once("\r\n\r\n").unwrap_or((&respuesta, ""));
-    if cabecera.starts_with("HTTP/1.1 200") { Ok(cuerpo.to_string()) } else { Err(cabecera.lines().next().unwrap_or("").to_string()) }
+    if !cabecera.starts_with("HTTP/1.1 200") { return Err(cabecera.lines().next().unwrap_or("").to_string()); }
+    let chunked = cabecera.lines().any(|l| l.to_ascii_lowercase().replace(' ', "") == "transfer-encoding:chunked");
+    Ok(if chunked { sin_trozos(cuerpo) } else { cuerpo.to_string() })
+}
+
+// Cuerpo HTTP «chunked» (tamaño en hexadecimal, datos, …, 0) → texto plano
+fn sin_trozos(cuerpo: &str) -> String {
+    let mut salida = String::new();
+    let mut resto = cuerpo;
+    while let Some((largo, despues)) = resto.split_once("\r\n") {
+        let n = usize::from_str_radix(largo.trim().split(';').next().unwrap_or("0"), 16).unwrap_or(0);
+        let (datos, siguiente) = match (n > 0).then(|| despues.get(..n).zip(despues.get(n..))).flatten() { Some(p) => p, None => break };
+        salida.push_str(datos);
+        resto = siguiente.strip_prefix("\r\n").unwrap_or("");
+    }
+    salida
 }
 
 fn sincronizar_ahora(app: AppHandle) {
@@ -409,11 +442,14 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
 fn vigilar_nube(app: AppHandle) {
     std::thread::spawn(move || {
         let mut avisado = false;
+        let mut fallos = 0;
+        anotar("vigilando la nube (cada 10 s)");
         loop {
             std::thread::sleep(Duration::from_secs(10));
             let estado = match llamar_puerta("GET", "/zamorapp/estado").map(|c| serde_json::from_str::<serde_json::Value>(&c)) {
                 Ok(Ok(v)) => v,
-                _ => continue,
+                Ok(Err(e)) => { if fallos == 0 { anotar(&format!("vigilar la nube: respuesta ilegible: {e}")); } fallos += 1; continue; }
+                Err(e) => { if fallos == 0 { anotar(&format!("vigilar la nube: la puerta no respondió: {e}")); } fallos += 1; continue; }
             };
             if estado["buscarActualizacion"] == true {
                 // Botón «Buscar actualización» de la pantalla: responde siempre, como desde el menú

@@ -361,6 +361,28 @@ test("botones de la pantalla «hay una versión nueva»: solo desde la ventana d
   assert.equal(j.abierto, process.platform === "win32");
 });
 
+// main.rs (vigilar_nube, sincronizar) le habla a la puerta con HTTP crudo por TcpStream y lee hasta que la
+// conexión se cierra: la puerta debe responder 200 y cerrar sola (Connection: close), o el programa se queda esperando.
+test("el programa consulta /zamorapp/estado con HTTP crudo (como main.rs) y la puerta cierra la conexión", { skip: omitir }, async () => {
+  const net = await import("node:net");
+  const { port } = puerta.address();
+  const respuesta = await new Promise((ok, falla) => {
+    const c = net.connect(port, "127.0.0.1");
+    let texto = "";
+    const t = setTimeout(() => { c.destroy(); falla(new Error("la puerta no cerró la conexión en 5 s (el programa se quedaría esperando)")); }, 5000);
+    c.on("connect", () => c.write(`GET /zamorapp/estado HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nX-Zamorapp-Control: ${CONTROL}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`));
+    c.on("data", (d) => { texto += d; });
+    c.on("end", () => { clearTimeout(t); ok(texto); });
+    c.on("error", (e) => { clearTimeout(t); falla(e); });
+  });
+  assert.ok(respuesta.startsWith("HTTP/1.1 200"), respuesta.slice(0, 80));
+  const [cabecera, cuerpoTexto] = respuesta.split("\r\n\r\n");
+  assert.match(cabecera.toLowerCase(), /content-length: \d+/, "sin Content-Length el cuerpo llega «chunked» y el programa no lo entiende");
+  const cuerpo = JSON.parse(cuerpoTexto);
+  assert.equal(typeof cuerpo.actualizar, "boolean");
+  assert.equal(cuerpo.buscarActualizacion, false);
+});
+
 test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
   nube.estado.rlsNiega = true;
   try {
