@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileBarChart2, ShieldAlert } from "lucide-react";
-import { Barras } from "@/components/app/barras";
 import { Semaforo } from "@/components/app/semaforo";
+import { BarrasH, Columnas, Dona, EjeMeses, Meta, nombreMes, Pareto, Piramide } from "@/components/graficos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
@@ -10,6 +10,7 @@ import { empresaActivaId } from "@/lib/empresa-activa";
 import { parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
 import { indicesCovenin, tasasEnfermedadOcupacional } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
+import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
 import { EditorInforme } from "./editor-informe";
 import { ExploradorCausas } from "./explorador-causas";
@@ -22,26 +23,39 @@ type Props = { searchParams: Promise<ConsultaPeriodo> };
 
 const ROLES_REDACTAN = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst"];
 
-function Indicador({ titulo, valor, detalle, estado }: { titulo: string; valor: string; detalle: string; estado?: "ok" | "aviso" | "alerta" }) {
+// Variación contra el período anterior, en tinta neutra (subir no siempre es malo: más consultas preventivas es bueno)
+function Variacion({ actual, base, contra }: { actual: number; base: number | undefined; contra: string }) {
+  if (base === undefined) return null;
+  if (!base) return <span className="text-xs text-muted-foreground">sin datos en {contra}</span>;
+  const v = Math.round(((actual - base) * 1000) / base) / 10;
+  return <span className="text-xs text-muted-foreground" title={`${contra}: ${base.toLocaleString("es-VE")}`}>{v > 0 ? "▲" : v < 0 ? "▼" : "="} {Math.abs(v).toLocaleString("es-VE")} % vs {contra}</span>;
+}
+
+function Indicador({ titulo, valor, detalle, estado, children }: { titulo: string; valor: string; detalle: string; estado?: "ok" | "aviso" | "alerta"; children?: React.ReactNode }) {
   return (
     <Card className="gap-1 py-4">
       <CardContent className="space-y-1 px-5">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">{estado && <Semaforo estado={estado} />}{titulo}</div>
-        <div className="text-2xl font-semibold tracking-tight">{valor}</div>
+        <div className="font-cifra text-2xl font-semibold tracking-tight">{valor}</div>
         <div className="text-xs text-muted-foreground">{detalle}</div>
+        {children}
       </CardContent>
     </Card>
   );
 }
 
-function Grafico({ titulo, children, detalle }: { titulo: string; children: React.ReactNode; detalle?: string }) {
+// Tarjeta de gráfico con su lectura inmediata debajo (la misma que sale en el informe impreso)
+function Grafico({ titulo, children, detalle, analisis, className }: { titulo: string; children: React.ReactNode; detalle?: string; analisis?: string; className?: string }) {
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="text-base">{titulo}</CardTitle>
         {detalle && <CardDescription>{detalle}</CardDescription>}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="space-y-4 text-sm">
+        {children}
+        {analisis && <p className="border-l-2 border-primary/50 pl-3 text-[13px] leading-relaxed text-muted-foreground">{analisis}</p>}
+      </CardContent>
     </Card>
   );
 }
@@ -51,7 +65,11 @@ const num = (n: number | null | undefined) => (n === null || n === undefined ? "
 export default async function Reportes({ searchParams }: Props) {
   const [q, sesion, empresaId] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId()]);
   const v = await cargarVigilancia(sesion, empresaId, q);
-  const { r, acc, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
+  const { r, s, acc, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
+  const a = v.analisis?.secciones;
+  const actual = s ? totales(s) : null;
+  const previo = v.sAnt ? totales(v.sAnt) : null;
+  const contra = "período anterior";
   const params = new URLSearchParams({ ...parametrosPeriodo(periodo), ...(empresaId ? { empresa: empresaId } : {}) });
   const enlaceImprimir = `/imprimir/vigilancia?${params}`;
 
@@ -76,13 +94,33 @@ export default async function Reportes({ searchParams }: Props) {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <Indicador titulo="Población" valor={String(r.poblacion.total)} detalle={`${r.poblacion.femenino} F · ${r.poblacion.masculino} M`} />
-            <Indicador titulo="Consultas" valor={String(r.consultas.total)} detalle={`${r.consultas.pacientes} pacientes · ${r.consultas.preventivas} preventivas`} />
-            <Indicador titulo="Prevalencia" valor={`${num(r.poblacion.total ? Math.round(((r.morbilidad.pacientes ?? 0) * 1000) / r.poblacion.total) / 10 : 0)} %`} detalle={`${r.morbilidad.total} diagnósticos`} />
-            <Indicador titulo="Días perdidos" valor={String(r.ausentismo.dias_perdidos)} detalle={`${r.ausentismo.reposos} reposos · PAD ${num(ausentismo.pad)}`} />
+            <Indicador titulo="Población" valor={num(r.poblacion.total)} detalle={`${r.poblacion.femenino} F · ${r.poblacion.masculino} M`} />
+            <Indicador titulo="Consultas" valor={num(r.consultas.total)} detalle={`${r.consultas.pacientes} pacientes · ${r.consultas.preventivas} preventivas`}>
+              {actual && <Variacion actual={actual.consultas} base={previo?.consultas} contra={contra} />}
+            </Indicador>
+            <Indicador titulo="Prevalencia" valor={`${num(r.poblacion.total ? Math.round(((r.morbilidad.pacientes ?? 0) * 1000) / r.poblacion.total) / 10 : 0)} %`} detalle={`${r.morbilidad.total} diagnósticos`}>
+              {actual && <Variacion actual={actual.diagnosticos} base={previo?.diagnosticos} contra={contra} />}
+            </Indicador>
+            <Indicador titulo="Días perdidos" valor={num(r.ausentismo.dias_perdidos)} detalle={`${r.ausentismo.reposos} reposos · PAD ${num(ausentismo.pad)}`}>
+              {actual && <Variacion actual={actual.dias} base={previo?.dias} contra={contra} />}
+            </Indicador>
             <Indicador titulo="% ausentismo" valor={`${num(ausentismo.pct)} %`} detalle="Meta < 2,5 %" estado={ausentismo.pct < 2.5 ? "ok" : "alerta"} />
-            <Indicador titulo="Referencias" valor={String(r.referencias?.total ?? 0)} detalle="a especialistas" />
+            <Indicador titulo="Referencias" valor={num(r.referencias?.total ?? 0)} detalle="a especialistas" />
           </div>
+
+          {v.analisis && (
+            <Card className="border-primary/30 bg-primary/[0.04]">
+              <CardHeader>
+                <CardTitle className="text-base">Hallazgos clave · {periodo.etiqueta}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 text-sm lg:grid-cols-[1fr_1.4fr]">
+                <ul className="space-y-1.5">
+                  {v.analisis.hallazgos.map((h) => <li key={h} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{h}</li>)}
+                </ul>
+                <p className="leading-relaxed text-muted-foreground">{v.analisis.conclusion}</p>
+              </CardContent>
+            </Card>
+          )}
 
           {r.poblacion.total > 0 && r.poblacion.total < 10 && (
             <p className="rounded-md bg-aviso/10 px-4 py-2 text-sm">Población menor a 10 trabajadores: los índices tienen baja comparabilidad.</p>
@@ -115,34 +153,47 @@ export default async function Reportes({ searchParams }: Props) {
                     </div>
                   ))}
                 </CardContent>
+                {a?.accidentes && <CardContent><p className="border-l-2 border-primary/50 pl-3 text-[13px] leading-relaxed text-muted-foreground">{a.accidentes}</p></CardContent>}
               </Card>
             );
           })()}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Grafico titulo="Consultas por motivo"><Barras filas={r.consultas.por_motivo} /></Grafico>
-            <Grafico titulo="Morbilidad por aparatos y sistemas"><Barras filas={r.morbilidad.por_sistema} color="bg-chart-2" /></Grafico>
+            {s && (
+              <Grafico titulo="Tendencia del período" detalle="Consultas y días de reposo de cada mes." analisis={a?.uso}>
+                <div className="grid grid-cols-2 gap-6">
+                  <div><div className="mb-2 text-xs text-muted-foreground">Consultas</div><Columnas puntos={s.por_mes.map((m) => ({ etiqueta: nombreMes(m.mes), n: m.consultas }))} /><EjeMeses etiquetas={s.por_mes.map((m) => nombreMes(m.mes))} /></div>
+                  <div><div className="mb-2 text-xs text-muted-foreground">Días de reposo</div><Columnas serie={2} puntos={s.por_mes.map((m) => ({ etiqueta: nombreMes(m.mes), n: m.dias_reposo }))} sufijo="días" /><EjeMeses etiquetas={s.por_mes.map((m) => nombreMes(m.mes))} /></div>
+                </div>
+              </Grafico>
+            )}
+            {s && <Grafico titulo="Pirámide de la población" detalle="Trabajadores efectivos por edad y sexo." analisis={a?.poblacion}><Piramide grupos={s.piramide} /></Grafico>}
+            {s && <Grafico className="lg:col-span-2" titulo="Morbilidad por capítulo CIE-10 (Pareto)" detalle="Barras: % de diagnósticos de cada grupo · línea: % acumulado." analisis={a?.morbilidad}><Pareto filas={s.capitulos} /></Grafico>}
+            <Grafico titulo="Tipo de atención y motivos de consulta">
+              <Dona partes={[{ nombre: "Preventivas", n: r.consultas.preventivas }, { nombre: "Asistenciales", n: r.consultas.no_preventivas }]} centro={num(r.consultas.total)} sub="consultas" />
+              <BarrasH filas={r.consultas.por_motivo} />
+            </Grafico>
             <Grafico titulo="Diez primeras causas de morbilidad" detalle="Explora por tipo de consulta, origen, sexo, edad, actividad, sistema, motivo o dependencia.">
               <ExploradorCausas cortes={r.morbilidad.cortes ?? {}} poblacion={r.poblacion.total} />
             </Grafico>
-            <Grafico titulo="Origen de los diagnósticos">
-              <Barras filas={Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n }))} color="bg-alerta" />
+            <Grafico titulo="Ausentismo" detalle="Porcentaje de ausentismo frente a la meta y días perdidos por causa." analisis={a?.ausentismo}>
+              <Meta valor={ausentismo.pct} meta={2.5} />
+              <BarrasH filas={r.ausentismo.por_causa.map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias }))} sufijo="d" serie={2} />
             </Grafico>
-            <Grafico titulo="Ausentismo por causa (días)">
-              <Barras filas={r.ausentismo.por_causa.map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias, detalle: `${c.n} rep.` }))} sufijo="d" color="bg-alerta" />
+            <Grafico titulo="Origen de los diagnósticos">
+              <Dona partes={Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n }))} centro={num(r.morbilidad.total)} sub="diagnósticos" />
             </Grafico>
             <Grafico titulo="Reposos por ente emisor (días)">
-              <Barras filas={r.ausentismo.por_ente.map((c) => ({ nombre: entes[c.nombre] ?? c.nombre, n: c.dias ?? c.n, detalle: `${c.n} rep.` }))} sufijo="d" />
+              <BarrasH filas={r.ausentismo.por_ente.map((c) => ({ nombre: entes[c.nombre] ?? c.nombre, n: c.dias ?? c.n }))} sufijo="d" />
             </Grafico>
             <Grafico titulo="Uso del servicio por dependencia" detalle="Consultas y personal efectivo de cada dependencia.">
-              <Barras filas={(r.consultas.por_dependencia ?? []).map((d) => ({ nombre: d.nombre, n: d.n, detalle: `de ${d.personal}` }))} color="bg-chart-3" />
+              <BarrasH filas={(r.consultas.por_dependencia ?? []).map((d) => ({ nombre: d.nombre, n: d.n, detalle: `de ${d.personal}` }))} />
             </Grafico>
-            <Grafico titulo="Referencias a especialidades">
-              <Barras filas={r.referencias?.por_especialidad ?? []} color="bg-chart-4" />
+            <Grafico titulo="Referencias a especialidades" analisis={a?.referencias}>
+              <BarrasH filas={r.referencias?.por_especialidad ?? []} />
             </Grafico>
-            <Grafico titulo="Consultas por grupo etario"><Barras filas={r.consultas.por_edad.map((e) => ({ nombre: e.grupo, n: e.n }))} color="bg-chart-3" /></Grafico>
-            <Grafico titulo="Aptitud emitida">
-              <Barras filas={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} color="bg-ok" />
+            <Grafico titulo="Aptitud emitida" analisis={a?.aptitud}>
+              <Dona partes={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0))} sub="evaluaciones" />
             </Grafico>
           </div>
 
@@ -160,6 +211,7 @@ export default async function Reportes({ searchParams }: Props) {
                   hasta={periodo.hasta}
                   inicial={v.informe}
                   sugeridos={v.sugeridos}
+                  datos={v.datosAnalisis}
                   firmantesBase={v.firmantesBase}
                   editable={Boolean(sesion.rol && ROLES_REDACTAN.includes(sesion.rol))}
                   enlaceImprimir={enlaceImprimir}

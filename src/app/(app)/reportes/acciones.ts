@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Firmantes } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
+import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -14,9 +15,13 @@ export type TextosGuardar = {
   factores_riesgo: string;
   medidas_control: string;
   firmantes: Firmantes;
+  // Análisis de cada cuadro que el médico editó ({seccion: texto}) y la variante de redacción elegida
+  analisis: Record<string, string>;
+  variante: number;
 };
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const SECCIONES: string[] = SECCIONES_ANALISIS.map(([k]) => k);
 const ROLES = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst"];
 
 // Guarda los textos del informe para la empresa (o el consolidado) y el período exacto
@@ -34,6 +39,8 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     factores_riesgo: limpio(t.factores_riesgo),
     medidas_control: limpio(t.medidas_control),
     firmantes: t.firmantes,
+    analisis: Object.fromEntries(Object.entries(t.analisis ?? {}).filter(([k, v]) => SECCIONES.includes(k) && typeof v === "string" && v.trim()).map(([k, v]) => [k, v.trim().slice(0, 4000)])),
+    variante: Number.isInteger(t.variante) ? Math.max(0, Math.min(t.variante, 1_000_000)) : 0,
     actualizado_por: sesion.usuarioId,
   };
   const supabase = await crearClienteServidor();
