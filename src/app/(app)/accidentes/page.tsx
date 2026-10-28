@@ -9,6 +9,7 @@ import { listarEventos } from "@/lib/eventos";
 import { ETIQUETA_ESTADO_EVENTO, ETIQUETA_TIPO, fechaHoraVE, plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { ReportarEvento } from "./reportar-evento";
+import { anioCaracas, hoyCaracas } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Accidentes y enfermedades" };
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ export const dynamic = "force-dynamic";
 export default async function Accidentes() {
   const [sesion, eventos, empresas] = await Promise.all([obtenerSesion(), listarEventos(), listarEmpresas()]);
   const pendientes = eventos.filter((e) => plazoDeclaracion(e)?.cumplido === false).length;
-  const anio = new Date().getFullYear();
-  const delAnio = eventos.filter((e) => e.fechaHora.startsWith(String(anio)));
+  const anio = anioCaracas();
+  const delAnio = eventos.filter((e) => hoyCaracas(e.fechaHora).startsWith(String(anio)));
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

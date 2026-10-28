@@ -6,13 +6,14 @@ import { Card } from "@/components/ui/card";
 import { listarConsultas } from "@/lib/consultas";
 import { fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Documentos" };
 export const dynamic = "force-dynamic";
 
 export default async function Documentos() {
   const sesion = await obtenerSesion();
-  const desde = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+  const desde = sumarDias(hoyCaracas(), -90);
   const consultas = sesion.demo ? [] : (await listarConsultas({ desde, limite: 300 })).filter((c) => c.estado !== "borrador");
 
   return (

@@ -11,6 +11,7 @@ import { bs, type Cobro, type EstadoCobro, etiquetaEstado, type Servicio, totale
 import { cn } from "@/lib/utils";
 import { actualizarCobro, convertirPresupuesto, eliminarCobro } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
+import { hoyCaracas } from "@/lib/fecha";
 
 const f = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
@@ -33,7 +34,7 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
 
   const guardar = (nuevoEstado?: EstadoCobro) =>
     iniciar(async () => {
-      const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: new Date().toISOString().slice(0, 10) } : {}) };
+      const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: hoyCaracas() } : {}) };
       const r = await actualizarCobro(siguiente);
       setAviso(r);
       if (r.ok) { setC(siguiente); setGuardado(JSON.stringify(siguiente)); }

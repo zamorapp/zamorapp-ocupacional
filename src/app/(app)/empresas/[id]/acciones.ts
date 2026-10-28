@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Puesto } from "@/lib/puestos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 
-const hoyCaracas = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 

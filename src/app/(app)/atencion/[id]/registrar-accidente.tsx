@@ -7,12 +7,13 @@ import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { reportarEvento } from "../../accidentes/acciones";
+import { horaLocalCaracas } from "@/lib/fecha";
 
 // Registrar un accidente o enfermedad ocupacional sin salir de la consulta: el trabajador y la consulta ya van
 // cargados. Usa la misma acción que Accidentes (reportarEvento); la declaración completa (INPSASEL, COVENIN 474)
 // se termina en la ficha del evento.
 
-const ahoraLocal = () => new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 16);
+const ahoraLocal = () => horaLocalCaracas();
 
 type Props = {
   abierto: boolean;

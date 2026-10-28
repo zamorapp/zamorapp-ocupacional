@@ -1,6 +1,8 @@
 // Períodos de los reportes. El trimestre se cuenta desde el mes de inicio de la gestión de cada empresa
 // (enero por defecto): si la empresa empieza en febrero, el I trimestre es febrero-abril.
 
+import { anioCaracas, mesCaracas } from "@/lib/fecha";
+
 export type Periodo = {
   clave: string;
   desde: string;
@@ -17,14 +19,10 @@ export type ConsultaPeriodo = { p?: string; desde?: string; hasta?: string; anio
 export const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 export const ROMANOS = ["I", "II", "III", "IV"];
 
+// eslint-disable-next-line no-restricted-syntax -- fechas armadas con Date.UTC, sin hora
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const fecha = (anio: number, mes0: number, dia = 1) => new Date(Date.UTC(anio, mes0, dia));
 export const fechaCorta = (v: string) => v.split("-").reverse().join("/");
-
-function hoyCaracas() {
-  const d = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }) + "T00:00:00Z");
-  return { a: d.getUTCFullYear(), m: d.getUTCMonth() };
-}
 
 // "febrero – abril 2026" o "noviembre 2026 – enero 2027"
 export function rangoMeses(desde: string, hasta: string) {
@@ -63,7 +61,7 @@ const entero = (v: string | undefined, min: number, max: number) => {
 
 // Interpreta la URL de Reportes. "inicioEmpresa" es el mes de inicio de gestión de la empresa elegida.
 export function periodoDeConsulta(q: ConsultaPeriodo, inicioEmpresa = 1): Periodo {
-  const { a, m } = hoyCaracas();
+  const a = anioCaracas(), m = mesCaracas();
   const inicio = entero(q.inicio, 1, 12) ?? inicioEmpresa;
   switch (q.p) {
     case "mes":

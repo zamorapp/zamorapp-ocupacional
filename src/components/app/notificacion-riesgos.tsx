@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { desactualizada, type NotificacionRiesgo } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
 import { marcarFirmada, notificarPuesto, notificarRiesgos } from "@/app/(app)/pacientes/notificacion-acciones";
+import { hoyCaracas } from "@/lib/fecha";
 
 const fecha = (v: string) => v.slice(0, 10).split("-").reverse().join("/");
 const imprimir = (ids: string[]) => window.open(`/imprimir/notificacion-riesgos?ids=${ids.join(",")}`, "_blank", "noopener");
@@ -36,7 +37,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
             const r = await notificarRiesgos([trabajadorId]);
             setAviso(r);
             if (r.ok && r.ids) {
-              const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
+              const hoy = hoyCaracas();
               setLista((l) => [{ id: r.ids![0], puestoId: puesto.id, puesto: puesto.nombre, entregadaEn: hoy, firmadaEn: null, contenido: l[0]?.contenido ?? { dependencia: null, turno: null, tareas: null, herramientas: null, riesgos: [], epp: null, recomendaciones: null, evaluadoEn: puesto.evaluadoEn } }, ...l]);
               imprimir(r.ids);
             }
@@ -56,7 +57,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
                     onChange={(x) => iniciar(async () => {
                       const r = await marcarFirmada(n.id, x.target.checked);
                       setAviso(r);
-                      if (r.ok) setLista((l) => l.map((y) => (y.id === n.id ? { ...y, firmadaEn: x.target.checked ? new Date().toISOString().slice(0, 10) : null } : y)));
+                      if (r.ok) setLista((l) => l.map((y) => (y.id === n.id ? { ...y, firmadaEn: x.target.checked ? hoyCaracas() : null } : y)));
                     })} />
                   Acuse firmado
                 </label>

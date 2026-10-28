@@ -31,6 +31,7 @@ import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { NotificacionesRiesgo } from "@/components/app/notificacion-riesgos";
 import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
+import { hoyCaracas } from "@/lib/fecha";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -67,7 +68,7 @@ export default async function FichaPaciente({ params }: Props) {
     : [{ data: null }, { data: null }];
   const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null } | null;
   const notificaciones: NotificacionRiesgo[] = (notifs ?? []).map((n) => ({ id: n.id, puestoId: n.puesto_id, puesto: n.puesto, entregadaEn: n.entregada_en, firmadaEn: n.firmada_en, contenido: n.contenido }));
-  const examenVencido = t.proximoExamen !== null && t.proximoExamen < new Date().toISOString().slice(0, 10);
+  const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
