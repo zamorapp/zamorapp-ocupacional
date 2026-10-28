@@ -307,6 +307,37 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
 });
 
 // En Windows PostgREST se caía a veces en su primer segundo (código 3): el motor debe relanzarlo solo
+// La nube recibió una migración que esta versión del programa no entiende (27/10/2026: quitar columnas de
+// trabajadores a RR. HH. dejó a la 0.1.0 con «Application error»). La puerta lo dice claro y lo marca para
+// que la ventana ofrezca actualizar, en vez de dejar caer la pantalla con un error mudo.
+test("la nube cambió y esta versión no la entiende: se avisa que hay que actualizar", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  assert.equal(nubeObj.enLinea, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, false);
+  nube.estado.migradaPorDelante = true;
+  try {
+    const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /necesita actualizarse/);
+    assert.match(r.json.message, /permission denied for table trabajadores/);
+    e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, true);
+    assert.equal(e.json.incompatible.codigo, "42501");
+    assert.equal(e.json.incompatible.donde, "/rest/v1/trabajadores");
+  } finally {
+    nube.estado.migradaPorDelante = false;
+  }
+  // El aviso queda hasta que el programa se actualice (reinicio): una consulta que sí pasa no lo borra.
+  const ok = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenAdmin });
+  assert.equal(ok.status, 200);
+  e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, true);
+  nubeObj.incompatible = null; // para las pruebas que siguen
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3

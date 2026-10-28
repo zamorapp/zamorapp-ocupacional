@@ -8,6 +8,7 @@ import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
 // Los enlaces de los correos (recuperar clave, confirmar) abren la app web: la PC no recibe visitas de afuera.
@@ -170,8 +171,20 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       });
       const salida = {};
       for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+      let cuerpoRespuesta = Buffer.from(await r.arrayBuffer());
+      if (r.status >= 400 && r.status < 500) {
+        // La nube ya cambió y esta versión pide algo que ya no existe: se avisa claro (y /zamorapp/estado lo
+        // marca para que la ventana ofrezca actualizar) en vez de dejar caer la pantalla con un error mudo.
+        let json = null;
+        try { json = JSON.parse(cuerpoRespuesta.toString("utf8")); } catch { /* no es JSON */ }
+        if (json && nube.anotarIncompatibilidad(r.status, json, req.url.split("?")[0])) {
+          registro(`[puerta] la nube cambió y esta versión no la entiende (${json.code} en ${req.method} ${req.url.split("?")[0]}): ${json.message}`);
+          cuerpoRespuesta = Buffer.from(JSON.stringify({ ...json, message: `${MENSAJE_ACTUALIZAR} (${json.message})` }));
+          salida["content-type"] = "application/json; charset=utf-8";
+        }
+      }
       res.writeHead(r.status, salida);
-      res.end(Buffer.from(await r.arrayBuffer()));
+      res.end(cuerpoRespuesta);
       return true;
     } catch (e) {
       registro(`[puerta] nube no responde: ${e.message}`);
@@ -271,7 +284,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       }
       if (ruta === "/zamorapp/estado") {
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
+          actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.

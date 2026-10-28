@@ -316,9 +316,13 @@ fn avisar(app: &AppHandle, titulo: &str, texto: &str) {
 
 // Pide a la puerta local una acción interna (POST) y devuelve el cuerpo de la respuesta.
 fn pedir_puerta(ruta: &str) -> Result<String, String> {
+    llamar_puerta("POST", ruta)
+}
+
+fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
     let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
     c.set_read_timeout(Some(Duration::from_secs(300))).ok();
-    write!(c, "POST {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
         .map_err(|e| e.to_string())?;
     let mut respuesta = String::new();
     c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
@@ -342,6 +346,11 @@ fn sincronizar_ahora(app: AppHandle) {
 // Busca una versión nueva. Al abrir, solo avisa si la hay; desde el menú, responde siempre.
 // Nunca obliga: "Más tarde" deja todo como está. Instalar no toca los datos (%LOCALAPPDATA%\zamorApp).
 fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
+    buscar_actualizacion_por(app, a_pedido, false);
+}
+
+// por_nube: la puerta detectó que la nube ya cambió y esta versión no la entiende (ver vigilar_nube).
+fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
     std::thread::spawn(move || {
         let prueba = actualizador_prueba();
         let llave = prueba.as_ref().map(|p| p.llave.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| LLAVE_ACTUALIZACIONES.to_string());
@@ -382,10 +391,34 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
                     }
                 }
             }
+            Ok(None) if por_nube => avisar(&app, "zamorApp necesita actualizarse",
+                "La nube ya tiene cambios que esta versión no entiende y la versión nueva todavía se está publicando.\n\nEn unos minutos: menú zamorApp → Buscar actualizaciones. Mientras tanto trabaja en la web: zamorapp-ocupacional.vercel.app. Tus datos están intactos."),
             Ok(None) => if a_pedido { avisar(&app, "Actualizaciones", &format!("Ya tienes la versión más reciente ({actual})." )) },
             Err(e) => {
                 anotar(&format!("no se pudo buscar actualizaciones: {e}"));
-                if a_pedido { avisar(&app, "Actualizaciones", "No se pudo revisar si hay una versión nueva. Revisa la conexión a internet."); }
+                if a_pedido || por_nube { avisar(&app, "Actualizaciones", "No se pudo revisar si hay una versión nueva. Revisa la conexión a internet."); }
+            }
+        }
+    });
+}
+
+// La nube puede recibir una migración antes de que esta PC se actualice (27/10/2026: la 0.1.0 quedó con
+// «Application error» cuando la nube dejó de entregar dos columnas). La puerta lo detecta y lo marca en
+// /zamorapp/estado; aquí se mira cada 30 s y, la primera vez, se ofrece la actualización en vez de dejar
+// la pantalla caída. Nunca obliga: si Cesar dice «Más tarde», la app sigue (lo que se pueda leer, se lee).
+fn vigilar_nube(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut avisado = false;
+        loop {
+            std::thread::sleep(Duration::from_secs(30));
+            let estado = match llamar_puerta("GET", "/zamorapp/estado").map(|c| serde_json::from_str::<serde_json::Value>(&c)) {
+                Ok(Ok(v)) => v,
+                _ => continue,
+            };
+            if estado["actualizar"] == true && !avisado {
+                avisado = true;
+                anotar(&format!("la nube va por delante de esta versión: {}", estado["incompatible"]));
+                buscar_actualizacion_por(app.clone(), false, true);
             }
         }
     });
@@ -482,6 +515,7 @@ fn main() {
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
                         let _ = ventana.navigate(destino.parse().expect("dirección local"));
                         anotar("ventana abierta en la pantalla de inicio");
+                        vigilar_nube(manejador.clone());
                         std::thread::sleep(Duration::from_secs(20));
                         buscar_actualizacion(manejador.clone(), false);
                     }

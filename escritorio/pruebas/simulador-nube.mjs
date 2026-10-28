@@ -80,6 +80,10 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     }
     const uid = uidDe((req.headers.authorization || "").replace(/^Bearer /, ""));
     if (!uid) return enviar(401, { message: "JWT inválido" });
+    // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
+    if (estado.migradaPorDelante && url.pathname.startsWith("/rest/v1/")) {
+      return enviar(403, { code: "42501", details: null, hint: "Grant the required privileges to the current role with: GRANT SELECT ON public.trabajadores TO authenticated;", message: "permission denied for table trabajadores" });
+    }
     if (pgrst && url.pathname.startsWith("/rest/v1/")) {
       // PostgREST real: se le pasa la petición tal cual (el token ya va firmado con su secreto)
       let p;
