@@ -3,6 +3,8 @@
 # Uso: PGHOST=... PGPORT=... PGUSER=postgres bash supabase/pruebas/correr.sh
 # Cada línea dice «(debe N)»: el número que sigue a los dos puntos tiene que coincidir.
 set -e
+# Las funciones usan la fecha de Caracas; sin esto las pruebas con current_date fallan de 20:00 a 24:00 (UTC ya es mañana)
+export PGTZ=America/Caracas
 cd "$(dirname "$0")/../.."
 P="psql -v ON_ERROR_STOP=1 -q"
 $P -c "drop database if exists zamorapp_prueba" -c "create database zamorapp_prueba"

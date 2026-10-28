@@ -5,6 +5,7 @@ import { faltantesRecipe } from "@/lib/documentos";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
+import { sumarDias } from "@/lib/fecha";
 import {
   Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
@@ -92,7 +93,7 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
 function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
   const r = d.datos.reposo;
   const dias = Math.round((Date.parse(r.hasta) - Date.parse(r.desde)) / 864e5) + 1;
-  const reintegro = new Date(Date.parse(r.hasta) + 864e5).toISOString().slice(0, 10);
+  const reintegro = sumarDias(r.hasta, 1);
   const diag = d.datos.diagnosticos.find((x) => x.cie10 === r.cie10) ?? d.datos.diagnosticos[0];
   const t = d.trabajador;
   return (
@@ -252,7 +253,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
 
 function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: string; children: React.ReactNode }) {
   const m = d.medicoDatos;
-  const vence = new Date(Date.parse(d.datos.fecha) + 30 * 864e5).toISOString().slice(0, 10);
+  const vence = sumarDias(d.datos.fecha, 30);
   const img = imagenesMedico(d);
   return (
     <div className="flex flex-col rounded-lg border border-doc-linea p-4">
@@ -503,7 +504,7 @@ export function ConstanciaAtencion({ d, diagnostico = false }: { d: DatosDocumen
   const duracion = minutos !== null && minutos > 0 && minutos < 12 * 60 ? (minutos >= 60 ? `${Math.floor(minutos / 60)} h ${minutos % 60} min` : `${minutos} min`) : null;
   const r = c.reposo;
   const dias = r.activo && r.desde && r.hasta ? Math.round((Date.parse(r.hasta) - Date.parse(r.desde)) / 864e5) + 1 : null;
-  const reintegro = r.activo && r.hasta ? new Date(Date.parse(r.hasta) + 864e5).toISOString().slice(0, 10) : null;
+  const reintegro = r.activo && r.hasta ? sumarDias(r.hasta, 1) : null;
   const linea = <span className="inline-block w-24 border-b border-[#15201e] align-baseline" />;
   return (
     <Hoja media>

@@ -6,6 +6,7 @@ import { CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MESES, ROMANOS, fechaCorta, rangoMeses, trimestreDe, trimestresDelAnio, type Periodo } from "@/lib/periodos";
 import { cn } from "@/lib/utils";
+import { anioCaracas, mesCaracas } from "@/lib/fecha";
 
 const CAMPO = "h-9 rounded-md border bg-card px-2 text-sm";
 const corto = (m: string) => m.slice(0, 3);
@@ -15,15 +16,15 @@ const corto = (m: string) => m.slice(0, 3);
 export function SelectorPeriodo({ periodo, inicioEmpresa, empresa }: { periodo: Periodo; inicioEmpresa: number; empresa: string | null }) {
   const router = useRouter();
   const ruta = usePathname();
-  const hoy = new Date();
+  const anioHoy = anioCaracas();
   const inicio = periodo.inicio ?? inicioEmpresa;
-  const anioGestion = periodo.anio ?? trimestreDe(hoy.getFullYear(), hoy.getMonth(), inicio).anio;
+  const anioGestion = periodo.anio ?? trimestreDe(anioHoy, mesCaracas(), inicio).anio;
   const [desde, setDesde] = useState(periodo.desde);
   const [hasta, setHasta] = useState(periodo.hasta);
 
   const ir = (p: Record<string, string>) => router.push(`${ruta}?${new URLSearchParams(p)}`);
   const irTrimestre = (anio: number, t: number, ini = inicio) => ir({ p: "t", anio: String(anio), t: String(t), inicio: String(ini) });
-  const anios = Array.from({ length: 7 }, (_, i) => hoy.getFullYear() + 1 - i);
+  const anios = Array.from({ length: 7 }, (_, i) => anioHoy + 1 - i);
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3 sm:p-4">

@@ -1,6 +1,8 @@
 // Lectura y validación de nómina desde Excel o CSV para la carga masiva de pacientes.
 // Acepta el formato MATRIZ REGISTRO SISTEMA (CEDULA, NOMBRE, APELLIDO, CARGO_ACTUAL…) y variantes.
 
+import { sumarDias } from "@/lib/fecha";
+
 export type FilaImportada = {
   fila: number;
   cedula: string;
@@ -61,6 +63,7 @@ const VACIOS = new Set(["n/a", "na", "no posee", "no aplica", "-", "--", "s/n", 
 
 function aTexto(v: unknown): string {
   if (v === null || v === undefined) return "";
+  // eslint-disable-next-line no-restricted-syntax -- fecha leída de una celda de Excel, no «hoy»
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   const t = String(v).trim();
   return VACIOS.has(t.toLowerCase()) ? "" : t;
@@ -71,7 +74,7 @@ function aFechaISO(v: string): string | null {
   if (!v) return null;
   // Número de serie de Excel (días desde 1899-12-30)
   if (/^\d{4,5}$/.test(v) && Number(v) > 3000 && Number(v) < 80000) {
-    return new Date(Date.UTC(1899, 11, 30) + Number(v) * 864e5).toISOString().slice(0, 10);
+    return sumarDias("1899-12-30", Number(v));
   }
   let m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;

@@ -1,3 +1,5 @@
+import { hoyCaracas } from "@/lib/fecha";
+
 // Modelo y datos del módulo Pacientes. En modo demo usa ejemplos;
 // con Supabase conectado leerá de public.trabajadores.
 
@@ -68,13 +70,12 @@ export const GRUPOS_RIESGO = [
   ["psicosocial", "Psicosocial"],
 ] as const;
 
-export function edad(fechaNacimiento: string | null, hoy = new Date()) {
+// Años cumplidos a la fecha "hoy" (AAAA-MM-DD, hoy en Caracas si no se da)
+export function edad(fechaNacimiento: string | null, hoy = hoyCaracas()) {
   if (!fechaNacimiento) return null;
-  const n = new Date(fechaNacimiento + "T00:00:00");
-  let e = hoy.getFullYear() - n.getFullYear();
-  const m = hoy.getMonth() - n.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < n.getDate())) e--;
-  return e;
+  const [a, m, d] = hoy.split("-").map(Number);
+  const [na, nm, nd] = fechaNacimiento.slice(0, 10).split("-").map(Number);
+  return a - na - (m < nm || (m === nm && d < nd) ? 1 : 0);
 }
 
 export function fecha(iso: string | null) {

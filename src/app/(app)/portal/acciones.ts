@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { normalizarCedula } from "@/lib/importar";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -22,7 +23,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   const fecha = texto(datos, "fecha");
   if ((!ids.length && !nuevos.length) || !fecha) return { ok: false, mensaje: "Elige al menos un trabajador y la fecha." };
   if (ids.length + nuevos.length > TOPE_LOTE) return { ok: false, mensaje: `Máximo ${TOPE_LOTE} trabajadores por solicitud.` };
-  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+  const hoy = hoyCaracas();
   if (fecha < hoy) return { ok: false, mensaje: "La fecha ya pasó." };
 
   const supabase = await crearClienteServidor();

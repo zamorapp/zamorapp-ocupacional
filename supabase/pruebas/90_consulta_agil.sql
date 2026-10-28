@@ -2,14 +2,14 @@
 \pset tuples_only on
 reset role;
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,medico_id) values
- ('40000000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador',current_date - 30,'00000000-0000-0000-0000-0000000000a2');
+ ('40000000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador',public.hoy_caracas() - 30,'00000000-0000-0000-0000-0000000000a2');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 select public.guardar_consulta('40000000-0000-0000-0000-0000000000d1',
   '{"tipo":"primera","conclusiones":"control","signos_vitales":{"ta":"150/95"},"paraclinicos":[{"id":"x","nombre":"Glicemia","grupo":null,"resultado":"110"}],"potencial_discapacidad":true,"discapacidad_nota":"lumbalgia crónica"}',
   '[{"cie10":"M54","descripcion":"Lumbago","origen":"ocupacional","principal":true}]',
   '{"clasificacion":"elegible_con_restricciones","observacion":"","limitaciones":[],"vigente_hasta":null}',
-  json_build_object('causa','enfermedad_comun','ente','servicio_medico','desde',current_date-30,'hasta',current_date-20)::jsonb, true);
+  json_build_object('causa','enfermedad_comun','ente','servicio_medico','desde',public.hoy_caracas()-30,'hasta',public.hoy_caracas()-20)::jsonb, true);
 select 'potencial discapacidad guardada (debe 1): ' || count(*) from public.consultas where id='40000000-0000-0000-0000-0000000000d1' and potencial_discapacidad and discapacidad_nota='lumbalgia crónica';
 select public.duplicar_consulta('40000000-0000-0000-0000-0000000000d1') is not null \g /dev/null
 select 'duplicada en borrador de hoy (debe 1): ' || count(*) from public.consultas where duplicada_de='40000000-0000-0000-0000-0000000000d1' and estado='borrador' and fecha=(now() at time zone 'America/Caracas')::date and tipo='sucesiva';

@@ -7,6 +7,7 @@ import { periodoDeConsulta, type ConsultaPeriodo } from "@/lib/periodos";
 import { columnasVista, ETIQUETAS_FIJAS, reporte, type DefReporte } from "@/lib/reportes-catalogo";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Valor = string | number | null;
 export type Fila = Record<string, Valor>;
@@ -17,7 +18,6 @@ export type Pivote = { titulo: string; columnas: string[]; filas: { nombre: stri
 // + columnas opcionales a mostrar (ver=a,b)
 export type ConsultaReporte = ConsultaPeriodo & { empresa?: string; q?: string; ver?: string; [k: `f_${string}` | `o_${string}`]: string | undefined };
 
-const hoy = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 // Cuenta (o suma "valor") por cada valor de la columna "por"; "separar" parte textos con «; » (criterios, limitaciones)
@@ -93,7 +93,7 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
         { titulo: "Constancias", valor: n(filas.length) },
         { titulo: "Trabajadores", valor: n(unicos("cedula")) },
         { titulo: "Con restricciones", valor: n(filas.filter((f) => f.restricciones).length) },
-        { titulo: "Vencidas hoy", valor: n(filas.filter((f) => f.vigente_hasta && String(f.vigente_hasta) < hoy()).length), detalle: "según vigencia" },
+        { titulo: "Vencidas hoy", valor: n(filas.filter((f) => f.vigente_hasta && String(f.vigente_hasta) < hoyCaracas()).length), detalle: "según vigencia" },
       ];
     case "citas": {
       const validas = filas.length - cuenta("estado", "Cancelada");
@@ -136,7 +136,7 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
         { titulo: "Trabajadores", valor: n(filas.length) },
         { titulo: "Activos", valor: n(cuenta("estado", "Activo") + cuenta("estado", "En reposo")) },
         { titulo: "Sin consulta", valor: n(filas.filter((f) => !f.ultima_consulta).length) },
-        { titulo: "Aptitud vencida", valor: n(filas.filter((f) => f.vigente_hasta && String(f.vigente_hasta) < hoy()).length) },
+        { titulo: "Aptitud vencida", valor: n(filas.filter((f) => f.vigente_hasta && String(f.vigente_hasta) < hoyCaracas()).length) },
       ];
     case "vencimientos":
       return [

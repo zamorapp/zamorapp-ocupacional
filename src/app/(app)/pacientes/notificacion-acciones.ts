@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { contenidoDePuesto, type PuestoFuente } from "@/lib/notificacion-riesgos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string; ids?: string[] };
 
@@ -53,7 +54,7 @@ export async function marcarFirmada(id: string, firmada: boolean): Promise<Resul
   const sesion = await obtenerSesion();
   if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
   const supabase = await crearClienteServidor();
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
+  const hoy = hoyCaracas();
   const { error } = await supabase.from("notificaciones_riesgo").update({ firmada_en: firmada ? hoy : null }).eq("id", id);
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite cambiar la notificación." : error.message };
   revalidatePath("/pacientes", "layout");
