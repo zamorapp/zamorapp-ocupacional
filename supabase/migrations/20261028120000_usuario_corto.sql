@@ -31,7 +31,7 @@ returns text language sql immutable as $$ select lower(trim(coalesce(p, ''))) $$
 
 -- Correo de la cuenta si usuario y clave son correctos; null en cualquier otro caso (mismo tiempo de respuesta).
 -- Error «demasiados_intentos» tras 5 fallos seguidos del mismo usuario (15 min, se duplica hasta 1 h)
--- o 100 fallos entre todos en 10 min.
+-- o 100 intentos entre todos en 10 min.
 create or replace function public.correo_para_ingreso(p_usuario text, p_clave text)
 returns text language plpgsql volatile security definer set search_path = public, extensions, auth as $$
 declare
@@ -42,11 +42,22 @@ declare
   v_freno public.ingreso_usuario_intentos;
   v_global public.ingreso_usuario_intentos;
 begin
-  if v_usuario = '' or length(v_usuario) > 30 or coalesce(p_clave, '') = '' then return null; end if;
+  -- Lo que no puede ser un usuario ni cuenta ni frena (así «*», la fila del freno global, nunca se toca desde aquí)
+  if v_usuario !~ '^[a-z0-9][a-z0-9._-]{2,29}$' or coalesce(p_clave, '') = '' then return null; end if;
 
-  select * into v_freno from public.ingreso_usuario_intentos where usuario = v_usuario;
-  select * into v_global from public.ingreso_usuario_intentos where usuario = '*';
-  if v_freno.hasta > now() or v_global.hasta > now() then
+  -- Primero se suben los contadores (bloquean su fila hasta terminar): una ráfaga en paralelo no se salta el freno.
+  -- Global: todos los intentos, 100 por cada 10 min. Por usuario: intentos seguidos sin acertar.
+  insert into public.ingreso_usuario_intentos as f (usuario, fallos) values ('*', 1)
+  on conflict (usuario) do update set
+    fallos = case when f.actualizado < now() - interval '10 minutes' then 1 else f.fallos + 1 end,
+    actualizado = case when f.actualizado < now() - interval '10 minutes' then now() else f.actualizado end,
+    hasta = case when f.actualizado >= now() - interval '10 minutes' and f.fallos + 1 >= 100
+                 then coalesce(greatest(f.hasta, now() + interval '10 minutes'), now() + interval '10 minutes') else f.hasta end
+  returning * into v_global;
+  insert into public.ingreso_usuario_intentos as f (usuario, fallos) values (v_usuario, 1)
+  on conflict (usuario) do update set fallos = f.fallos + 1, actualizado = now()
+  returning * into v_freno;
+  if v_freno.hasta > now() or (v_global.hasta > now() and v_global.fallos > 100) then
     raise exception 'demasiados_intentos' using errcode = 'P0429',
       hint = ceil(extract(epoch from greatest(v_freno.hasta, v_global.hasta) - now()) / 60)::text;
   end if;
@@ -67,14 +78,12 @@ begin
     return v_correo;
   end if;
 
-  insert into public.ingreso_usuario_intentos as f (usuario, fallos) values (v_usuario, 1)
-  on conflict (usuario) do update set fallos = f.fallos + 1, actualizado = now(),
-    hasta = case when f.fallos + 1 >= 5 then now() + least(interval '1 hour', interval '15 minutes' * 2 ^ (f.fallos + 1 - 5)) end;
-  insert into public.ingreso_usuario_intentos as f (usuario, fallos) values ('*', 1)
-  on conflict (usuario) do update set
-    fallos = case when f.actualizado < now() - interval '10 minutes' then 1 else f.fallos + 1 end,
-    actualizado = case when f.actualizado < now() - interval '10 minutes' then now() else f.actualizado end,
-    hasta = case when f.actualizado >= now() - interval '10 minutes' and f.fallos + 1 >= 100 then now() + interval '10 minutes' end;
+  -- 5 seguidos sin acertar: espera de 15 min que se duplica hasta 1 hora
+  if v_freno.fallos >= 5 then
+    update public.ingreso_usuario_intentos
+    set hasta = now() + least(interval '1 hour', interval '15 minutes' * 2 ^ (v_freno.fallos - 5))
+    where usuario = v_usuario;
+  end if;
   -- Limpieza: los intentos de hace más de un día ya no frenan a nadie
   delete from public.ingreso_usuario_intentos where usuario <> '*' and actualizado < now() - interval '1 day' and (hasta is null or hasta < now());
   return null;

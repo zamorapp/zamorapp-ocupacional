@@ -88,6 +88,23 @@ set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'un usuario quitado ya no da correo (debe 1): ' || (public.correo_para_ingreso('richard', 'clave-buena') is null)::int;
 
+-- «*» (la fila del freno global) no es un usuario: no cuenta ni toca el freno
+reset role;
+create temp table freno_antes as select fallos from public.ingreso_usuario_intentos where usuario = '*';
+set role anon;
+select '«*» no es un usuario (debe 1): ' || (public.correo_para_ingreso('*', 'x') is null)::int;
+reset role;
+select '«*» no suma al freno global (debe 1): ' || ((select fallos from public.ingreso_usuario_intentos where usuario = '*') = (select fallos from freno_antes))::int;
+-- Freno global: tras 100 intentos en 10 min nadie entra por usuario (ni con la clave buena) hasta que pase la espera
+update public.ingreso_usuario_intentos set fallos = 99, actualizado = now(), hasta = null where usuario = '*';
+set role anon;
+select 'el intento 100 todavía se atiende (debe 1): ' || (public.correo_para_ingreso('cesar', 'clave-buena') = 'admin@x')::int;
+do $$ begin
+  perform public.correo_para_ingreso('cesar', 'clave-buena');
+  raise notice 'FALLA: el freno global no frenó';
+exception when sqlstate 'P0429' then raise notice 'tras 100 intentos frena a todos (debe 1): 1';
+end $$;
+
 -- Limpieza
 reset role;
 delete from public.usuarios_ingreso;
