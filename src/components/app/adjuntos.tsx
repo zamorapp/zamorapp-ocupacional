@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileImage, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { abrirEnVentana } from "@/lib/escritorio";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
 import { subirAdjunto } from "@/lib/preparar-archivo";
@@ -37,12 +38,12 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales }: Props) 
     setOcupado(false);
   };
 
-  const abrir = async (a: Adjunto) => {
-    const ventana = window.open("", "_blank");
-    const { data, error: e } = await crearClienteNavegador().storage.from("adjuntos").createSignedUrl(a.ruta, 300);
-    if (e || !data) { ventana?.close(); setError("No se pudo abrir el archivo."); return; }
-    if (ventana) ventana.location.href = data.signedUrl;
-  };
+  const abrir = (a: Adjunto) =>
+    abrirEnVentana(async () => {
+      const { data, error: e } = await crearClienteNavegador().storage.from("adjuntos").createSignedUrl(a.ruta, 300);
+      if (e || !data) { setError("No se pudo abrir el archivo."); return null; }
+      return data.signedUrl;
+    });
 
   const borrar = async (a: Adjunto) => {
     if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: "El archivo se elimina y no se puede recuperar.", accion: "Borrar", peligro: true }))) return;
