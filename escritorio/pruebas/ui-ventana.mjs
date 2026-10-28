@@ -21,6 +21,7 @@ const REGISTRAR = arg("registrar"); // nombre de la PC; sin él, se exige que la
 const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
+const NUBE_MARCA = arg("nube-marca"); // archivo que pone a la nube simulada «migrada por delante» (ver nube-cli.mjs)
 const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -202,6 +203,39 @@ try {
     const nombre2 = `prueba-zamorapp-${Date.now()}-blob.txt`;
     await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["hola"], { type: "text/plain" })); a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre2);
     await esperarArchivo(path.join(descargas, nombre2), "archivo generado en la página");
+  });
+
+  // 27/10/2026: la nube recibió una migración antes de que la PC se actualizara y la app quedó en «Application
+  // error». Ahora, con la nube simulada migrada por delante, la app debe mostrar la pantalla «necesita
+  // actualizarse» y el programa anotar en arranque.log que la nube va por delante (en una PC real ofrecería actualizar).
+  if (NUBE_MARCA) await paso("la nube va por delante del programa: la app pide actualizar, no se cae", async () => {
+    fs.writeFileSync(NUBE_MARCA, String(Date.now()));
+    try {
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      const aviso = pagina.locator('main[data-estado="actualizar"] h1');
+      await aviso.waitFor({ timeout: 30_000 });
+      anotar(`   pantalla: "${(await aviso.textContent())?.trim()}"`);
+      if (!/necesita actualizarse/.test(await aviso.textContent() || "")) throw new Error("La pantalla no dice que hay que actualizar");
+      const estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), new URL(URL_INICIO).origin);
+      if (estado.actualizar !== true) throw new Error(`La puerta no marcó la nube como adelantada: ${JSON.stringify(estado)}`);
+      anotar(`   puerta: incompatible ${JSON.stringify(estado.incompatible)}`);
+      if (!local && process.env.LOCALAPPDATA) {
+        // El programa mira /zamorapp/estado cada 30 s y lo deja anotado (en pruebas no abre el diálogo de actualizar)
+        const registro = path.join(process.env.LOCALAPPDATA, "zamorApp", "arranque.log");
+        const limite = Date.now() + 45_000;
+        let visto = false;
+        while (!visto && Date.now() < limite) { visto = /la nube va por delante/.test(fs.readFileSync(registro, "utf8")); if (!visto) await esperar(1000); }
+        if (!visto) throw new Error("El programa no anotó «la nube va por delante» en arranque.log en 45 s");
+        anotar("   el programa lo detectó (arranque.log)");
+      }
+    } finally {
+      fs.rmSync(NUBE_MARCA, { force: true });
+    }
+    // Con la nube normal otra vez, «Reintentar» vuelve a la app
+    await pagina.getByRole("button", { name: "Reintentar" }).click();
+    await pagina.waitForURL(/\/panel/, { timeout: 30_000 });
+    await pagina.locator('main[data-estado="actualizar"]').waitFor({ state: "detached", timeout: 30_000 });
+    anotar("   tras reintentar, el panel volvió");
   });
 
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {

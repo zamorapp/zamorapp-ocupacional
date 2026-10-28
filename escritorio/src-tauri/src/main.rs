@@ -418,7 +418,8 @@ fn vigilar_nube(app: AppHandle) {
             if estado["actualizar"] == true && !avisado {
                 avisado = true;
                 anotar(&format!("la nube va por delante de esta versión: {}", estado["incompatible"]));
-                buscar_actualizacion_por(app.clone(), false, true);
+                // En la prueba de humo solo se anota: el actualizador de prueba ya tiene su propio paso.
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), false, true); }
             }
         }
     });

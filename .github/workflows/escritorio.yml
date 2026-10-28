@@ -179,6 +179,7 @@ jobs:
           # El programa instalado la usa solo porque ZAMORAPP_NUBE_URL apunta a 127.0.0.1 (en una PC real se ignora).
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"; $env:PUERTO = "55500"
           $env:ZAMORAPP_POSTGREST = (Resolve-Path escritorio/recursos/postgrest/postgrest.exe).Path  # REST real, como la nube
+          $env:ZAMORAPP_NUBE_MARCA_MIGRADA = "$env:RUNNER_TEMP/zamorapp-nube-migrada"  # la prueba de la ventana lo crea para simular una nube migrada por delante
           $nube = Start-Process node -ArgumentList "escritorio/pruebas/nube-cli.mjs" -PassThru -NoNewWindow -RedirectStandardOutput capturas/nube.log -RedirectStandardError capturas/nube.err
           $env:ZAMORAPP_NUBE_URL = "http://127.0.0.1:55500"
           # La ventana WebView2 se maneja por CDP, como lo haría una persona (prueba de ingreso real). El puerto lo abre
@@ -215,7 +216,7 @@ jobs:
                 Write-Host "   WebView2 de zamorApp: $(@($web).Count) proceso(s); con puerto de depuración: $(@($web | Where-Object CommandLine -match 'remote-debugging-port').Count)"
                 try { Write-Host "   CDP 9333: $((Invoke-RestMethod http://127.0.0.1:9333/json/version -TimeoutSec 3).Browser)" } catch { Write-Host "   CDP 9333 no responde: $($_.Exception.Message)" }
                 $base = "capturas/" + ($que -replace "[^a-z0-9]+", "-")
-                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
+                $prueba = Start-Process node -ArgumentList "escritorio/pruebas/ui-ventana.mjs --cdp http://127.0.0.1:9333 --correo admin@x --clave clave-admin --registrar `"PC de prueba`" --captura $base.png --nube-marca $env:ZAMORAPP_NUBE_MARCA_MIGRADA" -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$base.salida.txt" -RedirectStandardError "$base.errores.txt"
                 Get-Content "$base.salida.txt", "$base.errores.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
                 if ($prueba.ExitCode) { $ok = $false; Write-Host "::error::$que : el ingreso por la ventana falló (ver capturas/)" }
               }
