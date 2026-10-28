@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+// Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
+import { olvidar } from "@/lib/memo";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
@@ -118,6 +120,7 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
       return { ok: false, mensaje: error.code === "23505" ? "Ya existe un paciente con esa cédula." : "No se pudo guardar: " + error.message };
     }
     revalidatePath("/", "layout");
+    olvidar("");
     return { ok: true, mensaje: `${nombres} ${apellidos} registrado.`, id: data.id };
   } catch (e) {
     return { ok: false, mensaje: (e as Error).message };
@@ -166,11 +169,13 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
       const { error } = await supabase.from("trabajadores").insert(lote);
       if (error) {
         revalidatePath("/", "layout");
+        olvidar("");
         return { ok: false, mensaje: `Se guardaron ${guardados}. Error en el lote siguiente: ${error.code === "23505" ? "hay cédulas que ya existen" : error.message}` };
       }
       guardados += lote.length;
     }
     revalidatePath("/", "layout");
+    olvidar("");
     return { ok: true, mensaje: `${guardados} pacientes importados al expediente.` };
   } catch (e) {
     return { ok: false, mensaje: (e as Error).message };
@@ -185,7 +190,10 @@ export async function depurarNomina(empresaId: string | null, desde: string, apl
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("depurar_nomina", { p_empresa: empresaId || null, p_desde: desde, p_aplicar: aplicar });
   if (error) return { ok: false, mensaje: error.message.includes("permiso") ? "Solo el administrador o el personal de salud pueden depurar la nómina." : error.message };
-  if (aplicar) revalidatePath("/", "layout");
+  if (aplicar) {
+    revalidatePath("/", "layout");
+    olvidar("");
+  }
   const n = Number(data ?? 0);
   return { ok: true, cantidad: n, mensaje: aplicar ? `${n} trabajadores marcados como egresados.` : `${n} trabajadores sin consulta desde esa fecha.` };
 }

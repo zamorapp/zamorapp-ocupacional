@@ -116,3 +116,29 @@ export function parametrosPeriodo(p: Periodo): Record<string, string> {
 export function resolverPeriodo(clave = "trimestre", desde?: string, hasta?: string): Periodo {
   return periodoDeConsulta({ p: clave, desde, hasta });
 }
+
+// Período inmediatamente anterior, del mismo largo (el trimestre anterior si es un trimestre de gestión)
+export function periodoAnterior(p: Periodo): Periodo {
+  if (p.clave === "t" && p.anio && p.t) return p.t === 1 ? trimestre(p.anio - 1, 4, p.inicio) : trimestre(p.anio, p.t - 1, p.inicio);
+  const [a1, m1, d1] = p.desde.split("-").map(Number);
+  const [a2, m2, d2] = p.hasta.split("-").map(Number);
+  // Si va de inicio a fin de mes, retrocede la misma cantidad de meses; si no, los mismos días
+  if (d1 === 1 && fecha(a2, m2, 0).getUTCDate() === d2) {
+    const meses = (a2 - a1) * 12 + (m2 - m1) + 1;
+    const desde = iso(fecha(a1, m1 - 1 - meses));
+    const hasta = iso(fecha(a1, m1 - 1, 0));
+    return { clave: "rango", desde, hasta, etiqueta: meses === 1 ? rangoMeses(desde, desde) : `${meses === 3 ? "Trimestre" : "Período"} ${rangoMeses(desde, hasta)}` };
+  }
+  const dias = (Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 864e5 + 1;
+  const desde = iso(fecha(a1, m1 - 1, d1 - dias));
+  const hasta = iso(fecha(a1, m1 - 1, d1 - 1));
+  return { clave: "rango", desde, hasta, etiqueta: `Del ${fechaCorta(desde)} al ${fechaCorta(hasta)}` };
+}
+
+// Mismas fechas un año antes
+export function mismoPeriodoAnioAnterior(p: Periodo): Periodo {
+  const menos = (v: string) => { const [a, m, d] = v.split("-").map(Number); return iso(fecha(a - 1, m - 1, Math.min(d, fecha(a - 1, m, 0).getUTCDate()))); };
+  if (p.clave === "t" && p.anio && p.t) return trimestre(p.anio - 1, p.t, p.inicio);
+  const desde = menos(p.desde), hasta = menos(p.hasta);
+  return { clave: "rango", desde, hasta, etiqueta: rangoMeses(desde, hasta) };
+}

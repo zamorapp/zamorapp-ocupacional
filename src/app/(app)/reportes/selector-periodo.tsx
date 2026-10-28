@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarRange } from "lucide-react";
+import { CalendarRange, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MESES, ROMANOS, fechaCorta, rangoMeses, trimestreDe, trimestresDelAnio, type Periodo } from "@/lib/periodos";
 import { cn } from "@/lib/utils";
@@ -22,12 +22,19 @@ export function SelectorPeriodo({ periodo, inicioEmpresa, empresa }: { periodo: 
   const [desde, setDesde] = useState(periodo.desde);
   const [hasta, setHasta] = useState(periodo.hasta);
 
-  const ir = (p: Record<string, string>) => router.push(`${ruta}?${new URLSearchParams(p)}`);
+  // Mientras el servidor calcula el nuevo período, el botón elegido queda marcado y se ve «Calculando…»
+  const [cargando, iniciar] = useTransition();
+  const [elegido, setElegido] = useState<string | null>(null);
+  const ir = (p: Record<string, string>) => {
+    setElegido(p.p === "t" ? `${p.anio}-${p.t}-${p.inicio}` : p.p);
+    iniciar(() => router.push(`${ruta}?${new URLSearchParams(p)}`));
+  };
   const irTrimestre = (anio: number, t: number, ini = inicio) => ir({ p: "t", anio: String(anio), t: String(t), inicio: String(ini) });
   const anios = Array.from({ length: 7 }, (_, i) => anioHoy + 1 - i);
 
   return (
-    <div className="space-y-3 rounded-xl border bg-card p-3 sm:p-4">
+    <div className="space-y-3 rounded-xl border bg-card p-3 sm:p-4" aria-busy={cargando}>
+      {cargando && <div className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-primary" />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2 text-sm">
           <CalendarRange className="size-4 text-primary" />
@@ -37,6 +44,7 @@ export function SelectorPeriodo({ periodo, inicioEmpresa, empresa }: { periodo: 
           Del {fechaCorta(periodo.desde)} al {fechaCorta(periodo.hasta)}
         </div>
         <span className="text-sm text-muted-foreground first-letter:uppercase">{periodo.etiqueta}</span>
+        {cargando && <span className="flex items-center gap-1.5 text-sm text-primary"><Loader2 className="size-4 animate-spin" /> Calculando el período…</span>}
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -57,7 +65,7 @@ export function SelectorPeriodo({ periodo, inicioEmpresa, empresa }: { periodo: 
                 title={q.etiqueta}
                 className={cn(
                   "h-9 rounded-md border px-3 text-sm transition",
-                  periodo.clave === "t" && periodo.t === q.t && periodo.anio === anioGestion && periodo.inicio === inicio
+                  (cargando ? elegido === `${anioGestion}-${q.t}-${inicio}` : periodo.clave === "t" && periodo.t === q.t && periodo.anio === anioGestion && periodo.inicio === inicio)
                     ? "border-primary bg-primary text-primary-foreground"
                     : "hover:bg-muted",
                 )}

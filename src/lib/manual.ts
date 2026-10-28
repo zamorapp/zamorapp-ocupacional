@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-28";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
   { fecha: "2026-10-27", texto: "Ajustes clínicos: plantillas, paraclínicos por empresa y recomendaciones en una pantalla, con vista previa de la consulta", tema: "configuracion" },
@@ -286,6 +287,7 @@ export const MANUAL: TemaManual[] = [
       "Para otros tres meses cualquiera usa «Otros 3 meses desde»; para fechas libres, el rango Desde-Hasta.",
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
       "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
+      "Reportes › Vigilancia: cada gráfico trae su análisis, redactado con los datos del período. «Otra redacción» reescribe el resumen, la conclusión y los análisis con otras palabras; puedes editar cualquiera en «Análisis de cada cuadro» y Guardar. El informe impreso trae portada con indicadores, hallazgos clave y comparación con el período anterior; los cortes del SAME van en el anexo.",
       "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [
