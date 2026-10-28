@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import pg from "pg";
+import { configuracion, SSL } from "../conexion-segura.mjs";
 
 const ENSAYO = process.argv.includes("--ensayo");
 const ORIGEN = "integral";
@@ -122,12 +123,10 @@ const HABITOS = [["alcohol", "Alcohol", "habalcohol"], ["tabaco", "Tabáquicos",
   ["medicamentos", "Medicamentos", "habmedicamento"], ["estupefacientes", "Estupefacientes", "habestupefaciente"], ["actividad_fisica", "Actividad física", "habactividadfisica"]];
 
 // ─── Base de datos ──────────────────────────────────────────
-// El certificado del servidor se verifica contra la raíz de Supabase (supabase-ca-2021.crt, pública, vence en 2031):
-// así nadie en la red puede hacerse pasar por la base y quedarse con la clave ni con las historias.
-const ssl = { ca: fs.readFileSync(new URL("./supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true };
+// Certificado verificado contra la raíz de Supabase (ver conexion-segura.mjs)
 const cliente = new pg.Client(process.env.DATABASE_URL
-  ? { connectionString: process.env.DATABASE_URL, ssl }
-  : { host: "aws-1-us-west-2.pooler.supabase.com", port: 6543, user: "postgres.xgsoryzvyrsddgkxkzeb", password: process.env.PGPW, database: "postgres", ssl });
+  ? configuracion(process.env.DATABASE_URL)
+  : { host: "aws-1-us-west-2.pooler.supabase.com", port: 6543, user: "postgres.xgsoryzvyrsddgkxkzeb", password: process.env.PGPW, database: "postgres", ssl: SSL });
 await cliente.connect();
 const q = (s, p) => cliente.query(s, p);
 
