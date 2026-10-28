@@ -208,48 +208,55 @@ try {
   // 27/10/2026: la nube recibió una migración antes de que la PC se actualizara y la app quedó en «Application
   // error». Ahora, con la nube simulada migrada por delante, la app debe mostrar la pantalla «necesita
   // actualizarse» y el programa anotar en arranque.log que la nube va por delante (en una PC real ofrecería actualizar).
-  if (NUBE_MARCA) await paso("la nube va por delante del programa: la app pide actualizar, no se cae", async () => {
+  if (NUBE_MARCA) await paso("la nube va por delante del programa: la app avisa que hay una versión nueva, no se cae", async () => {
     fs.writeFileSync(NUBE_MARCA, String(Date.now()));
+    const registro = !local && process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "zamorApp", "arranque.log") : null;
+    const esperarEnRegistro = async (patron, que, ms) => {
+      if (!registro) return;
+      const limite = Date.now() + ms;
+      while (Date.now() < limite) { if (patron.test(fs.readFileSync(registro, "utf8"))) { anotar(`   ${que} (arranque.log)`); return; } await esperar(1000); }
+      throw new Error(`${que}: no apareció en arranque.log en ${ms / 1000} s`);
+    };
     try {
+      // Al recargar el panel, la app le pide datos a la nube; la puerta ve el 42501 y lo marca
       await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
-      const aviso = pagina.locator('main[data-estado="actualizar"] h1');
-      await aviso.waitFor({ timeout: 30_000 });
-      anotar(`   pantalla: "${(await aviso.textContent())?.trim()}"`);
-      if (!/versión nueva/.test(await aviso.textContent() || "")) throw new Error("La pantalla no dice que hay una versión nueva");
-      const estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), new URL(URL_INICIO).origin);
-      if (estado.actualizar !== true) throw new Error(`La puerta no marcó la nube como adelantada: ${JSON.stringify(estado)}`);
-      anotar(`   puerta: incompatible ${JSON.stringify(estado.incompatible)}`);
-      if (!local && process.env.LOCALAPPDATA) {
-        // El programa mira /zamorapp/estado cada 30 s y lo deja anotado (en pruebas no abre el diálogo de actualizar)
-        const registro = path.join(process.env.LOCALAPPDATA, "zamorApp", "arranque.log");
-        const limite = Date.now() + 45_000;
-        let visto = false;
-        while (!visto && Date.now() < limite) { visto = /la nube va por delante/.test(fs.readFileSync(registro, "utf8")); if (!visto) await esperar(1000); }
-        if (!visto) throw new Error("El programa no anotó «la nube va por delante» en arranque.log en 45 s");
-        anotar("   el programa lo detectó (arranque.log)");
-        // Botón «Buscar actualización»: la puerta se lo pasa al programa (en pruebas solo lo anota)
-        await pagina.getByRole("button", { name: "Buscar actualización" }).click();
-        const limite2 = Date.now() + 30_000;
-        visto = false;
-        while (!visto && Date.now() < limite2) { visto = /actualización pedida desde la pantalla/.test(fs.readFileSync(registro, "utf8")); if (!visto) await esperar(1000); }
-        if (!visto) throw new Error("El botón «Buscar actualización» no llegó al programa (arranque.log) en 30 s");
-        anotar("   «Buscar actualización» llegó al programa");
+      const limite = Date.now() + 45_000;
+      let estado = null;
+      while (Date.now() < limite) {
+        estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), new URL(URL_INICIO).origin);
+        if (estado.actualizar === true) break;
+        await esperar(1000);
       }
+      if (estado?.actualizar !== true) throw new Error(`La puerta no marcó la nube como adelantada: ${JSON.stringify(estado)}`);
+      anotar(`   puerta: incompatible ${JSON.stringify(estado.incompatible)}`);
+      // El aviso de arriba (o la pantalla de error, si la página se cayó del todo) con sus botones
+      const aviso = pagina.locator('[data-aviso="actualizar"], main[data-estado="actualizar"]').first();
+      await aviso.waitFor({ timeout: 30_000 });
+      anotar(`   aviso: "${(await aviso.textContent())?.replace(/\s+/g, " ").trim().slice(0, 120)}"`);
+      if (!/versión nueva/.test(await aviso.textContent() || "")) throw new Error("El aviso no dice que hay una versión nueva");
+      // El programa mira /zamorapp/estado cada 10 s y lo deja anotado (en pruebas no abre el diálogo de actualizar)
+      await esperarEnRegistro(/la nube va por delante/, "el programa lo detectó", 45_000);
+      // Botón «Buscar actualización»: la puerta se lo pasa al programa (en pruebas solo lo anota)
+      await aviso.getByRole("button", { name: "Buscar actualización" }).click();
+      await esperarEnRegistro(/actualización pedida desde la pantalla/, "«Buscar actualización» llegó al programa", 30_000);
       // Botón «Trabajar en la web»: abre el navegador de Windows (la puerta responde qué hizo)
       const respuestaWeb = pagina.waitForResponse((r) => r.url().includes("/zamorapp/abrir-web"));
-      await pagina.getByRole("button", { name: "Trabajar en la web" }).click();
+      await aviso.getByRole("button", { name: "Trabajar en la web" }).click();
       const rw = await (await respuestaWeb).json();
       anotar(`   «Trabajar en la web»: ${JSON.stringify(rw)}`);
       if (!/vercel\.app/.test(rw.url || "")) throw new Error("«Trabajar en la web» no apunta a la web de zamorApp");
       if (process.platform === "win32" && !rw.abierto) throw new Error("«Trabajar en la web» no abrió el navegador");
+      // «Ignorar» (si es el aviso de arriba) lo esconde hasta la próxima apertura, sin bloquear nada
+      const ignorar = aviso.getByRole("button", { name: /Ignorar/ });
+      if (await ignorar.count()) { await ignorar.click(); await aviso.waitFor({ state: "detached", timeout: 10_000 }); anotar("   «Ignorar» lo escondió"); }
     } finally {
       fs.rmSync(NUBE_MARCA, { force: true });
     }
-    // Con la nube normal otra vez, «Reintentar» vuelve a la app
-    await pagina.getByRole("button", { name: "Reintentar" }).click();
+    // Con la nube normal otra vez, el panel vuelve a cargar
+    await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
     await pagina.waitForURL(/\/panel/, { timeout: 30_000 });
-    await pagina.locator('main[data-estado="actualizar"]').waitFor({ state: "detached", timeout: 30_000 });
-    anotar("   tras reintentar, el panel volvió");
+    if (await pagina.locator('main[data-estado]').count()) throw new Error(`Con la nube normal el panel sigue en error: ${await pagina.locator("h1").first().textContent()}`);
+    anotar("   con la nube normal, el panel volvió");
   });
 
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {

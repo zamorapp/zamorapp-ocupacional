@@ -5,32 +5,18 @@
 import { Download, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-
-const ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
-const PUERTA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-
-const pedirPuerta = (ruta: string) => fetch(`${PUERTA}${ruta}`, { method: "POST", credentials: "include" }).then((r) => r.json()).catch(() => null);
+import { abrirWeb, buscarActualizacion, nubeAdelantada } from "@/lib/escritorio-actualizar";
 
 export default function ErrorApp({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const [actualizar, setActualizar] = useState(false);
   const [aviso, setAviso] = useState("");
 
   useEffect(() => {
-    if (!ESCRITORIO || !PUERTA) return;
-    fetch(`${PUERTA}/zamorapp/estado`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((e) => setActualizar(Boolean(e?.actualizar)))
-      .catch(() => {});
+    nubeAdelantada().then(setActualizar);
   }, [error]);
 
-  const buscar = async () => {
-    const r = await pedirPuerta("/zamorapp/buscar-actualizacion");
-    setAviso(r?.pedida ? "Buscando la versión nueva… si está lista, zamorApp te pregunta para instalarla." : "No se pudo pedir la actualización. Usa el menú zamorApp → Buscar actualizaciones.");
-  };
-  const web = async () => {
-    const r = await pedirPuerta("/zamorapp/abrir-web");
-    setAviso(r?.abierto ? "Se abrió la web en tu navegador." : `Abre en tu navegador: ${r?.url ?? "zamorapp-ocupacional.vercel.app"}`);
-  };
+  const buscar = async () => setAviso(await buscarActualizacion());
+  const web = async () => setAviso(await abrirWeb());
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background p-6" data-estado={actualizar ? "actualizar" : "error"}>
