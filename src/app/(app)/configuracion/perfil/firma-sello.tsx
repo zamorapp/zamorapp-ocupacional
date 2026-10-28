@@ -40,9 +40,9 @@ function Imagen({ tipo, titulo, ayuda, inicial, mostrarInicial }: { tipo: "firma
   return (
     <div className="space-y-2">
       <div className="text-sm font-medium">{titulo}</div>
-      <div className="grid h-36 place-items-center rounded-lg border border-dashed bg-white p-2">
+      <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-dashed bg-white p-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {imagen ? <img src={imagen} alt={titulo} className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-muted-foreground">Sin imagen</span>}
+        {imagen ? <img src={imagen} alt={titulo} className="h-full w-full object-contain" /> : <span className="text-sm text-muted-foreground">Sin imagen</span>}
       </div>
       <p className="text-xs text-muted-foreground">{ayuda}</p>
       <input ref={entrada} type="file" accept="image/*" className="hidden" onChange={(e) => subir(e.target.files?.[0])} />

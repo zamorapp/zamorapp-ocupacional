@@ -48,9 +48,10 @@ export function CargarLogo({ inicial, editable, guardar, ayuda }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="grid h-28 place-items-center rounded-lg border border-dashed bg-white p-3">
+      {/* flex con alto fijo y overflow-hidden: en grid el max-h-full del img no tiene alto de referencia y se desborda */}
+      <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border border-dashed bg-white p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {logo ? <img src={logo} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-neutral-500">Sin logo</span>}
+        {logo ? <img src={logo} alt="Logo" className="h-full w-full object-contain" /> : <span className="text-sm text-neutral-500">Sin logo</span>}
       </div>
       {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
       {editable && (
