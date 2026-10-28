@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/envios": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/envios/bitacora": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/envios/por-enviar": ["./node_modules/@sparticuz/chromium/bin/**"],
     // Reportes › Aptitud emitida también envía el lote (PanelEnvio): su acción corre en esta ruta
     "/reportes/[tipo]": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/solicitudes": ["./node_modules/@sparticuz/chromium/bin/**"],

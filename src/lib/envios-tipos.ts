@@ -129,3 +129,12 @@ export function telefonoWhatsApp(t: string) {
 }
 
 export const CORREO_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// Bandeja «Por enviar»: constancias firmadas que aún no salieron, por empresa y día
+export type GrupoPorEnviar = {
+  empresaId: string;
+  empresa: string;
+  fecha: string;
+  consultas: { id: string; paciente: string; aptitud: string }[];
+  contactos: Contacto[]; // de la empresa, con teléfono o correo
+};

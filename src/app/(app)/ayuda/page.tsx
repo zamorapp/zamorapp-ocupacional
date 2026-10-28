@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import { MANUAL, MANUAL_ACTUALIZADO, NOVEDADES } from "@/lib/manual";
 import { obtenerSesion } from "@/lib/sesion";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { BotonImprimir } from "./imprimir";
 import { ManualBuscable } from "./manual-buscable";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Manual de uso" };
 
 export default async function Ayuda() {
   const sesion = await obtenerSesion();
-  const empresa = sesion.rol === "gerente_empresa";
+  const empresa = esRolEmpresa(sesion.rol);
   const temas = MANUAL.filter((t) => t.para === "todos" || t.para === (empresa ? "empresa" : "servicio"));
 
   return (
