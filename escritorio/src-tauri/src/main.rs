@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::window::{ProgressBarState, ProgressBarStatus};
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
@@ -314,8 +314,23 @@ fn detener(p: &mut Procesos) {
     }
 }
 
+// Todo cuadro de diálogo va pegado a la ventana de zamorApp y la trae al frente: sin dueño, Windows lo abría
+// detrás de la ventana y Cesar no lo veía (28/10/2026, «se queda como oculto»).
+fn dialogo(app: &AppHandle, texto: impl Into<String>) -> MessageDialogBuilder<tauri::Wry> {
+    let constructor = app.dialog().message(texto);
+    match app.get_webview_window("principal") {
+        Some(v) => {
+            let _ = v.unminimize();
+            let _ = v.show();
+            let _ = v.set_focus();
+            constructor.parent(&v)
+        }
+        None => constructor,
+    }
+}
+
 fn avisar(app: &AppHandle, titulo: &str, texto: &str) {
-    app.dialog().message(texto).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).blocking_show();
+    dialogo(&app, texto).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).blocking_show();
 }
 
 // Pide a la puerta local una acción interna (POST) y devuelve el cuerpo de la respuesta.
@@ -436,7 +451,7 @@ fn revisar_actualizacion_anterior(app: &AppHandle) {
     } else {
         ("La actualización no terminó", format!("Se pidió la versión {pedida} pero sigue la {actual}. Vuelve a intentarlo desde el menú zamorApp › Buscar actualizaciones."))
     };
-    app.dialog().message(mensaje).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).show(|_| {});
+    dialogo(&app, mensaje).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).show(|_| {});
 }
 
 // Busca una versión nueva. Al abrir, solo avisa si la hay; desde el menú, responde siempre.
@@ -465,8 +480,7 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || app.dialog()
-                    .message(format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
                     .title("Actualización disponible")
                     .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
                     .blocking_show();
@@ -484,8 +498,7 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
                 anotar(&format!("descargando la actualización {}", nueva.version));
                 mostrar("Descargando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
                 if prueba.is_none() {
-                    app.dialog()
-                        .message("Se está descargando la actualización. Puedes seguir trabajando: el avance se ve en el título de la ventana.\n\nAl terminar, zamorApp se cierra unos segundos, se instala y se vuelve a abrir solo.")
+                    dialogo(&app, "Se está descargando la actualización. Puedes seguir trabajando: el avance se ve en la franja de abajo de la ventana y en el título.\n\nAl terminar, zamorApp se cierra unos segundos, se instala y se vuelve a abrir solo.")
                         .title("Descargando actualización")
                         .buttons(MessageDialogButtons::OkCustom("Entendido".into()))
                         .show(|_| {});
@@ -512,8 +525,7 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
                     Ok(paquete) => {
                         anotar("actualización descargada y verificada");
                         // Instalar cierra el programa: se pregunta antes, para no perder una consulta a medio escribir.
-                        let ahora = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || app.dialog()
-                            .message("La actualización está lista. Guarda lo que estés escribiendo.\n\nAl instalar, zamorApp se cierra unos segundos y se vuelve a abrir solo.")
+                        let ahora = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, "La actualización está lista. Guarda lo que estés escribiendo.\n\nAl instalar, zamorApp se cierra unos segundos y se vuelve a abrir solo.")
                             .title("Actualización lista")
                             .buttons(MessageDialogButtons::OkCancelCustom("Instalar ahora".into(), "Al cerrar zamorApp".into()))
                             .blocking_show();
@@ -611,8 +623,7 @@ fn descarga(app: &AppHandle, evento: tauri::webview::DownloadEvent<'_>) -> bool 
             if success && !en_pruebas() {
                 let app = app.clone();
                 std::thread::spawn(move || {
-                    let abrir = app.dialog()
-                        .message(format!("Se guardó en tu carpeta Descargas:\n{}", ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()))
+                    let abrir = dialogo(&app, format!("Se guardó en tu carpeta Descargas:\n{}", ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()))
                         .title("Archivo guardado")
                         .buttons(MessageDialogButtons::OkCancelCustom("Abrir carpeta".into(), "Entendido".into()))
                         .blocking_show();
