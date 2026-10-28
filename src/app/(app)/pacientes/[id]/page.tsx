@@ -20,6 +20,7 @@ import { obtenerTrabajador } from "@/lib/pacientes-datos";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -45,7 +46,7 @@ export default async function FichaPaciente({ params }: Props) {
   const consultas = sesion.demo
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
-  const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && sesion.rol !== "gerente_empresa";
+  const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
   const [adjuntos, empleos] = verAdjuntos
     ? await Promise.all([
         listarAdjuntos(t.id),
@@ -54,6 +55,8 @@ export default async function FichaPaciente({ params }: Props) {
         crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
     : [[], [] as EmpleoAnterior[]];
+  // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
+  const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
   const conBase = !sesion.demo && Boolean(sesion.orgId);
   const [{ data: tp }, { data: notifs }] = conBase
@@ -95,7 +98,7 @@ export default async function FichaPaciente({ params }: Props) {
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
           <div className="flex w-full gap-2 xl:w-auto">
-            {sesion.rol !== "gerente_empresa" && (
+            {!esRolEmpresa(sesion.rol) && (
               <>
                 <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
                 {sesion.clinico && (
@@ -136,7 +139,7 @@ export default async function FichaPaciente({ params }: Props) {
             <CardContent>
               <Datos filas={[
                 ["Fecha de nacimiento", fecha(t.fechaNacimiento)],
-                ["Grupo sanguíneo", t.grupoSanguineo],
+                ...(verSalud ? [["Grupo sanguíneo", t.grupoSanguineo] as [string, string | null]] : []),
                 ["Lateralidad", t.lateralidad],
                 ["Teléfono", t.telefono],
                 ["Correo", t.correo],

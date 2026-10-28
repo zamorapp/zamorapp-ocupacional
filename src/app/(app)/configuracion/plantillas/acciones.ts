@@ -31,6 +31,7 @@ export async function guardarPlantilla(motivo: string, datos: DatosPlantilla, ac
       : await supabase.from("lista_items").insert({ org_id: sesion.orgId, lista: "plantilla_examen", codigo: motivo, nombre: m.nombre, orden: m.orden, datos: limpio, activo });
     if (error) throw error;
     revalidatePath("/configuracion/plantillas");
+    revalidatePath("/configuracion/clinica");
     revalidatePath("/atencion", "layout");
     return { ok: true, mensaje: "Plantilla guardada." };
   } catch (e) {

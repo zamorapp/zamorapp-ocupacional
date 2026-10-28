@@ -109,7 +109,10 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
           if (v === "is.true") where.push(`${col} is true`);
           else if (v.startsWith("eq.")) { params.push(v.slice(3)); where.push(`${col}::text = $${params.length}`); }
         }
-        filas = (await c.query(`select to_jsonb(t) as f from public.${tabla} t ${where.length ? "where " + where.join(" and ") : ""}`, params)).rows.map((r) => r.f);
+        // select=a,b pide solo esas columnas (con privilegios por columna, * puede no estar permitido)
+        const cols = (url.searchParams.get("select") ?? "*").split(",").map((x) => x.trim().replace(/[^a-z_0-9*]/g, "")).filter(Boolean);
+        const fila = cols.includes("*") ? "to_jsonb(t)" : `jsonb_build_object(${cols.map((x) => `'${x}', t.${x}`).join(", ")})`;
+        filas = (await c.query(`select ${fila} as f from public.${tabla} t ${where.length ? "where " + where.join(" and ") : ""}`, params)).rows.map((r) => r.f);
       }
       await c.query("commit");
       enviar(200, filas);

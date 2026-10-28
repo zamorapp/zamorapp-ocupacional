@@ -272,7 +272,7 @@ jobs:
           $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $setupPrevio) {
             # Los artefactos duran 3 días: si no hay, se usa la última versión publicada (lo que Cesar tiene de verdad)
-            gh release download --repo gestionesaguamiel-web/zamorapp-descargas --pattern "*.exe" --dir previa 2>$null
+            gh release download --repo zamorapp/zamorapp-descargas --pattern "*.exe" --dir previa 2>$null
             $setupPrevio = Get-ChildItem previa/*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($setupPrevio) { $previa = "última publicada" }
           }
@@ -405,7 +405,7 @@ jobs:
           if (-not (Test-Path "$($exe.FullName).sig")) { throw "El instalador no quedó firmado (¿falta TAURI_SIGNING_PRIVATE_KEY?)" }
           $nombre = "zamorapp-escritorio-$v-setup.exe"
           Copy-Item $exe.FullName $nombre
-          $repo = "gestionesaguamiel-web/zamorapp-descargas"
+          $repo = "zamorapp/zamorapp-descargas"
           @{
             version = $v
             notes = "zamorApp Escritorio $v (${{ github.sha }})"
