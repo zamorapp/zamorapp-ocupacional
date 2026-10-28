@@ -29,7 +29,7 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "TIPURO SERVI MEDIC, C.A.",
+    "publisher": "OcupaVida Salud Ocupacional",
     "shortDescription": "Salud ocupacional con datos en la PC y en la nube",
     "icon": [
       "icons/32x32.png",

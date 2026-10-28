@@ -1,6 +1,6 @@
 # zamorApp Ocupacional
 
-Plataforma de salud ocupacional multiempresa para TIPURO SERVI MEDIC: pacientes, consulta médica, aptitud, reposos y cumplimiento de la LOPCYMAT ante el INPSASEL.
+Plataforma de salud ocupacional multiempresa de OcupaVida Salud Ocupacional (Dr. Cesar Enrique Zamora, médico ocupacional en libre ejercicio): pacientes, consulta médica, aptitud, reposos y cumplimiento de la LOPCYMAT ante el INPSASEL.
 
 **Stack:** Next.js 15 (App Router, TypeScript) · Tailwind CSS 4 + shadcn/ui · Supabase (PostgreSQL, Auth, RLS) · PWA instalable.
 
