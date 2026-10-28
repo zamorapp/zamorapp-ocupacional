@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Eye, PenLine, ShieldCheck } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { movimientos } from "@/lib/auditoria";
-import { hoyVE } from "@/lib/citas";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { Volver } from "../volver";
@@ -12,16 +12,11 @@ import { Volver } from "../volver";
 export const metadata: Metadata = { title: "Auditoría" };
 export const dynamic = "force-dynamic";
 
-const mover = (dia: string, n: number) => {
-  const d = new Date(dia + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 const hora = (iso: string) => new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
 export default async function Auditoria({ searchParams }: { searchParams: Promise<{ dia?: string; ver?: string }> }) {
   const [{ dia: p, ver }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
-  const hoy = hoyVE();
+  const hoy = hoyCaracas();
   const dia = p && /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : hoy;
   const permitido = sesion.demo || ["administrador", "gerente_medico", "auditor"].includes(sesion.rol ?? "");
   const lista = permitido ? await movimientos(dia) : [];
@@ -51,9 +46,9 @@ export default async function Auditoria({ searchParams }: { searchParams: Promis
         <>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-lg border bg-card p-0.5">
-              <Button variant="ghost" size="icon" className="size-8" asChild><Link href={enlace({ dia: mover(dia, -1) })} aria-label="Día anterior"><ChevronLeft /></Link></Button>
+              <Button variant="ghost" size="icon" className="size-8" asChild><Link href={enlace({ dia: sumarDias(dia, -1) })} aria-label="Día anterior"><ChevronLeft /></Link></Button>
               <span className="px-2 text-sm first-letter:uppercase">{dia === hoy ? "Hoy" : etiqueta}</span>
-              <Button variant="ghost" size="icon" className="size-8" asChild><Link href={enlace({ dia: mover(dia, 1) })} aria-label="Día siguiente"><ChevronRight /></Link></Button>
+              <Button variant="ghost" size="icon" className="size-8" asChild><Link href={enlace({ dia: sumarDias(dia, 1) })} aria-label="Día siguiente"><ChevronRight /></Link></Button>
             </div>
             <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
               {([[null, "Todo"], ["acceso", "Accesos"], ["cambio", "Cambios"]] as const).map(([v, t]) => (

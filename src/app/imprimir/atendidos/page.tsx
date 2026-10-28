@@ -6,6 +6,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Hoja } from "../componentes";
+import { hoyCaracas } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Pacientes atendidos" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ type Props = { searchParams: Promise<{ empresa?: string; desde?: string; hasta?:
 
 export default async function Atendidos({ searchParams }: Props) {
   const q = await searchParams;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyCaracas();
   const desde = q.desde ?? hoy.slice(0, 8) + "01";
   const hasta = q.hasta ?? hoy;
   const sesion = await obtenerSesion();

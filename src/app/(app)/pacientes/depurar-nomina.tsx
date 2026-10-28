@@ -7,9 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { depurarNomina } from "./acciones";
+import { hoyCaracas, sumarMeses } from "@/lib/fecha";
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
-const haceUnAno = () => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); };
+const haceUnAno = () => sumarMeses(hoyCaracas(), -12);
 
 /** Marca como egresados, en lote, a los trabajadores que no se atienden desde una fecha (ej. ya no trabajan en la empresa). */
 export function DepurarNomina({ empresas, empresaInicial }: { empresas: { id: string; nombre: string }[]; empresaInicial: string }) {

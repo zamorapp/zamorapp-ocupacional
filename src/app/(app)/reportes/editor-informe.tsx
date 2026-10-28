@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Firmantes, InformeVigilancia, Persona } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
+import { abrirEnVentana } from "@/lib/escritorio";
 import { guardarInformeVigilancia } from "./acciones";
 
 type Clave = keyof TextosInforme;
@@ -51,10 +52,15 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
 
   const guardar = (imprimir = false) =>
     iniciar(async () => {
-      const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes });
-      setAviso(r);
-      if (r.ok) setGuardado(true);
-      if (r.ok && imprimir) window.open(enlaceImprimir, "_blank");
+      const guardarTextos = async () => {
+        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes });
+        setAviso(r);
+        if (r.ok) setGuardado(true);
+        return r.ok;
+      };
+      if (!imprimir) return void (await guardarTextos());
+      // La ventana del informe se pide con el clic y abre cuando terminó de guardar
+      await abrirEnVentana(async () => ((await guardarTextos()) ? enlaceImprimir : null));
     });
 
   return (

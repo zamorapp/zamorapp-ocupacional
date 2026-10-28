@@ -3,6 +3,7 @@ import { supabaseConfigurado } from "@/lib/config";
 import type { Puesto } from "@/lib/puestos-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { todas } from "@/lib/paginar";
+import { hoyCaracas, sumarMeses } from "@/lib/fecha";
 
 export type Dependencia = { id: string; nombre: string; trabajadores: number; puestos: number };
 
@@ -56,8 +57,8 @@ export type MesHorasDatos = { mes: string; horas: number | null; trabajadores: n
 
 // Últimos 12 meses (incluye el actual) con las horas cargadas o vacías
 export async function horasEmpresa(empresaId: string): Promise<MesHorasDatos[]> {
-  const hoy = new Date();
-  const meses = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1)).toISOString().slice(0, 10));
+  const mes = hoyCaracas().slice(0, 8) + "01";
+  const meses = Array.from({ length: 12 }, (_, i) => sumarMeses(mes, -i));
   if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(empresaId)) return meses.map((mes) => ({ mes, horas: null, trabajadores: null, metodo: "estimado" }));
   const supabase = await crearClienteServidor();
   const { data } = await supabase.from("horas_trabajadas").select("mes, horas, trabajadores, metodo").eq("empresa_id", empresaId).gte("mes", meses[11]);

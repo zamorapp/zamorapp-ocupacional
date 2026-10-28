@@ -4,7 +4,8 @@ import { CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, S
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { hoyVE, listarCitas } from "@/lib/citas";
+import { listarCitas } from "@/lib/citas";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { opciones } from "@/lib/listas";
@@ -32,14 +33,8 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   cancelada: { texto: "Cancelada", clase: "bg-muted text-muted-foreground" },
 };
 
-const sumarDias = (iso: string, n: number) => {
-  const d = new Date(iso + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
 export default async function Portal() {
-  const hoy = hoyVE();
+  const hoy = hoyCaracas();
   const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes] = await Promise.all([
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),

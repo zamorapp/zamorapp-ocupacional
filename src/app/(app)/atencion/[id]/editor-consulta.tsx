@@ -47,6 +47,7 @@ import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
+import { sumarDias } from "@/lib/fecha";
 
 type Props = {
   inicial: DatosConsulta;
@@ -92,7 +93,7 @@ function Texto({ etiqueta, valor, onChange, filas = 3, placeholder }: { etiqueta
 
 // Días del rango [desde, hasta] que caen en los últimos 12 meses antes de «hoy»
 const diasUltimoAnio = (r: { desde: string; hasta: string }, hoy: string) =>
-  diasSolapados(r, { desde: new Date(Date.parse(hoy) - 364 * 864e5).toISOString().slice(0, 10), hasta: hoy });
+  diasSolapados(r, { desde: sumarDias(hoy, -364), hasta: hoy });
 
 // Botón de examen normal (perfil con código "normal") y menú con los demás perfiles
 function AccionesExamen({ perfiles, etiquetaNormal, onAplicar }: { perfiles: Item[]; etiquetaNormal: string; onAplicar: (texto: string, comoNormal: boolean) => void }) {

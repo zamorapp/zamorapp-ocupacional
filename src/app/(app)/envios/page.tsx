@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { hoyVE } from "@/lib/citas";
+import { hoyCaracas } from "@/lib/fecha";
 import { correoConfigurado, remitente } from "@/lib/correo";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
@@ -20,7 +20,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
   const sesion = await obtenerSesion();
   if (!sesion.clinico) notFound();
   const { empresa: pedida, fecha: f } = await searchParams;
-  const fecha = f && /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyVE();
+  const fecha = f && /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyCaracas();
   const [empresas, activa, plantillas, pendientes, bandeja] = await Promise.all([listarEmpresas(), empresaActivaId(), listarPlantillas(), contarPendientes(), porEnviar()]);
   const empresa = empresas.find((e) => e.id === pedida) ?? empresas.find((e) => e.id === activa) ?? null;
   const [consultas, contactos, historial] = empresa
