@@ -124,7 +124,7 @@ const HABITOS = [["alcohol", "Alcohol", "habalcohol"], ["tabaco", "Tabáquicos",
 // ─── Base de datos ──────────────────────────────────────────
 // El certificado del servidor se verifica contra la raíz de Supabase (supabase-ca-2021.crt, pública, vence en 2031):
 // así nadie en la red puede hacerse pasar por la base y quedarse con la clave ni con las historias.
-const ssl = { ca: fs.readFileSync(new URL("./supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true };
+const ssl = { ca: fs.readFileSync(new URL("../supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true };
 const cliente = new pg.Client(process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL, ssl }
   : { host: "aws-1-us-west-2.pooler.supabase.com", port: 6543, user: "postgres.xgsoryzvyrsddgkxkzeb", password: process.env.PGPW, database: "postgres", ssl });

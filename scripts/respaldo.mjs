@@ -20,9 +20,14 @@ const ESPERA_MS = Number(process.env.RESPALDO_ESPERA_MS ?? 30_000);
 const carpetas = process.argv.slice(2);
 if (!carpetas.length) throw new Error("Indica al menos una carpeta de destino");
 
+// El volcado lleva cuentas y datos clínicos: el certificado del servidor se verifica contra la raíz
+// de Supabase (supabase-ca-2021.crt, pública, vence en 2031), igual que cargar.mjs
+const SSL = { ca: fs.readFileSync(new URL("./supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true };
+
 let cliente = null;
-let datos, filas, ultimoError;
+let datos, filas, ultimoError, intentos = 0;
 for (let intento = 1; intento <= INTENTOS && !datos; intento++) {
+  intentos = intento;
   try {
     ({ datos, filas } = await leerBase());
   } catch (e) {
@@ -68,7 +73,7 @@ try {
   mantenimiento = ` · mantenimiento no disponible (${e.message})`;
 }
 await cerrar();
-console.log(`Respaldo ${archivo} (${estado}): ${Object.keys(datos.tablas).length} tablas, ${filas} filas, ${(comprimido.length / 1024).toFixed(0)} KB en ${guardados.length} carpeta(s)${detalle ? ` · ${detalle}` : ""}${mantenimiento}`);
+console.log(`Respaldo ${archivo} (${estado}): ${Object.keys(datos.tablas).length} tablas, ${filas} filas, ${(comprimido.length / 1024).toFixed(0)} KB en ${guardados.length} carpeta(s)${intentos > 1 ? ` tras ${intentos} intentos` : ""}${detalle ? ` · ${detalle}` : ""}${mantenimiento}`);
 if (estado === "fallo") process.exitCode = 1;
 
 // Todas las tablas de public y clinico, más las cuentas de usuario
@@ -96,7 +101,7 @@ async function leerBase() {
 // del pooler mientras el cliente está ocioso tumba el proceso («Unhandled 'error' event»).
 async function conectado() {
   if (cliente) return cliente;
-  const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 30_000 });
+  const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: SSL, connectionTimeoutMillis: 30_000 });
   c.on("error", (e) => {
     console.error(`La base cortó la conexión: ${e.message}`);
     if (cliente === c) cliente = null;
