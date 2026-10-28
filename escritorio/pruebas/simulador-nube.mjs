@@ -47,19 +47,30 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   // usuarios: { "correo": { id, clave } }
   const sesiones = new Map(); // token → uid
   const pool = new pg.Pool({ connectionString: baseUrl, max: 4 });
-  const estado = { caida: false, vencerTokens: false };
+  // conAal: los tokens llevan "aal" como los de Supabase (verificación en dos pasos); usuarios[correo].factor = id
+  // de su autenticador ya activado, que se verifica con el código 123456
+  const estado = { caida: false, vencerTokens: false, conAal: false };
+  const aales = new Map(); // token → aal
   const secreto = postgrest ? crypto.randomBytes(32).toString("hex") : null;
   const pgrst = postgrest ? lanzarPostgrest(postgrest, baseUrl, secreto) : null;
   if (pgrst) pgrst.catch(() => {}); // se informa al atender la primera petición REST, no como rechazo suelto
   const correoDe = (uid) => [...Object.entries(usuarios)].find(([, u]) => u.id === uid)?.[0];
-  const emitir = (uid) => {
+  const usuarioDe = (uid) => {
+    const factor = usuarios[correoDe(uid)]?.factor;
+    return { id: uid, email: correoDe(uid), aud: "authenticated", role: "authenticated",
+      ...(factor ? { factors: [{ id: factor, factor_type: "totp", status: "verified" }] } : {}) };
+  };
+  const emitir = (uid, aal = "aal1") => {
     const ahora = Math.floor(Date.now() / 1000);
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const access_token = secreto
-      ? firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: correoDe(uid), iat: ahora, exp: ahora + 3600 }, secreto)
+      ? firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: correoDe(uid), iat: ahora, exp: ahora + 3600, ...(estado.conAal ? { aal } : {}) }, secreto)
+      : estado.conAal ? `${b64({ alg: "none" })}.${b64({ sub: uid, role: "authenticated", aal })}.${Math.random().toString(36).slice(2)}`
       : `nube-${uid}-${Math.random().toString(36).slice(2)}`;
     const refresh_token = `ref-${uid}-${Math.random().toString(36).slice(2)}`;
     sesiones.set(access_token, uid); sesiones.set(refresh_token, uid);
-    return { access_token, refresh_token, token_type: "bearer", expires_in: 3600, expires_at: ahora + 3600, user: { id: uid, email: correoDe(uid), aud: "authenticated", role: "authenticated" } };
+    if (estado.conAal) { aales.set(access_token, aal); aales.set(refresh_token, aal); }
+    return { access_token, refresh_token, token_type: "bearer", expires_in: 3600, expires_at: ahora + 3600, user: usuarioDe(uid) };
   };
   const uidDe = (token) => (secreto ? verificar(token, secreto)?.sub : sesiones.get(token)) || null;
   const servidor = http.createServer(async (req, res) => {
@@ -76,10 +87,19 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
         return u && u.clave === b.password ? enviar(200, emitir(u.id)) : enviar(400, { error_code: "invalid_credentials", msg: "Invalid login credentials" });
       }
       const uid = sesiones.get(b.refresh_token);
-      return uid && !usuarios._revocados?.includes(uid) ? enviar(200, emitir(uid)) : enviar(400, { error_code: "refresh_token_not_found", msg: "Invalid Refresh Token" });
+      return uid && !usuarios._revocados?.includes(uid) ? enviar(200, emitir(uid, aales.get(b.refresh_token))) : enviar(400, { error_code: "refresh_token_not_found", msg: "Invalid Refresh Token" });
     }
-    const uid = uidDe((req.headers.authorization || "").replace(/^Bearer /, ""));
+    const token = (req.headers.authorization || "").replace(/^Bearer /, "");
+    const uid = uidDe(token);
     if (!uid) return enviar(401, { message: "JWT inválido" });
+    if (url.pathname === "/auth/v1/user" && req.method === "GET") return enviar(200, usuarioDe(uid));
+    const factor = /^\/auth\/v1\/factors\/([^/]+)\/(challenge|verify)$/.exec(url.pathname);
+    if (factor) {
+      if (factor[2] === "challenge") return enviar(200, { id: "reto-1", type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 });
+      const b = JSON.parse(cuerpo || "{}");
+      return factor[1] === usuarios[correoDe(uid)]?.factor && b.code === "123456"
+        ? enviar(200, emitir(uid, "aal2")) : enviar(422, { error_code: "mfa_verification_failed", msg: "Invalid TOTP code entered" });
+    }
     // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
     // Simula una RLS que niega una escritura con razón (mismo código 42501): NO es «hay que actualizar»
     if (estado.rlsNiega && url.pathname.startsWith("/rest/v1/")) {
@@ -102,6 +122,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     try {
       await c.query("begin");
       await c.query("select set_config('request.jwt.claim.sub', $1, true)", [uid]);
+      if (aales.has(token)) await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid, role: "authenticated", aal: aales.get(token) })]);
       await c.query("set local role authenticated");
       let filas;
       if (url.pathname.startsWith("/rest/v1/rpc/")) {

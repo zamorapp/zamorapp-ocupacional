@@ -20,6 +20,10 @@ export const PAGINA_INICIO = `<!doctype html>
     <label for="email">Correo</label><input id="email" type="email" autocomplete="username" required>
     <label for="clave">Clave</label><input id="clave" type="password" autocomplete="current-password" required>
     <label for="nombre">Nombre de esta PC</label><input id="nombre" value="PC consultorio" required>
+    <div id="dos" hidden>
+      <label for="codigo">Código de 6 dígitos de tu app autenticadora</label>
+      <input id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456">
+    </div>
     <button id="b">Registrar y copiar los datos</button>
     <div class="error" id="e" role="alert"></div>
   </form>
@@ -50,8 +54,10 @@ $("f").addEventListener("submit", async (ev) => {
     const s = await r.json();
     if (!r.ok) throw new Error(s.msg || s.error_description || "No se pudo entrar");
     const q = await fetch("/zamorapp/equipo", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
-      body: JSON.stringify({ nombre: $("nombre").value }) });
+      body: JSON.stringify({ nombre: $("nombre").value, codigo: $("codigo").value || undefined }) });
     const k = await q.json();
+    // Verificación en dos pasos: la nube pide el código antes de dar la copia de los datos a una PC nueva
+    if (k.code === "dos_pasos") { $("dos").hidden = false; $("codigo").value = ""; $("codigo").focus(); }
     if (!q.ok) throw new Error(k.message || "No se pudo registrar la PC");
     esperarCopia();
   } catch (err) { $("e").textContent = err.message; $("b").disabled = false; }
