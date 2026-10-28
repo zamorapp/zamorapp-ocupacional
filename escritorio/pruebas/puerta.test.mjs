@@ -39,7 +39,7 @@ before(async () => {
   }
   nube = simularNube({ baseUrl: NUBE_DB, usuarios: {
     "admin@x": { id: "00000000-0000-0000-0000-0000000000a1", clave: "clave-admin" },
-    "meda@x": { id: "00000000-0000-0000-0000-0000000000a2", clave: "clave-med" },
+    "meda@x": { id: "00000000-0000-0000-0000-0000000000a2", clave: "clave-med", usuario: "richard" },
   } });
   await new Promise((ok) => nube.servidor.listen(0, "127.0.0.1", ok));
   Object.assign(process.env, {
@@ -303,6 +303,27 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
     nube.estado.caida = false;
     await nubeDb.query("update public.miembros set activo = true where usuario_id = $1", [medA]);
     await nubeDb.end();
+  }
+});
+
+test("usuario corto: entra con internet, luego sin internet; con clave equivocada no", { skip: omitir }, async () => {
+  const entrar = (email, password) => pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email, password } });
+  const medA = "00000000-0000-0000-0000-0000000000a2";
+  await replicaObj.enCurso;
+  assert.equal((await entrar("richard", "mala")).status, 400, "con internet, la clave equivocada no revela nada");
+  const ok = await entrar("Richard", "clave-med");
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal(ok.json.user.id, medA);
+  assert.equal(estado.d.usuarios[medA].usuario, "richard", "la PC recuerda el usuario para entrar sin internet");
+  try {
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    assert.equal((await entrar("richard", "clave-med")).status, 200, "sin internet entra con el usuario corto");
+    assert.equal((await entrar("richard", "nop")).status, 400);
+    assert.equal((await entrar("fantasma", "clave-med")).status, 400);
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
   }
 });
 

@@ -10,7 +10,7 @@ import { InvitarRrhh } from "./invitar-rrhh";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
-export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null };
+export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null; usuario?: string | null };
 
 export default async function Usuarios() {
   const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas()]);

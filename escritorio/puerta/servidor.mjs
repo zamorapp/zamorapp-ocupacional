@@ -81,12 +81,48 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     } catch (e) { registro(`[puerta] usuario local: ${e.message}`); } finally { await c.end().catch(() => {}); }
   }
 
+  // Usuario corto («cesar») → correo de la cuenta. Con internet lo resuelve la nube solo si la clave es correcta
+  // (correo_para_ingreso); sin internet, el que esta PC recuerda de la última vez que se entró con internet.
+  async function correoDeUsuario(usuario, clave) {
+    if (!nube.enLinea) await nube.comprobar();
+    if (nube.enLinea) {
+      try {
+        const r = await nube.rpcAnonimo("correo_para_ingreso", { p_usuario: usuario, p_clave: clave });
+        registro(`[auth] usuario corto en línea: ${r.status}${r.ok && !r.cuerpo ? " sin coincidencia" : ""}`);
+        if (r.ok) return r.cuerpo ? { email: String(r.cuerpo).toLowerCase() } : { fallo: [400, "Usuario o clave incorrectos"] };
+        if (r.cuerpo?.code === "P0429") return { fallo: [429, `Demasiados intentos. Espera ${Number(r.cuerpo.hint) || 15} min y vuelve a probar (o entra con tu correo).`, "over_request_rate_limit"] };
+        if (r.status < 500) return { fallo: [400, "Usuario o clave incorrectos"] };
+      } catch (e) { registro(`[puerta] nube no responde al buscar el usuario: ${e.message}`); }
+      nube.enLinea = false;
+    }
+    const local = Object.values(d().usuarios).find((u) => u.usuario === usuario);
+    return { email: local?.email || usuario };
+  }
+
+  // El usuario corto que esta PC recuerda (para entrar con él sin internet); uno solo por usuario
+  async function recordarUsuarioCorto(uid, escrito) {
+    let usuario = escrito.includes("@") ? undefined : escrito;
+    if (usuario === undefined) { try { usuario = (await nube.rpc(uid, "mi_usuario_ingreso", {})) || null; } catch { return; } }
+    for (const [otro, u] of Object.entries(d().usuarios)) if (otro !== uid && usuario && u.usuario === usuario) delete u.usuario;
+    if (usuario) d().usuarios[uid].usuario = usuario; else delete d().usuarios[uid].usuario;
+    estado.guardar();
+  }
+
   async function entrar(req, res, cuerpo) {
-    const email = String(cuerpo?.email || "").trim().toLowerCase();
+    const escrito = String(cuerpo?.email || "").trim().toLowerCase();
     const clave = String(cuerpo?.password || "");
-    const espera = Math.max(esperaDe(email), esperaDe("*"));
+    const espera = Math.max(esperaDe(escrito), esperaDe("*"));
     if (espera) registro("[auth] entrar: en espera por demasiados intentos");
     if (espera) return errorAuth(res, 429, `Demasiados intentos. Espera ${Math.ceil(espera / 60000)} min y vuelve a probar.`, "over_request_rate_limit");
+    let email = escrito;
+    if (escrito && !escrito.includes("@")) {
+      const r = await correoDeUsuario(escrito, clave);
+      if (r.fallo) {
+        if (r.fallo[0] === 400) anotarFallo(escrito);
+        return errorAuth(res, ...r.fallo);
+      }
+      email = r.email;
+    }
     const conocido = Object.entries(d().usuarios).find(([, u]) => u.email === email);
     if (!nube.enLinea) await nube.comprobar(); // antes de entrar sin conexión, se confirma que de verdad no hay internet
     if (nube.enLinea) {
@@ -114,8 +150,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         Object.assign(d().usuarios[uid], huellaClave(clave));
         if (rol) d().usuarios[uid].rol = rol;
         intentos.delete(email);
+        intentos.delete(escrito);
         estado.guardar();
         await anotarUsuarioLocal(uid, email);
+        await recordarUsuarioCorto(uid, escrito);
         replica.ciclo().catch(() => {});
         return responder(res, 200, sesionLocal(uid));
       } catch (e) {
@@ -132,10 +170,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!claveCorrecta(clave, u)) {
       registro("[auth] entrar sin conexión: clave incorrecta");
       anotarFallo(email);
-      return errorAuth(res, 400, "Correo o clave incorrectos");
+      return errorAuth(res, 400, "Usuario, correo o clave incorrectos");
     }
     registro(`[auth] entrar sin conexión: ${u.bloqueado ? "bloqueado" : u.requiereNube ? "requiere internet" : "ok"}`);
     intentos.delete(email);
+    intentos.delete(escrito);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
     if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
     if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
