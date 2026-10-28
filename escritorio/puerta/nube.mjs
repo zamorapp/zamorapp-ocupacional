@@ -2,10 +2,27 @@
 // La PC nunca tiene la clave service_role.
 import { CONFIG } from "./config.mjs";
 
+export const MENSAJE_ACTUALIZAR = "zamorApp Escritorio necesita actualizarse: la nube tiene cambios que esta versión no entiende";
+
 export class Nube {
   constructor(estado) {
     this.estado = estado;
     this.enLinea = false;
+    // La nube cambió (migración nueva) y esta versión del programa aún no la entiende: hay que actualizar.
+    this.incompatible = null;
+  }
+
+  // Códigos con los que la nube dice «eso no existe o no se puede» a una consulta que esta versión creía válida:
+  // permiso sobre tabla o columna quitado (42501 «permission denied for …»), columna/tabla/función que ya no
+  // existe (42703, 42P01, 42883) o que PostgREST no encuentra (PGRST202/204/205). No es un fallo de red ni de
+  // datos: es el programa viejo. Ojo: 42501 también es una RLS que niega una escritura con razón («new row
+  // violates row-level security policy», p. ej. editar una consulta firmada): eso NO es incompatibilidad.
+  anotarIncompatibilidad(status, cuerpo, donde) {
+    const codigo = String(cuerpo?.code || "");
+    if (!(status >= 400 && status < 500) || !/^(42501|42703|42P01|42883|PGRST20[245])$/.test(codigo)) return false;
+    if (codigo === "42501" && !/^permission denied for (table|view|column|function|schema|sequence)\b/.test(String(cuerpo?.message || ""))) return false;
+    if (!this.incompatible) this.incompatible = { codigo, mensaje: String(cuerpo?.message || ""), donde, en: new Date().toISOString() };
+    return true;
   }
 
   // Con las claves nuevas de Supabase (sb_publishable_…) la clave va solo en "apikey";
@@ -78,7 +95,10 @@ export class Nube {
       method: "POST", headers: this.cabeceras(token), body: JSON.stringify(args), signal: AbortSignal.timeout(60000),
     });
     const json = await r.json().catch(() => null);
-    if (!r.ok) throw Object.assign(new Error(json?.message || `rpc ${funcion}: ${r.status}`), { status: r.status });
+    if (!r.ok) {
+      this.anotarIncompatibilidad(r.status, json, `rpc ${funcion}`);
+      throw Object.assign(new Error(json?.message || `rpc ${funcion}: ${r.status}`), { status: r.status });
+    }
     return json;
   }
 
@@ -86,7 +106,11 @@ export class Nube {
     const token = await this.token(uid);
     if (!token) throw new Error("Sin sesión en la nube");
     const r = await fetch(`${CONFIG.nube}/rest/v1/${ruta}`, { headers: this.cabeceras(token), signal: AbortSignal.timeout(30000) });
-    if (!r.ok) throw new Error(`leer ${ruta}: ${r.status}`);
+    if (!r.ok) {
+      const json = await r.json().catch(() => null);
+      if (this.anotarIncompatibilidad(r.status, json, ruta.split("?")[0])) throw new Error(`${MENSAJE_ACTUALIZAR} (${json.message})`);
+      throw new Error(`leer ${ruta}: ${r.status}`);
+    }
     return r.json();
   }
 }

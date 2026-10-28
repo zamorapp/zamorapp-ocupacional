@@ -307,6 +307,98 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
 });
 
 // En Windows PostgREST se caía a veces en su primer segundo (código 3): el motor debe relanzarlo solo
+// La nube recibió una migración que esta versión del programa no entiende (27/10/2026: quitar columnas de
+// trabajadores a RR. HH. dejó a la 0.1.0 con «Application error»). La puerta lo dice claro y lo marca para
+// que la ventana ofrezca actualizar, en vez de dejar caer la pantalla con un error mudo.
+test("la nube cambió y esta versión no la entiende: se avisa que hay que actualizar", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  assert.equal(nubeObj.enLinea, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, false);
+  nube.estado.migradaPorDelante = true;
+  try {
+    const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /necesita actualizarse/);
+    assert.match(r.json.message, /permission denied for table trabajadores/);
+    e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, true);
+    assert.equal(e.json.incompatible.codigo, "42501");
+    assert.equal(e.json.incompatible.donde, "/rest/v1/trabajadores");
+  } finally {
+    nube.estado.migradaPorDelante = false;
+  }
+  // El aviso queda hasta que el programa se actualice (reinicio): una consulta que sí pasa no lo borra.
+  const ok = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenAdmin });
+  assert.equal(ok.status, 200);
+  e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, true);
+  nubeObj.incompatible = null; // para las pruebas que siguen
+});
+
+test("botones de la pantalla «hay una versión nueva»: solo desde la ventana de zamorApp", { skip: omitir }, async () => {
+  const origenVentana = "http://127.0.0.1:54332";
+  // Sin Origin de la ventana: rechazados
+  assert.equal((await pedir("/zamorapp/buscar-actualizacion", { metodo: "POST" })).status, 403);
+  assert.equal((await pedir("/zamorapp/abrir-web", { metodo: "POST" })).status, 403);
+  // Desde la ventana: la petición queda guardada y solo el programa (clave de control) la recibe, una sola vez
+  let r = await fetch(`${urlPuerta}/zamorapp/buscar-actualizacion`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).pedida, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.buscarActualizacion, false, "sin clave de control no se entrega");
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, true);
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, false, "se entrega una sola vez");
+  // Abrir la web: responde la dirección (en Windows además abre el navegador)
+  r = await fetch(`${urlPuerta}/zamorapp/abrir-web`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.url, "https://zamorapp-ocupacional.vercel.app");
+  assert.equal(j.abierto, process.platform === "win32");
+});
+
+// main.rs (vigilar_nube, sincronizar) le habla a la puerta con HTTP crudo por TcpStream y lee hasta que la
+// conexión se cierra: la puerta debe responder 200 y cerrar sola (Connection: close), o el programa se queda esperando.
+test("el programa consulta /zamorapp/estado con HTTP crudo (como main.rs) y la puerta cierra la conexión", { skip: omitir }, async () => {
+  const net = await import("node:net");
+  const { port } = puerta.address();
+  const respuesta = await new Promise((ok, falla) => {
+    const c = net.connect(port, "127.0.0.1");
+    let texto = "";
+    const t = setTimeout(() => { c.destroy(); falla(new Error("la puerta no cerró la conexión en 5 s (el programa se quedaría esperando)")); }, 5000);
+    c.on("connect", () => c.write(`GET /zamorapp/estado HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nX-Zamorapp-Control: ${CONTROL}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`));
+    c.on("data", (d) => { texto += d; });
+    c.on("end", () => { clearTimeout(t); ok(texto); });
+    c.on("error", (e) => { clearTimeout(t); falla(e); });
+  });
+  assert.ok(respuesta.startsWith("HTTP/1.1 200"), respuesta.slice(0, 80));
+  const [cabecera, cuerpoTexto] = respuesta.split("\r\n\r\n");
+  assert.match(cabecera.toLowerCase(), /content-length: \d+/, "sin Content-Length el cuerpo llega «chunked» y el programa no lo entiende");
+  const cuerpo = JSON.parse(cuerpoTexto);
+  assert.equal(typeof cuerpo.actualizar, "boolean");
+  assert.equal(cuerpo.buscarActualizacion, false);
+});
+
+test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
+  nube.estado.rlsNiega = true;
+  try {
+    const r = await pedir("/rest/v1/consultas?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { motivo: "x" } });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /^new row violates row-level security policy/);
+    assert.doesNotMatch(r.json.message, /necesita actualizarse/);
+    const e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, false);
+    assert.equal(e.json.incompatible, null);
+  } finally {
+    nube.estado.rlsNiega = false;
+  }
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3
