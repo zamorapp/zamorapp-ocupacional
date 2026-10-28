@@ -6,9 +6,3 @@
 update public.organizaciones
 set nombre = 'OcupaVida Salud Ocupacional'
 where nombre ilike 'tipuro%';
-
--- Datos fiscales que dio Cesar (2026-10-28) para el encabezado de los documentos.
-update public.organizaciones
-set rif = 'V-13475931-0',
-    direccion = 'Avenida Aliro Ugarte Pelayo, Maturín, Estado Monagas'
-where nombre = 'OcupaVida Salud Ocupacional';
