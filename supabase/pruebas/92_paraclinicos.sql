@@ -3,9 +3,9 @@
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,paraclinicos) values
- ('4e000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada',current_date,
+ ('4e000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada',public.hoy_caracas(),
   '[{"id":"hb","nombre":"Hemoglobina","grupo":null,"resultado":""},{"id":"rx","nombre":"Rx de tórax","grupo":null,"resultado":""}]'),
- ('4e000000-0000-0000-0000-00000000000f','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',current_date,
+ ('4e000000-0000-0000-0000-00000000000f','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',public.hoy_caracas(),
   '[{"id":"hb","nombre":"Hemoglobina","grupo":null,"resultado":""}]');
 
 set role authenticated;

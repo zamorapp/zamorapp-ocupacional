@@ -5,6 +5,7 @@ import { desactualizada } from "@/lib/notificacion-riesgos";
 import { todas } from "@/lib/paginar";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 
 // Paquete para inspección del INPSASEL: índice de cumplimiento y registros de una empresa en un período.
 
@@ -29,7 +30,6 @@ export type DatosInspeccion = {
 };
 
 const dia = 864e5;
-const hoyVE = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
 
 function criterio(c: Omit<Criterio, "estado">): Criterio {
   if (!c.total) return { ...c, estado: "no_aplica" };
@@ -43,7 +43,7 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
     .select("id, razon_social, rif, nil, actividad_economica, direccion, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro")
     .eq("id", empresaId).maybeSingle();
   if (!emp) return null;
-  const hoy = hoyVE();
+  const hoy = hoyCaracas();
 
   const [eventos, trabs, apts, notifs, { data: puestos }, { data: informes }, { data: porPuesto }] = await Promise.all([
     eventosDeEmpresa(empresaId, desde, hasta),
@@ -140,7 +140,7 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
 // Período por defecto: los últimos 12 meses hasta hoy
 export function periodoInspeccion(desde?: string, hasta?: string) {
   const ok = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
-  const h = ok(hasta) ?? hoyVE();
-  const d = ok(desde) ?? new Date(Date.parse(h) - 365 * dia).toISOString().slice(0, 10);
+  const h = ok(hasta) ?? hoyCaracas();
+  const d = ok(desde) ?? sumarDias(h, -365);
   return d <= h ? { desde: d, hasta: h } : { desde: h, hasta: d };
 }

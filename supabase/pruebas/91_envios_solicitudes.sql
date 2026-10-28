@@ -4,8 +4,8 @@ reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 -- Consulta firmada de A (la que se envía) y contactos de A y B
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha) values
- ('49000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',current_date),
- ('49000000-0000-0000-0000-00000000000b','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador',current_date);
+ ('49000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',public.hoy_caracas()),
+ ('49000000-0000-0000-0000-00000000000b','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador',public.hoy_caracas());
 insert into public.empresa_contactos (id,org_id,empresa_id,nombre,correo,telefono,recibe_consulta) values
  ('59000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','RRHH A','rrhh@a.com','+584140000000',false),
  ('59000000-0000-0000-0000-0000000000a2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Médico A','Salud@A.com',null,true),
@@ -29,7 +29,7 @@ end $$;
 -- ── Envíos
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh@a.com',
           '{49000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviando');
   raise notice 'FALLA: se envió una consulta sin firmar';
 exception when others then
@@ -38,7 +38,7 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com','59000000-0000-0000-0000-0000000000a1',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh@a.com','59000000-0000-0000-0000-0000000000a1',
           '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','x','x','enviando');
   raise notice 'FALLA: la consulta médica fue a RR. HH.';
 exception when others then
@@ -47,7 +47,7 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','otro@gmail.com',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','otro@gmail.com',
           '{49000000-0000-0000-0000-00000000000a}','{consulta}','x','x','enviando');
   raise notice 'FALLA: la consulta médica fue a un correo escrito a mano';
 exception when others then
@@ -56,7 +56,7 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@b.com','59000000-0000-0000-0000-0000000000b1',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh@b.com','59000000-0000-0000-0000-0000000000b1',
           '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando');
   raise notice 'FALLA: se usó un contacto de otra empresa';
 exception when others then
@@ -65,13 +65,13 @@ exception when others then
 end $$;
 with x as (
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,enviado_por)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','salud@a.com','59000000-0000-0000-0000-0000000000a2',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','salud@a.com','59000000-0000-0000-0000-0000000000a2',
           '{49000000-0000-0000-0000-00000000000a}','{constancia,consulta}','Evaluaciones','Adjunto…','enviando','00000000-0000-0000-0000-0000000000a1')
   returning enviado_por)
 select 'médico envía la consulta al autorizado, a su nombre (debe 1): ' || count(*) from x where enviado_por = '00000000-0000-0000-0000-0000000000a2';
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh@a.com',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh@a.com',
           '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviado');
   raise notice 'FALLA: se registró un correo como enviado sin pasar por «enviando»';
 exception when others then
@@ -95,7 +95,7 @@ end $$;
 -- B: médico limitado a A no envía consultas de B
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b',current_date,'correo','rrhh@b.com',
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b',public.hoy_caracas(),'correo','rrhh@b.com',
           '{40000000-0000-0000-0000-00000000000b}','{constancia}','x','x','enviando');
   raise notice 'FALLA: médico de A envió a B';
 exception when others then raise notice 'médico de A no envía a B (debe 1): 1';
@@ -103,7 +103,7 @@ end $$;
 
 -- ── Enlace de WhatsApp
 insert into public.envios (id,org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado)
-values ('5a000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'whatsapp','+584140000000','59000000-0000-0000-0000-0000000000a1',
+values ('5a000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'whatsapp','+584140000000','59000000-0000-0000-0000-0000000000a1',
         '{49000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enlace');
 insert into public.envio_enlaces (id,org_id,envio_id,token_hash,vence) values
  ('5b000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','5a000000-0000-0000-0000-000000000001',

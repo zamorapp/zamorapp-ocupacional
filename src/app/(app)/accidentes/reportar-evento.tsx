@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
 import { reportarEvento } from "./acciones";
+import { horaLocalCaracas } from "@/lib/fecha";
 
 // Ahora en hora de Venezuela, para el campo datetime-local
-const ahoraLocal = () => new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 16);
+const ahoraLocal = () => horaLocalCaracas();
 
 export function ReportarEvento({ habilitado, empresas }: { habilitado: boolean; empresas: { id: string; nombre: string }[] }) {
   const router = useRouter();

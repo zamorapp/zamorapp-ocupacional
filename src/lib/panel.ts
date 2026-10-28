@@ -2,7 +2,8 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
-import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
+import { listarCitas, listarSolicitudes } from "@/lib/citas";
+import { hoyCaracas, sumarMeses } from "@/lib/fecha";
 import { listarEventos } from "@/lib/eventos";
 import { plazoDeclaracion, plazoInformeNt02, plazoInvestigacion } from "@/lib/eventos-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
@@ -33,9 +34,8 @@ async function vencimientos(empresa: string | null): Promise<VencimientoEmpresa[
 
 // Últimos 12 meses (el actual incluido), todas las empresas juntas o la empresa activa; mismo cálculo que el reporte
 async function accidentabilidad(empresa: string | null): Promise<Accidentabilidad> {
-  const hoy = hoyVE();
-  const [a, m] = hoy.split("-").map(Number);
-  const desde = new Date(Date.UTC(a, m - 12, 1)).toISOString().slice(0, 10);
+  const hoy = hoyCaracas();
+  const desde = sumarMeses(`${hoy.slice(0, 8)}01`, -11);
   const supabase = await crearClienteServidor();
   const { data } = await supabase.rpc("reporte_indicadores", { p_tipo: "accidentalidad", p_empresa: empresa, p_desde: desde, p_hasta: hoy, p_opciones: { nivel: "consolidado" } });
   return { meses: (data ?? []) as MesAccidentes[], desde, hasta: hoy };
@@ -61,7 +61,7 @@ export async function datosPanel(conAccidentes = true): Promise<DatosPanel> {
 
   const activa = await empresaActivaId();
   const [empresas, r, eventos, citas, solicitudes, venc, accidentes] = await Promise.all([
-    listarEmpresas(), resumen(), listarEventos({ abiertos: true }), listarCitas(hoyVE()), listarSolicitudes(),
+    listarEmpresas(), resumen(), listarEventos({ abiertos: true }), listarCitas(hoyCaracas()), listarSolicitudes(),
     vencimientos(activa), conAccidentes ? accidentabilidad(activa) : Promise.resolve(null),
   ]);
   const n = r ?? { activos: 0, en_reposo: 0, al_dia: 0, vencidos: 0, por_vencer: 0, sin_evaluar: 0, aspirantes: 0, aptitud: { elegible: 0, elegible_con_restricciones: 0, no_elegible: 0, espera_resultados: 0, diferido: 0 } };

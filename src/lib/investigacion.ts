@@ -4,6 +4,7 @@ import type { Evento } from "@/lib/eventos-tipos";
 import type { ClaveSeccion, Investigacion } from "@/lib/investigacion-tipos";
 import { claveRiesgo, GRUPOS, nivelRiesgo, type Valoracion } from "@/lib/puestos-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas, sumarMeses } from "@/lib/fecha";
 
 const fecha = (v: string | null | undefined) => (v ? new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeZone: "UTC" }).format(new Date(v.slice(0, 10))) : "—");
 const POR_COMPLETAR = "[por completar]";
@@ -31,8 +32,8 @@ type Consulta = { id: string; fecha: string; conclusiones: string | null; enferm
 export async function sugerenciasInvestigacion(e: Evento): Promise<Partial<Record<ClaveSeccion, string>>> {
   if (!supabaseConfigurado || !e.trabajadorId) return {};
   const supabase = await crearClienteServidor();
-  const hace3 = new Date(Date.parse(e.fechaDiagnostico ?? e.fechaHora) - 3 * 365.25 * 864e5).toISOString().slice(0, 10);
-  const hace1 = new Date(Date.parse(e.fechaDiagnostico ?? e.fechaHora) - 365.25 * 864e5).toISOString().slice(0, 10);
+  const hace3 = sumarMeses(e.fechaDiagnostico ?? hoyCaracas(e.fechaHora), -36);
+  const hace1 = sumarMeses(e.fechaDiagnostico ?? hoyCaracas(e.fechaHora), -12);
   const grupoCie = e.cie10.trim().slice(0, 3).toUpperCase();
 
   const [{ data: t }, { data: emp }, { data: empleos }, { data: consultas }, { data: reposos }, { data: morb }] = await Promise.all([

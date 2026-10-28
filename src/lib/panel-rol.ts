@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import { hoyVE } from "@/lib/citas";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import type { Paraclinico } from "@/lib/consultas-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
 import type { Sesion } from "@/lib/sesion";
@@ -28,7 +28,7 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
   }
 
   const supabase = await crearClienteServidor();
-  const hoy = hoyVE();
+  const hoy = hoyCaracas();
   const contar = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const citas = (estado: string) => supabase.from("citas").select("id", { count: "exact", head: true }).eq("fecha", hoy).eq("estado", estado);
   const solicitudes = () => supabase.from("citas").select("id", { count: "exact", head: true }).eq("estado", "solicitada");
@@ -42,7 +42,7 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
     }
     // Resultados por recibir: exámenes sin resultado en consultas de los últimos 60 días (las importadas del SAME no cuentan)
     let conExamenes = supabase.from("consultas").select("paraclinicos").is("origen", null).neq("paraclinicos", "[]")
-      .gte("fecha", new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).limit(1000);
+      .gte("fecha", sumarDias(hoyCaracas(), -60)).limit(1000);
     if (rol !== "gerente_medico" && rol !== "administrador") conExamenes = conExamenes.eq("medico_id", sesion.usuarioId);
     const porRecibir = conExamenes.then(({ data }) => (data ?? []).reduce((n, c) => n + contarResultados((c.paraclinicos ?? []) as Paraclinico[]).pendientes, 0));
     const [espera, firmar, enCurso, resultados] = await Promise.all([contar(citas("en_espera")), firma ? contar(porFirmar) : Promise.resolve(0), contar(abiertas), porRecibir]);

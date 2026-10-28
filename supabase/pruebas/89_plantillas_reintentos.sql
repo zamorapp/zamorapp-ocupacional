@@ -3,7 +3,7 @@
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha) values
- ('4a000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',current_date);
+ ('4a000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',public.hoy_caracas());
 insert into public.empresa_contactos (id,org_id,empresa_id,nombre,correo,recibe_consulta) values
  ('5a000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','RRHH A2','rrhh2@a.com',false);
 select 'la organización que ya existía trae su plantilla general (debe 1): ' || count(*) from public.plantillas_correo
@@ -51,13 +51,13 @@ select 'administrador cambia la plantilla general (debe 1): ' || count(*) from p
 -- ── Reintentos
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 insert into public.envios (id,org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado) values
- ('6a000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando'),
- ('6a000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando');
+ ('6a000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando'),
+ ('6a000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando');
 update public.envios set estado = 'fallido', error = 'SMTP caído' where id = '6a000000-0000-0000-0000-000000000001';
 update public.envios set estado = 'enviado' where id = '6a000000-0000-0000-0000-000000000002';
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,reintento_de)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000002');
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000002');
   raise notice 'FALLA: se reintentó un correo ya enviado';
 exception when others then
   if sqlerrm like '%Solo se reintenta un correo fallido%' then raise notice 'un correo enviado no se reintenta (debe 1): 1';
@@ -65,24 +65,24 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,reintento_de)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','otro@gmail.com',null,'{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000001');
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','otro@gmail.com',null,'{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000001');
   raise notice 'FALLA: el reintento cambió el destinatario';
 exception when others then
   if sqlerrm like '%idéntico al envío original%' then raise notice 'el reintento no cambia destinatario (debe 1): 1';
   else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
 insert into public.envios (id,org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,reintento_de)
-values ('6a000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x2','x2','enviando','6a000000-0000-0000-0000-000000000001');
+values ('6a000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x2','x2','enviando','6a000000-0000-0000-0000-000000000001');
 select 'el fallido se reintenta (debe 1): ' || count(*) from public.envios where reintento_de = '6a000000-0000-0000-0000-000000000001';
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,reintento_de)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000001');
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000001');
   raise notice 'FALLA: el mismo fallido se reintentó dos veces';
 exception when unique_violation then raise notice 'cada envío se reintenta una sola vez (debe 1): 1';
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado,reintento_de)
-  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',current_date,'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000003');
+  values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh2@a.com','5a000000-0000-0000-0000-0000000000a1','{4a000000-0000-0000-0000-00000000000a}','{constancia}','x','x','enviando','6a000000-0000-0000-0000-000000000003');
   raise notice 'FALLA: se reintentó un correo recién registrado';
 exception when others then
   if sqlerrm like '%Solo se reintenta un correo fallido%' then raise notice 'un correo en curso no se reintenta antes de 10 min (debe 1): 1';

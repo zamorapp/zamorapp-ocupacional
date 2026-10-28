@@ -5,6 +5,7 @@ import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export type ResumenConsulta = {
   id: string;
@@ -197,7 +198,7 @@ export async function historialConsulta(trabajadorId: string, consultaId: string
   const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
   if (!supabaseConfigurado) return vacio;
   const supabase = await crearClienteServidor();
-  const hace2Anios = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+  const hace2Anios = sumarDias(hoyCaracas(), -730);
   const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
     supabase.from("consultas").select("fecha, signos_vitales").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
       .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),

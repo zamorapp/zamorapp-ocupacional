@@ -15,11 +15,12 @@ import { type Discapacidad, ETIQUETA_DISCAPACIDAD } from "@/lib/investigacion-ti
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { cerrarEvento, guardarEvento } from "../acciones";
+import { horaLocalCaracas, hoyCaracas } from "@/lib/fecha";
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
 
 // ISO ↔ datetime-local en hora de Venezuela (UTC-4)
-const aLocal = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - 4 * 3600e3).toISOString().slice(0, 16) : "");
+const aLocal = (iso: string | null) => (iso ? horaLocalCaracas(iso) : "");
 const deLocal = (v: string) => (v ? new Date(`${v}:00-04:00`).toISOString() : null);
 
 function Seccion({ titulo, children, accion }: { titulo: string; children: React.ReactNode; accion?: React.ReactNode }) {
@@ -308,7 +309,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
         >
           {e.acciones.length === 0 && <p className="text-sm text-muted-foreground sm:col-span-2">Cada acción lleva responsable y fecha límite.</p>}
           {e.acciones.map((a, i) => {
-            const vencida = a.estado !== "cumplida" && a.fecha && a.fecha < new Date().toISOString().slice(0, 10);
+            const vencida = a.estado !== "cumplida" && a.fecha && a.fecha < hoyCaracas();
             return (
               <div key={i} className="grid gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
                 <Input value={a.descripcion} placeholder="Acción" className="h-9" onChange={(x) => accion(i, { descripcion: x.target.value })} />

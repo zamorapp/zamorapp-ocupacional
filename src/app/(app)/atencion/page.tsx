@@ -4,7 +4,8 @@ import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { hoyVE, listarCitas, listarSolicitudes } from "@/lib/citas";
+import { listarCitas, listarSolicitudes } from "@/lib/citas";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
@@ -29,17 +30,11 @@ const ESTILO_ESTADO = {
   firmada: "bg-primary/15 text-primary",
 };
 
-const moverDia = (dia: string, n: number) => {
-  const d = new Date(dia + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
 export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
   const [{ dia: diaParam }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
-  const hoy = hoyVE();
+  const hoy = hoyCaracas();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
-  const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const desde = sumarDias(hoy, -30);
   const [consultas, citas, listas, solicitudes, org] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde }),
     sesion.demo ? [] : listarCitas(dia),
@@ -79,9 +74,9 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Cola de atención</h2>
           <div className="ml-2 flex items-center gap-1 rounded-lg border bg-card p-0.5">
-            <Button variant="ghost" size="icon" className="size-8" asChild><Link href={`/atencion?dia=${moverDia(dia, -1)}`} aria-label="Día anterior"><ChevronLeft /></Link></Button>
+            <Button variant="ghost" size="icon" className="size-8" asChild><Link href={`/atencion?dia=${sumarDias(dia, -1)}`} aria-label="Día anterior"><ChevronLeft /></Link></Button>
             <span className="px-2 text-sm first-letter:uppercase">{dia === hoy ? "Hoy" : etiquetaDia}</span>
-            <Button variant="ghost" size="icon" className="size-8" asChild><Link href={`/atencion?dia=${moverDia(dia, 1)}`} aria-label="Día siguiente"><ChevronRight /></Link></Button>
+            <Button variant="ghost" size="icon" className="size-8" asChild><Link href={`/atencion?dia=${sumarDias(dia, 1)}`} aria-label="Día siguiente"><ChevronRight /></Link></Button>
           </div>
           {dia !== hoy && <Link href="/atencion" className="text-sm text-primary hover:underline">Volver a hoy</Link>}
           <span className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">

@@ -2,6 +2,7 @@
 // Se guardan en lista_items (lista «plantilla_examen», codigo = código del motivo) y referencian por código
 // los perfiles de examen y las recomendaciones de la organización.
 import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
+import { sumarMeses } from "@/lib/fecha";
 
 export type DatosPlantilla = {
   funcional: string | null; // código de perfil_examen_funcional
@@ -65,12 +66,6 @@ function sumarFrases(actual: string, codigos: string[], items: ItemTexto[] = [])
   }
   return lineas.join("\n");
 }
-
-const sumarMeses = (fecha: string, meses: number) => {
-  const [a, m, d] = fecha.split("-").map(Number);
-  const f = new Date(Date.UTC(a, m - 1 + meses, d));
-  return f.toISOString().slice(0, 10);
-};
 
 // Listas de la organización por código (las que falten se toman vacías)
 export type ListasPlantilla = Record<string, ItemTexto[] | undefined>;

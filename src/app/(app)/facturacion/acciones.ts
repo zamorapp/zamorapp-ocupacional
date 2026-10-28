@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { Cobro, ItemCobro, Servicio } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -131,7 +132,7 @@ export async function crearPresupuesto(empresaId: string): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
   if (!empresaId) return { ok: false, mensaje: "Elige la empresa arriba." };
-  const vence = new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10);
+  const vence = sumarDias(hoyCaracas(), 15);
   const { data, error } = await c.supabase.from("cobros").insert({ org_id: c.sesion.orgId!, empresa_id: empresaId, tipo: "presupuesto", vence }).select("id").single();
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/facturacion");

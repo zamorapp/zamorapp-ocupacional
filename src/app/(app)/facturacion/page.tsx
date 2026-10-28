@@ -5,7 +5,7 @@ import { NuevoPresupuesto } from "./nuevo-presupuesto";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { hoyVE } from "@/lib/citas";
+import { hoyCaracas } from "@/lib/fecha";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { listarAtenciones, listarCobros, listarServicios, tasaVigente } from "@/lib/facturacion";
@@ -50,7 +50,7 @@ export default async function Facturacion({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Facturación</h1>
           <p className="text-muted-foreground">Servicios, pacientes atendidos y notas de cobro a las empresas clientes.</p>
         </div>
-        <TasaBcv actual={tasa} hoy={hoyVE()} editable={editable} />
+        <TasaBcv actual={tasa} hoy={hoyCaracas()} editable={editable} />
       </div>
 
       <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
@@ -63,7 +63,7 @@ export default async function Facturacion({ searchParams }: Props) {
 
       {vista === "cuentas" && (async () => {
         // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad
-        const hoy = hoyVE();
+        const hoy = hoyCaracas();
         const abiertas = (await listarCobros()).filter((c) => c.tipo === "cobro" && c.estado === "emitida" && (!empresaId || c.empresaId === empresaId));
         const porEmpresa = new Map<string, { empresa: string; tramos: number[]; total: number; notas: number }>();
         for (const c of abiertas) {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { faltantes, type Investigacion } from "@/lib/investigacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string; id?: string; terminadoEn?: string | null };
 
@@ -19,7 +20,7 @@ export async function guardarInvestigacion(inv: Investigacion, accion: "guardar"
       return { ok: false, mensaje: "Quedan textos «[por completar]» en el informe. Complétalos o bórralos antes de terminar." };
     }
   }
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
+  const hoy = hoyCaracas();
   const terminadoEn = accion === "terminar" ? hoy : accion === "reabrir" ? null : inv.terminadoEn;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase

@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type EstadoCita = "solicitada" | "citado" | "en_espera" | "en_consulta" | "atendido" | "no_asistio" | "cancelada";
 
@@ -29,8 +30,6 @@ type Fila = {
   empresas: { razon_social: string } | null;
   motivo: { nombre: string } | null;
 };
-
-export const hoyVE = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
 export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]> {
   if (!supabaseConfigurado) return [];
@@ -73,7 +72,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
     .from("citas")
     .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
     .eq("estado", "solicitada")
-    .gte("fecha", hoyVE())
+    .gte("fecha", hoyCaracas())
     .order("fecha")
     .order("hora", { nullsFirst: false })
     .limit(200);
