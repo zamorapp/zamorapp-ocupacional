@@ -125,8 +125,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         replica.ciclo().catch(() => {});
         return responder(res, 200, sesionLocal(uid));
       } catch (e) {
-        registro(`[puerta] nube no responde al entrar: ${e.message}`);
-        nube.enLinea = false;
+        nube.marcarCaida(`al entrar: ${e.message}`);
       }
     }
     const [uid, u] = conocido || [];
@@ -166,8 +165,17 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
 
   // Reenvía la petición a la nube con el token de la nube de ese usuario. Devuelve false si la nube no responde.
   async function aLaNube(req, res, cuerpo, uid) {
-    const token = uid ? await nube.token(uid) : null;
-    if (uid && !token) return false;
+    let token = null;
+    try {
+      token = uid ? await nube.token(uid) : null;
+    } catch (e) {
+      nube.marcarCaida(`al renovar la sesión: ${e.message}`);
+      return false;
+    }
+    if (uid && !token) {
+      registro(`[puerta] ${req.method} ${req.url.split("?")[0]}: hay internet pero este usuario no tiene sesión en la nube (entró sin conexión o la nube la cerró); se atiende desde la copia`);
+      return false;
+    }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
     try {
@@ -192,8 +200,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       res.end(cuerpoRespuesta);
       return true;
     } catch (e) {
-      registro(`[puerta] nube no responde: ${e.message}`);
-      nube.enLinea = false;
+      nube.marcarCaida(`${req.method} ${req.url.split("?")[0]}: ${e.message}`);
       return false;
     }
   }
@@ -210,10 +217,28 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     res.end(Buffer.from(await r.arrayBuffer()));
   }
 
-  const soloLectura = (req) => {
+  // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
+  // leídas de la copia local, más la lista fija. Así una función de lectura nueva funciona sin conexión sin
+  // tener que acordarse de anotarla aquí (la 0.1.168 no abría sin conexión por trabajadores_por_empresa).
+  let lectura = { nombres: new Set(RPC_LECTURA), en: 0 };
+  async function funcionesDeLectura() {
+    if (Date.now() - lectura.en < 300e3) return lectura.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query("select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.provolatile in ('s', 'i')");
+      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: Date.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué funciones son de lectura: ${e.message}`);
+      lectura.en = Date.now() - 240e3; // se reintenta en un minuto
+    } finally { await c.end().catch(() => {}); }
+    return lectura.nombres;
+  }
+
+  const soloLectura = async (req) => {
     if (["GET", "HEAD"].includes(req.method)) return true;
     const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
-    return Boolean(m && RPC_LECTURA.has(m[1]));
+    return Boolean(m && (await funcionesDeLectura()).has(m[1]));
   };
 
   async function registrarEquipo(req, res, cuerpo) {
@@ -375,9 +400,12 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
-        if (nube.enLinea && await aLaNube(req, res, crudo, quien.uid)) return;
+        if (await nube.confirmar() && await aLaNube(req, res, crudo, quien.uid)) return;
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
-        if (!soloLectura(req)) return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
+        if (!await soloLectura(req)) {
+          registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
+          return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
+        }
         return await aLaCopia(req, res, crudo);
       }
       return responder(res, 404, { message: "No encontrado" });

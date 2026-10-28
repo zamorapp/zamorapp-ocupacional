@@ -137,6 +137,30 @@ test("sin internet: guardar se rechaza con un mensaje claro y los adjuntos esper
   assert.equal(s.status, 503);
 });
 
+// 28/10/2026: la 0.1.168 no abría: el menú de la app llama a trabajadores_por_empresa por POST y la puerta,
+// sin conexión, lo tomaba por escritura. Toda función stable/immutable de la base es lectura y va a la copia.
+test("sin internet: las funciones de lectura (stable) responden desde la copia; las que escriben no", { skip: omitir }, async () => {
+  const conteo = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(conteo.status, 200, JSON.stringify(conteo.json));
+  assert.ok(Array.isArray(conteo.json));
+  const escribir = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: "30000000-0000-0000-0000-00000000000a" } });
+  assert.equal(escribir.status, 503);
+  assert.equal(escribir.json.code, "OFFLINE");
+});
+
+// Un «sin conexión» de un instante (p. ej. la red de Windows aún no lista al arrancar) no deja la PC sin internet
+// hasta la próxima sincronía: a los 15 s la puerta vuelve a preguntar sola.
+test("volvió internet: la puerta lo nota sola en la siguiente petición", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  assert.equal(nubeObj.enLinea, false);
+  nubeObj.revisadaEn = Date.now() - 16_000;
+  const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: tokenMed });
+  assert.equal(t.status, 200);
+  assert.equal(nubeObj.enLinea, true);
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+});
+
 test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir }, async () => {
   const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   assert.equal(ok.status, 200);
