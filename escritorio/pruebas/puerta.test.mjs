@@ -263,6 +263,8 @@ test("Windows Hello: se activa con la sesión abierta y luego entra sin clave", 
   const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   assert.equal(ok.status, 200);
   assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 0);
+  const { instalacion } = (await pedir("/zamorapp/huella/estado")).json;
+  assert.ok(instalacion, "la puerta identifica la instalación");
   assert.equal((await pedir("/zamorapp/huella/preparar", { metodo: "POST" })).status, 401, "sin sesión no se prepara");
   const prep = await pedir("/zamorapp/huella/preparar", { metodo: "POST", token: ok.json.access_token });
   assert.equal(prep.status, 200);
@@ -272,6 +274,7 @@ test("Windows Hello: se activa con la sesión abierta y luego entra sin clave", 
   assert.equal((await ventana(`/zamorapp/huella/activar?codigo=${prep.json.codigo}`)).json.ok, true);
   assert.equal((await ventana(`/zamorapp/huella/activar?codigo=${prep.json.codigo}`)).json.ok, false, "el código sirve una vez");
   assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 1);
+  assert.equal((await pedir("/zamorapp/huella/estado")).json.instalacion, instalacion);
   assert.equal((await pedir("/zamorapp/huella/mia", { token: ok.json.access_token })).json.activa, true);
   // La dirección que intercepta la ventana: si llega a la puerta, no cambia la página
   assert.equal((await fetch(`${urlPuerta}/zamorapp/huella/ventana/entrar`)).status, 204);

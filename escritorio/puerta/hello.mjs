@@ -71,7 +71,11 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
     // Hello. 204: el navegador no cambia de página y la página avisa que hay que actualizar.
     if (ruta.startsWith("/zamorapp/huella/ventana/")) { res.writeHead(204); res.end(); return true; }
 
-    if (ruta === "/zamorapp/huella/estado" && req.method === "GET") return responder(res, 200, { usuarios: activos().length }), true;
+    if (ruta === "/zamorapp/huella/estado" && req.method === "GET") {
+      // instalacion: identifica estos datos; la página la usa para que «Ahora no» no pase a una PC reinstalada
+      if (!d().instalacion) { d().instalacion = crypto.randomBytes(9).toString("base64url"); estado.guardar(); }
+      return responder(res, 200, { usuarios: activos().length, instalacion: d().instalacion }), true;
+    }
 
     if (ruta === "/zamorapp/huella/mia" && req.method === "GET") {
       const quien = usuarioDe(req);

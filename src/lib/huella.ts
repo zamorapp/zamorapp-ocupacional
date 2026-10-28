@@ -38,8 +38,11 @@ export async function huellaActivaAqui(): Promise<boolean> {
   return leer(MARCA) === "1";
 }
 
-export const ofrecerHuella = () => leer(NO_OFRECER) !== "1" && leer(MARCA) !== "1";
-export const noOfrecerHuella = () => escribir(NO_OFRECER, "1");
+// En escritorio el «Ahora no» vale solo para esta instalación: la memoria de la ventana (WebView2) sobrevive a
+// desinstalar el programa, y en una PC reinstalada hay que volver a ofrecer Windows Hello.
+const claveNoOfrecer = async () => ES_ESCRITORIO ? `${NO_OFRECER}.${(await estadoEscritorio())?.instalacion ?? ""}` : NO_OFRECER;
+export const ofrecerHuella = async () => leer(await claveNoOfrecer()) !== "1" && (ES_ESCRITORIO || leer(MARCA) !== "1");
+export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1");
 
 /** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */
 export async function activarHuella(supabase: SupabaseClient): Promise<Resultado> {
@@ -107,7 +110,7 @@ export async function huellaActivaEscritorio(supabase: SupabaseClient): Promise<
   return Boolean(r?.ok && (await r.json().catch(() => null))?.activa);
 }
 
-async function estadoEscritorio(): Promise<{ usuarios: number } | null> {
+async function estadoEscritorio(): Promise<{ usuarios: number; instalacion?: string } | null> {
   const r = await fetch(`${PUERTA}/zamorapp/huella/estado`).catch(() => null);
   return r?.ok ? await r.json().catch(() => null) : null;
 }

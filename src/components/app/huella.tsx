@@ -21,7 +21,9 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
   useEffect(() => {
     (async () => {
       if (!(await huellaDisponible())) return;
-      setEstado((await huellaActivaAqui()) ? "activa" : "posible");
+      const activa = await huellaActivaAqui();
+      // En escritorio el botón solo aparece si alguien activó Windows Hello en esta PC
+      if (activa || !ES_ESCRITORIO) setEstado(activa ? "activa" : "posible");
     })();
   }, []);
 
@@ -89,7 +91,7 @@ export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
         <Button className="h-11" onClick={activar} disabled={cargando}>
           {cargando ? <Loader2 className="animate-spin" /> : <Fingerprint />} Activar {NOMBRE}
         </Button>
-        <Button variant="ghost" onClick={() => { noOfrecerHuella(); alTerminar(); }} disabled={cargando}>Ahora no</Button>
+        <Button variant="ghost" onClick={() => { void noOfrecerHuella(); alTerminar(); }} disabled={cargando}>Ahora no</Button>
       </div>
     </div>
   );
