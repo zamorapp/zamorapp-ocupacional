@@ -363,6 +363,49 @@ try {
     if (sw.length || cachesVivas.length) throw new Error(`Quedó un service worker (${sw.join(", ") || "-"}) o cachés (${cachesVivas.join(", ") || "-"}) en la ventana`);
   });
 
+  const fallas = []; // se revisan al final, para que el resto de la prueba (PDF, imprimir) igual corra
+  await paso("recorrer cada pantalla del menú: tiempo y errores", async () => {
+    // Como lo hace Cesar: clic en el menú lateral (navegación dentro de la app), dos vueltas (la segunda ya
+    // tiene el JavaScript de cada pantalla). Meta: menos de 1 s. Una pantalla que no carga o da error falla.
+    const RUTAS = ["/panel", "/pacientes", "/atencion", "/accidentes", "/inspeccion", "/empresas", "/reportes", "/facturacion", "/envios", "/solicitudes", "/documentos", "/configuracion", "/ayuda"];
+    const titulo = () => pagina.evaluate(() => document.querySelector("h1")?.textContent?.trim() || "");
+    for (const vuelta of [1, 2]) {
+      const tiempos = [];
+      for (const ruta of RUTAS) {
+        const errores = [];
+        const alResponder = (r) => { if (r.status() >= 500) errores.push(`${r.status()} ${r.request().method()} ${r.url()}`); };
+        const alFallar = (e) => errores.push(e.message);
+        pagina.on("response", alResponder);
+        pagina.on("pageerror", alFallar);
+        const antes = await titulo().catch(() => "");
+        const t = Date.now();
+        let como = "menú";
+        try {
+          const enlace = pagina.locator(`aside a[href="${ruta}"]`).first();
+          if (await enlace.isVisible().catch(() => false)) await enlace.click();
+          else { como = "dirección"; await pagina.goto(new URL(ruta, pagina.url()).href); }
+          await pagina.waitForURL((u) => u.pathname === ruta || u.pathname.startsWith(ruta + "/"), { timeout: 30_000 });
+          await pagina.waitForFunction((previo) => {
+            const h1 = document.querySelector("h1")?.textContent?.trim() || "";
+            return h1 && h1 !== previo && !document.querySelector("[aria-busy=true]");
+          }, antes, { timeout: 30_000 });
+        } catch (e) {
+          errores.push(`no terminó de cargar en 30 s (${e.message.split("\n")[0]})`);
+        }
+        const ms = Date.now() - t;
+        pagina.off("response", alResponder);
+        pagina.off("pageerror", alFallar);
+        const h1 = await titulo().catch(() => "");
+        if (/No se pudo cargar|versión nueva/i.test(h1)) errores.push(`la pantalla mostró «${h1}»`);
+        tiempos.push(`${ruta} ${ms} ms${ms > 1000 ? " (LENTA)" : ""}`);
+        if (errores.length) fallas.push(`${ruta} (vuelta ${vuelta}, por ${como}): ${errores.join("; ")}`);
+        anotar(`      vuelta ${vuelta} · ${ruta} · ${ms} ms · por ${como} · «${h1.slice(0, 40)}»${errores.length ? ` · FALLA: ${errores.join("; ")}` : ""}`);
+      }
+      anotar(`   TIEMPOS vuelta ${vuelta}: ${tiempos.join(" | ")}`);
+    }
+    anotar(fallas.length ? `   PANTALLAS CON FALLA: ${fallas.length}` : "   todas las pantallas cargaron sin error");
+  });
+
   if (IMPRIMIR) {
     const documento = await paso("abrir el informe de vigilancia en su propia ventana", async () => {
       await pagina.goto(new URL("/reportes", pagina.url()).href, { waitUntil: "domcontentloaded" });
@@ -436,6 +479,7 @@ try {
     });
   }
 
+  if (fallas.length) throw new Error(`Pantallas con falla: ${fallas.join(" || ")}`);
   anotar("RESULTADO: ingreso por la ventana correcto");
 } catch (e) {
   if (!e.soloObservar) {

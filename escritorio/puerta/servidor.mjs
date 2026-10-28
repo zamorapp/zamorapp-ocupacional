@@ -19,6 +19,7 @@ const DEVOLVER = ["content-type", "content-range", "preference-applied", "locati
 const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
+const LENTA_MS = 700; // una petición a la nube que tarda más se anota en puerta.log ([lenta])
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
@@ -187,6 +188,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
+    const inicio = Date.now();
     try {
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
@@ -207,6 +209,9 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       }
       res.writeHead(r.status, salida);
       res.end(cuerpoRespuesta);
+      // Lo que tarda la nube queda en puerta.log: así se mide en la PC real por qué una pantalla demora
+      const ms = Date.now() - inicio;
+      if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${req.url.split("?")[0]} ${ms} ms (nube, ${r.status})`);
       return true;
     } catch (e) {
       nube.marcarCaida(`${req.method} ${req.url.split("?")[0]}: ${e.message}`);
