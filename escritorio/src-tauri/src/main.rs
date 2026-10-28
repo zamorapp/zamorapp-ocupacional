@@ -345,6 +345,44 @@ fn sincronizar_ahora(app: AppHandle) {
 
 // Evita dos descargas a la vez (menú, aviso de la nube y búsqueda al abrir).
 static ACTUALIZANDO: AtomicBool = AtomicBool::new(false);
+// Actualización descargada que el usuario pidió instalar al cerrar: (versión, instalador, versión actual).
+static PENDIENTE: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>, String)>> = Mutex::new(None);
+
+// Al cerrar zamorApp, instala la actualización que quedó lista (el instalador vuelve a abrir el programa).
+fn instalar_pendiente() {
+    let Some((nueva, paquete, actual)) = PENDIENTE.lock().unwrap().take() else { return };
+    anotar("instalando la actualización pendiente al cerrar");
+    let _ = std::fs::write(carpeta_programa().join("actualizando.txt"), format!("{actual}\n{}\n", nueva.version));
+    if let Err(e) = nueva.install(paquete) {
+        let _ = std::fs::remove_file(carpeta_programa().join("actualizando.txt"));
+        anotar(&format!("ERROR al instalar la actualización pendiente: {e}"));
+    }
+}
+
+fn estado_pct(texto: &str) -> Option<u64> {
+    texto.split_whitespace().rev().nth(1).and_then(|n| n.parse().ok()).filter(|_| texto.ends_with('%'))
+}
+
+// Franja fija abajo de la ventana con el avance (el título solo se ve poco). Texto vacío la quita.
+fn franja_actualizacion(texto: &str, pct: Option<u64>) -> String {
+    let texto = serde_json::to_string(texto).unwrap_or_else(|_| "\"\"".into());
+    let ancho = pct.map(|p| format!("{p}%")).unwrap_or_else(|| "100%".into());
+    format!(r#"(() => {{
+  let f = document.getElementById("zamorapp-actualizacion");
+  const texto = {texto};
+  if (!texto) {{ f?.remove(); return; }}
+  if (!f) {{
+    f = document.createElement("div");
+    f.id = "zamorapp-actualizacion";
+    f.setAttribute("role", "status");
+    f.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#0f3d3e;color:#fff;font:600 14px system-ui,sans-serif;padding:8px 16px;box-shadow:0 -2px 8px rgba(0,0,0,.2)";
+    f.innerHTML = '<span></span><div style="height:4px;margin-top:6px;background:rgba(255,255,255,.25);border-radius:2px"><div style="height:100%;background:#7fd6c2;border-radius:2px;transition:width .3s"></div></div>';
+    document.body.appendChild(f);
+  }}
+  f.firstChild.textContent = texto;
+  f.lastChild.firstChild.style.width = "{ancho}";
+}})()"#)
+}
 
 // Si la última vez se instaló una actualización, anota cómo terminó y se lo dice al usuario.
 fn revisar_actualizacion_anterior(app: &AppHandle) {
@@ -399,6 +437,7 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
                 let mostrar = |texto: &str, estado: ProgressBarState| if let Some(v) = &ventana {
                     let _ = v.set_title(&if texto.is_empty() { titulo.clone() } else { format!("{titulo} — {texto}") });
                     let _ = v.set_progress_bar(estado);
+                    let _ = v.eval(&franja_actualizacion(texto, estado_pct(texto)));
                 };
                 anotar(&format!("descargando la actualización {}", nueva.version));
                 mostrar("Descargando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
@@ -429,7 +468,20 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
                 ));
                 match descarga {
                     Ok(paquete) => {
-                        anotar("actualización descargada y verificada; instalando");
+                        anotar("actualización descargada y verificada");
+                        // Instalar cierra el programa: se pregunta antes, para no perder una consulta a medio escribir.
+                        let ahora = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || app.dialog()
+                            .message("La actualización está lista. Guarda lo que estés escribiendo.\n\nAl instalar, zamorApp se cierra unos segundos y se vuelve a abrir solo.")
+                            .title("Actualización lista")
+                            .buttons(MessageDialogButtons::OkCancelCustom("Instalar ahora".into(), "Al cerrar zamorApp".into()))
+                            .blocking_show();
+                        if !ahora {
+                            anotar("actualización lista; se instalará al cerrar zamorApp");
+                            mostrar("Actualización lista: se instala al cerrar", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                            *PENDIENTE.lock().unwrap() = Some((nueva, paquete, actual));
+                            return;
+                        }
+                        anotar("instalando la actualización");
                         mostrar("Instalando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
                         // Al volver a abrir, el programa ve esta marca, anota el resultado y avisa que ya está al día.
                         let _ = std::fs::write(carpeta_programa().join("actualizando.txt"), format!("{actual}\n{}\n", nueva.version));
@@ -580,6 +632,7 @@ fn main() {
         RunEvent::Exit => {
             anotar("cerrando");
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
+            instalar_pendiente();
         }
         _ => {}
     });

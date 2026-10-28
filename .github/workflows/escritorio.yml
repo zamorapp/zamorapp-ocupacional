@@ -123,6 +123,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
+          # Al publicar, sin la llave real (privada y pública) ninguna PC aceptaría la actualización: se corta aquí
+          if ("${{ github.ref == 'refs/heads/main' && inputs.publicar }}" -eq "true") {
+            if (-not $env:ZAMORAPP_UPDATER_PUBKEY) { throw "Falta la variable ZAMORAPP_UPDATER_PUBKEY: no se puede publicar" }
+            if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "Falta el secreto TAURI_SIGNING_PRIVATE_KEY: no se puede publicar" }
+          }
           # El instalador siempre sale firmado (así la prueba de humo prueba una actualización de verdad). Con la llave
           # real solo al publicar desde main; en cualquier otra corrida, con una llave de prueba de un solo uso.
           if ($env:TAURI_SIGNING_PRIVATE_KEY) {
