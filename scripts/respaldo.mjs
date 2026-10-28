@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import pg from "pg";
+import { configuracion } from "./conexion-segura.mjs";
 
 const CONSERVAR = 30;
 const MESES = 12;
@@ -19,10 +20,6 @@ const INTENTOS = 3;
 const ESPERA_MS = Number(process.env.RESPALDO_ESPERA_MS ?? 30_000);
 const carpetas = process.argv.slice(2);
 if (!carpetas.length) throw new Error("Indica al menos una carpeta de destino");
-
-// El volcado lleva cuentas y datos clínicos: el certificado del servidor se verifica contra la raíz
-// de Supabase (supabase-ca-2021.crt, pública, vence en 2031), igual que cargar.mjs
-const SSL = { ca: fs.readFileSync(new URL("./supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true };
 
 let cliente = null;
 let datos, filas, ultimoError, intentos = 0;
@@ -101,7 +98,7 @@ async function leerBase() {
 // del pooler mientras el cliente está ocioso tumba el proceso («Unhandled 'error' event»).
 async function conectado() {
   if (cliente) return cliente;
-  const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: SSL, connectionTimeoutMillis: 30_000 });
+  const c = new pg.Client({ ...configuracion(process.env.DATABASE_URL), connectionTimeoutMillis: 30_000 });
   c.on("error", (e) => {
     console.error(`La base cortó la conexión: ${e.message}`);
     if (cliente === c) cliente = null;

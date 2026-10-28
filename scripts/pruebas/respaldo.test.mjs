@@ -11,6 +11,7 @@ import { test } from "node:test";
 import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { configuracion, SSL } from "../conexion-segura.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../respaldo.mjs", import.meta.url));
 const BASE = process.env.RESPALDO_PRUEBA_DB;
@@ -102,11 +103,25 @@ test("certificado ajeno: no se conecta ni guarda nada", async (t) => {
     });
   });
   await new Promise((r) => servidor.listen(0, "127.0.0.1", r));
-  const carpeta = fs.mkdtempSync(path.join(os.tmpdir(), "respaldo-"));
-  const r = await correr(`postgresql://x:y@127.0.0.1:${servidor.address().port}/postgres`, carpeta);
+  // También con un «?sslmode=require» guardado en la URL, que en pg apagaría la verificación
+  for (const extra of ["", "?sslmode=require", "?sslmode=no-verify", "?sslmode=disable"]) {
+    const carpeta = fs.mkdtempSync(path.join(os.tmpdir(), "respaldo-"));
+    const r = await correr(`postgresql://x:y@127.0.0.1:${servidor.address().port}/postgres${extra}`, carpeta);
+    assert.notEqual(r.codigo, 0, extra);
+    if (extra !== "?sslmode=disable") assert.match(r.salida, /self[- ]signed|unable to verify|certificate/i, extra);
+    assert.deepEqual(fs.readdirSync(carpeta), [], extra);
+  }
   servidor.close();
-  assert.notEqual(r.codigo, 0);
-  assert.match(r.salida, /self[- ]signed|unable to verify|certificate/i);
   assert.equal(handshakes, 0, "la clave nunca viaja a un servidor sin el certificado de Supabase");
-  assert.deepEqual(fs.readdirSync(carpeta), []);
+});
+
+test("la URL no puede apagar la verificación del certificado", () => {
+  const remoto = "postgresql://u:p@aws-1-us-west-2.pooler.supabase.com:6543/postgres";
+  for (const q of ["?sslmode=require", "?sslmode=disable", "?sslmode=no-verify&sslrootcert=system", "?ssl=true&sslcert=x.pem&sslkey=y.pem", "?uselibpqcompat=true&sslmode=require"]) {
+    const c = configuracion(remoto + q);
+    assert.equal(c.ssl, SSL, q);
+    assert.doesNotMatch(c.connectionString, /ssl|libpq/i, q);
+  }
+  assert.equal(configuracion("postgresql://postgres@127.0.0.1:5499/x?sslmode=disable").ssl, false, "solo el banco local va sin SSL");
+  assert.equal(configuracion("postgresql://postgres@127.0.0.1:5499/x").ssl, SSL);
 });

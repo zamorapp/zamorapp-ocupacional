@@ -3,11 +3,12 @@
 // Fuente: paquete npm "cie10" (MIT), 14.204 códigos en español.
 import fs from "node:fs";
 import pg from "pg";
+import { configuracion } from "./conexion-segura.mjs";
 
 const sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const datos = JSON.parse(fs.readFileSync(new URL("../supabase/datos/cie10.json", import.meta.url), "utf8"));
 
-const cliente = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { ca: fs.readFileSync(new URL("./supabase-ca-2021.crt", import.meta.url), "utf8"), rejectUnauthorized: true } });
+const cliente = new pg.Client(configuracion(process.env.DATABASE_URL));
 await cliente.connect();
 await cliente.query("begin");
 for (let i = 0; i < datos.length; i += 1000) {
