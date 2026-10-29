@@ -10,6 +10,8 @@ import { InformePuesto, type Evaluador } from "../informe-puesto";
 
 export const metadata: Metadata = { title: "Evaluación del puesto de trabajo" };
 export const dynamic = "force-dynamic";
+// «Enviar a la empresa» genera el PDF de esta página en el servidor
+export const maxDuration = 60;
 
 // Página del informe de evaluación del puesto (los datos se cargan aquí; el diseño está en informe-puesto.tsx)
 export default async function EvaluacionPuesto({ params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +47,7 @@ export default async function EvaluacionPuesto({ params }: { params: Promise<{ i
   };
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/empresas/${p.empresa_id}`} titulo={`Evaluación del puesto · ${p.nombre}`} />
+      <BarraImpresion volver={`/empresas/${p.empresa_id}`} titulo={`Evaluación del puesto · ${p.nombre}`} envio={(sesion.clinico || sesion.rol === "administrador") ? { documento: "puesto", empresaId: p.empresa_id, empresa: emp?.razon_social ?? "" } : null} />
       <InformePuesto doc={doc} p={{ ...p, dependencia: (p.dependencias as unknown as { nombre: string } | null)?.nombre ?? null }} expuestos={expuestos} ev={evaluador as Evaluador} />
     </div>
   );

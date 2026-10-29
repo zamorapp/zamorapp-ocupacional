@@ -10,13 +10,16 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-29";
+export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa». La vigilancia que sale a la empresa no lleva discapacidad y oculta cifras menores de 3 (se cambia en Configuración › Organización); hay que guardarla antes de enviarla", tema: "rrhh-whatsapp" },
+  { fecha: "2026-10-29", texto: "Los exámenes escaneados, firmas y PDF de solicitudes también entran en el respaldo diario (PC y Drive)", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
+  { fecha: "2026-10-29", texto: "Vigilancia como el SAME: cuenta a los trabajadores efectivos, separa los permisos del ausentismo y agrega reubicaciones y especialidades por consulta externa (criterios en Configuración › Organización)", tema: "reportes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -146,6 +149,7 @@ export const MANUAL: TemaManual[] = [
     resumen: "El editor de la consulta: pasos numerados, dictado por voz, evolución de signos, duplicar, accidentes y avisos que nunca bloquean.",
     pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
+      "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Sexo, cargo y demás datos se completan después.",
       "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar.",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",
       "Evaluación rápida (pre-empleo, periódico, egreso, reintegro y demás preventivos): la consulta abre en el paso «Evaluación rápida», con todo lo esencial en una pantalla: signos vitales, el examen resumido (dice «Normal» o muestra solo lo alterado), los paraclínicos con sus resultados, «Trabajador sano», la aptitud y «Cerrar, firmar e imprimir». Abajo te dice qué falta (TA, peso, diagnóstico o sano, aptitud) sin impedir cerrar. Para el detalle, «Editar» o los pasos de arriba.",
@@ -301,6 +305,10 @@ export const MANUAL: TemaManual[] = [
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
       "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
       "Reportes › Vigilancia: cada gráfico trae su análisis, redactado con los datos del período. «Otra redacción» reescribe el resumen, la conclusión y los análisis con otras palabras; puedes editar cualquiera en «Análisis de cada cuadro» y Guardar. El informe impreso trae portada con indicadores, hallazgos clave y comparación con el período anterior; los cortes del SAME van en el anexo.",
+      "Por defecto cuenta como el SAME: solo los trabajadores efectivos (Empleado, Obrero, Contratado, Pasante y Aprendiz); las consultas por motivo y por tipo de paciente incluyen a todos. Qué tipos cuentan se marca en Configuración › Listas › Tipos de paciente, y para contar a todos se cambia en Configuración › Organización › Informe de vigilancia.",
+      "Horas hombre: por defecto se usa la fórmula del SAME (trabajadores × 5,5 h × días del período). En Configuración › Organización puedes elegir las horas de nómina cargadas en cada empresa.",
+      "Los permisos (paternidad, lactancia y toda causa de reposo del tipo «permiso») salen en «Permisos por causa» y no suben el % de ausentismo, igual que pre y postnatal.",
+      "En la consulta, la reubicación tiene «Resultado» (efectiva, negada o en trámite) y, con motivo consulta externa o especializada, aparece «Especialidad»: ambos alimentan los cuadros Reubicaciones y Especialidades por consulta externa.",
       "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [
@@ -403,6 +411,7 @@ export const MANUAL: TemaManual[] = [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
       "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube. Si al encender la PC Drive tarda, el respaldo lo espera hasta 5 minutos; y si quedó solo en la PC, sube a Drive en el siguiente respaldo.",
+      "Los archivos (exámenes escaneados, firmas y PDF de solicitudes) también se respaldan: cada día bajan solo los nuevos a la carpeta «archivos» dentro de los mismos respaldos, en la PC y en Drive. Nunca se borran del respaldo.",
       "Una vez por semana, el respaldo se restaura de prueba en una base temporal de la PC (con el motor de zamorApp Escritorio), se comparan todas las filas y se borra. Si la PC tiene poca memoria libre, la prueba se pospone para no frenarla.",
       "En el Inicio, el administrador y el gerente médico ven el último respaldo y cuándo se probó la restauración: verde si está al día, amarillo si quedó solo en la PC, falló un intento o la prueba de restauración falló o tiene más de 8 días, rojo si pasó más de un día sin respaldo correcto.",
       "Para recuperar los datos en otra base: scripts\\restaurar.mjs con el último archivo de respaldo (lo hace el soporte técnico).",
@@ -437,6 +446,8 @@ export const MANUAL: TemaManual[] = [
       "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
       "Envíos › «Por enviar»: cada constancia que firmas aparece sola aquí, agrupada por empresa y día. Toca «WhatsApp · (nombre)» y se abre tu WhatsApp con el mensaje y el enlace seguro a las constancias; solo te falta tocar enviar.",
       "Si la empresa no tiene teléfono guardado, escríbelo en «Otro teléfono». Para mandar por correo o elegir otras opciones, «Correo y más».",
+      "En «Correo y más», bajo «También enviar»: la constancia de atención (sin diagnóstico, a todos) y las referencias y récipes (solo junto con la consulta médica, al personal de salud).",
+      "Informes: abre la evaluación del puesto, la vigilancia epidemiológica de una empresa o los pacientes atendidos de una empresa y toca «Enviar a la empresa». Sale el PDF por correo o un enlace por WhatsApp, y queda en la Bitácora.",
     ],
     consejos: [
       "En el teléfono: usa zamorApp desde el navegador o la app instalada; al tocar WhatsApp se abre tu WhatsApp con tu número.",

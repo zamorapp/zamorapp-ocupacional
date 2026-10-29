@@ -3,21 +3,28 @@ import { createHash, randomBytes } from "node:crypto";
 import { correoConfigurado, enviarCorreo } from "@/lib/correo";
 import {
   ASUNTO_ENVIO,
+  ASUNTO_INFORME,
   CORREO_VALIDO,
+  DOCS_CLINICOS,
   ESPERA_SIN_CONFIRMAR_MIN,
   MAX_LOTE,
+  MENSAJE_INFORME,
   mensajeSoloConstancias,
+  NOMBRE_DOCUMENTO,
   rellenar,
   telefonoWhatsApp,
   type ConsultaLote,
   type Contacto,
+  type DocInforme,
   type EntradaEnvio,
+  type EntradaInforme,
   type EnvioHistorial,
   type FilaBitacora,
   type GrupoPorEnviar,
   type Plantilla,
   type ResultadoEnvio,
 } from "@/lib/envios-tipos";
+import { hoyCaracas } from "@/lib/fecha";
 import { pdfDeRutas } from "@/lib/pdf-servidor";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -202,6 +209,32 @@ async function correoRegistrado(supabase: Cliente, fila: Record<string, unknown>
   return { destinatario, estado, error: error ?? (errCierre ? `Enviado; el registro quedó «sin confirmar»: ${errCierre.message}` : undefined) };
 }
 
+// Un PDF por grupo: lo que puede leer cualquiera de la empresa (constancias) y lo clínico (solo personal de salud)
+const PUBLICOS = ["constancia", "atencion"];
+const rutaLote = (docs: string[], ids: string[]) => `/imprimir/lote?doc=${docs.join(",")}&ids=${ids.join(",")}`;
+const nombreGrupo = (docs: string[]) =>
+  docs.length === 1 ? NOMBRE_DOCUMENTO[docs[0]] : docs.every((d) => PUBLICOS.includes(d)) ? "Constancias" : "Documentos médicos";
+// Grupos de un envío ya registrado (para reintentarlo): constancias aparte de lo clínico, como se mandó
+const gruposDe = (documentos: string[]) =>
+  [documentos.filter((d) => PUBLICOS.includes(d)), documentos.filter((d) => DOCS_CLINICOS.includes(d))].filter((g) => g.length);
+
+// Registra el envío por WhatsApp con su enlace seguro de 7 días y el PDF que abre; devuelve el wa.me listo
+async function enlaceRegistrado(supabase: Cliente, orgId: string, fila: Record<string, unknown>, archivo: Adjunto, nombre: string, texto: string) {
+  const destinatario = String(fila.destinatario);
+  const token = randomBytes(32).toString("base64url");
+  const { data: envio, error: err1 } = await supabase.from("envios").insert({ ...fila, estado: "enlace" }).select("id").single();
+  const { data: enlace, error: err2 } = envio
+    ? await supabase.from("envio_enlaces").insert({ org_id: orgId, envio_id: envio.id, token_hash: hex(createHash("sha256").update(token).digest()) }).select("id").single()
+    : { data: null, error: err1 };
+  const { error: err3 } = enlace ? await supabase.from("envio_archivos").insert({ enlace_id: enlace.id, nombre: archivo.nombre, contenido: hex(archivo.contenido) }) : { error: err2 };
+  if (err1 || err2 || err3) return { detalle: { destinatario, estado: "fallido", error: (err1 ?? err2 ?? err3)!.message } as Detalle, enlace: null };
+  const url = `${URL_PUBLICA}/e/${token}`;
+  return {
+    detalle: { destinatario, estado: "enlace" } as Detalle,
+    enlace: { nombre, whatsapp: `https://wa.me/${destinatario}?text=${encodeURIComponent(`${texto} ${url}`)}` },
+  };
+}
+
 const nombreArchivo = (empresa: string, fecha: string) => `${empresa} - ${fechaVE(fecha).replaceAll("/", "-")}.pdf`.replace(/[\\/:*?"<>|]/g, " ");
 
 export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
@@ -251,20 +284,25 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   }
   if (!destinos.length) return { ok: false, mensaje: e.canal === "correo" ? "Elige al menos un contacto con correo." : "Elige al menos un contacto con teléfono." };
   const llevanConsulta = destinos.some((d) => d.consulta);
-  if (!conConstancia.length && !llevanConsulta) return { ok: false, mensaje: "Las evaluaciones marcadas no tienen constancia de aptitud." };
+  const extras = new Set(e.extras ?? []);
+  // Constancias (para todos) y documentos clínicos (solo para quien recibe la consulta)
+  const publicos = [conConstancia.length ? "constancia" : null, extras.has("atencion") ? "atencion" : null].filter((x): x is string => x !== null);
+  const clinicos = ["consulta", ...(["referencia", "recipe"] as const).filter((x) => extras.has(x))];
+  if (!publicos.length && !llevanConsulta) return { ok: false, mensaje: "Las evaluaciones marcadas no tienen constancia de aptitud." };
+  const idsPublicos = extras.has("atencion") ? validasIds : conConstancia.map((c) => c.id);
 
   // PDF en el servidor, con la sesión de quien envía
   const nombreEmpresa = empresa.nombre_comercial || empresa.razon_social;
   const sufijo = nombreArchivo(nombreEmpresa, e.fecha);
-  const rutas = [conConstancia.length ? `/imprimir/lote?doc=constancia&ids=${conConstancia.map((c) => c.id).join(",")}` : null, llevanConsulta ? `/imprimir/lote?doc=consulta&ids=${validasIds.join(",")}` : null];
+  const rutas = [publicos.length ? rutaLote(publicos, idsPublicos) : null, llevanConsulta ? rutaLote(clinicos, validasIds) : null];
   let pdfs: Buffer[];
   try {
     pdfs = await pdfDeRutas(rutas.filter((r): r is string => r !== null));
   } catch (err) {
     return { ok: false, mensaje: `No se pudo generar el PDF: ${(err as Error).message}` };
   }
-  const constancias = conConstancia.length ? { nombre: `Constancias de aptitud - ${sufijo}`, contenido: pdfs[0] } : null;
-  const consultaPdf = llevanConsulta ? { nombre: `Consultas médicas - ${sufijo}`, contenido: pdfs[pdfs.length - 1] } : null;
+  const constancias = publicos.length ? { nombre: `${nombreGrupo(publicos)} - ${sufijo}`, contenido: pdfs[0] } : null;
+  const consultaPdf = llevanConsulta ? { nombre: `${nombreGrupo(clinicos)} - ${sufijo}`, contenido: pdfs[pdfs.length - 1] } : null;
 
   const cuando = ahoraVE();
   const marcas = (cantidad: number) => ({ fechaHora: cuando, empresa: nombreEmpresa, fecha: fechaVE(e.fecha), cantidad });
@@ -272,9 +310,10 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   const enlaces: NonNullable<ResultadoEnvio["enlaces"]> = [];
 
   for (const d of destinos) {
-    const docs = [constancias && "constancia", d.consulta && consultaPdf && "consulta"].filter(Boolean) as string[];
+    const docs = [...(constancias ? publicos : []), ...(d.consulta && consultaPdf ? clinicos : [])];
     if (!docs.length) continue;
-    const cantidad = docs.includes("consulta") ? validasIds.length : conConstancia.length;
+    const todas = docs.includes("consulta") || docs.includes("atencion");
+    const cantidad = todas ? validasIds.length : conConstancia.length;
     const texto = rellenar(e.mensaje.trim(), marcas(cantidad));
     const paraRRHH = e.mensajeConstancias?.trim();
     const cuerpo = d.consulta ? texto : paraRRHH ? rellenar(paraRRHH, marcas(cantidad)) : mensajeSoloConstancias(texto);
@@ -286,7 +325,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
       canal: e.canal,
       destinatario: d.destino,
       contacto_id: d.contacto?.id ?? null,
-      consultas: docs.includes("consulta") ? validasIds : conConstancia.map((c) => c.id),
+      consultas: todas ? validasIds : idsPublicos,
       documentos: docs,
       asunto,
       mensaje: cuerpo,
@@ -297,25 +336,10 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
       continue;
     }
 
-    // WhatsApp: enlace seguro de 7 días al PDF de constancias (la consulta médica nunca va por enlace)
-    const token = randomBytes(32).toString("base64url");
-    const { data: envio, error: err1 } = await supabase.from("envios").insert({ ...fila, estado: "enlace" }).select("id").single();
-    const { data: enlace, error: err2 } = envio
-      ? await supabase.from("envio_enlaces").insert({ org_id: sesion.orgId, envio_id: envio.id, token_hash: hex(createHash("sha256").update(token).digest()) }).select("id").single()
-      : { data: null, error: err1 };
-    const { error: err3 } = enlace
-      ? await supabase.from("envio_archivos").insert({ enlace_id: enlace.id, nombre: constancias!.nombre, contenido: hex(constancias!.contenido) })
-      : { error: err2 };
-    if (err1 || err2 || err3) {
-      detalle.push({ destinatario: d.destino, estado: "fallido", error: (err1 ?? err2 ?? err3)!.message });
-      continue;
-    }
-    const url = `${URL_PUBLICA}/e/${token}`;
-    enlaces.push({
-      nombre: d.contacto?.nombre ?? `+${d.destino}`,
-      whatsapp: `https://wa.me/${d.destino}?text=${encodeURIComponent(`${cuerpo}\n\nConstancias (enlace válido 7 días): ${url}`)}`,
-    });
-    detalle.push({ destinatario: d.destino, estado: "enlace" });
+    // WhatsApp: enlace seguro de 7 días al PDF de constancias (lo clínico nunca va por enlace)
+    const r = await enlaceRegistrado(supabase, sesion.orgId, fila, constancias!, d.contacto?.nombre ?? `+${d.destino}`, `${cuerpo}\n\nConstancias (enlace válido 7 días):`);
+    detalle.push(r.detalle);
+    if (r.enlace) enlaces.push(r.enlace);
   }
 
   const enviados = detalle.filter((x) => x.estado !== "fallido").length;
@@ -326,6 +350,86 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
     fuera ? `${fuera} evaluación${fuera === 1 ? "" : "es"} sin firmar quedó fuera` : null,
   ].filter(Boolean);
   return { ok: enviados > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
+}
+
+// La página del informe, siempre de esa empresa (la base lo vuelve a exigir al registrar el envío)
+export function rutaInformeValida(documento: string, ruta: string, empresaId: string) {
+  if (documento === "puesto") return /^\/imprimir\/puesto\/[0-9a-f-]{36}$/.test(ruta);
+  if (documento !== "vigilancia" && documento !== "atendidos") return false;
+  const m = /^\/imprimir\/(vigilancia|atendidos)\?([A-Za-z0-9=&_.:-]*)$/.exec(ruta);
+  const q = new URLSearchParams(m?.[2] ?? "");
+  // «para» lo pone solo el servidor (versión para la empresa); si viene del navegador, se rechaza
+  return Boolean(m && m[1] === documento && q.getAll("empresa").join() === empresaId && !q.has("para"));
+}
+// La vigilancia que sale a la empresa es siempre su versión sin discapacidad ni cifras pequeñas (#41)
+const rutaParaEmpresa = (documento: DocInforme, ruta: string) => (documento === "vigilancia" ? `${ruta}&para=empresa` : ruta);
+
+// Informe (puesto, vigilancia o pacientes atendidos) a los contactos de la empresa: mismo registro, texto y bitácora
+// que las evaluaciones. Por correo va el PDF; por WhatsApp, un enlace seguro de 7 días.
+export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  if (!sesion.clinico && sesion.rol !== "administrador") return { ok: false, mensaje: "Solo el servicio médico envía informes a la empresa." };
+  if (!rutaInformeValida(e.documento, e.ruta, e.empresaId)) return { ok: false, mensaje: "Ese informe no es de esta empresa." };
+  const ruta = rutaParaEmpresa(e.documento, e.ruta);
+  if (e.canal === "correo" && !correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+
+  const supabase = await crearClienteServidor();
+  const [{ data: empresa }, contactos] = await Promise.all([
+    supabase.from("empresas").select("id, razon_social, nombre_comercial").eq("id", e.empresaId).maybeSingle(),
+    listarContactos(e.empresaId),
+  ]);
+  if (!empresa) return { ok: false, mensaje: "Empresa no encontrada." };
+  const elegidos = contactos.filter((c) => e.contactoIds.includes(c.id));
+  let destinos: { destino: string; contacto: Contacto | null }[];
+  if (e.canal === "correo") {
+    const extra = [...new Set(e.correosExtra.map((c) => c.trim().toLowerCase()).filter(Boolean))];
+    const malos = extra.filter((c) => !CORREO_VALIDO.test(c));
+    if (malos.length) return { ok: false, mensaje: `Correo no válido: ${malos.join(", ")}` };
+    destinos = [
+      ...elegidos.filter((c) => c.correo).map((c) => ({ destino: c.correo!, contacto: c })),
+      ...extra.filter((x) => !elegidos.some((c) => c.correo === x)).map((x) => ({ destino: x, contacto: null })),
+    ];
+  } else {
+    const extra = [...new Set(e.telefonosExtra.map(telefonoWhatsApp).filter((t) => t.length >= 10))];
+    destinos = [...elegidos.filter((c) => c.telefono).map((c) => ({ destino: telefonoWhatsApp(c.telefono!), contacto: c })), ...extra.map((x) => ({ destino: x, contacto: null }))];
+  }
+  if (!destinos.length) return { ok: false, mensaje: e.canal === "correo" ? "Elige al menos un contacto con correo." : "Elige al menos un contacto con teléfono." };
+
+  const nombreEmpresa = empresa.nombre_comercial || empresa.razon_social;
+  const documento = NOMBRE_DOCUMENTO[e.documento];
+  const hoy = hoyCaracas();
+  let archivo: Adjunto;
+  try {
+    archivo = { nombre: `${documento} - ${nombreArchivo(nombreEmpresa, hoy)}`, contenido: (await pdfDeRutas([ruta]))[0] };
+  } catch (err) {
+    return { ok: false, mensaje: `No se pudo generar el PDF: ${(err as Error).message}` };
+  }
+  const valores = { fechaHora: ahoraVE(), empresa: nombreEmpresa, fecha: fechaVE(hoy), cantidad: 1, documento: documento.toLowerCase() };
+  const mensaje = rellenar(e.mensaje.trim() || MENSAJE_INFORME, valores);
+  const asunto = rellenar(e.asunto.trim() || ASUNTO_INFORME, { ...valores, documento }).slice(0, 200);
+  const detalle: Detalle[] = [];
+  const enlaces: NonNullable<ResultadoEnvio["enlaces"]> = [];
+  for (const d of destinos) {
+    const fila = {
+      org_id: sesion.orgId, empresa_id: e.empresaId, fecha_lote: hoy, canal: e.canal, destinatario: d.destino, contacto_id: d.contacto?.id ?? null,
+      consultas: [], documentos: [e.documento], ruta, asunto, mensaje,
+    };
+    if (e.canal === "correo") {
+      detalle.push(await correoRegistrado(supabase, fila, [archivo], `${sesion.nombre} · ${sesion.organizacion}`));
+      continue;
+    }
+    const r = await enlaceRegistrado(supabase, sesion.orgId, fila, archivo, d.contacto?.nombre ?? `+${d.destino}`, `${mensaje}\n\n${documento} (enlace válido 7 días):`);
+    detalle.push(r.detalle);
+    if (r.enlace) enlaces.push(r.enlace);
+  }
+  const bien = detalle.filter((x) => x.estado !== "fallido").length;
+  const mal = detalle.length - bien;
+  const partes = [
+    e.canal === "correo" ? `${bien} correo${bien === 1 ? "" : "s"} enviado${bien === 1 ? "" : "s"}` : `${bien} enlace${bien === 1 ? "" : "s"} listo${bien === 1 ? "" : "s"} para WhatsApp`,
+    mal ? `${mal} con error` : null,
+  ].filter(Boolean);
+  return { ok: bien > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
 }
 
 export async function revocarEnlace(envioId: string) {
@@ -349,13 +453,13 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
   const [{ data }, { data: hijos }] = await Promise.all([
     supabase
       .from("envios")
-      .select("id, org_id, empresa_id, fecha_lote, canal, destinatario, contacto_id, consultas, documentos, asunto, mensaje, estado, creado_en, empresas(razon_social, nombre_comercial)")
+      .select("id, org_id, empresa_id, fecha_lote, canal, destinatario, contacto_id, consultas, documentos, ruta, asunto, mensaje, estado, creado_en, empresas(razon_social, nombre_comercial)")
       .in("id", lista),
     supabase.from("envios").select("reintento_de").in("reintento_de", lista),
   ]);
   type Original = {
     id: string; org_id: string; empresa_id: string; fecha_lote: string; canal: string; destinatario: string; contacto_id: string | null;
-    consultas: string[]; documentos: string[]; asunto: string; mensaje: string; estado: string; creado_en: string;
+    consultas: string[]; documentos: string[]; ruta: string | null; asunto: string; mensaje: string; estado: string; creado_en: string;
     empresas: { razon_social: string; nombre_comercial: string | null } | null;
   };
   const yaReintentados = new Set((hijos ?? []).map((h) => h.reintento_de));
@@ -371,10 +475,11 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
     const empresa = o.empresas ? o.empresas.nombre_comercial || o.empresas.razon_social : "Empresa";
     const adjuntos: Adjunto[] = [];
     try {
-      for (const doc of o.documentos) {
-        const clave = `${doc}|${[...o.consultas].sort().join(",")}`;
-        if (!pdfs.has(clave)) pdfs.set(clave, (await pdfDeRutas([`/imprimir/lote?doc=${doc}&ids=${o.consultas.join(",")}`]))[0]);
-        adjuntos.push({ nombre: `${doc === "consulta" ? "Consultas médicas" : "Constancias de aptitud"} - ${nombreArchivo(empresa, o.fecha_lote)}`, contenido: pdfs.get(clave)! });
+      // Informe: el mismo PDF de su ruta; documentos de consultas: un PDF por grupo, como en el envío original
+      const partes = o.ruta ? [{ ruta: o.ruta, nombre: NOMBRE_DOCUMENTO[o.documentos[0]] }] : gruposDe(o.documentos).map((g) => ({ ruta: rutaLote(g, o.consultas), nombre: nombreGrupo(g) }));
+      for (const p of partes) {
+        if (!pdfs.has(p.ruta)) pdfs.set(p.ruta, (await pdfDeRutas([p.ruta]))[0]);
+        adjuntos.push({ nombre: `${p.nombre} - ${nombreArchivo(empresa, o.fecha_lote)}`, contenido: pdfs.get(p.ruta)! });
       }
     } catch (err) {
       detalle.push({ destinatario: o.destinatario, estado: "fallido", error: `No se pudo generar el PDF: ${(err as Error).message}` });
@@ -389,6 +494,7 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
       contacto_id: o.contacto_id,
       consultas: o.consultas,
       documentos: o.documentos,
+      ruta: o.ruta,
       asunto: o.asunto,
       mensaje: o.mensaje,
       reintento_de: o.id,

@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
+import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
 import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
+import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -89,6 +90,9 @@ function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
       <Campo id="d_rango_max" etiqueta="Máximo" defaultValue={v(d.max)} inputMode="decimal" placeholder="110" />
       <Campo id="d_rango_min_f" etiqueta="Mín. mujer" defaultValue={v(d.minF)} inputMode="decimal" placeholder="Igual" />
       <Campo id="d_rango_max_f" etiqueta="Máx. mujer" defaultValue={v(d.maxF)} inputMode="decimal" placeholder="Igual" />
+      <div className="col-span-2 sm:col-span-6">
+        <Campo id="d_sinonimos" etiqueta="Otros nombres en los informes del laboratorio (separados por coma)" defaultValue={sinonimosDe(datos).join(", ")} placeholder="HGB, Hb" maxLength={1300} />
+      </div>
       <p className="col-span-2 text-xs text-muted-foreground sm:col-span-6">Con el rango, el resultado se pinta solo: verde normal, ámbar fuera de rango, rojo alterado. Deja vacío lo que no aplique (p. ej. solo máximo para colesterol). «Mujer» solo si el rango cambia por sexo.</p>
     </div>
   );
@@ -146,6 +150,11 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
             <p className="text-xs text-aviso-texto sm:col-span-3">Este perfil se sugería por el nombre «{item.grupo}». Elige la empresa para que quede enlazado.</p>
           )}
         </>
+      ) : lista === "tipo_paciente" ? (
+        <CampoSelect id="grupo" etiqueta="Informe de vigilancia" defaultValue={item?.grupo ?? ""}>
+          <option value="efectivo">Cuenta como trabajador efectivo</option>
+          <option value="">No cuenta (aspirante, visitante, particular…)</option>
+        </CampoSelect>
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
@@ -176,7 +185,8 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
   const nombreDe = new Map([...(alcance?.empresas ?? []), ...(alcance?.motivos ?? [])].map((o) => [o.id, o.nombre]));
   const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
   const etiquetaGrupo = (g: string) =>
-    lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ") : g;
+    lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ")
+      : lista.codigo === "tipo_paciente" && g === "efectivo" ? "Trabajador efectivo" : g;
   const [editando, setEditando] = useState<string | "nuevo" | null>(null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();

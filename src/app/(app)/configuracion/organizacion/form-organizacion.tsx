@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { PLANTILLA_APTITUD, PLANTILLA_CITA } from "@/lib/mensajes";
 import { Loader2 } from "lucide-react";
 import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
@@ -29,8 +29,11 @@ type Ajustes = {
   recordatorio_resultados_dias?: number;
   centinela_correo?: boolean;
   dias_equipo_confianza?: number;
+  celda_minima_empresa?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
+  vigilancia_poblacion?: "efectivos" | "todos";
+  vigilancia_horas?: "same" | "nomina";
 };
 
 type Org = { nombre: string; rif: string | null; direccion: string | null; telefono: string | null; correo: string | null; ajustes: unknown };
@@ -58,7 +61,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="rif" etiqueta="RIF" defaultValue={org.rif ?? ""} placeholder="J-00000000-0" />
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
             <Campo id="correo" etiqueta="Correo" type="email" defaultValue={org.correo ?? ""} />
-            <Campo id="direccion" etiqueta="Dirección" defaultValue={org.direccion ?? ""} />
+            <CampoDireccion defaultValue={org.direccion ?? ""} />
             <Campo id="membrete_lema" etiqueta="Lema bajo el nombre (membrete)" defaultValue={a.membrete_lema ?? ""} placeholder="Servicios en Medicina Ocupacional · Ergonomía" className="sm:col-span-2" />
           </CardContent>
         </Card>
@@ -89,7 +92,8 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <div className="space-y-3">
               <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
               <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días; 0 = no recordar)" type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
-            <Campo id="dias_equipo_confianza" etiqueta="Pedir el código de dos pasos cada (días)" ayuda="En un equipo de confianza. 0 = en cada entrada." type="number" min={0} max={90} defaultValue={a.dias_equipo_confianza ?? 30} />
+              <Campo id="dias_equipo_confianza" etiqueta="Pedir el código de dos pasos cada (días)" ayuda="En un equipo de confianza. 0 = en cada entrada." type="number" min={0} max={90} defaultValue={a.dias_equipo_confianza ?? 30} />
+              <Campo id="celda_minima_empresa" etiqueta="En la vigilancia que se envía a la empresa, ocultar cifras menores de" ayuda="Protege la identidad en empresas pequeñas: se ve «<3». 0 = mostrar todas." type="number" min={0} max={10} defaultValue={a.celda_minima_empresa ?? 3} />
             </div>
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />
@@ -113,6 +117,22 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="space-y-1">
             <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? false} />
             <p className="pl-6 text-xs text-muted-foreground">Viene apagado. Llega al personal de salud y SST de cada empresa con el número de evento, la empresa y el plazo: nunca el nombre del trabajador ni el diagnóstico. Sale cuando un administrador o gerente médico abre zamorApp. La campana avisa siempre.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Informe de vigilancia epidemiológica</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <CampoSelect id="vigilancia_poblacion" etiqueta="Población que cuenta" defaultValue={a.vigilancia_poblacion ?? "efectivos"}
+              ayuda="«Efectivos» son los tipos de paciente marcados en Configuración › Listas › Tipos de paciente. Motivo y tipo de paciente siempre cuentan a todos.">
+              <option value="efectivos">Solo trabajadores efectivos (como el SAME)</option>
+              <option value="todos">Todos los pacientes de la empresa (también aspirantes y visitantes)</option>
+            </CampoSelect>
+            <CampoSelect id="vigilancia_horas" etiqueta="Horas hombre para IFN, IFB, IS, TAEO y TIEO" defaultValue={a.vigilancia_horas ?? "same"}
+              ayuda="Según nómina: las horas por mes se cargan en la ficha de cada empresa; si faltan, se estiman con trabajadores × 8 h × días hábiles (COVENIN 474).">
+              <option value="same">Fórmula del SAME: trabajadores × 5,5 h × días del período</option>
+              <option value="nomina">Horas cargadas de la nómina</option>
+            </CampoSelect>
           </CardContent>
         </Card>
 
@@ -151,5 +171,20 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
         )}
       </div>
     </form>
+  );
+}
+
+// El membrete muestra la dirección en dos líneas como máximo: pasada esa longitud se corta en los impresos
+const DIRECCION_MAX = 140;
+function CampoDireccion({ defaultValue }: { defaultValue: string }) {
+  const [largo, setLargo] = useState(defaultValue.length);
+  return (
+    <Campo
+      id="direccion"
+      etiqueta="Dirección"
+      defaultValue={defaultValue}
+      onChange={(e) => setLargo(e.target.value.length)}
+      ayuda={largo > DIRECCION_MAX ? `Tiene ${largo} caracteres: en el membrete solo caben unos ${DIRECCION_MAX} (dos líneas). Abrévialo para que se vea completo.` : undefined}
+    />
   );
 }

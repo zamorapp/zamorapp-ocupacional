@@ -186,7 +186,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
                 </button>
               </p>
               {!portal && (
-                <RegistroRapido key={texto.trim()} texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico={clinico} alListo={(href) => (href ? ir(href) : cerrar())} />
+                <RegistroRapido texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico={clinico} alListo={(href) => (href ? ir(href) : cerrar())} />
               )}
             </li>
           )}
