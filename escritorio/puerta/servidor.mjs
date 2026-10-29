@@ -49,14 +49,15 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   );
   // El segundo paso lo decide la nube: estas funciones siempre van a ella, y una sesión aal1 de quien lo necesita no
   // lee la copia (con internet va a la nube, que responde 403 «dos_pasos»; sin internet se rechaza igual, Hello da aal2)
-  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso"];
+  // (miembros_con_correo lee correos de auth.users, que la copia no trae: con internet siempre va a la nube)
+  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo"];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
   // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía
   // por leer en local (hallazgo de Reportes: medicos_historicos, informes_vigilancia, envíos).
-  let enCopia = { nombres: new Set(), en: 0 };
+  let enCopia = { nombres: new Set(), en: -1e9 }; // caché de 5 min con performance.now() (la fecha de Windows no es fiable)
   async function nombresEnCopia() {
-    if (Date.now() - enCopia.en < 300e3) return enCopia.nombres;
+    if (performance.now() - enCopia.en < 300e3) return enCopia.nombres;
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
@@ -70,10 +71,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
            where v.view_schema in ('public', 'clinico') group by 1
         )
         select nombre from base union select vista from vistas where completa`, [CATALOGOS]);
-      enCopia = { nombres: new Set(rows.map((f) => f.nombre)), en: Date.now() };
+      enCopia = { nombres: new Set(rows.map((f) => f.nombre)), en: performance.now() };
     } catch (e) {
       registro(`[puerta] no se pudo leer qué tablas trae la copia: ${e.message}`);
-      enCopia.en = Date.now() - 240e3;
+      enCopia.en = performance.now() - 240e3;
     } finally { await c.end().catch(() => {}); }
     return enCopia.nombres;
   }
@@ -86,7 +87,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     const nombres = await nombresEnCopia();
     if (!nombres.has(`${perfil}.${m[2]}`)) return false;
     // select=a,empresa:empresas(nombre),consultas!inner(...) → empresas, consultas
-    for (const e of (u.searchParams.get("select") || "").matchAll(/(?:^|[,(])\s*(?:[a-z_0-9]+:)?([a-z_0-9]+)(?:!inner|!left|![a-z_0-9]+)?\s*\(/g)) {
+    // select=a,empresa:empresas(nombre),...consultas(*),citas!inner(id) → empresas, consultas, citas
+    for (const e of (u.searchParams.get("select") || "").matchAll(/(?:^|[,(])\s*(?:\.\.\.)?(?:[a-z_0-9]+:)?([a-z_0-9]+)(?:!inner|!left|![a-z_0-9]+)?\s*\(/g)) {
       if (!nombres.has(`${perfil}.${e[1]}`)) return false;
     }
     return true;
@@ -339,17 +341,17 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
   // leídas de la copia local, más la lista fija. Así una función de lectura nueva funciona sin conexión sin
   // tener que acordarse de anotarla aquí (la 0.1.168 no abría sin conexión por trabajadores_por_empresa).
-  let lectura = { nombres: new Set(RPC_LECTURA), en: 0 };
+  let lectura = { nombres: new Set(RPC_LECTURA), en: -1e9 };
   async function funcionesDeLectura() {
-    if (Date.now() - lectura.en < 300e3) return lectura.nombres;
+    if (performance.now() - lectura.en < 300e3) return lectura.nombres;
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
       const { rows } = await c.query("select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.provolatile in ('s', 'i')");
-      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: Date.now() };
+      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: performance.now() };
     } catch (e) {
       registro(`[puerta] no se pudo leer qué funciones son de lectura: ${e.message}`);
-      lectura.en = Date.now() - 240e3; // se reintenta en un minuto
+      lectura.en = performance.now() - 240e3; // se reintenta en un minuto
     } finally { await c.end().catch(() => {}); }
     return lectura.nombres;
   }

@@ -148,6 +148,12 @@ test("lo que la copia no trae se lee de la nube aunque la copia esté al día (a
   await pedir("/rest/v1/trabajadores?select=id,empresa:empresas(nombre)&limit=1", { token: tokenAdmin });
   assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "con todo en la copia, sigue en local");
   nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,...accesos(id)&limit=1", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "un embebido con ... (spread) también se ve");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/rpc/miembros_con_correo", { metodo: "POST", token: tokenAdmin, cuerpo: {} });
+  assert.ok(nube.estado.rest.includes("/rest/v1/rpc/miembros_con_correo"), "una función de lectura que usa datos fuera de la copia va a la nube");
+  nube.estado.rest = [];
   await pedir("/rest/v1/ultima_aptitud?select=trabajador_id&limit=1", { token: tokenAdmin });
   assert.ok(!nube.estado.rest.includes("/rest/v1/ultima_aptitud"), "una vista sobre tablas de la copia se lee en local");
 });
