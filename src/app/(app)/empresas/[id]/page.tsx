@@ -115,7 +115,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
                         </div>
                       </div>
                       {p.tareas && <p className="line-clamp-2 text-sm text-muted-foreground">{p.tareas}</p>}
-                      <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
                         {GRUPOS.map(([g, nombre]) => (
                           <div key={g} className="flex flex-wrap items-center gap-1.5 text-xs">
                             <span className="w-24 text-muted-foreground">{nombre}</span>

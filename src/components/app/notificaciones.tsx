@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { AlertTriangle, Bell, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -55,10 +55,14 @@ export function Notificaciones() {
           {lista.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted-foreground">Sin avisos.</p>}
           {lista.map((n) => {
             const contenido = (
-              <div className={cn("flex gap-2 px-3 py-2 text-sm", !n.leida && "bg-primary/5")}>
+              <div className={cn("flex gap-2 px-3 py-2 text-sm", !n.leida && "bg-primary/5", n.nivel === "alerta" && "border-l-2 border-alerta", n.nivel === "aviso" && "border-l-2 border-aviso")}>
                 <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.leida ? "bg-transparent" : "bg-primary")} />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium">{n.titulo}</div>
+                  <div className={cn("flex items-start gap-1.5 font-medium", n.nivel === "alerta" && "text-alerta-texto", n.nivel === "aviso" && "text-aviso-texto")}>
+                    {n.nivel === "alerta" && <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
+                    {n.nivel === "aviso" && <Clock className="mt-0.5 size-3.5 shrink-0" />}
+                    <span className="min-w-0">{n.titulo}</span>
+                  </div>
                   {n.texto && <div className="truncate text-xs text-muted-foreground">{n.texto}</div>}
                   <div className="text-[11px] text-muted-foreground">{hace(n.creadoEn)}</div>
                 </div>

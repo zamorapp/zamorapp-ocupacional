@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import type { DatosDocumento } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
 import { faltantesRecipe } from "@/lib/documentos";
-import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes } from "@/lib/consultas-tipos";
+import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type FilaExamen } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
@@ -30,11 +30,11 @@ const COLOR_APTITUD: Record<Aptitud, string> = {
 
 const alteradosDe = (d: DatosDocumento) => [...d.datos.examenFuncional, ...d.datos.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
 
-// Como en el Integral: la constancia sale en original (RR. HH.) y copia (servicio médico), cada una en su hoja.
+// Una sola hoja por defecto. La copia para el servicio médico (como en el Integral) se agrega al imprimir o queda fija en Configuración.
 // soloOriginal: lo que se envía a la empresa por correo (la copia queda en el servicio).
 export function Constancia({ d, soloOriginal }: { d: DatosDocumento; soloOriginal?: boolean }) {
-  if (d.org.ajustes.constancia_copias === false) return <CuerpoConstancia d={d} />;
   if (soloOriginal) return <CuerpoConstancia d={d} copia="Original · Recursos humanos" />;
+  if (!d.copia) return <CuerpoConstancia d={d} />;
   return (
     <>
       <CuerpoConstancia d={d} copia="Original · Recursos humanos" />
@@ -149,6 +149,33 @@ const TITULO_INFORME: Record<VarianteInforme, [string, string]> = {
 export const InformeTrabajador = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="trabajador" />;
 export const Preoperatoria = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="preoperatorio" />;
 
+// Examen por sistema con su descripción, como lo escribió el médico (lo alterado, resaltado).
+// Puede pasar de hoja entre filas; cada fila no se corta.
+function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[] }) {
+  const llenas = filas.filter((x) => x.valor.trim());
+  if (!llenas.length) return null;
+  return (
+    <div className="mb-3.5">
+      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
+      <dl className="space-y-0.5 text-[11px] leading-snug">
+        {llenas.map((x) => {
+          // Sin texto «normal» en el catálogo no hay con qué comparar: no se marca
+          const alterado = x.normal.trim() !== "" && x.valor.trim() !== x.normal.trim();
+          return (
+            <div key={x.clave} className="flex gap-3 break-inside-avoid">
+              <dt className={`w-32 shrink-0 ${alterado ? "font-bold" : "font-semibold text-doc-tenue"}`}>{x.nombre}</dt>
+              <dd className={alterado ? "font-semibold" : undefined}>
+                {x.valor.trim()}
+                {alterado && <span className="ml-1.5 rounded-full border border-doc-linea px-1.5 text-[9px] font-normal text-doc-tenue">alterado</span>}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
+  );
+}
+
 export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
   const laboral = variante === "completo";
   const c = d.datos;
@@ -194,9 +221,16 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
           {habitos.length > 0 && <div><div className="text-[10.5px] text-doc-tenue">Hábitos</div><b className="font-semibold">{habitos.map((h) => `${h.nombre}: ${h.valor}`).join(" · ")}</b></div>}
         </div>
       </Bloque>
-      <Bloque titulo="Examen físico y funcional">
-        {alterados.length ? <>Dentro de límites normales, excepto:{"\n"}{alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n")}</> : "Dentro de límites normales."}
-      </Bloque>
+      {d.sin.includes("examen") ? (
+        <Bloque titulo="Examen físico y funcional">
+          {alterados.length ? <>Dentro de límites normales, excepto:{"\n"}{alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n")}</> : "Dentro de límites normales."}
+        </Bloque>
+      ) : (
+        <>
+          <ExamenDetallado titulo="Examen funcional" filas={c.examenFuncional} />
+          <ExamenDetallado titulo="Examen físico" filas={c.examenFisico} />
+        </>
+      )}
       {c.paraclinicos.length > 0 && (
         <Bloque titulo="Exámenes paraclínicos">
           <div className="grid grid-cols-2 gap-x-6">{c.paraclinicos.map((p) => <div key={p.nombre}><b className="font-semibold">{p.nombre}:</b> {textoResultado(p)}</div>)}</div>
@@ -258,12 +292,14 @@ function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: strin
   return (
     <div className="flex flex-col rounded-lg border border-doc-linea p-4">
       <div className="mb-2 border-b border-doc-linea pb-2 text-[10.5px]">
-        <div className="flex items-start justify-between gap-2">
-          <div className="text-[13px] font-extrabold uppercase text-doc-acento">{d.org.nombre}</div>
+        <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {d.org.logo && <img src={d.org.logo} alt="" className="h-8 max-w-20 object-contain" />}
+          {d.org.logo && <img src={d.org.logo} alt="" className="h-10 max-w-24 shrink-0 object-contain" />}
+          <div className="min-w-0">
+            <div className="text-[13px] font-extrabold uppercase text-doc-acento">{d.org.nombre}</div>
+            <div className="text-doc-tenue">{d.org.direccion} · RIF {d.org.rif}</div>
+          </div>
         </div>
-        <div className="text-doc-tenue">{d.org.direccion} · RIF {d.org.rif}</div>
         <div className="mt-1 font-semibold">{m?.nombre_completo} · C.I. {m?.cedula} · MPPS {m?.mpps}</div>
       </div>
       <div className="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">{titulo}</div>

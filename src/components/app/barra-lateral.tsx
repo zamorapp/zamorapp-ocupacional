@@ -23,12 +23,13 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
         <span className="font-semibold tracking-tight">{APP_NOMBRE}</span>
       </Link>
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {secciones.map(({ href, titulo, icono: Icono }) => {
+        {secciones.map(({ href, titulo, icono: Icono, descripcion }) => {
           const activa = ruta === href || ruta.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
+              title={descripcion}
               onClick={alNavegar}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors",
