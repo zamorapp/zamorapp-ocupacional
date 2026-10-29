@@ -1,0 +1,74 @@
+# Avisa cuando alguien se interesa por el repositorio público (gratis: Linux, ~20 s al día).
+# - Estrella o fork: aviso inmediato con el usuario de GitHub (dato público).
+# - Diario: visitas, clones, sitios de origen y páginas vistas del día anterior (GitHub no dice quién mira).
+#   Requiere el secreto TRAFICO_TOKEN: token fino SOLO de este repo con «Administration: Read-only».
+#   Sin el secreto, el aviso diario se omite y lo demás sigue funcionando.
+# Los avisos se acumulan en un único issue «Vigilancia del repositorio» y mencionan a vars.AVISAR_A (correo de GitHub).
+name: Vigilar visitas
+
+on:
+  watch:
+    types: [started]
+  fork:
+  schedule:
+    - cron: "0 11 * * *" # 07:00 de Caracas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency: vigilar-visitas
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          TRAFICO_TOKEN: ${{ secrets.TRAFICO_TOKEN }}
+          AVISAR_A: ${{ vars.AVISAR_A || 'gestionesaguamiel-web' }}
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const lineas = [];
+
+            if (context.eventName === "watch") {
+              lineas.push(`⭐ **${context.actor}** marcó el repositorio con estrella. Total: ${context.payload.repository.stargazers_count}.`);
+            } else if (context.eventName === "fork") {
+              lineas.push(`🍴 **${context.actor}** hizo un fork (copia propia): ${context.payload.forkee.html_url}`);
+            } else if (!process.env.TRAFICO_TOKEN) {
+              core.notice("Sin TRAFICO_TOKEN: se omite el resumen diario de tráfico.");
+            } else {
+              // El tráfico exige permiso de administración: se usa un cliente aparte con el token mínimo.
+              const api = getOctokit(process.env.TRAFICO_TOKEN);
+              const ayer = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+              const delDia = (lista) => lista.find((d) => d.timestamp.startsWith(ayer)) ?? { count: 0, uniques: 0 };
+              const [vistas, clones, origenes, paginas] = await Promise.all([
+                api.request("GET /repos/{owner}/{repo}/traffic/views", { ...repo, per: "day" }),
+                api.request("GET /repos/{owner}/{repo}/traffic/clones", { ...repo, per: "day" }),
+                api.request("GET /repos/{owner}/{repo}/traffic/popular/referrers", repo),
+                api.request("GET /repos/{owner}/{repo}/traffic/popular/paths", repo),
+              ]);
+              const v = delDia(vistas.data.views);
+              const c = delDia(clones.data.clones);
+              // Los clones incluyen los de Vercel y Actions al publicar: solo avisan junto con visitas.
+              if (v.count > 0) {
+                lineas.push(`📊 **${ayer}**: ${v.count} vistas de ${v.uniques} visitantes · ${c.count} clones de ${c.uniques} equipos (incluye Vercel/Actions).`);
+                if (origenes.data.length) lineas.push(`Llegaron desde (14 días): ${origenes.data.map((o) => `${o.referrer.replace(/[`@]/g, "")} (${o.uniques})`).join(", ")}.`);
+                if (paginas.data.length) lineas.push(`Lo más visto (14 días): ${paginas.data.slice(0, 5).map((p) => `\`${p.path.replace(/[`@]/g, "")}\` (${p.uniques})`).join(", ")}.`);
+              }
+            }
+
+            if (!lineas.length) return core.info("Nada que avisar.");
+
+            const titulo = "Vigilancia del repositorio";
+            const { data: abiertos } = await github.rest.issues.listForRepo({ ...repo, state: "open", creator: "github-actions[bot]", per_page: 100 });
+            let issue = abiertos.find((i) => i.title === titulo);
+            if (!issue) {
+              ({ data: issue } = await github.rest.issues.create({ ...repo, title: titulo,
+                body: "Avisos automáticos de estrellas, forks y visitas (workflow «Vigilar visitas»). GitHub no revela quién ve el código, solo totales." }));
+            }
+            await github.rest.issues.createComment({ ...repo, issue_number: issue.number,
+              body: `@${process.env.AVISAR_A}\n\n${lineas.join("\n\n")}` });
