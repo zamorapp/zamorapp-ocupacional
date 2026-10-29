@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, CalendarClock, FileCheck2, ShieldCheck } from "lucide-react";
+import { Building2, CalendarClock, CheckCircle2, FileCheck2, ShieldCheck } from "lucide-react";
 import { FormularioLogin } from "@/app/login/formulario-login";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Aceptar } from "./aceptar";
-import { ConfirmarCuenta } from "./confirmar";
 
 export const metadata: Metadata = { title: "Invitación al portal", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -19,8 +18,8 @@ const AVISO: Record<string, string> = {
 
 // Enlace que el servicio médico manda por WhatsApp a RR. HH.: muestra la empresa, deja crear la cuenta o ingresar
 // ahí mismo y, con sesión, la acepta. Funciona sin cuenta; los datos los decide la base con el token.
-export default async function Invitacion({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ code?: string }> }) {
-  const [{ token }, { code }] = await Promise.all([params, searchParams]);
+export default async function Invitacion({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ confirmado?: string }> }) {
+  const [{ token }, { confirmado }] = await Promise.all([params, searchParams]);
   const valido = supabaseConfigurado && TOKEN_INVITACION.test(token);
   const supabase = valido ? await crearClienteServidor() : null;
   const [{ data: filas }, { data: claims }] = supabase
@@ -55,14 +54,16 @@ export default async function Invitacion({ params, searchParams }: { params: Pro
             </ul>
             {inv.estado !== "vigente" && !conSesion ? (
               <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">{AVISO[inv.estado]}</p>
-            ) : !conSesion && code ? (
-              <ConfirmarCuenta token={token} codigo={code} />
             ) : conSesion ? (
               <Aceptar token={token} texto={inv.estado === "vigente" ? "Aceptar y entrar al portal" : "Entrar al portal"} />
             ) : (
               <div className="space-y-3 border-t pt-5">
-                <p className="text-sm font-medium">Crea tu cuenta para entrar (o ingresa si ya tienes una)</p>
-                <FormularioLogin modoDemo={false} siguiente={`/invitacion/${token}`} modoInicial="registro" />
+                {confirmado ? (
+                  <p role="status" className="flex gap-2 rounded-md bg-ok/15 px-3 py-2 text-sm text-ok-texto"><CheckCircle2 className="mt-0.5 size-4 shrink-0" /> Si ya confirmaste tu correo (o abriste el enlace en otro equipo o navegador), ingresa con tu correo y contraseña para aceptar la invitación.</p>
+                ) : (
+                  <p className="text-sm font-medium">Crea tu cuenta para entrar (o ingresa si ya tienes una)</p>
+                )}
+                <FormularioLogin modoDemo={false} siguiente={`/invitacion/${token}`} modoInicial={confirmado ? "ingresar" : "registro"} />
               </div>
             )}
           </>
