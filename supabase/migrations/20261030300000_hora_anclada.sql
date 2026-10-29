@@ -98,3 +98,78 @@ begin
     execute v_def;
   end loop;
 end $$;
+
+-- ─── 4. Hora estricta para plazos de seguridad ───
+-- En la PC, sin ancla de la nube no hay hora confiable: ahora_verificada() es null y cualquier plazo comparado con
+-- ella queda vencido (con la fecha de Windows atrasada alguien podría alargar un «equipo de confianza»).
+create or replace function public.ahora_verificada()
+returns timestamptz language sql stable parallel safe set search_path = '' as $$
+  select case when current_setting('zamorapp.local', true) = 'on' then public.ahora_de_la_puerta() else now() end
+$$;
+grant execute on function public.ahora_verificada() to anon, authenticated, service_role;
+
+do $$
+declare
+  v_fn record;
+  v_def text;
+  v_par text[];
+  v_n int;
+begin
+  for v_fn in select * from (values
+    ('public.equipo_de_confianza()', array[['vence > now()', 'vence > public.ahora_verificada()', '1']]),
+    ('public.mis_equipos_confianza()', array[['vence > now()', 'vence > public.ahora_verificada()', '1']]),
+    ('public.confiar_equipo(text)', array[['now() + make_interval', 'public.ahora_verificada() + make_interval', '1'],
+                                          ['vence <= now()', 'vence <= public.ahora_verificada()', '1']])
+  ) as t(firma, pares)
+  loop
+    v_def := pg_get_functiondef(v_fn.firma::regprocedure);
+    foreach v_par slice 1 in array v_fn.pares loop
+      v_n := (length(v_def) - length(replace(v_def, v_par[1], ''))) / length(v_par[1]);
+      if v_n <> v_par[3]::int then
+        raise exception '%: «%» aparece % veces (se esperaban %)', v_fn.firma, v_par[1], v_n, v_par[3];
+      end if;
+      v_def := replace(v_def, v_par[1], v_par[2]);
+    end loop;
+    execute v_def;
+  end loop;
+end $$;
+
+-- ─── 5. En la nube: la hora del equipo no es la hora oficial si no venía verificada ───
+-- aplicar_cambios deja sync.cambio_id y sync.hora_anclada ('on' si al guardar en la PC había ancla) por cada cambio.
+-- Lo que trae el equipo se guarda tal cual en hora_equipo ({columna: hora, verificada}); si no venía verificada,
+-- la columna oficial pasa a la hora de recepción de la nube. Impresos: muestran la columna oficial, que es la del
+-- equipo cuando venía verificada (el momento real de la firma) y la de la nube cuando no.
+alter table clinico.consultas add column if not exists hora_equipo jsonb;
+alter table clinico.aptitudes add column if not exists hora_equipo jsonb;
+
+create or replace function public.hora_oficial_de_la_bandeja()
+returns trigger language plpgsql set search_path = '' as $$
+declare
+  v_col text;
+  v_nueva jsonb := to_jsonb(new);
+  v_vieja jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
+  v_verificada boolean := coalesce(current_setting('sync.hora_anclada', true), '') = 'on';
+  v_equipo jsonb := coalesce(new.hora_equipo, '{}'::jsonb);
+  v_cambios jsonb := '{}'::jsonb;
+begin
+  if coalesce(current_setting('sync.cambio_id', true), '') = '' or current_setting('zamorapp.local', true) = 'on' then
+    return new;
+  end if;
+  foreach v_col in array tg_argv loop
+    if v_nueva ->> v_col is not null and (v_nueva -> v_col) is distinct from (v_vieja -> v_col) then
+      v_equipo := v_equipo || jsonb_build_object(v_col, jsonb_build_object('hora', v_nueva -> v_col, 'verificada', v_verificada));
+      if not v_verificada then v_cambios := v_cambios || jsonb_build_object(v_col, now()); end if;
+    end if;
+  end loop;
+  if v_equipo = coalesce(new.hora_equipo, '{}'::jsonb) then return new; end if;
+  new := jsonb_populate_record(new, v_cambios || jsonb_build_object('hora_equipo', v_equipo));
+  return new;
+end $$;
+revoke execute on function public.hora_oficial_de_la_bandeja() from public, anon, authenticated;
+
+drop trigger if exists hora_oficial on clinico.consultas;
+create trigger hora_oficial before insert or update on clinico.consultas
+  for each row execute function public.hora_oficial_de_la_bandeja('creado_en', 'hora_inicio', 'hora_cierre', 'firmada_en');
+drop trigger if exists hora_oficial on clinico.aptitudes;
+create trigger hora_oficial before insert or update on clinico.aptitudes
+  for each row execute function public.hora_oficial_de_la_bandeja('emitida_en');
