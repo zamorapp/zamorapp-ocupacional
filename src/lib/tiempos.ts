@@ -11,10 +11,13 @@ type Registro = { inicio: number; llamadas: Llamada[] };
 
 const registroDePeticion = cache((): Registro => ({ inicio: Date.now(), llamadas: [] }));
 
-// Nombre corto de la llamada: tabla o función, sin filtros ni claves
+// Nombre corto de la llamada: tabla o función, sin filtros ni claves. En Storage se corta en
+// storage/v1/object/<acción>/<bucket> (como la puerta en #67): el nombre del archivo nunca va a los registros.
 export function nombreLlamada(url: string) {
   try {
     const u = new URL(url);
+    const m = /^(\/storage\/v1\/object\/(?:(?:public|sign|authenticated|info|upload\/sign)\/)?[^/]+)\//.exec(u.pathname);
+    if (m) return `${m[1].slice(1)}/…`;
     const partes = u.pathname.split("/").filter(Boolean);
     const i = partes.findIndex((p) => p === "v1");
     return partes.slice(i + 1).join("/") || u.pathname;
