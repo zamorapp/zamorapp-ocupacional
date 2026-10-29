@@ -22,6 +22,11 @@ language plpgsql security invoker set search_path = public as $$
 declare
   v_cols text[]; v_existente jsonb; v_nuevo jsonb := '{}'; k text; s text; a jsonb; b jsonb; v_lista text;
 begin
+  -- Solo tablas con clave natural, con el nombre de sync.tablas (Analizar): una llamada directa no inyecta SQL
+  if not exists (select 1 from sync.tablas where nombre = p_tabla and clave_natural is not null) then
+    raise exception 'Tabla sin clave natural: %', p_tabla using errcode = '42501';
+  end if;
+  perform p_tabla::regclass; -- y existe: desde aquí el nombre es el de sync.tablas (lista fija)
   choques := '{}';
   v_cols := sync.columnas(p_tabla, p_datos, 'UPDATE');
   execute format('select to_jsonb(t) from %s t where id = $1', p_tabla) into v_existente using p_id;

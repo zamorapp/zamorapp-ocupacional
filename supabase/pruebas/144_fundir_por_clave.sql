@@ -58,4 +58,10 @@ reset role;
 select 'la de la empresa ajena sigue vacía (debe 1): ' || count(*) from public.informes_vigilancia where id = '44000000-0000-0000-0000-000000000003' and resumen is null;
 -- Las tablas sin clave natural siguen igual: sync.vacio y fundir solo los usa aplicar_cambios
 select 'sync.vacio: "", espacios, {} y null (debe 4): ' || ((sync.vacio('""')::int) + sync.vacio('"  "')::int + sync.vacio('{}')::int + sync.vacio(null)::int);
+set role authenticated;
+do $$ begin
+  perform sync.fundir_por_clave('public.trabajadores; select 1', gen_random_uuid(), '{}');
+  raise notice 'fundir en una tabla sin clave: FALLA';
+exception when insufficient_privilege then raise notice 'fundir solo en tablas con clave natural (ok)'; end $$;
+reset role;
 delete from public.informes_vigilancia where id::text like '44000000-%';
