@@ -71,7 +71,8 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
       <div className="flex items-center gap-3 text-right">
         <div>
           <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Empresa</div>
-          <div className={`max-w-44 text-[11px] font-semibold leading-tight ${compacto ? "line-clamp-2" : ""}`}>{d.empresa.razon_social}</div>
+          {/* La razón social es dato legal: nunca se corta; en el compacto baja la letra para que no crezca el membrete */}
+          <div className={`font-semibold leading-tight ${compacto ? "max-w-52 text-[10px]" : "max-w-44 text-[11px]"}`}>{d.empresa.razon_social}</div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
@@ -201,7 +202,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   const separados = d.org.ajustes.firma_sello_separados !== false;
   const img = imagenesMedico(d);
   return (
-    <div className="flex items-end gap-3.5">
+    <div data-prueba="firma-medico" className="flex items-end gap-3.5">
       <div className="w-64 text-center text-[10px] leading-[1.35]">
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

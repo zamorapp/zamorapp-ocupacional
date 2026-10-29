@@ -30,7 +30,8 @@ const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 const contarPaginas = (pdf) => (pdf.toString("latin1").match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
 
 const navegador = await chromium.launch();
-const pagina = await navegador.newPage();
+// Ancho de una hoja carta (8,5 in a 96 ppp): las medidas de la prueba de firmas son las del papel
+const pagina = await navegador.newPage({ viewport: { width: 816, height: 1056 } });
 const fallas = [];
 const filas = [];
 for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
@@ -47,6 +48,11 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
         hojas: document.querySelectorAll(".hoja").length || 1,
         rotas: imgs.filter((i) => !i.naturalWidth).map((i) => i.alt || i.src.slice(0, 40)),
         texto: document.body.innerText,
+        // Reposo: la firma va al lado del diagnóstico; si se va debajo, original y copia no caben en una carta
+        firmaDebajo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].some((t) => {
+          const f = t.parentElement?.querySelector("[data-prueba=firma-medico]");
+          return f && f.getBoundingClientRect().top >= t.getBoundingClientRect().bottom;
+        }),
       };
     });
     const pdf = await pagina.pdf({ preferCSSPageSize: true, printBackground: true });
@@ -57,6 +63,7 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
     filas.push(`${tipo.padEnd(20)} ${caso.padEnd(7)} hojas ${info.hojas}  páginas ${paginas}${sePasa ? "  ← SE PASA" : ""}`);
     if (sePasa) fallas.push(`${tipo} (${caso}): ocupa ${paginas} páginas y debe caber en ${info.hojas}`);
     if (info.rotas.length) fallas.push(`${tipo} (${caso}): imagen que no carga: ${info.rotas.join(", ")}`);
+    if (info.firmaDebajo) fallas.push(`${tipo} (${caso}): la firma quedó debajo del diagnóstico en vez de al lado`);
     if (malo) fallas.push(`${tipo} (${caso}): aparece «${malo}» en el texto`);
     await pagina.emulateMedia({ media: "screen" });
   }

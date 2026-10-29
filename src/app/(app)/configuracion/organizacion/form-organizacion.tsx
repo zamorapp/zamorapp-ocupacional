@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { PLANTILLA_APTITUD, PLANTILLA_CITA } from "@/lib/mensajes";
 import { Loader2 } from "lucide-react";
 import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
@@ -58,7 +58,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="rif" etiqueta="RIF" defaultValue={org.rif ?? ""} placeholder="J-00000000-0" />
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
             <Campo id="correo" etiqueta="Correo" type="email" defaultValue={org.correo ?? ""} />
-            <Campo id="direccion" etiqueta="Dirección" defaultValue={org.direccion ?? ""} />
+            <CampoDireccion defaultValue={org.direccion ?? ""} />
             <Campo id="membrete_lema" etiqueta="Lema bajo el nombre (membrete)" defaultValue={a.membrete_lema ?? ""} placeholder="Servicios en Medicina Ocupacional · Ergonomía" className="sm:col-span-2" />
           </CardContent>
         </Card>
@@ -151,5 +151,20 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
         )}
       </div>
     </form>
+  );
+}
+
+// El membrete muestra la dirección en dos líneas como máximo: pasada esa longitud se corta en los impresos
+const DIRECCION_MAX = 140;
+function CampoDireccion({ defaultValue }: { defaultValue: string }) {
+  const [largo, setLargo] = useState(defaultValue.length);
+  return (
+    <Campo
+      id="direccion"
+      etiqueta="Dirección"
+      defaultValue={defaultValue}
+      onChange={(e) => setLargo(e.target.value.length)}
+      ayuda={largo > DIRECCION_MAX ? `Tiene ${largo} caracteres: en el membrete solo caben unos ${DIRECCION_MAX} (dos líneas). Abrévialo para que se vea completo.` : undefined}
+    />
   );
 }

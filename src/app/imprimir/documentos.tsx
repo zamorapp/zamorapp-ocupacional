@@ -111,7 +111,7 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
       </div>
       {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
       <Firmas compacto>
-        <div className="min-w-0 flex-1 self-start">
+        <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
           {diag && <p><b>Diagnóstico:</b> {diag.cie10} {diag.descripcion}</p>}
           <p className="text-[10.5px] text-doc-tenue">
             {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
