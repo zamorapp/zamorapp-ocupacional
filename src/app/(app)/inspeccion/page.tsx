@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, Printer, ShieldCheck } from "lucide-react";
 import { BotonNotificarTrabajadores } from "@/components/app/notificacion-riesgos";
@@ -8,9 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { datosInspeccion, periodoInspeccion } from "@/lib/inspeccion";
+import { periodoInspeccion, resumenInspeccion } from "@/lib/inspeccion";
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
-import { obtenerSesion } from "@/lib/sesion";
+import { obtenerSesion, type Sesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Inspección INPSASEL" };
@@ -21,15 +22,11 @@ const fecha = (v: string | null) => (v ? v.slice(0, 10).split("-").reverse().joi
 // Índice de cumplimiento por empresa y paquete imprimible para la inspección del INPSASEL
 export default async function Inspeccion({ searchParams }: { searchParams: Promise<{ empresa?: string; desde?: string; hasta?: string }> }) {
   const q = await searchParams;
-  const sesion = await obtenerSesion();
-  const empresas = (await listarEmpresas()).filter((e) => e.activa);
-  const empresaId = q.empresa && empresas.some((e) => e.id === q.empresa) ? q.empresa : (await empresaActivaId()) ?? empresas[0]?.id;
+  const [sesion, todas, activa] = await Promise.all([obtenerSesion(), listarEmpresas(), empresaActivaId()]);
+  const empresas = todas.filter((e) => e.activa);
+  const empresaId = q.empresa && empresas.some((e) => e.id === q.empresa) ? q.empresa : activa ?? empresas[0]?.id;
   const { desde, hasta } = periodoInspeccion(q.desde, q.hasta);
-  const d = !sesion.demo && sesion.orgId && empresaId ? await datosInspeccion(sesion, empresaId, desde, hasta) : null;
-  const pendientes = d?.trabajadores.filter((t) => !t.notificacionVigente) ?? [];
-  const sinNotificar = pendientes.filter((t) => t.puesto);
-  // Nunca notificados o desactualizados: necesitan una notificación nueva (los que solo deben el acuse, no)
-  const porNotificar = sinNotificar.filter((t) => !t.notificadoEn || t.firmadoEn).map((t) => t.id);
+  const medir = !sesion.demo && sesion.orgId && empresaId;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -38,8 +35,8 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
           <h1 className="flex items-center gap-2 text-2xl font-semibold"><ShieldCheck className="size-6 text-primary" /> Inspección INPSASEL</h1>
           <p className="text-sm text-muted-foreground">Lo que pide el inspector, medido con los registros de la app, y todo en un solo documento.</p>
         </div>
-        {d && (
-          <Button asChild><Link href={`/imprimir/inspeccion/${d.empresa.id}?desde=${desde}&hasta=${hasta}`} target="_blank"><Printer /> Imprimir paquete</Link></Button>
+        {medir && (
+          <Button asChild><Link href={`/imprimir/inspeccion/${empresaId}?desde=${desde}&hasta=${hasta}`} target="_blank"><Printer /> Imprimir paquete</Link></Button>
         )}
       </div>
 
@@ -55,10 +52,26 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
         <Button type="submit" variant="outline">Ver</Button>
       </form>
 
-      {!d ? (
+      {!medir ? (
         <p className="rounded-xl border p-6 text-sm text-muted-foreground">{sesion.demo ? "Conecta Supabase para medir el cumplimiento." : "Elige una empresa."}</p>
       ) : (
-        <>
+        // El encabezado y el formulario salen al instante; los criterios llegan cuando la base termina de contar
+        <Suspense key={`${empresaId}${desde}${hasta}`} fallback={<EsqueletoCriterios />}>
+          <Criterios sesion={sesion} empresaId={empresaId} desde={desde} hasta={hasta} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; empresaId: string; desde: string; hasta: string }) {
+  const d = await resumenInspeccion(empresaId, desde, hasta);
+  if (!d) return <p className="rounded-xl border p-6 text-sm text-muted-foreground">Elige una empresa.</p>;
+  const sinNotificar = d.pendientes.filter((t) => t.con_puesto);
+  // Nunca notificados o desactualizados: necesitan una notificación nueva (los que solo deben el acuse, no)
+  const porNotificar = sinNotificar.filter((t) => !t.notificado_en || t.firmado_en).map((t) => t.id);
+  return (
+    <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
             <Card className="items-center justify-center gap-2 py-6 text-center">
               <div className={cn("text-5xl font-bold tabular-nums", d.puntaje === null ? "text-muted-foreground" : d.puntaje >= 100 ? "text-ok-texto" : d.puntaje >= 80 ? "text-aviso-texto" : "text-alerta-texto")}>
@@ -95,17 +108,26 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
                   {sinNotificar.slice(0, 40).map((t) => (
                     <li key={t.id} className="flex items-center justify-between gap-2 border-b py-1">
                       <Link href={`/pacientes/${t.id}`} className="truncate hover:text-primary">{t.nombre}</Link>
-                      <span className="shrink-0 text-xs text-muted-foreground">{!t.notificadoEn ? "nunca" : !t.firmadoEn ? `sin acuse (${fecha(t.notificadoEn)})` : "desactualizada"}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{!t.notificado_en ? "nunca" : !t.firmado_en ? `sin acuse (${fecha(t.notificado_en)})` : "desactualizada"}</span>
                     </li>
                   ))}
                 </ul>
                 {sinNotificar.length > 40 && <p className="mt-2 text-xs text-muted-foreground">Y {sinNotificar.length - 40} más: salen todos en el paquete impreso.</p>}
-                {pendientes.length > sinNotificar.length && <p className="mt-2 text-xs text-muted-foreground">{pendientes.length - sinNotificar.length} sin puesto asignado: asígnalo para poder notificar.</p>}
+                {d.pendientes.length > sinNotificar.length && <p className="mt-2 text-xs text-muted-foreground">{d.pendientes.length - sinNotificar.length} sin puesto asignado: asígnalo para poder notificar.</p>}
               </CardContent>
             </Card>
           )}
-        </>
-      )}
+    </>
+  );
+}
+
+function EsqueletoCriterios() {
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]" aria-busy="true" aria-label="Calculando el cumplimiento">
+      <div className="h-36 animate-pulse rounded-xl border bg-muted/40" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {Array.from({ length: 10 }, (_, i) => <div key={i} className="h-16 animate-pulse rounded-xl border bg-muted/40" />)}
+      </div>
     </div>
   );
 }
