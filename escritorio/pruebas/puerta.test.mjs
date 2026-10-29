@@ -968,6 +968,21 @@ test("sincronizar ahora: solo con la clave de control de la ventana", { skip: om
   assert.ok(j.ultimaSincronia);
 });
 
+test("subir ahora (enlace de WhatsApp desde la PC): exige sesión; sin internet responde «requiere internet»", { skip: omitir }, async () => {
+  const llamar = (token, cuerpo = { filas: [] }) => pedir("/zamorapp/subir-ahora", { metodo: "POST", token, cuerpo });
+  assert.equal((await llamar()).status, 401);
+  const ok = await llamar(tokenAdmin);
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.deepEqual(ok.json.esperando, []);
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const sin = await llamar(tokenAdmin, { filas: ["00000000-0000-0000-0000-000000000001"] });
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  assert.equal(sin.status, 503, JSON.stringify(sin.json));
+  assert.equal(sin.json.code, "offline");
+});
+
 test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir }, async () => {
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();

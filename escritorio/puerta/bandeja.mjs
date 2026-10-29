@@ -30,6 +30,17 @@ export class Bandeja {
     } catch { return { pendientes: 0, conflictos: 0, rechazados: 0 }; } finally { await c.end().catch(() => {}); }
   }
 
+  // Filas que aún esperan en la bandeja (de esas `filas`): sirve para saber si una ya llegó a la nube
+  async esperando(filas) {
+    if (!filas.length) return [];
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query("select distinct fila_id::text as id from local.bandeja where fila_id::text = any($1)", [filas]);
+      return rows.map((r) => r.id);
+    } finally { await c.end().catch(() => {}); }
+  }
+
   async #subir() {
     const eq = this.estado.d.equipo;
     if (!eq || !this.nube.enLinea) return false;
