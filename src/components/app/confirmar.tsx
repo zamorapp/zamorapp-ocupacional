@@ -23,6 +23,7 @@ let mostrar: ((p: Pendiente) => void) | null = null;
 export function confirmar(pregunta: Pregunta | string): Promise<boolean> {
   const p = typeof pregunta === "string" ? { titulo: pregunta } : pregunta;
   // Si el diálogo aún no está montado, se usa el del navegador para no perder la confirmación
+  // eslint-disable-next-line no-restricted-properties -- respaldo único y deliberado
   if (!mostrar) return Promise.resolve(window.confirm([p.titulo, p.texto].filter(Boolean).join("\n\n")));
   return new Promise((responder) => mostrar!({ ...p, responder }));
 }
