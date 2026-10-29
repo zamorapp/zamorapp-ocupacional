@@ -301,11 +301,14 @@ test("PC nueva: se registra, restaura la copia de Drive (base + adjuntos) y sigu
   const id4 = crypto.randomUUID();
   const cuerpo4 = { id: id4, org_id: ORG, empresa_id: EMPRESA, cedula: `8${crypto.randomInt(1e7)}`, nombres: "Cuarto", apellidos: "En la PC nueva" };
   let alta = await pedirEn(pc2.urlPuerta, "/rest/v1/trabajadores", { metodo: "POST", token: med2, cuerpo: cuerpo4 });
-  if (alta.json?.code === "57P01") { // la restauración en caliente cortó la conexión que PostgREST tenía abierta: en la PC real no pasa (restaura antes de arrancar PostgREST)
-    anotar("tras una restauración en caliente, el primer pedido a PostgREST local responde 57P01 (su conexión fue terminada); en producción la restauración corre antes de arrancar PostgREST");
+  // La restauración en caliente cortó la conexión que PostgREST tenía abierta: en la PC real no pasa (restaura antes
+  // de arrancar PostgREST). En Linux llega como 57P01; en Windows, como un error sin código ni mensaje.
+  for (let i = 0; i < 5 && ![200, 201].includes(alta.status) && ["57P01", ""].includes(alta.json?.code); i++) {
+    if (i === 0) anotar(`tras una restauración en caliente, el primer pedido a PostgREST local responde ${alta.status} ${JSON.stringify(alta.json?.code)} (su conexión fue terminada); en producción la restauración corre antes de arrancar PostgREST`);
+    await new Promise((ok) => setTimeout(ok, 500));
     alta = await pedirEn(pc2.urlPuerta, "/rest/v1/trabajadores", { metodo: "POST", token: med2, cuerpo: cuerpo4 });
   }
-  assert.ok([200, 201].includes(alta.status), JSON.stringify(alta.json));
+  assert.ok([200, 201].includes(alta.status), `${alta.status} ${JSON.stringify(alta.json)}`);
   assert.equal(Number((await local2("select numero_historia from public.trabajadores where id = $1", [id4]))[0].numero_historia), Number(b2.desde));
   // Y la PC 1 sigue viva: ve al cuarto paciente tras sincronizar
   await pc2.bandejaObj.subir();
