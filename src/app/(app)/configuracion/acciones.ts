@@ -289,6 +289,19 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
   }
 }
 
+// Perdió el teléfono y los códigos de respaldo: otro administrador borra su verificación en dos pasos y en la
+// próxima entrada escanea un QR nuevo. La base exige que quien reinicia ya haya hecho su propio segundo paso.
+export async function reiniciarDosPasos(usuarioId: string): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.rpc("reiniciar_dos_pasos", { p_usuario: usuarioId });
+    if (error) return { ok: false, mensaje: error.message };
+    return { ok: true, mensaje: "Verificación reiniciada: al entrar escaneará un código QR nuevo con su teléfono." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
 // Usuario corto para entrar sin escribir el correo (vacío lo quita). La base valida el formato y que no se repita.
 export async function guardarUsuarioIngreso(usuarioId: string, usuario: string): Promise<Resultado & { usuario?: string | null }> {
   try {
