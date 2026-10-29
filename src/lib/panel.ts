@@ -1,38 +1,45 @@
 import "server-only";
+import { cache } from "react";
 import { supabaseConfigurado } from "@/lib/config";
 import { AGENDA_DEMO, ALERTAS_DEMO, APTITUD_DEMO, type Estado, INDICADORES_DEMO } from "@/lib/demo";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
-import { listarCitas, listarSolicitudes } from "@/lib/citas";
+import { listarCitas } from "@/lib/citas";
 import { hoyCaracas, sumarMeses } from "@/lib/fecha";
 import { listarEventos } from "@/lib/eventos";
 import { plazoDeclaracion, plazoInformeNt02, plazoInvestigacion } from "@/lib/eventos-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { obtenerSesion, type Sesion } from "@/lib/sesion";
+import { conVencimientos, enfoqueDelRol, soloMias, type Enfoque, type Tareas } from "@/lib/panel-rol";
 
 // Conteos que calcula la base (función resumen_panel), sin traer a todos los trabajadores
 type Resumen = {
   activos: number; en_reposo: number; al_dia: number; vencidos: number; por_vencer: number; sin_evaluar: number; aspirantes: number;
   aptitud: Record<"elegible" | "elegible_con_restricciones" | "no_elegible" | "espera_resultados" | "diferido", number>;
 };
-async function resumen(): Promise<Resumen | null> {
-  const supabase = await crearClienteServidor();
-  const { data } = await supabase.rpc("resumen_panel", { p_empresa: await empresaActivaId() });
-  return (data as Resumen | null) ?? null;
-}
+const RESUMEN_VACIO: Resumen = { activos: 0, en_reposo: 0, al_dia: 0, vencidos: 0, por_vencer: 0, sin_evaluar: 0, aspirantes: 0, aptitud: { elegible: 0, elegible_con_restricciones: 0, no_elegible: 0, espera_resultados: 0, diferido: 0 } };
+
+// TODOS los conteos del Inicio en un solo viaje a la base (inicio_conteos). cache(): cada sección de la
+// página lo pide por separado y se comparte la misma respuesta.
+export const conteosInicio = cache(async (): Promise<{ resumen: Resumen; vencimientos: VencimientoEmpresa[]; tareas: Tareas } | null> => {
+  if (!supabaseConfigurado) return null;
+  const [sesion, activa, supabase] = await Promise.all([obtenerSesion(), empresaActivaId(), crearClienteServidor()]);
+  const { data } = await supabase.rpc("inicio_conteos", { p_empresa: activa, p_solo_mias: soloMias(sesion), p_clinico: sesion.clinico });
+  if (!data) return null;
+  const d = data as { resumen: Resumen | null; vencimientos: VencimientoEmpresa[] | null; tareas: Tareas };
+  return { resumen: d.resumen ?? RESUMEN_VACIO, vencimientos: d.vencimientos ?? [], tareas: d.tareas };
+});
 
 export type VencimientoEmpresa = { id: string; empresa: string; periodicidad_meses: number; activos: number; vencidos: number; por_vencer: number; sin_evaluar: number; al_dia: number; dias_aviso: number; proximo: string | null };
 export type MesAccidentes = { mes: string; periodo: string; hht: number; metodo: string; accidentes: number; con_tiempo_perdido: number; dias_perdidos: number; dias_cargados: number; ifn: number | null; isev: number | null };
 export type Accidentabilidad = { meses: MesAccidentes[]; desde: string; hasta: string };
 
-// Vencidos, por vencer y sin evaluación de cada empresa (función vencimientos_empresas, con las reglas de acceso)
-async function vencimientos(empresa: string | null): Promise<VencimientoEmpresa[]> {
-  const supabase = await crearClienteServidor();
-  const { data } = await supabase.rpc("vencimientos_empresas");
-  const filas = (data ?? []) as VencimientoEmpresa[];
-  return empresa ? filas.filter((f) => f.id === empresa) : filas;
-}
-
 // Últimos 12 meses (el actual incluido), todas las empresas juntas o la empresa activa; mismo cálculo que el reporte
+export async function accidentabilidadInicio(): Promise<Accidentabilidad | null> {
+  if (!supabaseConfigurado) return null;
+  const empresa = await empresaActivaId();
+  return accidentabilidad(empresa);
+}
 async function accidentabilidad(empresa: string | null): Promise<Accidentabilidad> {
   const hoy = hoyCaracas();
   const desde = sumarMeses(`${hoy.slice(0, 8)}01`, -11);
@@ -41,45 +48,40 @@ async function accidentabilidad(empresa: string | null): Promise<Accidentabilida
   return { meses: (data ?? []) as MesAccidentes[], desde, hasta: hoy };
 }
 
-export type DatosPanel = {
-  indicadores: { titulo: string; valor: string; detalle: string; estado: Estado }[];
-  alertas: { texto: string; sujeto: string; plazo: string; estado: Estado; href?: string }[];
-  agenda: typeof AGENDA_DEMO;
-  aptitud: typeof APTITUD_DEMO;
-  vencimientos: VencimientoEmpresa[];
-  accidentes: Accidentabilidad | null;
-  vacio: boolean;
-};
+export type Indicador = { titulo: string; valor: string; detalle: string; estado: Estado };
+export type Alerta = { texto: string; sujeto: string; plazo: string; estado: Estado; href?: string };
+export type FilaAptitud = (typeof APTITUD_DEMO)[number];
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
-// conAccidentes: el rol ve la accidentabilidad en el inicio (recepción no la necesita)
-export async function datosPanel(conAccidentes = true): Promise<DatosPanel> {
-  if (!supabaseConfigurado) {
-    return { indicadores: INDICADORES_DEMO, alertas: ALERTAS_DEMO, agenda: AGENDA_DEMO, aptitud: APTITUD_DEMO, vencimientos: [], accidentes: null, vacio: false };
-  }
+// Pendientes del rol (con los exámenes por programar de RR. HH., SST y administración)
+export async function tareasInicio(sesion: Sesion): Promise<Enfoque> {
+  const c = await conteosInicio();
+  const suma = (k: "vencidos" | "por_vencer") => (c?.vencimientos ?? []).reduce((s, v) => s + v[k], 0);
+  return conVencimientos(enfoqueDelRol(sesion, c?.tareas ?? null), sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
+}
 
-  const activa = await empresaActivaId();
-  const [empresas, r, eventos, citas, solicitudes, venc, accidentes] = await Promise.all([
-    listarEmpresas(), resumen(), listarEventos({ abiertos: true }), listarCitas(hoyCaracas()), listarSolicitudes(),
-    vencimientos(activa), conAccidentes ? accidentabilidad(activa) : Promise.resolve(null),
-  ]);
-  const n = r ?? { activos: 0, en_reposo: 0, al_dia: 0, vencidos: 0, por_vencer: 0, sin_evaluar: 0, aspirantes: 0, aptitud: { elegible: 0, elegible_con_restricciones: 0, no_elegible: 0, espera_resultados: 0, diferido: 0 } };
-  const activos = { length: n.activos };
-  const enReposo = n.en_reposo;
-  const sinEvaluar = { length: n.sin_evaluar };
+export async function indicadoresInicio(): Promise<Indicador[]> {
+  if (!supabaseConfigurado) return INDICADORES_DEMO;
+  const [c, empresas] = await Promise.all([conteosInicio(), listarEmpresas()]);
+  const n = c?.resumen ?? RESUMEN_VACIO;
   const cobertura = n.activos ? Math.round((n.al_dia / n.activos) * 100) : 0;
-
-  const indicadores: DatosPanel["indicadores"] = [
-    { titulo: "Trabajadores activos", valor: String(activos.length), detalle: plural(empresas.length, "empresa cliente", "empresas clientes"), estado: "ok" },
-    { titulo: "Exámenes periódicos al día", valor: activos.length ? `${cobertura} %` : "—", detalle: "Meta 95 %", estado: cobertura >= 95 ? "ok" : cobertura >= 80 ? "aviso" : "alerta" },
-    { titulo: "Sin evaluación médica", valor: String(sinEvaluar.length), detalle: "Sin aptitud registrada", estado: sinEvaluar.length ? "aviso" : "ok" },
-    { titulo: "En reposo", valor: String(enReposo), detalle: "Trabajadores ausentes hoy", estado: enReposo ? "aviso" : "ok" },
+  return [
+    { titulo: "Trabajadores activos", valor: String(n.activos), detalle: plural(empresas.length, "empresa cliente", "empresas clientes"), estado: "ok" },
+    { titulo: "Exámenes periódicos al día", valor: n.activos ? `${cobertura} %` : "—", detalle: "Meta 95 %", estado: cobertura >= 95 ? "ok" : cobertura >= 80 ? "aviso" : "alerta" },
+    { titulo: "Sin evaluación médica", valor: String(n.sin_evaluar), detalle: "Sin aptitud registrada", estado: n.sin_evaluar ? "aviso" : "ok" },
+    { titulo: "En reposo", valor: String(n.en_reposo), detalle: "Trabajadores ausentes hoy", estado: n.en_reposo ? "aviso" : "ok" },
   ];
+}
 
-  const alertas: DatosPanel["alertas"] = [];
-  if (solicitudes.length) {
-    alertas.push({ texto: "Solicitudes de cita de empresas", sujeto: `${solicitudes.length} por confirmar`, plazo: "Responder", estado: "aviso", href: "/atencion" });
+export async function alertasInicio(): Promise<Alerta[]> {
+  if (!supabaseConfigurado) return ALERTAS_DEMO;
+  const [c, empresas, eventos] = await Promise.all([conteosInicio(), listarEmpresas(), listarEventos({ abiertos: true })]);
+  const venc = c?.vencimientos ?? [];
+  const solicitudes = c?.tareas.solicitadas ?? 0;
+  const alertas: Alerta[] = [];
+  if (solicitudes) {
+    alertas.push({ texto: "Solicitudes de cita de empresas", sujeto: `${solicitudes} por confirmar`, plazo: "Responder", estado: "aviso", href: "/atencion" });
   }
   // Plazos legales de accidentes y enfermedades: primero, porque vencen en horas
   for (const ev of eventos) {
@@ -102,26 +104,42 @@ export async function datosPanel(conAccidentes = true): Promise<DatosPanel> {
   }
   const resto = new Set([...conVencidos.slice(MAX_EMPRESAS), ...conPorVencer.slice(MAX_EMPRESAS)].map((v) => v.id)).size;
   if (resto) alertas.push({ texto: "Más empresas con exámenes vencidos o por vencer", sujeto: plural(resto, "empresa", "empresas"), plazo: "Ver todas", estado: "aviso", href: "/reportes/vencimientos" });
-  const aspirantes = n.aspirantes;
+  const aspirantes = c?.resumen.aspirantes ?? 0;
   if (aspirantes) alertas.push({ texto: "Aspirantes esperando evaluación pre-empleo", sujeto: plural(aspirantes, "aspirante", "aspirantes"), plazo: "Pendiente", estado: "aviso", href: "/pacientes" });
   for (const e of empresas.filter((x) => !x.ignorarAlertaLegal)) {
     const faltan = datosLegalesFaltantes(e);
     if (faltan.length) alertas.push({ texto: "Datos legales incompletos", sujeto: `${e.razonSocial}: ${faltan.join(", ")}`, plazo: "Informe trimestral", estado: "aviso", href: "/empresas" });
   }
+  return alertas;
+}
 
+export async function aptitudInicio(): Promise<FilaAptitud[]> {
+  if (!supabaseConfigurado) return APTITUD_DEMO;
+  const n = (await conteosInicio())?.resumen ?? RESUMEN_VACIO;
   const cuenta = (c: keyof Resumen["aptitud"]) => n.aptitud[c] ?? 0;
-  const aptitud = [
+  return [
     { clase: "Elegible", cantidad: cuenta("elegible"), color: "bg-ok" },
     { clase: "Con restricciones", cantidad: cuenta("elegible_con_restricciones"), color: "bg-aviso" },
     { clase: "No elegible", cantidad: cuenta("no_elegible"), color: "bg-alerta" },
     { clase: "Espera resultados", cantidad: cuenta("espera_resultados"), color: "bg-primary/60" },
     { clase: "Diferido", cantidad: cuenta("diferido"), color: "bg-muted-foreground/40" },
   ];
+}
 
-  const ESTADO_CITA: Record<string, string> = { citado: "Citado", en_espera: "En espera", en_consulta: "En consulta", atendido: "Atendido" };
-  const agenda = citas
+export async function vencimientosInicio(): Promise<VencimientoEmpresa[]> {
+  return (await conteosInicio())?.vencimientos ?? [];
+}
+
+const ESTADO_CITA: Record<string, string> = { citado: "Citado", en_espera: "En espera", en_consulta: "En consulta", atendido: "Atendido" };
+export async function agendaInicio(): Promise<typeof AGENDA_DEMO> {
+  if (!supabaseConfigurado) return AGENDA_DEMO;
+  const citas = await listarCitas(hoyCaracas());
+  return citas
     .filter((c) => ESTADO_CITA[c.estado])
     .map((c) => ({ hora: c.hora ?? "—", paciente: c.paciente, motivo: c.motivo ?? "Sin motivo", empresa: c.empresa, estado: ESTADO_CITA[c.estado] }));
+}
 
-  return { indicadores, alertas, agenda, aptitud, vencimientos: venc, accidentes, vacio: empresas.length === 0 };
+// Sin empresas todavía: la guía de primeros pasos
+export async function panelVacio(): Promise<boolean> {
+  return supabaseConfigurado && (await listarEmpresas()).length === 0;
 }

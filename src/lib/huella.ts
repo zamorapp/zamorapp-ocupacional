@@ -43,8 +43,26 @@ export async function huellaActivaAqui(): Promise<boolean> {
 // En escritorio el «Ahora no» vale solo para esta instalación: la memoria de la ventana (WebView2) sobrevive a
 // desinstalar el programa, y en una PC reinstalada hay que volver a ofrecer Windows Hello.
 const claveNoOfrecer = async () => ES_ESCRITORIO ? `${NO_OFRECER}.${(await estadoEscritorio())?.instalacion ?? ""}` : NO_OFRECER;
-export const ofrecerHuella = async () => leer(await claveNoOfrecer()) !== "1" && (ES_ESCRITORIO || leer(MARCA) !== "1");
-export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1");
+// «Ahora no» es una pausa, no un nunca: se vuelve a ofrecer tras 7 días o 5 entradas con contraseña, lo que
+// llegue primero. Se cuentan entradas además de días porque la fecha de Windows se cambia a veces (por el SAME):
+// la diferencia se toma en valor absoluto y las entradas no dependen del reloj.
+const PAUSA_DIAS = 7;
+const PAUSA_ENTRADAS = 5;
+type Pausa = { t: number; n: number };
+async function pausaVigente(): Promise<boolean> {
+  const clave = await claveNoOfrecer();
+  const valor = leer(clave);
+  if (!valor) return false;
+  let p: Pausa;
+  try { p = JSON.parse(valor); } catch { return false; } // marca vieja ("1"): ya pasó la pausa
+  if (typeof p?.t !== "number" || typeof p?.n !== "number") return false;
+  if (Math.abs(Date.now() - p.t) >= PAUSA_DIAS * 86_400_000 || p.n + 1 >= PAUSA_ENTRADAS) { escribir(clave, null); return false; }
+  escribir(clave, JSON.stringify({ t: p.t, n: p.n + 1 }));
+  return true;
+}
+/** Se llama una vez por entrada con contraseña: también cuenta la entrada para la pausa de «Ahora no». */
+export const ofrecerHuella = async () => !(await pausaVigente()) && (ES_ESCRITORIO || leer(MARCA) !== "1");
+export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), JSON.stringify({ t: Date.now(), n: 0 } satisfies Pausa));
 
 /**
  * ¿Se le puede ofrecer la huella ahora? No mientras falte el código de dos pasos: con la sesión sin ese paso
@@ -102,7 +120,10 @@ export async function entrarConHuella(supabase: SupabaseClient): Promise<Resulta
     return error ? { ok: false, mensaje: "No se pudo abrir la sesión. Usa tu contraseña." } : { ok: true };
   }
   const { error } = await supabase.auth.signInWithPasskey();
-  if (error) return { ok: false, mensaje: mensajeError(error) };
+  if (error) {
+    if (error.code === "webauthn_credential_not_found") escribir(MARCA, null);
+    return { ok: false, mensaje: mensajeError(error, leer(MARCA) === "1" ? "entrar-con-llave" : "entrar-sin-llave") };
+  }
   escribir(MARCA, "1");
   return { ok: true };
 }
@@ -160,7 +181,10 @@ function pedirAVentana(accion: "activar" | "entrar", codigo?: string): Promise<R
   });
 }
 
-function mensajeError(error: { code?: string; name?: string; message?: string }) {
+// Al entrar, el navegador da el mismo error si se canceló o si este equipo no tiene ninguna llave («no hay llaves
+// de acceso»): por eso el texto depende de si este navegador ya creó una.
+type Momento = "activar" | "entrar-con-llave" | "entrar-sin-llave";
+function mensajeError(error: { code?: string; name?: string; message?: string }, momento: Momento = "activar") {
   const codigo = error.code ?? "";
   if (codigo === "passkey_disabled") return "La entrada con huella aún no está activada en zamorApp. Avísale al administrador.";
   if (codigo === "webauthn_credential_exists" || codigo === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") return "Este equipo ya tiene tu huella registrada.";
@@ -173,7 +197,11 @@ function mensajeError(error: { code?: string; name?: string; message?: string })
   if (error.name === "SecurityError" || codigo === "webauthn_verification_failed")
     return `La huella no está configurada para esta dirección de zamorApp. Avísale al soporte (${codigo || error.name}).`;
   if (error.name === "NotAllowedError" || codigo === "ERROR_CEREMONY_ABORTED" || /cancel|not allowed/i.test(error.message ?? ""))
-    return "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
+    return momento === "entrar-sin-llave"
+      ? "Este equipo aún no tiene tu llave de huella. Entra con tu contraseña y actívala: toca tu inicial → Entrar con huella."
+      : momento === "entrar-con-llave"
+        ? "No se usó la huella (se canceló o el equipo no encontró tu llave). Intenta de nuevo o usa tu contraseña."
+        : "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
   // Con el código a la vista, soporte sabe qué pasó sin pedir capturas de la consola
   return `No se pudo usar la huella. Usa tu contraseña. (${[codigo, error.name, error.message].filter(Boolean).join(" · ").slice(0, 120)})`;
 }

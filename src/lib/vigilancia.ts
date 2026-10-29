@@ -49,14 +49,14 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const ausentismo = r ? indicadoresAusentismo(r) : { pad: 0, pct: 0 };
 
   // Datos que usa la redacción del análisis (también viajan al editor para «Otra redacción»)
-  const datosAnalisis: DatosAnalisis | null = r && s
+  const datosAnalisis: DatosAnalisis | null = r
     ? {
         empresa: empresa?.razonSocial ?? null,
         etiqueta: periodo.etiqueta,
         desde: periodo.desde,
         hasta: periodo.hasta,
         r,
-        s,
+        s: s ?? { por_mes: [], piramide: [], capitulos: [] },
         anterior: sAnt ? { etiqueta: anterior.etiqueta, s: sAnt } : null,
         anioAnterior: sAnio ? { etiqueta: anioAnterior.etiqueta, s: sAnio } : null,
         pct: ausentismo.pct,
