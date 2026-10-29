@@ -75,8 +75,10 @@ const CIFRAS = [
     zam: `select ${mesDe("fecha")}, x ->> 'aptitud', count(*) from ${filas("aptitud")} group by 1, 2` },
   { clave: "limitaciones", reportes: "Limitaciones",
     titulo: "Consultas con limitaciones",
-    same: `select ${MES}, '', count(distinct lb.cod_consulta) from Integral.limitacionLab lb with (nolock) join Integral.limitaciones l with (nolock) on l.cod_limitacionlab = lb.codigo
-           join Integral.consulta c with (nolock) on c.codigo = lb.cod_consulta where ${RANGO} group by ${MES}`,
+    // Lo mismo que lista el reporte: consultas con limitaciones escritas o con aptitud «elegible con restricciones»
+    same: `select ${MES}, '', count(*) from Integral.consulta c with (nolock)
+           left join (select distinct lb.cod_consulta from Integral.limitacionLab lb with (nolock) join Integral.limitaciones l with (nolock) on l.cod_limitacionlab = lb.codigo) x on x.cod_consulta = c.codigo
+           where ${RANGO} and (x.cod_consulta is not null or c.codaptitud = 'ElegibleRest') group by ${MES}`,
     zam: `select ${mesDe("fecha")}, '', count(*) from ${filas("limitaciones")} group by 1` },
   { clave: "reposos", reportes: "Reposos",
     titulo: "Reposos que empiezan en el mes",
@@ -93,8 +95,11 @@ const CIFRAS = [
     same: `select ${MES}, '', count(*) from Integral.ordenreferencia r with (nolock) join Integral.consulta c with (nolock) on c.codigo = r.cod_consulta where ${RANGO} group by ${MES}`,
     zam: `select ${mesDe("fecha")}, '', count(*) from ${filas("interconsultas")} group by 1` },
   { clave: "examenes", reportes: "Exámenes aplicados",
-    titulo: "Exámenes registrados en consultas",
-    same: `select ${MES}, '', count(*) from Integral.consultaexamen ce with (nolock) join Integral.consulta c with (nolock) on c.codigo = ce.cod_consulta where ${RANGO} group by ${MES}`,
+    // Solo paraclínicos: el SAME guarda en consultaexamen también cada renglón del examen funcional y físico (unos 33 por
+    // consulta), que en zamorApp son la plantilla de la consulta y no salen en «Exámenes aplicados».
+    titulo: "Exámenes paraclínicos registrados en consultas",
+    same: `select ${MES}, '', count(*) from Integral.consultaexamen ce with (nolock) join Integral.consulta c with (nolock) on c.codigo = ce.cod_consulta
+           join Integral.examen e with (nolock) on e.codigo = ce.cod_examen where ${RANGO} and e.tipoexamen = 'Paraclinico' group by ${MES}`,
     zam: `select ${mesDe("fecha")}, '', count(*) from ${filas("examenes")} group by 1` },
   { clave: "accidentes", reportes: "Accidentabilidad (COVENIN 474)",
     titulo: "Accidentes por mes",
@@ -102,9 +107,10 @@ const CIFRAS = [
            where a.fecha >= '${desde}' and a.fecha < dateadd(day, 1, '${hasta}') group by convert(char(7), a.fecha, 126)`,
     zam: `select left(x ->> 'mes', 7), '', sum((x ->> 'accidentes')::int) from jsonb_array_elements(public.reporte_indicadores('accidentalidad', null, $1::date, $2::date, '{"nivel":"consolidado"}'::jsonb)) x group by 1 having sum((x ->> 'accidentes')::int) > 0` },
   { clave: "padron", reportes: "Padrón de pacientes",
-    titulo: "Pacientes registrados (todos, sin importar el período)",
+    titulo: "Pacientes del SAME en el padrón (sin los registrados después en zamorApp)",
     same: `select 'total', '', count(*) from Integral.paciente with (nolock)`,
-    zam: `select 'total', '', count(*) from ${filas("pacientes")}` },
+    // Los pacientes registrados en zamorApp no existen en el SAME (el 29-oct ya había pacientes nuevos)
+    zam: `select 'total', '', count(*) from public.trabajadores where origen = 'integral' and $1::date <= $2::date` },
 ];
 
 // Reportes sin cifra equivalente en el SAME: se explican en el informe
