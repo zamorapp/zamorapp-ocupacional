@@ -27,6 +27,7 @@ type Ajustes = {
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
   recordatorio_resultados_dias?: number;
+  centinela_correo?: boolean;
   dias_equipo_confianza?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
@@ -104,6 +105,14 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
             <Campo id="reposo_pie_original" etiqueta="Pie del original" defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Avisos</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? false} />
+            <p className="pl-6 text-xs text-muted-foreground">Viene apagado. Llega al personal de salud y SST de cada empresa con el número de evento, la empresa y el plazo: nunca el nombre del trabajador ni el diagnóstico. Sale cuando un administrador o gerente médico abre zamorApp. La campana avisa siempre.</p>
           </CardContent>
         </Card>
 

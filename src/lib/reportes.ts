@@ -80,7 +80,12 @@ export async function obtenerSeries(empresaId: string | null, p: Pick<Periodo, "
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("vigilancia_series", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
-  if (error) throw error;
+  // Los gráficos son un complemento: si la función falla (o falta la migración en una copia vieja del escritorio)
+  // Reportes abre igual con los cuadros y el análisis, sin los gráficos
+  if (error) {
+    console.error("vigilancia_series:", error.message);
+    return null;
+  }
   return data as Series;
 }
 

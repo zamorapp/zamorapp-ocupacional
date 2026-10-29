@@ -16,6 +16,7 @@ export function BarraInferior({ portal = false }: { portal?: boolean }) {
   return (
     <nav
       aria-label="Navegación principal"
+      data-barra-inferior
       className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       {secciones.map(({ href, titulo, icono: Icono }) => {

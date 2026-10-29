@@ -12,6 +12,7 @@ import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
+import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -35,8 +36,8 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  // El recordatorio no espera a la base: corre con after(), cuando la página ya salió
-  await recordarResultados(sesion);
+  // El recordatorio y el centinela no esperan a la base: corren con after(), cuando la página ya salió
+  await Promise.all([recordarResultados(sesion), vigilarPlazos(sesion)]);
   const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date());
   const acciones = accionesDelRol(sesion);
 
