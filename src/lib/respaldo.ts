@@ -61,3 +61,21 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   }
   return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha)})`, detalle: corto(`${base}${restauracion}`) };
 }
+
+export type PruebaRestauracion = { estado: Estado; titulo: string; detalle: string };
+
+// Pantalla Configuración › Respaldos: la última prueba de que la copia se abre y se restaura (restauracion_probada)
+export async function pruebaRestauracion(sesion: Sesion): Promise<PruebaRestauracion | null> {
+  if (sesion.demo) return { estado: "ok", titulo: "La copia se abre y se restaura", detalle: "Probado hace 3 días con la copia de Google Drive." };
+  if (sesion.rol !== "administrador" && sesion.rol !== "gerente_medico") return null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("estado_respaldo");
+  if (error || !data) return null;
+  const prueba = (data as { ultima_restauracion?: Registro | null }).ultima_restauracion;
+  if (!prueba) return { estado: "aviso", titulo: "Aún no se ha probado abrir una copia", detalle: "zamorApp lo prueba solo una vez por semana. Hasta entonces no hay certeza de que la copia se pueda recuperar." };
+  if (prueba.estado === "fallo") return { estado: "alerta", titulo: "Falló la prueba de abrir la copia", detalle: corto(`${cuando(prueba.fecha)}${prueba.detalle ? ` · ${prueba.detalle}` : ""}`) };
+  const vencida = (Date.now() - new Date(prueba.fecha).getTime()) / 864e5 > LIMITE_DIAS_RESTAURACION;
+  return vencida
+    ? { estado: "aviso", titulo: "Toca repetir la prueba de abrir la copia", detalle: `La última fue ${hace(prueba.fecha)}.` }
+    : { estado: "ok", titulo: "La copia se abre y se restaura", detalle: `Probado ${hace(prueba.fecha)}.` };
+}
