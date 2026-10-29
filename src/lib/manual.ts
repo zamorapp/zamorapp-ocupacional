@@ -16,6 +16,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-30", texto: "Escritorio: los correos a las empresas ya salen desde el programa. Quedan «en cola» con su PDF y los envía la web; sin internet salen solos al volver. En la Bitácora se ven como «En cola»", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa». La vigilancia que sale a la empresa no lleva discapacidad y oculta cifras menores de 3 (se cambia en Configuración › Organización); hay que guardarla antes de enviarla", tema: "rrhh-whatsapp" },
+  { fecha: "2026-10-29", texto: "Leer resultados del laboratorio desde la foto o el PDF: zamorApp los propone, tú los revisas fila por fila y se registran con el archivo", tema: "paraclinicos" },
   { fecha: "2026-10-29", texto: "Configuración › Respaldos: «Respaldar ahora», la carpeta de Google Drive, la clave de respaldo y restaurar una copia en otra PC", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Los exámenes escaneados, firmas y PDF de solicitudes también entran en el respaldo diario (PC y Drive)", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
@@ -184,10 +185,16 @@ export const MANUAL: TemaManual[] = [
       "El visor de la derecha muestra el archivo sin descargarlo, con zoom y giro para las fotos. Del escáner: guarda el PDF y suéltalo en la misma zona.",
       "Los resultados que llegan días después se escriben con la consulta cerrada: entra a Paraclínicos y toca «Guardar resultados». Con la consulta firmada, sus resultados y archivos no se cambian: hay que «Corregir».",
       "«Faltan N resultados» es solo un aviso (con «Ignorar»; «No recordar más» apaga también el recordatorio de la campana): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»). Si pasan 3 días sin resultados, la campana te lo recuerda y vuelve a hacerlo cada 3 días; el número de días se cambia en Configuración › Organización (0 = no recordar).",
+      "Leer resultados: al soltar el informe del laboratorio aparece «¿Leer los resultados…?»; toca «Leer resultados» (o el botón del mismo nombre sobre cualquier archivo). Se lee en tu equipo, sin internet y sin enviar la imagen a nadie; la primera vez tarda unos segundos en prepararse.",
+      "Revisa la tabla antes de registrar: a la izquierda (en el celular, con el ojo) ves el informe con la línea marcada. Las filas «Leído» salieron claras; las «Revisar · Confirmar» tienen una duda escrita debajo: corrige lo que haga falta y toca «Confirmar». Enter baja al valor siguiente.",
+      "Si la cédula o el nombre del informe no coinciden con el paciente, arriba sale en ámbar o rojo. Compruébalo; si es su informe, toca «Es su informe · Ignorar» (queda registrado).",
+      "«Registrar N resultados» se activa cuando no queda nada por revisar (desmarca la fila que no quieras): entran con el color del rango del laboratorio, o del catálogo si el informe no trae rango, y el archivo queda ligado a esos exámenes.",
     ],
     consejos: [
       "Las fotos se comprimen antes de subir y pierden los datos de ubicación. Hasta 10 MB por archivo.",
       "La unidad y el rango de cada examen se editan en Configuración › Listas › Paraclínicos.",
+      "Si el laboratorio llama distinto a un examen (HGB, Hb, «Glicemia basal»), agrégalo en Configuración › Listas › Paraclínicos, en «Otros nombres en los informes del laboratorio», separados por coma.",
+      "Para leer bien, fotografía la hoja de frente, completa y con buena luz. Si no se lee bien, escribe los resultados a mano como siempre.",
     ],
   },
   {
