@@ -19,9 +19,11 @@ on:
         type: boolean
         default: false
 
+# Una publicación tiene su propio grupo y nadie la cancela: el 29-oct una fusión a main (corrida de push)
+# canceló la publicación de la 0.1.198 a los 21 minutos. Las corridas de prueba sí se reemplazan entre sí.
 concurrency:
-  group: escritorio-${{ github.ref }}
-  cancel-in-progress: true
+  group: escritorio-${{ github.ref }}${{ inputs.publicar && '-publicar' || '' }}
+  cancel-in-progress: ${{ !inputs.publicar }}
 
 jobs:
   windows:
