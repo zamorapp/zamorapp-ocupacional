@@ -123,6 +123,19 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
 select 'web: reabrir_consulta sigue funcionando (debe 3): ' || public.reabrir_consulta('14200000-0000-0000-0000-0000000000c3', 'Corrección hecha desde la web');
 reset role;
+-- Web reabre una consulta cuya versión ya dejó una PC de otra persona (el gerente médico): la bitácora lo anota
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,medico_id,estado,hora_cierre) values
+ ('14200000-0000-0000-0000-0000000000c5','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a4','cerrada',now());
+update clinico.consultas set estado = 'firmada' where id = '14200000-0000-0000-0000-0000000000c5';
+insert into clinico.consultas_versiones (org_id,consulta_id,revision,firmada_en,contenido,motivo,reabierta_por) values ('10000000-0000-0000-0000-000000000001','14200000-0000-0000-0000-0000000000c5',1,now(),'{}','Corrección que dejó una PC','00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select 'web: reabre aunque una PC dejó la versión (debe 2): ' || public.reabrir_consulta('14200000-0000-0000-0000-0000000000c5', 'Corrección hecha desde la web');
+reset role;
+select 'web: la bitácora anota quién reabrió de verdad (debe 1): ' || count(*) from public.bitacora
+ where registro_id = '14200000-0000-0000-0000-0000000000c5' and accion = 'REABRIR' and usuario_id = '00000000-0000-0000-0000-0000000000a4' and despues ->> 'motivo' = 'Corrección hecha desde la web';
+delete from public.bitacora where registro_id = '14200000-0000-0000-0000-0000000000c5';
+delete from clinico.consultas_versiones where consulta_id = '14200000-0000-0000-0000-0000000000c5';
+delete from clinico.consultas where id = '14200000-0000-0000-0000-0000000000c5';
 delete from clinico.consultas_versiones where consulta_id in ('14200000-0000-0000-0000-0000000000c1','14200000-0000-0000-0000-0000000000c2','14200000-0000-0000-0000-0000000000c3');
 delete from clinico.consultas where id in ('14200000-0000-0000-0000-0000000000c1','14200000-0000-0000-0000-0000000000c2','14200000-0000-0000-0000-0000000000c3');
 select set_config('request.jwt.claim.sub', '', false) \g /dev/null

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -50,7 +50,7 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
-import { mensajeGuardadoLocal, refrescarEstado, useEstadoEscritorio } from "@/lib/escritorio-estado";
+import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
 // Respaldo legible si la lista «Clasificación de aptitud» no trae el código
@@ -189,6 +189,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const sinInternet = ESCRITORIO && escritorio.conocido && !escritorio.enLinea;
   // Corregir una firmada sin internet se hace en la PC, pero solo con la hora verificada (como firmar)
   const corregirEspera = sinInternet && escritorio.horaSinAncla;
+  const [reconectando, setReconectando] = useState(false);
+  const [reconexion, setReconexion] = useState("");
   const setAviso = useCallback((r: { ok: boolean; mensaje: string } | null) => {
     if (r?.ok && ESCRITORIO) void refrescarEstado();
     setAvisoBase(r?.ok ? { ...r, mensaje: mensajeGuardadoLocal(r.mensaje) } : r);
@@ -641,22 +643,29 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
             </p>
-            {sinInternet && (
-              <p role="status" className="flex items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
-                <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-                {corregirEspera
-                  ? "Esta PC arrancó sin internet y aún no tiene la hora verificada: corregir espera a que vuelva la conexión."
-                  : "Sin internet: la corrección y la versión firmada quedan en esta PC y suben solas cuando vuelva la conexión."}
+            {sinInternet && (corregirEspera ? (
+              <div role="status" className="flex flex-wrap items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
+                <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">Esta PC arrancó sin internet y aún no tiene la hora verificada: corregir espera a que vuelva la conexión. Puedes escribir el motivo mientras tanto.{reconexion && <span className="block font-normal">{reconexion}</span>}</span>
+                <Button variant="outline" size="sm" disabled={reconectando}
+                  onClick={async () => { setReconectando(true); setReconexion(await sincronizarAhora()); setReconectando(false); }}>
+                  {reconectando ? <Loader2 className="animate-spin" /> : null} Reintentar conexión
+                </Button>
+              </div>
+            ) : (
+              <p role="status" className="flex items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm text-muted-foreground">
+                <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                Sin internet: la corrección y la versión firmada quedan en esta PC y suben solas cuando vuelva la conexión.
               </p>
-            )}
+            ))}
             <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
             <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
-              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus={!corregirEspera} readOnly={corregirEspera} />
+              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
               <Button
                 disabled={guardando || corregirEspera || motivoCorreccion.trim().length < 10}
-                title={corregirEspera ? "Espera la hora verificada" : motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
+                title={motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
                 onClick={() => iniciar(async () => {
                   const r = await corregirConsulta(d.id, motivoCorreccion);
                   setAviso(r);

@@ -102,6 +102,13 @@ begin
   -- Una corrección de la PC que chocó con la web dejó guardada esta misma versión (copiada de la nube, que no cambia
   -- mientras está firmada): se conserva y se sigue
   on conflict (consulta_id, revision) do nothing;
+  -- Si esa versión la dejó otra persona, la bitácora dice quién reabrió de verdad, con su motivo y la hora
+  if exists (select 1 from clinico.consultas_versiones v where v.consulta_id = c.id and v.revision = c.revision and v.reabierta_por <> v_uid) then
+    insert into public.bitacora (org_id, usuario_id, tabla, registro_id, accion, despues)
+    values (c.org_id, v_uid, 'clinico.consultas_versiones', c.id, 'REABRIR',
+            jsonb_build_object('revision', c.revision, 'motivo', trim(p_motivo), 'reabierta_en', public.ahora(),
+                               'nota', 'La versión guardada la dejó otra corrección (de una PC) antes que esta'));
+  end if;
 
   update clinico.consultas
      set estado = 'borrador', firmada_en = null, hora_cierre = null, revision = c.revision + 1
