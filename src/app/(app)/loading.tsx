@@ -1,7 +1,7 @@
 // Se muestra al instante al cambiar de pantalla mientras llegan los datos
 export default function Cargando() {
   return (
-    <div className="mx-auto max-w-7xl animate-pulse space-y-6" aria-busy="true" aria-label="Cargando">
+    <div className="mx-auto max-w-7xl animate-pulse space-y-6" role="status" aria-busy="true" aria-label="Cargando">
       <div className="space-y-2">
         <div className="h-8 w-56 rounded-lg bg-muted" />
         <div className="h-4 w-80 max-w-full rounded bg-muted/70" />
