@@ -32,12 +32,11 @@ export async function correoParaEntrar(supabase: SupabaseClient, texto: string, 
   return { correo: String(data) };
 }
 
-// El programa de escritorio recuerda el último usuario con el que se entró (en la web lo hace el navegador)
+// Se recuerda el último usuario con el que se entró (no la clave), en el escritorio y en la web: así se escribe
+// solo la contraseña o se entra directo con la huella
 export function ultimoUsuario(): string {
-  if (!ES_ESCRITORIO) return "";
   try { return localStorage.getItem(ULTIMO) ?? ""; } catch { return ""; }
 }
 export function recordarUsuario(texto: string) {
-  if (!ES_ESCRITORIO) return;
   try { localStorage.setItem(ULTIMO, texto.trim().toLowerCase()); } catch { /* sin almacenamiento */ }
 }

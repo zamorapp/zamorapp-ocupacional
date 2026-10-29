@@ -162,6 +162,11 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   const intentos = new Map();
   const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - performance.now());
   const anotarFallo = (email) => {
+    // Clave equivocada (pedido de Cesar, 29-oct): la próxima entrada de esa cuenta pide otra vez el segundo paso
+    // (con internet el código; sin internet, Windows Hello). Vale también para el usuario corto.
+    for (const u of Object.values(d().usuarios)) {
+      if ((u.email === email || u.usuario === email) && u.segundoPasoEn !== 0) { u.segundoPasoEn = 0; estado.guardar(); registro("[auth] clave equivocada: se pedirá el segundo paso"); }
+    }
     const f = intentos.get(email) || { fallos: 0, hasta: 0 };
     f.fallos += 1;
     if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = performance.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
