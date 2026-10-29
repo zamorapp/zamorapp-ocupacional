@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Loader2, Plus, Printer, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Plus, Printer, RotateCcw, Save, Shuffle, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Firmantes, InformeVigilancia, Persona } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
+import { generarAnalisis, SECCIONES_ANALISIS, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { guardarInformeVigilancia } from "./acciones";
 
@@ -24,16 +25,22 @@ const SECCIONES: [Clave, string, string][] = [
 const vacia: Persona = { nombre: "", cedula: "" };
 
 // Redacción del informe: cada sección trae un borrador generado con los datos del período, editable.
-export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, firmantesBase, editable, enlaceImprimir }: {
+export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: base, datos, firmantesBase, editable, enlaceImprimir }: {
   empresaId: string | null;
   desde: string;
   hasta: string;
   inicial: InformeVigilancia | null;
   sugeridos: TextosInforme;
+  datos: DatosAnalisis | null;
   firmantesBase: Firmantes;
   editable: boolean;
   enlaceImprimir: string;
 }) {
+  // Variante de redacción: «Otra redacción» la cambia y el análisis se reescribe con los mismos datos
+  const [variante, setVariante] = useState(inicial?.variante ?? 0);
+  const generado = useMemo(() => (datos ? generarAnalisis(datos, variante) : null), [datos, variante]);
+  const sugeridos: TextosInforme = generado ? { ...base, resumen: generado.resumen, conclusiones: generado.conclusion } : base;
+  const [analisis, setAnalisis] = useState<Record<string, string>>(() => ({ ...generado?.secciones, ...inicial?.analisis }));
   const [textos, setTextos] = useState<TextosInforme>(() => ({
     resumen: inicial?.resumen || sugeridos.resumen,
     conclusiones: inicial?.conclusiones || sugeridos.conclusiones,
@@ -47,13 +54,23 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
   const [ocupado, iniciar] = useTransition();
 
   const cambiar = (k: Clave, v: string) => { setTextos({ ...textos, [k]: v }); setAviso(null); };
+  const otraRedaccion = () => {
+    if (!datos) return;
+    const g = generarAnalisis(datos, variante + 1);
+    setVariante(variante + 1);
+    setAnalisis(g.secciones);
+    setTextos({ ...textos, resumen: g.resumen, conclusiones: g.conclusion });
+    setAviso(null);
+  };
   const persona = (k: "medico" | "sst" | "empleador", c: Partial<Persona>) => setFirmantes({ ...firmantes, [k]: { ...vacia, ...firmantes[k], ...c } });
   const delegados = firmantes.delegados?.length ? firmantes.delegados : [vacia];
 
   const guardar = (imprimir = false) =>
     iniciar(async () => {
       const guardarTextos = async () => {
-        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes });
+        // Del análisis solo se guarda lo editado a mano; lo demás lo vuelve a redactar la variante
+        const editado = Object.fromEntries(Object.entries(analisis).filter(([k, v]) => v !== generado?.secciones[k as keyof typeof generado.secciones]));
+        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes, analisis: editado, variante });
         setAviso(r);
         if (r.ok) setGuardado(true);
         return r.ok;
@@ -84,6 +101,25 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
         </div>
       ))}
 
+      {generado && (
+        <details className="group rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">Análisis de cada cuadro <span className="font-normal text-muted-foreground">· sale debajo de cada gráfico del informe impreso</span></summary>
+          <div className="mt-3 space-y-3">
+            {SECCIONES_ANALISIS.map(([k, titulo]) => (
+              <div key={k} className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">{titulo}</span>
+                  {editable && analisis[k] !== generado.secciones[k] && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setAnalisis({ ...analisis, [k]: generado.secciones[k] })}><RotateCcw /> Usar sugerencia</Button>
+                  )}
+                </div>
+                <Textarea value={analisis[k] ?? ""} disabled={!editable} onChange={(e) => { setAnalisis({ ...analisis, [k]: e.target.value }); setAviso(null); }} className="min-h-20 text-sm" />
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       <div className="space-y-2">
         <div className="text-sm font-medium">Firmantes</div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -112,7 +148,8 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos, fir
           <>
             <Button disabled={ocupado} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
             <Button variant="outline" disabled={ocupado} onClick={() => guardar(true)}><Printer /> Guardar e imprimir</Button>
-            <Button variant="ghost" disabled={ocupado} onClick={() => { setTextos(sugeridos); setAviso(null); }}><Sparkles /> Regenerar todo</Button>
+            {datos && <Button variant="ghost" disabled={ocupado} onClick={otraRedaccion} title="Reescribe el resumen, la conclusión y el análisis de cada cuadro con otras palabras, con los mismos datos"><Shuffle /> Otra redacción</Button>}
+            <Button variant="ghost" disabled={ocupado} onClick={() => { setTextos(sugeridos); setAnalisis({ ...generado?.secciones }); setAviso(null); }}><Sparkles /> Regenerar todo</Button>
           </>
         )}
         {!editable && <Button asChild variant="outline"><Link href={enlaceImprimir} target="_blank"><Printer /> Imprimir</Link></Button>}

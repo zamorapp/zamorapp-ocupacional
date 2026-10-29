@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { Periodo } from "@/lib/periodos";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import type { Series } from "@/lib/vigilancia-analisis";
 
 type Conteo = { nombre: string; n: number };
 export type Causa = { cie10: string; descripcion: string; n: number; pacientes?: number };
@@ -52,7 +53,35 @@ export async function obtenerReporte(empresaId: string | null, p: Periodo): Prom
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("reporte_vigilancia", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
   if (error) throw error;
-  return data as Reporte;
+  const r = data as Reporte;
+  await nombresCie10(r, supabase);
+  return r;
+}
+
+// Diagnósticos registrados sin nombre (vacío, igual al código o abreviado, p. ej. migrados del SAME):
+// se muestran con el nombre del catálogo CIE-10, para que ningún cuadro salga con códigos crudos
+async function nombresCie10(r: Reporte, supabase: Awaited<ReturnType<typeof crearClienteServidor>>) {
+  const listas: { cie10: string | null; descripcion: string | null }[][] = [
+    r.morbilidad.primeras_causas,
+    ...Object.values(r.morbilidad.cortes ?? {}).flatMap((g) => Object.values(g)),
+    r.ausentismo.primeras_causas ?? [],
+    r.ausentismo.detalle ?? [],
+  ];
+  const pobre = (c: { cie10: string | null; descripcion: string | null }) => c.cie10 && (!c.descripcion || c.descripcion.trim().length < 4 || c.descripcion.trim().toUpperCase() === c.cie10.toUpperCase());
+  const codigos = [...new Set(listas.flat().filter(pobre).map((c) => c.cie10!))];
+  if (!codigos.length) return;
+  const { data } = await supabase.from("cie10").select("codigo, descripcion").in("codigo", codigos.slice(0, 500));
+  const nombre = new Map((data ?? []).map((x) => [x.codigo as string, x.descripcion as string]));
+  for (const c of listas.flat()) if (pobre(c) && nombre.has(c.cie10!)) c.descripcion = nombre.get(c.cie10!)!;
+}
+
+// Tendencia mensual, pirámide de la población y morbilidad por capítulo CIE-10 (gráficos del informe)
+export async function obtenerSeries(empresaId: string | null, p: Pick<Periodo, "desde" | "hasta">): Promise<Series | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("vigilancia_series", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
+  if (error) throw error;
+  return data as Series;
 }
 
 // Promedio de ausentismo diario y % (meta < 2,5 %; pre y postnatal no cuentan)
@@ -127,6 +156,9 @@ export type InformeVigilancia = {
   factores_riesgo: string;
   medidas_control: string;
   firmantes: Firmantes;
+  // Análisis editado de cada cuadro ({seccion: texto}) y la variante de redacción elegida
+  analisis: Record<string, string>;
+  variante: number;
   actualizado_en: string | null;
 };
 export type Persona = { nombre: string; cedula: string };
@@ -136,7 +168,7 @@ export type Firmantes = { medico?: Persona; sst?: Persona; delegados?: Persona[]
 export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
-  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
+  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
   q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
   const { data } = await q.maybeSingle();
   if (!data) return null;
@@ -148,6 +180,8 @@ export async function obtenerInforme(empresaId: string | null, p: Periodo): Prom
     factores_riesgo: data.factores_riesgo ?? "",
     medidas_control: data.medidas_control ?? "",
     firmantes: (data.firmantes ?? {}) as Firmantes,
+    analisis: (data.analisis ?? {}) as Record<string, string>,
+    variante: data.variante ?? 0,
     actualizado_en: data.actualizado_en,
   };
 }

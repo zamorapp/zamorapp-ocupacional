@@ -15,6 +15,11 @@
   --color-doc-suave: #e6f2f0;
   --color-doc-linea: #d5dedc;
   --color-doc-tenue: #55625f;
+  --color-g-1: var(--g-1);
+  --color-g-2: var(--g-2);
+  --color-g-pista: var(--g-pista);
+  --color-g-linea: var(--g-linea);
+  --color-g-tinta: var(--g-tinta);
   --color-ok: var(--ok);
   --color-aviso: var(--aviso);
   --color-alerta: var(--alerta);
@@ -203,4 +208,22 @@
   .hoja:last-child {
     break-after: auto;
   }
+}
+
+/* Gráficos de los reportes: serie 1 verde azulado, serie 2 ámbar (pareja validada para daltonismo en ambos temas).
+   .papel fija los colores claros en los documentos impresos aunque la app esté en modo oscuro. */
+:root,
+.dark .papel {
+  --g-1: #008a7c;
+  --g-2: #c2690a;
+  --g-pista: #e7efed;
+  --g-linea: #d5dedc;
+  --g-tinta: #55625f;
+}
+.dark {
+  --g-1: #2aa89b;
+  --g-2: #c97a2a;
+  --g-pista: oklch(1 0 0 / 8%);
+  --g-linea: oklch(1 0 0 / 14%);
+  --g-tinta: oklch(0.74 0.012 200);
 }

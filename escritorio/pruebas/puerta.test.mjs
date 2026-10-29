@@ -18,8 +18,8 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-const CONTROL = crypto.randomBytes(24).toString("hex");
 let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta;
+const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
   const r = await fetch(`${urlPuerta}${ruta}`, {
@@ -135,6 +135,30 @@ test("sin internet: guardar se rechaza con un mensaje claro y los adjuntos esper
   assert.match(w.json.message, /solo se puede consultar/);
   const s = await pedir("/storage/v1/object/sign/adjuntos/x", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.equal(s.status, 503);
+});
+
+// 28/10/2026: la 0.1.168 no abría: el menú de la app llama a trabajadores_por_empresa por POST y la puerta,
+// sin conexión, lo tomaba por escritura. Toda función stable/immutable de la base es lectura y va a la copia.
+test("sin internet: las funciones de lectura (stable) responden desde la copia; las que escriben no", { skip: omitir }, async () => {
+  const conteo = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(conteo.status, 200, JSON.stringify(conteo.json));
+  assert.ok(Array.isArray(conteo.json));
+  const escribir = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: "30000000-0000-0000-0000-00000000000a" } });
+  assert.equal(escribir.status, 503);
+  assert.equal(escribir.json.code, "OFFLINE");
+});
+
+// Un «sin conexión» de un instante (p. ej. la red de Windows aún no lista al arrancar) no deja la PC sin internet
+// hasta la próxima sincronía: a los 15 s la puerta vuelve a preguntar sola.
+test("volvió internet: la puerta lo nota sola en la siguiente petición", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  assert.equal(nubeObj.enLinea, false);
+  nubeObj.revisadaEn = Date.now() - 16_000;
+  const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: tokenMed });
+  assert.equal(t.status, 200);
+  assert.equal(nubeObj.enLinea, true);
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
 });
 
 test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir }, async () => {
@@ -257,6 +281,144 @@ test("clave cambiada o sesión revocada en la nube: sin internet ya no entra", {
   nube.usuarios["meda@x"].clave = "clave-med";
 });
 
+test("Windows Hello: se activa con la sesión abierta y luego entra sin clave", { skip: omitir }, async () => {
+  const ventana = (ruta) => fetch(`${urlPuerta}${ruta}`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } }).then(async (r) => ({ status: r.status, json: await r.json() }));
+  const medA = "00000000-0000-0000-0000-0000000000a2";
+  const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(ok.status, 200);
+  assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 0);
+  const { instalacion } = (await pedir("/zamorapp/huella/estado")).json;
+  assert.ok(instalacion, "la puerta identifica la instalación");
+  assert.equal((await pedir("/zamorapp/huella/preparar", { metodo: "POST" })).status, 401, "sin sesión no se prepara");
+  const prep = await pedir("/zamorapp/huella/preparar", { metodo: "POST", token: ok.json.access_token });
+  assert.equal(prep.status, 200);
+  // Solo la ventana (con la clave de control) confirma que Windows verificó la huella
+  const sinControl = await fetch(`${urlPuerta}/zamorapp/huella/activar?codigo=${prep.json.codigo}`, { method: "POST", headers: { "X-Zamorapp-Control": "x".repeat(48) } });
+  assert.equal(sinControl.status, 403);
+  assert.equal((await ventana(`/zamorapp/huella/activar?codigo=${prep.json.codigo}`)).json.ok, true);
+  assert.equal((await ventana(`/zamorapp/huella/activar?codigo=${prep.json.codigo}`)).json.ok, false, "el código sirve una vez");
+  assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 1);
+  assert.equal((await pedir("/zamorapp/huella/estado")).json.instalacion, instalacion);
+  assert.equal((await pedir("/zamorapp/huella/mia", { token: ok.json.access_token })).json.activa, true);
+  // La dirección que intercepta la ventana: si llega a la puerta, no cambia la página
+  assert.equal((await fetch(`${urlPuerta}/zamorapp/huella/ventana/entrar`)).status, 204);
+  // Entrar: Windows verificó → código de un solo uso → sesión local
+  const v = await ventana("/zamorapp/huella/entrar");
+  assert.equal(v.json.ok, true, JSON.stringify(v.json));
+  assert.equal((await pedir("/auth/v1/token?grant_type=hello", { metodo: "POST", cuerpo: { codigo: "inventado" } })).status, 400);
+  const s = await pedir("/auth/v1/token?grant_type=hello", { metodo: "POST", cuerpo: { codigo: v.json.codigo } });
+  assert.equal(s.status, 200);
+  assert.equal((await pedir("/auth/v1/user", { token: s.json.access_token })).json.id, medA);
+  assert.equal((await pedir("/auth/v1/token?grant_type=hello", { metodo: "POST", cuerpo: { codigo: v.json.codigo } })).status, 400, "el código sirve una vez");
+  // Sin internet también entra
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const sinRed = await ventana("/zamorapp/huella/entrar");
+  assert.equal(sinRed.json.ok, true);
+  // ...pero no tras más de 7 días sin conexión
+  const antes = estado.d.usuarios[medA].ultimoOnline;
+  estado.d.usuarios[medA].ultimoOnline = Date.now() - 8 * 864e5;
+  const viejo = await ventana("/zamorapp/huella/entrar");
+  estado.d.usuarios[medA].ultimoOnline = antes;
+  assert.equal(viejo.json.ok, false);
+  assert.match(viejo.json.mensaje, /7 días/);
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+});
+
+test("Windows Hello: clave cambiada en la nube o huella quitada → vuelve a pedir la contraseña", { skip: omitir }, async () => {
+  const ventana = (ruta) => fetch(`${urlPuerta}${ruta}`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } }).then(async (r) => ({ status: r.status, json: await r.json() }));
+  const medA = "00000000-0000-0000-0000-0000000000a2";
+  nubeObj.exigirNube(medA);
+  const r = await ventana("/zamorapp/huella/entrar");
+  assert.equal(r.json.ok, false);
+  assert.match(r.json.mensaje, /contraseña/);
+  const ok = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal((await ventana("/zamorapp/huella/entrar")).json.ok, true, "tras entrar con la clave, la huella vuelve a servir");
+  assert.equal((await pedir("/zamorapp/huella/quitar", { metodo: "POST", token: ok.json.access_token })).status, 200);
+  assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 0);
+  assert.equal((await ventana("/zamorapp/huella/entrar")).json.ok, false);
+});
+
+test("verificación en dos pasos: la puerta pide el código para abrir la app y para registrar una PC", { skip: omitir }, async () => {
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  try {
+    const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+    assert.equal(r.status, 200);
+    const token = r.json.access_token;
+    assert.equal(aal(token), "aal1", "el administrador entra con aal1 y la app le pide el código");
+    const m = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+    assert.equal(aal(m.json.access_token), undefined, "al médico no se le pide");
+
+    let eq = await pedir("/zamorapp/equipo", { metodo: "POST", token, cuerpo: { nombre: "Otra PC", serie: "QZ" } });
+    assert.equal(eq.status, 401);
+    assert.equal(eq.json.code, "dos_pasos");
+    eq = await pedir("/zamorapp/equipo", { metodo: "POST", token, cuerpo: { nombre: "Otra PC", serie: "QZ", codigo: "000000" } });
+    assert.equal(eq.status, 401);
+    assert.match(eq.json.message, /no es correcto/);
+
+    const mal = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token, cuerpo: { challenge_id: "reto-1", code: "111111" } });
+    assert.equal(mal.status, 422);
+    assert.equal((await pedir("/auth/v1/factors/f-admin/challenge", { metodo: "POST", token, cuerpo: {} })).status, 200);
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    assert.equal(aal(ok.json.access_token), "aal2");
+    assert.equal(aal(estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"].nube.access_token), "aal2", "la sesión de la nube también queda aal2");
+    const ren = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+    assert.equal(aal(ren.json.access_token), "aal2", "renovar conserva el segundo paso");
+  } finally {
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
+test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el código; sin internet basta Windows Hello", { skip: omitir }, async () => {
+  const ventana = (ruta) => fetch(`${urlPuerta}${ruta}`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } }).then(async (r) => ({ status: r.status, json: await r.json() }));
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  const entrarHello = async () => {
+    const v = await ventana("/zamorapp/huella/entrar");
+    assert.equal(v.json.ok, true, JSON.stringify(v.json));
+    return pedir("/auth/v1/token?grant_type=hello", { metodo: "POST", cuerpo: { codigo: v.json.codigo } });
+  };
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  let token, nubeAal2;
+  try {
+    token = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
+    const nubeAal1 = admin().nube.access_token;
+    const prep = await pedir("/zamorapp/huella/preparar", { metodo: "POST", token });
+    assert.equal((await ventana(`/zamorapp/huella/activar?codigo=${prep.json.codigo}`)).json.ok, true);
+    // La nube aún está en aal1: Windows Hello abre la sesión local sin el segundo paso y la app pide el código
+    let s = await entrarHello();
+    assert.equal(s.status, 200);
+    assert.equal(aal(s.json.access_token), "aal1");
+    assert.equal(s.json.dos_pasos, true, "la página avisa por qué pide el código");
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: s.json.access_token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    assert.equal(aal(ok.json.access_token), "aal2");
+    // Con la nube ya en aal2, Windows Hello basta
+    s = await entrarHello();
+    assert.equal(aal(s.json.access_token), "aal2");
+    assert.equal(s.json.dos_pasos, undefined);
+    // Sin internet, Windows Hello cuenta como segundo paso aunque la sesión de la nube sea aal1
+    nubeAal2 = admin().nube.access_token;
+    admin().nube.access_token = nubeAal1;
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    s = await entrarHello();
+    assert.equal(aal(s.json.access_token), "aal2");
+  } finally {
+    if (nubeAal2) admin().nube.access_token = nubeAal2;
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    if (token) await pedir("/zamorapp/huella/quitar", { metodo: "POST", token });
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
 test("la ventana de la app puede llamar a la puerta (CORS con las cabeceras de supabase-js)", { skip: omitir }, async () => {
   const pedidas = "apikey,authorization,content-type,x-client-info,x-supabase-api-version";
   const r = await fetch(`${urlPuerta}/auth/v1/token?grant_type=password`, { method: "OPTIONS", headers: {
@@ -328,6 +490,98 @@ test("usuario corto: entra con internet, luego sin internet; con clave equivocad
 });
 
 // En Windows PostgREST se caía a veces en su primer segundo (código 3): el motor debe relanzarlo solo
+// La nube recibió una migración que esta versión del programa no entiende (27/10/2026: quitar columnas de
+// trabajadores a RR. HH. dejó a la 0.1.0 con «Application error»). La puerta lo dice claro y lo marca para
+// que la ventana ofrezca actualizar, en vez de dejar caer la pantalla con un error mudo.
+test("la nube cambió y esta versión no la entiende: se avisa que hay que actualizar", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  assert.equal(nubeObj.enLinea, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, false);
+  nube.estado.migradaPorDelante = true;
+  try {
+    const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /necesita actualizarse/);
+    assert.match(r.json.message, /permission denied for table trabajadores/);
+    e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, true);
+    assert.equal(e.json.incompatible.codigo, "42501");
+    assert.equal(e.json.incompatible.donde, "/rest/v1/trabajadores");
+  } finally {
+    nube.estado.migradaPorDelante = false;
+  }
+  // El aviso queda hasta que el programa se actualice (reinicio): una consulta que sí pasa no lo borra.
+  const ok = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenAdmin });
+  assert.equal(ok.status, 200);
+  e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.actualizar, true);
+  nubeObj.incompatible = null; // para las pruebas que siguen
+});
+
+test("botones de la pantalla «hay una versión nueva»: solo desde la ventana de zamorApp", { skip: omitir }, async () => {
+  const origenVentana = "http://127.0.0.1:54332";
+  // Sin Origin de la ventana: rechazados
+  assert.equal((await pedir("/zamorapp/buscar-actualizacion", { metodo: "POST" })).status, 403);
+  assert.equal((await pedir("/zamorapp/abrir-web", { metodo: "POST" })).status, 403);
+  // Desde la ventana: la petición queda guardada y solo el programa (clave de control) la recibe, una sola vez
+  let r = await fetch(`${urlPuerta}/zamorapp/buscar-actualizacion`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).pedida, true);
+  let e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.buscarActualizacion, false, "sin clave de control no se entrega");
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, true);
+  r = await fetch(`${urlPuerta}/zamorapp/estado`, { headers: { "X-Zamorapp-Control": CONTROL } });
+  assert.equal((await r.json()).buscarActualizacion, false, "se entrega una sola vez");
+  // Abrir la web: responde la dirección (en Windows además abre el navegador)
+  r = await fetch(`${urlPuerta}/zamorapp/abrir-web`, { method: "POST", headers: { Origin: origenVentana } });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.url, "https://zamorapp-ocupacional.vercel.app");
+  assert.equal(j.abierto, process.platform === "win32");
+});
+
+// main.rs (vigilar_nube, sincronizar) le habla a la puerta con HTTP crudo por TcpStream y lee hasta que la
+// conexión se cierra: la puerta debe responder 200 y cerrar sola (Connection: close), o el programa se queda esperando.
+test("el programa consulta /zamorapp/estado con HTTP crudo (como main.rs) y la puerta cierra la conexión", { skip: omitir }, async () => {
+  const net = await import("node:net");
+  const { port } = puerta.address();
+  const respuesta = await new Promise((ok, falla) => {
+    const c = net.connect(port, "127.0.0.1");
+    let texto = "";
+    const t = setTimeout(() => { c.destroy(); falla(new Error("la puerta no cerró la conexión en 5 s (el programa se quedaría esperando)")); }, 5000);
+    c.on("connect", () => c.write(`GET /zamorapp/estado HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nX-Zamorapp-Control: ${CONTROL}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`));
+    c.on("data", (d) => { texto += d; });
+    c.on("end", () => { clearTimeout(t); ok(texto); });
+    c.on("error", (e) => { clearTimeout(t); falla(e); });
+  });
+  assert.ok(respuesta.startsWith("HTTP/1.1 200"), respuesta.slice(0, 80));
+  const [cabecera, cuerpoTexto] = respuesta.split("\r\n\r\n");
+  assert.match(cabecera.toLowerCase(), /content-length: \d+/, "sin Content-Length el cuerpo llega «chunked» y el programa no lo entiende");
+  const cuerpo = JSON.parse(cuerpoTexto);
+  assert.equal(typeof cuerpo.actualizar, "boolean");
+  assert.equal(cuerpo.buscarActualizacion, false);
+});
+
+test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
+  nube.estado.rlsNiega = true;
+  try {
+    const r = await pedir("/rest/v1/consultas?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { motivo: "x" } });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.code, "42501");
+    assert.match(r.json.message, /^new row violates row-level security policy/);
+    assert.doesNotMatch(r.json.message, /necesita actualizarse/);
+    const e = await pedir("/zamorapp/estado");
+    assert.equal(e.json.actualizar, false);
+    assert.equal(e.json.incompatible, null);
+  } finally {
+    nube.estado.rlsNiega = false;
+  }
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3

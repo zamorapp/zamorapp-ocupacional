@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-28";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
   { fecha: "2026-10-27", texto: "Ajustes clínicos: plantillas, paraclínicos por empresa y recomendaciones en una pantalla, con vista previa de la consulta", tema: "configuracion" },
@@ -50,7 +51,7 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "ingreso",
-    titulo: "Ingresar (con usuario, correo o huella), instalar y recuperar la contraseña",
+    titulo: "Ingresar (usuario o correo, huella y verificación en dos pasos), instalar y recuperar la contraseña",
     para: "todos",
     resumen: "zamorApp funciona en la PC, el celular y la tablet desde zamorapp-ocupacional.vercel.app, con los mismos datos en todos.",
     pasos: [
@@ -61,11 +62,15 @@ export const MANUAL: TemaManual[] = [
       "Si olvidaste la contraseña, toca «¿La olvidaste?», escribe tu correo y abre el enlace que te llega. Ahí creas la nueva.",
       "Entrar con huella: después de entrar con tu contraseña, zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses.",
       "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
+      "Verificación en dos pasos (obligatoria para administradores y gerentes médicos): la primera vez zamorApp muestra un código QR; escanéalo con Google Authenticator o Microsoft Authenticator en tu teléfono y escribe el código de 6 dígitos. Después, al entrar en un equipo nuevo o tras salir, te pedirá el código que muestre la app en ese momento.",
+      "En el programa de escritorio sin internet, Windows Hello (PIN de Windows, huella o rostro) cuenta como segundo paso: entra con «Entrar con Windows Hello» y no hace falta el código.",
+      "Para cambiar de teléfono: Configuración → Mi perfil → «Verificación en dos pasos» → «Cambiar de teléfono». Si perdiste el teléfono, pide a soporte de zamorApp que reinicie tu verificación.",
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],
     consejos: [
       "Necesita internet: los datos viven en la nube y se respaldan cada día en tu PC y en Google Drive.",
       "Si ves «No se pudo conectar con zamorApp», revisa el internet y toca «Reintentar». No se pierde nada de lo ya guardado.",
+      "En zamorApp Escritorio, si aparece «Hay una versión nueva de zamorApp» es que la nube ya cambió: toca «Buscar actualización» (o menú zamorApp → «Buscar actualizaciones») y acepta «Actualizar ahora». Si aún no aparece, «Trabajar en la web» abre la web mientras tanto.",
     ],
   },
   {
@@ -287,6 +292,7 @@ export const MANUAL: TemaManual[] = [
       "Para otros tres meses cualquiera usa «Otros 3 meses desde»; para fechas libres, el rango Desde-Hasta.",
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
       "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
+      "Reportes › Vigilancia: cada gráfico trae su análisis, redactado con los datos del período. «Otra redacción» reescribe el resumen, la conclusión y los análisis con otras palabras; puedes editar cualquiera en «Análisis de cada cuadro» y Guardar. El informe impreso trae portada con indicadores, hallazgos clave y comparación con el período anterior; los cortes del SAME van en el anexo.",
       "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+// Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
+import { olvidar } from "@/lib/memo";
 import type { Evento } from "@/lib/eventos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -58,6 +60,7 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
     .single();
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar eventos." : error.message };
   revalidatePath("/", "layout");
+  olvidar("");
   return { ok: true, mensaje: "Evento registrado.", id: data.id };
 }
 
@@ -123,6 +126,7 @@ export async function guardarEvento(e: Evento): Promise<Resultado> {
     .eq("id", e.id);
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
+  olvidar("");
   return { ok: true, mensaje: "Guardado." };
 }
 
@@ -131,6 +135,7 @@ export async function cerrarEvento(id: string, cerrar: boolean): Promise<Resulta
   const { error } = await supabase.from("eventos").update({ estado: cerrar ? "cerrado" : "investigando" }).eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
+  olvidar("");
   return { ok: true, mensaje: cerrar ? "Evento cerrado." : "Evento reabierto." };
 }
 
@@ -181,5 +186,6 @@ export async function declararDesdeConsulta(consultaId: string, cie10: string, d
     .single();
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar declaraciones." : error.message };
   revalidatePath("/accidentes");
+  olvidar("");
   return { ok: true, mensaje: "Declaración iniciada.", id: data.id };
 }

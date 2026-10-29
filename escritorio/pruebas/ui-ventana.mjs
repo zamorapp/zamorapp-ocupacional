@@ -25,6 +25,8 @@ const REGISTRAR = arg("registrar"); // nombre de la PC; sin él, se exige que la
 const CAPTURA = arg("captura");
 const ESPERA = Number(arg("espera", "180")) * 1000; // cuánto esperar la pantalla inicial y la copia de datos
 const OBSERVAR = Number(arg("observar", "0")) * 1000; // solo mirar (consola, peticiones, navegación) durante N segundos
+const HELLO = process.argv.includes("--hello"); // además: activar Windows Hello, salir y volver a entrar con él
+const NUBE_MARCA = arg("nube-marca"); // archivo que pone a la nube simulada «migrada por delante» (ver nube-cli.mjs)
 const IMPRIMIR = arg("imprimir"); // carpeta donde el programa guarda el PDF de prueba (ZAMORAPP_PDF_PRUEBA)
 const PERFIL = arg("perfil"); // local: carpeta de perfil persistente, para que una segunda corrida conserve la sesión (como WebView2)
 
@@ -69,11 +71,15 @@ try {
   const contexto = persistente ? navegador : navegador.contexts()[0] || await navegador.newContext();
   pagina = contexto.pages()[0] || await contexto.newPage();
   // Todo lo que el navegador diga o rechace queda en la salida de la prueba
-  pagina.on("console", (m) => { if (["error", "warning"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
+  pagina.on("console", (m) => { if (["error", "warning", "log", "info"].includes(m.type())) anotar(`[consola ${m.type()}] ${m.text()}`); });
   pagina.on("pageerror", (e) => anotar(`[error de página] ${e.message}`));
   // Los prefetch que Next cancela al navegar (net::ERR_ABORTED) son normales; lo demás sí es un fallo
   pagina.on("requestfailed", (r) => { if (r.failure()?.errorText !== "net::ERR_ABORTED") anotar(`[petición fallida] ${r.method()} ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("response", (r) => { if (r.status() >= 400) anotar(`[respuesta ${r.status()}] ${r.request().method()} ${r.url()}`); });
+  // Windows Hello: cada pedido a la puerta queda en la salida (diagnóstico)
+  pagina.on("request", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] pide ${r.method()} ${r.url()}`); });
+  pagina.on("response", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] ${r.status()} ${r.url()} acao="${r.headers()["access-control-allow-origin"] || ""}"`); });
+  pagina.on("requestfailed", (r) => { if (r.url().includes("/zamorapp/huella")) anotar(`[huella] falló ${r.url()}: ${r.failure()?.errorText}`); });
   pagina.on("framenavigated", (f) => { if (f === pagina.mainFrame()) anotar(`[navega] ${f.url()}`); });
   if (local) await pagina.goto(URL_INICIO);
 
@@ -161,6 +167,12 @@ try {
     for (;;) {
       const url = pagina.url();
       if (/\/panel/.test(url)) break;
+      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no"
+      const oferta = pagina.getByRole("button", { name: HELLO ? "Activar Windows Hello" : "Ahora no" });
+      if (await oferta.isVisible().catch(() => false)) {
+        anotar(`   la app ofrece Windows Hello: "${HELLO ? "Activar" : "Ahora no"}"`);
+        await oferta.click();
+      }
       if (/[?&]correo=/.test(url)) throw new Error("El formulario se envió sin JavaScript (GET /login?correo=...): la pantalla no estaba hidratada");
       const error = await pagina.evaluate(() => document.querySelector("[role=alert], .text-destructive")?.textContent || "").catch(() => "");
       if (error) throw new Error(`La app mostró un error al entrar: ${error}`);
@@ -175,6 +187,50 @@ try {
     await pagina.reload({ waitUntil: "domcontentloaded" });
     await esperar(1500);
     if (!/\/panel/.test(pagina.url())) throw new Error(`Al recargar, la app rebotó a ${pagina.url()}: la sesión no se conservó`);
+  });
+
+  if (HELLO) await paso("salir y volver a entrar con Windows Hello (sin escribir la clave)", async () => {
+    // En el CI no hay huella: el programa la da por verificada solo con la nube de prueba y ZAMORAPP_HELLO_PRUEBA=1
+    await pagina.click("button[aria-label='Mi cuenta']");
+    await pagina.getByRole("menuitem", { name: "Salir" }).click();
+    await pagina.waitForURL(/\/login/, { timeout: 60_000 });
+    const boton = pagina.getByRole("button", { name: "Entrar con Windows Hello" });
+    await boton.waitFor({ timeout: 30_000 }).catch(async () => {
+      // Diagnóstico: ¿la página llega a la puerta para preguntar por Windows Hello?
+      const prueba = await pagina.evaluate(async () => {
+        try { const r = await fetch("http://127.0.0.1:54331/zamorapp/huella/estado"); return `${r.status} ${await r.text()}`; }
+        catch (e) { return `error: ${e}`; }
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   estado de Windows Hello desde la página: ${prueba}`);
+      // ¿Los scripts que cargó la página traen el código de la huella, y en modo escritorio?
+      const scripts = await pagina.evaluate(async () => {
+        const salida = [];
+        for (const s of [...new Set(performance.getEntriesByType("resource").map((x) => x.name).filter((n) => n.endsWith(".js")))]) {
+          const t = await fetch(s).then((r) => r.text()).catch(() => "");
+          if (t.includes("zamorapp.huella")) salida.push(`${s.split("/").pop()}: ${(t.match(/let [a-z]=![01],[a-z]="http[^"]*"/) || ["sin marca"])[0]}`);
+        }
+        const nav = performance.getEntriesByType("navigation")[0];
+        const fresca = await fetch(location.pathname, { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+        const srcs = (html) => [...html.matchAll(/static\/chunks\/[^"]+\.js/g)].map((m) => m[0].split("/").pop()).sort().join(",");
+        return { nav: nav && { tipo: nav.type, transfer: nav.transferSize, entrega: nav.deliveryType },
+          htmlIgual: srcs(document.documentElement.outerHTML) === srcs(fresca), js: performance.getEntriesByType("resource").map((x) => x.name.split("/").pop()).filter((n) => n.endsWith(".js")),
+          total: performance.getEntriesByType("resource").length, pk: typeof PublicKeyCredential, ls: Object.keys(localStorage), conHuella: salida, texto: document.body.innerText.slice(0, 300) };
+      }).catch((e) => `evaluate: ${e.message}`);
+      anotar(`   scripts: ${JSON.stringify(scripts)}`);
+      throw new Error("La pantalla de ingreso no muestra «Entrar con Windows Hello» (¿no se activó?)");
+    });
+    const estadoHello = await pagina.evaluate(() => fetch("http://127.0.0.1:54331/zamorapp/huella/estado").then((r) => r.text())).catch((e) => `error: ${e.message}`);
+    anotar(`   estado de Windows Hello antes de tocar el botón: ${estadoHello}`);
+    await boton.click();
+    const limite = Date.now() + 60_000;
+    while (!/\/panel/.test(pagina.url())) {
+      const error = await pagina.evaluate(() => document.querySelector(".text-destructive")?.textContent || "").catch(() => "");
+      if (error) throw new Error(`Windows Hello no entró: ${error}`);
+      if (Date.now() > limite) throw new Error(`Con Windows Hello la app no llegó al panel; quedó en ${pagina.url()}`);
+      await esperar(500);
+    }
+    await pagina.waitForSelector("h1", { timeout: 60_000 });
+    anotar("   entró con Windows Hello");
   });
 
   // Las descargas de la app (Excel, PDF) deben quedar en la carpeta Descargas de Windows (solo con la ventana real)
@@ -207,6 +263,95 @@ try {
     const nombre2 = `prueba-zamorapp-${Date.now()}-blob.txt`;
     await pagina.evaluate((n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["hola"], { type: "text/plain" })); a.download = n; document.body.append(a); a.click(); a.remove(); }, nombre2);
     await esperarArchivo(path.join(descargas, nombre2), "archivo generado en la página");
+  });
+
+  // 27/10/2026: la nube recibió una migración antes de que la PC se actualizara y la app quedó en «Application
+  // error». Ahora, con la nube simulada migrada por delante, la app debe mostrar la pantalla «necesita
+  // actualizarse» y el programa anotar en arranque.log que la nube va por delante (en una PC real ofrecería actualizar).
+  if (NUBE_MARCA) await paso("la nube va por delante del programa: la app avisa que hay una versión nueva, no se cae", async () => {
+    fs.writeFileSync(NUBE_MARCA, String(Date.now()));
+    const registro = !local && process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "zamorApp", "arranque.log") : null;
+    const esperarEnRegistro = async (patron, que, ms) => {
+      if (!registro) return;
+      const limite = Date.now() + ms;
+      while (Date.now() < limite) { if (patron.test(fs.readFileSync(registro, "utf8"))) { anotar(`   ${que} (arranque.log)`); return; } await esperar(1000); }
+      throw new Error(`${que}: no apareció en arranque.log en ${ms / 1000} s`);
+    };
+    try {
+      // Al recargar el panel, la app le pide datos a la nube; la puerta ve el 42501 y lo marca
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      const limite = Date.now() + 45_000;
+      let estado = null;
+      while (Date.now() < limite) {
+        estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), new URL(URL_INICIO).origin);
+        if (estado.actualizar === true) break;
+        await esperar(1000);
+      }
+      if (estado?.actualizar !== true) throw new Error(`La puerta no marcó la nube como adelantada: ${JSON.stringify(estado)}`);
+      anotar(`   puerta: incompatible ${JSON.stringify(estado.incompatible)}`);
+      // El aviso de arriba (o la pantalla de error, si la página se cayó del todo) con sus botones
+      const aviso = pagina.locator('[data-aviso="actualizar"], main[data-estado="actualizar"]').first();
+      await aviso.waitFor({ timeout: 30_000 });
+      anotar(`   aviso: "${(await aviso.textContent())?.replace(/\s+/g, " ").trim().slice(0, 120)}"`);
+      if (!/versión nueva/.test(await aviso.textContent() || "")) throw new Error("El aviso no dice que hay una versión nueva");
+      // El programa mira /zamorapp/estado cada 10 s y lo deja anotado (en pruebas no abre el diálogo de actualizar)
+      await esperarEnRegistro(/la nube va por delante/, "el programa lo detectó", 45_000);
+      // Botón «Buscar actualización»: la puerta se lo pasa al programa (en pruebas solo lo anota)
+      await aviso.getByRole("button", { name: "Buscar actualización" }).click();
+      await esperarEnRegistro(/actualización pedida desde la pantalla/, "«Buscar actualización» llegó al programa", 30_000);
+      // Botón «Trabajar en la web»: abre el navegador de Windows (la puerta responde qué hizo)
+      const respuestaWeb = pagina.waitForResponse((r) => r.url().includes("/zamorapp/abrir-web"));
+      await aviso.getByRole("button", { name: "Trabajar en la web" }).click();
+      const rw = await (await respuestaWeb).json();
+      anotar(`   «Trabajar en la web»: ${JSON.stringify(rw)}`);
+      if (!/vercel\.app/.test(rw.url || "")) throw new Error("«Trabajar en la web» no apunta a la web de zamorApp");
+      if (process.platform === "win32" && !rw.abierto) throw new Error("«Trabajar en la web» no abrió el navegador");
+      // «Ignorar» (si es el aviso de arriba) lo esconde hasta la próxima apertura, sin bloquear nada
+      const ignorar = aviso.getByRole("button", { name: /Ignorar/ });
+      if (await ignorar.count()) { await ignorar.click(); await aviso.waitFor({ state: "detached", timeout: 10_000 }); anotar("   «Ignorar» lo escondió"); }
+    } finally {
+      fs.rmSync(NUBE_MARCA, { force: true });
+      await esperar(1500); // la nube simulada mira la marca cada 300 ms
+    }
+    // Con la nube normal otra vez, el panel vuelve a cargar
+    await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+    await pagina.waitForURL(/\/panel/, { timeout: 30_000 });
+    if (await pagina.locator('main[data-estado]').count()) throw new Error(`Con la nube normal el panel sigue en error: ${await pagina.locator("h1").first().textContent()}`);
+    anotar("   con la nube normal, el panel volvió");
+  });
+
+  // 28/10/2026: la 0.1.168 no abría en la PC de Cesar: al cargar, el panel llamaba a una función de lectura por
+  // POST (trabajadores_por_empresa), la puerta la tomó por escritura, respondió «Sin conexión…» y la pantalla
+  // entera se cayó. Con la nube cortada, el panel debe abrir desde la copia local, sin pantalla de error.
+  if (NUBE_MARCA) await paso("sin internet: el panel abre desde la copia local, sin error", async () => {
+    const caida = `${NUBE_MARCA}.caida`;
+    const origenPuerta = new URL(URL_INICIO).origin;
+    fs.writeFileSync(caida, String(Date.now()));
+    try {
+      await esperar(1500); // la nube simulada mira la marca cada 300 ms
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      await pagina.waitForURL(/\/panel/, { timeout: 60_000 });
+      await pagina.waitForSelector("h1", { timeout: 60_000 });
+      const texto = (await pagina.evaluate(() => document.body.innerText || "")).replace(/\s+/g, " ");
+      if (await pagina.locator("main[data-estado]").count() || /Application error|Sin conexión a internet: en esta PC/.test(texto)) {
+        throw new Error(`Sin internet el panel se cayó: ${texto.slice(0, 200)}`);
+      }
+      const estado = await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), origenPuerta);
+      if (estado.enLinea !== false) throw new Error(`La puerta no notó el corte: ${JSON.stringify(estado)}`);
+      anotar(`   sin internet, el panel abrió: "${(await pagina.locator("h1").first().textContent())?.trim()}"`);
+    } finally {
+      fs.rmSync(caida, { force: true });
+    }
+    // Al volver internet, la puerta lo nota sola (vuelve a preguntar a los 15 s) sin reiniciar el programa
+    const limite = Date.now() + 60_000;
+    let enLinea = false;
+    while (!enLinea && Date.now() < limite) {
+      await esperar(5000);
+      await pagina.goto(pagina.url().replace(/\/panel.*$/, "/panel"), { waitUntil: "domcontentloaded" });
+      enLinea = (await pagina.evaluate(async (u) => (await fetch(`${u}/zamorapp/estado`, { credentials: "include" })).json(), origenPuerta)).enLinea === true;
+    }
+    if (!enLinea) throw new Error("Volvió internet y la puerta siguió «sin conexión» después de 60 s");
+    anotar("   volvió internet y la puerta lo notó sola");
   });
 
   await paso("sin service worker ni cachés en el programa de escritorio", async () => {

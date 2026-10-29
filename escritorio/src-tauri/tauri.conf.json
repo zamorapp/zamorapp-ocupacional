@@ -46,7 +46,8 @@
         "languages": [
           "Spanish"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "instalador.nsh"
       }
     }
   },

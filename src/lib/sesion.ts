@@ -24,7 +24,7 @@ const SESION_DEMO: Sesion = {
   nombre: "Usuario demo",
   correo: "",
   orgId: null,
-  organizacion: "TIPURO SERVI MEDIC",
+  organizacion: "OcupaVida Salud Ocupacional",
   rol: "gerente_medico",
   clinico: true,
 };

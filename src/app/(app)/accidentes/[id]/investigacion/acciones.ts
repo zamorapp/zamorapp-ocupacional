@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+// Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
+import { olvidar } from "@/lib/memo";
 import { faltantes, type Investigacion } from "@/lib/investigacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -42,5 +44,6 @@ export async function guardarInvestigacion(inv: Investigacion, accion: "guardar"
     await supabase.from("eventos").update({ fecha_informe_nt02: hoy }).eq("id", inv.eventoId).is("fecha_informe_nt02", null);
   }
   revalidatePath(`/accidentes/${inv.eventoId}`, "layout");
+  olvidar("");
   return { ok: true, mensaje: accion === "terminar" ? "Informe terminado." : accion === "reabrir" ? "Informe reabierto." : "Guardado.", id: data.id, terminadoEn };
 }

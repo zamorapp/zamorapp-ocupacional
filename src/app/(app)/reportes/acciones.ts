@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+// Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
+import { olvidar } from "@/lib/memo";
 import type { Firmantes } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
+import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -14,9 +17,13 @@ export type TextosGuardar = {
   factores_riesgo: string;
   medidas_control: string;
   firmantes: Firmantes;
+  // Análisis de cada cuadro que el médico editó ({seccion: texto}) y la variante de redacción elegida
+  analisis: Record<string, string>;
+  variante: number;
 };
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const SECCIONES: string[] = SECCIONES_ANALISIS.map(([k]) => k);
 const ROLES = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst"];
 
 // Guarda los textos del informe para la empresa (o el consolidado) y el período exacto
@@ -34,6 +41,8 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     factores_riesgo: limpio(t.factores_riesgo),
     medidas_control: limpio(t.medidas_control),
     firmantes: t.firmantes,
+    analisis: Object.fromEntries(Object.entries(t.analisis ?? {}).filter(([k, v]) => SECCIONES.includes(k) && typeof v === "string" && v.trim()).map(([k, v]) => [k, v.trim().slice(0, 4000)])),
+    variante: Number.isInteger(t.variante) ? Math.max(0, Math.min(t.variante, 1_000_000)) : 0,
     actualizado_por: sesion.usuarioId,
   };
   const supabase = await crearClienteServidor();
@@ -45,6 +54,7 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     : await supabase.from("informes_vigilancia").insert({ ...campos, org_id: sesion.orgId, empresa_id: empresaId, desde, hasta });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "No tienes permiso para esta empresa." : error.message };
   revalidatePath("/reportes");
+  olvidar("");
   return { ok: true, mensaje: "Guardado en zamorApp: este texto sale en el informe impreso de esta empresa y trimestre, desde cualquier equipo." };
 }
 
@@ -63,6 +73,7 @@ export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
     if (e) fallos.push(e.message); else firmadas++;
   }
   revalidatePath("/reportes", "layout");
+  olvidar("");
   if (!firmadas && !fallos.length) return { ok: false, mensaje: "No hay constancias cerradas tuyas por firmar. Las que están en curso se cierran desde la consulta." };
   return { ok: !fallos.length, mensaje: `${firmadas} constancia${firmadas === 1 ? "" : "s"} firmada${firmadas === 1 ? "" : "s"}.${fallos.length ? ` ${fallos.length} no se pudieron firmar: ${fallos[0]}` : ""}` };
 }

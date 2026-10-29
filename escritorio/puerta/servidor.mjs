@@ -1,6 +1,7 @@
 // Puerta local: la app de escritorio le habla como si fuera Supabase (auth, rest, storage).
 // Con internet desvía todo a la nube con el token de la nube del usuario; sin internet atiende
 // desde la copia local, por ahora solo para consultar (fase F1).
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
@@ -8,6 +9,8 @@ import { CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearHello } from "./hello.mjs";
+import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
 const PASAR = ["content-type", "accept", "prefer", "range", "accept-profile", "content-profile", "x-client-info", "x-upsert", "cache-control", "x-supabase-api-version"];
 // Los enlaces de los correos (recuperar clave, confirmar) abren la app web: la PC no recibe visitas de afuera.
@@ -16,26 +19,38 @@ const DEVOLVER = ["content-type", "content-range", "preference-applied", "locati
 const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
+// Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
+const CON_DOS_PASOS = ["administrador", "gerente_medico"];
+// "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
+const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
+
+const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
 export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+  let pedidaActualizacion = false;
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
 
   const responder = (res, status, cuerpo, extra = {}) => {
     const texto = cuerpo === undefined ? "" : typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo);
-    res.writeHead(status, { "Content-Type": "application/json", ...extra });
+    // Content-Length (no «chunked»): el programa (main.rs) lee la respuesta con HTTP crudo y la toma tal cual
+    res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(texto), ...extra });
     res.end(texto);
   };
 
-  const sesionLocal = (uid) => {
+  // Verificación en dos pasos: la sesión local de un administrador o gerente médico lleva "aal" (aal1 tras la clave,
+  // aal2 tras el código de 6 dígitos) y la app le pide el código igual que en la web. Sin "aal" la app no lo pide.
+  const exigeDosPasos = (u) => Boolean(u?.nubeConAal && CON_DOS_PASOS.includes(u.rol));
+  const sesionLocal = (uid, segundoPaso = false) => {
     const u = d().usuarios[uid];
     const ahora = Math.floor(Date.now() / 1000);
     const exp = ahora + CONFIG.sesionSegundos;
-    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID() }, d().jwtSecreto);
+    const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID(), ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
     for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < Date.now()) delete d().refrescos[t];
-    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5 };
+    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5, segundoPaso };
     estado.guardar();
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
@@ -68,7 +83,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   async function rolEnNube(uid) {
     try {
       const filas = await nube.leer(uid, `miembros?usuario_id=eq.${uid}&activo=is.true&select=rol,org_id`);
-      return filas[0]?.rol || null;
+      return filas.find((f) => CON_DOS_PASOS.includes(f.rol))?.rol || filas[0]?.rol || null;
     } catch { return undefined; }
   }
 
@@ -92,8 +107,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         if (r.ok) return r.cuerpo ? { email: String(r.cuerpo).toLowerCase() } : { fallo: [400, "Usuario o clave incorrectos"] };
         if (r.cuerpo?.code === "P0429") return { fallo: [429, `Demasiados intentos. Espera ${Number(r.cuerpo.hint) || 15} min y vuelve a probar (o entra con tu correo).`, "over_request_rate_limit"] };
         if (r.status < 500) return { fallo: [400, "Usuario o clave incorrectos"] };
-      } catch (e) { registro(`[puerta] nube no responde al buscar el usuario: ${e.message}`); }
-      nube.enLinea = false;
+        return { fallo: [503, "El servicio no respondió. Vuelve a intentar en un momento o entra con tu correo.", "unexpected_failure"] };
+      } catch (e) { nube.marcarCaida(`al buscar el usuario: ${e.message}`); }
     }
     const local = Object.values(d().usuarios).find((u) => u.usuario === usuario);
     return { email: local?.email || usuario };
@@ -139,7 +154,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         }
         const uid = r.cuerpo.user.id;
         // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
-        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user };
+        d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user, nubeConAal: Boolean(aalDe(r.cuerpo.access_token)) };
         nube.guardarSesion(uid, r.cuerpo);
         const rol = await rolEnNube(uid);
         if (rol === null) {
@@ -157,8 +172,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         replica.ciclo().catch(() => {});
         return responder(res, 200, sesionLocal(uid));
       } catch (e) {
-        registro(`[puerta] nube no responde al entrar: ${e.message}`);
-        nube.enLinea = false;
+        nube.marcarCaida(`al entrar: ${e.message}`);
       }
     }
     const [uid, u] = conocido || [];
@@ -194,13 +208,22 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     delete d().refrescos[cuerpo.refresh_token];
-    return responder(res, 200, sesionLocal(r.uid));
+    return responder(res, 200, sesionLocal(r.uid, r.segundoPaso));
   }
 
   // Reenvía la petición a la nube con el token de la nube de ese usuario. Devuelve false si la nube no responde.
   async function aLaNube(req, res, cuerpo, uid) {
-    const token = uid ? await nube.token(uid) : null;
-    if (uid && !token) return false;
+    let token = null;
+    try {
+      token = uid ? await nube.token(uid) : null;
+    } catch (e) {
+      nube.marcarCaida(`al renovar la sesión: ${e.message}`);
+      return false;
+    }
+    if (uid && !token) {
+      registro(`[puerta] ${req.method} ${req.url.split("?")[0]}: hay internet pero este usuario no tiene sesión en la nube (entró sin conexión o la nube la cerró); se atiende desde la copia`);
+      return false;
+    }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
     try {
@@ -209,12 +232,23 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       });
       const salida = {};
       for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+      let cuerpoRespuesta = Buffer.from(await r.arrayBuffer());
+      if (r.status >= 400 && r.status < 500) {
+        // La nube ya cambió y esta versión pide algo que ya no existe: se avisa claro (y /zamorapp/estado lo
+        // marca para que la ventana ofrezca actualizar) en vez de dejar caer la pantalla con un error mudo.
+        let json = null;
+        try { json = JSON.parse(cuerpoRespuesta.toString("utf8")); } catch { /* no es JSON */ }
+        if (json && nube.anotarIncompatibilidad(r.status, json, req.url.split("?")[0])) {
+          registro(`[puerta] la nube cambió y esta versión no la entiende (${json.code} en ${req.method} ${req.url.split("?")[0]}): ${json.message}`);
+          cuerpoRespuesta = Buffer.from(JSON.stringify({ ...json, message: `${MENSAJE_ACTUALIZAR} (${json.message})` }));
+          salida["content-type"] = "application/json; charset=utf-8";
+        }
+      }
       res.writeHead(r.status, salida);
-      res.end(Buffer.from(await r.arrayBuffer()));
+      res.end(cuerpoRespuesta);
       return true;
     } catch (e) {
-      registro(`[puerta] nube no responde: ${e.message}`);
-      nube.enLinea = false;
+      nube.marcarCaida(`${req.method} ${req.url.split("?")[0]}: ${e.message}`);
       return false;
     }
   }
@@ -231,10 +265,28 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     res.end(Buffer.from(await r.arrayBuffer()));
   }
 
-  const soloLectura = (req) => {
+  // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
+  // leídas de la copia local, más la lista fija. Así una función de lectura nueva funciona sin conexión sin
+  // tener que acordarse de anotarla aquí (la 0.1.168 no abría sin conexión por trabajadores_por_empresa).
+  let lectura = { nombres: new Set(RPC_LECTURA), en: 0 };
+  async function funcionesDeLectura() {
+    if (Date.now() - lectura.en < 300e3) return lectura.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query("select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.provolatile in ('s', 'i')");
+      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: Date.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué funciones son de lectura: ${e.message}`);
+      lectura.en = Date.now() - 240e3; // se reintenta en un minuto
+    } finally { await c.end().catch(() => {}); }
+    return lectura.nombres;
+  }
+
+  const soloLectura = async (req) => {
     if (["GET", "HEAD"].includes(req.method)) return true;
     const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
-    return Boolean(m && RPC_LECTURA.has(m[1]));
+    return Boolean(m && (await funcionesDeLectura()).has(m[1]));
   };
 
   async function registrarEquipo(req, res, cuerpo) {
@@ -243,6 +295,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!nube.enLinea) return responder(res, 503, { message: "Para registrar esta PC hace falta internet" });
     const filas = await nube.leer(quien.uid, `miembros?usuario_id=eq.${quien.uid}&rol=eq.administrador&activo=is.true&select=org_id`);
     if (!filas.length) return responder(res, 403, { message: "Solo el administrador registra la PC" });
+    // Registrar una PC le da copia de todos los datos: la nube exige la verificación en dos pasos (aal2)
+    if (aalDe(await nube.token(quien.uid)) === "aal1") {
+      const factor = (quien.u.user?.factors || []).find((f) => f.factor_type === "totp" && f.status === "verified");
+      if (!factor) return responder(res, 403, { code: "dos_pasos_sin_activar", message: "Primero activa la verificación en dos pasos: entra en zamorapp-ocupacional.vercel.app con tu cuenta y sigue los pasos. Luego vuelve aquí." });
+      if (!cuerpo?.codigo) return responder(res, 401, { code: "dos_pasos", message: "Escribe el código de 6 dígitos de tu app autenticadora." });
+      const fallo = await verificarEnNube(quien.uid, factor.id, String(cuerpo.codigo));
+      if (fallo) return responder(res, 401, { code: "dos_pasos", message: fallo });
+    }
     // Serie de numeración: la primera libre (A, B, C… sin la W, que es de la web)
     const series = cuerpo?.serie ? [String(cuerpo.serie)] : [..."ABCDEFGHIJKLMNOPQRSTUVXYZ"];
     let r = null;
@@ -261,6 +321,53 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     replica.ciclo().catch(() => {});
     return responder(res, 200, { ok: true, id: r.id });
   }
+
+  // Pide a la nube el reto y lo verifica con el código; si es correcto guarda la sesión aal2 de la nube.
+  // Devuelve null si salió bien o el motivo para mostrarlo.
+  async function verificarEnNube(uid, factorId, codigo) {
+    const token = await nube.token(uid);
+    if (!token) return "La verificación en dos pasos necesita internet.";
+    const reto = await nube.auth(`factors/${factorId}/challenge`, {}, token);
+    if (!reto.ok) return "No se pudo pedir la verificación a la nube. Intenta de nuevo.";
+    const r = await nube.auth(`factors/${factorId}/verify`, { challenge_id: reto.cuerpo.id, code: codigo.replace(/\D/g, "") }, token);
+    registro(`[auth] verificación en dos pasos: ${r.ok ? "ok" : r.status}`);
+    if (!r.ok) return r.status === 429 ? "Demasiados intentos. Espera unos minutos." : "El código no es correcto o ya cambió. Escribe el que muestra ahora la app.";
+    nube.guardarSesion(uid, r.cuerpo);
+    return null;
+  }
+
+  // Inscribir, borrar, retar y verificar el segundo paso (rutas /auth/v1/factors de Supabase): se pasan a la nube
+  // con la sesión de la persona. Al verificar, la nube da una sesión aal2 y la puerta entrega una local aal2.
+  async function dosPasos(req, res, factor, accion, cuerpo) {
+    const quien = usuarioDe(req);
+    if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+    if (!nube.enLinea) await nube.comprobar();
+    const token = nube.enLinea ? await nube.token(quien.uid) : null;
+    if (!token) return errorAuth(res, 503, "La verificación en dos pasos necesita internet. Sin conexión, sal y entra con Windows Hello (PIN, huella o rostro), que cuenta como segundo paso.", "offline");
+    const ruta = `factors${factor ? `/${factor}` : ""}${accion ? `/${accion}` : ""}`;
+    const r = await nube.auth(ruta, req.method === "DELETE" ? null : cuerpo ?? {}, token, req.method);
+    registro(`[auth] ${req.method} ${ruta}: ${r.status}`);
+    if (r.ok && accion === "verify") {
+      nube.guardarSesion(quien.uid, r.cuerpo);
+      return responder(res, 200, sesionLocal(quien.uid, true));
+    }
+    if (r.ok && !accion) { // inscribir o borrar: la lista de factores de la persona cambió
+      const u = await nube.auth("user", undefined, token);
+      if (u.ok) { quien.u.user = u.cuerpo; estado.guardar(); }
+    }
+    return responder(res, r.status, r.cuerpo ?? r.texto);
+  }
+
+  // Con internet, la nube decide el segundo paso: si la sesión guardada en la nube de un administrador o gerente
+  // médico aún es aal1, Windows Hello no basta (la nube rechazaría sus pedidos con 403 «dos_pasos») y se pide el código.
+  async function cumpleDosPasosEnNube(uid) {
+    const u = d().usuarios[uid];
+    if (!exigeDosPasos(u) || !nube.enLinea) return true;
+    return aalDe(await nube.token(uid)) !== "aal1";
+  }
+
+  // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 
   const servidor = http.createServer(async (req, res) => {
     // Solo se atiende a esta PC por su nombre local (Host) y, desde un navegador, solo a la ventana de
@@ -301,6 +408,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       const ruta = req.url.split("?")[0];
       if (ruta.startsWith("/auth/v1/")) registro(`[auth] llega ${req.method} ${req.url} (Origin "${req.headers.origin || ""}")`);
 
+      if (await atenderHello(req, res, ruta, json)) return;
       // Solo con la nube de prueba (127.0.0.1): un archivo adjunto para probar que la ventana guarda descargas
       if (ruta === "/zamorapp/descarga-prueba" && String(CONFIG.nube || "").startsWith("http://127.0.0.1:")) {
         const nombre = (new URL(req.url, "http://x").searchParams.get("nombre") || "prueba.txt").replace(/[^\w.-]/g, "_");
@@ -308,9 +416,36 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="${nombre}"` });
         return res.end("descarga de prueba de zamorApp\n");
       }
+      const conControl = () => {
+        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
+        const esperada = Buffer.from(control);
+        return Boolean(control) && dada.length === esperada.length && crypto.timingSafeEqual(dada, esperada);
+      };
       if (ruta === "/zamorapp/estado") {
+        // buscarActualizacion: la pantalla «hay una versión nueva» lo pidió; solo el programa (con su clave de
+        // control) lo recibe, y una sola vez, para lanzar el actualizador.
+        const buscar = pedidaActualizacion && conControl();
+        if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta });
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
+          actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
+      }
+      // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
+      // al programa y abrir la web en el navegador de Windows (dentro del WebView2 un enlace externo no abre nada).
+      if (ruta === "/zamorapp/buscar-actualizacion" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        pedidaActualizacion = true;
+        registro("[puerta] la pantalla pidió buscar actualización");
+        return responder(res, 200, { pedida: true });
+      }
+      if (ruta === "/zamorapp/abrir-web" && req.method === "POST") {
+        if (!desdeApp) return responder(res, 403, { message: "No autorizado" });
+        registro(`[puerta] abrir la web en el navegador: ${URL_WEB}`);
+        let abierto = false;
+        if (process.platform === "win32") {
+          try { spawn("cmd", ["/c", "start", "", URL_WEB], { detached: true, stdio: "ignore", windowsHide: true }).unref(); abierto = true; } catch (e) { registro(`[puerta] no se pudo abrir el navegador: ${e.message}`); }
+        }
+        return responder(res, 200, { abierto, url: URL_WEB });
       }
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
@@ -337,6 +472,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const quien = usuarioDe(req);
         return quien ? responder(res, 200, quien.u.user) : errorAuth(res, 401, "Sesión no válida", "bad_jwt");
       }
+      const factores = /^\/auth\/v1\/factors(?:\/([\w-]+)(?:\/(challenge|verify))?)?$/.exec(ruta);
+      if (factores) return await dosPasos(req, res, factores[1], factores[2], json());
       if (ruta === "/auth/v1/logout") {
         const quien = usuarioDe(req);
         if (quien) for (const [t, r] of Object.entries(d().refrescos)) if (r.uid === quien.uid) delete d().refrescos[t];
@@ -369,9 +506,12 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
-        if (nube.enLinea && await aLaNube(req, res, crudo, quien.uid)) return;
+        if (await nube.confirmar() && await aLaNube(req, res, crudo, quien.uid)) return;
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
-        if (!soloLectura(req)) return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
+        if (!await soloLectura(req)) {
+          registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
+          return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
+        }
         return await aLaCopia(req, res, crudo);
       }
       return responder(res, 404, { message: "No encontrado" });

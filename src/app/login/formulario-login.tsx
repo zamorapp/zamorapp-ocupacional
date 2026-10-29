@@ -115,7 +115,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         }
         recordarUsuario(correo);
         // Recién entró con la contraseña: se le ofrece (una vez) entrar con huella la próxima vez
-        if (ofrecerHuella() && (await huellaDisponible()) && !(await huellaActivaAqui())) {
+        if ((await ofrecerHuella()) && (await huellaDisponible()) && !(await huellaActivaAqui())) {
           setOfrecer(true);
           return;
         }

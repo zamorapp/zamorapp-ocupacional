@@ -5,14 +5,17 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::window::{ProgressBarState, ProgressBarStatus};
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
+mod hello;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -192,16 +195,38 @@ fn revisar_recursos(recursos: &Path) -> Result<(), String> {
     }
 }
 
+// Las actualizaciones automáticas traen un instalador liviano, sin PostgreSQL, PostgREST ni Node: usan las
+// piezas que dejó la instalación completa. Si esta versión necesita otras (cambió alguna) y la PC se saltó la
+// versión completa que las trajo, se dice claro qué hacer en vez de arrancar con piezas que no corresponden.
+// componentes-esperados.txt viene en todos los instaladores; pgsql/componentes.txt solo en el completo.
+fn revisar_componentes(recursos: &Path) -> Result<(), String> {
+    let leer = |p: PathBuf| std::fs::read_to_string(p).unwrap_or_default().trim().to_string();
+    let esperado = leer(recursos.join("componentes-esperados.txt"));
+    let instalado = leer(recursos.join("pgsql").join("componentes.txt"));
+    anotar(&format!("componentes: esperados {} · instalados {}", if esperado.is_empty() { "-" } else { &esperado }, if instalado.is_empty() { "-" } else { &instalado }));
+    // Sin huella esperada (instalador anterior a esto) no hay nada que comparar; con ella, la instalada debe coincidir
+    // (si falta, las piezas no vienen de un instalador completo que la conozca: se pide el completo)
+    if esperado.is_empty() || esperado == instalado {
+        Ok(())
+    } else {
+        FALTAN_COMPONENTES.store(true, Ordering::SeqCst);
+        Err("Esta versión de zamorApp necesita piezas nuevas (base de datos local). En unos segundos te ofrecerá descargarlas: pulsa «Actualizar ahora». Si no aparece, instala el completo desde https://github.com/zamorapp/zamorapp-descargas/releases/latest. Tus datos no se pierden.".into())
+    }
+}
+
 // Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
 // por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
 // a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
+// La marca vive junto a los datos: si se borran (PC reinstalada tras un daño), el perfil también se limpia,
+// porque WebView2 lo guarda aparte y sobrevive a desinstalar (p. ej. el «Ahora no» de Windows Hello).
 fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
     let compilacion = compilacion.trim();
     if compilacion.is_empty() {
         return;
     }
-    let marca = carpeta_programa().join("perfil-web.txt");
+    let _ = std::fs::create_dir_all(carpeta_datos());
+    let marca = carpeta_datos().join("perfil-web.txt");
     if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
         return;
     }
@@ -217,6 +242,7 @@ fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
 fn arrancar(recursos: &Path) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
+    revisar_componentes(recursos)?;
     let datos = carpeta_datos();
     std::fs::create_dir_all(&datos).map_err(|e| format!("No se pudo crear {}: {e}", datos.display()))?;
     let node = recursos.join("node").join("node.exe");
@@ -312,20 +338,72 @@ fn detener(p: &mut Procesos) {
     }
 }
 
+// Todo cuadro de diálogo va pegado a la ventana de zamorApp y la trae al frente: sin dueño, Windows lo abría
+// detrás de la ventana y Cesar no lo veía (28/10/2026, «se queda como oculto»).
+fn dialogo(app: &AppHandle, texto: impl Into<String>) -> MessageDialogBuilder<tauri::Wry> {
+    let constructor = app.dialog().message(texto);
+    match app.get_webview_window("principal") {
+        Some(v) => {
+            let _ = v.unminimize();
+            let _ = v.show();
+            let _ = v.set_focus();
+            constructor.parent(&v)
+        }
+        None => constructor,
+    }
+}
+
 fn avisar(app: &AppHandle, titulo: &str, texto: &str) {
-    app.dialog().message(texto).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).blocking_show();
+    dialogo(&app, texto).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).blocking_show();
 }
 
 // Pide a la puerta local una acción interna (POST) y devuelve el cuerpo de la respuesta.
 fn pedir_puerta(ruta: &str) -> Result<String, String> {
+    llamar_puerta("POST", ruta)
+}
+
+fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
     let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
-    c.set_read_timeout(Some(Duration::from_secs(300))).ok();
-    write!(c, "POST {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+    // Las consultas (GET) responden al instante; las acciones (sincronizar) pueden tardar minutos
+    c.set_read_timeout(Some(Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))).ok();
+    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
         .map_err(|e| e.to_string())?;
-    let mut respuesta = String::new();
-    c.read_to_string(&mut respuesta).map_err(|e| e.to_string())?;
+    // Se lee hasta que la puerta cierra (Connection: close) o hasta tener el cuerpo completo (Content-Length):
+    // así una conexión que quede abierta no deja al programa esperando el tiempo límite.
+    let mut bytes = Vec::new();
+    let mut trozo = [0u8; 8192];
+    loop {
+        match c.read(&mut trozo) {
+            Ok(0) => break,
+            Ok(n) => {
+                bytes.extend_from_slice(&trozo[..n]);
+                let texto = String::from_utf8_lossy(&bytes);
+                if let Some((cab, cuerpo)) = texto.split_once("\r\n\r\n") {
+                    let esperado = cab.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(usize::MAX)));
+                    if esperado.map(|e| cuerpo.len() >= e).unwrap_or(false) { break; }
+                }
+            }
+            Err(e) => { if bytes.is_empty() { return Err(e.to_string()); } break; }
+        }
+    }
+    let respuesta = String::from_utf8_lossy(&bytes).to_string();
     let (cabecera, cuerpo) = respuesta.split_once("\r\n\r\n").unwrap_or((&respuesta, ""));
-    if cabecera.starts_with("HTTP/1.1 200") { Ok(cuerpo.to_string()) } else { Err(cabecera.lines().next().unwrap_or("").to_string()) }
+    if !cabecera.starts_with("HTTP/1.1 200") { return Err(cabecera.lines().next().unwrap_or("").to_string()); }
+    let chunked = cabecera.lines().any(|l| l.to_ascii_lowercase().replace(' ', "") == "transfer-encoding:chunked");
+    Ok(if chunked { sin_trozos(cuerpo) } else { cuerpo.to_string() })
+}
+
+// Cuerpo HTTP «chunked» (tamaño en hexadecimal, datos, …, 0) → texto plano
+fn sin_trozos(cuerpo: &str) -> String {
+    let mut salida = String::new();
+    let mut resto = cuerpo;
+    while let Some((largo, despues)) = resto.split_once("\r\n") {
+        let n = usize::from_str_radix(largo.trim().split(';').next().unwrap_or("0"), 16).unwrap_or(0);
+        let (datos, siguiente) = match (n > 0).then(|| despues.get(..n).zip(despues.get(n..))).flatten() { Some(p) => p, None => break };
+        salida.push_str(datos);
+        resto = siguiente.strip_prefix("\r\n").unwrap_or("");
+    }
+    salida
 }
 
 fn sincronizar_ahora(app: AppHandle) {
@@ -341,9 +419,77 @@ fn sincronizar_ahora(app: AppHandle) {
     });
 }
 
+// Evita dos descargas a la vez (menú, aviso de la nube y búsqueda al abrir).
+static ACTUALIZANDO: AtomicBool = AtomicBool::new(false);
+// Faltan las piezas pesadas que esta versión necesita (ver revisar_componentes): se pide el instalador completo
+// de la última versión, aunque sea la misma que ya corre.
+static FALTAN_COMPONENTES: AtomicBool = AtomicBool::new(false);
+const ACTUALIZACION_COMPLETA: &str = "https://github.com/zamorapp/zamorapp-descargas/releases/latest/download/latest-completo.json";
+// Actualización descargada que el usuario pidió instalar al cerrar: (versión, instalador, versión actual).
+static PENDIENTE: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>, String)>> = Mutex::new(None);
+
+// Al cerrar zamorApp, instala la actualización que quedó lista (el instalador vuelve a abrir el programa).
+fn instalar_pendiente() {
+    let Some((nueva, paquete, actual)) = PENDIENTE.lock().unwrap().take() else { return };
+    anotar("instalando la actualización pendiente al cerrar");
+    let _ = std::fs::write(carpeta_programa().join("actualizando.txt"), format!("{actual}\n{}\n", nueva.version));
+    if let Err(e) = nueva.install(paquete) {
+        let _ = std::fs::remove_file(carpeta_programa().join("actualizando.txt"));
+        anotar(&format!("ERROR al instalar la actualización pendiente: {e}"));
+    }
+}
+
+fn estado_pct(texto: &str) -> Option<u64> {
+    texto.split_whitespace().rev().nth(1).and_then(|n| n.parse().ok()).filter(|_| texto.ends_with('%'))
+}
+
+// Franja fija abajo de la ventana con el avance (el título solo se ve poco). Texto vacío la quita.
+fn franja_actualizacion(texto: &str, pct: Option<u64>) -> String {
+    let texto = serde_json::to_string(texto).unwrap_or_else(|_| "\"\"".into());
+    let ancho = pct.map(|p| format!("{p}%")).unwrap_or_else(|| "100%".into());
+    format!(r#"(() => {{
+  let f = document.getElementById("zamorapp-actualizacion");
+  const texto = {texto};
+  if (!texto) {{ f?.remove(); return; }}
+  if (!f) {{
+    f = document.createElement("div");
+    f.id = "zamorapp-actualizacion";
+    f.setAttribute("role", "status");
+    f.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#0f3d3e;color:#fff;font:600 14px system-ui,sans-serif;padding:8px 16px;box-shadow:0 -2px 8px rgba(0,0,0,.2)";
+    f.innerHTML = '<span></span><div style="height:4px;margin-top:6px;background:rgba(255,255,255,.25);border-radius:2px"><div style="height:100%;background:#7fd6c2;border-radius:2px;transition:width .3s"></div></div>';
+    document.body.appendChild(f);
+  }}
+  f.firstChild.textContent = texto;
+  f.lastChild.firstChild.style.width = "{ancho}";
+}})()"#)
+}
+
+// Si la última vez se instaló una actualización, anota cómo terminó y se lo dice al usuario.
+fn revisar_actualizacion_anterior(app: &AppHandle) {
+    let marca = carpeta_programa().join("actualizando.txt");
+    let Ok(texto) = std::fs::read_to_string(&marca) else { return };
+    let _ = std::fs::remove_file(&marca);
+    let mut lineas = texto.lines();
+    let (antes, pedida) = (lineas.next().unwrap_or("?").to_string(), lineas.next().unwrap_or("?").to_string());
+    let actual = app.package_info().version.to_string();
+    anotar(&format!("actualización instalada: de {antes} a {pedida}; ahora corre la {actual}"));
+    if en_pruebas() { return; }
+    let (titulo, mensaje) = if actual == pedida {
+        ("zamorApp actualizado", format!("Listo: zamorApp se actualizó a la versión {actual}. Tus datos siguen intactos."))
+    } else {
+        ("La actualización no terminó", format!("Se pidió la versión {pedida} pero sigue la {actual}. Vuelve a intentarlo desde el menú zamorApp › Buscar actualizaciones."))
+    };
+    dialogo(&app, mensaje).title(titulo).buttons(MessageDialogButtons::OkCustom("Entendido".into())).show(|_| {});
+}
+
 // Busca una versión nueva. Al abrir, solo avisa si la hay; desde el menú, responde siempre.
 // Nunca obliga: "Más tarde" deja todo como está. Instalar no toca los datos (%LOCALAPPDATA%\zamorApp).
 fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
+    buscar_actualizacion_por(app, a_pedido, false);
+}
+
+// por_nube: la puerta detectó que la nube ya cambió y esta versión no la entiende (ver vigilar_nube).
+fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
     std::thread::spawn(move || {
         let prueba = actualizador_prueba();
         let llave = prueba.as_ref().map(|p| p.llave.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| LLAVE_ACTUALIZACIONES.to_string());
@@ -354,6 +500,11 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
         let actual = app.package_info().version.to_string();
         let consulta = tauri::async_runtime::block_on(async {
             let mut constructor = app.updater_builder().pubkey(llave);
+            if FALTAN_COMPONENTES.load(Ordering::SeqCst) && prueba.is_none() {
+                constructor = constructor
+                    .endpoints(vec![ACTUALIZACION_COMPLETA.parse().map_err(|_| tauri_plugin_updater::Error::EmptyEndpoints)?])?
+                    .version_comparator(|actual, remota| remota.version >= actual);
+            }
             if let Some(p) = &prueba {
                 constructor = constructor.endpoints(vec![p.url.parse().map_err(|_| tauri_plugin_updater::Error::EmptyEndpoints)?])?;
             }
@@ -362,32 +513,124 @@ fn buscar_actualizacion(app: AppHandle, a_pedido: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || app.dialog()
-                    .message(format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version))
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
+                        format!("A zamorApp {} le faltan piezas de la base de datos local: hay que descargar el instalador completo.\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version)
+                    } else {
+                        format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nSe descarga mientras trabajas y al final te pregunta cuándo instalar. No se borra ningún dato.", nueva.version)
+                    })
                     .title("Actualización disponible")
                     .buttons(MessageDialogButtons::OkCancelCustom("Actualizar ahora".into(), "Más tarde".into()))
                     .blocking_show();
                 if !aceptar { anotar("actualización pospuesta"); return; }
-                match tauri::async_runtime::block_on(nueva.download(|_, _| {}, || {})) {
+                if ACTUALIZANDO.swap(true, Ordering::SeqCst) { anotar("ya hay una actualización en curso"); return; }
+                // Sin avance a la vista, una descarga de 140 MB parecía «no hacer nada»: el título de la ventana y la
+                // barra de la tarea muestran el porcentaje, y el programa avisa al empezar y al volver a abrirse.
+                let ventana = app.get_webview_window("principal");
+                let titulo = format!("zamorApp Escritorio v{actual}");
+                let mostrar = |texto: &str, estado: ProgressBarState| if let Some(v) = &ventana {
+                    let _ = v.set_title(&if texto.is_empty() { titulo.clone() } else { format!("{titulo} — {texto}") });
+                    let _ = v.set_progress_bar(estado);
+                    let _ = v.eval(&franja_actualizacion(texto, estado_pct(texto)));
+                };
+                anotar(&format!("descargando la actualización {}", nueva.version));
+                mostrar("Descargando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
+                if prueba.is_none() {
+                    dialogo(&app, "Se está descargando la actualización. Puedes seguir trabajando: el avance se ve en la franja de abajo de la ventana y en el título.\n\nAl terminar, zamorApp se cierra unos segundos, se instala y se vuelve a abrir solo.")
+                        .title("Descargando actualización")
+                        .buttons(MessageDialogButtons::OkCustom("Entendido".into()))
+                        .show(|_| {});
+                }
+                let (mut recibido, mut ultimo) = (0u64, u64::MAX);
+                let descarga = tauri::async_runtime::block_on(nueva.download(
+                    |trozo, total| {
+                        recibido += trozo as u64;
+                        let Some(total) = total.filter(|t| *t > 0) else {
+                            // Sin tamaño anunciado: se muestran los MB recibidos
+                            let mb = recibido / 1_048_576;
+                            if mb != ultimo { ultimo = mb; mostrar(&format!("Descargando actualización {mb} MB"), ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None }); }
+                            return;
+                        };
+                        let pct = (recibido * 100 / total).min(100);
+                        if pct == ultimo { return; }
+                        if pct / 25 != ultimo.min(100) / 25 || ultimo == u64::MAX { anotar(&format!("descargando la actualización: {pct} % de {} MB", total / 1_048_576)); }
+                        ultimo = pct;
+                        mostrar(&format!("Descargando actualización {pct} %"), ProgressBarState { status: Some(ProgressBarStatus::Normal), progress: Some(pct) });
+                    },
+                    || {},
+                ));
+                match descarga {
                     Ok(paquete) => {
-                        anotar("actualización descargada y verificada; instalando");
+                        anotar("actualización descargada y verificada");
+                        // Instalar cierra el programa: se pregunta antes, para no perder una consulta a medio escribir.
+                        let ahora = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, "La actualización está lista. Guarda lo que estés escribiendo.\n\nAl instalar, zamorApp se cierra unos segundos y se vuelve a abrir solo.")
+                            .title("Actualización lista")
+                            .buttons(MessageDialogButtons::OkCancelCustom("Instalar ahora".into(), "Al cerrar zamorApp".into()))
+                            .blocking_show();
+                        if !ahora {
+                            anotar("actualización lista; se instalará al cerrar zamorApp");
+                            mostrar("Actualización lista: se instala al cerrar", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                            *PENDIENTE.lock().unwrap() = Some((nueva, paquete, actual));
+                            return;
+                        }
+                        anotar("instalando la actualización");
+                        mostrar("Instalando actualización…", ProgressBarState { status: Some(ProgressBarStatus::Indeterminate), progress: None });
+                        // Al volver a abrir, el programa ve esta marca, anota el resultado y avisa que ya está al día.
+                        let _ = std::fs::write(carpeta_programa().join("actualizando.txt"), format!("{actual}\n{}\n", nueva.version));
                         // La base local se detiene con calma antes de que el instalador reemplace los archivos.
                         detener(&mut app.state::<Mutex<Procesos>>().lock().unwrap());
                         if let Err(e) = nueva.install(paquete) {
+                            let _ = std::fs::remove_file(carpeta_programa().join("actualizando.txt"));
                             anotar(&format!("ERROR al instalar la actualización: {e}"));
+                            mostrar("", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                            ACTUALIZANDO.store(false, Ordering::SeqCst);
                             avisar(&app, "No se pudo actualizar", "La actualización no se instaló. Cierra y vuelve a abrir zamorApp; tus datos están intactos.");
                         }
                     }
                     Err(e) => {
                         anotar(&format!("ERROR al descargar la actualización: {e}"));
-                        avisar(&app, "No se pudo actualizar", "No se pudo descargar la actualización. Revisa internet y vuelve a intentarlo desde el menú zamorApp.");
+                        mostrar("", ProgressBarState { status: Some(ProgressBarStatus::None), progress: None });
+                        ACTUALIZANDO.store(false, Ordering::SeqCst);
+                        avisar(&app, "No se pudo actualizar", "No se pudo descargar la actualización. Revisa internet y vuelve a intentarlo desde el menú zamorApp › Buscar actualizaciones.");
                     }
                 }
             }
+            Ok(None) if por_nube => avisar(&app, "zamorApp necesita actualizarse",
+                "La nube ya tiene cambios que esta versión no entiende y la versión nueva todavía se está publicando.\n\nEn unos minutos: menú zamorApp → Buscar actualizaciones. Mientras tanto trabaja en la web: zamorapp-ocupacional.vercel.app. Tus datos están intactos."),
             Ok(None) => if a_pedido { avisar(&app, "Actualizaciones", &format!("Ya tienes la versión más reciente ({actual})." )) },
             Err(e) => {
                 anotar(&format!("no se pudo buscar actualizaciones: {e}"));
-                if a_pedido { avisar(&app, "Actualizaciones", "No se pudo revisar si hay una versión nueva. Revisa la conexión a internet."); }
+                if a_pedido || por_nube { avisar(&app, "Actualizaciones", "No se pudo revisar si hay una versión nueva. Revisa la conexión a internet."); }
+            }
+        }
+    });
+}
+
+// La nube puede recibir una migración antes de que esta PC se actualice (27/10/2026: la 0.1.0 quedó con
+// «Application error» cuando la nube dejó de entregar dos columnas). La puerta lo detecta y lo marca en
+// /zamorapp/estado; aquí se mira cada 10 s y, la primera vez, se ofrece la actualización en vez de dejar
+// la pantalla caída. Nunca obliga: si Cesar dice «Más tarde», la app sigue (lo que se pueda leer, se lee).
+fn vigilar_nube(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut avisado = false;
+        let mut fallos = 0;
+        anotar("vigilando la nube (cada 10 s)");
+        loop {
+            std::thread::sleep(Duration::from_secs(10));
+            let estado = match llamar_puerta("GET", "/zamorapp/estado").map(|c| serde_json::from_str::<serde_json::Value>(&c)) {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => { if fallos == 0 { anotar(&format!("vigilar la nube: respuesta ilegible: {e}")); } fallos += 1; continue; }
+                Err(e) => { if fallos == 0 { anotar(&format!("vigilar la nube: la puerta no respondió: {e}")); } fallos += 1; continue; }
+            };
+            if estado["buscarActualizacion"] == true {
+                // Botón «Buscar actualización» de la pantalla: responde siempre, como desde el menú
+                anotar("actualización pedida desde la pantalla");
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, true); }
+            }
+            if estado["actualizar"] == true && !avisado {
+                avisado = true;
+                anotar(&format!("la nube va por delante de esta versión: {}", estado["incompatible"]));
+                // En la prueba de humo solo se anota: el actualizador de prueba ya tiene su propio paso.
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), false, true); }
             }
         }
     });
@@ -417,8 +660,7 @@ fn descarga(app: &AppHandle, evento: tauri::webview::DownloadEvent<'_>) -> bool 
             if success && !en_pruebas() {
                 let app = app.clone();
                 std::thread::spawn(move || {
-                    let abrir = app.dialog()
-                        .message(format!("Se guardó en tu carpeta Descargas:\n{}", ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()))
+                    let abrir = dialogo(&app, format!("Se guardó en tu carpeta Descargas:\n{}", ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()))
                         .title("Archivo guardado")
                         .buttons(MessageDialogButtons::OkCancelCustom("Abrir carpeta".into(), "Entendido".into()))
                         .blocking_show();
@@ -475,7 +717,21 @@ fn main() {
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .title(format!("zamorApp Escritorio v{version}"))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
-                .on_download(move |_, evento| descarga(&para_descargas, evento));
+                .on_download(move |_, evento| descarga(&para_descargas, evento))
+                // "Entrar con Windows Hello": la página pide la huella navegando a una dirección de la puerta que se
+                // intercepta aquí (la página no cambia). Ver hello.rs.
+                .on_navigation({
+                    let manejador = app.handle().clone();
+                    move |url| match hello::pedido(url, PUERTO_PUERTA) {
+                        Some((accion, codigo)) => {
+                            if let Some(ventana) = manejador.get_webview_window("principal") {
+                                hello::atender(ventana, accion, codigo, pedir_puerta, anotar);
+                            }
+                            false
+                        }
+                        None => true,
+                    }
+                });
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
@@ -490,6 +746,8 @@ fn main() {
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
                         let _ = ventana.navigate(destino.parse().expect("dirección local"));
                         anotar("ventana abierta en la pantalla de inicio");
+                        revisar_actualizacion_anterior(&manejador);
+                        vigilar_nube(manejador.clone());
                         std::thread::sleep(Duration::from_secs(20));
                         buscar_actualizacion(manejador.clone(), false);
                     }
@@ -498,6 +756,8 @@ fn main() {
                         let texto = format!("No se pudo abrir zamorApp: {e} Cierra y vuelve a abrir el programa. Si sigue igual, avisa al soporte y envía el archivo %LOCALAPPDATA%\\zamorApp\\arranque.log.")
                             .replace('\\', "\\\\").replace('\'', "\\'");
                         let _ = ventana.eval(&format!("document.querySelector('.c').replaceChildren(Object.assign(document.createElement('strong'), {{ textContent: '{texto}' }}))"));
+                        // Aunque no arranque, se busca una versión nueva: así un arreglo publicado llega igual a esta PC
+                        buscar_actualizacion(manejador.clone(), false);
                     }
                 }
             });
@@ -512,6 +772,7 @@ fn main() {
         RunEvent::Exit => {
             anotar("cerrando");
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
+            instalar_pendiente();
         }
         _ => {}
     });
