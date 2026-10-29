@@ -490,6 +490,20 @@ test("sin internet no se pide el código: vale el plazo de confianza de esta PC;
     assert.equal(r.status, 200);
     assert.equal(aal(r.json.access_token), "aal2", "sin internet y dentro del plazo: entra sin código");
 
+    // Clave equivocada (pedido de Cesar): la siguiente entrada vuelve a pedir el segundo paso
+    assert.equal((await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "mal" } })).status, 400);
+    r = await entrar();
+    assert.equal(aal(r.json.access_token), "aal1", "tras una clave equivocada se pide el segundo paso");
+    assert.ok(lineas.some((l) => l.includes("clave equivocada: se pedirá el segundo paso")));
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    assert.equal((await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "mal" } })).status, 400);
+    admin().segundoPasoEn = Date.now();
+    assert.equal((await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "otra-mal" } })).status, 400);
+    assert.equal(admin().segundoPasoEn, 0, "también con internet");
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+
     admin().segundoPasoEn = Date.now() - 31 * 864e5;
     r = await entrar();
     assert.equal(r.status, 200, "fuera del plazo igual abre la sesión (la app ofrece Windows Hello)");

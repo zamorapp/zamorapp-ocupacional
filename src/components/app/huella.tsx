@@ -12,6 +12,7 @@ import {
 } from "@/lib/huella";
 
 const NOMBRE = ES_ESCRITORIO ? "Windows Hello" : "huella";
+const AUTO_HELLO = "zamorapp.hello.automatico";
 
 /** Botón de la pantalla de ingreso. Grande si este equipo ya tiene huella; discreto si solo es posible. */
 export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
@@ -28,7 +29,6 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
     })();
   }, []);
 
-  if (estado === "no") return null;
   const entrar = async () => {
     setError(null);
     setCargando(true);
@@ -36,6 +36,20 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
     setCargando(false);
     if (r.ok) alEntrar(); else setError(r.mensaje);
   };
+
+  // Escritorio con Windows Hello activo: al abrir el programa se pide la huella o el PIN sin tocar nada (pedido de
+  // Cesar: entrar directo). Una vez por ventana: tras «Salir» o si se cancela, queda el botón y no insiste.
+  useEffect(() => {
+    if (!ES_ESCRITORIO || estado !== "activa") return;
+    try {
+      if (sessionStorage.getItem(AUTO_HELLO)) return;
+      sessionStorage.setItem(AUTO_HELLO, "1");
+    } catch { return; }
+    void entrar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  if (estado === "no") return null;
 
   return (
     <div className="space-y-3">
