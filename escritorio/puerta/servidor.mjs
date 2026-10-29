@@ -625,7 +625,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         const buscar = pedidaActualizacion && conControl();
         if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, copia: replica.progreso ?? null, lecturaLocal: copiaAlDia(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
           numerosLibres: bloques ? await bloques.libres() : null,

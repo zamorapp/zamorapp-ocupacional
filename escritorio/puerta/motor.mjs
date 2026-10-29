@@ -34,20 +34,31 @@ export class Motor {
     return `postgresql://${usuario}:${encodeURIComponent(clave)}@127.0.0.1:${this.puertoBase}/zamorapp`;
   }
 
+  // Avance de la primera apertura (C13): el programa lo muestra en la pantalla de carga. Textos fijos, sin datos.
+  // También va al registro con los segundos desde que arrancó la puerta, para ajustar los porcentajes con cifras reales.
+  avance(pct, texto) {
+    process.stdout.write(`AVANCE ${pct} ${texto}\n`);
+    this.registro?.(`[avance] ${pct} % ${texto} (${(performance.now() / 1000).toFixed(1)} s)`);
+  }
+
   async iniciar() {
     this.puertoBase = await puertoLibre(CONFIG.puertoBase);
     await this.#iniciarPostgres();
+    this.avance(20, "Preparando las tablas");
     await this.#migrar();
+    this.avance(90, "Abriendo la conexión");
     // Fase C: una restauración pedida desde la app (respaldo.mjs) se aplica aquí, con PostgREST aún apagado
     if (this.estado.d.restaurar) await this.restaurarSiPedida();
     await this.limpiarBloquesAjenos();
     // Se elige con la base ya escuchando: si 54329 estaba ocupado y la base tomó 54330, PostgREST no lo pisa
     this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
     await this.#iniciarPostgrest();
+    this.avance(98, "Abriendo zamorApp");
   }
 
   async #iniciarPostgres() {
     if (!fs.existsSync(path.join(this.carpetaBase, "PG_VERSION"))) {
+      this.avance(3, "Creando la base de esta PC");
       const archivoClave = path.join(CONFIG.datos, ".clave-inicial");
       fs.writeFileSync(archivoClave, this.estado.d.claveBase, { mode: 0o600 });
       const r = spawnSync(exe("initdb"), ["-D", this.carpetaBase, "-U", "postgres", "-E", "UTF8", "--locale=C",
@@ -64,6 +75,7 @@ export class Motor {
     }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
+    this.avance(12, "Encendiendo la base");
     const log = path.join(CONFIG.datos, "base.log");
     const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
@@ -108,9 +120,15 @@ export class Motor {
         ...fs.readdirSync(CONFIG.migraciones).filter((f) => f.endsWith(".sql")).sort().map((f) => [f, path.join(CONFIG.migraciones, f)]),
         ...fs.readdirSync(CONFIG.baseExtra).filter((f) => f.endsWith(".sql")).sort().map((f) => [`zz_local_${f}`, path.join(CONFIG.baseExtra, f)]),
       ];
+      const pendientes = pasos.filter(([nombre]) => !hechas.has(nombre)).length;
+      let hechasAhora = 0;
       for (const [nombre, archivo] of pasos) {
         const local = nombre.startsWith("zz_local_");
         if (hechas.has(nombre) && !local) continue; // los ajustes locales se reaplican siempre (son idempotentes)
+        // Avance de 20 a 88 % según las tablas que faltan (la primera vez son todas; después, solo las nuevas)
+        if (!hechas.has(nombre) && pendientes > 5 && ++hechasAhora % 5 === 0) {
+          this.avance(20 + Math.round((hechasAhora / pendientes) * 68), `Preparando las tablas: ${hechasAhora} de ${pendientes}`);
+        }
         await c.query("begin");
         try {
           await c.query(fs.readFileSync(archivo, "utf8"));

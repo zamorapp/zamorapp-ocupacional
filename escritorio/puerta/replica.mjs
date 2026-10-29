@@ -15,6 +15,7 @@ export class Replica {
     this.ultimaMs = null; // cuándo terminó bien el último ciclo, con performance.now(): Cesar cambia la fecha de Windows
     this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (performance.now()): una escritura anterior ya bajó
     this.error = null;
+    this.progreso = null; // durante la copia completa: { hechas, total, filas } para la primera pantalla
   }
 
   // Usuario cuya sesión baja los datos: el último interno con sesión válida en la nube.
@@ -97,6 +98,8 @@ export class Replica {
     const eq = this.estado.d.equipo;
     const tablas = [...await this.#tablasSync(c), ...CATALOGOS];
     let seq = null;
+    // Avance para la pantalla «Copiando los datos» (C13): grupos de datos hechos y registros copiados
+    this.progreso = { hechas: 0, total: tablas.length, filas: 0 };
     await c.query("begin");
     try {
       for (const tabla of tablas) {
@@ -107,15 +110,19 @@ export class Replica {
           const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
           if (seq === null) seq = r.seq;
           if (r.filas.length) await this.#insertar(c, tabla, r.filas);
+          this.progreso.filas += r.filas.length;
           if (!conId || !r.ultimo || r.filas.length < 2000) break;
           despues = r.ultimo;
         }
+        this.progreso.hechas += 1;
       }
       await c.query("commit");
     } catch (e) {
       await c.query("rollback");
+      this.progreso = null;
       throw e;
     }
+    // Queda con hechas = total: la pantalla llega al final antes de abrir la app
     this.estado.d.cursor = seq ?? 0;
     this.estado.d.copiaCompleta = new Date().toISOString();
     this.estado.guardar();

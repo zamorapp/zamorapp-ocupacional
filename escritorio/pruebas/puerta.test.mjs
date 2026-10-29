@@ -118,6 +118,15 @@ test("primera copia completa a la PC", { skip: omitir }, async () => {
   assert.ok(cats.rows[0].n > 0);
 });
 
+test("C13: el avance de la copia llega al total y /zamorapp/estado lo da sin nombres de tabla", { skip: omitir }, async () => {
+  const p = replicaObj.progreso;
+  assert.ok(p && p.total > 0, "hay progreso");
+  assert.equal(p.hechas, p.total);
+  assert.ok(p.filas >= 2);
+  const r = await pedir("/zamorapp/estado");
+  assert.deepEqual(Object.keys(r.json.copia).sort(), ["filas", "hechas", "total"]);
+});
+
 test("con internet, la app lee de la nube", { skip: omitir }, async () => {
   const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   assert.equal(r.status, 200);
