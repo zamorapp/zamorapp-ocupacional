@@ -42,8 +42,8 @@ export function ListaConflictos() {
 
 function Vacio({ texto, ok = false }: { texto: string; ok?: boolean }) {
   return (
-    <p className="flex items-center justify-center gap-2 rounded-xl border bg-card p-10 text-center text-sm text-muted-foreground">
-      {ok && <CheckCircle2 className="size-4 shrink-0 text-ok" aria-hidden />} {texto}
+    <p className={cn("flex items-center justify-center gap-2 rounded-xl border bg-card p-10 text-center text-sm", ok ? "text-ok-texto" : "text-muted-foreground")}>
+      {ok && <CheckCircle2 className="size-4 shrink-0 text-ok-texto" aria-hidden />} {texto}
     </p>
   );
 }
@@ -102,8 +102,21 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
         {borrado ? (
           <p className="text-sm text-muted-foreground">En esta PC se borró este registro. En la nube sigue existiendo.</p>
         ) : filas.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[32rem] text-sm">
+          <>
+          {/* Celular: un bloque por campo */}
+          <dl className="space-y-2 sm:hidden">
+            {filas.map((f) => (
+              <div key={f.campo} className={cn("rounded-lg border p-3 text-sm", f.distinto && "border-aviso/40 bg-aviso/5")}>
+                <dt className="font-medium">{f.etiqueta}{f.distinto && <span className="sr-only"> (distinto)</span>}</dt>
+                <dd className="mt-1.5 grid gap-1.5">
+                  <span><span className="flex items-center gap-1 text-xs text-muted-foreground"><Laptop className="size-3.5" aria-hidden /> En esta PC</span><span className={cn("block whitespace-pre-wrap break-words", f.distinto && "font-medium")}>{f.pc}</span></span>
+                  <span><span className="flex items-center gap-1 text-xs text-muted-foreground"><CloudDownload className="size-3.5" aria-hidden /> En la nube ahora</span><span className="block whitespace-pre-wrap break-words">{c.nube ? f.nube : <span className="text-muted-foreground">No está en la nube</span>}</span></span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <div className="hidden overflow-x-auto rounded-lg border sm:block">
+            <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
                 <tr>
                   <th scope="col" className="w-1/4 p-2 font-medium">Campo</th>
@@ -125,6 +138,7 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" disabled={Boolean(ocupado)} onClick={() => resolver("descartar")}>
@@ -133,7 +147,7 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
           <Button size="sm" disabled={Boolean(ocupado)} onClick={() => resolver("reintentar")}>
             {ocupado === "reintentar" ? <Loader2 className="animate-spin" aria-hidden /> : <Upload aria-hidden />} Volver a subir la de esta PC
           </Button>
-          {aviso && <span role="status" className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
+          {aviso && <span role="status" className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-alerta-texto")}>{aviso.mensaje}</span>}
         </div>
       </div>
     </li>
