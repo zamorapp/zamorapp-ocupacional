@@ -128,6 +128,19 @@ begin
 end $$;
 revoke execute on function local.encolar(), local.columnas_permitidas(text, text) from public, authenticated;
 
+-- ¿La réplica puede escribir esta fila de la nube? No si hay un cambio de la PC por subir, ni si la PC ya subió una
+-- versión más nueva. VOLATILE a propósito: cada consulta de adentro toma una foto nueva, así que, usada en el
+-- «on conflict do update where» de la réplica, mira la bandeja DESPUÉS de esperar el bloqueo de la fila. Un guardado
+-- de la PC que tomó la fila mientras tanto ya está en la bandeja y no se pisa (Windows: «rápido 12» en vez de
+-- «rápido 13»). Sin bloqueos extra: no hay abrazos mortales con el guardado.
+create or replace function local.replica_puede(p_tabla text, p_id uuid, p_version bigint)
+returns boolean language plpgsql volatile set search_path = public as $$
+begin
+  return not exists (select 1 from local.bandeja b where b.tabla = p_tabla and b.fila_id = p_id and b.estado = 'pendiente')
+     and not exists (select 1 from local.version_nube v where v.tabla = p_tabla and v.fila_id = p_id and v.version > p_version);
+end $$;
+revoke execute on function local.replica_puede(text, uuid, bigint) from public, authenticated;
+
 do $$
 declare t record;
 begin

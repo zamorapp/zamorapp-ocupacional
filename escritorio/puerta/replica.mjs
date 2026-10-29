@@ -206,9 +206,12 @@ export class Replica {
     // lo último y llega después de borrarse de la bandeja), la copia se queda con lo último que se guardó aquí
     const vieja = "version" in filas[0]
       ? " and not exists (select 1 from local.version_nube v where v.tabla = $2 and v.fila_id = r.id and v.version > r.version)" : "";
+    // La misma revisión se repite al actualizar, DESPUÉS de esperar el bloqueo de la fila (ver local.replica_puede): la
+    // de arriba usa la foto del inicio y no ve un guardado de la PC que la tomó mientras tanto
+    const aun = ` where local.replica_puede($2, excluded.id, ${"version" in filas[0] ? "excluded.version" : "null"})`;
     await c.query(
       `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1) r where not ${pendiente}${vieja}
-       on conflict (id) do update set ${actualizar}`,
+       on conflict (id) do update set ${actualizar}${aun}`,
       [JSON.stringify(filas), tabla],
     );
     if ("version" in filas[0]) {
