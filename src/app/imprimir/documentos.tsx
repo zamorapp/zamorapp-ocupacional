@@ -159,13 +159,14 @@ function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[
       <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
       <dl className="space-y-0.5 text-[11px] leading-snug">
         {llenas.map((x) => {
-          const alterado = x.valor.trim() !== x.normal.trim();
+          // Sin texto «normal» en el catálogo no hay con qué comparar: no se marca
+          const alterado = x.normal.trim() !== "" && x.valor.trim() !== x.normal.trim();
           return (
             <div key={x.clave} className="flex gap-3 break-inside-avoid">
               <dt className={`w-32 shrink-0 ${alterado ? "font-bold" : "font-semibold text-doc-tenue"}`}>{x.nombre}</dt>
               <dd className={alterado ? "font-semibold" : undefined}>
                 {x.valor.trim()}
-                {alterado && x.normal.trim() && <span className="ml-1.5 rounded-full border border-doc-linea px-1.5 text-[9px] font-normal text-doc-tenue">alterado</span>}
+                {alterado && <span className="ml-1.5 rounded-full border border-doc-linea px-1.5 text-[9px] font-normal text-doc-tenue">alterado</span>}
               </dd>
             </div>
           );
