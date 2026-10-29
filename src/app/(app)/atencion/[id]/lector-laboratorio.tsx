@@ -145,7 +145,8 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
               <div className="grid w-full max-w-sm justify-items-center gap-3 text-center" role="status" aria-live="polite">
                 <Loader2 className="size-8 animate-spin text-primary" />
                 <p className="text-sm font-medium">{avance.texto}</p>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Avance de la lectura"
+                  aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((avance.paso + 0.5) / Math.max(1, avance.total)) * 100)}>
                   <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(((avance.paso + 0.5) / Math.max(1, avance.total)) * 100)}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground">La primera vez el lector tarda unos segundos en prepararse.</p>
@@ -200,6 +201,8 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
                           key={i}
                           onFocusCapture={() => setResaltada(f.linea)}
                           onMouseEnter={() => setResaltada(f.linea)}
+                          // Ojo: en el celular la grilla ubica a los hijos por posición (nth-child: 1 casilla, 2 examen, 3 valor, 6+ estado y dudas).
+                          // Si agregas, quitas o reordenas hijos de este <li>, ajusta esos selectores.
                           className={cn("grid gap-2 border-l-4 px-3 py-2.5 max-sm:grid-cols-[1.5rem_repeat(3,minmax(0,1fr))] max-sm:[&>*:nth-child(2)]:col-span-3 max-sm:[&>*:nth-child(3)]:col-start-2 max-sm:[&>*:nth-child(n+6)]:col-span-4 sm:grid-cols-[1.5rem_minmax(0,1.4fr)_minmax(5rem,0.8fr)_minmax(4rem,0.6fr)_minmax(5rem,0.8fr)_auto] sm:items-center",
                             !f.incluir || bloqueada ? "border-l-transparent opacity-60" : dudosa ? "border-l-aviso bg-aviso/5" : "border-l-ok/60")}
                         >
@@ -245,14 +248,14 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
         )}
 
         <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
-          {error && filas && <span className="text-sm text-alerta-texto">{error}</span>}
+          {error && filas && <span role="alert" className="text-sm text-alerta-texto">{error}</span>}
           {filas && verImagen && <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setVerImagen(false)}><X /> Ocultar imagen</Button>}
           <span className="ml-auto" />
           <Button variant="ghost" onClick={() => { control.current?.abort(); onCerrar(); }}>Cancelar</Button>
           {filas && (
             <Button onClick={registrar} disabled={registrando || !incluidas.length || porRevisar > 0 || identidadPendiente}>
               {registrando ? <Loader2 className="animate-spin" /> : <Check />}
-              Registrar {incluidas.length} resultado{incluidas.length === 1 ? "" : "s"}{porRevisar ? ` (${porRevisar} por revisar)` : ""}
+              Registrar {incluidas.length} resultado{incluidas.length === 1 ? "" : "s"}{porRevisar ? ` (${porRevisar} por revisar)` : identidadPendiente ? " (confirma la identidad)" : ""}
             </Button>
           )}
         </div>
