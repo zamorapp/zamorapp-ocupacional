@@ -2,6 +2,7 @@
 // informe NT-02, investigación del accidente) y deja los correos en cola. Si quien entra es administrador o
 // gerente médico y el correo está configurado, se envían aquí. Nunca bloquea la página: corre con after().
 import "server-only";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import { correoConfigurado, enviarCorreo } from "@/lib/correo";
 import { URL_PUBLICA } from "@/lib/invitaciones";
@@ -16,6 +17,8 @@ type Pendiente = { id: string; correo: string; titulo: string; texto: string; en
 export async function vigilarPlazos(sesion: Pick<Sesion, "demo" | "rol" | "organizacion">) {
   if (sesion.demo || !sesion.rol || !ROLES.has(sesion.rol)) return;
   try {
+    // Un prefetch (pasar el mouse por un enlace) no es una visita: no revisa plazos ni envía correos
+    if ((await headers()).get("next-router-prefetch")) return;
     const supabase = await crearClienteServidor();
     after(async () => {
       try {
