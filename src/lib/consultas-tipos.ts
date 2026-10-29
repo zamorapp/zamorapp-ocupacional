@@ -11,7 +11,8 @@ export type Paraclinico = {
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
 export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string; notaFarmacia?: string };
 export type Interconsulta = { especialidad: string; motivo: string };
-export type Reubicacion = { activa: boolean; tipo: "temporal" | "definitiva"; puestoActual: string; puestoPropuesto: string; desde: string; hasta: string; motivo: string; restricciones: string };
+// resultado: código de la lista «Resultados de reubicación» (efectiva, negada, en trámite); vacío = en trámite
+export type Reubicacion = { activa: boolean; tipo: "temporal" | "definitiva"; puestoActual: string; puestoPropuesto: string; desde: string; hasta: string; motivo: string; restricciones: string; resultado: string };
 export type InformeLibre = { titulo: string; dirigidoA: string; cuerpo: string };
 export type Habito = { clave: string; nombre: string; valor: string };
 export type Antecedente = { id: string; nombre: string; grupo: string | null; observacion: string };
@@ -50,6 +51,8 @@ export type DatosConsulta = {
   tipo: "primera" | "sucesiva" | "derivada";
   motivoId: string | null;
   motivoTexto: string;
+  // Especialidad de la consulta externa o especializada (cuadro del informe de vigilancia)
+  especialidad: string;
   enfermedadActual: string;
   antecedentes: Antecedente[];
   habitos: Habito[];

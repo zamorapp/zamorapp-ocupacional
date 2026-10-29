@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
-import { indicesCovenin, tasasEnfermedadOcupacional } from "@/lib/reportes";
+import { indicesCovenin, tasasEnfermedadOcupacional, textoMetodoHoras } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
@@ -133,7 +133,7 @@ export default async function Reportes({ searchParams }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Accidentalidad y enfermedad ocupacional (COVENIN 474)</CardTitle>
-                  <CardDescription>Índices por millón de horas hombre trabajadas{acc.estimado_auto ? " · HHT estimadas (trabajadores × 8 h × días hábiles): carga las horas reales en la empresa" : ""}.</CardDescription>
+                  <CardDescription>Índices por millón de horas hombre · {textoMetodoHoras(acc.metodo)}{acc.estimado_auto ? " Carga las horas reales en la empresa." : ""} El método se cambia en Configuración › Organización.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
                   {[
@@ -144,7 +144,7 @@ export default async function Reportes({ searchParams }: Props) {
                     ["TAEO", num(eo.taeo), "Ausentismo EO"],
                     ["Accidentes", String(acc.accidentes), `${acc.con_tiempo_perdido} con tiempo perdido`],
                     ["Declaradas a tiempo", ix.aTiempo === null ? "—" : `${ix.aTiempo} %`, `${acc.por_declarar} por declarar`],
-                    ["HHT", num(acc.hht), acc.hay_estimado ? "estimadas" : "según nómina"],
+                    [acc.metodo === "same" ? "HHE" : "HHT", num(acc.hht), acc.metodo === "same" ? "fórmula del SAME" : acc.metodo === "covenin" ? "estimadas" : "según nómina"],
                   ].map(([t, n, d]) => (
                     <div key={t} className="rounded-lg border p-3">
                       <div className="text-xs text-muted-foreground">{t}</div>
