@@ -9,6 +9,7 @@ import { Constancia, Informe } from "../documentos";
 export const metadata: Metadata = { title: "Documentos por lote" };
 export const dynamic = "force-dynamic";
 
+const BLOQUE = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Varias consultas en un solo documento, una por hoja: constancias de aptitud (original para la empresa)
@@ -20,7 +21,12 @@ export default async function Lote({ searchParams }: { searchParams: Promise<{ i
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.clinico) notFound();
   const lista = [...new Set(ids.split(",").filter((x) => UUID.test(x)))].slice(0, MAX_LOTE);
-  const docs = (await Promise.all(lista.map(async (id) => ({ id, d: await obtenerDocumento(id) })))).flatMap(({ id, d }) => (d ? [{ ...d, clave: id }] : []));
+  // En bloques de 20: pedir los 150 a la vez abría cientos de conexiones simultáneas a la base (plan gratis)
+  const leidos: { id: string; d: Awaited<ReturnType<typeof obtenerDocumento>> }[] = [];
+  for (let i = 0; i < lista.length; i += BLOQUE) {
+    leidos.push(...(await Promise.all(lista.slice(i, i + BLOQUE).map(async (id) => ({ id, d: await obtenerDocumento(id) })))));
+  }
+  const docs = leidos.flatMap(({ id, d }) => (d ? [{ ...d, clave: id }] : []));
   const visibles = doc === "constancia" ? docs.filter((d) => d.datos.aptitud.clasificacion) : docs;
   const titulo = doc === "constancia" ? "Constancias de aptitud" : "Consultas médicas";
 
