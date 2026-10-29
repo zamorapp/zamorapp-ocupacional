@@ -33,7 +33,7 @@ const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).spl
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, bandeja = null, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloques = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
@@ -431,8 +431,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
     const base = (await tablasSubibles()).get(`${perfil}.${m[2]}`);
     if (!base) return false;
     if (req.method === "DELETE" && base.startsWith("clinico.")) return false; // nada clínico se borra desde la PC: va a la nube como hasta ahora
-    // Alta de un paciente: numero_historia es serial y chocaría con la nube; hasta la fase B (bloques por equipo) va a la nube
-    if (req.method === "POST" && base === "public.trabajadores") return false;
+    // Alta de un paciente: solo en la PC si tiene números de historia reservados por la nube (fase B, bloques por
+    // equipo); si no, va a la nube como antes (y sin internet se avisa)
+    if (req.method === "POST" && base === "public.trabajadores") return Boolean(bloques) && (await bloques.libres()) > 0;
     return true;
   };
 
@@ -588,6 +589,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
+          numerosLibres: bloques ? await bloques.libres() : null,
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -616,6 +618,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
         await nube.comprobar();
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
+        if (bloques) await bloques.reponer();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
       }

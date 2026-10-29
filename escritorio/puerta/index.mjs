@@ -7,6 +7,7 @@ import { Motor, puertoLibre } from "./motor.mjs";
 import { Nube } from "./nube.mjs";
 import { Replica } from "./replica.mjs";
 import { Bandeja } from "./bandeja.mjs";
+import { Bloques } from "./bloques.mjs";
 import { crearPuerta } from "./servidor.mjs";
 
 fs.mkdirSync(CONFIG.datos, { recursive: true });
@@ -32,6 +33,7 @@ motor.registro = registro;
 const nube = new Nube(estado, registro);
 const replica = new Replica(estado, nube, motor, registro);
 const bandeja = new Bandeja(estado, nube, motor, replica, registro);
+const bloques = new Bloques(estado, nube, motor, replica, registro);
 
 async function principal() {
   await motor.iniciar();
@@ -41,13 +43,13 @@ async function principal() {
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
-  crearPuerta({ estado, nube, motor, replica, bandeja, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
+  crearPuerta({ estado, nube, motor, replica, bandeja, bloques, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
   });
   // Cada ciclo: primero sube lo guardado en la PC, luego baja lo de la nube
-  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); };
+  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await bloques.reponer(); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();
 }

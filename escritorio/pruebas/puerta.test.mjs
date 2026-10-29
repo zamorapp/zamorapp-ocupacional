@@ -18,7 +18,7 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, urlPuerta, CONFIG;
+let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
@@ -60,6 +60,7 @@ before(async () => {
   const { Nube } = await import("../puerta/nube.mjs");
   const { Replica } = await import("../puerta/replica.mjs");
   const { Bandeja } = await import("../puerta/bandeja.mjs");
+  const { Bloques } = await import("../puerta/bloques.mjs");
   const { crearPuerta } = await import("../puerta/servidor.mjs");
   ({ CONFIG } = await import("../puerta/config.mjs"));
   estado = new Estado(datos, CONFIG.llave);
@@ -69,7 +70,8 @@ before(async () => {
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
   bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
+  bloquesObj = new Bloques(estado, nubeObj, motor, replicaObj);
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -317,6 +319,31 @@ test("un autor sin sesión en la nube no frena a los demás: sus cambios esperan
   assert.equal(n.motivo_texto, "del médico");
 });
 
+test("fase B: con un bloque reservado, el alta de un paciente sin internet lleva su número definitivo y sube igual", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  nube.estado.caida = false; await nubeObj.comprobar();
+  assert.equal(await bloquesObj.reponer(), true, bloquesObj.ultimoError || "");
+  const [b] = await enLocal("select desde, hasta from local.bloques order by id desc limit 1");
+  assert.equal(Number(b.hasta) - Number(b.desde), 99);
+  assert.equal((await pedir("/zamorapp/estado")).json.numerosLibres, 100);
+  assert.equal(await bloquesObj.reponer(), false, "con números de sobra no pide otro bloque");
+  // Sin internet: alta en la PC con el primer número del bloque
+  nube.estado.caida = true; await nubeObj.comprobar();
+  const id = "30000000-0000-0000-0000-0000000000fb";
+  const alta = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { id, org_id: "10000000-0000-0000-0000-000000000001", empresa_id: "20000000-0000-0000-0000-00000000000a", cedula: "7001", nombres: "Nuevo", apellidos: "Sin internet", numero_historia: 5 } });
+  assert.ok([200, 201].includes(alta.status), JSON.stringify(alta.json));
+  const [t] = await enLocal("select numero_historia from public.trabajadores where id = $1", [id]);
+  assert.equal(Number(t.numero_historia), Number(b.desde), "el número es del bloque, no el que mandó el cliente ni uno provisional");
+  assert.equal((await pedir("/zamorapp/estado")).json.numerosLibres, 99);
+  // Vuelve internet: sube con ese mismo número y la nube lo acepta
+  nube.estado.caida = false; await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [n] = await enNube("select numero_historia from public.trabajadores where id = $1", [id]);
+  assert.equal(Number(n.numero_historia), Number(b.desde));
+  // La web, mientras tanto, numera por encima del bloque
+  const [w] = await enNube("insert into public.trabajadores (org_id, empresa_id, cedula, nombres, apellidos) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','7002','Web','Numera') returning numero_historia");
+  assert.ok(Number(w.numero_historia) > Number(b.hasta), `${w.numero_historia} > ${b.hasta}`);
+});
+
 test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tira la del navegador; sin ancla avisa", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
     as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
@@ -385,8 +412,9 @@ test("sin internet: lo que no sincroniza (miembros, alta de paciente) se rechaza
   const w = await pedir("/rest/v1/miembros", { metodo: "POST", token: tokenMed, cuerpo: { rol: "x" } });
   assert.equal(w.status, 503);
   assert.match(w.json.message, /solo se puede consultar/);
+  await enLocal("delete from local.bloques");
   const alta = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { cedula: "9" } });
-  assert.equal(alta.status, 503, "el alta de un paciente nuevo exige internet hasta la fase B (numeración por bloques)");
+  assert.equal(alta.status, 503, "sin números de historia reservados, el alta de un paciente nuevo exige internet");
   const s = await pedir("/storage/v1/object/sign/adjuntos/x", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.equal(s.status, 503);
 });
