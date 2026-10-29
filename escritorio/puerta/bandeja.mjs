@@ -13,10 +13,16 @@ export class Bandeja {
     this.ultimoError = null;
   }
 
-  // Una subida a la vez; si ya hay una en curso, se espera esa misma.
+  // Una subida a la vez. Si ya hay una en curso, se encadena UNA pasada más al terminar (la comparten todos los que
+  // pidieron mientras tanto): lo guardado después del último select de la pasada en curso también sube
+  // («Sincronizar ahora» no espera al ciclo de 30 s).
   subir() {
-    this.enCurso ??= this.#subir().finally(() => { this.enCurso = null; });
-    return this.enCurso;
+    if (!this.enCurso) {
+      this.enCurso = this.#subir().finally(() => { this.enCurso = null; });
+      return this.enCurso;
+    }
+    this.otraVez ??= this.enCurso.catch(() => {}).then(() => { this.otraVez = null; return this.subir(); });
+    return this.otraVez;
   }
 
   async resumen() {

@@ -202,8 +202,12 @@ export class Replica {
     // nube decide al subir (si otro la cambió, es conflicto y se repone). Las demás quedan como en la nube, y su
     // versión pasa a ser la base de los próximos cambios (local.version_nube).
     const pendiente = "exists (select 1 from local.bandeja b where b.tabla = $2 and b.fila_id = r.id and b.estado = 'pendiente')";
+    // Tampoco se pisa con una lectura vieja: si esta PC ya subió una versión más nueva (la leyó antes de que subiera
+    // lo último y llega después de borrarse de la bandeja), la copia se queda con lo último que se guardó aquí
+    const vieja = "version" in filas[0]
+      ? " and not exists (select 1 from local.version_nube v where v.tabla = $2 and v.fila_id = r.id and v.version > r.version)" : "";
     await c.query(
-      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1) r where not ${pendiente}
+      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1) r where not ${pendiente}${vieja}
        on conflict (id) do update set ${actualizar}`,
       [JSON.stringify(filas), tabla],
     );
