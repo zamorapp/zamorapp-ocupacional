@@ -18,7 +18,8 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta;
+let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta, CONFIG;
+const lineas = []; // lo que la puerta anota en puerta.log
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
@@ -59,14 +60,14 @@ before(async () => {
   const { Nube } = await import("../puerta/nube.mjs");
   const { Replica } = await import("../puerta/replica.mjs");
   const { crearPuerta } = await import("../puerta/servidor.mjs");
-  const { CONFIG } = await import("../puerta/config.mjs");
+  ({ CONFIG } = await import("../puerta/config.mjs"));
   estado = new Estado(datos, CONFIG.llave);
   motor = new Motor(estado);
   await motor.iniciar();
   nubeObj = new Nube(estado);
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332", control: CONTROL });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -168,8 +169,47 @@ test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir
   assert.equal(mal.status, 400);
   const renovada = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
   assert.equal(renovada.status, 200);
+  // El servidor de la app y la ventana renuevan a la vez al abrir: el segundo recibe la misma sesión nueva
   const reuso = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
-  assert.equal(reuso.status, 400, "un token de renovación sirve una sola vez");
+  assert.equal(reuso.status, 200, "dentro del margen, el refresco recién usado no cierra la sesión");
+  assert.equal(reuso.json.refresh_token, renovada.json.refresh_token);
+  const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  u.bloqueado = true; // un bloqueo surte efecto al instante, también dentro del margen
+  try {
+    assert.equal((await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } })).status, 400);
+  } finally {
+    delete u.bloqueado;
+  }
+  const sid = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString()).session_id;
+  assert.equal(sid(renovada.json.access_token), sid(ok.json.access_token), "renovar conserva la sesión");
+  const margen = CONFIG.reusoRefrescoMs;
+  CONFIG.reusoRefrescoMs = 0;
+  try {
+    const otra = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: renovada.json.refresh_token } });
+    assert.equal(otra.status, 200);
+    const tarde = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: renovada.json.refresh_token } });
+    assert.equal(tarde.status, 400, "pasado el margen, un refresco sirve una sola vez");
+  } finally {
+    CONFIG.reusoRefrescoMs = margen;
+  }
+  assert.ok(lineas.includes("[auth] renovar: ok"), "puerta.log anota cada renovación");
+  assert.ok(lineas.some((l) => l.startsWith("[auth] renovar: 400 (refresco desconocido")), "y también cuando falla");
+  assert.ok(!lineas.some((l) => l.includes(ok.json.refresh_token)), "sin escribir el token");
+});
+
+test("salir: scope local cierra solo esta ventana; global, todas", { skip: omitir }, async () => {
+  const entrar = () => pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  const renovar = (t) => pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: t } });
+  const a = (await entrar()).json;
+  const b = (await entrar()).json;
+  const a2 = (await renovar(a.refresh_token)).json; // la sesión renovada sigue siendo la de esta ventana
+  assert.equal((await pedir("/auth/v1/logout?scope=local", { metodo: "POST", token: a2.access_token })).status, 204);
+  assert.equal((await renovar(a2.refresh_token)).status, 400, "la sesión que salió queda cerrada");
+  const b2 = await renovar(b.refresh_token);
+  assert.equal(b2.status, 200, "la otra sesión sigue abierta");
+  assert.equal((await pedir("/auth/v1/logout", { metodo: "POST", token: b2.json.access_token })).status, 204);
+  assert.equal((await renovar(b2.json.refresh_token)).status, 400, "sin scope (global) se cierran todas");
+  assert.ok(lineas.some((l) => /^\[auth\] salir \(local\): 1 sesión/.test(l)));
 });
 
 test("más de 7 días sin conexión: no entra hasta reconectar", { skip: omitir }, async () => {

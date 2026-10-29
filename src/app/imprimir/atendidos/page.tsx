@@ -5,7 +5,7 @@ import { ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../barra";
-import { fechaCorta, Hoja } from "../componentes";
+import { fechaCorta, Hoja, Marca } from "../componentes";
 import { hoyCaracas } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Pacientes atendidos" };
@@ -22,7 +22,7 @@ export default async function Atendidos({ searchParams }: Props) {
   const [atenciones, empresas] = await Promise.all([listarAtenciones(q.empresa ?? null, desde, hasta), listarEmpresas()]);
   const empresa = empresas.find((e) => e.id === q.empresa);
   const supabase = await crearClienteServidor();
-  const { data: org } = sesion.orgId ? await supabase.from("organizaciones").select("nombre, rif").eq("id", sesion.orgId).single() : { data: null };
+  const { data: org } = sesion.orgId ? await supabase.from("organizaciones").select("nombre, rif, logo").eq("id", sesion.orgId).single() : { data: null };
 
   // Resumen por motivo
   const porMotivo = new Map<string, number>();
@@ -33,9 +33,12 @@ export default async function Atendidos({ searchParams }: Props) {
       <BarraImpresion volver="/facturacion?vista=atendidos" titulo="Reporte de pacientes atendidos" />
       <Hoja>
         <header className="mb-4 flex items-start justify-between border-b-2 border-teal-700 pb-3">
-          <div>
-            <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
-            <div className="text-[11px] text-neutral-600">{org?.rif && `RIF ${org.rif}`}</div>
+          <div className="flex items-center gap-3">
+            <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
+            <div>
+              <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <div className="text-[11px] text-neutral-600">{org?.rif && `RIF ${org.rif}`}</div>
+            </div>
           </div>
           <div className="text-right text-sm">
             <div className="font-bold uppercase">Pacientes atendidos</div>

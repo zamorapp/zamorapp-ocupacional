@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Fingerprint, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmar } from "@/components/app/confirmar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import {
@@ -158,7 +159,7 @@ export function HuellaCuenta() {
                   <div className="text-xs text-muted-foreground">Activada el {fecha(l.created_at)} · último uso: {fecha(l.last_used_at)}</div>
                 </div>
                 <Button size="sm" variant="ghost" disabled={ocupado} aria-label="Quitar"
-                  onClick={() => confirm("¿Quitar esta huella? Ese equipo volverá a pedir la contraseña.") && hacer(() => quitarHuella(supabase(), l.id, llaves.length - 1), "Huella quitada.")}>
+                  onClick={async () => (await confirmar({ titulo: "¿Quitar esta huella?", texto: "Ese equipo volverá a pedir la contraseña.", accion: "Quitar", peligro: true })) && hacer(() => quitarHuella(supabase(), l.id, llaves.length - 1), "Huella quitada.")}>
                   <Trash2 />
                 </Button>
               </li>

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { AvisoActualizar } from "@/components/app/aviso-actualizar";
 import { BarraInferior } from "@/components/app/barra-inferior";
@@ -10,6 +11,7 @@ import { listarEmpresas } from "@/lib/empresas";
 import { RUTAS_EMPRESA } from "@/lib/navegacion";
 import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
+import { resumenTiempos } from "@/lib/tiempos";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const [sesion, empresas, activa, cabeceras] = await Promise.all([obtenerSesion(), listarEmpresas(), empresaActivaId(), headers()]);
@@ -18,6 +20,8 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   // sus trabajadores y accidentes; cualquier otra ruta los devuelve al portal
   const portal = esRolEmpresa(sesion.rol);
   const ruta = cabeceras.get("x-ruta") ?? "";
+  // Al terminar de responder, una línea «[tiempo]» por pantalla en los registros del servidor (D1 de la auditoría)
+  after(() => console.log(resumenTiempos(ruta || "/")));
   if (portal && ruta && !RUTAS_EMPRESA.some((r) => ruta === r || ruta.startsWith(r + "/"))) redirect("/portal");
 
   const usuario = {
