@@ -9,6 +9,7 @@ import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mj
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearAdjuntos } from "./adjuntos.mjs";
 import { crearHello } from "./hello.mjs";
 import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
@@ -28,12 +29,13 @@ const rutaParaRegistro = (url) => {
 };
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
+const ROLES_RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"]; // ven el estado del respaldo
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
 const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola = null, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola = null, bloques = null, respaldo = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
@@ -431,8 +433,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     const base = (await tablasSubibles()).get(`${perfil}.${m[2]}`);
     if (!base) return false;
     if (req.method === "DELETE" && base.startsWith("clinico.")) return false; // nada clínico se borra desde la PC: va a la nube como hasta ahora
-    // Alta de un paciente: numero_historia es serial y chocaría con la nube; hasta la fase B (bloques por equipo) va a la nube
-    if (req.method === "POST" && base === "public.trabajadores") return false;
+    // Alta de un paciente: solo en la PC si tiene números de historia reservados por la nube (fase B, bloques por
+    // equipo); si no, va a la nube como antes (y sin internet se avisa)
+    if (req.method === "POST" && base === "public.trabajadores") return Boolean(bloques) && (await bloques.libres()) > 0;
     return true;
   };
 
@@ -525,6 +528,11 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   }
 
   // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  // Adjuntos en la PC (fase B): carpeta local + cola de subida; ver adjuntos.mjs
+  // escrituraLocal: con la copia completa y la fase A activa, un archivo nuevo se guarda en la PC también sin internet
+  // (su fila va a la bandeja y el archivo a la cola). Hallazgo de la prueba integrada «un día de Cesar»: #123 no lo pasaba.
+  const adjuntos = crearAdjuntos({ estado, nube, motor, registro, escrituraLocal: () => Boolean(CONFIG.escrituraLocal && bandeja && estado.d.copiaCompleta) });
+
   const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 
   const servidor = http.createServer(async (req, res) => {
@@ -588,6 +596,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
+          numerosLibres: bloques ? await bloques.libres() : null,
+          respaldo: respaldo ? respaldo.estadoActual() : null,
+          adjuntos: await adjuntos.contar(),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -616,10 +627,39 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         await nube.comprobar();
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
+        await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
         // Orden: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer()
         if (cola) await cola.barrer();
-        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
+        if (bloques) await bloques.reponer();
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
+      }
+      // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración
+      if (ruta === "/zamorapp/respaldo" && req.method === "GET") {
+        if (!respaldo) return responder(res, 200, null);
+        const quien = usuarioDe(req);
+        if (!quien && !conControl()) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        // Solo el personal de salud y el administrador (Analizar): la lista de copias dice dónde está la base clínica
+        if (quien && !ROLES_RESPALDO.includes(quien.u.rol)) return responder(res, 403, { message: "Solo el personal de salud y el administrador" });
+        return responder(res, 200, { ...respaldo.estadoActual(), copias: respaldo.copias(), sugeridas: respaldo.carpetasSugeridas() });
+      }
+      if (ruta === "/zamorapp/respaldar" && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        if (!conControl() && !(desdeApp && usuarioDe(req))) return responder(res, 403, { message: "No autorizado" });
+        const r = await respaldo.hacer({ sincronizar: true });
+        return responder(res, r.ok ? 200 : 500, r);
+      }
+      if ((ruta === "/zamorapp/respaldo/configurar" || ruta === "/zamorapp/restaurar" || ruta === "/zamorapp/restaurar/cancelar") && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        const quien = usuarioDe(req);
+        if (!quien || !["administrador", "gerente_medico"].includes(quien.u.rol)) return responder(res, 403, { message: "Solo un administrador o el gerente médico" });
+        if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos." });
+        const b = json() || {};
+        try {
+          if (ruta === "/zamorapp/restaurar/cancelar") return responder(res, 200, respaldo.cancelarRestauracion());
+          if (ruta === "/zamorapp/restaurar") return responder(res, 200, await respaldo.prepararRestauracion(b.archivo, b.clave));
+          return responder(res, 200, respaldo.configurar({ carpeta: b.carpeta, clave: b.clave, confirmacion: b.confirmacion }));
+        } catch (e) { return responder(res, 400, { message: e.message }); }
       }
       // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
       if (ruta === "/zamorapp/bandeja" && req.method === "GET") {
@@ -703,10 +743,14 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         return errorAuth(res, 503, "Esta acción requiere internet", "offline");
       }
 
+      // URL firmada por esta PC (la piden <img> e <iframe>, sin sesión): la firma dice qué archivo y de quién
+      if (req.method === "GET" && ruta.startsWith("/storage/v1/object/sign/") && await adjuntos.servirFirmado(req, res, ruta)) return;
+
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
+        if (ruta.startsWith("/storage/v1/") && !faltaSegundoPaso(quien) && await adjuntos.atender(req, res, ruta, crudo, quien, responder)) return;
         // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio
         if (!lectura && await escrituraLocal(req)) {
           // Guardar en la PC exige el segundo paso igual que la nube (aplicar_cambios lo vuelve a exigir al subir)
@@ -726,6 +770,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
             ultimaEscritura = performance.now();
             replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
           }
+          await adjuntos.alBorrar(req, crudo, res.statusCode);
           return;
         }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
@@ -742,5 +787,6 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       if (!res.headersSent) responder(res, 500, { message: "Error interno de la puerta local" });
     }
   });
+  servidor.adjuntos = adjuntos;
   return servidor;
 }

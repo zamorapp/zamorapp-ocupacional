@@ -18,7 +18,7 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, urlPuerta, CONFIG;
+let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, respaldoObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
@@ -60,6 +60,8 @@ before(async () => {
   const { Nube } = await import("../puerta/nube.mjs");
   const { Replica } = await import("../puerta/replica.mjs");
   const { Bandeja } = await import("../puerta/bandeja.mjs");
+  const { Bloques } = await import("../puerta/bloques.mjs");
+  const { Respaldo } = await import("../puerta/respaldo.mjs");
   const { crearPuerta } = await import("../puerta/servidor.mjs");
   ({ CONFIG } = await import("../puerta/config.mjs"));
   estado = new Estado(datos, CONFIG.llave);
@@ -69,7 +71,9 @@ before(async () => {
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
   bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
+  bloquesObj = new Bloques(estado, nubeObj, motor, replicaObj);
+  respaldoObj = new Respaldo({ estado, nube: nubeObj, motor, replica: replicaObj, sincronizar: async () => { await nubeObj.comprobar(); await bandejaObj.subir(); await replicaObj.ciclo(); } });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, respaldo: respaldoObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -209,6 +213,12 @@ async function enBase(url, sql, params = []) {
   try { return (await c.query(sql, params)).rows; } finally { await c.end(); }
 }
 const enLocal = (sql, params) => enBase(motor.url(), sql, params);
+// Escribe en la copia como lo hace la réplica (sin disparadores: no pasa por la bandeja)
+async function enLocalReplica(sql, params = []) {
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  try { await c.query("set session_replication_role = replica"); return (await c.query(sql, params)).rows; } finally { await c.end(); }
+}
 const enNube = (sql, params) => enBase(NUBE_DB, sql, params);
 
 test("guardar en la PC: la base local responde al instante, queda en la bandeja y sube a la nube con la sesión del autor", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
@@ -317,6 +327,125 @@ test("un autor sin sesión en la nube no frena a los demás: sus cambios esperan
   assert.equal(n.motivo_texto, "del médico");
 });
 
+test("fase B: con un bloque reservado, el alta de un paciente sin internet lleva su número definitivo y sube igual", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  nube.estado.caida = false; await nubeObj.comprobar();
+  assert.equal(await bloquesObj.reponer(), true, bloquesObj.ultimoError || "");
+  const [b] = await enLocal("select desde, hasta from local.bloques order by id desc limit 1");
+  assert.equal(Number(b.hasta) - Number(b.desde), 99);
+  assert.equal((await pedir("/zamorapp/estado")).json.numerosLibres, 100);
+  assert.equal(await bloquesObj.reponer(), false, "con números de sobra no pide otro bloque");
+  // Sin internet: alta en la PC con el primer número del bloque
+  nube.estado.caida = true; await nubeObj.comprobar();
+  const id = "30000000-0000-0000-0000-0000000000fb";
+  const alta = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { id, org_id: "10000000-0000-0000-0000-000000000001", empresa_id: "20000000-0000-0000-0000-00000000000a", cedula: "7001", nombres: "Nuevo", apellidos: "Sin internet", numero_historia: 5 } });
+  assert.ok([200, 201].includes(alta.status), JSON.stringify(alta.json));
+  const [t] = await enLocal("select numero_historia from public.trabajadores where id = $1", [id]);
+  assert.equal(Number(t.numero_historia), Number(b.desde), "el número es del bloque, no el que mandó el cliente ni uno provisional");
+  assert.equal((await pedir("/zamorapp/estado")).json.numerosLibres, 99);
+  // Vuelve internet: sube con ese mismo número y la nube lo acepta
+  nube.estado.caida = false; await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [n] = await enNube("select numero_historia from public.trabajadores where id = $1", [id]);
+  assert.equal(Number(n.numero_historia), Number(b.desde));
+  // Un respaldo viejo restaurado deja «siguiente» atrasado: el próximo alta no repite el número ya usado
+  await enLocal("update local.bloques set siguiente = desde");
+  nube.estado.caida = true; await nubeObj.comprobar();
+  const id2 = "30000000-0000-0000-0000-0000000000fc";
+  const alta2 = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { id: id2, org_id: "10000000-0000-0000-0000-000000000001", empresa_id: "20000000-0000-0000-0000-00000000000a", cedula: "7003", nombres: "Tras", apellidos: "Restaurar" } });
+  assert.ok([200, 201].includes(alta2.status), JSON.stringify(alta2.json));
+  const [t2] = await enLocal("select numero_historia from public.trabajadores where id = $1", [id2]);
+  assert.equal(Number(t2.numero_historia), Number(b.desde) + 1, "salta el número ya usado");
+  nube.estado.caida = false; await nubeObj.comprobar();
+  await bandejaObj.subir();
+  assert.equal((await bandejaObj.resumen()).conflictos, 0);
+  // La web, mientras tanto, numera por encima del bloque
+  const [w] = await enNube("insert into public.trabajadores (org_id, empresa_id, cedula, nombres, apellidos) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','7002','Web','Numera') returning numero_historia");
+  assert.ok(Number(w.numero_historia) > Number(b.hasta), `${w.numero_historia} > ${b.hasta}`);
+});
+
+test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia cifrada en la carpeta externa; restaurar la trae de vuelta", { skip: omitir || !postgrestReal, timeout: 180_000 }, async () => {
+  const { descifrarArchivo } = await import("../puerta/respaldo.mjs");
+  nube.estado.caida = false; await nubeObj.comprobar();
+  const externa = fs.mkdtempSync(path.join(os.tmpdir(), "drive-"));
+  // Configurar: solo administrador o gerente; carpeta inexistente o clave corta se rechazan
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenMed, cuerpo: { carpeta: externa } })).status, 403);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: path.join(externa, "no-existe") } })).status, 400);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "corta-corta", confirmacion: "corta-corta" } })).status, 400, "menos de 12 caracteres");
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo", confirmacion: "clave-de-respaldO" } })).status, 400, "las dos escrituras no coinciden");
+  // El estado del respaldo lo ve el personal de salud y el administrador; un rol de RR. HH. no
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenMed })).status, 200);
+  // Con carpeta pero sin clave, la copia no sale de la PC
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: externa } })).status, 200);
+  let r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  let j = await r.json();
+  assert.equal(r.status, 500); assert.match(j.error, /clave de respaldo/);
+  assert.ok(j.archivo && fs.existsSync(j.archivo), "la copia local sí se hizo");
+  assert.equal(fs.readdirSync(externa).length, 0);
+  const conf = await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo", confirmacion: "clave-de-respaldo" } });
+  assert.equal(conf.status, 200); assert.match(conf.json.aviso, /anótala en papel/); assert.equal(conf.json.clave, undefined, "la clave nunca vuelve");
+  // Un dato nuevo en la PC antes del respaldo
+  await enLocalReplica("update public.trabajadores set telefono = '0414-RESPALDO' where id = $1", [TRAB]);
+  r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  j = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j));
+  assert.ok(j.ok && j.sincronizado && j.externo?.endsWith(".zamorapp") && fs.existsSync(j.externo), JSON.stringify(j));
+  assert.ok(j.bytes > 1000);
+  const est = (await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json;
+  assert.equal(est.cifrado, true); assert.equal(est.ultimo.ok, true); assert.ok(est.copias.length >= 2);
+  assert.ok(est.hora && typeof est.horaSinAncla === "boolean" && est.pasos.length === 4, "hora anclada y pasos fijos para la pantalla");
+  // Prueba de descifrado automática: quedó registrada en la PC y anotada en la nube (public.respaldos, #116)
+  assert.equal(est.restauracionProbada?.ok, true, JSON.stringify(est.restauracionProbada));
+  assert.equal(est.restauracionProbada.anotadaEnNube, true);
+  const [anot] = await enNube("select count(*)::int as n from public.respaldos where tipo = 'restauracion' and estado = 'ok' and equipo = 'PC de prueba'");
+  assert.ok(anot.n >= 1, "la prueba de restauración está en la nube");
+  const [anot2] = await enNube("select estado, destinos from public.respaldos where tipo = 'respaldo' order by id desc limit 1");
+  assert.deepEqual(anot2, { estado: "ok", destinos: 2 });
+  assert.equal((await pedir("/zamorapp/estado")).json.respaldo.ultimo.ok, true);
+  // La copia externa está cifrada: con otra clave no se abre; con la buena es el volcado de pg_dump
+  const tmp = path.join(externa, "prueba.dump");
+  await assert.rejects(descifrarArchivo(j.externo, tmp, "otra-clave"), /clave de respaldo/);
+  await descifrarArchivo(j.externo, tmp, "clave-de-respaldo");
+  assert.equal(fs.readFileSync(tmp).subarray(0, 5).toString(), "PGDMP");
+  assert.ok(!fs.readFileSync(j.externo).includes("0414-RESPALDO"), "nada legible en la copia externa");
+  // Restaurar: se pide desde la app y se aplica al arrancar (aquí se aplica directo)
+  await enLocalReplica("update public.trabajadores set telefono = '0414-DESPUES' where id = $1", [TRAB]);
+  let pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
+  assert.equal(pr.status, 200, JSON.stringify(pr.json));
+  assert.ok(estado.d.restaurar?.archivo);
+  // Se puede cancelar antes de reabrir el programa
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionPendiente?.origen, j.externo);
+  assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
+  assert.equal(estado.d.restaurar, null); assert.equal(fs.existsSync(path.join(respaldoObj.carpetaLocal, "restaurar.dump")), false);
+  // Un archivo dañado NO deja al programa sin abrir: sigue con la base actual y el error queda a la vista
+  const danado = path.join(respaldoObj.carpetaLocal, "restaurar.dump");
+  fs.writeFileSync(danado, Buffer.concat([Buffer.from("PGDMP"), crypto.randomBytes(4096)]));
+  estado.d.restaurar = { archivo: danado, origen: "copia-danada.zamorapp", pedido: nubeObj.reloj.iso() };
+  assert.equal(await motor.restaurarSiPedida(), false);
+  assert.equal(estado.d.restaurar, null);
+  assert.match(estado.d.respaldo.restauracionFallida.mensaje, /No se pudo restaurar/);
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionFallida.origen, "copia-danada.zamorapp");
+  assert.equal(fs.existsSync(danado), false, "el volcado dañado se borra");
+  assert.equal((await enLocal("select count(*)::int as n from pg_database where datname = 'zamorapp_restaurada'"))[0].n, 0, "la base a medias se borra");
+  const [sigue] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(sigue.telefono, "0414-DESPUES", "la base actual sigue intacta");
+  // Los bloques de números de historia que traiga un respaldo de OTRA PC se borran al restaurar (condición 7)
+  await enLocalReplica("insert into local.bloques (desde, hasta, siguiente, equipo_id) values (900000, 900099, 900000, '00000000-0000-0000-0000-00000000dead')");
+  pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
+  assert.equal(pr.status, 200, JSON.stringify(pr.json));
+  assert.equal(await motor.aplicarRestauracion(), true);
+  const [bl] = await enLocal("select count(*) filter (where equipo_id = '00000000-0000-0000-0000-00000000dead')::int as ajenos, count(*) filter (where equipo_id = $1)::int as propios from local.bloques", [estado.d.equipo.id]);
+  assert.deepEqual(bl, { ajenos: 0, propios: 1 }, "quedan solo los bloques de este equipo");
+  const [t] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(t.telefono, "0414-RESPALDO", "la base volvió al respaldo");
+  assert.equal(estado.d.cursor, null, "la nube vuelve a bajar completa");
+  await replicaObj.ciclo();
+  assert.ok(estado.d.copiaCompleta, replicaObj.error || "");
+  const [n] = await enNube("select telefono from public.trabajadores where id = $1", [TRAB]);
+  const [l] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(l.telefono, n.telefono, "tras restaurar, manda la nube");
+  fs.rmSync(externa, { recursive: true, force: true });
+});
+
 test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tira la del navegador; sin ancla avisa", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
     as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
@@ -385,10 +514,12 @@ test("sin internet: lo que no sincroniza (miembros, alta de paciente) se rechaza
   const w = await pedir("/rest/v1/miembros", { metodo: "POST", token: tokenMed, cuerpo: { rol: "x" } });
   assert.equal(w.status, 503);
   assert.match(w.json.message, /solo se puede consultar/);
+  await enLocal("delete from local.bloques");
   const alta = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { cedula: "9" } });
-  assert.equal(alta.status, 503, "el alta de un paciente nuevo exige internet hasta la fase B (numeración por bloques)");
+  assert.equal(alta.status, 503, "sin números de historia reservados, el alta de un paciente nuevo exige internet");
+  // Un archivo que no está en la PC no se puede firmar sin internet (como la nube: 400 «not_found»)
   const s = await pedir("/storage/v1/object/sign/adjuntos/x", { metodo: "POST", token: tokenMed, cuerpo: {} });
-  assert.equal(s.status, 503);
+  assert.equal(s.status, 400);
 });
 
 // 28/10/2026: la 0.1.168 no abría: el menú de la app llama a trabajadores_por_empresa por POST y la puerta,
@@ -919,6 +1050,227 @@ test("una RLS que niega una escritura (también 42501) NO se confunde con «hay 
   } finally {
     nube.estado.rlsNiega = false;
   }
+});
+
+// ─── Fase B: adjuntos en la PC (carpeta local + cola de subida) ───
+const ORG = "10000000-0000-0000-0000-000000000001";
+const RUTA_A = `${ORG}/30000000-0000-0000-0000-00000000000a/examen-prueba.pdf`;
+const RUTA_B = `${ORG}/30000000-0000-0000-0000-00000000000b/de-otra-empresa.pdf`;
+const PDF = "%PDF-1.4\nprueba de adjunto local\n%%EOF\n";
+// Como lo manda supabase-js desde el navegador (File → FormData)
+function formulario(texto, tipo = "application/pdf") {
+  const f = new FormData();
+  f.append("cacheControl", "3600");
+  f.append("", new Blob([texto], { type: tipo }), "archivo");
+  return f;
+}
+// status y json; los assert de status llevan el json como mensaje para que el CI muestre la causa
+async function subirArchivo(ruta, { token, tipo, metodo = "POST", upsert = false } = {}) {
+  const r = await fetch(`${urlPuerta}/storage/v1/object/adjuntos/${ruta}`, {
+    method: metodo, headers: { Authorization: `Bearer ${token}`, "x-upsert": String(upsert) }, body: formulario(PDF, tipo),
+  });
+  return { status: r.status, json: await r.json().catch(() => null) };
+}
+const conEstado = (r, esperado) => assert.equal(r.status, esperado, JSON.stringify(r.json));
+async function enLaCola(ruta) {
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  try { return (await c.query("select estado, intentos, motivo, autor from local.adjuntos_cola where ruta = $1", [ruta])).rows[0] || null; } finally { await c.end(); }
+}
+async function enLaCopiaDB(sql, params) {
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  try { await c.query("set session_replication_role = replica"); return await c.query(sql, params); } finally { await c.end(); }
+}
+async function enLaNubeDB(sql, params) {
+  const c = new pg.Client({ connectionString: NUBE_DB });
+  await c.connect();
+  try { return await c.query(sql, params); } finally { await c.end(); }
+}
+
+test("adjuntos: con internet se guardan en la PC, se ven desde ella y suben solos a la nube", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  const e = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  tokenMed = e.json.access_token;
+  // Copia atrasada (así falló el CI con PostgREST real): en la PC el médico aún figura inactivo, en la nube ya no.
+  // Con internet decide la nube: la subida pasa igual.
+  await enLaCopiaDB("update public.miembros set activo = false where usuario_id = $1", ["00000000-0000-0000-0000-0000000000a2"]);
+  let s;
+  try { s = await subirArchivo(RUTA_A, { token: tokenMed }); } finally {
+    await enLaCopiaDB("update public.miembros set activo = true where usuario_id = $1", ["00000000-0000-0000-0000-0000000000a2"]);
+  }
+  assert.equal(s.status, 200, JSON.stringify(s.json));
+  assert.equal(s.json.Key, `adjuntos/${RUTA_A}`);
+  assert.equal(fs.readFileSync(path.join(datos, "adjuntos", "adjuntos", ...RUTA_A.split("/")), "utf8"), PDF);
+  // Repetir sin upsert: ya existe
+  conEstado(await subirArchivo(RUTA_A, { token: tokenMed }), 409);
+  // Recién subido (la fila aún no existe): quien lo subió ya lo puede firmar y ver desde la PC
+  const f = await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_A}`, { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600 } });
+  assert.equal(f.status, 200, JSON.stringify(f.json));
+  assert.match(f.json.signedURL, /^\/object\/sign\/adjuntos\/.+\?token=[\w-]+\.[\w-]+$/);
+  const ver = await fetch(encodeURI(`${urlPuerta}/storage/v1${f.json.signedURL}`)); // sin sesión, como un <img>
+  assert.equal(ver.status, 200);
+  assert.equal(ver.headers.get("content-type"), "application/pdf");
+  assert.equal(await ver.text(), PDF);
+  // Firma alterada o de otra ruta: no
+  const otra = f.json.signedURL.replace("examen-prueba", "otro");
+  assert.equal((await fetch(encodeURI(`${urlPuerta}/storage/v1${otra}`))).status, 400);
+  // Sube a la nube con la sesión del autor
+  assert.equal((await enLaCola(RUTA_A)).estado, "pendiente");
+  const r = await puerta.adjuntos.subir();
+  assert.equal(r.subidos, 1);
+  assert.equal((await enLaCola(RUTA_A)).estado, "subido");
+  const enNube = nube.estado.archivos.get(`adjuntos/${RUTA_A}`);
+  assert.equal(enNube.cuerpo, PDF);
+  assert.equal(enNube.uid, "00000000-0000-0000-0000-0000000000a2");
+  const est = await pedir("/zamorapp/estado");
+  assert.deepEqual(est.json.adjuntos, { pendientes: 0, rechazados: 0 });
+});
+
+test("adjuntos: solo PDF, JPG o PNG que coincidan con su nombre, y solo en la organización de quien sube", { skip: omitir }, async () => {
+  conEstado(await subirArchivo(`${ORG}/30000000-0000-0000-0000-00000000000a/x.pdf`, { token: tokenMed, tipo: "text/html" }), 415);
+  conEstado(await subirArchivo(`${ORG}/30000000-0000-0000-0000-00000000000a/x.html`, { token: tokenMed, tipo: "application/pdf" }), 415);
+  conEstado(await subirArchivo(`20000000-0000-0000-0000-000000000099/t/x.pdf`, { token: tokenMed }), 403);
+  conEstado(await subirArchivo(`${ORG}/../../escape.pdf`, { token: tokenMed }), 400);
+  conEstado(await subirArchivo(`${ORG}/%2e%2e/escape.pdf`, { token: tokenMed }), 400);
+  assert.ok(!fs.existsSync(path.join(datos, "escape.pdf")) && !fs.existsSync(path.join(datos, "adjuntos", "escape.pdf")));
+});
+
+test("adjuntos: sin internet se ven los archivos de la PC (con las reglas de la fila); bajados una vez, se ven sin internet", { skip: omitir }, async () => {
+  // Dos filas en la nube: una de la empresa A (la ve medA) y otra de B (no la ve); el archivo de B solo está en la nube
+  for (const [ruta, trab] of [[RUTA_A, "30000000-0000-0000-0000-00000000000a"], [RUTA_B, "30000000-0000-0000-0000-00000000000b"]]) {
+    await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano) values ($1, $2, 'x.pdf', $3, 'application/pdf', 40) on conflict (ruta) do nothing`, [ORG, trab, ruta]);
+  }
+  nube.estado.archivos.set(`adjuntos/${RUTA_B}`, { cuerpo: PDF, tipo: "application/pdf" });
+  const RUTA_A2 = `${ORG}/30000000-0000-0000-0000-00000000000a/solo-en-la-nube.pdf`;
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano) values ($1, $2, 'y.pdf', $3, 'application/pdf', 40) on conflict (ruta) do nothing`, [ORG, "30000000-0000-0000-0000-00000000000a", RUTA_A2]);
+  nube.estado.archivos.set(`adjuntos/${RUTA_A2}`, { cuerpo: PDF, tipo: "application/pdf" });
+  await replicaObj.ciclo();
+  // Con internet: el que solo está en la nube se baja una vez por la URL firmada de la PC y queda guardado
+  const lote = await pedir("/storage/v1/object/sign/adjuntos", { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600, paths: [RUTA_A, RUTA_A2] } });
+  assert.equal(lote.status, 200, JSON.stringify(lote.json));
+  assert.equal(lote.json.length, 2);
+  assert.equal((await fetch(encodeURI(`${urlPuerta}/storage/v1${lote.json[1].signedURL}`))).status, 200);
+  assert.ok(fs.existsSync(path.join(datos, "adjuntos", "adjuntos", ...RUTA_A2.split("/"))));
+
+  // try/finally: si algo falla sin internet, la nube vuelve igual y la falla no arrastra a las pruebas que siguen
+  const rutaNuevo = `${ORG}/30000000-0000-0000-0000-00000000000a/nuevo.pdf`;
+  try {
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    const a = await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_A2}`, { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600 } });
+    assert.equal(a.status, 200, JSON.stringify(a.json));
+    assert.equal(await (await fetch(encodeURI(`${urlPuerta}/storage/v1${a.json.signedURL}`))).text(), PDF);
+    const conSesion = await fetch(`${urlPuerta}/storage/v1/object/authenticated/adjuntos/${RUTA_A}`, { headers: { Authorization: `Bearer ${tokenMed}` } });
+    assert.equal(conSesion.status, 200, await conSesion.clone().text());
+    // La fila de la empresa B no es suya (RLS de la copia): ni firma ni descarga
+    const b = await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_B}`, { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600 } });
+    assert.equal(b.status, 400, JSON.stringify(b.json));
+    const bl = await pedir("/storage/v1/object/sign/adjuntos", { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600, paths: [RUTA_B] } });
+    assert.equal(bl.json[0].signedURL, null);
+    // Sin sesión no se firma nada
+    assert.equal((await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_A}`, { metodo: "POST", cuerpo: { expiresIn: 600 } })).status, 401);
+    // Archivos nuevos sin internet: esperan a que vuelva (la fila de clinico.adjuntos aún no se guarda en la PC)
+    // Fase A cableada (hallazgo de «un día de Cesar»): un archivo nuevo sin internet se guarda en la PC y espera en la cola
+    const nuevo = await subirArchivo(rutaNuevo, { token: tokenMed });
+    assert.equal(nuevo.status, 200, JSON.stringify(nuevo.json));
+    assert.ok(fs.existsSync(path.join(datos, "adjuntos", "adjuntos", ...rutaNuevo.split("/"))));
+    assert.equal((await enLaCola(rutaNuevo)).estado, "pendiente");
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    await puerta.adjuntos.subir(); // el archivo guardado sin internet sube ahora y no estorba a la prueba siguiente
+    assert.equal((await enLaCola(rutaNuevo)).estado, "subido");
+    await nubeObj.comprobar();
+  }
+});
+
+test("adjuntos: si la nube rechaza un archivo, se reintenta y a los 5 intentos queda «rechazado» sin borrarse de la PC", { skip: omitir }, async () => {
+  const ruta = `${ORG}/30000000-0000-0000-0000-00000000000a/rechazado.pdf`;
+  conEstado(await subirArchivo(ruta, { token: tokenMed }), 200);
+  nube.estado.storageRechaza = 5;
+  for (let i = 0; i < 5; i++) await puerta.adjuntos.subir();
+  const c = await enLaCola(ruta);
+  assert.equal(c.estado, "rechazado");
+  assert.equal(c.intentos, 5);
+  assert.match(c.motivo, /mime type/);
+  assert.ok(fs.existsSync(path.join(datos, "adjuntos", "adjuntos", ...ruta.split("/"))));
+  assert.equal((await pedir("/zamorapp/estado")).json.adjuntos.rechazados, 1);
+  // Reemplazarlo (upsert) lo vuelve a poner en cola
+  conEstado(await subirArchivo(ruta, { token: tokenMed, upsert: true }), 200);
+  assert.equal((await enLaCola(ruta)).estado, "pendiente");
+  await puerta.adjuntos.subir();
+  assert.equal((await enLaCola(ruta)).estado, "subido");
+});
+
+test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), no se repiten si nada cambió y vuelven al restaurar", { skip: omitir || !postgrestReal, timeout: 180_000 }, async () => {
+  nube.estado.caida = false; await nubeObj.comprobar();
+  const externa = fs.mkdtempSync(path.join(os.tmpdir(), "drive2-"));
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: externa, clave: "clave-de-respaldo", confirmacion: "clave-de-respaldo" } })).status, 200);
+  const local = path.join(datos, "adjuntos", "adjuntos", ...RUTA_A.split("/"));
+  assert.equal(fs.readFileSync(local, "utf8"), PDF, "el adjunto de la prueba anterior sigue en la PC");
+  let r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  let j = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j));
+  assert.ok(j.adjuntos?.archivos >= 1 && j.adjuntos.nuevo && j.adjuntos.archivo.endsWith(".adjuntos.tar") && fs.existsSync(j.adjuntos.archivo), JSON.stringify(j.adjuntos));
+  assert.ok(j.adjuntos.externo?.endsWith(".adjuntos.zamorapp") && fs.existsSync(j.adjuntos.externo));
+  assert.equal(j.probada.ok, true); assert.match(j.probada.detalle, /adjuntos/);
+  assert.ok(!fs.readFileSync(j.adjuntos.externo).includes("prueba de adjunto"), "el paquete externo va cifrado");
+  // Es tar estándar: el nombre del archivo aparece en la cabecera del paquete local
+  assert.ok(fs.readFileSync(j.adjuntos.archivo).includes("examen-prueba.pdf"));
+  // Sin cambios, el segundo respaldo no arma otro paquete ni otra copia externa
+  r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  const j2 = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j2));
+  assert.equal(j2.adjuntos.nuevo, false); assert.equal(j2.adjuntos.externo, j.adjuntos.externo);
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 1);
+  assert.ok(!(await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.copias.some((c) => c.archivo.endsWith(".adjuntos.zamorapp")), "la lista de copias muestra solo las de la base");
+  // Se pierde el archivo de la PC; restaurar la copia externa lo trae de vuelta junto con la base
+  fs.rmSync(local);
+  const pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j2.externo, clave: "clave-de-respaldo" } });
+  assert.equal(pr.status, 200, JSON.stringify(pr.json));
+  assert.ok(estado.d.restaurar?.adjuntos && fs.existsSync(estado.d.restaurar.adjuntos));
+  assert.equal(estado.d.restaurar.origenAdjuntos, j.adjuntos.externo);
+  assert.equal(await motor.aplicarRestauracion(), true);
+  assert.equal(fs.readFileSync(local, "utf8"), PDF, "el adjunto volvió");
+  assert.equal(fs.existsSync(path.join(respaldoObj.carpetaLocal, "restaurar.adjuntos.tar")), false);
+  await replicaObj.ciclo();
+  // Analizar: en Drive quedan 2 paquetes de adjuntos y en la PC 1 (cada uno trae todo); las copias de la base siguen aparte.
+  // Paquetes «viejos» de días anteriores (los nombres van por fecha) y un adjunto nuevo que obliga a armar otro paquete
+  for (const d of ["20260101-0900", "20260102-0900", "20260103-0900"]) {
+    fs.writeFileSync(path.join(externa, `zamorapp-${d}.adjuntos.zamorapp`), "viejo");
+    fs.writeFileSync(path.join(externa, `zamorapp-${d}.zamorapp`), "viejo");
+    fs.writeFileSync(path.join(respaldoObj.carpetaLocal, `zamorapp-${d}.adjuntos.tar`), "viejo");
+  }
+  const adjDir = path.join(datos, "adjuntos", "adjuntos", ORG, "30000000-0000-0000-0000-00000000000a");
+  fs.writeFileSync(path.join(adjDir, "extra-1.pdf"), PDF);
+  const basesAntes = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length;
+  const rr = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  const jj = await rr.json();
+  assert.equal(rr.status, 200, JSON.stringify(jj));
+  assert.equal(jj.adjuntos.nuevo, true);
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 2, fs.readdirSync(externa).join(", "));
+  assert.equal(fs.readdirSync(respaldoObj.carpetaLocal).filter((f) => f.endsWith(".adjuntos.tar")).length, 1);
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length, basesAntes, "las copias de la base no se tocan (30 en Drive)");
+  for (const f of fs.readdirSync(externa)) if (f.startsWith("zamorapp-202601")) fs.rmSync(path.join(externa, f)); // las de mentira
+  // Analizar: si el paquete de adjuntos más nuevo no abre, se restaura la base igual con el paquete anterior que sí abra
+  const buenos = fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).sort();
+  const roto = path.join(externa, "zamorapp-29991231-2359.adjuntos.zamorapp");
+  fs.writeFileSync(roto, Buffer.concat([fs.readFileSync(path.join(externa, buenos[buenos.length - 1])).subarray(0, 200), crypto.randomBytes(300)]));
+  const bases = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).sort();
+  const pr2 = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: path.join(externa, bases[bases.length - 1]), clave: "clave-de-respaldo" } });
+  assert.equal(pr2.status, 200, JSON.stringify(pr2.json));
+  assert.equal(pr2.json.adjuntos, true); assert.match(pr2.json.aviso, /más nuevo no abrió/);
+  assert.equal(path.basename(estado.d.restaurar.origenAdjuntos), buenos[buenos.length - 1]);
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionPendiente.aviso, pr2.json.aviso);
+  // Y si ninguno abre (otra clave): solo la base, con aviso
+  for (const f of buenos) fs.rmSync(path.join(externa, f));
+  const pr3 = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: path.join(externa, bases[bases.length - 1]), clave: "clave-de-respaldo" } });
+  assert.equal(pr3.status, 200, JSON.stringify(pr3.json));
+  assert.equal(pr3.json.adjuntos, false); assert.match(pr3.json.aviso, /solo la base/);
+  assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
+  fs.rmSync(externa, { recursive: true, force: true });
 });
 
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
