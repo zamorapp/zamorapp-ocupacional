@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ tipo: string }>; searchParams: Promise<{ caso?: string }> };
 
 export default async function PruebaImpresion({ params, searchParams }: Props) {
+  // ZAMORAPP_PRUEBA_IMPRESION solo se pone en el CI (impresion.yml) o en el banco local: NUNCA en Vercel ni en el
+  // escritorio, porque esta página arma documentos con datos de ejemplo sin pedir sesión
   if (process.env.ZAMORAPP_PRUEBA_IMPRESION !== "1") notFound();
   const [{ tipo }, { caso }] = await Promise.all([params, searchParams]);
   const t = TIPOS[tipo as keyof typeof TIPOS];

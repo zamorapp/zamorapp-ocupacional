@@ -30,6 +30,7 @@ jobs:
       - name: Compilar y arrancar la app (modo demostración, sin base)
         run: |
           npx next build
+          # ZAMORAPP_PRUEBA_IMPRESION va solo aquí o en el banco local: NUNCA en Vercel ni en el escritorio
           ZAMORAPP_PRUEBA_IMPRESION=1 npx next start -p 3100 > next.log 2>&1 &
           for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3100/login && break; sleep 2; done
       - name: Generar y revisar los PDF
