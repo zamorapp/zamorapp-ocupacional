@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { AlertTriangle, Loader2, Mail, MessageCircle, Send, ShieldCheck, XCircle } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
+import { RequiereInternet, useSinInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ const alternar = (set: Set<string>, id: string) => {
 /** Destinatarios, canal y mensaje del envío a la empresa. Lo usan Envíos (lote del día) y Reportes › Aptitud emitida (lote del período). */
 export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas = [], correo, puedeAutorizar, historial }: Props) {
   const [canal, setCanal] = useState<Canal>("correo");
+  const sinInternet = useSinInternet();
   const [para, setPara] = useState(() => new Set(contactos.filter((c) => c.correo).map((c) => c.id)));
   const [extra, setExtra] = useState("");
   const [conConsulta, setConConsulta] = useState(true);
@@ -117,6 +119,7 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
             </button>
           ))}
         </div>
+        {canal === "whatsapp" && sinInternet && <RequiereInternet texto="El enlace de WhatsApp se crea en la nube. Conéctate para crearlo, o envía por correo: queda en cola y sale solo al volver la conexión." />}
         {canal === "correo" && !correo && (
           <p className="flex items-start gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto"><AlertTriangle className="mt-0.5 size-4 shrink-0" /> Falta conectar el correo remitente. Mientras tanto puedes usar WhatsApp o «Ver constancias» para descargar el PDF.</p>
         )}
@@ -191,7 +194,7 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
           </div>
         </div>
 
-        <Button className="w-full" size="lg" disabled={enviando || !consultaIds.length || !total || (canal === "correo" && !correo)} onClick={mandar}>
+        <Button className="w-full" size="lg" disabled={enviando || !consultaIds.length || !total || (canal === "correo" && !correo) || (canal === "whatsapp" && sinInternet)} onClick={mandar}>
           {enviando ? <Loader2 className="animate-spin" /> : <Send />}
           {enviando ? "Preparando PDF y enviando…" : `${canal === "correo" ? "Enviar" : "Crear enlaces"} · ${consultaIds.length} evaluación${consultaIds.length === 1 ? "" : "es"}`}
         </Button>

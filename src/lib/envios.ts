@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { correoConfigurado, correoDisponible, enviarCorreo } from "@/lib/correo";
 import { archivoCola, CUBETA_COLA } from "@/lib/envios-cola";
+import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 import {
   ASUNTO_ENVIO,
   ASUNTO_INFORME,
@@ -258,11 +259,32 @@ const nombreGrupo = (docs: string[]) =>
 const gruposDe = (documentos: string[]) =>
   [documentos.filter((d) => PUBLICOS.includes(d)), documentos.filter((d) => DOCS_CLINICOS.includes(d))].filter((g) => g.length);
 
-// Registra el envío por WhatsApp con su enlace seguro de 7 días y el PDF que abre; devuelve el wa.me listo
+// Escritorio: sube ya a la nube lo guardado en la PC (las `filas`). null = sin internet; si no, las que aún esperan.
+async function subirAhora(supabase: Cliente, filas: string[]): Promise<string[] | null> {
+  const { data } = await supabase.auth.getSession();
+  const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/zamorapp/subir-ahora`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filas }),
+    signal: AbortSignal.timeout(60_000),
+  }).catch(() => null);
+  if (!r || r.status === 503) return null;
+  const j = (await r.json().catch(() => null)) as { esperando?: string[] } | null;
+  return j?.esperando ?? filas;
+}
+export const REQUIERE_INTERNET_WHATSAPP = "Requiere internet: el enlace de WhatsApp se crea en la nube. Conéctate y vuelve a enviarlo (el correo, en cambio, queda en cola).";
+
+// Registra el envío por WhatsApp con su enlace seguro de 7 días y el PDF que abre; devuelve el wa.me listo.
+// En el escritorio la fila del envío se guarda en la PC: antes de crear el enlace (que vive solo en la nube y apunta
+// a ese envío) se sube; sin internet no se registra nada y se avisa que requiere internet.
 async function enlaceRegistrado(supabase: Cliente, orgId: string, fila: Record<string, unknown>, archivo: Adjunto, nombre: string, texto: string) {
   const destinatario = String(fila.destinatario);
+  if (ESCRITORIO && (await subirAhora(supabase, [])) === null)
+    return { detalle: { destinatario, estado: "fallido", error: REQUIERE_INTERNET_WHATSAPP } as Detalle, enlace: null };
   const token = randomBytes(32).toString("base64url");
   const { data: envio, error: err1 } = await supabase.from("envios").insert({ ...fila, estado: "enlace" }).select("id").single();
+  if (ESCRITORIO && envio && (await subirAhora(supabase, [envio.id]))?.length !== 0)
+    return { detalle: { destinatario, estado: "fallido", error: "El envío quedó guardado en la PC pero no llegó a la nube a tiempo para crear el enlace. Vuelve a enviarlo en un momento." } as Detalle, enlace: null };
   const { data: enlace, error: err2 } = envio
     ? await supabase.from("envio_enlaces").insert({ org_id: orgId, envio_id: envio.id, token_hash: hex(createHash("sha256").update(token).digest()) }).select("id").single()
     : { data: null, error: err1 };
