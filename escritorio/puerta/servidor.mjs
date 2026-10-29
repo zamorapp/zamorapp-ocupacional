@@ -686,6 +686,22 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (bandeja && await nube.confirmar()) await bandeja.subir().catch(() => {});
         return responder(res, 200, await cola.despachar(quien.uid, json()?.ids));
       }
+      // Subir ya lo guardado en la PC, para lo que la nube necesita en el acto (p. ej. el enlace de WhatsApp apunta a
+      // un envío que debe existir allá). Sin internet responde 503 «requiere internet»; devuelve las filas que aún esperan.
+      if (ruta === "/zamorapp/subir-ahora" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { message: "Sesión vencida o no válida" });
+        if (!(await nube.confirmar())) return responder(res, 503, { code: "offline", message: "Requiere internet" });
+        const filas = (Array.isArray(json()?.filas) ? json().filas : []).map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
+        // Dos vueltas: si ya había una subida en curso (empezó antes de esta fila), la segunda la incluye
+        let esperando = [];
+        for (let i = 0; i < 2 && bandeja; i++) {
+          await bandeja.subir().catch(() => {});
+          esperando = await bandeja.esperando(filas);
+          if (!esperando.length) break;
+        }
+        return responder(res, 200, { esperando });
+      }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
         return res.end(PAGINA_INICIO.replace("__ORIGEN__", origen));

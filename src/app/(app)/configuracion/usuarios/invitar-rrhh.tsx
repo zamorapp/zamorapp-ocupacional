@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Link2, Link2Off, Loader2, MessageCircle } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { confirmar } from "@/components/app/confirmar";
+import { RequiereInternet, useSinInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Invitacion } from "@/lib/invitaciones";
@@ -28,6 +29,7 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
   const [telefono, setTelefono] = useState("");
   const [copiado, setCopiado] = useState(false);
   const [, iniciar] = useTransition();
+  const sinInternet = useSinInternet();
   const contactos = empresas.find((e) => e.id === empresaId)?.contactos ?? [];
 
   return (
@@ -37,13 +39,14 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
         <p className="text-sm text-muted-foreground">Le llega un enlace por WhatsApp; crea su cuenta y entra directo al portal de su empresa para pedir evaluaciones y ver resultados. Vale 7 días y un solo uso.</p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {sinInternet && <RequiereInternet texto="La invitación vive en la nube para que RR. HH. la abra desde su teléfono. Conéctate para crearla." />}
         <form action={accion} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
           <CampoSelect id="empresa_id" etiqueta="Empresa *" value={empresaId} onChange={(e) => { setEmpresaId(e.target.value); setNombre(""); setTelefono(""); }}>
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </CampoSelect>
           <Campo id="nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} />
           <Campo id="telefono" etiqueta="WhatsApp" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" />
-          <Button type="submit" disabled={creando || !empresaId} className="h-10">{creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
+          <Button type="submit" disabled={creando || !empresaId || sinInternet} className="h-10">{creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
           {contactos.length > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
               Contactos de la empresa:
