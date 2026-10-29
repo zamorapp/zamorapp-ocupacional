@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { empresaActivaId } from "@/lib/empresa-activa";
 import { FileSpreadsheet, Printer, ShieldAlert } from "lucide-react";
 import { Barras } from "@/components/app/barras";
 import { Button } from "@/components/ui/button";
@@ -31,14 +32,20 @@ const COLORES = ["bg-primary", "bg-chart-2", "bg-chart-3", "bg-chart-4"];
 
 export default async function ReporteSame({ params, searchParams }: Props) {
   const [{ tipo }, q] = await Promise.all([params, searchParams]);
+  // Aptitud: contactos y plantillas del envío no dependen del listado; se piden a la vez (un viaje menos)
+  // (misma empresa que usa el listado: la de la URL o, si no hay, la activa)
+  const idPrevio = tipo === "aptitud" ? (q.empresa ?? (await empresaActivaId())) : null;
+  const extras = idPrevio ? Promise.all([listarContactos(idPrevio), listarPlantillas()]) : null;
+  extras?.catch(() => null);
   const l = await cargarListado(tipo, q);
   if (!l) notFound();
   const { def, periodo, empresa } = l;
   const enlace = parametrosListado(q, empresa?.id ?? null).toString();
   // Aptitud emitida de una empresa: lista para marcar y sacar las constancias en un solo PDF
   const lote = def.clave === "aptitud" && empresa && l.listo && !l.sinAccesoClinico && l.filas.length > 0;
+  const previos = lote && empresa && empresa.id === idPrevio ? await extras : null;
   const [estados, contactos, plantillas] = lote && empresa
-    ? await Promise.all([estadosDeLote(l.filas.map((f) => String(f.id))), listarContactos(empresa.id), listarPlantillas()])
+    ? await Promise.all([estadosDeLote(l.filas.map((f) => String(f.id))), ...(previos ?? [listarContactos(empresa.id), listarPlantillas()])] as const)
     : [{}, [], []];
 
   return (

@@ -21,6 +21,7 @@ export const CONFIG = {
   diasSinConexion: 7,
   arranquesSinConexion: 7, // arranques seguidos del programa sin nube que se toleran (reloj sin ancla)
   sesionSegundos: 3600,
+  reusoRefrescoMs: 30_000, // un refresco ya usado entrega la misma sesión durante este margen
   cadaSincronia: 30_000,
   // Con internet, las lecturas salen de la copia local cuando está al día (sincronizada hace menos de
   // frescuraLectura y sin escrituras pendientes de bajar): la pantalla no paga el viaje a la nube (C11).

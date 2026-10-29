@@ -31,10 +31,12 @@ type Props = {
   variante?: "default" | "outline" | "ghost";
   compacto?: boolean;
   className?: string;
+  // Solo las opciones, para ir dentro de otro menú (el «…» del celular)
+  soloOpciones?: boolean;
 };
 
 // Botón único «Imprimir» con los documentos que aplican a la consulta. Cada uno abre en otra pestaña lista para imprimir o guardar en PDF.
-export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className }: Props) {
+export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className, soloOpciones }: Props) {
   const docs = [
     { tipo: "paquete", texto: "Todo lo de esta consulta", nota: "uno por hoja", icono: Files },
     aptitud && { tipo: "constancia", texto: "Constancia de aptitud", icono: FileCheck2 },
@@ -59,6 +61,23 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
     return abrirEnVentana(antes ? async () => ((await antes()) ? url : null) : url);
   };
 
+  const opciones = (
+    <>
+      <DropdownMenuLabel className="text-xs text-muted-foreground">{soloOpciones ? "Imprimir" : antes ? "Se guardan los cambios antes de imprimir" : "Abrir para imprimir o guardar PDF"}</DropdownMenuLabel>
+      {docs.map(({ tipo, texto, nota, icono: Icono }, i) => (
+        <div key={tipo}>
+          {i === 1 && !soloOpciones && <DropdownMenuSeparator />}
+          <DropdownMenuItem onSelect={() => void abrir(tipo)} disabled={ocupado} className={i === 0 ? "font-medium" : undefined}>
+            <Icono /> <span className="flex-1">{texto}</span>
+            {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
+          </DropdownMenuItem>
+        </div>
+      ))}
+    </>
+  );
+
+  if (soloOpciones) return opciones;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -69,16 +88,7 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">{antes ? "Se guardan los cambios antes de imprimir" : "Abrir para imprimir o guardar PDF"}</DropdownMenuLabel>
-        {docs.map(({ tipo, texto, nota, icono: Icono }, i) => (
-          <div key={tipo}>
-            {i === 1 && <DropdownMenuSeparator />}
-            <DropdownMenuItem onSelect={() => void abrir(tipo)} className={i === 0 ? "font-medium" : undefined}>
-              <Icono /> <span className="flex-1">{texto}</span>
-              {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
-            </DropdownMenuItem>
-          </div>
-        ))}
+        {opciones}
       </DropdownMenuContent>
     </DropdownMenu>
   );

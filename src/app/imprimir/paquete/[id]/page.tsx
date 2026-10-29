@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
-import { faltantesRecipe, obtenerAnexos, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
+import { copiaDeUrl, faltantesRecipe, obtenerAnexos, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
 import { opcionesDe } from "@/lib/documentos-opciones";
 import { OpcionesImpresion } from "../../opciones";
 import { Anexos } from "../../anexos";
@@ -13,12 +13,12 @@ export const metadata: Metadata = { title: "Documentos de la consulta" };
 // Todos los documentos que aplican a la consulta en una sola impresión (uno por hoja):
 // constancia si hay aptitud, reposo si está activo, récipe si hay tratamiento completo, orden si hay paraclínicos y referencia si hay interconsultas.
 // Al final, los exámenes escaneados de la consulta.
-export default async function Paquete({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sin?: string }> }) {
+export default async function Paquete({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sin?: string; copia?: string }> }) {
   const { id } = await params;
-  const { sin } = await searchParams;
+  const { sin, copia } = await searchParams;
   const base = await obtenerDocumento(id);
   if (!base) notFound();
-  const d = { ...base, sin: opcionesDeUrl(sin) };
+  const d = { ...base, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const tratamiento = d.datos.tratamiento.some((m) => m.medicina);
   const faltan = tratamiento ? faltantesRecipe(d) : [];
   const docs = [
@@ -35,7 +35,7 @@ export default async function Paquete({ params, searchParams }: { params: Promis
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} />
-      {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} />}
+      {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} copia={d.datos.aptitud.clasificacion ? d.copia : undefined} />}
       {faltan.length > 0 && (
         <div className="mx-auto mb-6 max-w-2xl rounded-lg border border-aviso/40 bg-white p-4 text-sm print:hidden">
           <p className="mb-1 flex items-center gap-2 font-medium text-aviso-texto"><AlertTriangle className="size-4" /> El récipe quedó fuera: faltan {faltan.join(", ")}.</p>

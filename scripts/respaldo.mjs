@@ -44,20 +44,43 @@ const comprimido = zlib.gzipSync(JSON.stringify(datos));
 const archivo = `respaldo-${datos.fecha.slice(0, 19).replace(/[T:]/g, "-")}.json.gz`;
 const guardados = [];
 const errores = [];
+const tablasLeidas = Object.keys(datos.tablas).length;
 for (const carpeta of carpetas) {
   try {
     fs.mkdirSync(carpeta, { recursive: true });
     fs.writeFileSync(path.join(carpeta, archivo), comprimido);
-    for (const f of sobrantes(fs.readdirSync(carpeta))) fs.unlinkSync(path.join(carpeta, f));
+    verificar(path.join(carpeta, archivo));
     guardados.push(carpeta);
   } catch (e) {
     errores.push(`${carpeta}: ${e.message}`);
   }
 }
+// Puesta al día: los respaldos que quedaron solo en la PC (Drive aún no montado al encender) suben a las demás carpetas
+let puestosAlDia = 0;
+if (guardados.includes(carpetas[0])) {
+  for (const carpeta of guardados.slice(1)) {
+    try {
+      const ya = new Set(fs.readdirSync(carpeta));
+      for (const f of fs.readdirSync(carpetas[0]).filter((f) => /^respaldo-.*\.json\.gz$/.test(f) && !ya.has(f))) {
+        fs.copyFileSync(path.join(carpetas[0], f), path.join(carpeta, f));
+        puestosAlDia++;
+      }
+    } catch (e) {
+      errores.push(`${carpeta} (puesta al día): ${e.message}`);
+    }
+  }
+}
+for (const carpeta of guardados) {
+  try {
+    for (const f of sobrantes(fs.readdirSync(carpeta))) fs.unlinkSync(path.join(carpeta, f));
+  } catch (e) {
+    errores.push(`${carpeta} (retención): ${e.message}`);
+  }
+}
 
 // ok: en la PC y en la copia externa; aviso: solo en una carpeta (Google Drive cerrado o con error); fallo: en ninguna
 const estado = guardados.length === 0 ? "fallo" : guardados.length < 2 || errores.length ? "aviso" : "ok";
-const detalle = [...errores, ...(carpetas.length < 2 ? ["Google Drive no estaba abierto: el respaldo quedó solo en la PC"] : [])].join(" · ");
+const detalle = [...errores, ...(carpetas.length < 2 ? ["Google Drive no estaba abierto: el respaldo quedó solo en la PC y subirá a Drive en el próximo"] : [])].join(" · ");
 await anotar({ estado, archivo, tamano_kb: Math.round(comprimido.length / 1024), tablas: Object.keys(datos.tablas).length, filas, destinos: guardados.length, detalle });
 
 let mantenimiento = "";
@@ -70,7 +93,7 @@ try {
   mantenimiento = ` · mantenimiento no disponible (${e.message})`;
 }
 await cerrar();
-console.log(`Respaldo ${archivo} (${estado}): ${Object.keys(datos.tablas).length} tablas, ${filas} filas, ${(comprimido.length / 1024).toFixed(0)} KB en ${guardados.length} carpeta(s)${intentos > 1 ? ` tras ${intentos} intentos` : ""}${detalle ? ` · ${detalle}` : ""}${mantenimiento}`);
+console.log(`Respaldo ${archivo} (${estado}): ${Object.keys(datos.tablas).length} tablas, ${filas} filas, ${(comprimido.length / 1024).toFixed(0)} KB en ${guardados.length} carpeta(s)${intentos > 1 ? ` tras ${intentos} intentos` : ""}${puestosAlDia ? ` · ${puestosAlDia} respaldo(s) anteriores subidos a Drive` : ""}${detalle ? ` · ${detalle}` : ""}${mantenimiento}`);
 if (estado === "fallo") process.exitCode = 1;
 
 // Todas las tablas de public y clinico, más las cuentas de usuario
@@ -131,6 +154,12 @@ async function anotar(r) {
       console.error(`No se pudo anotar el respaldo en la base: ${e.message}`);
     }
   }
+}
+
+// Relee el archivo recién escrito: si no descomprime o no trae todas las tablas, esa copia no cuenta como guardada
+function verificar(ruta) {
+  const leido = JSON.parse(zlib.gunzipSync(fs.readFileSync(ruta)));
+  if (Object.keys(leido.tablas ?? {}).length !== tablasLeidas) throw new Error("el archivo guardado no se pudo verificar");
 }
 
 // Respaldos que sobran: fuera de los últimos CONSERVAR y que no son el último de su mes (hasta MESES meses).

@@ -6,6 +6,7 @@ export const OPCIONES_IMPRESION = {
   riesgos: "Riesgos del puesto",
   limitaciones: "Limitaciones",
   conclusiones: "Conclusiones",
+  examen: "Examen detallado por sistema",
 } as const;
 export type OpcionImpresion = keyof typeof OPCIONES_IMPRESION;
 export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
@@ -15,9 +16,9 @@ export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
 export function opcionesDe(tipo: string): OpcionImpresion[] {
   const extra: Partial<Record<string, OpcionImpresion[]>> = {
     constancia: ["riesgos", "limitaciones"],
-    informe: ["limitaciones", "conclusiones"],
-    "informe-trabajador": ["conclusiones"],
-    preoperatoria: ["conclusiones"],
+    informe: ["examen", "limitaciones", "conclusiones"],
+    "informe-trabajador": ["examen", "conclusiones"],
+    preoperatoria: ["examen", "conclusiones"],
     paquete: ["riesgos", "limitaciones"],
     oam: ["riesgos"],
   };

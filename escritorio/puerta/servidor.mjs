@@ -114,15 +114,16 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
   // Plazo sin conexión con la hora anclada (nube.reloj), nunca con la fecha de Windows; también vence por
   // demasiados arranques seguidos sin internet (sin ancla, una fecha detenida no cuenta los días)
   const sinConexionVencida = (u) => nube.reloj.sinConexionVencida(u?.ultimoOnline, CONFIG.diasSinConexion, CONFIG.arranquesSinConexion);
-  const sesionLocal = (uid, segundoPaso = false) => {
+  // sid: la sesión de esta ventana. Se conserva al renovar (como en Supabase) para que «Salir» cierre solo esta.
+  const sesionLocal = (uid, segundoPaso = false, sid = crypto.randomUUID()) => {
     const u = d().usuarios[uid];
     const ahora = nube.reloj.segundos(); // hora anclada: con la fecha de Windows atrasada el token igual vence
     const exp = ahora + CONFIG.sesionSegundos;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
-    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID(), ...(aal ? { aal } : {}) }, d().jwtSecreto);
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
     for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < nube.reloj.ahora()) delete d().refrescos[t];
-    d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso };
+    d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso, sid };
     estado.guardar();
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
@@ -270,18 +271,35 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
     return responder(res, 200, sesionLocal(uid));
   }
 
+  // Un refresco ya usado vale 30 s más y entrega la misma sesión nueva (como el margen de reutilización de Supabase):
+  // el servidor de la app y la ventana renuevan a la vez al abrir, y sin margen el segundo fallaba y cerraba la
+  // sesión (29-oct: Cesar tuvo que volver a escribir la clave al abrir). Vive solo en memoria.
+  const recienUsados = new Map();
   function renovar(res, cuerpo) {
-    const r = d().refrescos[cuerpo?.refresh_token];
+    const token = cuerpo?.refresh_token;
+    const reciente = token && recienUsados.get(token);
+    const ur = reciente && d().usuarios[reciente.uid];
+    if (reciente && reciente.hasta > performance.now() && d().refrescos[reciente.sesion.refresh_token] && ur && !ur.bloqueado && !ur.requiereNube) {
+      registro("[auth] renovar: ok (refresco recién usado, misma sesión)");
+      return responder(res, 200, reciente.sesion);
+    }
+    const r = d().refrescos[token];
     const u = r && d().usuarios[r.uid];
     if (!r || r.vence < nube.reloj.ahora() || !u || u.bloqueado || u.requiereNube) {
+      registro(`[auth] renovar: 400 (${!r ? "refresco desconocido o cerrado" : r.vence < nube.reloj.ahora() ? "vencido" : !u ? "usuario no está en la PC" : u.bloqueado ? "bloqueado" : "requiere internet"})`);
       return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
     }
     if (!nube.enLinea && sinConexionVencida(u)) {
-      delete d().refrescos[cuerpo.refresh_token];
+      delete d().refrescos[token];
+      registro(`[auth] renovar: 400 (más de ${CONFIG.diasSinConexion} días sin conexión)`);
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
-    delete d().refrescos[cuerpo.refresh_token];
-    return responder(res, 200, sesionLocal(r.uid, r.segundoPaso));
+    delete d().refrescos[token];
+    const sesion = sesionLocal(r.uid, r.segundoPaso, r.sid);
+    for (const [t, x] of recienUsados) if (x.hasta < performance.now()) recienUsados.delete(t);
+    recienUsados.set(token, { uid: r.uid, sesion, hasta: performance.now() + CONFIG.reusoRefrescoMs });
+    registro("[auth] renovar: ok");
+    return responder(res, 200, sesion);
   }
 
   // Reenvía la petición a la nube con el token de la nube de ese usuario. Devuelve false si la nube no responde.
@@ -635,8 +653,19 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
       const factores = /^\/auth\/v1\/factors(?:\/([\w-]+)(?:\/(challenge|verify))?)?$/.exec(ruta);
       if (factores) return await dosPasos(req, res, factores[1], factores[2], json());
       if (ruta === "/auth/v1/logout") {
+        // scope como en Supabase: local (solo esta sesión), others (las demás) o global (todas, el valor por omisión).
+        // Las sesiones viejas sin sid se cierran también con local: no se sabe de qué ventana son.
         const quien = usuarioDe(req);
-        if (quien) for (const [t, r] of Object.entries(d().refrescos)) if (r.uid === quien.uid) delete d().refrescos[t];
+        const scope = new URL(req.url, "http://x").searchParams.get("scope") || "global";
+        const sid = quien && verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto)?.session_id;
+        let cerradas = 0;
+        if (quien) for (const [t, r] of Object.entries(d().refrescos)) {
+          if (r.uid !== quien.uid) continue;
+          const esta = !r.sid || r.sid === sid;
+          if (scope === "global" || (scope === "local" && esta) || (scope === "others" && !esta)) { delete d().refrescos[t]; cerradas += 1; }
+        }
+        for (const [t, x] of recienUsados) if (!d().refrescos[x.sesion.refresh_token]) recienUsados.delete(t);
+        registro(`[auth] salir (${scope}): ${cerradas} sesión(es) cerrada(s) en esta PC`);
         estado.guardar();
         res.writeHead(204); return res.end();
       }

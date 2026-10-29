@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Confirmador } from "@/components/app/confirmar";
 import { RegistroSW } from "@/components/app/registro-sw";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,6 +36,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <TooltipProvider>{children}</TooltipProvider>
         <Confirmador />
         <RegistroSW />
+        {/* Speed Insights (gratis en Vercel): tiempos reales de cada pantalla desde el navegador de Cesar. Solo en la web publicada. */}
+        {process.env.VERCEL ? <SpeedInsights /> : null}
       </body>
     </html>
   );
