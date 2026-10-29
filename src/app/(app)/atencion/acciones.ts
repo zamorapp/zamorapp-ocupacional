@@ -82,6 +82,8 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
   if (citaId) {
     await supabase.from("citas").update({ estado: "en_consulta", consulta_id: data.id }).eq("id", citaId);
   }
+  // Con la caché de 30 s del navegador (staleTimes), el Inicio y la cola no deben mostrar la consulta sin abrir
+  revalidatePath("/panel");
   redirect(`/atencion/${data.id}`);
 }
 
@@ -194,6 +196,7 @@ export async function guardarResultados(id: string, paraclinicos: DatosConsulta[
   const { error } = await supabase.rpc("guardar_resultados", { p_id: id, p_resultados: resultados });
   if (error) return { ok: false, mensaje: error.message };
   olvidar("");
+  revalidatePath("/panel"); // «Resultados por recibir» del Inicio
   return { ok: true, mensaje: "Resultados guardados." };
 }
 
