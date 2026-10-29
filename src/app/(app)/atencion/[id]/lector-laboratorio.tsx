@@ -27,6 +27,8 @@ type Props = {
   puedeAgregar: boolean;
   onRegistrar: (r: Registro) => void;
   onCerrar: () => void;
+  // Archivo aún no guardado (resultados por lote): se sube al registrar, ya ligado a los exámenes; devuelve su id
+  subir?: (examenes: string[]) => Promise<string>;
 };
 
 const ICONO_NIVEL = { ok: CheckCircle2, revisar: AlertTriangle, alerta: AlertTriangle };
@@ -37,7 +39,7 @@ const ESTILO_NIVEL = {
 };
 
 /** Lee el informe del laboratorio, propone los resultados y espera la confirmación del médico para registrarlos. */
-export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo, sexo, paciente, puedeAgregar, onRegistrar, onCerrar }: Props) {
+export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo, sexo, paciente, puedeAgregar, onRegistrar, onCerrar, subir }: Props) {
   const examenes = useMemo<ExamenCatalogo[]>(() => catalogo.map((i) => {
     const dx = defExamen(i.datos);
     return { id: i.id, nombre: i.nombre, grupo: i.grupo, sinonimos: sinonimosDe(i.datos), unidad: dx.unidad, max: rango(dx, sexo).max };
@@ -112,14 +114,19 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
       if (i >= 0) lista[i] = { ...lista[i], ...cambio };
       else if (puedeAgregar && f.examenId) lista.push({ id: f.examenId, nombre: cat?.nombre ?? f.examen, grupo: cat?.grupo ?? null, resultado: "", ...cambio });
     }
+    const examenesLeidos = [...new Set(incluidas.map((f) => f.examenId!))];
+    let adjunto = archivo.id;
+    if (!adjunto && subir) {
+      try { adjunto = await subir(examenesLeidos); } catch (x) { setRegistrando(false); return setError((x as Error).message); }
+    }
     // Bitácora: cada lectura registrada y, si se ignoró, la cédula que se leyó
     const e = await Promise.resolve().then(() => crearClienteNavegador().rpc("registrar_lectura_laboratorio", {
-      p_consulta: consultaId, p_adjunto: archivo.id, p_cedula_leida: cabecera.cedula ? cabecera.cedula.slice(0, 20) : null,
+      p_consulta: consultaId, p_adjunto: adjunto || null, p_cedula_leida: cabecera.cedula ? cabecera.cedula.slice(0, 20) : null,
       p_cedula_coincide: id.nivel === "ok", p_cedula_ignorada: ignorada, p_examenes: incluidas.length,
     })).then((r) => r.error, (x: Error) => x);
     setRegistrando(false);
     if (e) return setError(e.message || "No se pudo registrar. Revisa la conexión y vuelve a intentarlo.");
-    onRegistrar({ paraclinicos: lista, examenes: [...new Set(incluidas.map((f) => f.examenId!))] });
+    onRegistrar({ paraclinicos: lista, examenes: examenesLeidos });
   };
 
   const pagina = (n: number) => paginas.find((p) => p.pagina === n);

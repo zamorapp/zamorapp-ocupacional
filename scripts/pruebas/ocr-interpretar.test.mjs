@@ -2,7 +2,7 @@
 // Uso: node --test scripts/pruebas/ocr-interpretar.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { identidad, interpretar, normalizarCedula, sinonimosDe } from "../../src/lib/ocr/interpretar.ts";
+import { agruparPorPaciente, identidad, interpretar, normalizarCedula, sinonimosDe } from "../../src/lib/ocr/interpretar.ts";
 
 const CATALOGO = [
   { id: "hb", nombre: "Hemoglobina", grupo: "Hematología", sinonimos: ["HGB"], unidad: "g/dL", max: 16 },
@@ -74,4 +74,24 @@ test("errores típicos de foto: barra leída como I y C.I. leída como C.l.", ()
   assert.equal(r.filas[0].unidad, "/mm3");
   assert.equal(r.filas[1].unidad, "/mm3");
   assert.ok(!r.filas[0].dudas.some((d) => d.startsWith("Unidad")));
+});
+
+test("PDF con varios trabajadores: cada uno recibe solo sus páginas", () => {
+  const l = (pagina, texto) => ({ texto, confianza: 95, pagina });
+  const g = agruparPorPaciente([
+    l(1, "Paciente: Ana Pérez C.I.: V-12.345.678"), l(1, "Hemoglobina 12"),
+    l(2, "Química sanguínea"), l(2, "Glucosa 98"), // sin cédula: segunda hoja de Ana
+    l(3, "Paciente: Luis Rojas Cédula: 9876543"), l(3, "Hemoglobina 14"),
+    l(4, "Paciente: Luis Rojas C.I. V-9.876.543"),
+    l(5, "Paciente: Ana Pérez C.I.: 12345678"),
+  ]);
+  assert.deepEqual(g.map((x) => x.paginas), [[1, 2], [3, 4], [5]]);
+  assert.equal(normalizarCedula(g[1].cedula), "9876543");
+  assert.equal(normalizarCedula(g[2].cedula), "12345678"); // reaparece más adelante: grupo aparte, se une al registrar
+});
+
+test("primera hoja sin cédula: grupo aparte (el médico elige el paciente), nunca se pega al siguiente", () => {
+  const g = agruparPorPaciente([{ texto: "Laboratorio X", confianza: 90, pagina: 1 }, { texto: "Paciente: Ana C.I. 12345678", confianza: 90, pagina: 2 }]);
+  assert.deepEqual(g.map((x) => x.paginas), [[1], [2]]);
+  assert.equal(g[0].cedula, "");
 });

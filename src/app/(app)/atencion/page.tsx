@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert, FileStack } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -57,6 +57,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
+          {sesion.clinico && <Button variant="outline" asChild><Link href="/atencion/resultados-lote"><FileStack /> Resultados por lote</Link></Button>}
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} />
           <NuevaConsulta habilitado={!sesion.demo} />
         </div>

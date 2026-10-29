@@ -175,3 +175,22 @@ export function identidad(cab: Cabecera, paciente: { cedula: string; nombre: str
   if (coincideNombre) return { nivel: "revisar", texto: `La cédula leída (${cab.cedula}) no coincide, pero el nombre sí. Puede ser un error de lectura.` };
   return { nivel: "alerta", texto: `Ni la cédula (${cab.cedula}) ni el nombre coinciden con el paciente. ¿Es su informe?` };
 }
+
+export type GrupoPaciente = { paginas: number[]; cedula: string; nombre: string };
+
+// PDF del laboratorio con varios trabajadores: cada página se asigna a la cédula que trae en su cabecera.
+// Una página sin cédula se toma como continuación de la anterior (segunda hoja del mismo paciente).
+export function agruparPorPaciente(lineas: Linea[]): GrupoPaciente[] {
+  const paginas = [...new Set(lineas.map((l) => l.pagina))].sort((a, b) => a - b);
+  const grupos: GrupoPaciente[] = [];
+  for (const n of paginas) {
+    const cab = leerCabecera(lineas.filter((l) => l.pagina === n).map((l) => ({ ...l, pagina: 1 })));
+    const cedula = normalizarCedula(cab.cedula);
+    const actual = grupos.at(-1);
+    if (actual && (!cedula || normalizarCedula(actual.cedula) === cedula)) {
+      actual.paginas.push(n);
+      if (!actual.nombre && cab.nombre) actual.nombre = cab.nombre;
+    } else grupos.push({ paginas: [n], cedula: cab.cedula, nombre: cab.nombre });
+  }
+  return grupos;
+}

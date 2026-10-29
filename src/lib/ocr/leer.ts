@@ -6,12 +6,13 @@ import type { Linea } from "@/lib/ocr/interpretar";
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 export const MAX_PAGINAS = 20;
+export const MAX_PAGINAS_LOTE = 40; // PDF del laboratorio con varios trabajadores (cada uno se relee con sus hojas)
 const LADO_MAXIMO = 2400;
 
 export type Avance = { texto: string; paso: number; total: number };
 export type Pagina = { pagina: number; imagen: string; ancho: number; alto: number }; // imagen: objectURL para el visor
 
-type Opciones = { avance: (a: Avance) => void; senal: AbortSignal };
+type Opciones = { avance: (a: Avance) => void; senal: AbortSignal; maxPaginas?: number };
 
 class Cancelado extends Error {
   constructor() { super("Lectura cancelada."); }
@@ -86,7 +87,8 @@ async function leerPdf(archivo: Blob, o: Opciones) {
   pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await archivo.arrayBuffer()), isEvalSupported: false }).promise;
   try {
-    if (doc.numPages > MAX_PAGINAS) throw new Error(`El PDF tiene ${doc.numPages} páginas; el lector acepta hasta ${MAX_PAGINAS}.`);
+    const tope = o.maxPaginas ?? MAX_PAGINAS;
+    if (doc.numPages > tope) throw new Error(`El PDF tiene ${doc.numPages} páginas; el lector acepta hasta ${tope}.`);
     const lineas: Linea[] = [];
     const paginas: Pagina[] = [];
     let lector: Awaited<ReturnType<typeof crearLector>> | null = null;
@@ -160,4 +162,13 @@ export async function leerResultado(archivo: Blob, tipo: string, o: Opciones): P
     if (o.senal.aborted) throw new Cancelado();
     throw e;
   }
+}
+
+/** Copia solo esas páginas a un PDF nuevo: así cada paciente recibe y guarda únicamente sus hojas. */
+export async function extraerPaginas(archivo: Blob, paginas: number[]): Promise<Blob> {
+  const { PDFDocument } = await import("pdf-lib");
+  const origen = await PDFDocument.load(await archivo.arrayBuffer());
+  const nuevo = await PDFDocument.create();
+  for (const p of await nuevo.copyPages(origen, paginas.map((n) => n - 1))) nuevo.addPage(p);
+  return new Blob([new Uint8Array(await nuevo.save())], { type: "application/pdf" });
 }
