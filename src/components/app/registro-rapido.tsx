@@ -11,11 +11,13 @@ type Props = {
   empresas: { id: string; nombre: string }[];
   empresaActiva: string | null;
   clinico: boolean;
-  alListo: (href: string | null) => void;
+  alListo?: (href: string | null) => void;
+  // Si viene, solo registra y entrega el paciente (por ejemplo, para agendarle una cita) sin abrir la consulta
+  alRegistrar?: (p: { id: string; nombre: string; cedula: string; empresa: string }) => void;
 };
 
 // Ficha mínima desde el buscador: cédula, nombre y empresa. El resto se completa en la consulta o en la ficha.
-export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alListo }: Props) {
+export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alListo = () => {}, alRegistrar }: Props) {
   const digitos = texto.replace(/\D/g, "");
   const esCedula = digitos.length >= 5;
   const partes = esCedula ? [] : texto.trim().split(/\s+/);
@@ -28,6 +30,10 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
       setError(null);
       const r = await crearPaciente(null, datos);
       if (!r.ok || !r.id) return setError(r.mensaje);
+      if (alRegistrar) {
+        const empresa = empresas.find((e) => e.id === datos.get("empresa_id"))?.nombre ?? "";
+        return alRegistrar({ id: r.id, nombre: `${datos.get("nombres")} ${datos.get("apellidos")}`, cedula: String(datos.get("cedula")), empresa });
+      }
       if (!clinico) return alListo(`/pacientes/${r.id}`);
       const c = await iniciarConsulta(r.id);
       // iniciarConsulta redirige a la consulta; si devuelve algo, fue un error
@@ -44,7 +50,7 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
   return (
     <form action={enviar} className="space-y-3 rounded-lg border bg-muted/40 p-3">
       <p className="flex items-center gap-2 text-sm font-medium">
-        <UserPlus className="size-4 text-primary" /> {clinico ? "Registrar y atender" : "Registrar trabajador"}
+        <UserPlus className="size-4 text-primary" /> {alRegistrar ? "Registrar paciente nuevo" : clinico ? "Registrar y atender" : "Registrar trabajador"}
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input name="cedula" aria-label="Cédula" placeholder="Cédula (V-12345678)" defaultValue={esCedula ? texto.trim() : ""} required className={campo}/>
@@ -58,8 +64,8 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">Sexo, cargo y demás datos se completan después.</span>
         <Button type="submit" size="sm" disabled={ocupado}>
-          {ocupado ? <Loader2 className="animate-spin" /> : clinico ? <Stethoscope /> : <UserPlus />}
-          {clinico ? "Registrar y atender" : "Registrar"}
+          {ocupado ? <Loader2 className="animate-spin" /> : clinico && !alRegistrar ? <Stethoscope /> : <UserPlus />}
+          {clinico && !alRegistrar ? "Registrar y atender" : "Registrar"}
         </Button>
       </div>
     </form>

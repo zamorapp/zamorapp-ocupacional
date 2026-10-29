@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ClipboardPlus, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { RegistroRapido } from "@/components/app/registro-rapido";
 import { buscarPacientes, iniciarConsulta, type PacienteEncontrado } from "./acciones";
 
-export function NuevaConsulta({ habilitado }: { habilitado: boolean }) {
+type Props = { habilitado: boolean; empresas: { id: string; nombre: string }[]; empresaActiva: string | null };
+
+// Si el paciente no está registrado, se registra aquí mismo y se abre su consulta (sin pasar por Pacientes)
+export function NuevaConsulta({ habilitado, empresas, empresaActiva }: Props) {
+  const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PacienteEncontrado[]>([]);
@@ -24,10 +30,10 @@ export function NuevaConsulta({ habilitado }: { habilitado: boolean }) {
       <DialogTrigger asChild>
         <Button size="lg" disabled={!habilitado}><ClipboardPlus /> Nueva consulta</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nueva consulta</DialogTitle>
-          <DialogDescription>Busca al paciente por cédula o nombre.</DialogDescription>
+          <DialogDescription>Busca al paciente por cédula o nombre. Si es nuevo, lo registras aquí mismo.</DialogDescription>
         </DialogHeader>
         <label className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -65,7 +71,10 @@ export function NuevaConsulta({ habilitado }: { habilitado: boolean }) {
           ))}
         </ul>
         {texto.trim().length >= 2 && !buscando && resultados.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">Sin resultados. Regístralo primero en Pacientes.</p>
+          <div className="space-y-2">
+            <p className="text-center text-sm text-muted-foreground">Ningún paciente coincide con «{texto.trim()}».</p>
+            <RegistroRapido key={texto.trim()} texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico alListo={(href) => href && router.push(href)} />
+          </div>
         )}
       </DialogContent>
     </Dialog>

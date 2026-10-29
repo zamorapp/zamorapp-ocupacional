@@ -143,6 +143,7 @@ export const MANUAL: TemaManual[] = [
     resumen: "El editor de la consulta: pasos numerados, dictado por voz, evolución de signos, duplicar, accidentes y avisos que nunca bloquean.",
     pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
+      "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Sexo, cargo y demás datos se completan después.",
       "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar.",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",
       "Plantillas por tipo de examen: al elegir pre-empleo, periódico, egreso o reintegro se precargan el examen normal, las recomendaciones de ese motivo y la vigencia de la aptitud. No borra nada de lo que ya escribiste. Si no la quieres, toca «Deshacer»; si cambias de motivo, se cambia la plantilla. Con el motivo ya puesto, «Aplicar plantilla de…» la vuelve a cargar.",
