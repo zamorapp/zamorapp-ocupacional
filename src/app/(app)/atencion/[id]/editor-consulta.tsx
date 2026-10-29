@@ -578,6 +578,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                     <option value="derivada">Derivada</option>
                   </select>
                 </div>
+                {/* Consulta externa o especializada: la especialidad entra al informe de vigilancia, como en el SAME */}
+                {(["EXT", "ESP"].includes(motivo?.codigo ?? "") || d.especialidad) && (
+                  <div>
+                    <Label className="mb-1.5">Especialidad</Label>
+                    <select value={d.especialidad} onChange={(e) => set("especialidad", e.target.value)} className={SELECT}>
+                      <option value="">Sin especialidad</option>
+                      {d.especialidad && !listas.especialidad.some((s) => s.nombre === d.especialidad) && <option value={d.especialidad}>{d.especialidad}</option>}
+                      {listas.especialidad.map((s) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               {!bloqueado && deshacer ? (
                 <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
@@ -1127,6 +1138,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       <Input type="date" value={d.reubicacion.hasta} onChange={(e) => set("reubicacion", { ...d.reubicacion, hasta: e.target.value })} />
                     </div>
                   )}
+                  <div>
+                    <Label className="mb-1.5">Resultado</Label>
+                    <select value={d.reubicacion.resultado} onChange={(e) => set("reubicacion", { ...d.reubicacion, resultado: e.target.value })} className={SELECT}>
+                      <option value="">En trámite</option>
+                      {(listas.resultado_reubicacion ?? []).filter((x) => (x.codigo ?? x.nombre) !== "pendiente").map((x) => <option key={x.id} value={x.codigo ?? x.nombre}>{x.nombre}</option>)}
+                    </select>
+                  </div>
                   <div className="sm:col-span-4">
                     <Texto etiqueta="Motivo médico" valor={d.reubicacion.motivo} onChange={(v) => set("reubicacion", { ...d.reubicacion, motivo: v })} filas={2} />
                   </div>

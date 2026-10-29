@@ -103,6 +103,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       tipo: d.tipo,
       motivo_id: d.motivoId,
       motivo_texto: d.motivoTexto || null,
+      especialidad: d.especialidad.trim() || null,
       enfermedad_actual: d.enfermedadActual || null,
       antecedentes: d.antecedentes,
       habitos: d.habitos,
@@ -124,7 +125,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       reubicacion: d.reubicacion.activa
         ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
             desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,
-            motivo: d.reubicacion.motivo || null, restricciones: d.reubicacion.restricciones || null }
+            motivo: d.reubicacion.motivo || null, restricciones: d.reubicacion.restricciones || null, resultado: d.reubicacion.resultado || null }
         : null,
       informe_libre: d.informeLibre.cuerpo.trim() ? { titulo: d.informeLibre.titulo || null, dirigido_a: d.informeLibre.dirigidoA || null, cuerpo: d.informeLibre.cuerpo } : null,
     },
