@@ -115,7 +115,7 @@ end $$;
 
 -- 3) PDF en espera: carpeta del usuario (<uid>/<envío>/<archivo>.pdf), privada; Vercel la borra después de enviar
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('envios-cola', 'envios-cola', false, 26214400, array['application/pdf'])
+values ('envios-cola', 'envios-cola', false, 10485760, array['application/pdf'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists envios_cola_leer on storage.objects;
@@ -124,11 +124,30 @@ drop policy if exists envios_cola_borrar on storage.objects;
 create policy envios_cola_leer on storage.objects for select to authenticated
   using (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
 -- Sin exigir que el envío ya esté en la nube: con la fase A la fila se guarda en la PC y la bandeja la sube después.
--- Solo PDF, solo en la carpeta propia; la web solo envía PDFs de filas «en_cola» propias (y los borra al enviarlos).
+-- Solo PDF (máx. 10 MB), solo personal de salud o administrador, solo en <uid>/<envío>/<archivo>.pdf de su carpeta;
+-- la web solo envía PDFs de filas «en_cola» propias, revisa que empiecen con %PDF- y los borra al enviarlos.
 create policy envios_cola_subir on storage.objects for insert to authenticated
-  with check (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
+  with check (bucket_id = 'envios-cola'
+    and name ~ ('^' || auth.uid()::text || '/[0-9a-f-]{36}/[^/]+\.pdf$')
+    and exists (select 1 from public.miembros m where m.usuario_id = auth.uid() and m.activo and public.puede_enviar(m.org_id)));
 create policy envios_cola_borrar on storage.objects for delete to authenticated
   using (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Huérfanos: PDF propios con más de 7 días cuyo envío ya no está «en_cola» (o nunca llegó a la nube).
+-- Solo los nombra: el borrado va por la API de Storage (regla del mantenimiento, 20261027190000). No hay pg_cron:
+-- la web la llama al empezar cada despacho de la cola y borra lo que devuelve con la sesión de quien despacha.
+create or replace function public.envios_cola_huerfanos()
+returns setof text language sql stable security definer set search_path = public, storage as $$
+  select o.name from storage.objects o
+   where o.bucket_id = 'envios-cola'
+     and (storage.foldername(o.name))[1] = auth.uid()::text
+     and o.created_at < now() - interval '7 days'
+     and not exists (select 1 from public.envios e
+                      where e.estado = 'en_cola' and e.id::text = (storage.foldername(o.name))[2])
+   limit 100
+$$;
+revoke all on function public.envios_cola_huerfanos() from public, anon;
+grant execute on function public.envios_cola_huerfanos() to authenticated;
 
 -- 4) Copia en la PC: contactos y plantillas se editan allí (suben); los envíos suben en cola y bajan con su estado;
 --    las solicitudes suben y bajan, como decidió el #110 (migración 20261030240000). Enlaces, archivos e invitaciones

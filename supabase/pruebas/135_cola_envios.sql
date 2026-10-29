@@ -55,6 +55,23 @@ do $$ begin
   raise notice 'FALLA: subió a la carpeta de otro usuario';
 exception when insufficient_privilege then raise notice 'no sube a la carpeta de otro (debe 1): 1';
 end $$;
+do $$ begin
+  insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a2/x/y/z.pdf');
+  raise notice 'FALLA: subió con un nombre fuera de <uid>/<envío>/<archivo>.pdf';
+exception when insufficient_privilege then raise notice 'el nombre debe ser <uid>/<envío>/<archivo>.pdf (debe 1): 1';
+end $$;
+do $$ begin
+  insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e1/x.exe');
+  raise notice 'FALLA: subió un archivo que no termina en .pdf';
+exception when insufficient_privilege then raise notice 'solo archivos .pdf (debe 1): 1';
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+do $$ begin
+  insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a3/c1350000-0000-0000-0000-0000000000e1/x.pdf');
+  raise notice 'FALLA: RR. HH. subió a la cola de envíos';
+exception when insufficient_privilege then raise notice 'RR. HH. no sube a la cola (debe 1): 1';
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 
 -- Otro usuario no toma el envío ajeno (la RLS no le muestra la fila para actualizar)
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
@@ -74,6 +91,19 @@ update public.envios set estado = 'enviando' where id = 'c1350000-0000-0000-0000
 update public.envios set estado = 'enviado' where id = 'c1350000-0000-0000-0000-0000000000e1';
 update public.envios set estado = 'fallido', error = 'sin internet' where id = 'c1350000-0000-0000-0000-0000000000e2';
 select 'enviado y fallido cerrados por su autor (debe enviado,fallido): ' || string_agg(estado, ',' order by id) from public.envios where id::text like 'c1350000-%';
+-- Huérfanos: el PDF del envío ya enviado, con más de 7 días, sale en la lista; el de un envío en cola o reciente no
+insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e3/1.pdf');
+reset role;
+update storage.objects set created_at = now() - interval '8 days' where bucket_id = 'envios-cola'
+   and name in ('00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e1/Constancias.pdf',
+                '00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e3/1.pdf');
+set role authenticated;
+select 'huérfano viejo de un envío ya cerrado (debe 1): ' || count(*) from public.envios_cola_huerfanos() h where h like '%0000000000e1/%';
+select 'huérfano viejo sin envío en la nube (debe 1): ' || count(*) from public.envios_cola_huerfanos() h where h like '%0000000000e3/%';
+select 'nada más en la lista (debe 2): ' || count(*) from public.envios_cola_huerfanos();
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'no ve los huérfanos de otro (debe 0): ' || count(*) from public.envios_cola_huerfanos();
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 delete from storage.objects where bucket_id = 'envios-cola' and name like '00000000-0000-0000-0000-0000000000a2/c1350000-%';
 select 'borra su PDF después de enviar (debe 0): ' || count(*) from storage.objects where bucket_id = 'envios-cola';
 
@@ -82,6 +112,7 @@ select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'tablas de envíos en la copia de la PC (debe 4): ' || count(*) from sync.tablas
  where nombre in ('public.empresa_contactos','public.plantillas_correo','public.envios','public.solicitudes');
 select 'las solicitudes suben desde la PC, como en el #110 (debe true): ' || subible from sync.tablas where nombre = 'public.solicitudes';
+select 'límite de 10 MB por PDF (debe 10485760): ' || file_size_limit from storage.buckets where id = 'envios-cola';
 select 'la versión avanza al cerrar un envío (debe 3): ' || version from public.envios where id = 'c1350000-0000-0000-0000-0000000000e1';
 delete from storage.objects where bucket_id = 'envios-cola';
 delete from public.envios where id::text like 'c1350000-%' or destinatario = 'rrhh135@a.com';

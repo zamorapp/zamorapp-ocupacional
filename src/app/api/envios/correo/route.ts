@@ -26,6 +26,10 @@ export async function POST(req: Request) {
   const uid = usuario.user?.id;
   if (!uid) return Response.json({ mensaje: "Sesión vencida" }, { status: 401 });
 
+  // Huérfanos propios (más de 7 días sin envío en cola): se borran por la API de Storage; si falla, no frena el envío
+  const { data: huerfanos } = await supabase.rpc("envios_cola_huerfanos");
+  if (Array.isArray(huerfanos) && huerfanos.length) await supabase.storage.from(CUBETA_COLA).remove(huerfanos as string[]);
+
   const cuerpo = (await req.json().catch(() => null)) as { ids?: unknown } | null;
   const ids = Array.isArray(cuerpo?.ids) ? cuerpo.ids.filter((x): x is string => typeof x === "string" && UUID.test(x)).slice(0, MAX) : null;
   let consulta = supabase.from("envios").select("id, org_id, destinatario, asunto, mensaje, creado_en")
@@ -62,7 +66,10 @@ export async function POST(req: Request) {
       for (const a of archivos) {
         const { data: blob, error: e } = await supabase.storage.from(CUBETA_COLA).download(`${carpeta}/${a.name}`);
         if (!blob) throw new Error(`No se pudo leer el PDF: ${e?.message ?? a.name}`);
-        adjuntos.push({ nombre: nombreDeArchivoCola(a.name), contenido: Buffer.from(await blob.arrayBuffer()) });
+        const contenido = Buffer.from(await blob.arrayBuffer());
+        // Solo PDF de verdad: el bucket filtra por tipo declarado, aquí se revisa la firma del archivo
+        if (contenido.subarray(0, 5).toString("latin1") !== "%PDF-") throw new Error(`El archivo ${nombreDeArchivoCola(a.name)} no es un PDF válido`);
+        adjuntos.push({ nombre: nombreDeArchivoCola(a.name), contenido });
       }
       const org = orgs?.find((o) => o.id === f.org_id)?.nombre ?? "";
       await enviarCorreo({ para: f.destinatario, asunto: f.asunto, texto: f.mensaje, nombreRemitente: [perfil?.nombre_completo, org].filter(Boolean).join(" · "), adjuntos });
