@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,6 +40,7 @@ import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { AvisoDeclaracion } from "./aviso-declaracion";
+import { VistaRapida } from "./vista-rapida";
 import type { DeclaracionConsulta } from "../../accidentes/acciones";
 import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
@@ -49,6 +50,15 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+
+// Respaldo legible si la lista «Clasificación de aptitud» no trae el código
+const APTITUD_LEGIBLE: Record<Aptitud, string> = {
+  elegible: "Apto",
+  elegible_con_restricciones: "Apto con restricciones",
+  no_elegible: "No apto",
+  espera_resultados: "Espera resultados",
+  diferido: "Diferido",
+};
 
 type Props = {
   inicial: DatosConsulta;
@@ -174,7 +184,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
-  const [paso, setPaso] = useState(pasoInicial ?? "generales");
+  const [paso, setPaso] = useState(() => pasoInicial ?? (
+    inicial.estado === "borrador" && listas.motivo_consulta.find((m) => m.id === inicial.motivoId)?.grupo === "preventivo" ? "rapida" : "generales"));
   // Corregir una consulta firmada: motivo obligatorio (lo exige también reabrir_consulta en la base)
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [motivoCorreccion, setMotivoCorreccion] = useState("");
@@ -221,10 +232,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   };
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
-  const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
+  const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
   // Pasos de la consulta; "hecho" marca con ✓ los que ya tienen información
   const pasos = [
+    // Evaluaciones preventivas: todo lo esencial en una pantalla (los demás pasos siguen para el detalle)
+    ...(preventivo && !bloqueado ? [{ id: "rapida", titulo: "Evaluación rápida", hecho: Boolean(d.signos.ta && d.aptitud.clasificacion) }] : []),
     { id: "generales", titulo: "Generales", hecho: Boolean(d.motivoId) },
     { id: "antecedentes", titulo: "Antecedentes", hecho: d.antecedentes.length > 0 || d.habitos.some((h) => h.valor) },
     { id: "examen", titulo: "Examen", hecho: Boolean(d.signos.ta || d.signos.peso) },
@@ -332,8 +345,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     });
   const pendientesResultado = contarResultados(d.paraclinicos).pendientes;
 
-  const menuImprimir = (variante: "default" | "outline") => (
+  const menuImprimir = (variante: "default" | "outline", extra?: { className?: string; soloOpciones?: boolean }) => (
     <MenuImprimir
+      {...extra}
       consultaId={d.id}
       aptitud={Boolean(d.aptitud.clasificacion)}
       reposo={d.reposo.activo}
@@ -390,6 +404,135 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const actualizarMed = (i: number, cambio: Partial<Medicamento>) =>
     set("tratamiento", d.tratamiento.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
 
+  // Bloques que se muestran en su paso y también en la evaluación rápida (mismo estado, sin duplicar lógica)
+  const seccionSignos = (
+    <Seccion titulo="Signos vitales y antropometría">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        {([
+          ["ta", "TA (mmHg)", "120/80"], ["fc", "FC (lpm)", ""], ["fr", "FR (rpm)", ""], ["temp", "Temp (°C)", ""],
+          ["sat", "SatO₂ (%)", ""], ["peso", "Peso (kg)", ""], ["talla", "Talla (cm)", ""],
+        ] as const).map(([k, n, ph]) => (
+          <div key={k}>
+            <Label className="mb-1.5 text-xs">{n}</Label>
+            <Input
+              value={d.signos[k] ?? ""}
+              placeholder={ph}
+              className={cn("h-9 placeholder:text-muted-foreground/60", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
+              inputMode={k === "ta" ? "text" : "decimal"}
+              onChange={(e) => set("signos", { ...d.signos, [k]: e.target.value })}
+            />
+          </div>
+        ))}
+        <div>
+          <Label className="mb-1.5 text-xs">IMC</Label>
+          <div className={cn("flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium", claseImc?.alerta && "border-aviso text-aviso-texto")}>
+            {valorImc ?? "—"}
+          </div>
+          {claseImc && <p className={cn("mt-1 text-xs", claseImc.alerta ? "text-aviso-texto" : "text-muted-foreground")}>{claseImc.texto}</p>}
+        </div>
+      </div>
+      {taAlterada(d.signos.ta) && (
+        <p className="flex items-center gap-2 text-sm text-alerta-texto"><AlertTriangle className="size-4" /> Tensión arterial elevada.</p>
+      )}
+    </Seccion>
+  );
+  const listaParaclinicos = (
+    <ParaclinicosDigitales
+      paraclinicos={d.paraclinicos}
+      onChange={(p) => set("paraclinicos", p)}
+      modo={modoParaclinicos}
+      catalogo={listas.paraclinico}
+      sexo={trabajador.sexo}
+      archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
+      asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
+      resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
+    />
+  );
+  const tarjetaSano = (
+    <Card className={cn("gap-0 py-4", d.sano && "border-ok/50 bg-ok/5")}>
+      <CardContent className="px-6">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={d.sano}
+            onChange={async (e) => {
+              const sano = e.target.checked;
+              if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !(await confirmar({ titulo: "¿Marcar como sano?", texto: "Se quitarán los diagnósticos que ya escribiste.", accion: "Marcar sano" }))) return;
+              setD((x) => ({
+                ...x,
+                sano,
+                diagnosticos: sano ? [] : x.diagnosticos,
+                aptitud: sano && !x.aptitud.clasificacion ? { ...x.aptitud, clasificacion: "elegible" } : x.aptitud,
+              }));
+            }}
+            className="mt-0.5 size-5 accent-[var(--primary)]"
+          />
+          <span>
+            <span className="font-medium">Trabajador sano</span>
+            <span className="block text-sm text-muted-foreground">
+              De acuerdo con los protocolos de evaluación clínica ocupacional, no presenta patología al momento de la evaluación.
+            </span>
+          </span>
+        </label>
+      </CardContent>
+    </Card>
+  );
+  const seccionAptitud = (
+    <Seccion titulo="Clasificación de aptitud">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+        {APTITUDES.map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => set("aptitud", { ...d.aptitud, clasificacion: d.aptitud.clasificacion === a ? "" : a })}
+            className={cn(
+              "rounded-xl border-2 px-3 py-3 text-sm font-medium transition",
+              d.aptitud.clasificacion === a ? cn(ESTILO_APTITUD[a], "border-current") : "border-transparent bg-muted/50 hover:bg-muted",
+            )}
+          >
+            {etiquetaAptitud(a)}
+          </button>
+        ))}
+      </div>
+      {(d.aptitud.clasificacion === "elegible_con_restricciones" || d.aptitud.limitaciones.length > 0) && (
+        <div>
+          <Label className="mb-2">Limitaciones ocupacionales</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {listas.limitacion_ocupacional.map((l) => {
+              const activo = d.aptitud.limitaciones.includes(l.nombre);
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => set("aptitud", { ...d.aptitud, limitaciones: activo ? d.aptitud.limitaciones.filter((x) => x !== l.nombre) : [...d.aptitud.limitaciones, l.nombre] })}
+                  className={cn("rounded-full border px-3 py-1 text-xs transition", activo ? "border-aviso bg-aviso/20 font-medium" : "hover:border-aviso")}
+                >
+                  {l.nombre}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
+        <TextosFrecuentes
+          etiqueta="Recomendaciones de aptitud"
+          items={listas.recomendacion_aptitud}
+          motivoCodigo={motivo?.codigo ?? null}
+          motivoNombre={motivo?.nombre ?? null}
+          valor={d.aptitud.observacion}
+          onChange={(v) => set("aptitud", { ...d.aptitud, observacion: v })}
+        />
+        <div>
+          <Label className="mb-1.5">Vigente hasta</Label>
+          <Input type="date" value={d.aptitud.vigenteHasta} onChange={(e) => set("aptitud", { ...d.aptitud, vigenteHasta: e.target.value })} />
+          <p className="mt-1 text-xs text-muted-foreground">Vacío: se calcula con la vigencia del examen periódico configurada.</p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">La empresa cliente solo ve esta clasificación y las limitaciones, nunca el diagnóstico.</p>
+    </Seccion>
+  );
+
   return (
     <Tabs value={pasos[indicePaso].id} onValueChange={setPaso} className="gap-4">
       {/* Cabecera fija con el paciente, las acciones y los pasos */}
@@ -435,20 +578,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               )}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {menuImprimir("outline")}
+            <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
+              {/* En el celular: la acción principal a todo el ancho; Imprimir y Cerrar consulta van al menú «…» */}
+              {menuImprimir("outline", { className: "hidden sm:inline-flex" })}
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
-              <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>
-              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>}
+              <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando} className={cn(puedeFirmar ? "hidden sm:inline-flex" : "flex-1 sm:flex-none")}><CheckCircle2 /> Cerrar consulta</Button>
+              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir</Button>}
             </div>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Más acciones" disabled={guardando}><MoreHorizontal /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-y-auto">
+              {!bloqueado && d.estado !== "firmada" && (
+                <div className="sm:hidden">
+                  {puedeFirmar && <DropdownMenuItem onSelect={() => guardar(true)}><CheckCircle2 /> Cerrar consulta</DropdownMenuItem>}
+                  {menuImprimir("outline", { soloOpciones: true })}
+                  <DropdownMenuSeparator />
+                </div>
+              )}
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
             </DropdownMenuContent>
@@ -524,8 +675,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {/* Falta resultado: solo avisa, no impide cerrar ni firmar */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm">
-            <FlaskConical className="size-4 text-aviso-texto" />
-            <span className="min-w-0 flex-1">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
+            <FlaskConical className="size-4 shrink-0 text-aviso-texto" />
+            <span className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
             <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" title="No volver a avisar en la campana por esta consulta"
@@ -552,6 +703,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       </div>
 
       <fieldset disabled={bloqueado} className="contents">
+
+          {/* ── Evaluación rápida (preventivos) ── */}
+          {preventivo && !bloqueado && (
+            <TabsContent value="rapida" className="mt-4">
+              <VistaRapida
+                d={d}
+                signos={seccionSignos}
+                paraclinicos={listaParaclinicos}
+                sano={tarjetaSano}
+                aptitud={seccionAptitud}
+                onIr={(p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                acciones={<>
+                  <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
+                    {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
+                  </Button>
+                  {puedeFirmar
+                    ? <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>
+                    : <Button onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>}
+                </>}
+              />
+            </TabsContent>
+          )}
 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
@@ -598,6 +771,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               {preventivo ? (
                 <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                   Evaluación de <b className="text-foreground">{motivo?.nombre}</b>: el motivo ya queda registrado y no requiere detalle.
+                  {!bloqueado && <> <button type="button" onClick={() => setPaso("rapida")} className="font-medium text-primary hover:underline">Ir a la evaluación rápida</button></>}
                 </p>
               ) : (
                 <Texto etiqueta="Motivo (detalle)" valor={d.motivoTexto} onChange={(v) => set("motivoTexto", v)} filas={2} />
@@ -638,35 +812,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Examen ── */}
           <TabsContent value="examen" className="mt-4 space-y-4">
-            <Seccion titulo="Signos vitales y antropometría">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-                {([
-                  ["ta", "TA (mmHg)", "120/80"], ["fc", "FC (lpm)", ""], ["fr", "FR (rpm)", ""], ["temp", "Temp (°C)", ""],
-                  ["sat", "SatO₂ (%)", ""], ["peso", "Peso (kg)", ""], ["talla", "Talla (cm)", ""],
-                ] as const).map(([k, n, ph]) => (
-                  <div key={k}>
-                    <Label className="mb-1.5 text-xs">{n}</Label>
-                    <Input
-                      value={d.signos[k] ?? ""}
-                      placeholder={ph}
-                      inputMode={k === "ta" ? "text" : "decimal"}
-                      onChange={(e) => set("signos", { ...d.signos, [k]: e.target.value })}
-                      className={cn("h-9", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
-                    />
-                  </div>
-                ))}
-                <div>
-                  <Label className="mb-1.5 text-xs">IMC</Label>
-                  <div className={cn("flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium", claseImc?.alerta && "border-aviso text-aviso-texto")}>
-                    {valorImc ?? "—"}
-                  </div>
-                  {claseImc && <p className={cn("mt-1 text-xs", claseImc.alerta ? "text-aviso-texto" : "text-muted-foreground")}>{claseImc.texto}</p>}
-                </div>
-              </div>
-              {taAlterada(d.signos.ta) && (
-                <p className="flex items-center gap-2 text-sm text-alerta-texto"><AlertTriangle className="size-4" /> Tensión arterial elevada.</p>
-              )}
-            </Seccion>
+            {seccionSignos}
             <Evolucion previas={historial.mediciones} actual={d.signos} hoy={d.fecha} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Seccion titulo="Examen funcional" accion={<AccionesExamen perfiles={listas.perfil_examen_funcional} etiquetaNormal="Funcional normal" onAplicar={(t, normal) => set("examenFuncional", aplicarPerfilExamen(d.examenFuncional, t, normal))} />}>
@@ -775,47 +921,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               </div>
             </details>
             )}
-            <ParaclinicosDigitales
-              paraclinicos={d.paraclinicos}
-              onChange={(p) => set("paraclinicos", p)}
-              modo={modoParaclinicos}
-              catalogo={listas.paraclinico}
-              sexo={trabajador.sexo}
-              archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
-              asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
-              resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
-            />
+            {listaParaclinicos}
           </TabsContent>
 
           {/* ── Diagnóstico ── */}
           <TabsContent value="diagnostico" className="mt-4 space-y-4">
-            <Card className={cn("gap-0 py-4", d.sano && "border-ok/50 bg-ok/5")}>
-              <CardContent className="px-6">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={d.sano}
-                    onChange={async (e) => {
-                      const sano = e.target.checked;
-                      if (sano && d.diagnosticos.some((x) => x.descripcion.trim()) && !(await confirmar({ titulo: "¿Marcar como sano?", texto: "Se quitarán los diagnósticos que ya escribiste.", accion: "Marcar sano" }))) return;
-                      setD((x) => ({
-                        ...x,
-                        sano,
-                        diagnosticos: sano ? [] : x.diagnosticos,
-                        aptitud: sano && !x.aptitud.clasificacion ? { ...x.aptitud, clasificacion: "elegible" } : x.aptitud,
-                      }));
-                    }}
-                    className="mt-0.5 size-5 accent-[var(--primary)]"
-                  />
-                  <span>
-                    <span className="font-medium">Trabajador sano</span>
-                    <span className="block text-sm text-muted-foreground">
-                      De acuerdo con los protocolos de evaluación clínica ocupacional, no presenta patología al momento de la evaluación.
-                    </span>
-                  </span>
-                </label>
-              </CardContent>
-            </Card>
+            {tarjetaSano}
             {!d.sano && (
             <Seccion
               titulo="Diagnósticos (CIE-10)"
@@ -869,59 +980,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Aptitud ── */}
           <TabsContent value="aptitud" className="mt-4 space-y-4">
-            <Seccion titulo="Clasificación de aptitud">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
-                {APTITUDES.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => set("aptitud", { ...d.aptitud, clasificacion: d.aptitud.clasificacion === a ? "" : a })}
-                    className={cn(
-                      "rounded-xl border-2 px-3 py-3 text-sm font-medium transition",
-                      d.aptitud.clasificacion === a ? cn(ESTILO_APTITUD[a], "border-current") : "border-transparent bg-muted/50 hover:bg-muted",
-                    )}
-                  >
-                    {etiquetaAptitud(a)}
-                  </button>
-                ))}
-              </div>
-              {(d.aptitud.clasificacion === "elegible_con_restricciones" || d.aptitud.limitaciones.length > 0) && (
-                <div>
-                  <Label className="mb-2">Limitaciones ocupacionales</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {listas.limitacion_ocupacional.map((l) => {
-                      const activo = d.aptitud.limitaciones.includes(l.nombre);
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => set("aptitud", { ...d.aptitud, limitaciones: activo ? d.aptitud.limitaciones.filter((x) => x !== l.nombre) : [...d.aptitud.limitaciones, l.nombre] })}
-                          className={cn("rounded-full border px-3 py-1 text-xs transition", activo ? "border-aviso bg-aviso/20 font-medium" : "hover:border-aviso")}
-                        >
-                          {l.nombre}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
-                <TextosFrecuentes
-                  etiqueta="Recomendaciones de aptitud"
-                  items={listas.recomendacion_aptitud}
-                  motivoCodigo={motivo?.codigo ?? null}
-                  motivoNombre={motivo?.nombre ?? null}
-                  valor={d.aptitud.observacion}
-                  onChange={(v) => set("aptitud", { ...d.aptitud, observacion: v })}
-                />
-                <div>
-                  <Label className="mb-1.5">Vigente hasta</Label>
-                  <Input type="date" value={d.aptitud.vigenteHasta} onChange={(e) => set("aptitud", { ...d.aptitud, vigenteHasta: e.target.value })} />
-                  <p className="mt-1 text-xs text-muted-foreground">Vacío: se calcula con la vigencia del examen periódico configurada.</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">La empresa cliente solo ve esta clasificación y las limitaciones, nunca el diagnóstico.</p>
-            </Seccion>
+            {seccionAptitud}
             <Card className={cn("gap-0 py-4", d.potencialDiscapacidad && "border-aviso/60 bg-aviso/5")}>
               <CardContent className="space-y-3 px-6">
                 <label className="flex items-start gap-3">
