@@ -16,7 +16,8 @@ export function IndicadorSincronia() {
   const problemas = e.conflictos + e.rechazados;
   if (!e.conocido || (e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla)) return null;
 
-  const Icono = problemas || e.horaSinAncla ? AlertTriangle : e.enLinea ? CloudUpload : CloudOff;
+  // Sin internet manda el ícono de la nube tachada aunque la hora esté sin verificar: la píldora dice «Sin internet»
+  const Icono = problemas ? AlertTriangle : !e.enLinea ? CloudOff : e.horaSinAncla ? AlertTriangle : CloudUpload;
   const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : "Hora sin verificar";
 
   return (
@@ -43,7 +44,9 @@ export function IndicadorSincronia() {
         </p>
         {problemas > 0 && (
           <p className="text-alerta-texto">
-            {problemas} cambio{problemas === 1 ? "" : "s"} no se pudo subir porque otro equipo lo cambió antes o la nube no lo aceptó. Nada se borró: queda guardado para revisarlo.
+            {problemas === 1
+              ? "1 cambio no se pudo subir porque otro equipo lo cambió antes o la nube no lo aceptó. Nada se borró: queda guardado para revisarlo."
+              : `${problemas} cambios no se pudieron subir porque otro equipo los cambió antes o la nube no los aceptó. Nada se borró: quedan guardados para revisarlos.`}
           </p>
         )}
         {e.horaSinAncla && (
@@ -53,7 +56,6 @@ export function IndicadorSincronia() {
           onClick={async (ev) => { ev.preventDefault(); setOcupado(true); setAviso(await sincronizarAhora()); setOcupado(false); }}>
           {ocupado ? <Loader2 className="animate-spin" /> : <RefreshCw />} {e.enLinea ? "Sincronizar ahora" : "Reintentar conexión"}
         </Button>
-        {!e.enLinea && !aviso && <p className="text-xs text-muted-foreground">Sube solo cuando vuelva internet.</p>}
         {aviso && <p role="status" className="text-xs text-muted-foreground">{aviso}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
