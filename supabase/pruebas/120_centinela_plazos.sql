@@ -4,6 +4,7 @@
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 delete from public.notificaciones;
+update public.organizaciones set ajustes = coalesce(ajustes,'{}') || '{"centinela_correo": true}' where id = '10000000-0000-0000-0000-000000000001';
 -- Los eventos de otras pruebas ya se dan por avisados: aquí se cuentan solo los de esta
 insert into public.avisos_legales (evento_id, plazo, hito, org_id)
 select evento_id, plazo, h, '10000000-0000-0000-0000-000000000001' from public.plazos_legales_abiertos('10000000-0000-0000-0000-000000000001'),
@@ -27,6 +28,11 @@ select 've solo los de su empresa A (debe 4): ' || count(*) from public.notifica
 select 'el texto no lleva el diagnóstico (debe 0): ' || count(*) from public.notificaciones where texto like '%Asma%';
 select 'el informe NT-02 abre la investigación (debe 1): ' || count(*) from public.notificaciones
  where usuario_id = auth.uid() and enlace = '/accidentes/12000000-0000-0000-0000-00000000000b/investigacion';
+select 'antes de 10 minutos no vuelve a revisar (debe 0): ' || public.centinela_legal();
+reset role;
+delete from public.centinela_revisiones;
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 select 'no repite el mismo hito (debe 0): ' || public.centinela_legal();
 select 'no lee la cola de correos (debe 0): ' || count(*) from public.centinela_correos_pendientes();
 do $$ begin
@@ -50,6 +56,7 @@ select 'pero quedan marcados los tres hitos (debe 3): ' || count(*) from public.
 select 'el importado no avisa (debe 0): ' || count(*) from public.avisos_legales where evento_id = '12000000-0000-0000-0000-00000000000c';
 -- el accidente de A entra en sus últimas 12 h
 update public.eventos set fecha_hora = now() - interval '13 hours' where id = '12000000-0000-0000-0000-00000000000a';
+delete from public.centinela_revisiones;
 
 create temp table ids_cola as select id from public.correos_centinela;
 grant select on ids_cola to authenticated;
@@ -70,19 +77,23 @@ select 'el administrador sí (debe 1): ' || (public.centinela_correos_enviados(a
 select 'la cola queda vacía (debe 0): ' || count(*) from public.centinela_correos_pendientes();
 
 reset role;
-update public.organizaciones set ajustes = coalesce(ajustes,'{}') || '{"centinela_correo": false}' where id = '10000000-0000-0000-0000-000000000001';
+select 'el correo no lleva el nombre del trabajador (debe 0): ' || count(*) from public.correos_centinela where texto like '%Ana%';
+select 'la campana sí (debe 1): ' || (count(*) > 0)::int from public.notificaciones where texto like 'Ana A ·%';
+-- sin ajuste, el correo viene apagado
+update public.organizaciones set ajustes = ajustes - 'centinela_correo' where id = '10000000-0000-0000-0000-000000000001';
+delete from public.centinela_revisiones;
 update public.eventos set fecha_declaracion = null, fecha_hora = now() - interval '25 hours' where id = '12000000-0000-0000-0000-00000000000a';
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select 'con el correo apagado la campana avisa igual (debe 1): ' || public.centinela_legal();
+select 'con el correo apagado por defecto la campana avisa igual (debe 1): ' || public.centinela_legal();
 select 'pero no deja correos en cola (debe 0): ' || count(*) from public.centinela_correos_pendientes();
 reset role;
 update public.eventos set fecha_declaracion = now() where id = '12000000-0000-0000-0000-00000000000d';
 select 'declarado, ya no figura entre los plazos abiertos (debe 0): ' || count(*) from public.plazos_legales_abiertos('10000000-0000-0000-0000-000000000001')
  where evento_id = '12000000-0000-0000-0000-00000000000d' and plazo = 'declaracion';
 
-update public.organizaciones set ajustes = ajustes - 'centinela_correo' where id = '10000000-0000-0000-0000-000000000001';
 delete from public.notificaciones;
+delete from public.centinela_revisiones;
 delete from public.correos_centinela;
 delete from public.avisos_legales;
 delete from public.eventos where id::text like '12000000%';

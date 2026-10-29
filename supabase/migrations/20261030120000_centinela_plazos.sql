@@ -4,7 +4,7 @@
 --   informe de investigación de enfermedad: 15 días continuos (Anexo 1) o 30 (fuera de la lista) (NT-02-2008, 5.2.3)
 --   investigación del accidente sin causas registradas: 7 días (criterio interno, igual que plazoInvestigacion())
 -- Cada plazo avisa como máximo tres veces: al detectarse, cuando queda poco (12 h; 2 días en los plazos de días) y al vencer.
--- El texto nunca lleva diagnóstico: solo el trabajador, la empresa y el plazo.
+-- El texto nunca lleva diagnóstico. La campana dice el trabajador, la empresa y el plazo; el correo, solo el evento y la empresa.
 -- No hay pg_cron: la app llama a centinela_legal() al abrir Inicio, Atención o Accidentes, y al registrar un evento.
 
 -- Nivel del aviso en la campana: alerta (vencido) y aviso (por vencer) llevan color e ícono
@@ -81,8 +81,18 @@ create index if not exists correos_centinela_pendientes on public.correos_centin
 alter table public.correos_centinela enable row level security;
 revoke all on public.correos_centinela from anon, authenticated;
 
+-- Última revisión de cada organización (freno de 10 minutos). Solo la usa centinela_legal().
+create table if not exists public.centinela_revisiones (
+  org_id uuid primary key references public.organizaciones (id) on delete cascade,
+  revisado_en timestamptz not null default now()
+);
+alter table public.centinela_revisiones enable row level security;
+revoke all on public.centinela_revisiones from anon, authenticated;
+
 -- Revisa los plazos de las organizaciones del usuario que llama, crea los avisos nuevos en la campana
--- y deja en cola los correos (si la organización no apagó «centinela_correo»). Devuelve cuántos avisos creó.
+-- y deja en cola los correos si la organización encendió «centinela_correo» (viene apagado). El correo sale por un
+-- canal externo: lleva solo el número de evento, la empresa y el plazo, nunca el nombre del trabajador; el detalle
+-- queda detrás del enlace, que pide sesión. Devuelve cuántos avisos creó.
 -- Solo la pueden usar los roles del centinela.
 create or replace function public.centinela_legal()
 returns integer
@@ -100,10 +110,15 @@ declare
 begin
   if v_uid is null then return 0; end if;
   for o in
-    select m.org_id, coalesce((g.ajustes ->> 'centinela_correo')::boolean, true) as con_correo
+    select m.org_id, coalesce((g.ajustes ->> 'centinela_correo')::boolean, false) as con_correo
     from public.miembros m join public.organizaciones g on g.id = m.org_id
     where m.usuario_id = v_uid and m.activo and public.rol_centinela(m.rol)
   loop
+    -- Freno: cada organización se revisa como máximo una vez cada 10 minutos
+    insert into public.centinela_revisiones as c (org_id) values (o.org_id)
+    on conflict (org_id) do update set revisado_en = now() where c.revisado_en <= now() - interval '10 minutes';
+    get diagnostics v_filas = row_count;
+    continue when v_filas = 0;
     for p in select * from public.plazos_legales_abiertos(o.org_id) order by vence loop
       exit when v_nuevos >= 30;
       -- Un hito avisado marca también los anteriores: quien llega tarde recibe un solo aviso, no tres
@@ -127,12 +142,12 @@ begin
         when 'investigacion.urgente' then 'Investigación del accidente: vence en menos de 2 días'
         else 'Investigación del accidente vencida' end;
       v_nivel := case p.hito when 'vencido' then 'alerta' when 'urgente' then 'aviso' else 'info' end;
-      v_texto := p.trabajador || ' · ' || p.empresa || ' · evento #' || p.numero || ' · vence el '
+      v_texto := 'Evento #' || p.numero || ' · ' || p.empresa || ' · vence el '
         || to_char(p.vence at time zone 'America/Caracas', 'DD/MM/YYYY "a las" HH24:MI');
       v_enlace := case p.plazo when 'nt02' then '/accidentes/' || p.evento_id || '/investigacion' else '/accidentes/' || p.evento_id end;
       with destino as (
         insert into public.notificaciones (org_id, usuario_id, empresa_id, titulo, texto, enlace, nivel)
-        select o.org_id, m.usuario_id, p.empresa_id, v_titulo, v_texto, v_enlace, v_nivel
+        select o.org_id, m.usuario_id, p.empresa_id, v_titulo, p.trabajador || ' · ' || v_texto, v_enlace, v_nivel
         from public.miembros m
         where m.org_id = o.org_id and m.activo and public.rol_centinela(m.rol)
           and (m.empresas_permitidas is null or p.empresa_id = any (m.empresas_permitidas))

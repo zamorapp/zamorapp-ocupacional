@@ -111,8 +111,8 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
         <Card>
           <CardHeader><CardTitle className="text-base">Avisos</CardTitle></CardHeader>
           <CardContent className="space-y-1">
-            <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? true} />
-            <p className="pl-6 text-xs text-muted-foreground">Llega al personal de salud y SST de cada empresa; sale cuando un administrador o gerente médico abre zamorApp. Nunca incluye el diagnóstico. La campana avisa siempre.</p>
+            <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? false} />
+            <p className="pl-6 text-xs text-muted-foreground">Viene apagado. Llega al personal de salud y SST de cada empresa con el número de evento, la empresa y el plazo: nunca el nombre del trabajador ni el diagnóstico. Sale cuando un administrador o gerente médico abre zamorApp. La campana avisa siempre.</p>
           </CardContent>
         </Card>
 
