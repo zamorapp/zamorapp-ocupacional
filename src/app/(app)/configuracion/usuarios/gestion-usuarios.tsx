@@ -36,7 +36,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
         <Card>
           <CardHeader><CardTitle className="text-base">Agregar usuario</CardTitle></CardHeader>
           <CardContent>
-            <form action={accion} className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
+            <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
               <Campo id="correo" etiqueta="Correo con el que creó su cuenta" type="email" required />
               <CampoSelect id="rol" etiqueta="Rol" value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value as Rol)}>
                 {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}

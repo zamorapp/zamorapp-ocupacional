@@ -37,7 +37,7 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
         <p className="text-sm text-muted-foreground">Le llega un enlace por WhatsApp; crea su cuenta y entra directo al portal de su empresa para pedir evaluaciones y ver resultados. Vale 7 días y un solo uso.</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form action={accion} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
           <CampoSelect id="empresa_id" etiqueta="Empresa *" value={empresaId} onChange={(e) => { setEmpresaId(e.target.value); setNombre(""); setTelefono(""); }}>
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </CampoSelect>

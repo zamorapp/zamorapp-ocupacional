@@ -124,7 +124,7 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
                       const v = p.evaluacion[claveRiesgo(g, a)];
                       const n = nivelRiesgo(v);
                       return (
-                        <div key={a} className="grid items-center gap-2 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]">
+                        <div key={a} className="grid grid-cols-1 items-center gap-2 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]">
                           <span className="truncate">{a}</span>
                           <select value={v?.p ?? 0} onChange={(e) => valorar(g, a, "p", Number(e.target.value))} className={SELECT}>
                             <option value={0}>Probabilidad</option>

@@ -42,6 +42,7 @@ function Grupo({ g, plantilla }: { g: GrupoPorEnviar; plantilla: Plantilla }) {
   // En el escritorio una ventana en blanco no abre nada: el enlace se abre al final y va al navegador de Windows.
   const mandar = (clave: string, contactoIds: string[], telefonosExtra: string[]) => {
     const escritorio = enEscritorio();
+    // eslint-disable-next-line no-restricted-syntax -- solo en la web: la pestaña se abre en el clic y se dirige después
     const ventana = escritorio ? null : window.open("", "_blank");
     setEnCurso(clave);
     setError(null);

@@ -19,7 +19,7 @@ function Fila({ inicial, editable, alGuardar }: { inicial: Servicio; editable: b
   const cambios = JSON.stringify(s) !== JSON.stringify(inicial);
   const set = <K extends keyof Servicio>(k: K, v: Servicio[K]) => setS((x) => ({ ...x, [k]: v }));
   return (
-    <div className={cn("grid items-center gap-2 border-b px-4 py-2 last:border-0 lg:grid-cols-[6rem_minmax(0,2.5fr)_minmax(0,1.3fr)_7rem_7rem_minmax(0,1.2fr)_auto_auto]", !s.activo && "opacity-50")}>
+    <div className={cn("grid grid-cols-1 items-center gap-2 border-b px-4 py-2 last:border-0 lg:grid-cols-[6rem_minmax(0,2.5fr)_minmax(0,1.3fr)_7rem_7rem_minmax(0,1.2fr)_auto_auto]", !s.activo && "opacity-50")}>
       <Input value={s.codigo} disabled={!editable} placeholder="Código" className="h-9" onChange={(e) => set("codigo", e.target.value)} />
       <Input value={s.nombre} disabled={!editable} placeholder="Nombre del servicio" className="h-9" onChange={(e) => set("nombre", e.target.value)} />
       <select value={s.categoria} disabled={!editable} onChange={(e) => set("categoria", e.target.value as Categoria)} className={SELECT}>

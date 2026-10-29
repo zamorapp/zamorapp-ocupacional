@@ -21,6 +21,7 @@ export async function abrirEnVentana(destino: string | (() => Promise<string | n
     if (url) window.open(url, "_blank");
     return;
   }
+  // eslint-disable-next-line no-restricted-syntax -- solo en la web: la pestaña se abre en el clic y se dirige después
   const pestana = window.open("about:blank", "_blank");
   const url = await destino();
   if (!url) return void pestana?.close();

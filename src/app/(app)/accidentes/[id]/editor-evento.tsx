@@ -149,7 +149,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               </div>
               {e.testigos && !e.testigosDetalle.length && <Input value={e.testigos} onChange={(x) => set("testigos", x.target.value)} />}
               {e.testigosDetalle.map((t, i) => (
-                <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_10rem_auto]">
+                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_10rem_auto]">
                   <Input value={t.nombre} placeholder="Nombre y apellido" className="h-9" onChange={(x) => testigo(i, { nombre: x.target.value })} />
                   <Input value={t.cedula} placeholder="Cédula" className="h-9" onChange={(x) => testigo(i, { cedula: x.target.value })} />
                   <select value={t.tipo} onChange={(x) => testigo(i, { tipo: x.target.value as Testigo["tipo"] })} className={cn(SELECT, "h-9")}>
@@ -215,7 +215,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
                   <Button type="button" size="sm" variant="outline" onClick={() => set("cargos", [...e.cargos, { concepto: "", dias: 0, porcentaje: 100 }])}><Plus /> Cargo</Button>
                 </div>
                 {e.cargos.map((c, i) => (
-                  <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,3fr)_7rem_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,3fr)_7rem_auto]">
                     <select value={c.concepto} className={cn(SELECT, "h-9")} onChange={(x) => {
                       const item = TABLA_CARGOS.flatMap((g) => g.items).find((it) => it.concepto === x.target.value);
                       cargo(i, { concepto: x.target.value, dias: item?.dias ?? 0 });
@@ -311,7 +311,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
           {e.acciones.map((a, i) => {
             const vencida = a.estado !== "cumplida" && a.fecha && a.fecha < hoyCaracas();
             return (
-              <div key={i} className="grid gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
+              <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
                 <Input value={a.descripcion} placeholder="Acción" className="h-9" onChange={(x) => accion(i, { descripcion: x.target.value })} />
                 <Input value={a.responsable} placeholder="Responsable" className="h-9" onChange={(x) => accion(i, { responsable: x.target.value })} />
                 <Input type="date" value={a.fecha} className={cn("h-9", vencida && "border-alerta text-alerta-texto")} onChange={(x) => accion(i, { fecha: x.target.value })} />

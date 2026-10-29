@@ -830,7 +830,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </TabsContent>
 
           {/* ── Antecedentes y hábitos ── */}
-          <TabsContent value="antecedentes" className="mt-4 grid gap-4 lg:grid-cols-2">
+          <TabsContent value="antecedentes" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Seccion titulo="Antecedentes médicos">
               <Antecedentes items={listas.antecedente_medico} valor={d.antecedentes} onChange={(v) => set("antecedentes", v)} />
             </Seccion>
@@ -970,7 +970,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             >
               {d.diagnosticos.length === 0 && <p className="text-sm text-muted-foreground">Sin diagnósticos. Pulsa Agregar y escribe parte del nombre o del código.</p>}
               {d.diagnosticos.map((x, i) => (
-                <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
                   <BuscadorDiagnostico
                     cie10={x.cie10}
                     descripcion={x.descripcion}
@@ -1049,7 +1049,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
                 {d.tratamiento.map((m, i) => (
-                  <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
                     <Input
                       list="medicinas"
                       value={m.medicina}

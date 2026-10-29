@@ -113,7 +113,7 @@ export default async function Reportes({ searchParams }: Props) {
               <CardHeader>
                 <CardTitle className="text-base">Hallazgos clave · {periodo.etiqueta}</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 text-sm lg:grid-cols-[1fr_1.4fr]">
+              <CardContent className="grid grid-cols-1 gap-4 text-sm lg:grid-cols-[1fr_1.4fr]">
                 <ul className="space-y-1.5">
                   {v.analisis.hallazgos.map((h) => <li key={h} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{h}</li>)}
                 </ul>

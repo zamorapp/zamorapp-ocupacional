@@ -133,7 +133,7 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
   const [faltantes, setFaltantes] = useState(() => (alcance ? examenesNoEncontrados(item?.texto ?? "", alcance.catalogo) : []));
 
   return (
-    <form action={accion} className="grid gap-3 border-b bg-muted/30 p-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    <form action={accion} className="grid grid-cols-1 gap-3 border-b bg-muted/30 p-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <input type="hidden" name="lista" value={lista} />
       {item && <input type="hidden" name="id" value={item.id} />}
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
