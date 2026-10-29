@@ -234,6 +234,12 @@ const enLocal = (sql, params) => enBase(motor.url(), sql, params);
 // que PostgREST local tenía con la base. Hasta que la rehace responde 57P01 (Linux) o un error vacío y PGRST001
 // (Windows): se espera a que lea de nuevo antes de seguir
 async function postgrestLocalListo() {
+  // En Windows su conexión de escucha (los avisos «reload schema») no vuelve sola tras la restauración en caliente:
+  // se relanza PostgREST (la puerta lo vuelve a lanzar sola, como cuando se cae). En la PC la restauración corre al
+  // arrancar, antes de lanzarlo.
+  motor.hijos.find((h) => h.spawnargs.some((a) => /postgrest/.test(a)))?.kill();
+  await new Promise((ok) => setTimeout(ok, 500));
+  await motor.relanzando;
   for (let i = 0; i < 60; i++) {
     const r = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/trabajadores?select=id&limit=1`, { headers: { Authorization: `Bearer ${tokenAdmin}` } }).catch(() => null);
     if (r?.status === 200) return;
@@ -484,6 +490,7 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   for (let i = 0; i < 40; i++) {
     const p = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { Authorization: `Bearer ${tokenMed}`, "Content-Type": "application/json" }, body: "{}" }).catch(() => null);
     if (p?.status === 200) break;
+    if (i === 39) assert.fail(`PostgREST local no ve la función de prueba: ${p?.status} ${await p?.text().catch(() => "")}`);
     if (i % 4 === 3) await enLocal("notify pgrst, 'reload schema'");
     await new Promise((r) => setTimeout(r, 500));
   }
