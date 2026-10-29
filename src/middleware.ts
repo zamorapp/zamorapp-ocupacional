@@ -38,6 +38,8 @@ export async function middleware(request: NextRequest) {
   const enLogin = request.nextUrl.pathname.startsWith("/login");
   // Enlaces seguros de documentos enviados por WhatsApp: los abre la empresa sin cuenta (valida el token)
   if (request.nextUrl.pathname.startsWith("/e/")) return respuesta;
+  // Latido del workflow «Calentar» (C4): sin sesión, responde como anónimo; no se manda a /login
+  if (request.nextUrl.pathname === "/api/salud") return respuesta;
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return respuesta;
 
