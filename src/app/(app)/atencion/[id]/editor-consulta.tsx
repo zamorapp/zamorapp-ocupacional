@@ -646,7 +646,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             {sinInternet && (corregirEspera ? (
               <div role="status" className="flex flex-wrap items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
                 <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1">Esta PC arrancó sin internet y aún no tiene la hora verificada: corregir espera a que vuelva la conexión. Puedes escribir el motivo mientras tanto.{reconexion && <span className="block font-normal">{reconexion}</span>}</span>
+                <span className="min-w-0 flex-1 basis-60">Esta PC arrancó sin internet y aún no tiene la hora verificada: corregir espera a que vuelva la conexión. Puedes escribir el motivo mientras tanto.{reconexion && <span className="block font-normal">{reconexion}</span>}</span>
                 <Button variant="outline" size="sm" disabled={reconectando}
                   onClick={async () => { setReconectando(true); setReconexion(await sincronizarAhora()); setReconectando(false); }}>
                   {reconectando ? <Loader2 className="animate-spin" /> : null} Reintentar conexión
