@@ -509,7 +509,11 @@ test("la nube cambió y esta versión no la entiende: se avisa que hay que actua
     e = await pedir("/zamorapp/estado");
     assert.equal(e.json.actualizar, true);
     assert.equal(e.json.incompatible.codigo, "42501");
-    assert.equal(e.json.incompatible.donde, "/rest/v1/trabajadores");
+    // Gana el primer 42501: puede ser esta consulta o la sincronía de fondo (cambios_desde) si cae en la ventana.
+    assert.match(e.json.incompatible.donde, /^(\/rest\/v1\/trabajadores|rpc cambios_desde)$/);
+  } catch (err) {
+    nubeObj.incompatible = null; // que una falla aquí no arrastre a las pruebas que siguen
+    throw err;
   } finally {
     nube.estado.migradaPorDelante = false;
   }
