@@ -9,7 +9,7 @@ import {
 } from "@/lib/reportes";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { generarAnalisis, type DatosAnalisis } from "@/lib/vigilancia-analisis";
+import { generarAnalisis, sinDiscapacidad, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { textosSugeridos } from "@/lib/vigilancia-textos";
 
 // Los cálculos del período se recuerdan 3 minutos por usuario: cambiar de trimestre y volver, o pasar de la
@@ -18,7 +18,8 @@ const TRES_MINUTOS = 3 * 60 * 1000;
 const clave = (sesion: Sesion, que: string, empresaId: string | null, p: Pick<Periodo, "desde" | "hasta">) => `${sesion.orgId}|${sesion.usuarioId}|${que}|${empresaId ?? "*"}|${p.desde}|${p.hasta}`;
 
 // Todo lo que necesitan la pantalla de Reportes y el informe impreso, calculado una sola vez
-export async function cargarVigilancia(sesion: Sesion, empresaId: string | null, q: ConsultaPeriodo) {
+// paraEmpresa: los textos sugeridos y el análisis se arman sin la discapacidad (versión que se envía a RR. HH.)
+export async function cargarVigilancia(sesion: Sesion, empresaId: string | null, q: ConsultaPeriodo, { paraEmpresa = false } = {}) {
   const empresas = await listarEmpresas();
   const empresa = empresas.find((e) => e.id === empresaId) ?? null;
   const periodo = periodoDeConsulta(q, empresa?.mesInicioGestion ?? 1);
@@ -47,6 +48,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const acc = accBase && r ? completarHorasHombre(accBase, r.poblacion.total, periodo) : null;
   const ix = acc ? indicesCovenin(acc) : null;
   const ausentismo = r ? indicadoresAusentismo(r) : { pad: 0, pct: 0 };
+  const rTexto = r && paraEmpresa ? sinDiscapacidad(r) : r;
 
   // Datos que usa la redacción del análisis (también viajan al editor para «Otra redacción»)
   const datosAnalisis: DatosAnalisis | null = r
@@ -55,7 +57,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
         etiqueta: periodo.etiqueta,
         desde: periodo.desde,
         hasta: periodo.hasta,
-        r,
+        r: rTexto!,
         s: s ?? { por_mes: [], piramide: [], capitulos: [] },
         anterior: sAnt ? { etiqueta: anterior.etiqueta, s: sAnt } : null,
         anioAnterior: sAnio ? { etiqueta: anioAnterior.etiqueta, s: sAnio } : null,
@@ -73,7 +75,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
 
   const base = r
     ? textosSugeridos({
-        r,
+        r: rTexto!,
         pct: ausentismo.pct,
         accidentes: acc?.accidentes ?? 0,
         conTiempoPerdido: acc?.con_tiempo_perdido ?? 0,

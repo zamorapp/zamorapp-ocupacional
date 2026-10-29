@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
 import { BarrasH, Columnas, Dona, EjeMeses, Meta, nombreMes, Pareto, Piramide } from "@/components/graficos";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
@@ -8,7 +9,7 @@ import { tasasEnfermedadOcupacional, type Causa, type Persona } from "@/lib/repo
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cargarVigilancia } from "@/lib/vigilancia";
-import { totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
+import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
 import { CORTES, ETIQUETA_CLAVE } from "@/lib/vigilancia-textos";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Hoja, Membrete } from "../componentes";
@@ -143,21 +144,25 @@ export default async function Vigilancia({ searchParams }: Props) {
   const q = await searchParams;
   const sesion = await obtenerSesion();
   const empresaId = q.empresa || null;
+  // «para=empresa»: la versión que se envía a RR. HH. (la pone el servidor al enviar): sin discapacidad (#41)
+  // y sin cifras pequeñas que identifiquen a alguien en empresas chicas (umbral en Configuración › Organización)
+  const paraEmpresa = q.para === "empresa" && Boolean(empresaId);
   const s0 = supabaseConfigurado && !sesion.demo ? await crearClienteServidor() : null;
   const [v, org, logoEmpresa] = await Promise.all([
-    cargarVigilancia(sesion, empresaId, q),
+    cargarVigilancia(sesion, empresaId, q, { paraEmpresa }),
     s0 && sesion.orgId ? s0.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single().then(({ data }) => data) : null,
     s0 && empresaId ? s0.from("empresas").select("logo").eq("id", empresaId).maybeSingle().then(({ data }) => (data?.logo as string | null) ?? null) : null,
   ]);
   const { r, s, acc, ix, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
   if (!r) return <p className="p-10">No hay datos.</p>;
-  // «para=empresa»: la versión que se envía a RR. HH. (la pone el servidor al enviar): sin discapacidad (#41)
-  // y sin cifras pequeñas que identifiquen a alguien en empresas chicas (umbral en Configuración › Organización)
-  const paraEmpresa = q.para === "empresa" && Boolean(empresa);
+  // Lo que el médico guardó a mano no se filtra: si nombra la discapacidad, esta versión no se genera (el envío falla)
+  const nombraDiscapacidad = mencionaDiscapacidad(v.informe);
+  if (paraEmpresa && nombraDiscapacidad) notFound();
   const ajustesOrg = (org?.ajustes ?? {}) as { celda_minima_empresa?: number };
   const minimo = paraEmpresa ? (ajustesOrg.celda_minima_empresa ?? 3) : 0;
   const T = (p: Parameters<typeof Tabla>[0]) => <Tabla minimo={minimo} {...p} />;
   const g = <F extends { nombre: string; n: number }>(filas: F[]) => agrupar(filas, minimo);
+  const cif = (n: number) => (minimo && n > 0 && n < minimo ? `<${minimo}` : num(n, 0));
 
   const guardados = Object.fromEntries(Object.entries(v.informe ?? {}).filter(([k, x]) => typeof x === "string" && x && k !== "id" && k !== "actualizado_en"));
   const t = { ...v.sugeridos!, ...guardados };
@@ -202,7 +207,7 @@ export default async function Vigilancia({ searchParams }: Props) {
 
   return (
     <div className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
-      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && !paraEmpresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial, bloqueo: v.informe?.id ? null : "Guarda el informe antes de enviarlo (Reportes › Vigilancia › Guardar)." } : null} />
+      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && !paraEmpresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial, bloqueo: !v.informe?.id ? "Guarda el informe antes de enviarlo (Reportes › Vigilancia › Guardar)." : nombraDiscapacidad ? "El análisis menciona discapacidad: edítalo antes de enviar." : null } : null} />
 
       {/* Portada ejecutiva */}
       <Hoja>
@@ -226,12 +231,12 @@ export default async function Vigilancia({ searchParams }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2.5">
-          <Kpi titulo="Consultas" valor={num(r.consultas.total, 0)} detalle={`${num(r.consultas.pacientes, 0)} pacientes · ${porc(r.consultas.pacientes, pob)} % de cobertura`} delta={actual && variacion(actual.consultas, previo?.consultas, contra)} />
-          <Kpi titulo="Prevalencia de morbilidad" valor={`${porc(r.morbilidad.pacientes ?? 0, pob)} %`} detalle={`${num(r.morbilidad.total, 0)} diagnósticos`} delta={actual && variacion(actual.diagnosticos, previo?.diagnosticos, contra)} />
+          <Kpi titulo="Consultas" valor={cif(r.consultas.total)} detalle={`${cif(r.consultas.pacientes)} pacientes · ${porc(r.consultas.pacientes, pob)} % de cobertura`} delta={actual && variacion(actual.consultas, previo?.consultas, contra)} />
+          <Kpi titulo="Prevalencia de morbilidad" valor={minimo && (r.morbilidad.pacientes ?? 0) > 0 && (r.morbilidad.pacientes ?? 0) < minimo ? "—" : `${porc(r.morbilidad.pacientes ?? 0, pob)} %`} detalle={`${cif(r.morbilidad.total)} diagnósticos`} delta={actual && variacion(actual.diagnosticos, previo?.diagnosticos, contra)} />
           <Kpi titulo="Ausentismo" valor={`${num(ausentismo.pct)} %`} detalle={`Meta < 2,5 % · ${ausentismo.pct < 2.5 ? "dentro de la meta" : "sobre la meta"}`} delta={actual && variacion(actual.dias, previo?.dias, contra)} />
-          <Kpi titulo="Días perdidos" valor={num(r.ausentismo.dias_computables, 0)} detalle={`${num(r.ausentismo.reposos_iniciados ?? r.ausentismo.reposos, 0)} reposos · PAD ${num(ausentismo.pad)}`} />
-          <Kpi titulo="Accidentes de trabajo" valor={num(acc?.accidentes ?? 0, 0)} detalle={ix?.ifn !== null && ix?.ifn !== undefined ? `IFN ${num(ix.ifn)} · IS ${num(ix.is)}` : "Sin horas hombre registradas"} />
-          <Kpi titulo="Preventivas" valor={`${porc(r.consultas.preventivas, r.consultas.total)} %`} detalle={`${num(r.consultas.preventivas, 0)} evaluaciones y controles`} />
+          <Kpi titulo="Días perdidos" valor={num(r.ausentismo.dias_computables, 0)} detalle={`${cif(r.ausentismo.reposos_iniciados ?? r.ausentismo.reposos)} reposos · PAD ${num(ausentismo.pad)}`} />
+          <Kpi titulo="Accidentes de trabajo" valor={cif(acc?.accidentes ?? 0)} detalle={ix?.ifn !== null && ix?.ifn !== undefined ? `IFN ${num(ix.ifn)} · IS ${num(ix.is)}` : "Sin horas hombre registradas"} />
+          <Kpi titulo="Preventivas" valor={`${porc(r.consultas.preventivas, r.consultas.total)} %`} detalle={`${cif(r.consultas.preventivas)} evaluaciones y controles`} />
         </div>
 
         {v.analisis && (
