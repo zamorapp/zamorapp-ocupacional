@@ -6,6 +6,7 @@ import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Aceptar } from "./aceptar";
+import { ConfirmarCuenta } from "./confirmar";
 
 export const metadata: Metadata = { title: "Invitación al portal", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -18,8 +19,8 @@ const AVISO: Record<string, string> = {
 
 // Enlace que el servicio médico manda por WhatsApp a RR. HH.: muestra la empresa, deja crear la cuenta o ingresar
 // ahí mismo y, con sesión, la acepta. Funciona sin cuenta; los datos los decide la base con el token.
-export default async function Invitacion({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default async function Invitacion({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ code?: string }> }) {
+  const [{ token }, { code }] = await Promise.all([params, searchParams]);
   const valido = supabaseConfigurado && TOKEN_INVITACION.test(token);
   const supabase = valido ? await crearClienteServidor() : null;
   const [{ data: filas }, { data: claims }] = supabase
@@ -54,6 +55,8 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
             </ul>
             {inv.estado !== "vigente" && !conSesion ? (
               <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">{AVISO[inv.estado]}</p>
+            ) : !conSesion && code ? (
+              <ConfirmarCuenta token={token} codigo={code} />
             ) : conSesion ? (
               <Aceptar token={token} texto={inv.estado === "vigente" ? "Aceptar y entrar al portal" : "Entrar al portal"} />
             ) : (
