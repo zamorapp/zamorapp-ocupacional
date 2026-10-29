@@ -16,12 +16,19 @@ export function NuevaConsulta({ habilitado, empresas, empresaActiva }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PacienteEncontrado[]>([]);
+  // Texto cuya búsqueda ya terminó: el registro sale solo después de una búsqueda sin resultados y sigue
+  // montado mientras se corrige el texto (no se pierde lo que el médico ya escribió en él)
+  const [buscado, setBuscado] = useState<string | null>(null);
   const [buscando, iniciarBusqueda] = useTransition();
   const [abriendo, iniciarApertura] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => iniciarBusqueda(async () => setResultados(await buscarPacientes(texto))), 250);
+    const t = setTimeout(() => iniciarBusqueda(async () => {
+      const r = await buscarPacientes(texto);
+      setResultados(r);
+      setBuscado(texto);
+    }), 250);
     return () => clearTimeout(t);
   }, [texto]);
 
@@ -70,10 +77,10 @@ export function NuevaConsulta({ habilitado, empresas, empresaActiva }: Props) {
             </li>
           ))}
         </ul>
-        {texto.trim().length >= 2 && !buscando && resultados.length === 0 && (
+        {texto.trim().length >= 2 && (buscado?.trim().length ?? 0) >= 2 && resultados.length === 0 && (
           <div className="space-y-2">
-            <p className="text-center text-sm text-muted-foreground">Ningún paciente coincide con «{texto.trim()}».</p>
-            <RegistroRapido key={texto.trim()} texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico alListo={(href) => href && router.push(href)} />
+            <p className="text-center text-sm text-muted-foreground">Ningún paciente coincide con «{buscado?.trim()}».</p>
+            <RegistroRapido texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico alListo={(href) => href && router.push(href)} />
           </div>
         )}
       </DialogContent>

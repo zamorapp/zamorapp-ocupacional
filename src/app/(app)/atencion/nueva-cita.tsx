@@ -22,13 +22,20 @@ export function NuevaCita({ habilitado, fecha, motivos, empresas, empresaActiva 
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PacienteEncontrado[]>([]);
+  // Texto cuya búsqueda ya terminó: el registro sale solo después de una búsqueda sin resultados y sigue
+  // montado mientras se corrige el texto (no se pierde lo que el médico ya escribió en él)
+  const [buscado, setBuscado] = useState<string | null>(null);
   const [paciente, setPaciente] = useState<PacienteEncontrado | null>(null);
   const [buscando, iniciar] = useTransition();
   const [estado, accion, enviando] = useActionState(crearCita, null);
 
   useEffect(() => {
     if (paciente) return;
-    const t = setTimeout(() => iniciar(async () => setResultados(await buscarPacientes(texto))), 250);
+    const t = setTimeout(() => iniciar(async () => {
+      const r = await buscarPacientes(texto);
+      setResultados(r);
+      setBuscado(texto);
+    }), 250);
     return () => clearTimeout(t);
   }, [texto, paciente]);
 
@@ -80,10 +87,10 @@ export function NuevaCita({ habilitado, fecha, motivos, empresas, empresaActiva 
             </>
           )}
         </div>
-        {!paciente && texto.trim().length >= 2 && !buscando && resultados.length === 0 && (
+        {!paciente && texto.trim().length >= 2 && (buscado?.trim().length ?? 0) >= 2 && resultados.length === 0 && (
           <div className="space-y-2">
-            <p className="text-center text-sm text-muted-foreground">Ningún paciente coincide con «{texto.trim()}».</p>
-            <RegistroRapido key={texto.trim()} texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico={false} alRegistrar={setPaciente} />
+            <p className="text-center text-sm text-muted-foreground">Ningún paciente coincide con «{buscado?.trim()}».</p>
+            <RegistroRapido texto={texto} empresas={empresas} empresaActiva={empresaActiva} clinico={false} alRegistrar={setPaciente} />
           </div>
         )}
         <form id="form-cita" action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">

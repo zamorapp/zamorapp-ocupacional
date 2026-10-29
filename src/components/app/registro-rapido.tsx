@@ -21,6 +21,16 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
   const digitos = texto.replace(/\D/g, "");
   const esCedula = digitos.length >= 5;
   const partes = esCedula ? [] : texto.trim().split(/\s+/);
+  // Cada campo sigue a la búsqueda hasta que el médico lo edita; desde ahí queda lo que escribió
+  // (corregir la búsqueda nunca borra nombres, apellidos ni empresa ya puestos)
+  const sugerido = {
+    cedula: esCedula ? texto.trim() : "",
+    nombres: partes.slice(0, Math.ceil(partes.length / 2)).join(" "),
+    apellidos: partes.slice(Math.ceil(partes.length / 2)).join(" "),
+  };
+  const [escrito, setEscrito] = useState<Partial<Record<keyof typeof sugerido, string>>>({});
+  const valor = (k: keyof typeof sugerido) => escrito[k] ?? sugerido[k];
+  const escribir = (k: keyof typeof sugerido) => (e: React.ChangeEvent<HTMLInputElement>) => setEscrito((v) => ({ ...v, [k]: e.target.value }));
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const campo = "h-10 w-full rounded-lg border bg-card px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -53,12 +63,12 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
         <UserPlus className="size-4 text-primary" /> {alRegistrar ? "Registrar paciente nuevo" : clinico ? "Registrar y atender" : "Registrar trabajador"}
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <input name="cedula" aria-label="Cédula" placeholder="Cédula (V-12345678)" defaultValue={esCedula ? texto.trim() : ""} required className={campo}/>
+        <input name="cedula" aria-label="Cédula" placeholder="Cédula (V-12345678)" value={valor("cedula")} onChange={escribir("cedula")} required className={campo} />
         <select name="empresa_id" aria-label="Empresa" defaultValue={empresaActiva ?? empresas[0].id} className={campo}>
           {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
         </select>
-        <input name="nombres" aria-label="Nombres" placeholder="Nombres" defaultValue={partes.slice(0, Math.ceil(partes.length / 2)).join(" ")} required className={campo} />
-        <input name="apellidos" aria-label="Apellidos" placeholder="Apellidos" defaultValue={partes.slice(Math.ceil(partes.length / 2)).join(" ")} required className={campo} />
+        <input name="nombres" aria-label="Nombres" placeholder="Nombres" value={valor("nombres")} onChange={escribir("nombres")} required className={campo} />
+        <input name="apellidos" aria-label="Apellidos" placeholder="Apellidos" value={valor("apellidos")} onChange={escribir("apellidos")} required className={campo} />
       </div>
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-center justify-between gap-2">
