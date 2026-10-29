@@ -27,9 +27,32 @@ export type Empresa = {
   diasAvisoExamen: number; // con cuántos días de anticipación se avisa que vence
 };
 
+// Las empresas y su conteo de trabajadores cambian poco pero el marco de CADA pantalla las pide (selector del
+// encabezado): se guardan 60 s en memoria del servidor por usuario (lo que cada uno puede ver lo decide RLS, así
+// que la llave es el usuario). Se invalidan al crear o editar empresas o trabajadores (invalidarEmpresas).
+const MEMORIA = new Map<string, { datos: Empresa[]; vence: number }>();
+const DURACION = 60 * 1000;
+
+export function invalidarEmpresas() {
+  MEMORIA.clear();
+}
+
 // cache(): el layout y la página la piden en la misma carga; así va una sola consulta
 export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
-  if (!supabaseConfigurado) {
+  if (!supabaseConfigurado) return empresasDemo();
+  const supabase = await crearClienteServidor();
+  // getClaims verifica el token localmente (sin ir al servidor)
+  const { data: claims } = await supabase.auth.getClaims();
+  const usuario = claims?.claims?.sub;
+  const guardado = usuario ? MEMORIA.get(usuario) : undefined;
+  if (guardado && guardado.vence > Date.now()) return guardado.datos;
+  const datos = await consultarEmpresas();
+  if (usuario) MEMORIA.set(usuario, { datos, vence: Date.now() + DURACION });
+  return datos;
+});
+
+function empresasDemo(): Empresa[] {
+  {
     return EMPRESAS_DEMO.map((e) => ({
       id: e.rif,
       razonSocial: e.nombre,
@@ -54,6 +77,9 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
       diasAvisoExamen: 30,
     }));
   }
+}
+
+async function consultarEmpresas(): Promise<Empresa[]> {
   const supabase = await crearClienteServidor();
   // El conteo va aparte: trabajadores(count) necesita SELECT sobre toda la tabla y sus datos de salud son privados
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
@@ -90,7 +116,7 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     periodicidadMeses: e.periodicidad_meses ?? 12,
     diasAvisoExamen: e.dias_aviso_examen ?? 30,
   }));
-});
+}
 
 // Datos legales que exige el informe trimestral (bloque 1); si falta alguno se marca en rojo.
 export function datosLegalesFaltantes(e: Empresa) {
