@@ -36,6 +36,8 @@ export type Reporte = {
     reposos: number; dias_perdidos: number; dias_periodo: number; dias_computables: number;
     reposos_iniciados?: number; trabajadores_ausentes?: number;
     por_causa: (Conteo & { dias: number })[];
+    // Causas del grupo «permiso» (paternidad, lactancia…): aparte, no cuentan como ausentismo
+    permisos?: (Conteo & { dias: number })[];
     por_ente: (Conteo & { dias?: number })[];
     primeras_causas?: (Causa & { dias: number })[];
     detalle?: { causa: string; ente: string; cie10: string | null; descripcion: string | null; n: number; dias: number }[];
@@ -44,6 +46,11 @@ export type Reporte = {
   enfermedad_ocupacional?: { casos: number; dias: number; casos_anteriores: number; dias_anteriores: number };
   accidentes?: { fecha: string; tipo: string; lugar: string | null; lesion: string | null; parte: string | null; gravedad: string | null; dias: number; estado: string }[];
   aptitud: Record<string, number>;
+  // Especialidad de las consultas externas o especializadas (diez primeras)
+  especialidades_externas?: Conteo[];
+  reubicaciones?: { total: number; por_resultado: Conteo[]; por_tipo: Record<string, number> };
+  // Población usada: solo efectivos (tipos de paciente marcados) o todos (Configuración › Organización)
+  criterio?: { solo_efectivos: boolean; tipos: string[] };
 };
 
 export { resolverPeriodo, type Periodo } from "@/lib/periodos";
@@ -89,7 +96,7 @@ export async function obtenerSeries(empresaId: string | null, p: Pick<Periodo, "
   return data as Series;
 }
 
-// Promedio de ausentismo diario y % (meta < 2,5 %; pre y postnatal no cuentan)
+// Promedio de ausentismo diario y % (meta < 2,5 %; pre y postnatal y los permisos no cuentan)
 export function indicadoresAusentismo(r: Reporte) {
   const pad = r.ausentismo.dias_periodo ? r.ausentismo.dias_computables / r.ausentismo.dias_periodo : 0;
   const pct = r.poblacion.total ? (pad * 100) / r.poblacion.total : 0;
@@ -140,10 +147,25 @@ function diasHabiles(desde: string, hasta: string) {
   return n;
 }
 
-// Sin horas cargadas, COVENIN 474 (5.2) permite estimarlas: trabajadores × 8 h × días hábiles, declarando el método
-export function completarHorasHombre(a: Accidentalidad, trabajadores: number, p: Periodo): Accidentalidad & { estimado_auto: boolean } {
-  if (a.hht > 0 || trabajadores <= 0) return { ...a, estimado_auto: false };
-  return { ...a, hht: trabajadores * 8 * diasHabiles(p.desde, p.hasta), hay_estimado: true, estimado_auto: true };
+// Cómo se obtienen las horas hombre (Configuración › Organización › Informe de vigilancia):
+// «same» (por defecto, como el SAME): HHE = trabajadores × 5,5 h × días del período, aunque haya horas cargadas.
+// «nomina»: las horas cargadas por mes; sin horas, COVENIN 474 (5.2) permite estimarlas con trabajadores × 8 h × días hábiles.
+export type CriterioHoras = "same" | "nomina";
+export type MetodoHoras = "same" | "nomina" | "covenin";
+
+const diasPeriodo = (p: Pick<Periodo, "desde" | "hasta">) => Math.round((Date.parse(p.hasta) - Date.parse(p.desde)) / 86_400_000) + 1;
+
+export function completarHorasHombre(a: Accidentalidad, trabajadores: number, p: Periodo, criterio: CriterioHoras = "same"): Accidentalidad & { estimado_auto: boolean; metodo: MetodoHoras } {
+  if (criterio === "same") return { ...a, hht: Math.round(trabajadores * 5.5 * diasPeriodo(p) * 100) / 100, hay_estimado: true, estimado_auto: false, metodo: "same" };
+  if (a.hht > 0 || trabajadores <= 0) return { ...a, estimado_auto: false, metodo: a.hay_estimado ? "covenin" : "nomina" };
+  return { ...a, hht: trabajadores * 8 * diasHabiles(p.desde, p.hasta), hay_estimado: true, estimado_auto: true, metodo: "covenin" };
+}
+
+// Texto del método de las horas hombre, para la pantalla y el informe
+export function textoMetodoHoras(m: MetodoHoras) {
+  return m === "same" ? "HHE = trabajadores × 5,5 h × días del período (fórmula del SAME)."
+    : m === "covenin" ? "Estimadas: trabajadores × 8 h × días hábiles (COVENIN 474, 5.2)."
+    : "Según nómina.";
 }
 
 // Tasas de enfermedad ocupacional: TAEO = días perdidos por EO × 100 / HHT · TIEO = casos × 1.000.000 / HHT

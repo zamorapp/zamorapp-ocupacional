@@ -32,6 +32,8 @@ type Ajustes = {
   celda_minima_empresa?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
+  vigilancia_poblacion?: "efectivos" | "todos";
+  vigilancia_horas?: "same" | "nomina";
 };
 
 type Org = { nombre: string; rif: string | null; direccion: string | null; telefono: string | null; correo: string | null; ajustes: unknown };
@@ -115,6 +117,22 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="space-y-1">
             <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? false} />
             <p className="pl-6 text-xs text-muted-foreground">Viene apagado. Llega al personal de salud y SST de cada empresa con el número de evento, la empresa y el plazo: nunca el nombre del trabajador ni el diagnóstico. Sale cuando un administrador o gerente médico abre zamorApp. La campana avisa siempre.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Informe de vigilancia epidemiológica</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <CampoSelect id="vigilancia_poblacion" etiqueta="Población que cuenta" defaultValue={a.vigilancia_poblacion ?? "efectivos"}
+              ayuda="«Efectivos» son los tipos de paciente marcados en Configuración › Listas › Tipos de paciente. Motivo y tipo de paciente siempre cuentan a todos.">
+              <option value="efectivos">Solo trabajadores efectivos (como el SAME)</option>
+              <option value="todos">Todos los pacientes de la empresa (también aspirantes y visitantes)</option>
+            </CampoSelect>
+            <CampoSelect id="vigilancia_horas" etiqueta="Horas hombre para IFN, IFB, IS, TAEO y TIEO" defaultValue={a.vigilancia_horas ?? "same"}
+              ayuda="Según nómina: las horas por mes se cargan en la ficha de cada empresa; si faltan, se estiman con trabajadores × 8 h × días hábiles (COVENIN 474).">
+              <option value="same">Fórmula del SAME: trabajadores × 5,5 h × días del período</option>
+              <option value="nomina">Horas cargadas de la nómina</option>
+            </CampoSelect>
           </CardContent>
         </Card>
 
