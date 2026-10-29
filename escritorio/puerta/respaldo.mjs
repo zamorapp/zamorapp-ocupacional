@@ -10,6 +10,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { CONFIG } from "./config.mjs";
+import { empaquetar, listar } from "./tar.mjs";
 
 const MAGIA = Buffer.from("ZAMORAPP-RESPALDO-1\n");
 const CADA_MS = 24 * 3600e3; // respaldo automático diario
@@ -35,6 +36,7 @@ export class Respaldo {
     return c;
   }
   get carpetaLocal() { return path.join(CONFIG.datos, "respaldos"); }
+  get carpetaAdjuntos() { return path.join(CONFIG.datos, "adjuntos"); } // la misma de adjuntos.mjs
 
   // Para la pantalla: qué hay configurado, cómo fue el último y si hay uno en curso
   estadoActual() {
@@ -73,6 +75,7 @@ export class Respaldo {
   cancelarRestauracion() {
     const r = this.estado.d.restaurar;
     if (r?.archivo) fs.rmSync(r.archivo, { force: true });
+    if (r?.adjuntos) fs.rmSync(r.adjuntos, { force: true });
     this.estado.d.restaurar = null;
     this.estado.guardar();
     return { cancelada: Boolean(r) };
@@ -112,6 +115,9 @@ export class Respaldo {
       await this.#volcar(archivo);
       resultado.archivo = archivo;
       resultado.bytes = fs.statSync(archivo).size;
+      // Fase C.2: los adjuntos (exámenes escaneados, PDF) no están en la base: van en un paquete tar aparte.
+      // Solo se arma uno nuevo cuando cambió algo desde el último (son archivos que solo se agregan).
+      resultado.adjuntos = await this.#empaquetarAdjuntos(nombre);
       if (c.carpeta) {
         if (!c.clave) throw new Error("Falta la clave de respaldo: sin ella la copia no sale de la PC");
         if (!fs.existsSync(c.carpeta)) throw new Error(`La carpeta externa no está disponible: ${c.carpeta}`);
@@ -119,12 +125,21 @@ export class Respaldo {
         const externo = path.join(c.carpeta, `${nombre}.zamorapp`);
         const huella = await cifrarArchivo(archivo, externo, c.clave);
         resultado.externo = externo;
+        let huellaAdj = null;
+        if (resultado.adjuntos?.archivo && (resultado.adjuntos.nuevo || !resultado.adjuntos.externo || !fs.existsSync(resultado.adjuntos.externo))) {
+          resultado.adjuntos.externo = path.join(c.carpeta, `${nombre}.adjuntos.zamorapp`);
+          huellaAdj = await cifrarArchivo(resultado.adjuntos.archivo, resultado.adjuntos.externo, c.clave);
+        }
         // Prueba de restauración (Analizar): la copia externa se descifra con la clave guardada y tiene que ser
         // byte a byte el volcado de la PC. Si no, la copia de Drive no sirve y se avisa ya, no cuando haga falta.
         this.paso = "prueba";
-        resultado.probada = await this.#probar(externo, c.clave, huella, resultado.bytes);
-        this.#rotar(c.carpeta, ".zamorapp", GUARDAR_EXTERNOS);
+        resultado.probada = await this.#probar(externo, c.clave, huella, resultado.bytes,
+          huellaAdj ? { archivo: resultado.adjuntos.externo, huella: huellaAdj, bytes: fs.statSync(resultado.adjuntos.archivo).size } : null);
+        if (resultado.adjuntos?.externo) { c.adjuntosExterno = resultado.adjuntos.huellaLista; }
+        this.#rotar(c.carpeta, ".adjuntos.zamorapp", GUARDAR_EXTERNOS);
+        this.#rotar(c.carpeta, ".zamorapp", GUARDAR_EXTERNOS, ".adjuntos.zamorapp");
       }
+      this.#rotar(this.carpetaLocal, ".adjuntos.tar", GUARDAR_LOCALES);
       this.#rotar(this.carpetaLocal, ".dump", GUARDAR_LOCALES);
       resultado.ok = true;
       c.error = null;
@@ -142,14 +157,18 @@ export class Respaldo {
     return { ...resultado, error: c.error };
   }
 
-  async #probar(externo, clave, huella, bytes) {
+  async #probar(externo, clave, huella, bytes, adjuntos = null) {
     const c = this.#cfg();
     const prueba = { fecha: this.nube.reloj.iso(), ok: false, archivo: path.basename(externo), detalle: null, anotadaEnNube: false };
     try {
       const r = await verificarArchivo(externo, clave);
       if (r.huella !== huella || r.bytes !== bytes) throw new Error("La copia descifrada no coincide con el volcado de la PC");
+      if (adjuntos) {
+        const ra = await verificarArchivo(adjuntos.archivo, clave);
+        if (ra.huella !== adjuntos.huella || ra.bytes !== adjuntos.bytes) throw new Error("La copia de adjuntos descifrada no coincide con el paquete de la PC");
+      }
       prueba.ok = true;
-      prueba.detalle = `descifrada con la clave de respaldo: ${Math.round(bytes / 1024)} KB íntegros`;
+      prueba.detalle = `descifrada con la clave de respaldo: ${Math.round(bytes / 1024)} KB íntegros${adjuntos ? ` y adjuntos (${Math.round(adjuntos.bytes / 1024)} KB)` : ""}`;
     } catch (e) {
       prueba.detalle = e.message;
       this.registro(`[respaldo] la prueba de descifrado de ${externo} falló: ${e.message}`);
@@ -190,6 +209,23 @@ export class Respaldo {
   // Anotaciones pendientes (hechas sin internet): las sube el ciclo de sincronía
   async anotarPendientes() { if (this.#cfg().porAnotar.length) await this.#subirAnotaciones(); }
 
+  // Paquete tar de datos/adjuntos. Si nada cambió desde el último paquete (misma lista de rutas y tamaños), no se
+  // repite: el último sigue valiendo. Devuelve null sin adjuntos.
+  async #empaquetarAdjuntos(nombre) {
+    const c = this.#cfg();
+    const lista = listar(this.carpetaAdjuntos);
+    if (!lista.length) return null;
+    const huellaLista = crypto.createHash("sha256").update(lista.map((a) => `${a.ruta}\0${a.bytes}\n`).join("")).digest("hex");
+    const ultimo = c.ultimo?.adjuntos;
+    if (ultimo?.archivo && ultimo.huellaLista === huellaLista && fs.existsSync(ultimo.archivo)
+        && (!c.carpeta || (ultimo.externo && fs.existsSync(ultimo.externo) && c.adjuntosExterno === huellaLista))) {
+      return { ...ultimo, nuevo: false };
+    }
+    const archivo = path.join(this.carpetaLocal, `${nombre}.adjuntos.tar`);
+    const r = await empaquetar(this.carpetaAdjuntos, archivo);
+    return { archivo, externo: null, archivos: r.archivos, bytes: r.bytes, huellaLista, nuevo: true };
+  }
+
   #volcar(archivo) {
     return new Promise((ok, mal) => {
       const salida = fs.createWriteStream(`${archivo}.parcial`);
@@ -208,9 +244,9 @@ export class Respaldo {
     });
   }
 
-  #rotar(carpeta, extension, guardar) {
+  #rotar(carpeta, extension, guardar, excepto = null) {
     try {
-      const lista = fs.readdirSync(carpeta).filter((f) => f.startsWith("zamorapp-") && f.endsWith(extension)).sort();
+      const lista = fs.readdirSync(carpeta).filter((f) => f.startsWith("zamorapp-") && f.endsWith(extension) && !(excepto && f.endsWith(excepto))).sort();
       for (const f of lista.slice(0, Math.max(0, lista.length - guardar))) fs.rmSync(path.join(carpeta, f), { force: true });
     } catch (e) { this.registro(`[respaldo] no se pudieron limpiar copias viejas en ${carpeta}: ${e.message}`); }
   }
@@ -222,7 +258,14 @@ export class Respaldo {
       try { return fs.readdirSync(carpeta).filter((f) => f.startsWith("zamorapp-") && f.endsWith(ext)).sort().reverse()
         .map((f) => ({ archivo: path.join(carpeta, f), bytes: fs.statSync(path.join(carpeta, f)).size, externo })); } catch { return []; }
     };
-    return [...de(this.carpetaLocal, ".dump", false), ...(c.carpeta ? de(c.carpeta, ".zamorapp", true) : [])];
+    return [...de(this.carpetaLocal, ".dump", false), ...(c.carpeta ? de(c.carpeta, ".zamorapp", true) : [])].filter((x) => !x.archivo.endsWith(".adjuntos.zamorapp"));
+  }
+
+  // El paquete de adjuntos más reciente de la misma carpeta que la copia elegida (los adjuntos solo se agregan)
+  #paqueteAdjuntosPara(ruta) {
+    const carpeta = path.dirname(ruta), ext = ruta.endsWith(".zamorapp") ? ".adjuntos.zamorapp" : ".adjuntos.tar";
+    try { const l = fs.readdirSync(carpeta).filter((f) => f.startsWith("zamorapp-") && f.endsWith(ext)).sort(); return l.length ? path.join(carpeta, l[l.length - 1]) : null; }
+    catch { return null; }
   }
 
   // Prepara una restauración: deja el volcado descifrado listo y el programa la aplica al arrancar de nuevo
@@ -232,9 +275,18 @@ export class Respaldo {
     if (!fs.existsSync(ruta)) throw new Error("No existe ese archivo de respaldo");
     fs.mkdirSync(this.carpetaLocal, { recursive: true });
     const destino = path.join(this.carpetaLocal, "restaurar.dump");
-    if (ruta.endsWith(".zamorapp")) await descifrarArchivo(ruta, destino, clave || this.#cfg().clave || "");
+    const k = clave || this.#cfg().clave || "";
+    if (ruta.endsWith(".zamorapp")) await descifrarArchivo(ruta, destino, k);
     else fs.copyFileSync(ruta, destino);
-    this.estado.d.restaurar = { archivo: destino, origen: ruta, pedido: this.nube.reloj.iso() };
+    // Fase C.2: con la base va el paquete de adjuntos más reciente de esa carpeta (si lo hay)
+    let adjuntos = null;
+    const paquete = this.#paqueteAdjuntosPara(ruta);
+    if (paquete) {
+      adjuntos = path.join(this.carpetaLocal, "restaurar.adjuntos.tar");
+      if (paquete.endsWith(".zamorapp")) await descifrarArchivo(paquete, adjuntos, k);
+      else fs.copyFileSync(paquete, adjuntos);
+    }
+    this.estado.d.restaurar = { archivo: destino, adjuntos, origen: ruta, origenAdjuntos: paquete, pedido: this.nube.reloj.iso() };
     this.estado.guardar();
     return { listo: true, archivo: destino, mensaje: "Cierra y vuelve a abrir zamorApp Escritorio: al arrancar se restaura la copia y luego se sincroniza con la nube." };
   }

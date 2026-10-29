@@ -6,6 +6,7 @@ import net from "node:net";
 import path from "node:path";
 import pg from "pg";
 import { CONFIG } from "./config.mjs";
+import { desempaquetar } from "./tar.mjs";
 
 const MARCA_ESCRITURA_LOCAL = "marca_escritura_local_1";
 const exe = (nombre) => path.join(CONFIG.pgBin, process.platform === "win32" ? `${nombre}.exe` : nombre);
@@ -169,7 +170,7 @@ export class Motor {
     this.estado.d.restaurar = null;
     this.estado.guardar();
     if (!pedido?.archivo || !fs.existsSync(pedido.archivo)) { this.registro?.("[base] restauración pedida sin archivo: se omite"); return false; }
-    try { return await this.#restaurar(pedido); } finally { fs.rmSync(pedido.archivo, { force: true }); }
+    try { return await this.#restaurar(pedido); } finally { fs.rmSync(pedido.archivo, { force: true }); if (pedido.adjuntos) fs.rmSync(pedido.adjuntos, { force: true }); }
   }
 
   async #restaurar(pedido) {
@@ -224,6 +225,13 @@ export class Motor {
     this.registro?.(`[base] respaldo restaurado desde ${pedido.origen || pedido.archivo}; la base anterior quedó como zamorapp_anterior`);
     await this.#migrar(); // lo que le falte al respaldo (migraciones nuevas) y los ajustes locales de escritorio/base
     await this.limpiarBloquesAjenos(); // los bloques del respaldo pueden ser de otra PC
+    // Fase C.2: los adjuntos del paquete vuelven a datos/adjuntos; lo que ya está en disco no se pisa
+    if (pedido.adjuntos && fs.existsSync(pedido.adjuntos)) {
+      try {
+        const r = desempaquetar(pedido.adjuntos, path.join(CONFIG.datos, "adjuntos"));
+        this.registro?.(`[base] adjuntos restaurados: ${r.restaurados} nuevos, ${r.existentes} ya estaban`);
+      } catch (e) { this.registro?.(`[base] los adjuntos del respaldo no se pudieron restaurar: ${e.message}`); }
+    }
     (this.estado.d.respaldo ??= {}).restauracionFallida = null;
     this.estado.guardar();
     return true;
