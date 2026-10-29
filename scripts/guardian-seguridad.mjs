@@ -141,8 +141,8 @@ function revisarCatalogo(actualizar) {
   const anon = psql(db, `select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname in ('public', 'clinico') and p.prorettype <> 'trigger'::regtype and has_function_privilege('anon', p.oid, 'execute') order by 1`);
-  // d) políticas que llaman funciones de alcance por cada fila
-  const porFila = psql(db, `select schemaname || '.' || tablename || ' ' || policyname || E'\\t' || replace(coalesce(qual, '') || ' ' || coalesce(with_check, ''), E'\\n', ' ') from pg_policies
+  // d) políticas que llaman funciones de alcance por cada fila al LEER (USING): el WITH CHECK de un INSERT corre una vez por fila escrita y no pesa
+  const porFila = psql(db, `select schemaname || '.' || tablename || ' ' || policyname || E'\\t' || replace(coalesce(qual, ''), E'\\n', ' ') from pg_policies
       where schemaname in ('public', 'clinico') order by 1`).map((l) => l.split("\t")).filter(([, q]) => POR_FILA.test(q.replace(/\(\s*select[^)]*\)/g, ""))).map(([n]) => n);
   // e) vistas con permisos del dueño (no aplican la RLS de quien consulta): deben filtrar ellas mismas
   const vistas = psql(db, `select n.nspname || '.' || c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
