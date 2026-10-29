@@ -12,6 +12,12 @@ export const PAGINA_INICIO = `<!doctype html>
   input { width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
   button { margin-top:18px; width:100%; padding:11px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:600 15px inherit; cursor:pointer; }
   button:disabled { opacity:.6; cursor:wait; } .error { color:var(--no); margin-top:12px; min-height:1.5em; }
+  .barra { height:8px; margin:4px 0 6px; border-radius:99px; background:var(--line); overflow:hidden; }
+  .barra > i { display:block; height:100%; width:0; border-radius:inherit; background:var(--accent); transition:width .4s ease; }
+  .paso { display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--muted); }
+  .paso b { color:var(--fg); font-variant-numeric:tabular-nums; }
+  [hidden] { display:none !important; }
+  @media (prefers-reduced-motion: reduce) { .barra > i { transition:none; } }
 </style></head>
 <body><main>
   <h1 id="titulo">Abriendo zamorApp…</h1>
@@ -27,18 +33,39 @@ export const PAGINA_INICIO = `<!doctype html>
     <button id="b">Registrar y copiar los datos</button>
     <div class="error" id="e" role="alert"></div>
   </form>
+  <div id="avance" hidden>
+    <div class="barra" role="progressbar" aria-label="Copiando los datos" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+    <div class="paso" aria-live="polite"><span id="detalle">Empezando…</span><b id="pct">0 %</b></div>
+  </div>
 </main>
 <script>
 const app = "__ORIGEN__";
 const $ = (id) => document.getElementById(id);
 async function estado() { return (await fetch("/zamorapp/estado")).json(); }
+// Avance de la copia (C13): grupos de datos hechos de los que hay; nunca retrocede
+const miles = new Intl.NumberFormat("es-VE");
+let pctMax = 0;
+function pintar(copia) {
+  if (!copia || !copia.total) return;
+  $("avance").hidden = false;
+  const pct = pctMax = Math.max(pctMax, Math.min(99, Math.round((copia.hechas / copia.total) * 100)));
+  $("avance").querySelector("i").style.width = pct + "%";
+  $("avance").querySelector(".barra").setAttribute("aria-valuenow", String(pct));
+  $("pct").textContent = pct + " %";
+  $("detalle").textContent = copia.hechas + " de " + copia.total + " grupos · " + miles.format(copia.filas) + " registros";
+}
 async function esperarCopia() {
   $("f").hidden = true;
+  $("avance").hidden = false;
+  document.querySelector("h1").textContent = "Preparando tu copia";
   for (;;) {
-    const s = await estado();
-    if (s.copiaCompleta) { location.href = app; return; }
-    $("texto").textContent = s.error ? "Copiando datos… (" + s.error + ")" : "Copiando los datos desde la nube. Puede tardar unos minutos la primera vez.";
-    await new Promise((r) => setTimeout(r, 2000));
+    const s = await estado().catch(() => ({}));
+    if (s.copiaCompleta) { pintar({ hechas: 1, total: 1, filas: 0 }); location.href = app; return; }
+    pintar(s.copia);
+    $("texto").textContent = s.error
+      ? "La copia se detuvo un momento y vuelve a intentar sola. Revisa el internet; no cierres zamorApp."
+      : "Copiando los datos desde la nube a esta PC. Se hace una sola vez; después zamorApp abre al instante.";
+    await new Promise((r) => setTimeout(r, 1000));
   }
 }
 // El formulario sale solo si esta PC de verdad no está registrada. Antes se veía en cada apertura mientras llegaba

@@ -290,7 +290,17 @@ mod perfil {
     }
 }
 
-fn arrancar(recursos: &Path) -> Result<Procesos, String> {
+// Avance de la primera apertura (C13): la puerta escribe «AVANCE <pct> <texto>» en su salida y la pantalla de carga
+// (ventana/index.html) lo muestra con window.avance. El texto es fijo (motor.mjs) y viaja como cadena JSON; una línea
+// mal formada se ignora.
+fn leer_avance(linea: &str) -> Option<(u32, String)> {
+    let (pct, texto) = linea.strip_prefix("AVANCE ")?.split_once(' ')?;
+    let pct: u32 = pct.parse().ok().filter(|n| *n <= 100)?;
+    let texto: String = texto.chars().filter(|c| !c.is_control()).take(80).collect();
+    Some((pct, texto))
+}
+
+fn arrancar(recursos: &Path, avance: impl Fn(u32, &str) + Send + 'static) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
     revisar_componentes(recursos)?;
@@ -330,6 +340,8 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         for linea in BufReader::new(salida).lines().map_while(Result::ok) {
             if linea.starts_with("PUERTA_LISTA") {
                 let _ = aviso_ok.send(Ok(()));
+            } else if let Some((pct, texto)) = leer_avance(&linea) {
+                avance(pct, &texto);
             }
         }
     });
@@ -799,7 +811,12 @@ fn main() {
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
                 limpiar_perfil_si_cambio(&ventana, &recursos);
-                match arrancar(&recursos) {
+                let para_avance = ventana.clone();
+                let avance = move |pct: u32, texto: &str| {
+                    let texto = serde_json::to_string(texto).unwrap_or_else(|_| "\"\"".into());
+                    let _ = para_avance.eval(&format!("window.avance && window.avance({pct}, {texto})"));
+                };
+                match arrancar(&recursos, avance) {
                     Ok(p) => {
                         *manejador.state::<Mutex<Procesos>>().lock().unwrap() = p;
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
