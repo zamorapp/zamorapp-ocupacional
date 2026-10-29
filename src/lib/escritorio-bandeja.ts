@@ -150,8 +150,18 @@ const ETIQUETAS: Record<string, string> = {
   hasta: "Hasta",
 };
 
+// Palabras que en el nombre del campo van sin tilde (examen_fisico → «Examen físico»)
+const TILDES: Record<string, string> = {
+  fisico: "físico", tension: "tensión", diagnostico: "diagnóstico", diagnosticos: "diagnósticos", direccion: "dirección", cardiaca: "cardíaca",
+  telefono: "teléfono", cedula: "cédula", descripcion: "descripción", observacion: "observación", conclusion: "conclusión", medico: "médico",
+  clinica: "clínica", clinico: "clínico", numero: "número", dias: "días", sintomas: "síntomas", evaluacion: "evaluación", informacion: "información",
+  ocupacion: "ocupación", posicion: "posición", presion: "presión", revision: "revisión", accion: "acción", tecnico: "técnico", genero: "género",
+  periodo: "período", indice: "índice", masa: "masa", habitos: "hábitos", alergicos: "alérgicos", quirurgicos: "quirúrgicos", farmacologicos: "farmacológicos",
+};
+
 export function etiquetaCampo(campo: string): string {
-  return ETIQUETAS[campo] ?? campo.replace(/_id$/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const texto = campo.replace(/_id$/, "").split("_").map((p) => TILDES[p] ?? p).join(" ");
+  return ETIQUETAS[campo] ?? texto.replace(/^./, (c) => c.toUpperCase());
 }
 
 const HORA_CARACAS = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -179,7 +189,7 @@ export type FilaComparada = { campo: string; etiqueta: string; pc: string; nube:
 // Un renglón por campo que escribió la PC (sin los técnicos); los distintos primero
 export function comparar(datos: Record<string, unknown>, nube: Record<string, unknown> | null): FilaComparada[] {
   const filas = Object.keys(datos ?? {})
-    .filter((k) => !OCULTOS.has(k))
+    .filter((k) => !OCULTOS.has(k) && !/_(en|at|por)$/.test(k))
     .map((k) => {
       const pc = textoValor(datos[k]);
       const n = nube ? textoValor(nube[k]) : "—";
