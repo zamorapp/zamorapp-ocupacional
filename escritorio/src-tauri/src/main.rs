@@ -216,10 +216,10 @@ fn revisar_componentes(recursos: &Path) -> Result<(), String> {
 }
 
 // Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
-// por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
-// a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
-// La marca vive junto a los datos: si se borran (PC reinstalada tras un daño), el perfil también se limpia,
-// porque WebView2 lo guarda aparte y sobrevive a desinstalar (p. ej. el «Ahora no» de Windows Hello).
+// (service workers, cachés, almacenamiento), así instalar una versión encima nunca vuelve a correr archivos viejos.
+// Al actualizar se conservan las cookies: ahí vive la sesión, y borrarla obligaba a escribir la clave tras cada
+// «Actualizar ahora» (29-oct). Si falta la marca (datos borrados, PC reinstalada tras un daño) se limpia todo,
+// cookies incluidas, porque WebView2 guarda el perfil aparte y sobrevive a desinstalar.
 fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
     let compilacion = compilacion.trim();
@@ -228,15 +228,65 @@ fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     }
     let _ = std::fs::create_dir_all(carpeta_datos());
     let marca = carpeta_datos().join("perfil-web.txt");
-    if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
+    let anterior = std::fs::read_to_string(&marca).ok();
+    if anterior.as_deref().map(str::trim) == Some(compilacion) {
         return;
     }
-    match ventana.clear_all_browsing_data() {
-        Ok(()) => {
-            anotar(&format!("perfil del navegador interno limpiado para la compilación {compilacion}"));
+    let resultado = if anterior.is_some() {
+        perfil::limpiar_sin_cookies(ventana).map(|_| "sin tocar la sesión")
+    } else {
+        ventana.clear_all_browsing_data().map_err(|e| e.to_string()).map(|_| "por completo")
+    };
+    match resultado {
+        Ok(como) => {
+            anotar(&format!("perfil del navegador interno limpiado {como} para la compilación {compilacion}"));
             let _ = std::fs::write(&marca, compilacion);
         }
         Err(e) => anotar(&format!("no se pudo limpiar el perfil del navegador interno: {e}")),
+    }
+}
+
+mod perfil {
+    // Todo el perfil menos las cookies, con la API de WebView2 (Tauri solo ofrece borrar todo)
+    #[cfg(windows)]
+    pub fn limpiar_sin_cookies(ventana: &tauri::WebviewWindow) -> Result<(), String> {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        use webview2_com::ClearBrowsingDataCompletedHandler;
+        use webview2_com::Microsoft::Web::WebView2::Win32::*;
+        use windows::core::Interface;
+        let (aviso, respuesta) = mpsc::channel::<Result<(), String>>();
+        ventana
+            .with_webview(move |wv| {
+                let otro = aviso.clone();
+                let tipos = COREWEBVIEW2_BROWSING_DATA_KINDS(COREWEBVIEW2_BROWSING_DATA_KINDS_ALL_PROFILE.0 & !COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES.0);
+                let r = unsafe {
+                    wv.controller()
+                        .CoreWebView2()
+                        .and_then(|w| w.cast::<ICoreWebView2_13>())
+                        .and_then(|w| w.Profile())
+                        .and_then(|p| p.cast::<ICoreWebView2Profile2>())
+                        .and_then(|p| {
+                            p.ClearBrowsingData(
+                                tipos,
+                                &ClearBrowsingDataCompletedHandler::create(Box::new(move |error| {
+                                    let _ = otro.send(error.map_err(|e| e.to_string()));
+                                    Ok(())
+                                })),
+                            )
+                        })
+                };
+                if let Err(e) = r {
+                    let _ = aviso.send(Err(e.to_string()));
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        respuesta.recv_timeout(Duration::from_secs(20)).map_err(|_| "WebView2 no respondió a tiempo".to_string())?
+    }
+
+    #[cfg(not(windows))]
+    pub fn limpiar_sin_cookies(ventana: &tauri::WebviewWindow) -> Result<(), String> {
+        ventana.clear_all_browsing_data().map_err(|e| e.to_string())
     }
 }
 

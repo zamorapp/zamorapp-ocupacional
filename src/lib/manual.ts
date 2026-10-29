@@ -14,6 +14,9 @@ export const MANUAL_ACTUALIZADO = "2026-10-29";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
+  { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
+  { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -60,7 +63,7 @@ export const MANUAL: TemaManual[] = [
       "En el programa de escritorio el último usuario queda escrito: solo pones la contraseña. Sin internet también entras con tu usuario, si ya entraste con él (o con tu correo) en esa PC con internet.",
       "Para tenerla como app de escritorio o en el celular, toca «Instalar app» arriba, junto a la campanita. En iPhone: Compartir → «Agregar a inicio».",
       "Si olvidaste la contraseña, toca «¿La olvidaste?», escribe tu correo y abre el enlace que te llega. Ahí creas la nueva.",
-      "Entrar con huella: después de entrar con tu contraseña (y tu código de dos pasos, si te lo pide), zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses.",
+      "Entrar con huella: después de entrar con tu contraseña (y tu código de dos pasos, si te lo pide), zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses. Si tocas «Ahora no», vuelve a ofrecerla en 7 días (o tras 5 entradas con contraseña). Si al tocar «Entrar con huella» el navegador dice que no hay llaves de acceso, es que en ese equipo aún no la activaste.",
       "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
       "Verificación en dos pasos (obligatoria para administradores y gerentes médicos): la primera vez zamorApp muestra un código QR; escanéalo con Google Authenticator o Microsoft Authenticator en tu teléfono y escribe el código de 6 dígitos. Con la huella o la clave, en un equipo de confianza no vuelve a pedirlo hasta que venza el plazo.",
       "Equipo de confianza: al escribir el código deja marcado «Confiar en este equipo» y ahí no te lo volverá a pedir por 30 días (el administrador lo cambia en Configuración → Organización; 0 = pedirlo siempre). No lo marques en un equipo compartido. Para quitar la confianza de todos tus equipos: Mi perfil → «Verificación en dos pasos» → «Olvidar todos».",
@@ -187,7 +190,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Al terminar, toca «Cerrar consulta»: recién ahí la empresa ve la aptitud y recibe el aviso (los borradores no se muestran). Una consulta cerrada puede «Reabrirse» o «Firmarse». Firma el médico que atendió o el gerente médico; enfermería no firma.",
       "«Cerrar, firmar e imprimir» (o «Firmar e imprimir» si ya estaba cerrada) hace todo en un clic: cierra, firma y abre en una sola impresión la constancia, el reposo, el récipe y la orden de exámenes que apliquen. Antes pide confirmación en una ventana propia de zamorApp (el cursor arranca en «Cancelar»).",
-      "El botón «Imprimir» (con la impresora, arriba a la derecha) abre la Constancia (original para RR. HH. y copia para el servicio médico), la Consulta médica (informe completo), el Informe para el trabajador (versión corta, sin aptitud ni recomendaciones a la empresa), la Evaluación preoperatoria (si el motivo es preoperatorio), el Reposo, el Certificado de salud, el Récipe, la Orden de exámenes, la Referencia a especialista, la Reubicación, el Informe libre o «Todo» junto; si hay cambios sin guardar, los guarda antes.",
+      "El botón «Imprimir» (con la impresora, arriba a la derecha) abre la Constancia (una hoja; la copia para el servicio médico se agrega al imprimir), la Consulta médica (informe completo), el Informe para el trabajador (versión corta, sin aptitud ni recomendaciones a la empresa), la Evaluación preoperatoria (si el motivo es preoperatorio), el Reposo, el Certificado de salud, el Récipe, la Orden de exámenes, la Referencia a especialista, la Reubicación, el Informe libre o «Todo» junto; si hay cambios sin guardar, los guarda antes.",
       "Una consulta firmada ya no se edita ni se borra. ¿Te equivocaste? Toca «Corregir», escribe el motivo y pulsa «Abrir para corregir». La versión firmada queda guardada tal cual en el historial de la consulta (nadie la puede editar ni borrar) y la consulta vuelve a borrador: corrígela, ciérrala y fírmala de nuevo.",
       "Los impresos nuevos dicen «Revisión 2» (3, 4…) y reemplazan a los anteriores; si cambiaste la aptitud, la empresa recibe el aviso «Aptitud corregida», y los enlaces de WhatsApp ya enviados de esa consulta se anulan solos. Corrige el médico que atendió, el gerente médico o el administrador con acceso clínico.",
       "Firmar nunca bloquea al trabajador: siempre puedes abrirle consultas nuevas.",
@@ -202,7 +205,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Toca «Imprimir» (ícono de impresora) en la consulta, en cada consulta de la pestaña Consultas del paciente o en Documentos, y elige el documento o «Todo lo de esta consulta». Se abre en otra pestaña (en zamorApp Escritorio, en otra ventana) listo para imprimir o guardar en PDF.",
       "En zamorApp Escritorio, arriba del documento: «Imprimir» abre el diálogo de impresoras de Windows (impresora, páginas, copias) y «Guardar PDF» te pregunta dónde guardarlo; propone la carpeta Documentos › zamorApp › Informes. Al guardar puedes «Abrir» el PDF o «Ver en la carpeta». En el navegador, «Imprimir o guardar PDF» abre su diálogo: para tener el archivo, en «Destino» elige «Guardar como PDF» (queda en Descargas o donde elijas).",
-      "Arriba de cada documento, «Incluir» deja quitar en esa impresión el membrete (para hoja ya membretada), la firma y el sello digitales (para firmar a mano), los riesgos del puesto, las limitaciones o las conclusiones, según el documento. No cambia la configuración.",
+      "Arriba de cada documento, «Incluir» deja quitar en esa impresión el membrete (para hoja ya membretada), la firma y el sello digitales (para firmar a mano), los riesgos del puesto, las limitaciones o las conclusiones, según el documento. En la constancia, «Copia para el servicio médico» agrega una segunda hoja marcada como copia (para que salga siempre, márcalo en Configuración › Organización). En la consulta médica, el examen funcional y físico sale sistema por sistema con su descripción y lo alterado resaltado; si quitas «Examen detallado por sistema» sale el resumen «Dentro de límites normales, excepto…». No cambia la configuración.",
       "«Orden de atención ocupacional» (OAM) trae en tablas los datos de la empresa y del trabajador, la evaluación solicitada, los riesgos del puesto, las evaluaciones a practicar con casillas y la certificación del trabajador con su firma y huella.",
       "En la ficha del paciente, «Historia laboral» imprime sola la historia laboral: cargo actual con sus riesgos y los empleos anteriores, con la firma del trabajador.",
       "«Constancia de atención» (media carta) deja constancia de que el trabajador acudió al servicio, con la hora de llegada y de salida (la salida es la hora en que se cerró la consulta; si aún no se cierra, queda una línea para escribirla) y el reposo si lo hubo. No lleva diagnóstico; si hace falta, pulsa «Incluir diagnóstico» arriba de la hoja.",
@@ -211,7 +214,7 @@ export const MANUAL: TemaManual[] = [
       "En Accidentes y enfermedades, «Imprimir declaración» saca la declaración del evento con datos de la empresa, el trabajador, la lesión (COVENIN 474), la declaración ante el INPSASEL, causas, acciones y firmas.",
       "En la ficha del paciente, «Imprimir historia» saca la historia clínica completa: datos, antecedentes, riesgos, historia laboral y todas sus consultas. Solo la ve el personal de salud.",
       "Cada documento lleva el logo del servicio a la izquierda y el de la empresa del trabajador a la derecha, un folio, y al pie quién lo imprimió y cuándo. El logo de la empresa se sube en Empresas › (la empresa) › Logo para los informes; el del servicio, en Configuración › Organización.",
-      "El récipe no se imprime si faltan datos exigidos por la Res. MPPS 028; la pantalla te dice cuáles. Sale en una hoja carta horizontal: récipe a la izquierda e indicaciones a la derecha.",
+      "El récipe no se imprime si faltan datos exigidos por la Res. MPPS 028 (reformada por la 031 de 2013); la pantalla te dice cuáles. Sale en una hoja carta horizontal: récipe a la izquierda e indicaciones a la derecha.",
       "Los documentos llevan las leyendas legales del Integral: certificación y autorización del trabajador (informe, historia y autorización pre-empleo), nota de idoneidad en la constancia, Providencia 155-2015 del SACS en el certificado de salud y la nota del VIH (G.O. 35.538) en la orden pre-empleo, que se titula «Autorización de exámenes pre-empleo». Todas se editan o se quitan (dejándolas vacías) en Configuración › Organización.",
       "Tu especialidad y tu correo salen bajo tu firma: complétalos en Configuración › Mi perfil profesional.",
       "La orden de exámenes agrupa los paraclínicos con casillas y tu firma.",
@@ -221,12 +224,12 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "inspeccion",
-    titulo: "Inspección del INPSASEL",
+    titulo: "Cumplimiento INPSASEL",
     para: "servicio",
-    resumen: "Índice de cumplimiento de una empresa y un solo documento con todo lo que pide el inspector.",
+    resumen: "Lo que revisa un inspector del INPSASEL, medido con tus registros: un porcentaje de cumplimiento por empresa y un solo paquete para imprimir. No reemplaza la inspección: te muestra antes que el inspector qué te falta.",
     pasos: [
-      "Menú «Inspección»: elige la empresa y el período (por defecto, los últimos 12 meses).",
-      "Cada requisito muestra cuántos cumplen, su base legal y un semáforo: verde cumple, amarillo 80 % o más, rojo menos. La flecha lleva a donde se corrige.",
+      "Menú «Cumplimiento INPSASEL»: arriba, «¿Qué es esto?» explica la pantalla con un ejemplo y los 5 pasos (la primera vez se abre sola). Elige la empresa y el período (por defecto, los últimos 12 meses).",
+      "Revisa 10 puntos que pide el inspector (Servicio y Programa de SST registrados, declaraciones en 24 h, investigaciones, informes NT-02, acciones correctivas, puestos evaluados, notificación de riesgos firmada, evaluación médica vigente e informes trimestrales). Cada uno muestra cuántos cumplen, su base legal y un semáforo: verde cumple, amarillo cumple en parte (80 % o más), rojo cumple menos del 80 % o falta el dato, gris no aplica. La flecha lleva a donde se corrige.",
       "«Sin notificación de riesgos vigente y firmada» lista a quién falta; «Notificar a los N» registra y abre las hojas de los que nunca la recibieron o la tienen desactualizada.",
       "«Imprimir paquete» arma un solo documento: portada con el índice, registro de eventos, trabajadores, puestos e informes trimestrales, y luego cada declaración, cada informe de investigación (solo si eres personal de salud) y cada notificación firmada.",
     ],
@@ -261,6 +264,7 @@ export const MANUAL: TemaManual[] = [
       "En «Clasificación de la lesión» elige sin tiempo perdido, temporal, parcial permanente, absoluta permanente o fatal: los días cargados se calculan solos (6.000 por muerte o incapacidad absoluta; parcial con la Tabla 1 por el % de pérdida, tope 6.000).",
       "Para el accidente, anota turno, actividad que realizaba, motivo, lesiones, testigos (presencial o referencial) y observaciones: son los datos del Anexo D para el INPSASEL.",
       "La app avisa del plazo de 24 horas para declarar, de 7 días para registrar las causas de la investigación y del informe NT-02 (15 o 30 días).",
+      "Centinela de plazos: aunque nadie abra el evento, la campana avisa a médicos, enfermería, coordinador SST y administración de cada empresa cuando un plazo empieza, cuando queda poco (12 horas para declarar; 2 días para el informe y la investigación) y cuando vence. Si lo enciendes en Configuración → Organización → Avisos, también llega por correo (solo el número de evento, la empresa y el plazo). El aviso nunca dice el diagnóstico; se revisa como máximo cada 10 minutos.",
       "En una enfermedad ocupacional, «Informe de investigación (6 partes)» abre el informe de la NT-02: «Llenar las partes vacías» propone cada parte con la historia, el puesto, los reposos, la morbilidad de la empresa y los paraclínicos. Completa lo marcado «[por completar]», agrega los participantes y pulsa «Terminar informe»: queda anotada la fecha de entrega. Solo lo ve el personal de salud.",
       "En «Certificación del INPSASEL» lleva el estado, la fecha y el número de la certificación, la discapacidad certificada y su porcentaje. Marca «Puede dejar discapacidad» para hacer seguimiento hasta que llegue.",
       "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad. En la parcial permanente, el índice de severidad toma el mayor entre el cargo y los días de reposo.",
@@ -397,8 +401,10 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
-      "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube.",
-      "En el Inicio, el administrador y el gerente médico ven el último respaldo: verde si está al día, amarillo si quedó solo en la PC o falló un intento, rojo si pasó más de un día sin respaldo correcto.",
+      "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube. Si al encender la PC Drive tarda, el respaldo lo espera hasta 5 minutos; y si quedó solo en la PC, sube a Drive en el siguiente respaldo.",
+      "Una vez por semana, el respaldo se restaura de prueba en una base temporal de la PC (con el motor de zamorApp Escritorio), se comparan todas las filas y se borra. Si la PC tiene poca memoria libre, la prueba se pospone para no frenarla.",
+      "En el Inicio, el administrador y el gerente médico ven el último respaldo y cuándo se probó la restauración: verde si está al día, amarillo si quedó solo en la PC, falló un intento o la prueba de restauración falló o tiene más de 8 días, rojo si pasó más de un día sin respaldo correcto.",
+      "Para recuperar los datos en otra base: scripts\\restaurar.mjs con el último archivo de respaldo (lo hace el soporte técnico).",
     ],
   },
   {

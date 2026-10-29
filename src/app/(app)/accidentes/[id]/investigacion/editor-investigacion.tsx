@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2, Lock, Plus, Printer, Save, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmar } from "@/components/app/confirmar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,7 +116,7 @@ export function EditorInvestigacion({ inicial, sugerencias, evento }: {
                 </div>
                 {sugerencias[clave] && !terminado && (
                   <Button type="button" size="sm" variant="ghost" className="shrink-0"
-                    onClick={() => { if (vacia || window.confirm("¿Reemplazar lo escrito por la sugerencia?")) texto(clave, sugerencias[clave]!); }}>
+                    onClick={async () => { if (vacia || (await confirmar({ titulo: "¿Reemplazar lo escrito por la sugerencia?", texto: "Se pierde el texto actual de esta sección.", accion: "Reemplazar", peligro: true }))) texto(clave, sugerencias[clave]!); }}>
                     <Wand2 /> Usar sugerencia
                   </Button>
                 )}

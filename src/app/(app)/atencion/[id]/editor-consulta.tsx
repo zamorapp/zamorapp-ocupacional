@@ -41,6 +41,7 @@ import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, exame
 import { BuscadorDiagnostico } from "./buscador-diagnostico";
 import { AvisoDeclaracion } from "./aviso-declaracion";
 import { VistaRapida } from "./vista-rapida";
+import type { DeclaracionConsulta } from "../../accidentes/acciones";
 import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
@@ -72,6 +73,7 @@ type Props = {
   plantillas: Plantilla[];
   nueva: boolean;
   pasoInicial?: string;
+  declaraciones: DeclaracionConsulta[];
 };
 
 const CONFIRMAR_FIRMA = {
@@ -172,7 +174,7 @@ function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, 
   return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -958,7 +960,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 </p>
               )}
               {/* Enfermedad ocupacional: aviso con el Anexo 1 (NT-02) y la lista del MPPS, «Iniciar declaración» e «Ignorar» */}
-              <AvisoDeclaracion consultaId={d.id} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
+              <AvisoDeclaracion consultaId={d.id} declaracionesIniciales={declaraciones} diagnosticos={d.diagnosticos} reglas={reglasDeclaracion} onOrigen={(i, origen) => actualizarDiag(i, { origen })} />
             </Seccion>
             )}
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>

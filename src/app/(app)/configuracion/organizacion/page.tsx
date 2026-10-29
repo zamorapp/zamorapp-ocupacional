@@ -36,7 +36,7 @@ export default async function Organizacion() {
             inicial={(org as { logo?: string | null } | null)?.logo ?? null}
             editable={!sesion.demo && sesion.rol === "administrador"}
             guardar={guardarLogoOrganizacion}
-            ayuda="Va a la izquierda del membrete en todos los documentos. El logo de cada empresa cliente se carga en su ficha (Empresas) y sale a la derecha."
+            ayuda="Sube la insignia o el ícono (cuadrado); el nombre lo escribe zamorApp. Va a la izquierda del membrete en todos los documentos. El logo de cada empresa cliente se carga en su ficha (Empresas) y sale a la derecha."
           />
         </CardContent>
       </Card>
