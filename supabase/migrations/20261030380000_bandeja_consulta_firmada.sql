@@ -52,5 +52,5 @@ returns boolean language sql stable security definer set search_path = public as
       or (coalesce(current_setting('sync.equipo_id', true), '') <> ''
           and (select r.equipo_id from sync.registro r
                 where r.tabla = 'clinico.consultas' and r.fila_id = p_consulta
-                order by r.version desc nulls last, r.seq desc limit 1) = nullif(current_setting('sync.equipo_id', true), '')::uuid)
+                order by r.version desc, r.seq desc limit 1) = nullif(current_setting('sync.equipo_id', true), '')::uuid)
 $$;
