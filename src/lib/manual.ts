@@ -19,6 +19,7 @@ export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
+  { fecha: "2026-10-29", texto: "Vigilancia como el SAME: cuenta a los trabajadores efectivos, separa los permisos del ausentismo y agrega reubicaciones y especialidades por consulta externa (criterios en Configuración › Organización)", tema: "reportes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -302,6 +303,10 @@ export const MANUAL: TemaManual[] = [
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
       "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
       "Reportes › Vigilancia: cada gráfico trae su análisis, redactado con los datos del período. «Otra redacción» reescribe el resumen, la conclusión y los análisis con otras palabras; puedes editar cualquiera en «Análisis de cada cuadro» y Guardar. El informe impreso trae portada con indicadores, hallazgos clave y comparación con el período anterior; los cortes del SAME van en el anexo.",
+      "Por defecto cuenta como el SAME: solo los trabajadores efectivos (Empleado, Obrero, Contratado, Pasante y Aprendiz); las consultas por motivo y por tipo de paciente incluyen a todos. Qué tipos cuentan se marca en Configuración › Listas › Tipos de paciente, y para contar a todos se cambia en Configuración › Organización › Informe de vigilancia.",
+      "Horas hombre: por defecto se usa la fórmula del SAME (trabajadores × 5,5 h × días del período). En Configuración › Organización puedes elegir las horas de nómina cargadas en cada empresa.",
+      "Los permisos (paternidad, lactancia y toda causa de reposo del tipo «permiso») salen en «Permisos por causa» y no suben el % de ausentismo, igual que pre y postnatal.",
+      "En la consulta, la reubicación tiene «Resultado» (efectiva, negada o en trámite) y, con motivo consulta externa o especializada, aparece «Especialidad»: ambos alimentan los cuadros Reubicaciones y Especialidades por consulta externa.",
       "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [

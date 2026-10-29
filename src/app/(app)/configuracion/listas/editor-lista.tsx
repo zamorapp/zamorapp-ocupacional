@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
+import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
@@ -146,6 +146,11 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
             <p className="text-xs text-aviso-texto sm:col-span-3">Este perfil se sugería por el nombre «{item.grupo}». Elige la empresa para que quede enlazado.</p>
           )}
         </>
+      ) : lista === "tipo_paciente" ? (
+        <CampoSelect id="grupo" etiqueta="Informe de vigilancia" defaultValue={item?.grupo ?? ""}>
+          <option value="efectivo">Cuenta como trabajador efectivo</option>
+          <option value="">No cuenta (aspirante, visitante, particular…)</option>
+        </CampoSelect>
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
@@ -176,7 +181,8 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
   const nombreDe = new Map([...(alcance?.empresas ?? []), ...(alcance?.motivos ?? [])].map((o) => [o.id, o.nombre]));
   const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
   const etiquetaGrupo = (g: string) =>
-    lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ") : g;
+    lista.codigo.startsWith("recomendacion_") ? g.split(",").map((c) => nombreMotivo.get(c.trim()) ?? c).join(" · ")
+      : lista.codigo === "tipo_paciente" && g === "efectivo" ? "Trabajador efectivo" : g;
   const [editando, setEditando] = useState<string | "nuevo" | null>(null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();

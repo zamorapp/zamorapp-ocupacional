@@ -5,7 +5,7 @@ import { BarrasH, Columnas, Dona, EjeMeses, Meta, nombreMes, Pareto, Piramide } 
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { datosLegalesFaltantes } from "@/lib/empresas";
 import { fechaCorta as corta, parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
-import { tasasEnfermedadOcupacional, type Causa, type Persona } from "@/lib/reportes";
+import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa, type Persona } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cargarVigilancia } from "@/lib/vigilancia";
@@ -153,7 +153,7 @@ export default async function Vigilancia({ searchParams }: Props) {
     s0 && sesion.orgId ? s0.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single().then(({ data }) => data) : null,
     s0 && empresaId ? s0.from("empresas").select("logo").eq("id", empresaId).maybeSingle().then(({ data }) => (data?.logo as string | null) ?? null) : null,
   ]);
-  const { r, s, acc, ix, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
+  const { r, s, acc, ix, periodo, empresa, causas, entes, aptitudes, resultadosReubicacion, ausentismo } = v;
   if (!r) return <p className="p-10">No hay datos.</p>;
   // Lo que el médico guardó a mano no se filtra: si nombra la discapacidad, esta versión no se genera (el envío falla)
   const nombraDiscapacidad = mencionaDiscapacidad(v.informe);
@@ -163,6 +163,7 @@ export default async function Vigilancia({ searchParams }: Props) {
   const T = (p: Parameters<typeof Tabla>[0]) => <Tabla minimo={minimo} {...p} />;
   const g = <F extends { nombre: string; n: number }>(filas: F[]) => agrupar(filas, minimo);
   const cif = (n: number) => (minimo && n > 0 && n < minimo ? `<${minimo}` : num(n, 0));
+  const soloEfectivos = r.criterio?.solo_efectivos ?? true;
 
   const guardados = Object.fromEntries(Object.entries(v.informe ?? {}).filter(([k, x]) => typeof x === "string" && x && k !== "id" && k !== "actualizado_en"));
   const t = { ...v.sugeridos!, ...guardados };
@@ -226,9 +227,14 @@ export default async function Vigilancia({ searchParams }: Props) {
           </div>
           <div className="flex justify-between gap-4 bg-black/15 px-6 py-2 text-[11px]">
             <span className="font-semibold">{empresa?.razonSocial ?? "Consolidado de todas las empresas clientes"}{empresa?.rif ? ` · RIF ${empresa.rif}` : ""}</span>
-            <span className="opacity-90">{num(pob, 0)} trabajadores efectivos</span>
+            <span className="opacity-90">{num(pob, 0)} {soloEfectivos ? "trabajadores efectivos" : "trabajadores"}</span>
           </div>
         </div>
+        <p className="mt-1.5 text-[9.5px] leading-snug text-doc-tenue">
+          {soloEfectivos
+            ? `Se consideran trabajadores efectivos los de tipo ${(r.criterio?.tipos ?? []).join(", ") || "—"}. Las consultas por motivo y por tipo de paciente incluyen a todos los pacientes.`
+            : "Incluye a todos los pacientes de la empresa (también aspirantes, visitantes y particulares)."}
+        </p>
 
         <div className="mt-4 grid grid-cols-3 gap-2.5">
           <Kpi titulo="Consultas" valor={cif(r.consultas.total)} detalle={`${cif(r.consultas.pacientes)} pacientes · ${porc(r.consultas.pacientes, pob)} % de cobertura`} delta={actual && variacion(actual.consultas, previo?.consultas, contra)} />
@@ -353,17 +359,20 @@ export default async function Vigilancia({ searchParams }: Props) {
           </div>
           <Analisis texto={a.ausentismo} />
           <Indices filas={[
-            ["Nro. de trabajadores", num(pob), "Trabajadores efectivos de la empresa en el período."],
+            ["Nro. de trabajadores", num(pob), soloEfectivos ? "Trabajadores efectivos de la empresa en el período." : "Trabajadores de la empresa en el período (todos los tipos)."],
             ["Nro. de reposos", num(r.ausentismo.reposos_iniciados ?? r.ausentismo.reposos), "Reposos iniciados en el período (los que vienen de antes cuentan sus días, no el caso)."],
             ["Trabajadores ausentes", num(r.ausentismo.trabajadores_ausentes ?? 0), "Trabajadores con algún día de reposo médico en el período."],
             ["Días cargados", num(r.ausentismo.dias_perdidos), "Días de reposo dentro del período, de todas las causas."],
-            ["Días perdidos", num(r.ausentismo.dias_computables), "Días de reposo por causa médica; excluye pre y postnatal."],
+            ["Días perdidos", num(r.ausentismo.dias_computables), "Días de reposo por causa médica; excluye pre y postnatal y los permisos."],
             ["Promedio de ausentismo diario (PAD)", num(ausentismo.pad), `PAD = días perdidos / días del lapso (${r.ausentismo.dias_periodo}).`],
             ["Porcentaje de ausentismo", `${num(ausentismo.pct)} %`, "%A = PAD × 100 / trabajadores. Meta internacional: menor a 2,5 %."],
           ]} />
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel titulo="Reposos por causa"><T columnas={["Causa", "Casos", "Días"]} filas={r.ausentismo.por_causa.map((c) => [causas[c.nombre] ?? c.nombre, c.n, c.dias])} /></Panel>
             <Panel titulo="Reposos por ente emisor"><T columnas={["Ente emisor", "Casos", "Días"]} filas={r.ausentismo.por_ente.map((c) => [entes[c.nombre] ?? c.nombre, c.n, c.dias ?? 0])} /></Panel>
+            <Panel titulo="Permisos por causa" nota="No cuentan como ausentismo por razones de salud.">
+              <T columnas={["Causa", "Casos", "Días"]} vacio="Sin permisos en el período." filas={(r.ausentismo.permisos ?? []).map((c) => [causas[c.nombre] ?? c.nombre, c.n, c.dias])} />
+            </Panel>
           </div>
           <Panel titulo="Diez primeras causas de reposo">
             <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [`${c.cie10} ${c.descripcion}`, c.dias, c.n])} />
@@ -386,7 +395,7 @@ export default async function Vigilancia({ searchParams }: Props) {
           </Panel>
           {acc && ix && (
             <Indices filas={[
-              ["Horas hombre trabajadas (HHT)", num(acc.hht, 0), acc.hay_estimado ? "Estimadas: trabajadores × 8 h × días hábiles (COVENIN 474, 5.2)." : "Según nómina."],
+              [acc.metodo === "same" ? "Horas hombre efectivas (HHE)" : "Horas hombre trabajadas (HHT)", num(acc.hht, 0), textoMetodoHoras(acc.metodo)],
               ["Índice de frecuencia neta (IFN)", num(ix.ifn), `IFN = lesiones con tiempo perdido (${acc.con_tiempo_perdido}) × 1.000.000 / HHT.`],
               ["Índice de frecuencia bruta (IFB)", num(ix.ifb), `IFB = lesiones totales (${acc.accidentes}) × 1.000.000 / HHT.`],
               ["Índice de severidad (IS)", num(ix.is), `IS = (días perdidos ${acc.dias_perdidos} + días cargados ${acc.dias_cargados}) × 1.000.000 / HHT.`],
@@ -402,6 +411,12 @@ export default async function Vigilancia({ searchParams }: Props) {
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel titulo="Referencias a especialidades"><BarrasH filas={g(r.referencias?.por_especialidad ?? [])} max={8} /></Panel>
             <Panel titulo="Aptitud emitida"><Dona tam={92} partes={g(Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n })))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0), 0)} sub="evaluaciones" /></Panel>
+            <Panel titulo="Especialidades por consulta externa">
+              <T columnas={["Especialidad", "Consultas"]} vacio="Sin consultas externas ni especializadas en el período." filas={(r.especialidades_externas ?? []).map((x) => [x.nombre, x.n])} />
+            </Panel>
+            <Panel titulo="Reubicaciones">
+              <T columnas={["Resultado", "Casos"]} vacio="Sin reubicaciones en el período." filas={(r.reubicaciones?.por_resultado ?? []).map((x) => [resultadosReubicacion[x.nombre] ?? x.nombre, x.n])} />
+            </Panel>
           </div>
           <Analisis texto={[a.referencias, a.aptitud].filter(Boolean).join(" ")} />
         </Seccion>

@@ -156,6 +156,9 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
+      // Informe de vigilancia: por defecto, los mismos criterios del SAME (para que la marcha en paralelo cuadre)
+      vigilancia_poblacion: texto(datos, "vigilancia_poblacion") === "todos" ? "todos" : "efectivos",
+      vigilancia_horas: texto(datos, "vigilancia_horas") === "nomina" ? "nomina" : "same",
     };
     const { error } = await supabase
       .from("organizaciones")
