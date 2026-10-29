@@ -29,10 +29,11 @@ const nextConfig: NextConfig = {
     "/envios/bitacora": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/envios/por-enviar": ["./node_modules/@sparticuz/chromium/bin/**"],
     // Reportes › Aptitud emitida también envía el lote (PanelEnvio): su acción corre en esta ruta
-    "/reportes/[tipo]": ["./node_modules/@sparticuz/chromium/bin/**"],
+    // Las claves son patrones: [tipo] sería una clase de caracteres y no incluiría nada; se usa *
+    "/reportes/*": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/solicitudes": ["./node_modules/@sparticuz/chromium/bin/**"],
     // «Enviar a la empresa» de los informes: su acción corre en la ruta del informe
-    "/imprimir/puesto/[id]": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/imprimir/puesto/*": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/imprimir/vigilancia": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/imprimir/atendidos": ["./node_modules/@sparticuz/chromium/bin/**"],
   },
