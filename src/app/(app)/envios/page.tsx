@@ -32,7 +32,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Envíos a empresas</h1>
-          <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado.</p>
+          <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado. {sesion.demo && "En modo demo no se envía nada."}</p>
         </div>
         <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
       </div>
