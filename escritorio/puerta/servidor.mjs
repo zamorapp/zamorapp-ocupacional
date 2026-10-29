@@ -33,7 +33,7 @@ const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).spl
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloques = null, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloques = null, respaldo = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
@@ -590,6 +590,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
           numerosLibres: bloques ? await bloques.libres() : null,
+          respaldo: respaldo ? respaldo.estadoActual() : null,
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -621,6 +622,29 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         if (bloques) await bloques.reponer();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
+      }
+      // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración
+      if (ruta === "/zamorapp/respaldo" && req.method === "GET") {
+        if (!respaldo) return responder(res, 200, null);
+        if (!usuarioDe(req) && !conControl()) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        return responder(res, 200, { ...respaldo.estadoActual(), copias: respaldo.copias(), sugeridas: respaldo.carpetasSugeridas() });
+      }
+      if (ruta === "/zamorapp/respaldar" && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        if (!conControl() && !(desdeApp && usuarioDe(req))) return responder(res, 403, { message: "No autorizado" });
+        const r = await respaldo.hacer({ sincronizar: true });
+        return responder(res, r.ok ? 200 : 500, r);
+      }
+      if ((ruta === "/zamorapp/respaldo/configurar" || ruta === "/zamorapp/restaurar") && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        const quien = usuarioDe(req);
+        if (!quien || !["administrador", "gerente_medico"].includes(quien.u.rol)) return responder(res, 403, { message: "Solo un administrador o el gerente médico" });
+        if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos." });
+        const b = json() || {};
+        try {
+          if (ruta === "/zamorapp/restaurar") return responder(res, 200, await respaldo.prepararRestauracion(b.archivo, b.clave));
+          return responder(res, 200, respaldo.configurar({ carpeta: b.carpeta, clave: b.clave }));
+        } catch (e) { return responder(res, 400, { message: e.message }); }
       }
       // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
       if (ruta === "/zamorapp/bandeja" && req.method === "GET") {

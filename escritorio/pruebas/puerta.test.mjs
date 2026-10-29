@@ -18,7 +18,7 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, urlPuerta, CONFIG;
+let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, respaldoObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
@@ -61,6 +61,7 @@ before(async () => {
   const { Replica } = await import("../puerta/replica.mjs");
   const { Bandeja } = await import("../puerta/bandeja.mjs");
   const { Bloques } = await import("../puerta/bloques.mjs");
+  const { Respaldo } = await import("../puerta/respaldo.mjs");
   const { crearPuerta } = await import("../puerta/servidor.mjs");
   ({ CONFIG } = await import("../puerta/config.mjs"));
   estado = new Estado(datos, CONFIG.llave);
@@ -71,7 +72,8 @@ before(async () => {
   replicaObj = new Replica(estado, nubeObj, motor);
   bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
   bloquesObj = new Bloques(estado, nubeObj, motor, replicaObj);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
+  respaldoObj = new Respaldo({ estado, nube: nubeObj, motor, sincronizar: async () => { await nubeObj.comprobar(); await bandejaObj.subir(); await replicaObj.ciclo(); } });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, respaldo: respaldoObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -211,6 +213,12 @@ async function enBase(url, sql, params = []) {
   try { return (await c.query(sql, params)).rows; } finally { await c.end(); }
 }
 const enLocal = (sql, params) => enBase(motor.url(), sql, params);
+// Escribe en la copia como lo hace la réplica (sin disparadores: no pasa por la bandeja)
+async function enLocalReplica(sql, params = []) {
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  try { await c.query("set session_replication_role = replica"); return (await c.query(sql, params)).rows; } finally { await c.end(); }
+}
 const enNube = (sql, params) => enBase(NUBE_DB, sql, params);
 
 test("guardar en la PC: la base local responde al instante, queda en la bandeja y sube a la nube con la sesión del autor", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
@@ -353,6 +361,55 @@ test("fase B: con un bloque reservado, el alta de un paciente sin internet lleva
   // La web, mientras tanto, numera por encima del bloque
   const [w] = await enNube("insert into public.trabajadores (org_id, empresa_id, cedula, nombres, apellidos) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','7002','Web','Numera') returning numero_historia");
   assert.ok(Number(w.numero_historia) > Number(b.hasta), `${w.numero_historia} > ${b.hasta}`);
+});
+
+test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia cifrada en la carpeta externa; restaurar la trae de vuelta", { skip: omitir || !postgrestReal, timeout: 180_000 }, async () => {
+  const { descifrarArchivo } = await import("../puerta/respaldo.mjs");
+  nube.estado.caida = false; await nubeObj.comprobar();
+  const externa = fs.mkdtempSync(path.join(os.tmpdir(), "drive-"));
+  // Configurar: solo administrador o gerente; carpeta inexistente o clave corta se rechazan
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenMed, cuerpo: { carpeta: externa } })).status, 403);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: path.join(externa, "no-existe") } })).status, 400);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "corta" } })).status, 400);
+  // Con carpeta pero sin clave, la copia no sale de la PC
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: externa } })).status, 200);
+  let r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  let j = await r.json();
+  assert.equal(r.status, 500); assert.match(j.error, /clave de respaldo/);
+  assert.ok(j.archivo && fs.existsSync(j.archivo), "la copia local sí se hizo");
+  assert.equal(fs.readdirSync(externa).length, 0);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo" } })).status, 200);
+  // Un dato nuevo en la PC antes del respaldo
+  await enLocalReplica("update public.trabajadores set telefono = '0414-RESPALDO' where id = $1", [TRAB]);
+  r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  j = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j));
+  assert.ok(j.ok && j.sincronizado && j.externo?.endsWith(".zamorapp") && fs.existsSync(j.externo), JSON.stringify(j));
+  assert.ok(j.bytes > 1000);
+  const est = (await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json;
+  assert.equal(est.cifrado, true); assert.equal(est.ultimo.ok, true); assert.ok(est.copias.length >= 2);
+  assert.equal((await pedir("/zamorapp/estado")).json.respaldo.ultimo.ok, true);
+  // La copia externa está cifrada: con otra clave no se abre; con la buena es el volcado de pg_dump
+  const tmp = path.join(externa, "prueba.dump");
+  await assert.rejects(descifrarArchivo(j.externo, tmp, "otra-clave"), /clave de respaldo/);
+  await descifrarArchivo(j.externo, tmp, "clave-de-respaldo");
+  assert.equal(fs.readFileSync(tmp).subarray(0, 5).toString(), "PGDMP");
+  assert.ok(!fs.readFileSync(j.externo).includes("0414-RESPALDO"), "nada legible en la copia externa");
+  // Restaurar: se pide desde la app y se aplica al arrancar (aquí se aplica directo)
+  await enLocalReplica("update public.trabajadores set telefono = '0414-DESPUES' where id = $1", [TRAB]);
+  const pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
+  assert.equal(pr.status, 200, JSON.stringify(pr.json));
+  assert.ok(estado.d.restaurar?.archivo);
+  assert.equal(await motor.aplicarRestauracion(), true);
+  const [t] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(t.telefono, "0414-RESPALDO", "la base volvió al respaldo");
+  assert.equal(estado.d.cursor, null, "la nube vuelve a bajar completa");
+  await replicaObj.ciclo();
+  assert.ok(estado.d.copiaCompleta, replicaObj.error || "");
+  const [n] = await enNube("select telefono from public.trabajadores where id = $1", [TRAB]);
+  const [l] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(l.telefono, n.telefono, "tras restaurar, manda la nube");
+  fs.rmSync(externa, { recursive: true, force: true });
 });
 
 test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tira la del navegador; sin ancla avisa", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {

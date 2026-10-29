@@ -37,6 +37,8 @@ export class Motor {
     this.puertoBase = await puertoLibre(CONFIG.puertoBase);
     await this.#iniciarPostgres();
     await this.#migrar();
+    // Fase C: una restauración pedida desde la app (respaldo.mjs) se aplica aquí, con PostgREST aún apagado
+    if (this.estado.d.restaurar) await this.aplicarRestauracion();
     // Se elige con la base ya escuchando: si 54329 estaba ocupado y la base tomó 54330, PostgREST no lo pisa
     this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
     await this.#iniciarPostgrest();
@@ -124,6 +126,62 @@ export class Motor {
   }
 
   // Borra y crea de nuevo la base local (sin PostgREST ni réplica en marcha). El estado olvida el cursor y la copia.
+  // Carga el volcado en una base aparte y la cambia por la actual (la vieja queda como zamorapp_anterior por si
+  // hace falta volver). Después, #migrar aplica lo que le falte al respaldo y el cursor en cero vuelve a bajar la nube.
+  async aplicarRestauracion() {
+    const pedido = this.estado.d.restaurar;
+    this.estado.d.restaurar = null;
+    this.estado.guardar();
+    if (!pedido?.archivo || !fs.existsSync(pedido.archivo)) { this.registro?.("[base] restauración pedida sin archivo: se omite"); return false; }
+    const admin = () => new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
+    let c = admin();
+    await c.connect();
+    try {
+      await c.query("drop database if exists zamorapp_restaurada with (force)");
+      await c.query("create database zamorapp_restaurada");
+    } finally { await c.end(); }
+    // Estructura y datos con --exit-on-error. Las llaves foráneas (post-data) pueden fallar: la copia baja de la nube
+    // en modo réplica, sin comprobar llaves, y puede tener hijos sin padre; esas se vuelven a crear NOT VALID abajo.
+    const urlRest = this.url().replace("/zamorapp", "/zamorapp_restaurada");
+    for (const seccion of ["pre-data", "data", "post-data"]) {
+      const args = ["--no-owner", `--section=${seccion}`, ...(seccion === "post-data" ? [] : ["--exit-on-error"]), ...(seccion === "data" ? ["--disable-triggers"] : []), "--dbname", urlRest, pedido.archivo];
+      const r = spawnSync(exe("pg_restore"), args, { encoding: "utf8", windowsHide: true, timeout: 1_800_000 });
+      if (r.status !== 0 && seccion !== "post-data") {
+        this.registro?.(`[base] pg_restore (${seccion}) falló (${r.status}): ${(r.stderr || "").trim().split("\n").slice(-3).join(" | ")}`);
+        throw new Error(`No se pudo restaurar el respaldo: ${(r.stderr || r.error || "").toString().trim().split("\n").pop()}`);
+      }
+      if (r.status !== 0) this.registro?.(`[base] pg_restore (${seccion}) con avisos: ${(r.stderr || "").trim().split("\n").filter((l) => /error/i.test(l)).length} errores (llaves que se recrean NOT VALID)`);
+    }
+    // Llaves foráneas que no se pudieron crear: se agregan NOT VALID (valen para lo nuevo, toleran lo viejo)
+    const viva = new pg.Client({ connectionString: this.url() }), rest = new pg.Client({ connectionString: urlRest });
+    await viva.connect(); await rest.connect();
+    try {
+      const { rows: fks } = await viva.query("select conname, conrelid::regclass::text as tabla, pg_get_constraintdef(oid) as def from pg_constraint where contype = 'f'");
+      const { rows: hay } = await rest.query("select conname, conrelid::regclass::text as tabla from pg_constraint where contype = 'f'");
+      const tiene = new Set(hay.map((x) => `${x.tabla}.${x.conname}`));
+      for (const f of fks) if (!tiene.has(`${f.tabla}.${f.conname}`)) {
+        try { await rest.query(`alter table ${f.tabla} add constraint "${f.conname}" ${f.def} not valid`); this.registro?.(`[base] llave ${f.tabla}.${f.conname} recreada NOT VALID`); }
+        catch (e) { this.registro?.(`[base] no se pudo recrear la llave ${f.tabla}.${f.conname}: ${e.message}`); }
+      }
+    } finally { await viva.end().catch(() => {}); await rest.end().catch(() => {}); }
+    c = admin();
+    await c.connect();
+    try {
+      await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname in ('zamorapp', 'zamorapp_anterior') and pid <> pg_backend_pid()");
+      await c.query("drop database if exists zamorapp_anterior with (force)");
+      await c.query("alter database zamorapp rename to zamorapp_anterior");
+      await c.query("alter database zamorapp_restaurada rename to zamorapp");
+    } finally { await c.end(); }
+    fs.rmSync(pedido.archivo, { force: true });
+    // La nube manda: se vuelve a bajar todo; lo que el respaldo tenía pendiente en la bandeja sube con sus versiones
+    this.estado.d.cursor = null;
+    this.estado.d.copiaCompleta = null;
+    this.estado.guardar();
+    this.registro?.(`[base] respaldo restaurado desde ${pedido.origen || pedido.archivo}; la base anterior quedó como zamorapp_anterior`);
+    await this.#migrar(); // lo que le falte al respaldo (migraciones nuevas) y los ajustes locales de escritorio/base
+    return true;
+  }
+
   async #rehacerBase() {
     const c = new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
     await c.connect();
