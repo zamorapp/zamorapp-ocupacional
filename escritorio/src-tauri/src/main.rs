@@ -313,6 +313,7 @@ fn arrancar(recursos: &Path, avance: impl Fn(u32, &str) + Send + 'static) -> Res
         .arg(puerta_dir.join("puerta").join("index.mjs"))
         .current_dir(&puerta_dir)
         .env("ZAMORAPP_DATOS", &datos)
+        .env("ZAMORAPP_AVANCE", "1")
         .env("ZAMORAPP_LLAVE", llave_pc()?)
         .env("ZAMORAPP_NUBE_URL", nube_url())
         .env("ZAMORAPP_NUBE_ANON", NUBE_ANON)

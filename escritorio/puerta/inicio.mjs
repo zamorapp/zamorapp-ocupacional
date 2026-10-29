@@ -45,10 +45,11 @@ async function estado() { return (await fetch("/zamorapp/estado")).json(); }
 // Avance de la copia (C13): grupos de datos hechos de los que hay; nunca retrocede
 const miles = new Intl.NumberFormat("es-VE");
 let pctMax = 0;
-function pintar(copia) {
-  if (!copia || !copia.total) return;
+// fin: la copia terminó y la barra llega al 100 % (mientras copia se queda en 99)
+function pintar(copia, fin = false) {
+  if (!copia || !copia.total) { if (fin) $("avance").querySelector("i").style.width = "100%"; return; }
   $("avance").hidden = false;
-  const pct = pctMax = Math.max(pctMax, Math.min(99, Math.round((copia.hechas / copia.total) * 100)));
+  const pct = pctMax = fin ? 100 : Math.max(pctMax, Math.min(99, Math.round((copia.hechas / copia.total) * 100)));
   $("avance").querySelector("i").style.width = pct + "%";
   $("avance").querySelector(".barra").setAttribute("aria-valuenow", String(pct));
   $("pct").textContent = pct + " %";
@@ -60,7 +61,13 @@ async function esperarCopia() {
   document.querySelector("h1").textContent = "Preparando tu copia";
   for (;;) {
     const s = await estado().catch(() => ({}));
-    if (s.copiaCompleta) { pintar({ hechas: 1, total: 1, filas: 0 }); location.href = app; return; }
+    if (s.copiaCompleta) {
+      // La barra llega al 100 % y se deja ver un momento antes de abrir
+      pintar(s.copia ? { ...s.copia, hechas: s.copia.total } : null, true);
+      await new Promise((r) => setTimeout(r, 300));
+      location.href = app;
+      return;
+    }
     pintar(s.copia);
     $("texto").textContent = s.error
       ? "La copia se detuvo un momento y vuelve a intentar sola. Revisa el internet; no cierres zamorApp."

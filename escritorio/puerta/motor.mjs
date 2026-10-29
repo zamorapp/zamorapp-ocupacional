@@ -35,9 +35,10 @@ export class Motor {
   }
 
   // Avance de la primera apertura (C13): el programa lo muestra en la pantalla de carga. Textos fijos, sin datos.
-  // También va al registro con los segundos desde que arrancó la puerta, para ajustar los porcentajes con cifras reales.
+  // La línea AVANCE solo sale si el programa la pide (ZAMORAPP_AVANCE=1): las pruebas y otros lectores no la reciben.
+  // El registro sí la lleva siempre, con los segundos desde que arrancó la puerta, para ajustar los porcentajes.
   avance(pct, texto) {
-    process.stdout.write(`AVANCE ${pct} ${texto}\n`);
+    if (process.env.ZAMORAPP_AVANCE === "1") process.stdout.write(`AVANCE ${pct} ${texto}\n`);
     this.registro?.(`[avance] ${pct} % ${texto} (${(performance.now() / 1000).toFixed(1)} s)`);
   }
 
