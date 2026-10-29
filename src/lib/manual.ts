@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-29";
+export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa»", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
@@ -434,6 +435,8 @@ export const MANUAL: TemaManual[] = [
       "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
       "Envíos › «Por enviar»: cada constancia que firmas aparece sola aquí, agrupada por empresa y día. Toca «WhatsApp · (nombre)» y se abre tu WhatsApp con el mensaje y el enlace seguro a las constancias; solo te falta tocar enviar.",
       "Si la empresa no tiene teléfono guardado, escríbelo en «Otro teléfono». Para mandar por correo o elegir otras opciones, «Correo y más».",
+      "En «Correo y más», bajo «También enviar»: la constancia de atención (sin diagnóstico, a todos) y las referencias y récipes (solo junto con la consulta médica, al personal de salud).",
+      "Informes: abre la evaluación del puesto, la vigilancia epidemiológica de una empresa o los pacientes atendidos de una empresa y toca «Enviar a la empresa». Sale el PDF por correo o un enlace por WhatsApp, y queda en la Bitácora.",
     ],
     consejos: [
       "En el teléfono: usa zamorApp desde el navegador o la app instalada; al tocar WhatsApp se abre tu WhatsApp con tu número.",

@@ -6,7 +6,7 @@ import { CheckCircle2, Download, Loader2, Mail, MessageCircle, RotateCw, XCircle
 import { Campo, CampoSelect } from "@/components/app/campo";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
-import type { FilaBitacora, ResultadoEnvio } from "@/lib/envios-tipos";
+import { describirEnvio, type FilaBitacora, type ResultadoEnvio } from "@/lib/envios-tipos";
 import { cn } from "@/lib/utils";
 import { reintentar } from "../acciones";
 
@@ -34,7 +34,7 @@ const celda = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? "'" + v : v).replaceA
 function exportar(filas: FilaBitacora[]) {
   const cab = "FECHA;EMPRESA;CANAL;DESTINATARIO;DOCUMENTOS;EVALUACIONES;DIA DEL LOTE;ESTADO;ERROR;ENVIADO POR";
   const lineas = filas.map((h) =>
-    [fechaHora(h.creadoEn), h.empresa, h.canal, h.destinatario, h.documentos.join(" y "), String(h.cantidad), dia(h.fechaLote), estadoDe(h).t, h.error ?? "", h.enviadoPor ?? ""].map(celda).join(";"),
+    [fechaHora(h.creadoEn), h.empresa, h.canal, h.destinatario, describirEnvio(h.documentos, h.cantidad, h.fechaLote), String(h.cantidad), dia(h.fechaLote), estadoDe(h).t, h.error ?? "", h.enviadoPor ?? ""].map(celda).join(";"),
   );
   const url = URL.createObjectURL(new Blob(["﻿" + [cab, ...lineas].join("\r\n")], { type: "text/csv;charset=utf-8" }));
   Object.assign(document.createElement("a"), { href: url, download: "bitacora-envios.csv" }).click();
@@ -125,7 +125,7 @@ export function TablaBitacora({ filas, filtros, empresas }: { filas: FilaBitacor
                     <span className="shrink-0 font-normal text-muted-foreground">· {h.empresa}</span>
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {h.cantidad} evaluación{h.cantidad === 1 ? "" : "es"} del {dia(h.fechaLote)} · {h.documentos.map((d) => (d === "consulta" ? "consulta médica" : "constancias")).join(" y ")}
+                    {describirEnvio(h.documentos, h.cantidad, h.fechaLote)}
                     {h.enviadoPor && ` · por ${h.enviadoPor}`}
                   </span>
                   {h.error && <span className="block break-words text-xs text-destructive">{h.error}</span>}

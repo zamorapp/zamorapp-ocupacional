@@ -15,6 +15,8 @@ import { fechaCorta, Hoja, Membrete } from "../componentes";
 
 export const metadata: Metadata = { title: "Informe de vigilancia epidemiológica" };
 export const dynamic = "force-dynamic";
+// «Enviar a la empresa» genera el PDF de esta página en el servidor
+export const maxDuration = 60;
 
 type Props = { searchParams: Promise<ConsultaPeriodo & { empresa?: string }> };
 type Celda = string | number;
@@ -181,7 +183,7 @@ export default async function Vigilancia({ searchParams }: Props) {
 
   return (
     <div className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
-      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} />
+      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial } : null} />
 
       {/* Portada ejecutiva */}
       <Hoja>
