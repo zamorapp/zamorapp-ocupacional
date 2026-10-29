@@ -5,6 +5,7 @@
 // Nunca toca la base local del programa ni el SAME: carpeta propia, solo 127.0.0.1 y un puerto libre desde 54339.
 // Si hay menos de 1,5 GB de memoria libre, la pospone (sale con código 3) para no frenar la PC.
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -21,23 +22,37 @@ const exe = (n) => path.join(pgBin, process.platform === "win32" ? `${n}.exe` : 
 if (!fs.existsSync(exe("initdb"))) throw new Error(`No encontré el PostgreSQL portátil en «${pgBin}»`);
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+// Antes de borrar nada: la carpeta tiene que ser la de la prueba, dentro de .zamorapp o de la carpeta temporal del sistema
+const carpetaPrueba = path.resolve(temporal);
+const permitidas = [path.join(os.homedir(), ".zamorapp"), os.tmpdir()].map((d) => path.resolve(d) + path.sep);
+if (path.basename(carpetaPrueba) !== "prueba-restauracion" || !permitidas.some((d) => carpetaPrueba.startsWith(d))) {
+  throw new Error(`Carpeta temporal no permitida: «${carpetaPrueba}» (debe llamarse prueba-restauracion y estar en %USERPROFILE%\\.zamorapp o en la carpeta temporal)`);
+}
 const libre = os.freemem();
 if (libre < MEMORIA_MINIMA) {
   console.log(`Prueba de restauración pospuesta: solo hay ${(libre / 2 ** 30).toFixed(1)} GB de memoria libre`);
   process.exit(3);
 }
 
-const datos = path.join(temporal, "base");
+const datos = path.join(carpetaPrueba, "base");
+// Con clave al azar (no «trust»): mientras dura la prueba, ningún otro programa de la PC puede leer los datos
+const clave = crypto.randomBytes(24).toString("hex");
 const inicio = Date.now();
 let resultado;
 try {
-  fs.rmSync(temporal, { recursive: true, force: true });
-  fs.mkdirSync(temporal, { recursive: true });
-  correr("initdb", ["-D", datos, "-U", "postgres", "-E", "UTF8", "--locale=C", "-A", "trust"], 180_000);
+  fs.rmSync(carpetaPrueba, { recursive: true, force: true });
+  fs.mkdirSync(carpetaPrueba, { recursive: true });
+  const archivoClave = path.join(carpetaPrueba, ".clave");
+  fs.writeFileSync(archivoClave, clave, { mode: 0o600 });
+  try {
+    correr("initdb", ["-D", datos, "-U", "postgres", "-E", "UTF8", "--locale=C", "-A", "scram-sha-256", `--pwfile=${archivoClave}`], 180_000);
+  } finally {
+    fs.rmSync(archivoClave, { force: true });
+  }
   const puerto = await puertoLibre(54339);
-  correr("pg_ctl", ["start", "-D", datos, "-w", "-t", "60", "-l", path.join(temporal, "base.log"), "-o",
+  correr("pg_ctl", ["start", "-D", datos, "-w", "-t", "60", "-l", path.join(carpetaPrueba, "base.log"), "-o",
     `-p ${puerto} -c listen_addresses=127.0.0.1 -c max_connections=10 -c shared_buffers=32MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(datos)}`}`], 90_000);
-  const local = `postgresql://postgres@127.0.0.1:${puerto}/postgres?sslmode=disable`;
+  const local = `postgresql://postgres:${clave}@127.0.0.1:${puerto}/postgres?sslmode=disable`;
   await estructura(local);
   const r = spawnSync(process.execPath, [path.join(raiz, "scripts", "restaurar.mjs"), archivo], {
     env: { ...process.env, DATABASE_URL: local }, encoding: "utf8", windowsHide: true, timeout: 20 * 60_000 });
@@ -53,7 +68,7 @@ try {
   if (fs.existsSync(path.join(datos, "postmaster.pid"))) {
     spawnSync(exe("pg_ctl"), ["stop", "-D", datos, "-m", "fast", "-w", "-t", "60"], { stdio: "ignore", windowsHide: true, timeout: 90_000 });
   }
-  fs.rmSync(temporal, { recursive: true, force: true });
+  fs.rmSync(carpetaPrueba, { recursive: true, force: true });
 }
 
 await anotar({ ...resultado, archivo: path.basename(archivo) });
@@ -64,7 +79,7 @@ function correr(programa, argumentos, espera) {
   const r = spawnSync(exe(programa), argumentos, { encoding: "utf8", windowsHide: true, timeout: espera,
     stdio: programa === "pg_ctl" ? "ignore" : "pipe" }); // pg_ctl sin tuberías: en Windows el servidor las hereda y no termina
   if (r.status !== 0) {
-    const log = path.join(temporal, "base.log");
+    const log = path.join(carpetaPrueba, "base.log");
     throw new Error(`${programa} falló: ${r.stderr || r.error || (fs.existsSync(log) ? fs.readFileSync(log, "utf8").slice(-800) : "")}`);
   }
 }

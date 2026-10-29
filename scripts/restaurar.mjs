@@ -28,7 +28,12 @@ try {
     await cliente.query("begin");
     // Sin disparadores ni llaves foráneas durante la carga: los datos ya fueron validados cuando se guardaron
     await cliente.query("set local session_replication_role = replica");
-    await cliente.query(`truncate ${tablas.map(nombreSql).join(", ")} cascade`);
+    // Sin cascade: si otra tabla fuera del respaldo apunta a estas, Postgres se niega y no se vacía nada de más
+    try {
+      await cliente.query(`truncate ${tablas.map(nombreSql).join(", ")}`);
+    } catch (e) {
+      throw new Error(`No vacío las tablas: hay tablas fuera del respaldo que dependen de ellas (${e.message})`);
+    }
     for (const tabla of tablas) {
       const filas = respaldo.tablas[tabla];
       if (!filas.length) continue;

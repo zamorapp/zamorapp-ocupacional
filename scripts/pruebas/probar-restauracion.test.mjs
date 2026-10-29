@@ -28,7 +28,7 @@ async function ultimaRestauracion() {
 
 test("restaura el último respaldo en una base temporal, lo anota y no deja nada", { skip: falta }, async () => {
   const carpeta = fs.mkdtempSync(path.join(os.tmpdir(), "probar-restauracion-"));
-  const temporal = path.join(carpeta, "prueba");
+  const temporal = path.join(carpeta, "prueba-restauracion");
   assert.equal(node("respaldo.mjs", [carpeta]).status, 0);
   const archivo = path.join(carpeta, fs.readdirSync(carpeta).find((f) => f.endsWith(".json.gz")));
   const r = node("probar-restauracion.mjs", [archivo, temporal], { ZAMORAPP_PG_BIN: PG_BIN });
@@ -46,15 +46,27 @@ test("un respaldo dañado se anota como fallo y también limpia", { skip: falta 
   const carpeta = fs.mkdtempSync(path.join(os.tmpdir(), "probar-restauracion-"));
   const archivo = path.join(carpeta, "respaldo-2026-01-01-00-00-00.json.gz");
   fs.writeFileSync(archivo, "no es un respaldo");
-  const r = node("probar-restauracion.mjs", [archivo, path.join(carpeta, "prueba")], { ZAMORAPP_PG_BIN: PG_BIN });
+  const r = node("probar-restauracion.mjs", [archivo, path.join(carpeta, "prueba-restauracion")], { ZAMORAPP_PG_BIN: PG_BIN });
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.equal(fs.existsSync(path.join(carpeta, "prueba")), false);
+  assert.equal(fs.existsSync(path.join(carpeta, "prueba-restauracion")), false);
   assert.equal((await ultimaRestauracion()).estado, "fallo");
   fs.rmSync(carpeta, { recursive: true, force: true });
 });
 
+test("se niega a borrar una carpeta que no es la de la prueba", { skip: falta }, () => {
+  const ajena = fs.mkdtempSync(path.join(os.homedir(), "ajena-"));
+  fs.writeFileSync(path.join(ajena, "importante.txt"), "no borrar");
+  for (const destino of [ajena, path.join(path.dirname(ajena), "prueba-restauracion")]) {
+    const r = node("probar-restauracion.mjs", ["x.json.gz", destino], { ZAMORAPP_PG_BIN: PG_BIN });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /Carpeta temporal no permitida/);
+  }
+  assert.equal(fs.readFileSync(path.join(ajena, "importante.txt"), "utf8"), "no borrar");
+  fs.rmSync(ajena, { recursive: true, force: true });
+});
+
 test("con poca memoria libre la pospone sin anotar nada", { skip: falta }, () => {
-  const r = node("probar-restauracion.mjs", ["x.json.gz", path.join(os.tmpdir(), "nunca")], { ZAMORAPP_PG_BIN: PG_BIN, RESTAURACION_MEMORIA_MB: "999999999" });
+  const r = node("probar-restauracion.mjs", ["x.json.gz", path.join(os.tmpdir(), "prueba-restauracion")], { ZAMORAPP_PG_BIN: PG_BIN, RESTAURACION_MEMORIA_MB: "999999999" });
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stdout, /pospuesta/);
 });
