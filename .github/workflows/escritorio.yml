@@ -213,6 +213,64 @@ jobs:
           $ajenos = "$escritorio/zamorApp Ocupacional.lnk", "$menu/zamorApp Ocupacional.lnk"
           $shell = New-Object -ComObject WScript.Shell
           foreach ($l in $ajenos) { $a = $shell.CreateShortcut($l); $a.TargetPath = "C:\Windows\notepad.exe"; $a.Save() }
+
+          # El SAME (MediSoftware Integral) es SOLO LECTURA (orden de Cesar, 29-oct): ni instalar, ni actualizar, ni
+          # desinstalar zamorApp pueden tocar su carpeta, sus accesos directos ni sus claves de registro. Se simula un
+          # SAME instalado y se toma una foto antes; cada paso la compara y cualquier diferencia hace fallar la prueba.
+          $carpetasSame = "${env:ProgramFiles(x86)}\MediSoftware\Integral", "$env:ProgramFiles\MediSoftware\Integral", "C:\MediSoftware\Integral"
+          New-Item -ItemType Directory -Force $carpetasSame[0] | Out-Null
+          Copy-Item C:\Windows\notepad.exe (Join-Path $carpetasSame[0] "Integral.exe")
+          Set-Content (Join-Path $carpetasSame[0] "Integral.ini") "[Base]`r`nServidor=.`r`nBase=Integral"
+          $publico = [Environment]::GetFolderPath("CommonDesktopDirectory")
+          $menuComun = [Environment]::GetFolderPath("CommonPrograms")
+          $barra = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+          New-Item -ItemType Directory -Force $barra, "$menu\MediSoftware" | Out-Null
+          foreach ($l in "$escritorio\SAME.lnk", "$menu\MediSoftware\SAME.lnk", "$barra\SAME.lnk") {
+            $a = $shell.CreateShortcut($l); $a.TargetPath = Join-Path $carpetasSame[0] "Integral.exe"; $a.WorkingDirectory = $carpetasSame[0]; $a.Save()
+          }
+          New-Item -Force "HKCU:\Software\MediSoftware\Integral" | Out-Null
+          Set-ItemProperty "HKCU:\Software\MediSoftware\Integral" -Name Servidor -Value "."
+          Set-ItemProperty "HKCU:\Software\MediSoftware\Integral" -Name Base -Value "Integral"
+          # Registro ajeno a zamorApp que se vigila: MediSoftware, SQL Server, inicio automático y programas instalados
+          $clavesAjenas = "HKCU:\Software\MediSoftware", "HKLM:\SOFTWARE\MediSoftware", "HKLM:\SOFTWARE\WOW6432Node\MediSoftware",
+            "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SQL Server",
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run", "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+          function FotoSame {
+            $f = [System.Collections.Generic.List[string]]::new()
+            foreach ($c in $carpetasSame) {
+              if (Test-Path $c) { Get-ChildItem $c -Recurse -Force -File | Sort-Object FullName | ForEach-Object { $f.Add("archivo|$($_.FullName)|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)|$((Get-FileHash $_.FullName).Hash)") } }
+            }
+            foreach ($d in $escritorio, $publico, $menu, $menuComun, $barra) {
+              if (-not (Test-Path $d)) { continue }
+              Get-ChildItem $d -Recurse -Force -Filter *.lnk -ErrorAction SilentlyContinue | Sort-Object FullName | ForEach-Object {
+                $a = $shell.CreateShortcut($_.FullName)
+                if ($a.TargetPath -match "Integral\.exe") { $f.Add("acceso|$($_.FullName)|$($a.TargetPath)|$($a.Arguments)|$($a.WorkingDirectory)|$((Get-FileHash $_.FullName).Hash)") }
+              }
+            }
+            foreach ($k in $clavesAjenas) {
+              if (-not (Test-Path $k)) { $f.Add("clave|$k|(no existe)"); continue }
+              foreach ($c in @(Get-Item $k) + @(Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue)) {
+                # Lo de zamorApp sí puede cambiar; Edge y WebView2 se actualizan solos en el equipo del CI
+                if ($c.Name -match "zamorapp|Microsoft Edge|EdgeUpdate|WebView") { continue }
+                $v = $c.GetValueNames() | Sort-Object | ForEach-Object { "$_=$($c.GetValue($_, $null, 'DoNotExpandEnvironmentNames') -join ',')" }
+                if (($v -join ";") -match "zamorapp") { continue }
+                $f.Add("clave|$($c.Name)|$($v -join ';')")
+              }
+            }
+            return $f
+          }
+          $fotoSame = FotoSame
+          if (-not ($fotoSame | Where-Object { $_ -like "acceso|*" })) { throw "La foto del SAME no encontró sus accesos directos" }
+          function RevisarSame([string]$momento) {
+            $dif = Compare-Object $fotoSame (FotoSame)
+            if ($dif) {
+              $dif | ForEach-Object { Write-Host "::error::SAME tocado ($momento): $($_.SideIndicator) $($_.InputObject)" }
+              throw "zamorApp tocó el SAME ($momento): debe quedar intacto, es solo lectura"
+            }
+            Write-Host "SAME intacto tras $momento ($($fotoSame.Count) elementos)"
+          }
           # Como en la PC de Cesar: sin ningún PostgreSQL del sistema en el PATH (el programa debe traer todo lo suyo)
           $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "postgres|pgsql" }) -join ";"
           $registros = "$env:LOCALAPPDATA/zamorApp"
@@ -238,6 +296,7 @@ jobs:
             $script:dir = Get-ChildItem $env:LOCALAPPDATA -Directory -Filter "zamorApp Escritorio" | Select-Object -First 1
             if (-not $script:dir) { throw "El instalador no creó la carpeta del programa" }
             foreach ($l in $ajenos) { if ((New-Object -ComObject WScript.Shell).CreateShortcut($l).TargetPath -notmatch "notepad") { throw "El instalador pisó $l" } }
+            RevisarSame "instalar $(Split-Path $setup -Leaf)"
           }
 
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
@@ -415,10 +474,12 @@ jobs:
             Start-Sleep 10
           }
 
+          RevisarSame "abrir y actualizar"
           # 4) PC nueva (o reinstalación tras un daño): sin datos previos, el primer arranque también debe funcionar
           $desinstalar = Get-ChildItem $script:dir.FullName -Filter "uninstall*.exe" | Select-Object -First 1
           Start-Process $desinstalar.FullName -ArgumentList "/S" -Wait
           Start-Sleep 5
+          RevisarSame "desinstalar"
           # Tras una actualización liviana, el desinstalador también debe llevarse PostgreSQL, PostgREST y Node
           foreach ($d in "pgsql", "postgrest", "node") { if (Test-Path "$($script:dir.FullName)/recursos/$d") { throw "Desinstalar dejó recursos/$d" } }
           # ...y nunca los datos: el gancho solo toca la carpeta del programa
@@ -432,6 +493,7 @@ jobs:
           Start-Sleep 5
           foreach ($l in $ajenos) { if (-not (Test-Path $l)) { throw "El desinstalador borró $l" } }
           Write-Host "Accesos directos de la app web intactos tras instalar, reinstalar encima y desinstalar"
+          RevisarSame "desinstalar al final"
           Stop-Process -Id $nube.Id -ErrorAction SilentlyContinue
           # Todo fallo de arriba ya lanzó una excepción; un código de salida de un comando previo (p. ej. gh sin
           # instalador anterior) no debe marcar el paso como fallido
