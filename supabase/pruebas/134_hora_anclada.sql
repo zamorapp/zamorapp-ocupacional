@@ -56,6 +56,45 @@ where n.nspname = 'public' and p.proname in ('guardar_consulta', 'duplicar_consu
   and p.prosrc ~* '\mnow\(\)';
 
 delete from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f1';
+
+-- Equipo de confianza: en la PC sin hora verificada ningún plazo está vigente (la fecha de Windows no lo alarga)
+insert into public.equipos_confianza (usuario_id, hash, vence) values ('00000000-0000-0000-0000-0000000000a2', 'h134', now() + interval '10 days');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+set role authenticated;
+select set_config('zamorapp.local', '', false) \g /dev/null
+select 'nube: el equipo de confianza está vigente (debe 1): ' || count(*) from public.mis_equipos_confianza();
+select set_config('zamorapp.local', 'on', false) \g /dev/null
+select set_config('request.headers', '{}', false) \g /dev/null
+select 'local sin hora verificada: ningún equipo vigente (debe 0): ' || count(*) from public.mis_equipos_confianza();
+select set_config('request.headers', '{"x-zamorapp-ahora":"2099-01-01T00:00:00Z"}', false) \g /dev/null
+select 'local con hora verificada posterior: vencido (debe 0): ' || count(*) from public.mis_equipos_confianza();
+reset role;
+select set_config('zamorapp.local', '', false) \g /dev/null
+select set_config('request.headers', '', false) \g /dev/null
+delete from public.equipos_confianza where hash = 'h134';
+
+-- En la nube, al aplicar la bandeja: la hora sin verificar del equipo se guarda aparte y vale la de recepción
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado) values
+ ('13400000-0000-0000-0000-0000000000f3','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador');
+select set_config('sync.cambio_id', gen_random_uuid()::text, false) \g /dev/null
+select set_config('sync.hora_anclada', 'off', false) \g /dev/null
+update clinico.consultas set hora_cierre = '2020-01-01 10:00+00' where id = '13400000-0000-0000-0000-0000000000f3';
+select 'nube: hora sin verificar → vale la de recepción y la del equipo queda aparte (debe 1): ' ||
+  ((hora_cierre > now() - interval '1 minute') and (hora_equipo #>> '{hora_cierre,hora}')::timestamptz = timestamptz '2020-01-01 10:00+00'
+   and (hora_equipo #>> '{hora_cierre,verificada}')::boolean = false)::int
+from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
+select set_config('sync.hora_anclada', 'on', false) \g /dev/null
+update clinico.consultas set hora_cierre = '2020-01-02 10:00+00' where id = '13400000-0000-0000-0000-0000000000f3';
+select 'nube: hora verificada → vale la del equipo (debe 1): ' ||
+  ((hora_cierre = timestamptz '2020-01-02 10:00+00') and (hora_equipo #>> '{hora_cierre,verificada}')::boolean)::int
+from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
+select set_config('sync.cambio_id', '', false) \g /dev/null
+select set_config('sync.hora_anclada', '', false) \g /dev/null
+update clinico.consultas set hora_cierre = '2020-01-03 10:00+00' where id = '13400000-0000-0000-0000-0000000000f3';
+select 'nube: un cambio de la web no toca hora_equipo (debe 1): ' ||
+  ((hora_cierre = timestamptz '2020-01-03 10:00+00') and (hora_equipo #>> '{hora_cierre,hora}')::timestamptz = timestamptz '2020-01-02 10:00+00')::int
+from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
+delete from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
 select set_config('zamorapp.local', '', false) \g /dev/null
 select set_config('request.headers', '', false) \g /dev/null
 select set_config('request.jwt.claim.sub', '', false) \g /dev/null
