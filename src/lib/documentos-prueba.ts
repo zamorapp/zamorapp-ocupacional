@@ -72,5 +72,6 @@ export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
     hora: "2026-10-28T13:30:00+00:00",
     cierre: "2026-10-28T14:05:00+00:00",
     sin: [],
+    copia: false,
   };
 }
