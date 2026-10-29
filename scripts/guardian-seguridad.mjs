@@ -1,5 +1,6 @@
 // Guardián de seguridad de cada PR (auditoría A10). Corre gratis en el CI de Linux (repo público) y en local.
 //   node scripts/guardian-seguridad.mjs cambios [rama-base]   → revisa lo que el PR agrega (sin base de datos)
+//   node scripts/guardian-seguridad.mjs cruces [rama-base]    → números de migración/prueba que ya usa otro PR abierto
 //   node scripts/guardian-seguridad.mjs catalogo              → arma una base con las migraciones, con los
 //        permisos por defecto de Supabase (anon ejecuta toda función que no se le quite), y revisa el catálogo
 //   node scripts/guardian-seguridad.mjs catalogo --actualizar → reescribe la línea base (solo con el visto bueno de Analizar)
@@ -164,6 +165,55 @@ function revisarCatalogo(actualizar) {
   if (menos) aviso("supabase/pruebas/guardian-base.json", 1, `${menos} entradas de la línea base ya se corrigieron: actualízala con «catalogo --actualizar»`);
 }
 
+// ─── 3. Números que ya usa otro PR abierto ───────────────────────────────────────────────────────────
+// Dos PRs abiertos con la misma migración o la misma prueba chocan al fusionar el segundo (y db push rechaza
+// una migración más vieja que la última aplicada). Frena al PR más nuevo; al más viejo solo le avisa.
+// Se consulta la API de GitHub con el GITHUB_TOKEN de solo lectura del flujo.
+async function revisarCruces(base) {
+  const desde = git("merge-base", base, "HEAD").trim();
+  const propios = git("diff", "--name-only", "--diff-filter=A", "--no-renames", desde, "HEAD").split("\n").filter(Boolean);
+  const numeros = (archivos) => archivos.flatMap((f) => {
+    const m = /^supabase\/migrations\/(\d{14})_/.exec(f) ?? /^supabase\/pruebas\/(\d+)_[^/]*\.sql$/.exec(f);
+    return m ? [{ clave: `${f.startsWith("supabase/migrations/") ? "migración" : "prueba"} ${m[1]}`, archivo: f }] : [];
+  });
+  const mios = numeros(propios);
+  if (!mios.length) return;
+  const yo = Number(process.env.PR_NUMERO || 0);
+  const otros = await prsAbiertos(yo);
+  for (const pr of otros) {
+    const suyos = new Set(numeros(pr.archivos).map((x) => x.clave));
+    for (const m of mios.filter((x) => suyos.has(x.clave))) {
+      const texto = `La ${m.clave} ya la usa el PR #${pr.numero} (${pr.rama}). Reserva otro número en el registro de numeración`;
+      if (!yo || pr.numero < yo) error(m.archivo, 1, `${texto}: este PR es el más nuevo y debe cambiarlo`);
+      else aviso(m.archivo, 1, `${texto}: el #${pr.numero} es más nuevo y es el que debe cambiar`);
+    }
+  }
+}
+
+async function prsAbiertos(yo) {
+  // Para probar sin red: GUARDIAN_PRS=archivo.json con [{ numero, rama, archivos: [...] }]
+  if (process.env.GUARDIAN_PRS) return JSON.parse(fs.readFileSync(process.env.GUARDIAN_PRS, "utf8")).filter((p) => p.numero !== yo);
+  const repo = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  if (!repo || !token) { aviso("supabase/migrations", 1, "Sin GITHUB_TOKEN no se revisaron los números de los otros PRs abiertos"); return []; }
+  const api = async (ruta) => {
+    const r = await fetch(`https://api.github.com/repos/${repo}${ruta}`, { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" } });
+    if (!r.ok) throw new Error(`GitHub ${ruta}: ${r.status}`);
+    return r.json();
+  };
+  const salida = [];
+  for (const pr of (await api("/pulls?state=open&per_page=100")).filter((p) => p.number !== yo)) {
+    const archivos = [];
+    for (let pagina = 1; pagina <= 10; pagina++) {
+      const lote = await api(`/pulls/${pr.number}/files?per_page=100&page=${pagina}`);
+      archivos.push(...lote.filter((f) => f.status === "added" || f.status === "renamed").map((f) => f.filename));
+      if (lote.length < 100) break;
+    }
+    salida.push({ numero: pr.number, rama: pr.head.ref, archivos });
+  }
+  return salida;
+}
+
 function informar() {
   const enCI = Boolean(process.env.GITHUB_ACTIONS);
   for (const [lista, tipo] of [[avisos, "warning"], [errores, "error"]])
@@ -176,6 +226,7 @@ function informar() {
 }
 
 if (modo === "cambios") revisarCambios(resto.find((a) => !a.startsWith("--")) ?? "origin/main");
+else if (modo === "cruces") await revisarCruces(resto.find((a) => !a.startsWith("--")) ?? "origin/main");
 else if (modo === "catalogo") revisarCatalogo(resto.includes("--actualizar"));
-else throw new Error(`Modo desconocido: ${modo} (usa «cambios» o «catalogo»)`);
+else throw new Error(`Modo desconocido: ${modo} (usa «cambios», «cruces» o «catalogo»)`);
 informar();
