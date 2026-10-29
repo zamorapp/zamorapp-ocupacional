@@ -136,6 +136,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       tipo: c.tipo,
       motivoId: c.motivo_id,
       motivoTexto: c.motivo_texto ?? "",
+      especialidad: c.especialidad ?? "",
       enfermedadActual: c.enfermedad_actual ?? "",
       antecedentes: c.antecedentes ?? [],
       habitos: Array.isArray(c.habitos) ? c.habitos : [],
@@ -160,9 +161,9 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       reubicacion: c.reubicacion
         ? {
             activa: true, tipo: c.reubicacion.tipo === "definitiva" ? "definitiva" : "temporal", puestoActual: c.reubicacion.puesto_actual ?? "", puestoPropuesto: c.reubicacion.puesto_propuesto ?? "",
-            desde: c.reubicacion.desde ?? c.fecha, hasta: c.reubicacion.hasta ?? "", motivo: c.reubicacion.motivo ?? "", restricciones: c.reubicacion.restricciones ?? "",
+            desde: c.reubicacion.desde ?? c.fecha, hasta: c.reubicacion.hasta ?? "", motivo: c.reubicacion.motivo ?? "", restricciones: c.reubicacion.restricciones ?? "", resultado: c.reubicacion.resultado ?? "",
           }
-        : { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: c.fecha, hasta: "", motivo: "", restricciones: "" },
+        : { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: c.fecha, hasta: "", motivo: "", restricciones: "", resultado: "" },
       informeLibre: { titulo: c.informe_libre?.titulo ?? "", dirigidoA: c.informe_libre?.dirigido_a ?? "", cuerpo: c.informe_libre?.cuerpo ?? "" },
       conclusiones: c.conclusiones ?? "",
       recomendacionesEmpresa: c.recomendaciones_empresa ?? "",
