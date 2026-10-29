@@ -31,7 +31,7 @@ export function IndicadorSincronia() {
         >
           <Icono className="size-4" aria-hidden />
           <span className="hidden sm:inline">{texto}</span>
-          {!problemas && e.pendientes > 0 && <span className="sm:hidden">{e.pendientes}</span>}
+          {(problemas || e.pendientes) > 0 && <span className="sm:hidden">{problemas || e.pendientes}</span>}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 space-y-2 p-3 text-sm">
@@ -51,8 +51,9 @@ export function IndicadorSincronia() {
         )}
         <Button size="sm" variant="outline" className="w-full" disabled={ocupado}
           onClick={async (ev) => { ev.preventDefault(); setOcupado(true); setAviso(await sincronizarAhora()); setOcupado(false); }}>
-          {ocupado ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sincronizar ahora
+          {ocupado ? <Loader2 className="animate-spin" /> : <RefreshCw />} {e.enLinea ? "Sincronizar ahora" : "Reintentar conexión"}
         </Button>
+        {!e.enLinea && !aviso && <p className="text-xs text-muted-foreground">Sube solo cuando vuelva internet.</p>}
         {aviso && <p role="status" className="text-xs text-muted-foreground">{aviso}</p>}
       </DropdownMenuContent>
     </DropdownMenu>

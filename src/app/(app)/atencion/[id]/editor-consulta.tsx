@@ -645,7 +645,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             )}
             <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
             <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
-              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
+              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus={!sinInternet} readOnly={sinInternet} />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
               <Button
