@@ -9,6 +9,8 @@ export type EstadoRespaldo = { estado: Estado; titulo: string; detalle: string }
 
 // Más de este tiempo sin respaldo correcto es aviso (el respaldo corre a diario a las 12:30 y al iniciar la PC)
 const LIMITE_HORAS = 25;
+// La prueba de restauración corre una vez por semana desde el respaldo de la PC; con un día de holgura
+const LIMITE_DIAS_RESTAURACION = 8;
 const ZONA = "America/Caracas";
 
 const hace = (fecha: string) => {
@@ -27,7 +29,14 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("estado_respaldo");
   if (error || !data) return null;
-  const { ultimo, ultimo_ok } = data as { ultimo: Registro | null; ultimo_ok: Registro | null };
+  const { ultimo, ultimo_ok, ultima_restauracion: prueba } = data as { ultimo: Registro | null; ultimo_ok: Registro | null; ultima_restauracion?: Registro | null };
+  // ¿El respaldo sirve para recuperar los datos? Vencida o fallida, la franja pasa a aviso
+  const pruebaMala = !!prueba && (prueba.estado === "fallo" || (Date.now() - new Date(prueba.fecha).getTime()) / 864e5 > LIMITE_DIAS_RESTAURACION);
+  const restauracion = !prueba
+    ? " · Restauración aún sin probar"
+    : prueba.estado === "fallo"
+      ? ` · La prueba de restauración FALLÓ ${hace(prueba.fecha)}${prueba.detalle ? `: ${prueba.detalle}` : ""}`
+      : ` · Restauración probada ${hace(prueba.fecha)}${pruebaMala ? " (toca repetirla)" : ""}`;
 
   if (!ultimo_ok) {
     return { estado: "alerta", titulo: "Aún no hay respaldos registrados", detalle: "Programa el respaldo diario en la PC con «programar-respaldo.cmd»." };
@@ -38,10 +47,10 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const fallo = ultimo && ultimo.estado === "fallo" && ultimo.fecha > ultimo_ok.fecha ? ` · Último intento falló ${hace(ultimo.fecha)}${ultimo.detalle ? `: ${ultimo.detalle}` : ""}` : "";
 
   if (horas > LIMITE_HORAS) {
-    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha)}`, detalle: `Último: ${base}${fallo}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
+    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha)}`, detalle: `Último: ${base}${fallo}${restauracion}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
   }
-  if (ultimo_ok.estado === "aviso" || fallo) {
-    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha)}, con aviso`, detalle: `${base}${fallo}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}` };
+  if (ultimo_ok.estado === "aviso" || fallo || pruebaMala) {
+    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha)}, con aviso`, detalle: `${base}${fallo}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}` };
   }
-  return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha)})`, detalle: base };
+  return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha)})`, detalle: `${base}${restauracion}` };
 }
