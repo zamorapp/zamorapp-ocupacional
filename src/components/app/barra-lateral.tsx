@@ -46,6 +46,7 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
           <button
             type="button"
             data-boton="buscar-actualizacion"
+            disabled={Boolean(aviso)}
             onClick={async () => {
               // El resultado («ya tienes la más reciente» o la descarga con su avance) lo muestra el programa en su
               // propia ventana; aquí el aviso solo acompaña unos segundos y se va.
@@ -53,7 +54,7 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
               setAviso(await buscarActualizacion());
               setTimeout(() => setAviso(""), 8000);
             }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
           >
             <Download className="size-[18px]" aria-hidden />
             Buscar actualización

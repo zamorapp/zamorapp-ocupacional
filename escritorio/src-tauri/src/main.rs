@@ -462,6 +462,8 @@ fn franja_actualizacion(texto: &str, pct: Option<u64>) -> String {
     f.innerHTML = '<span></span><div style="height:4px;margin-top:6px;background:rgba(255,255,255,.25);border-radius:2px"><div style="height:100%;background:#7fd6c2;border-radius:2px;transition:width .3s"></div></div>';
     document.body.appendChild(f);
   }}
+  // En ventanas angostas (< 1024 px) la app muestra su barra inferior: la franja va encima, sin taparla.
+  f.style.bottom = (document.querySelector("[data-barra-inferior]")?.offsetHeight || 0) + "px";
   f.firstChild.textContent = texto;
   f.lastChild.firstChild.style.width = "{ancho}";
 }})()"#)
