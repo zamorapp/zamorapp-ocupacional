@@ -13,7 +13,7 @@ function Formulario({ trabajadorId, e, alTerminar }: { trabajadorId: string; e: 
   const [estado, accion, enviando] = useActionState(guardarEmpleo, null);
   useEffect(() => { if (estado?.ok) alTerminar(); }, [estado, alTerminar]);
   return (
-    <form action={accion} className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3">
+    <form action={accion} className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3">
       <input type="hidden" name="trabajador_id" value={trabajadorId} />
       {e && <input type="hidden" name="id" value={e.id} />}
       <Campo id="empresa" etiqueta="Empresa *" defaultValue={e?.empresa} required autoFocus />

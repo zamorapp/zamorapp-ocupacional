@@ -30,7 +30,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/pacientes", titulo: "Pacientes", icono: Users, descripcion: "Expediente único del trabajador, importación desde Excel" },
   { href: "/atencion", titulo: "Atención médica", icono: Stethoscope, descripcion: "Cola, consultas, aptitud, reposos y récipes", clinico: true },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
-  { href: "/inspeccion", titulo: "Inspección", icono: ShieldCheck, descripcion: "Índice de cumplimiento y paquete para el INPSASEL" },
+  { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
   { href: "/empresas", titulo: "Empresas", icono: Building2, descripcion: "Empresas clientes, sedes, dependencias y puestos" },
   { href: "/reportes", titulo: "Reportes", icono: BarChart3, descripcion: "Atendidos, morbilidad, aptitud, reposos e informe trimestral" },
   { href: "/facturacion", titulo: "Facturación", icono: Receipt, descripcion: "Servicios, pacientes atendidos y notas de cobro" },

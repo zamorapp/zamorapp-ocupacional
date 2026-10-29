@@ -12,7 +12,8 @@ import { buscarPacientes } from "@/app/(app)/atencion/acciones";
 export async function salir() {
   if (supabaseConfigurado) {
     const supabase = await crearClienteServidor();
-    await supabase.auth.signOut();
+    // Solo esta sesión: «Salir» en la PC no debe cerrar la web ni los otros equipos (por omisión es global)
+    await supabase.auth.signOut({ scope: "local" });
   }
   redirect("/login");
 }
@@ -24,17 +25,17 @@ export async function elegirEmpresa(id: string | null) {
   revalidatePath("/", "layout");
 }
 
-export type Notificacion = { id: string; titulo: string; texto: string | null; enlace: string | null; leida: boolean; creadoEn: string };
+export type Notificacion = { id: string; titulo: string; texto: string | null; enlace: string | null; leida: boolean; creadoEn: string; nivel: "info" | "aviso" | "alerta" };
 
 export async function misNotificaciones(): Promise<Notificacion[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("notificaciones")
-    .select("id, titulo, texto, enlace, leida, creado_en")
+    .select("id, titulo, texto, enlace, leida, creado_en, nivel")
     .order("creado_en", { ascending: false })
     .limit(30);
-  return (data ?? []).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en }));
+  return (data ?? []).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en, nivel: n.nivel ?? "info" }));
 }
 
 export async function marcarLeidas(ids: string[]) {
