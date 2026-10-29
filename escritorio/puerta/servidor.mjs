@@ -36,6 +36,21 @@ const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
+  // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
+  // nube obliga a leer de la nube hasta que la sincronía siguiente (que empieza después de esa escritura) baje
+  // el cambio: así el médico siempre ve lo que acaba de guardar.
+  let ultimaEscritura = 0;
+  let modoLectura = "nube";
+  const copiaAlDia = () => Boolean(
+    CONFIG.lecturaLocal && d().copiaCompleta && replica.ultima && !replica.error
+      && Date.now() - Date.parse(replica.ultima) < CONFIG.frescuraLectura
+      && replica.inicioCiclo > ultimaEscritura,
+  );
+  const anotarModo = (modo, motivo) => {
+    if (modo === modoLectura) return;
+    modoLectura = modo;
+    registro(`[puerta] lecturas desde ${modo === "local" ? "la copia local" : "la nube"} (${motivo})`);
+  };
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
 
@@ -438,7 +453,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const buscar = pedidaActualizacion && conControl();
         if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -517,7 +532,20 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
-        if (await nube.confirmar() && await aLaNube(req, res, crudo, quien.uid)) return;
+        const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
+        const enLinea = await nube.confirmar();
+        if (enLinea && lectura && copiaAlDia()) {
+          anotarModo("local", `copia sincronizada hace ${Math.round((Date.now() - Date.parse(replica.ultima)) / 1000)} s`);
+          return await aLaCopia(req, res, crudo);
+        }
+        if (enLinea && lectura) anotarModo("nube", ultimaEscritura > replica.inicioCiclo ? "hay una escritura que aún no bajó" : !d().copiaCompleta ? "la copia no está completa" : replica.error ? `la sincronía falló: ${replica.error}` : "la copia no está al día");
+        if (enLinea && await aLaNube(req, res, crudo, quien.uid)) {
+          if (ruta.startsWith("/rest/v1/") && !lectura) {
+            ultimaEscritura = Date.now();
+            replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
+          }
+          return;
+        }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
         if (!await soloLectura(req)) {
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);

@@ -21,6 +21,10 @@ export const CONFIG = {
   diasSinConexion: 7,
   sesionSegundos: 3600,
   cadaSincronia: 30_000,
+  // Con internet, las lecturas salen de la copia local cuando está al día (sincronizada hace menos de
+  // frescuraLectura y sin escrituras pendientes de bajar): la pantalla no paga el viaje a la nube (C11).
+  lecturaLocal: env.ZAMORAPP_LECTURA_LOCAL !== "0",
+  frescuraLectura: Number(env.ZAMORAPP_FRESCURA_LECTURA || 60_000),
 };
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.

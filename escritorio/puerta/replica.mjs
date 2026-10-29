@@ -12,6 +12,7 @@ export class Replica {
     Object.assign(this, { estado, nube, motor, registro });
     this.ocupada = false;
     this.ultima = null;
+    this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (ms): una escritura anterior ya bajó
     this.error = null;
   }
 
@@ -37,6 +38,7 @@ export class Replica {
     const uid = this.usuarioSincronia();
     if (!uid) return;
     this.ocupada = true;
+    const inicio = Date.now();
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
@@ -45,6 +47,7 @@ export class Replica {
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
       this.ultima = new Date().toISOString();
+      this.inicioCiclo = inicio;
       this.error = null;
     } catch (e) {
       this.error = e.message;

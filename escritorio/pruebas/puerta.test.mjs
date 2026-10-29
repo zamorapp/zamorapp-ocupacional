@@ -119,6 +119,61 @@ test("con internet, la app lee de la nube", { skip: omitir }, async () => {
   assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"));
 });
 
+test("con internet y la copia al día: las lecturas salen de la copia local, sin ir a la nube", { skip: omitir }, async () => {
+  await replicaObj.ciclo();
+  assert.equal(replicaObj.error, null);
+  const e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.lecturaLocal, true);
+  nube.estado.rest = [];
+  const t = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed });
+  assert.equal(t.status, 200);
+  assert.ok(t.json.length >= 1);
+  assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"), "la copia aplica las mismas reglas de acceso");
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), `fue a la nube: ${nube.estado.rest.join(", ")}`);
+  // Una función de lectura (stable) también sale de la copia
+  const f = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(f.status, 200);
+  assert.ok(!nube.estado.rest.includes("/rest/v1/rpc/trabajadores_por_empresa"));
+});
+
+test("tras guardar en la nube se lee de la nube hasta que el cambio baja; luego otra vez de la copia", { skip: omitir }, async () => {
+  nube.estado.rest = [];
+  // Una escritura (aunque la nube la rechace por datos incompletos) va a la nube y marca «hay cambios por bajar»
+  const w = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenAdmin, cuerpo: { cedula: "X-1" } });
+  assert.notEqual(w.status, 503);
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"));
+  await replicaObj.enCurso; // la escritura disparó una sincronía
+  // Mientras una sincronía posterior no termine, la lectura va a la nube
+  const ciclo = replicaObj.inicioCiclo;
+  replicaObj.inicioCiclo = 0;
+  nube.estado.rest = [];
+  const r1 = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r1.status, 200);
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "con una escritura pendiente de bajar se lee de la nube");
+  assert.equal((await pedir("/zamorapp/estado")).json.lecturaLocal, false);
+  replicaObj.inicioCiclo = ciclo;
+  await replicaObj.ciclo();
+  nube.estado.rest = [];
+  const r2 = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r2.status, 200);
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "tras la sincronía se vuelve a leer de la copia");
+});
+
+test("copia vieja (más de 1 min) o con error: se lee de la nube", { skip: omitir }, async () => {
+  const guardada = replicaObj.ultima;
+  replicaObj.ultima = new Date(Date.now() - 120_000).toISOString();
+  nube.estado.rest = [];
+  const r = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r.status, 200);
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "copia vieja: va a la nube");
+  replicaObj.ultima = guardada;
+  replicaObj.error = "prueba";
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "sincronía con error: va a la nube");
+  replicaObj.error = null;
+});
+
 test("sin internet: consulta la copia local con las mismas reglas de acceso", { skip: omitir }, async () => {
   nube.estado.caida = true;
   await nubeObj.comprobar();
@@ -500,6 +555,7 @@ test("la nube cambió y esta versión no la entiende: se avisa que hay que actua
   let e = await pedir("/zamorapp/estado");
   assert.equal(e.json.actualizar, false);
   nube.estado.migradaPorDelante = true;
+  replicaObj.ultima = new Date(Date.now() - 120_000).toISOString(); // copia vieja: la lectura va a la nube (C11)
   try {
     const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
     assert.equal(r.status, 403);
