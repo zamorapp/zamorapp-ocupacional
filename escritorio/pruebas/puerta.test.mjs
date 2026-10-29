@@ -38,6 +38,11 @@ async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
 
 before(async () => {
   if (omitir) return;
+  // Datos propios: la consulta borrador del médico A. En Linux la dejaba supabase/pruebas/85 (correr.sh corre todas
+  // las pruebas de la base); el CI de Windows solo carga 10_datos.sql y no existía: «dos equipos» y las que siguen fallaban
+  await enBase(NUBE_DB, `insert into clinico.consultas (id, org_id, empresa_id, trabajador_id, estado)
+    values ($1, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-00000000000a', 'borrador')
+    on conflict (id) do nothing`, ["40000000-0000-0000-0000-0000000000d2"]); // CONSULTA_MED (se declara más abajo)
   const simuladorPostgrest = path.join(datos, process.platform === "win32" ? "postgrest.cmd" : "postgrest.sh");
   if (!process.env.ZAMORAPP_POSTGREST) {
     fs.writeFileSync(simuladorPostgrest, `#!/bin/sh\nexec "${process.execPath}" "${path.join(aqui, "simulador-postgrest.mjs")}" "$1"\n`, { mode: 0o755 });
@@ -277,7 +282,6 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   await nubeObj.comprobar();
   const r = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "cambiado en la PC" } });
   assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
-  if (diag) console.log(`[diag dos equipos] PATCH ${r.status} ${JSON.stringify(r.json)} local=${JSON.stringify(await enLocal("select id, estado, version, motivo_texto, medico_id from clinico.consultas where id = $1", [CONSULTA_MED]))} bandeja=${JSON.stringify(await enLocal("select fila_id, op, estado, autor from local.bandeja"))} enLinea=${nubeObj.enLinea}`);
   // Mientras tanto, otro equipo (o la web) cambió la misma ficha en la nube
   await enNube("update clinico.consultas set motivo_texto = 'cambiado en la nube' where id = $1", [CONSULTA_MED]);
   nube.estado.caida = false;
