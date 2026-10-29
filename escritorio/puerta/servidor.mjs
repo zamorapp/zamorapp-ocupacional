@@ -604,6 +604,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
         await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
+        await adjuntos.bajarPendientes(replica.usuarioSincronia()).catch((e) => registro(`[adjuntos] ${e.message}`));
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
       }

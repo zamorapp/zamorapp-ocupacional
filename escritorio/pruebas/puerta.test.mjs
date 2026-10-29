@@ -1042,6 +1042,35 @@ test("adjuntos: si la nube rechaza un archivo, se reintenta y a los 5 intentos q
   assert.equal((await enLaCola(ruta)).estado, "subido");
 });
 
+test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tiene (tope por ciclo, reintentos, sin pisar)", { skip: omitir }, async () => {
+  const ADMIN = "00000000-0000-0000-0000-0000000000a1";
+  const T = "30000000-0000-0000-0000-00000000000a";
+  const rutas = ["bajar-1.pdf", "bajar-2.pdf", "bajar-3.pdf", "no-esta-en-la-nube.pdf", "ya-en-la-pc.pdf"].map((n) => `${ORG}/${T}/${n}`);
+  for (const [i, ruta] of rutas.entries()) {
+    // creado_en en el futuro: van primero en la cola de bajada (la más nueva primero)
+    await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'b.pdf', $3, 'application/pdf', 40, now() + make_interval(days => 10 - $4::int)) on conflict (ruta) do nothing`, [ORG, T, ruta, i]);
+    if (i !== 3) nube.estado.archivos.set(`adjuntos/${ruta}`, { cuerpo: PDF, tipo: "application/pdf" });
+  }
+  const enPc = (ruta) => path.join(datos, "adjuntos", "adjuntos", ...ruta.split("/"));
+  fs.mkdirSync(path.dirname(enPc(rutas[4])), { recursive: true });
+  fs.writeFileSync(enPc(rutas[4]), "version de la PC");
+  await replicaObj.enCurso;
+  await replicaObj.ciclo();
+  let r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 2 });
+  assert.equal(r.bajados, 2);
+  assert.ok(r.faltan >= 2, JSON.stringify(r));
+  assert.ok(fs.existsSync(enPc(rutas[0])) && fs.existsSync(enPc(rutas[1])) && !fs.existsSync(enPc(rutas[2])));
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 2 });
+  assert.ok(fs.existsSync(enPc(rutas[2])), JSON.stringify(r));
+  // El que no está en la nube se reintenta hasta 5 veces y luego se deja; nada se borra ni se pisa
+  for (let i = 0; i < 6; i++) await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.ok(!fs.existsSync(enPc(rutas[3])));
+  assert.equal(fs.readFileSync(enPc(rutas[4]), "utf8"), "version de la PC");
+  assert.equal(fs.readFileSync(enPc(rutas[0]), "utf8"), PDF);
+  // Sin sesión de la sincronía o sin internet no hace nada
+  assert.deepEqual(await puerta.adjuntos.bajarPendientes(null), { bajados: 0, faltan: 0 });
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3
