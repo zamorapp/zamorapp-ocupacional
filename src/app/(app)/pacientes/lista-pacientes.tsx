@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, FileSpreadsheet, Loader2, Search, Stethoscope, Users } from "lucide-react";
@@ -14,26 +14,32 @@ import {
   ETIQUETA_APTITUD,
   ETIQUETA_ESTADO,
   type EstadoTrabajador,
-  type Trabajador,
+  type PacienteFila,
   edad,
   iniciales,
 } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { iniciarConsulta } from "../atencion/acciones";
+import { buscarPacientesLista } from "./acciones";
 
 const TODAS = "todas";
+const PAGINA = 50;
 
-// Quita acentos y guiones para buscar "v18456123" o "gonzalez" igual que "V-18.456.123" o "González"
-function normalizar(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-.\s]/g, "").toLowerCase();
-}
+type Pagina = { filas: PacienteFila[]; total: number };
+type Props = {
+  pagina: Pagina;
+  empresas: { id: string; nombre: string }[];
+  empresaInicial: string;
+  estadoInicial: EstadoTrabajador | "";
+  busquedaInicial: string;
+  nuevo: React.ReactNode;
+  depurar?: React.ReactNode;
+  clinico?: boolean;
+  importar?: boolean;
+};
 
-type Props = { trabajadores: Trabajador[]; busquedaInicial: string; nuevo: React.ReactNode; depurar?: React.ReactNode; clinico?: boolean; importar?: boolean };
-
-export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, clinico = false, importar = true }: Props) {
+export function ListaPacientes({ pagina, empresas, empresaInicial, estadoInicial, busquedaInicial, nuevo, depurar, clinico = false, importar = true }: Props) {
   const router = useRouter();
-  // En el celular: tarjetas de 25 en 25, con «Atender» para el personal de salud
-  const [mostrarMovil, setMostrarMovil] = useState(25);
   const [abriendo, iniciarApertura] = useTransition();
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
   const [errorAtender, setErrorAtender] = useState<string | null>(null);
@@ -44,30 +50,67 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
       if (r && !r.ok) setErrorAtender(r.mensaje);
     });
   };
+
+  // La lista llega de 50 en 50 desde el servidor: al escribir o cambiar un filtro se pide otra vez (300 ms después
+  // de la última tecla), y «Mostrar más» agrega la página siguiente. Así la pantalla no manda los 4.000 trabajadores.
   const [busqueda, setBusqueda] = useState(busquedaInicial);
-  const [empresa, setEmpresa] = useState(TODAS);
-  const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(TODAS);
-  // Con miles de trabajadores se muestran por tandas para que la búsqueda sea instantánea
-  const [mostrar, setMostrar] = useState(100);
+  const [empresa, setEmpresa] = useState(empresaInicial || TODAS);
+  const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(estadoInicial || TODAS);
+  const [filas, setFilas] = useState(pagina.filas);
+  const [total, setTotal] = useState(pagina.total);
+  const [buscando, setBuscando] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
+  const primera = useRef(true);
+  const pedido = useRef(0);
 
-  const empresas = useMemo(() => [...new Set(trabajadores.map((t) => t.empresa))].sort(), [trabajadores]);
+  const filtros = () => ({ q: busqueda, empresa: empresa === TODAS ? null : empresa, estado: estado === TODAS ? null : estado });
 
-  const filtrados = useMemo(() => {
-    const q = normalizar(busqueda);
-    return trabajadores.filter(
-      (t) =>
-        (empresa === TODAS || t.empresa === empresa) &&
-        (estado === TODAS || t.estado === estado) &&
-        (!q || normalizar(`${t.cedula} ${t.nombres} ${t.apellidos} ${t.cargo} ${t.historia}`).includes(q)),
-    );
-  }, [trabajadores, busqueda, empresa, estado]);
+  useEffect(() => {
+    if (primera.current) { primera.current = false; return; }
+    const n = ++pedido.current;
+    setBuscando(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await buscarPacientesLista({ ...filtros(), desde: 0 });
+        if (n !== pedido.current) return; // ya hay una búsqueda más nueva
+        setFilas(r.filas);
+        setTotal(r.total);
+        setErrorBusqueda(null);
+      } catch {
+        if (n === pedido.current) setErrorBusqueda("No se pudo buscar. Revisa la conexión y vuelve a intentar.");
+      } finally {
+        if (n === pedido.current) setBuscando(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, empresa, estado]);
+
+  async function mostrarMas() {
+    setCargandoMas(true);
+    try {
+      const r = await buscarPacientesLista({ ...filtros(), desde: filas.length });
+      setFilas((f) => [...f, ...r.filas.filter((x) => !f.some((y) => y.id === x.id))]);
+      setTotal(r.total);
+    } catch {
+      setErrorBusqueda("No se pudo cargar más. Revisa la conexión y vuelve a intentar.");
+    } finally {
+      setCargandoMas(false);
+    }
+  }
+
+  const sinFiltros = !busqueda && empresa === TODAS && estado === TODAS;
+  const quedan = Math.max(0, total - filas.length);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pacientes</h1>
-          <p className="text-muted-foreground">{trabajadores.length} trabajadores en el expediente</p>
+          <p className="text-muted-foreground" aria-live="polite">
+            {sinFiltros ? `${total} trabajadores en el expediente` : `${total} coinciden con la búsqueda`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {depurar}
@@ -86,19 +129,21 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
           <input
             autoFocus
             value={busqueda}
-            onChange={(e) => { setBusqueda(e.target.value); setMostrar(100); }}
-            placeholder="Cédula, nombre, cargo o nº de historia"
-            className="h-11 w-full rounded-lg border bg-card pl-9 pr-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Cédula, nombre o nº de historia"
+            aria-label="Buscar paciente"
+            className="h-11 w-full rounded-lg border bg-card pl-9 pr-9 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
+          {buscando && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-label="Buscando" />}
         </label>
-        <Select value={empresa} onValueChange={(v) => { setEmpresa(v); setMostrar(100); setMostrarMovil(25); }}>
+        <Select value={empresa} onValueChange={setEmpresa}>
           <SelectTrigger aria-label="Empresa" className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todas las empresas</SelectItem>
-            {empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+            {empresas.map((e) => <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); setMostrarMovil(25); }}>
+        <Select value={estado} onValueChange={(v) => setEstado(v as EstadoTrabajador | typeof TODAS)}>
           <SelectTrigger aria-label="Estado" className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todos los estados</SelectItem>
@@ -107,19 +152,20 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
         </Select>
       </div>
 
-      <Card className="overflow-hidden py-0">
-        {filtrados.length === 0 ? (
+      <Card className="overflow-hidden py-0" aria-busy={buscando}>
+        {errorBusqueda && <p className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">{errorBusqueda}</p>}
+        {filas.length === 0 ? (
           <div className="grid place-items-center gap-2 py-16 text-center text-muted-foreground">
             <Users className="size-8" />
-            {trabajadores.length === 0
+            {sinFiltros && total === 0
               ? "Aún no hay pacientes. Regístralos uno a uno o importa la nómina desde Excel."
               : "Ningún trabajador coincide con la búsqueda."}
           </div>
         ) : (
           <>
           {errorAtender && <p className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive sm:hidden">{errorAtender}</p>}
-          <ul className="divide-y sm:hidden">
-            {filtrados.slice(0, mostrarMovil).map((t) => (
+          <ul className={cn("divide-y sm:hidden", buscando && "opacity-60")}>
+            {filas.map((t) => (
               <li key={t.id} className="flex items-center gap-3 px-4 py-3">
                 <Link href={`/pacientes/${t.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                   <Avatar className="size-10">
@@ -146,15 +192,8 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
                 )}
               </li>
             ))}
-            {filtrados.length > mostrarMovil && (
-              <li className="px-4 py-3">
-                <Button variant="outline" className="w-full" onClick={() => setMostrarMovil((m) => m + 25)}>
-                  Ver 25 más ({filtrados.length - mostrarMovil} restantes)
-                </Button>
-              </li>
-            )}
           </ul>
-          <Table className="hidden sm:table">
+          <Table className={cn("hidden sm:table", buscando && "opacity-60")}>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="pl-5">Trabajador</TableHead>
@@ -165,7 +204,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.slice(0, mostrar).map((t) => (
+              {filas.map((t) => (
                 <TableRow key={t.id} className="cursor-pointer" onClick={() => router.push(`/pacientes/${t.id}`)}>
                   <TableCell className="py-3 pl-5">
                     <Link href={`/pacientes/${t.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
@@ -199,10 +238,12 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
           </Table>
           </>
         )}
-        {filtrados.length > mostrar && (
-          <div className="hidden sm:flex items-center justify-between gap-3 border-t px-5 py-3 text-sm text-muted-foreground">
-            <span>Mostrando {mostrar} de {filtrados.length}. Escribe en el buscador para encontrar a alguien al instante.</span>
-            <Button variant="outline" size="sm" onClick={() => setMostrar((m) => m + 200)}>Mostrar más</Button>
+        {quedan > 0 && (
+          <div className="flex flex-col gap-3 border-t px-5 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>Mostrando {filas.length} de {total}. Escribe en el buscador para encontrar a alguien al instante.</span>
+            <Button variant="outline" size="sm" disabled={cargandoMas} onClick={mostrarMas}>
+              {cargandoMas ? <Loader2 className="animate-spin" /> : null} Mostrar {Math.min(PAGINA, quedan)} más
+            </Button>
           </div>
         )}
       </Card>

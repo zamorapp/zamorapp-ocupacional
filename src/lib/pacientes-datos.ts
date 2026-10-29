@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
-import { type Aptitud, type Trabajador, TRABAJADORES_DEMO } from "@/lib/pacientes";
+import { type Aptitud, type EstadoTrabajador, type PacienteFila, type Trabajador, TRABAJADORES_DEMO } from "@/lib/pacientes";
 import { todas } from "@/lib/paginar";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -87,6 +87,41 @@ export async function listarTrabajadores(): Promise<Trabajador[]> {
   });
   const apt = await aptitudes(filas.map((f) => f.id), empresa);
   return filas.map((f) => aTrabajador(f, apt.get(f.id)));
+}
+
+export const PAGINA_PACIENTES = 50;
+export type BusquedaPacientes = { q?: string; empresa?: string | null; estado?: EstadoTrabajador | null; desde?: number };
+
+// Una página de la lista de pacientes buscada en la base (RPC buscar_trabajadores, con las reglas de acceso del
+// usuario y un índice sin acentos ni puntos). Antes la pantalla traía los 4.200 trabajadores completos (2,4 MB).
+export async function buscarTrabajadores(b: BusquedaPacientes): Promise<{ filas: PacienteFila[]; total: number }> {
+  const q = (b.q ?? "").trim().slice(0, 80);
+  const desde = Math.max(0, b.desde ?? 0);
+  if (!supabaseConfigurado) {
+    const n = q.toLowerCase();
+    const todas = TRABAJADORES_DEMO.filter((t) => (!b.estado || t.estado === b.estado) && (!n || `${t.cedula} ${t.nombres} ${t.apellidos}`.toLowerCase().includes(n)));
+    return { total: todas.length, filas: todas.slice(desde, desde + PAGINA_PACIENTES).map((t) => ({ id: t.id, historia: t.historia, cedula: t.cedula, nombres: t.nombres, apellidos: t.apellidos, fechaNacimiento: t.fechaNacimiento, empresaId: null, empresa: t.empresa, cargo: t.cargo, estado: t.estado, aptitud: t.aptitud })) };
+  }
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("buscar_trabajadores", {
+    p_q: q || null,
+    p_empresa: b.empresa || null,
+    p_estado: b.estado || null,
+    p_desde: desde,
+    p_cuantos: PAGINA_PACIENTES,
+  });
+  if (error) throw error;
+  const filas = (data ?? []) as {
+    id: string; numero_historia: number; cedula: string; nombres: string; apellidos: string; fecha_nacimiento: string | null;
+    estado: EstadoTrabajador; empresa_id: string | null; empresa: string | null; cargo: string | null; aptitud: Aptitud | null; total: number;
+  }[];
+  return {
+    total: Number(filas[0]?.total ?? 0),
+    filas: filas.map((f) => ({
+      id: f.id, historia: f.numero_historia, cedula: f.cedula, nombres: f.nombres, apellidos: f.apellidos, fechaNacimiento: f.fecha_nacimiento,
+      empresaId: f.empresa_id, empresa: f.empresa ?? "", cargo: f.cargo ?? "", estado: f.estado, aptitud: f.aptitud,
+    })),
+  };
 }
 
 export async function obtenerTrabajador(id: string): Promise<Trabajador | null> {
