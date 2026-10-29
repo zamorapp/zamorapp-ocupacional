@@ -104,7 +104,7 @@ returns jsonb language sql stable security invoker set search_path = public as $
     'nt02', jsonb_build_object(
       'total', (select count(*) from ev where tipo = 'enfermedad'),
       'cumplidos', (select count(*) from ev where tipo = 'enfermedad' and fecha_informe_nt02 is not null and fecha_diagnostico is not null
-        and fecha_informe_nt02 <= (fecha_diagnostico at time zone 'UTC')::date + case when en_anexo1 is false then 30 else 15 end)),
+        and fecha_informe_nt02 <= (fecha_diagnostico at time zone 'America/Caracas')::date + case when en_anexo1 is false then 30 else 15 end)),
     'acciones', jsonb_build_object(
       'total', (select count(*) from acc),
       'cumplidos', (select count(*) from acc, hoy where a ->> 'estado' = 'cumplida' or coalesce(a ->> 'fecha', '') = '' or (a ->> 'fecha') collate "C" >= hoy.d::text)),

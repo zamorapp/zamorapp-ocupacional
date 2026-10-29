@@ -24,6 +24,9 @@ insert into public.eventos (org_id,empresa_id,trabajador_id,tipo,fecha_hora,fech
  ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000d1','5d000000-0000-0000-0000-0000000000b1','accidente','2026-07-10 08:00-04','2026-07-10 20:00-04','Piso mojado',
   jsonb_build_array(jsonb_build_object('accion','Señalizar','estado','pendiente','fecha',(public.hoy_caracas() - 1)::text), jsonb_build_object('accion','Secar','estado','cumplida'))),
  ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000d1','5d000000-0000-0000-0000-0000000000b2','accidente','2026-08-01 08:00-04','2026-08-03 08:00-04',null,'[]');
+-- Enfermedad diagnosticada a las 21:00 de Caracas (ya es el día siguiente en UTC): el plazo de 15 días cuenta desde el día de Caracas
+insert into public.eventos (org_id,empresa_id,trabajador_id,tipo,fecha_hora,fecha_diagnostico,fecha_informe_nt02) values
+ ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-0000000000d1','5d000000-0000-0000-0000-0000000000b3','enfermedad','2026-07-01 21:00-04','2026-07-01 21:00-04','2026-07-17');
 
 set role authenticated;
 -- Administrador (acceso clínico): todas las consultas
@@ -61,8 +64,10 @@ select 'pendiente sin puesto asignado (debe 1): ' || count(*) from jsonb_array_e
 select 'pendientes en orden de apellido: Cuatro primero (debe 1): ' || ((public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'pendientes' -> 0 ->> 'nombre') = 'Cuatro, Sinpuesto')::int;
 select 'evaluación vigente (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'evaluacion' ->> 'cumplidos');
 select 'puestos con trabajadores: el vacante no cuenta (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'puestos' ->> 'total');
-select 'declaración en 24 h: una de dos (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'declaracion' ->> 'cumplidos');
+select 'declaración en 24 h: una de tres (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'declaracion' ->> 'cumplidos');
 select 'investigación con causas: una de dos (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'investigacion' ->> 'cumplidos');
+select 'NT-02: entregado el día 16 desde el diagnóstico en Caracas, fuera de plazo (debe 0): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'nt02' ->> 'cumplidos');
+select 'NT-02: una enfermedad en el período (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'nt02' ->> 'total');
 select 'acciones: la vencida no cumple (debe 1): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'acciones' ->> 'cumplidos');
 select 'fuera del período no hay eventos (debe 0): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-01-01','2026-03-31') -> 'declaracion' ->> 'total');
 -- RR. HH. de A no ve nada de D
