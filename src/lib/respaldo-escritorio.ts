@@ -80,7 +80,7 @@ export const configurar = (cambios: { carpeta?: string | null; clave?: string; c
 export const restaurar = (archivo: string, clave?: string) => pedir<{ listo: boolean; mensaje: string }>("/zamorapp/restaurar", { archivo, clave });
 export const cancelarRestauracion = () => pedir<{ cancelada: boolean }>("/zamorapp/restaurar/cancelar", {});
 
-// «28/10/2026 a las 10:42» desde el nombre de la copia (zamorapp-20261028-1042) o desde una fecha ISO
+// «28/10/2026 a las 10:42» desde el nombre de la copia (zamorapp-20261028-104215, o la vieja zamorapp-20261028-1042) o desde una fecha ISO
 const fmtDia = new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: ZONA });
 const fmtHora = new Intl.DateTimeFormat("es-VE", { hour: "numeric", minute: "2-digit", timeZone: ZONA });
 

@@ -106,7 +106,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (!deControl(req)) return responder(res, 403, { message: "No autorizado" }), true;
       const uid = canjear(parametros.get("codigo"), "activar");
       if (!uid || !d().usuarios[uid]) return responder(res, 200, { ok: false, mensaje: "Tardó demasiado. Intenta de nuevo." }), true;
-      d().usuarios[uid].hello = { desde: new Date().toISOString() };
+      d().usuarios[uid].hello = { desde: nube.reloj.iso() };
       d().helloUltimo = uid;
       estado.guardar();
       registro("[auth] Windows Hello activado en esta PC");

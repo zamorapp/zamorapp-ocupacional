@@ -25,7 +25,7 @@ export class Nube {
     const codigo = String(cuerpo?.code || "");
     if (!(status >= 400 && status < 500) || !/^(42501|42703|42P01|42883|PGRST20[245])$/.test(codigo)) return false;
     if (codigo === "42501" && !/^permission denied for (table|view|column|function|schema|sequence)\b/.test(String(cuerpo?.message || ""))) return false;
-    if (!this.incompatible) this.incompatible = { codigo, mensaje: String(cuerpo?.message || ""), donde, en: new Date().toISOString() };
+    if (!this.incompatible) this.incompatible = { codigo, mensaje: String(cuerpo?.message || ""), donde, en: this.reloj.iso() };
     return true;
   }
 
@@ -51,7 +51,7 @@ export class Nube {
         motivo = e?.cause?.code || e?.name || e?.message || "sin respuesta";
       }
     } else this.enLinea = false;
-    this.revisadaEn = Date.now();
+    this.revisadaEn = performance.now();
     if (antes !== this.enLinea || !this.anotada) this.registro(`[nube] ${this.enLinea ? "en línea" : "sin conexión"} (${motivo})`);
     this.anotada = true;
     return this.enLinea;
@@ -66,14 +66,14 @@ export class Nube {
   marcarCaida(motivo) {
     if (this.enLinea) this.registro(`[nube] sin conexión (${motivo})`);
     this.enLinea = false;
-    this.revisadaEn = Date.now();
+    this.revisadaEn = performance.now();
   }
 
   // Antes de tratar algo como «sin conexión» se vuelve a preguntar, como mucho cada 15 s: un corte al
   // arrancar (red de Windows aún no lista) o un fallo de un instante no deja la PC «sin internet» hasta la
   // próxima sincronía.
   async confirmar() {
-    if (this.enLinea || Date.now() - this.revisadaEn < 15000) return this.enLinea;
+    if (this.enLinea || performance.now() - this.revisadaEn < 15000) return this.enLinea;
     return this.comprobar();
   }
 

@@ -72,7 +72,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     if (estado.conAal) { aales.set(access_token, aal); aales.set(refresh_token, aal); }
     return { access_token, refresh_token, token_type: "bearer", expires_in: 3600, expires_at: ahora + 3600, user: usuarioDe(uid) };
   };
-  const uidDe = (token) => (secreto ? verificar(token, secreto)?.sub : sesiones.get(token)) || null;
+  const uidDe = (token) => (secreto ? verificar(token, secreto, Date.now())?.sub : sesiones.get(token)) || null;
   const servidor = http.createServer(async (req, res) => {
     if (estado.caida) return req.socket.destroy();
     if (estado.latenciaMs) await new Promise((r) => setTimeout(r, estado.latenciaMs)); // ida y vuelta a la nube (Venezuela: 108-380 ms)

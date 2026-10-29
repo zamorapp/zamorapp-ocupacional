@@ -119,29 +119,36 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // sid: la sesión de esta ventana. Se conserva al renovar (como en Supabase) para que «Salir» cierre solo esta.
   const sesionLocal = (uid, segundoPaso = false, sid = crypto.randomUUID()) => {
     const u = d().usuarios[uid];
-    const ahora = nube.reloj.segundos(); // hora anclada: con la fecha de Windows atrasada el token igual vence
-    const exp = ahora + CONFIG.sesionSegundos;
+    // La puerta revisa el vencimiento con la hora anclada (zexp): con la fecha de Windows cambiada el token igual
+    // vence a la hora. PostgREST local lo revisa con la de Windows (exp, iat): van en esa hora, sin margen de más
+    // (Analizar: con max(anclada, Windows) y Windows atrasado, PostgREST lo aceptaría por años al volver la fecha).
+    const ahora = nube.reloj.segundos();
+    const windows = Math.floor(nube.reloj.windows() / 1000);
+    const zexp = ahora + CONFIG.sesionSegundos;
+    const exp = windows + CONFIG.sesionSegundos;
+    const iat = windows - 60;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
-    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat, exp, zexp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
     for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < nube.reloj.ahora()) delete d().refrescos[t];
     d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso, sid };
     estado.guardar();
-    return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
+    // expires_at lo compara la app con la fecha de Windows: va en esa hora para que renueve a tiempo
+    return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: windows + CONFIG.sesionSegundos, refresh_token, user: u.user };
   };
 
   // Segundo paso «de confianza» en esta PC (decisión de Cesar, 29-oct): tras escribir el código del teléfono aquí,
   // durante el plazo de la organización (30 días por omisión) la clave basta, con o sin internet. Sin internet
   // nunca se pide el código (no se puede verificar): vale la confianza o Windows Hello. El plazo cuenta desde el
-  // último código escrito, no desde la última renovación. La fecha de Windows se cambia a veces (por el SAME): se
-  // mide la distancia en valor absoluto.
-  const anotarSegundoPaso = (uid) => { const u = d().usuarios[uid]; if (u) { u.segundoPasoEn = Date.now(); estado.guardar(); } };
+  // último código escrito, no desde la última renovación. Con la hora anclada (nube.reloj), nunca la de Windows,
+  // que Cesar cambia por el SAME; una anotación más de un día en el futuro no vale (Analizar, 29-oct).
+  const anotarSegundoPaso = (uid) => { const u = d().usuarios[uid]; if (u) { u.segundoPasoEn = nube.reloj.ahora(); estado.guardar(); } };
   const segundoPasoVigente = (u) => {
     if (!exigeDosPasos(u)) return false;
     // PC instalada antes de este cambio: si la sesión guardada de la nube ya pasó el código, cuenta desde la última vez en línea
     const en = u.segundoPasoEn ?? (aalDe(u.nube?.access_token) === "aal2" ? u.ultimoOnline : undefined);
     const dias = Number.isInteger(u.diasConfianza) ? u.diasConfianza : 30;
-    return Boolean(en) && dias > 0 && Math.abs(Date.now() - en) <= dias * 864e5;
+    return nube.reloj.dentroDelPlazo(en, dias);
   };
 
   const usuarioDe = (req) => {
@@ -251,7 +258,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
         d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user, nubeConAal: Boolean(aalDe(r.cuerpo.access_token)) };
         if (conservar) {
-          d().usuarios[uid].ultimoOnline = Date.now();
+          d().usuarios[uid].ultimoOnline = nube.reloj.ahora();
           nube.auth("logout?scope=local", {}, r.cuerpo.access_token).catch(() => {});
           registro("[auth] entrar en línea: equipo de confianza, se conserva la sesión con segundo paso");
         } else nube.guardarSesion(uid, r.cuerpo);
@@ -349,7 +356,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
-    const inicio = Date.now();
+    const inicio = performance.now();
     try {
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
@@ -372,7 +379,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       res.writeHead(r.status, salida);
       res.end(cuerpoRespuesta);
       // Lo que tarda la nube queda en puerta.log: así se mide en la PC real por qué una pantalla demora
-      const ms = Date.now() - inicio;
+      const ms = Math.round(performance.now() - inicio);
       if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${rutaParaRegistro(req.url)} ${ms} ms (nube, ${r.status})`);
       return true;
     } catch (e) {
@@ -741,7 +748,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // Las sesiones viejas sin sid se cierran también con local: no se sabe de qué ventana son.
         const quien = usuarioDe(req);
         const scope = new URL(req.url, "http://x").searchParams.get("scope") || "global";
-        const sid = quien && verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto)?.session_id;
+        const sid = quien && verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora())?.session_id;
         let cerradas = 0;
         if (quien) for (const [t, r] of Object.entries(d().refrescos)) {
           if (r.uid !== quien.uid) continue;

@@ -64,7 +64,9 @@ export class Motor {
     }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
-    const log = path.join(CONFIG.datos, "base.log");
+    // Junto a su carpeta de datos (en la PC real es CONFIG.datos/base.log). Dos bases no comparten registro: en Windows
+    // la segunda base no arrancó con el registro de la primera abierto (la «PC nueva» de las pruebas).
+    const log = path.join(path.dirname(this.carpetaBase), "base.log");
     const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
       "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(this.carpetaBase)}`}`],
@@ -311,7 +313,7 @@ export class Motor {
     this.hijos.push(p);
     // En una PC real la primera vez puede tardar: el antivirus revisa postgrest.exe y PostgREST carga el
     // esquema. Se espera hasta 2 minutos, pero si el proceso se cae se avisa de inmediato con su motivo.
-    const inicio = Date.now();
+    const inicio = performance.now();
     for (;;) {
       if (salida !== null) {
         const e = new Error(`No arrancó PostgREST (salió con ${salida}): ${ultimas.join(" | ") || "sin mensajes"}`);
@@ -319,14 +321,14 @@ export class Motor {
         throw e;
       }
       // No se le pregunta nada hasta que diga que cargó el esquema (o pasen 10 s): sin pedidos durante su arranque
-      if (esquemaListo || Date.now() - inicio > 10_000) try {
+      if (esquemaListo || performance.now() - inicio > 10_000) try {
         const r = await fetch(`http://127.0.0.1:${this.puertoPostgrest}/`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(3000) });
         if (r.status < 500) break;
       } catch { /* aún no escucha */ }
-      if (Date.now() - inicio > 120_000) throw new Error(`No arrancó PostgREST en 2 minutos: ${ultimas.join(" | ") || "sin mensajes"}`);
+      if (performance.now() - inicio > 120_000) throw new Error(`No arrancó PostgREST en 2 minutos: ${ultimas.join(" | ") || "sin mensajes"}`);
       await new Promise((r) => setTimeout(r, 500));
     }
-    this.registro?.(`[postgrest] listo en ${Math.round((Date.now() - inicio) / 1000)} s`);
+    this.registro?.(`[postgrest] listo en ${Math.round((performance.now() - inicio) / 1000)} s`);
     // Si después se cae mientras el programa está abierto, se vuelve a lanzar en el mismo puerto
     p.once("close", (codigo) => {
       if (this.deteniendo) return;

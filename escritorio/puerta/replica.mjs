@@ -49,7 +49,7 @@ export class Replica {
       await this.#vigilarPermisos(uid);
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
-      this.ultima = new Date().toISOString();
+      this.ultima = this.nube.reloj.iso();
       this.ultimaMs = performance.now();
       this.inicioCiclo = inicio;
       this.error = null;
@@ -103,6 +103,10 @@ export class Replica {
         let despues = null;
         const conId = await this.#tieneId(c, tabla);
         await c.query(`delete from ${this.#seguro(tabla)}`);
+        // La copia completa es la verdad de la nube: las versiones anotadas se rehacen con lo que baja (si la nube volvió
+        // a una versión anterior, la fila no queda congelada). Las filas con un cambio por subir conservan su base.
+        const { rowCount: viejas } = await c.query("delete from local.version_nube v where v.tabla = $1 and not exists (select 1 from local.bandeja b where b.tabla = v.tabla and b.fila_id = v.fila_id and b.estado = 'pendiente')", [tabla]);
+        if (viejas) this.registro(`[réplica] copia completa de ${tabla}: ${viejas} versiones anotadas se toman de nuevo de la nube`);
         for (;;) {
           const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
           if (seq === null) seq = r.seq;
@@ -117,7 +121,7 @@ export class Replica {
       throw e;
     }
     this.estado.d.cursor = seq ?? 0;
-    this.estado.d.copiaCompleta = new Date().toISOString();
+    this.estado.d.copiaCompleta = this.nube.reloj.iso();
     this.estado.guardar();
     this.registro(`[réplica] copia completa lista (${tablas.length} tablas)`);
   }
@@ -130,7 +134,10 @@ export class Replica {
         await c.query("begin");
         try {
           for (const k of r.cambios) {
-            if (k.op === "D") await c.query(`delete from ${this.#seguro(k.tabla)} where id = $1`, [k.fila_id]);
+            if (k.op === "D") {
+              await c.query(`delete from ${this.#seguro(k.tabla)} where id = $1`, [k.fila_id]);
+              await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [k.tabla, k.fila_id]);
+            }
             else await this.#insertar(c, k.tabla, [k.fila]);
           }
           await c.query("commit");
@@ -167,8 +174,17 @@ export class Replica {
       const select = cols.map((x) => x.column_name).join(",") || "*";
       const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
       await c.query("set session_replication_role = replica");
+      // Si la nube tiene una versión MENOR que la anotada (p. ej. se restauró un respaldo de la nube), manda la nube:
+      // si no, la réplica dejaría esa fila congelada en la PC (Analizar)
+      if (Array.isArray(filas) && filas.length && filas[0].version != null) {
+        const { rowCount } = await c.query("update local.version_nube set version = $3 where tabla = $1 and fila_id = $2 and version > $3", [tabla, id, filas[0].version]);
+        if (rowCount) this.registro(`[réplica] ${tabla} ${id}: la nube volvió a una versión anterior (${filas[0].version}); se toma la de la nube`);
+      }
       if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
-      else await c.query(`delete from ${tabla} where id = $1`, [id]);
+      else {
+        await c.query(`delete from ${tabla} where id = $1`, [id]);
+        await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [tabla, id]);
+      }
       return Array.isArray(filas) ? filas.length : 0;
     } finally { await c.end().catch(() => {}); }
   }
@@ -188,11 +204,34 @@ export class Replica {
     )).rows.map((r) => r.column_name).filter((col) => col in filas[0]);
     const lista = cols.map((x) => `"${x}"`).join(", ");
     const actualizar = cols.filter((x) => x !== "id").map((x) => `"${x}" = excluded."${x}"`).join(", ");
+    if (!conId) {
+      await c.query(`insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1)`, [JSON.stringify(filas)]);
+      return;
+    }
+    // Una fila con un cambio de esta PC por subir no se pisa: la copia muestra lo último que se guardó aquí y la
+    // nube decide al subir (si otro la cambió, es conflicto y se repone). Las demás quedan como en la nube, y su
+    // versión pasa a ser la base de los próximos cambios (local.version_nube).
+    const pendiente = "exists (select 1 from local.bandeja b where b.tabla = $2 and b.fila_id = r.id and b.estado = 'pendiente')";
+    // Tampoco se pisa con una lectura vieja: si esta PC ya subió una versión más nueva (la leyó antes de que subiera
+    // lo último y llega después de borrarse de la bandeja), la copia se queda con lo último que se guardó aquí
+    const vieja = "version" in filas[0]
+      ? " and not exists (select 1 from local.version_nube v where v.tabla = $2 and v.fila_id = r.id and v.version > r.version)" : "";
+    // La misma revisión se repite al actualizar, DESPUÉS de esperar el bloqueo de la fila (ver local.replica_puede): la
+    // de arriba usa la foto del inicio y no ve un guardado de la PC que la tomó mientras tanto
+    const aun = ` where local.replica_puede($2, excluded.id, ${"version" in filas[0] ? "excluded.version" : "null"})`;
     await c.query(
-      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1)` +
-      (conId ? ` on conflict (id) do update set ${actualizar}` : ""),
-      [JSON.stringify(filas)],
+      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1) r where not ${pendiente}${vieja}
+       on conflict (id) do update set ${actualizar}${aun}`,
+      [JSON.stringify(filas), tabla],
     );
+    if ("version" in filas[0]) {
+      await c.query(
+        `insert into local.version_nube (tabla, fila_id, version)
+         select $2, r.id, r.version from jsonb_to_recordset($1) as r(id uuid, version bigint) where r.version is not null and not ${pendiente}
+         on conflict (tabla, fila_id) do update set version = greatest(local.version_nube.version, excluded.version)`,
+        [JSON.stringify(filas.map((f) => ({ id: f.id, version: f.version }))), tabla],
+      );
+    }
   }
 
   #seguro(tabla) {
