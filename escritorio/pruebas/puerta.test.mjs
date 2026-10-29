@@ -793,6 +793,7 @@ test("verificación en dos pasos: la puerta pide el código para abrir la app y 
     const ren = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
     assert.equal(aal(ren.json.access_token), "aal2", "renovar conserva el segundo paso");
   } finally {
+    estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"].segundoPasoEn = 0; // sin plazo de confianza para las pruebas siguientes
     nube.estado.conAal = false;
     delete nube.usuarios["admin@x"].factor;
   }
@@ -851,6 +852,7 @@ test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el códi
   const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
   let token, nubeAal2;
   try {
+    admin().segundoPasoEn = 0;
     token = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
     const nubeAal1 = admin().nube.access_token;
     const prep = await pedir("/zamorapp/huella/preparar", { metodo: "POST", token });
@@ -878,6 +880,62 @@ test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el códi
     nube.estado.caida = false;
     await nubeObj.comprobar();
     if (token) await pedir("/zamorapp/huella/quitar", { metodo: "POST", token });
+    admin().segundoPasoEn = 0;
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
+// 29-oct: Cesar desconectó internet a propósito y el escritorio le pidió el código del teléfono, que sin internet no
+// se puede verificar. Ahora: sin internet vale el plazo de confianza de esta PC (desde el último código escrito
+// aquí); fuera del plazo, Windows Hello. Con internet, dentro del plazo, la clave basta (no pide el código cada vez).
+test("sin internet no se pide el código: vale el plazo de confianza de esta PC; fuera de él, Windows Hello", { skip: omitir }, async () => {
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const entrar = () => pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  try {
+    admin().segundoPasoEn = 0;
+    let r = await entrar();
+    assert.equal(aal(r.json.access_token), "aal1", "sin código escrito en esta PC, con internet se pide");
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: r.json.access_token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    assert.equal(aal(ok.json.access_token), "aal2");
+    assert.ok(admin().segundoPasoEn > 0, "queda anotado cuándo se escribió el código");
+
+    r = await entrar();
+    assert.equal(r.status, 200);
+    assert.equal(aal(r.json.access_token), "aal2", "con internet y dentro del plazo, la clave basta");
+    assert.equal(aal(admin().nube.access_token), "aal2", "se conserva la sesión de la nube que ya pasó el código");
+
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    r = await entrar();
+    assert.equal(r.status, 200);
+    assert.equal(aal(r.json.access_token), "aal2", "sin internet y dentro del plazo: entra sin código");
+
+    admin().segundoPasoEn = Date.now() - 31 * 864e5;
+    r = await entrar();
+    assert.equal(r.status, 200, "fuera del plazo igual abre la sesión (la app ofrece Windows Hello)");
+    assert.equal(aal(r.json.access_token), "aal1");
+    assert.ok(lineas.some((l) => l.includes("segundo paso pendiente (Windows Hello)")));
+
+    admin().segundoPasoEn = Date.now() + 400 * 864e5; // fecha de Windows atrasada por el SAME: cuenta la distancia
+    assert.equal(aal((await entrar()).json.access_token), "aal1");
+    admin().segundoPasoEn = Date.now() + 2 * 864e5;
+    assert.equal(aal((await entrar()).json.access_token), "aal2");
+
+    admin().diasConfianza = 0; // la organización pide el código siempre
+    assert.equal(aal((await entrar()).json.access_token), "aal1");
+    delete admin().diasConfianza;
+
+    delete admin().segundoPasoEn; // PC instalada antes del cambio: la sesión guardada de la nube ya pasó el código
+    assert.equal(aal((await entrar()).json.access_token), "aal2");
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    admin().segundoPasoEn = 0;
+    delete admin().diasConfianza;
     nube.estado.conAal = false;
     delete nube.usuarios["admin@x"].factor;
   }
