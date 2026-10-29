@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
 import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
+import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cn } from "@/lib/utils";
 import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -89,6 +90,9 @@ function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
       <Campo id="d_rango_max" etiqueta="Máximo" defaultValue={v(d.max)} inputMode="decimal" placeholder="110" />
       <Campo id="d_rango_min_f" etiqueta="Mín. mujer" defaultValue={v(d.minF)} inputMode="decimal" placeholder="Igual" />
       <Campo id="d_rango_max_f" etiqueta="Máx. mujer" defaultValue={v(d.maxF)} inputMode="decimal" placeholder="Igual" />
+      <div className="col-span-2 sm:col-span-6">
+        <Campo id="d_sinonimos" etiqueta="Otros nombres en los informes del laboratorio (separados por coma)" defaultValue={sinonimosDe(datos).join(", ")} placeholder="HGB, Hb" maxLength={1300} />
+      </div>
       <p className="col-span-2 text-xs text-muted-foreground sm:col-span-6">Con el rango, el resultado se pinta solo: verde normal, ámbar fuera de rango, rojo alterado. Deja vacío lo que no aplique (p. ej. solo máximo para colesterol). «Mujer» solo si el rango cambia por sexo.</p>
     </div>
   );

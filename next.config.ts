@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import { copiarRecursosOcr } from "./scripts/recursos-ocr.mjs";
+
+// Lector de laboratorio: copia y verifica los archivos de Tesseract en public/ocr (desarrollo, Vercel y escritorio)
+copiarRecursosOcr();
 
 // Cabeceras de seguridad para todas las páginas: no se puede incrustar la app en otro sitio,
 // el navegador no adivina tipos de archivo y no se filtra la ruta completa a otros sitios.
