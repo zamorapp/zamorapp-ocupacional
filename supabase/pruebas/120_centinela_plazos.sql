@@ -41,6 +41,10 @@ select 'enfermería de A sí (debe 4): ' || count(*) from public.notificaciones 
 select 'el administrador recibe las 6, incluida B (debe 6): ' || count(*) from public.notificaciones where usuario_id = '00000000-0000-0000-0000-0000000000a1';
 select 'quien llega tarde recibe un solo aviso de la vencida (debe 1): ' || count(*) from public.notificaciones
  where usuario_id = '00000000-0000-0000-0000-0000000000a1' and titulo = 'Declaración ante el INPSASEL vencida';
+select 'y sale en alerta (debe 1): ' || count(*) from public.notificaciones
+ where usuario_id = '00000000-0000-0000-0000-0000000000a1' and titulo = 'Declaración ante el INPSASEL vencida' and nivel = 'alerta';
+select 'la de 20 h sale en aviso con su título completo (debe 1): ' || count(*) from public.notificaciones
+ where usuario_id = '00000000-0000-0000-0000-0000000000a1' and titulo = 'Declaración ante el INPSASEL: vence en menos de 12 horas' and nivel = 'aviso';
 select 'pero quedan marcados los tres hitos (debe 3): ' || count(*) from public.avisos_legales
  where evento_id = '12000000-0000-0000-0000-00000000000d' and plazo = 'declaracion';
 select 'el importado no avisa (debe 0): ' || count(*) from public.avisos_legales where evento_id = '12000000-0000-0000-0000-00000000000c';

@@ -96,7 +96,6 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
               <Casilla id="constancia_copias" etiqueta="Constancia en original (RR. HH.) y copia (servicio médico)" defecto={a.constancia_copias ?? true} />
               <Casilla id="firma_paciente_constancia" etiqueta="Espacio de firma del trabajador" defecto={a.firma_paciente_constancia ?? false} />
               <Casilla id="firma_sello_separados" etiqueta="Firma y sello del médico en casillas separadas (todos los documentos)" defecto={a.firma_sello_separados ?? true} />
-              <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración INPSASEL, informe NT-02, investigación)" defecto={a.centinela_correo ?? true} />
             </div>
           </CardContent>
         </Card>
@@ -106,6 +105,14 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
             <Campo id="reposo_pie_original" etiqueta="Pie del original" defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Avisos</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? true} />
+            <p className="pl-6 text-xs text-muted-foreground">Llega al personal de salud y SST de cada empresa; sale cuando un administrador o gerente médico abre zamorApp. Nunca incluye el diagnóstico. La campana avisa siempre.</p>
           </CardContent>
         </Card>
 

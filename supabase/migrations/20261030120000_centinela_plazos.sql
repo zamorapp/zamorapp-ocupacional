@@ -7,6 +7,10 @@
 -- El texto nunca lleva diagnóstico: solo el trabajador, la empresa y el plazo.
 -- No hay pg_cron: la app llama a centinela_legal() al abrir Inicio, Atención o Accidentes, y al registrar un evento.
 
+-- Nivel del aviso en la campana: alerta (vencido) y aviso (por vencer) llevan color e ícono
+alter table public.notificaciones add column if not exists nivel text not null default 'info'
+  check (nivel in ('info', 'aviso', 'alerta'));
+
 create table if not exists public.avisos_legales (
   evento_id uuid not null references public.eventos (id) on delete cascade,
   plazo text not null check (plazo in ('declaracion', 'nt02', 'investigacion')),
@@ -92,6 +96,7 @@ declare
   v_enlace text;
   v_nuevos integer := 0;
   v_filas integer;
+  v_nivel text;
 begin
   if v_uid is null then return 0; end if;
   for o in
@@ -111,17 +116,23 @@ begin
       get diagnostics v_filas = row_count;
       continue when v_filas = 0; -- ese hito ya se había avisado
       v_nuevos := v_nuevos + 1;
-      v_titulo := case p.plazo
-        when 'declaracion' then 'Declaración ante el INPSASEL'
-        when 'nt02' then 'Informe de investigación NT-02'
-        else 'Investigación del accidente' end
-        || case p.hito when 'vencido' then ' vencida' when 'urgente' then ' por vencer' else ' pendiente' end;
+      v_titulo := case p.plazo || '.' || p.hito
+        when 'declaracion.inicio' then 'Declaración ante el INPSASEL pendiente'
+        when 'declaracion.urgente' then 'Declaración ante el INPSASEL: vence en menos de 12 horas'
+        when 'declaracion.vencido' then 'Declaración ante el INPSASEL vencida'
+        when 'nt02.inicio' then 'Informe de investigación NT-02 pendiente'
+        when 'nt02.urgente' then 'Informe de investigación NT-02: vence en menos de 2 días'
+        when 'nt02.vencido' then 'Informe de investigación NT-02 vencido'
+        when 'investigacion.inicio' then 'Investigación del accidente pendiente'
+        when 'investigacion.urgente' then 'Investigación del accidente: vence en menos de 2 días'
+        else 'Investigación del accidente vencida' end;
+      v_nivel := case p.hito when 'vencido' then 'alerta' when 'urgente' then 'aviso' else 'info' end;
       v_texto := p.trabajador || ' · ' || p.empresa || ' · evento #' || p.numero || ' · vence el '
         || to_char(p.vence at time zone 'America/Caracas', 'DD/MM/YYYY "a las" HH24:MI');
       v_enlace := case p.plazo when 'nt02' then '/accidentes/' || p.evento_id || '/investigacion' else '/accidentes/' || p.evento_id end;
       with destino as (
-        insert into public.notificaciones (org_id, usuario_id, empresa_id, titulo, texto, enlace)
-        select o.org_id, m.usuario_id, p.empresa_id, v_titulo, v_texto, v_enlace
+        insert into public.notificaciones (org_id, usuario_id, empresa_id, titulo, texto, enlace, nivel)
+        select o.org_id, m.usuario_id, p.empresa_id, v_titulo, v_texto, v_enlace, v_nivel
         from public.miembros m
         where m.org_id = o.org_id and m.activo and public.rol_centinela(m.rol)
           and (m.empresas_permitidas is null or p.empresa_id = any (m.empresas_permitidas))
