@@ -261,6 +261,79 @@ test("vuelve internet: sincroniza sin conflictos, firma, envía y respalda base 
 });
 let pc1;
 
+// Corregir una firmada sin internet (pedido de Cesar, 29-oct): con datos propios (consultas nuevas de otro paciente)
+async function consultaFirmada(trabajador, texto) {
+  const id = crypto.randomUUID();
+  const ap = await pedir("/rest/v1/consultas", { metodo: "POST", token: tokenMed, cabeceras: { "Content-Profile": "clinico", Prefer: "return=representation" },
+    cuerpo: { id, org_id: ORG, empresa_id: EMPRESA, trabajador_id: trabajador, tipo: "sucesiva" } });
+  assert.ok([200, 201].includes(ap.status), JSON.stringify(ap.json));
+  await guardarCerrada(id, texto);
+  const fi = await pedir("/rest/v1/rpc/firmar_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id } });
+  assert.ok([200, 204].includes(fi.status), JSON.stringify(fi.json));
+  return id;
+}
+async function guardarCerrada(id, texto) {
+  const g = await pedir("/rest/v1/rpc/guardar_consulta", { metodo: "POST", token: tokenMed, cuerpo: {
+    p_id: id, p_consulta: { tipo: "sucesiva", motivo_texto: "Control", enfermedad_actual: texto, conclusiones: "Apto" },
+    p_diagnosticos: [{ cie10: "Z00.0", descripcion: "Examen médico general", principal: true }], p_aptitud: { clasificacion: "elegible" }, p_reposo: null, p_cerrar: true } });
+  assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
+}
+const MOTIVO = "Corregir la tensión arterial anotada";
+
+test("sin internet: firmar, corregir y volver a firmar; al volver internet sube con su versión y sin conflictos", { skip: omitir, timeout: 120_000 }, async () => {
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  assert.equal((await pedir("/zamorapp/estado")).json.horaSinAncla, false);
+  const id = await consultaFirmada(pacientes[1], "Primera versión");
+  const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id, p_motivo: MOTIVO } });
+  assert.equal(re.status, 200, `corregir sin internet se hace en la PC: ${JSON.stringify(re.json)}`);
+  assert.equal(Number(re.json), 2);
+  const [lv] = await enLocal("select count(*)::int as n from clinico.consultas_versiones where consulta_id = $1 and revision = 1", [id]);
+  assert.equal(lv.n, 1, "la versión firmada queda en el historial de la PC");
+  await guardarCerrada(id, "Versión corregida");
+  const fi = await pedir("/rest/v1/rpc/firmar_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id } });
+  assert.ok([200, 204].includes(fi.status), JSON.stringify(fi.json));
+  nube.estado.caida = false;
+  await respaldoObj.sincronizar();
+  const eb = (await pedir("/zamorapp/estado")).json.bandeja;
+  assert.deepEqual({ pendientes: eb.pendientes, conflictos: eb.conflictos, rechazados: eb.rechazados }, { pendientes: 0, conflictos: 0, rechazados: 0 }, JSON.stringify(await bandejaObj.lista()));
+  const [n] = await enNube("select estado, revision, enfermedad_actual from clinico.consultas where id = $1", [id]);
+  assert.deepEqual(n, { estado: "firmada", revision: 2, enfermedad_actual: "Versión corregida" });
+  const [v] = await enNube("select revision, motivo, reabierta_por, contenido #>> '{consulta,enfermedad_actual}' as texto, contenido #>> '{consulta,estado}' as estado from clinico.consultas_versiones where consulta_id = $1", [id]);
+  assert.deepEqual(v, { revision: 1, motivo: MOTIVO, reabierta_por: MED, texto: "Primera versión", estado: "firmada" });
+});
+
+test("corregir sin internet mientras la web toca la misma consulta: conflicto visible, nada se pierde", { skip: omitir, timeout: 120_000 }, async () => {
+  const id = await consultaFirmada(pacientes[1], "Firmada con internet");
+  await respaldoObj.sincronizar();
+  assert.equal((await enNube("select estado from clinico.consultas where id = $1", [id]))[0].estado, "firmada");
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id, p_motivo: MOTIVO } });
+  assert.equal(re.status, 200, JSON.stringify(re.json));
+  await guardarCerrada(id, "Corregida en la PC");
+  // Mientras tanto, en la web, alguien cambia la consulta (aquí directo en la base de la nube)
+  await enNube("update clinico.consultas set observacion_privada = 'Nota agregada en la web' where id = $1", [id]);
+  nube.estado.caida = false;
+  await respaldoObj.sincronizar();
+  const eb = (await pedir("/zamorapp/estado")).json.bandeja;
+  assert.ok(eb.conflictos + eb.rechazados >= 1, `la corrección queda por revisar: ${JSON.stringify(await bandejaObj.lista())}`);
+  const [n] = await enNube("select estado, revision, observacion_privada, enfermedad_actual from clinico.consultas where id = $1", [id]);
+  assert.deepEqual(n, { estado: "firmada", revision: 1, observacion_privada: "Nota agregada en la web", enfermedad_actual: "Firmada con internet" }, "la nube no pierde lo de la web");
+  const [b] = await enLocal("select count(*)::int as n from local.bandeja where fila_id = $1 and estado in ('conflicto', 'rechazado')", [id]);
+  assert.ok(b.n >= 1, "la corrección de la PC sigue guardada en la bandeja");
+  // Quien revisa decide «descartar» (manda la nube): la PC vuelve a mostrar lo de la nube y la bandeja queda limpia
+  for (const f of (await bandejaObj.lista()).revisar) assert.equal((await bandejaObj.resolver(f.id, "descartar", { uid: MED })).hecho, "descartado");
+  await replicaObj.ciclo();
+  const [l] = await enLocal("select estado, revision from clinico.consultas where id = $1", [id]);
+  assert.deepEqual(l, { estado: "firmada", revision: 1 });
+  // Y se puede corregir de nuevo, ya con internet (la versión que dejó la PC se conserva)
+  const re2 = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id, p_motivo: MOTIVO } });
+  assert.equal(re2.status, 200, JSON.stringify(re2.json));
+  await respaldoObj.sincronizar();
+  assert.equal((await enNube("select revision from clinico.consultas where id = $1", [id]))[0].revision, 2);
+});
+
 // Decisión de Cesar (29-oct): sin internet, la firma lleva la hora de la PC solo si está verificada (anclada a la
 // nube). Sin reiniciar la PC el ancla sigue viva aunque se caiga internet y Windows salte 30 días adelante.
 let cuarta, firmaLocal;
@@ -290,10 +363,6 @@ test("sin internet y Windows 30 días adelante, con la hora anclada: firma en la
   firmaLocal = c.firmada_en.getTime();
   const [hv] = await enLocal("select count(*)::int as n from local.bandeja where estado = 'pendiente' and hora_verificada");
   assert.ok(hv.n >= 1, "los cambios de la firma salen con hora verificada");
-  // Corregir una firmada necesita internet: sin conexión no se reabre y la consulta sigue firmada
-  const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: cuarta, p_motivo: "Corregir la tensión arterial anotada" } });
-  assert.ok(re.status >= 500, `corregir sin internet espera a la conexión: ${re.status} ${JSON.stringify(re.json)}`);
-  assert.equal((await enLocal("select estado from clinico.consultas where id = $1", [cuarta]))[0].estado, "firmada");
 });
 
 test("vuelve internet: la firma hecha en la PC conserva su hora y la nube la anota como verificada", { skip: omitir, timeout: 120_000 }, async () => {

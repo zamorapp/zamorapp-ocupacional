@@ -461,9 +461,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     if (!m) return false;
     if (m[1]) {
       if (!RPC_ESCRITURA_LOCAL.has(m[2])) return false;
-      // Firmar fija la hora legal: solo en la PC cuando la base local ya usa la hora anclada que manda la puerta
-      // (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces va a la nube (Analizar, 29-oct-2026).
-      if (m[2] === "firmar_consulta" && !(await horaAncladaEnBase())) return false;
+      // Firmar y corregir una firmada fijan la hora legal: solo en la PC cuando la base local ya usa la hora anclada
+      // que manda la puerta (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces van a la nube
+      // (Analizar, 29-oct-2026). Sin ancla, la base local las niega con un aviso claro.
+      if ((m[2] === "firmar_consulta" || m[2] === "reabrir_consulta") && !(await horaAncladaEnBase())) return false;
       return true;
     }
     const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
