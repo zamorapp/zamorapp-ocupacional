@@ -1366,6 +1366,10 @@ test("adjuntos: con internet se guardan en la PC, se ven desde ella y suben solo
   assert.equal(ver.status, 200);
   assert.equal(ver.headers.get("content-type"), "application/pdf");
   assert.equal(await ver.text(), PDF);
+  // Cesar cambia la fecha de Windows (por el SAME): la URL firmada sigue valiendo su hora, ni más ni menos
+  const fechaReal = Date.now;
+  Date.now = () => fechaReal() - 400 * 864e5;
+  try { assert.equal((await fetch(encodeURI(`${urlPuerta}/storage/v1${f.json.signedURL}`))).status, 200); } finally { Date.now = fechaReal; }
   // Firma alterada o de otra ruta: no
   const otra = f.json.signedURL.replace("examen-prueba", "otro");
   assert.equal((await fetch(encodeURI(`${urlPuerta}/storage/v1${otra}`))).status, 400);
@@ -1377,6 +1381,12 @@ test("adjuntos: con internet se guardan en la PC, se ven desde ella y suben solo
   const enNube = nube.estado.archivos.get(`adjuntos/${RUTA_A}`);
   assert.equal(enNube.cuerpo, PDF);
   assert.equal(enNube.uid, "00000000-0000-0000-0000-0000000000a2");
+  // Un corte por tiempo después de que el archivo llegó: el reintento recibe 409 y cuenta como subido (sin upsert)
+  await enLaCopiaDB("update local.adjuntos_cola set estado = 'pendiente' where ruta = $1", [RUTA_A]);
+  assert.equal((await puerta.adjuntos.subir()).subidos, 1);
+  assert.equal((await enLaCola(RUTA_A)).estado, "subido");
+  // Lo que ya está en la nube no se reemplaza desde la PC (el bucket no tiene UPDATE)
+  conEstado(await subirArchivo(RUTA_A, { token: tokenMed, upsert: true }), 409);
   const est = await pedir("/zamorapp/estado");
   assert.deepEqual(est.json.adjuntos, { pendientes: 0, rechazados: 0 });
 });
@@ -1384,6 +1394,11 @@ test("adjuntos: con internet se guardan en la PC, se ven desde ella y suben solo
 test("adjuntos: solo PDF, JPG o PNG que coincidan con su nombre, y solo en la organización de quien sube", { skip: omitir }, async () => {
   conEstado(await subirArchivo(`${ORG}/30000000-0000-0000-0000-00000000000a/x.pdf`, { token: tokenMed, tipo: "text/html" }), 415);
   conEstado(await subirArchivo(`${ORG}/30000000-0000-0000-0000-00000000000a/x.html`, { token: tokenMed, tipo: "application/pdf" }), 415);
+  // Dice ser PDF pero no lo es (bytes iniciales)
+  const falso = new FormData();
+  falso.append("", new Blob(["<html>no soy un PDF</html>"], { type: "application/pdf" }), "archivo");
+  const rf = await fetch(`${urlPuerta}/storage/v1/object/adjuntos/${ORG}/30000000-0000-0000-0000-00000000000a/falso.pdf`, { method: "POST", headers: { Authorization: `Bearer ${tokenMed}` }, body: falso });
+  assert.equal(rf.status, 415, await rf.text());
   conEstado(await subirArchivo(`20000000-0000-0000-0000-000000000099/t/x.pdf`, { token: tokenMed }), 403);
   conEstado(await subirArchivo(`${ORG}/../../escape.pdf`, { token: tokenMed }), 400);
   conEstado(await subirArchivo(`${ORG}/%2e%2e/escape.pdf`, { token: tokenMed }), 400);
