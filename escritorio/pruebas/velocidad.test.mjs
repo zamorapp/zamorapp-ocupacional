@@ -87,10 +87,12 @@ test("medir abrir y guardar una consulta: PC (copia local) frente a nube", { ski
   // Lecturas: con la lectura local apagada, la app lee de la nube como la web (la bandeja que sube en segundo plano
   // vuelve a poner la copia «al día», por eso no basta con envejecerla)
   const lecturaLocal = CONFIG.lecturaLocal; CONFIG.lecturaLocal = false;
-  await abrir();
+  await abrir(); await bandejaObj.enCurso;
   nube.estado.rest = [];
   resultados.nube_abrir = await medir(VUELTAS, abrir);
-  assert.equal(nube.estado.rest.filter((r) => r.includes("/rest/v1/consultas")).length, VUELTAS, "todas las aperturas fueron a la nube");
+  // Al menos una por vuelta: la bandeja que sube en segundo plano también puede leer consultas de la nube
+  const aNube = nube.estado.rest.filter((r) => r.includes("/rest/v1/consultas")).length;
+  assert.ok(aNube >= VUELTAS, `todas las aperturas fueron a la nube (${aNube} de ${VUELTAS})`);
   CONFIG.lecturaLocal = lecturaLocal;
   const copia = estado.d.copiaCompleta; estado.d.copiaCompleta = null; // sin copia: guardar va a la nube
   await guardar(0);
