@@ -330,8 +330,12 @@ test("corregir la consulta firmada después de reconectar: se reabre con rastro 
   assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
   const fi = await pedir("/rest/v1/rpc/firmar_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: cuarta } });
   assert.ok([200, 204].includes(fi.status), JSON.stringify(fi.json));
+  const [lf] = await enLocal("select estado from clinico.consultas where id = $1", [cuarta]);
+  assert.equal(lf.estado, "firmada", "la nueva firma quedó en la PC");
   await respaldoObj.sincronizar();
-  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0, JSON.stringify(await bandejaObj.lista()));
+  const eb = (await pedir("/zamorapp/estado")).json.bandeja;
+  assert.deepEqual({ pendientes: eb.pendientes, conflictos: eb.conflictos, rechazados: eb.rechazados }, { pendientes: 0, conflictos: 0, rechazados: 0 },
+    JSON.stringify({ lista: await bandejaObj.lista(), registro: lineas.filter((l) => /bandeja|firmar|reabrir/.test(l)).slice(-15) }));
   const [n] = await enNube("select estado, revision, enfermedad_actual from clinico.consultas where id = $1", [cuarta]);
   assert.deepEqual(n, { estado: "firmada", revision: antes.revision + 1, enfermedad_actual: "Cefalea leve, TA 120/80" });
 });
