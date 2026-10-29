@@ -10,6 +10,8 @@ import { hoyCaracas } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Pacientes atendidos" };
 export const dynamic = "force-dynamic";
+// «Enviar a la empresa» genera el PDF de esta página en el servidor
+export const maxDuration = 60;
 
 type Props = { searchParams: Promise<{ empresa?: string; desde?: string; hasta?: string }> };
 
@@ -30,7 +32,7 @@ export default async function Atendidos({ searchParams }: Props) {
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver="/facturacion?vista=atendidos" titulo="Reporte de pacientes atendidos" />
+      <BarraImpresion volver="/facturacion?vista=atendidos" titulo="Reporte de pacientes atendidos" envio={empresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "atendidos", empresaId: empresa.id, empresa: empresa.razonSocial } : null} />
       <Hoja>
         <header className="mb-4 flex items-start justify-between border-b-2 border-teal-700 pb-3">
           <div className="flex items-center gap-3">
