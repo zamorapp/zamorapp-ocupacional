@@ -94,6 +94,22 @@ update clinico.consultas set hora_cierre = '2020-01-03 10:00+00' where id = '134
 select 'nube: un cambio de la web no toca hora_equipo (debe 1): ' ||
   ((hora_cierre = timestamptz '2020-01-03 10:00+00') and (hora_equipo #>> '{hora_cierre,hora}')::timestamptz = timestamptz '2020-01-02 10:00+00')::int
 from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
+-- Nadie escribe hora_equipo: un usuario que intenta marcar una firma como verificada no cambia nada
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+update clinico.consultas set hora_equipo = '{"firmada_en":{"hora":"2020-01-01T00:00:00Z","verificada":true}}' where id = '13400000-0000-0000-0000-0000000000f3';
+reset role;
+select 'nube: un usuario no puede escribir hora_equipo (debe 0): ' || count(*)
+from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3' and hora_equipo ? 'firmada_en';
+-- La fecha sin verificar no se cambia, solo se anota
+select set_config('sync.cambio_id', gen_random_uuid()::text, false) \g /dev/null
+select set_config('sync.hora_anclada', 'off', false) \g /dev/null
+update clinico.consultas set fecha = date '2020-05-05' where id = '13400000-0000-0000-0000-0000000000f3';
+select set_config('sync.cambio_id', '', false) \g /dev/null
+select set_config('sync.hora_anclada', '', false) \g /dev/null
+select 'nube: la fecha sin verificar se conserva y queda anotada (debe 1): ' ||
+  (fecha = date '2020-05-05' and (hora_equipo #>> '{fecha,verificada}')::boolean = false)::int
+from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
 delete from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f3';
 select set_config('zamorapp.local', '', false) \g /dev/null
 select set_config('request.headers', '', false) \g /dev/null
