@@ -4,7 +4,7 @@ import { hoyCaracas } from "@/lib/fecha";
 import { correoConfigurado, remitente } from "@/lib/correo";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { consultasDelDia, contarPendientes, historialEnvios, listarContactos, listarPlantillas, porEnviar } from "@/lib/envios";
+import { consultasDelDia, contarEnvios, historialEnvios, listarContactos, listarPlantillas } from "@/lib/envios";
 import { obtenerSesion } from "@/lib/sesion";
 import { EnvioLote } from "./envio-lote";
 import { Filtros } from "./filtros";
@@ -21,7 +21,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
   if (!sesion.clinico) notFound();
   const { empresa: pedida, fecha: f } = await searchParams;
   const fecha = f && /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyCaracas();
-  const [empresas, activa, plantillas, pendientes, bandeja] = await Promise.all([listarEmpresas(), empresaActivaId(), listarPlantillas(), contarPendientes(), porEnviar()]);
+  const [empresas, activa, plantillas, cuentas] = await Promise.all([listarEmpresas(), empresaActivaId(), listarPlantillas(), contarEnvios()]);
   const empresa = empresas.find((e) => e.id === pedida) ?? empresas.find((e) => e.id === activa) ?? null;
   const [consultas, contactos, historial] = empresa
     ? await Promise.all([consultasDelDia(empresa.id, fecha), listarContactos(empresa.id), historialEnvios(empresa.id)])
@@ -36,7 +36,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
         </div>
         <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
       </div>
-      <PestanasEnvios pendientes={pendientes} porEnviar={bandeja.reduce((n, g) => n + g.consultas.length, 0)} />
+      <PestanasEnvios {...cuentas} />
       <Filtros empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresa={empresa?.id ?? ""} fecha={fecha} />
       {empresa ? (
         <EnvioLote

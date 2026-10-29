@@ -14,6 +14,17 @@ export async function nubeAdelantada(): Promise<boolean> {
   }
 }
 
+// Envíos (correo, WhatsApp) necesitan la nube: en el escritorio la puerta dice si hay internet. En la web, siempre sí.
+export async function escritorioEnLinea(): Promise<boolean> {
+  if (!ESCRITORIO || !PUERTA) return true;
+  try {
+    const r = await fetch(`${PUERTA}/zamorapp/estado`, { credentials: "include", cache: "no-store" });
+    return (await r.json())?.enLinea !== false;
+  } catch {
+    return false;
+  }
+}
+
 const pedirPuerta = (ruta: string) => fetch(`${PUERTA}${ruta}`, { method: "POST", credentials: "include" }).then((r) => r.json()).catch(() => null);
 
 // Botón «Buscar actualización»: la puerta se lo pasa al programa, que abre el actualizador

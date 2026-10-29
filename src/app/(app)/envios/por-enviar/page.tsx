@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { contarPendientes, listarPlantillas, porEnviar } from "@/lib/envios";
+import { contarEnvios, listarPlantillas, porEnviar } from "@/lib/envios";
 import { obtenerSesion } from "@/lib/sesion";
 import { PestanasEnvios } from "../pestanas";
 import { Bandeja } from "./bandeja";
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export default async function PorEnviar() {
   const sesion = await obtenerSesion();
   if (!sesion.clinico) notFound();
-  const [grupos, plantillas, pendientes] = await Promise.all([porEnviar(), listarPlantillas(), contarPendientes()]);
+  const [grupos, plantillas, { pendientes }] = await Promise.all([porEnviar(), listarPlantillas(), contarEnvios()]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
