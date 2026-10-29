@@ -20,6 +20,7 @@ import { NuevaCita } from "./nueva-cita";
 import { recordarResultados } from "@/lib/recordatorios";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
+import { RefrescarAlVolver } from "./refrescar-al-volver";
 
 export const metadata: Metadata = { title: "Atención médica" };
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Atención médica</h1>
-          <p className="text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso</p>
+          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={Date.now()} /></p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>

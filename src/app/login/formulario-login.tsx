@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { BotonEntrarHuella, OfrecerHuella } from "@/components/app/huella";
 import { puedeOfrecerHuella } from "@/lib/huella";
+import { correoParaEntrar, recordarUsuario, ultimoUsuario } from "@/lib/ingreso";
 
 export type Modo = "ingresar" | "registro" | "recuperar";
 
@@ -21,6 +22,17 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
   const [detalle, setDetalle] = useState<string | null>(null); // qué respondió exactamente el servicio, para soporte
   const [confirmar, setConfirmar] = useState<string | null>(null);
   const [ofrecer, setOfrecer] = useState(false);
+  const campoCorreo = useRef<HTMLInputElement>(null);
+  const campoClave = useRef<HTMLInputElement>(null);
+
+  // El escritorio recuerda el último usuario: queda escrito y el cursor pasa directo a la contraseña
+  useEffect(() => {
+    const ultimo = ultimoUsuario();
+    if (ultimo && campoCorreo.current && !campoCorreo.current.value) {
+      campoCorreo.current.value = ultimo;
+      campoClave.current?.focus();
+    }
+  }, []);
 
   const alPanel = () => {
     router.replace(siguiente);
@@ -35,7 +47,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
     if (["over_request_rate_limit", "session_expired", "user_banned", "offline", "offline_first_login"].includes(error.code ?? "")) return error.message;
     if (error.status === 429) return "Demasiados intentos. Espera unos minutos y vuelve a probar.";
     if (error.status >= 500) return "El servicio no respondió. Vuelve a intentar en un momento.";
-    return "Correo o contraseña incorrectos.";
+    return "Usuario, correo o contraseña incorrectos.";
   }
 
   // Lo que respondió el servicio, tal cual: aparece en letra pequeña bajo el aviso para que soporte sepa qué pasó
@@ -88,12 +100,20 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           return;
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
+        // «correo» puede ser el correo o el usuario corto
+        const destino = await correoParaEntrar(supabase, correo, clave);
+        if ("error" in destino) {
+          setError(mensajeIngreso(destino.error));
+          setDetalle(detalleTecnico(destino.error));
+          return;
+        }
+        const { error } = await supabase.auth.signInWithPassword({ email: destino.correo, password: clave });
         if (error) {
           setError(mensajeIngreso(error));
           setDetalle(detalleTecnico(error));
           return;
         }
+        recordarUsuario(correo);
         // Recién entró con la contraseña: se le ofrece (una vez) entrar con huella la próxima vez. Si aún le falta
         // el código de dos pasos, se ofrece después de escribirlo (pantalla del código)
         if (await puedeOfrecerHuella(supabase)) {
@@ -142,8 +162,20 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         </div>
       )}
       <div className="space-y-2">
-        <Label htmlFor="correo">Correo</Label>
-        <Input id="correo" name="correo" type="email" autoComplete="email" placeholder={siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"} required={!modoDemo} className="h-11" />
+        <Label htmlFor="correo">{modo === "ingresar" ? "Usuario o correo" : "Correo"}</Label>
+        <Input
+          ref={campoCorreo}
+          key={modo === "ingresar" ? "usuario" : "correo"}
+          id="correo"
+          name="correo"
+          type={modo === "ingresar" ? "text" : "email"}
+          autoComplete={modo === "ingresar" ? "username" : "email"}
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder={modo === "ingresar" ? "usuario o correo@empresa.com" : siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"}
+          required={!modoDemo}
+          className="h-11"
+        />
       </div>
       {recuperar && <p className="text-sm text-muted-foreground">Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva.</p>}
       {!recuperar && <div className="space-y-2">
@@ -152,6 +184,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           {!registro && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setError(null); setModo("recuperar"); }}>¿La olvidaste?</button>}
         </div>
         <Input
+          ref={campoClave}
           id="clave"
           name="clave"
           type="password"

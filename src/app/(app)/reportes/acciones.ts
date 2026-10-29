@@ -64,11 +64,17 @@ export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.clinico || sesion.rol === "enfermeria") return { ok: false, mensaje: "Tu rol no firma consultas." };
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.from("consultas").select("id").in("id", ids.slice(0, 300)).eq("estado", "cerrada").eq("medico_id", sesion.usuarioId);
-  if (error) return { ok: false, mensaje: error.message };
+  // Bloques de 100 ids: la lista viaja en la URL de PostgREST y con 300 pasaba de 11 KB
+  const data: { id: string }[] = [];
+  const lote = ids.slice(0, 300);
+  for (let i = 0; i < lote.length; i += 100) {
+    const { data: parte, error } = await supabase.from("consultas").select("id").in("id", lote.slice(i, i + 100)).eq("estado", "cerrada").eq("medico_id", sesion.usuarioId);
+    if (error) return { ok: false, mensaje: error.message };
+    data.push(...(parte ?? []));
+  }
   let firmadas = 0;
   const fallos: string[] = [];
-  for (const c of data ?? []) {
+  for (const c of data) {
     const { error: e } = await supabase.rpc("firmar_consulta", { p_id: c.id });
     if (e) fallos.push(e.message); else firmadas++;
   }

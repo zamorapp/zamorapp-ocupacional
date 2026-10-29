@@ -10,6 +10,7 @@ import { listarAdjuntos } from "@/lib/adjuntos";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
 
 export const metadata: Metadata = { title: "Consulta" };
@@ -24,24 +25,28 @@ const LISTAS = [
 
 export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string }> }) {
   const [{ id }, { paso }] = await Promise.all([params, searchParams]);
-  const sesion = await obtenerSesion();
-  const [consulta, listas, versiones] = await Promise.all([obtenerConsulta(id), opciones(sesion.orgId, LISTAS), sesion.demo ? [] : listarVersiones(id)]);
-  if (!consulta) notFound();
-  // Contacto de RR. HH. de la empresa para enviar el resultado de aptitud
-  const [org, contacto] = await Promise.all([
-    datosOrganizacion(),
-    sesion.demo ? null : crearClienteServidor().then((s) => s.from("consultas").select("empresas(telefono, correo)").eq("id", id).single()).then((r) => (r.data?.empresas ?? null) as unknown as { telefono: string | null; correo: string | null } | null),
+  const demo = !supabaseConfigurado;
+  // Todo en dos ramas paralelas: lo que depende de la organización (sesión → listas, plantillas, datos) y lo que
+  // depende del trabajador (consulta → historial, adjuntos). Antes eran 6 esperas en fila; ahora la más larga es 3.
+  const porOrg = obtenerSesion().then((sesion) => Promise.all([sesion, opciones(sesion.orgId, LISTAS), plantillasDeOrg(sesion.orgId), datosOrganizacion()]));
+  const porTrabajador = obtenerConsulta(id).then((consulta) => Promise.all([
+    consulta,
+    !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
+    !consulta || demo ? null : listarAdjuntos(consulta.trabajador.id),
+  ]));
+  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos], versiones, contacto] = await Promise.all([
+    porOrg,
+    porTrabajador,
+    demo ? [] : listarVersiones(id),
+    // Contacto de RR. HH. de la empresa para enviar el resultado de aptitud
+    demo ? null : crearClienteServidor().then((s) => s.from("consultas").select("empresas(telefono, correo)").eq("id", id).maybeSingle()).then((r) => (r.data?.empresas ?? null) as unknown as { telefono: string | null; correo: string | null } | null),
   ]);
+  if (!consulta) notFound();
   const envio = { servicio: org.nombre, plantilla: org.ajustes.mensaje_aptitud ?? PLANTILLA_APTITUD, telefono: contacto?.telefono ?? null, correo: contacto?.correo ?? null };
   // Mismo criterio que validar_firma() en la base: el autor, el gerente médico o el administrador con acceso clínico; nunca enfermería
   const puedeFirmar = sesion.clinico && sesion.rol !== "enfermeria" &&
     (!consulta.medicoId || consulta.medicoId === sesion.usuarioId || sesion.rol === "gerente_medico" || sesion.rol === "administrador");
-  const [historial, plantillas] = await Promise.all([
-    sesion.demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
-    plantillasDeOrg(sesion.orgId),
-  ]);
-  const adjuntos = sesion.demo || !sesion.orgId ? null : { orgId: sesion.orgId, lista: await listarAdjuntos(consulta.trabajador.id) };
-
+  const adjuntos = sesion.demo || !sesion.orgId || !listaAdjuntos ? null : { orgId: sesion.orgId, lista: listaAdjuntos };
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">

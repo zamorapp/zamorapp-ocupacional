@@ -19,6 +19,13 @@ const DEVOLVER = ["content-type", "content-range", "preference-applied", "locati
 const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplica hasta 1 hora
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
+const LENTA_MS = 700; // una petición a la nube que tarda más se anota en puerta.log ([lenta])
+// En puerta.log no queda el nombre de un archivo (puede llevar el nombre del paciente): de storage solo el bucket
+const rutaParaRegistro = (url) => {
+  const ruta = url.split("?")[0];
+  const m = /^(\/storage\/v1\/object\/(?:(?:public|sign|authenticated|info|upload\/sign)\/)?[^/]+)\//.exec(ruta);
+  return m ? `${m[1]}/…` : ruta;
+};
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
@@ -96,12 +103,48 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     } catch (e) { registro(`[puerta] usuario local: ${e.message}`); } finally { await c.end().catch(() => {}); }
   }
 
+  // Usuario corto («cesar») → correo de la cuenta. Con internet lo resuelve la nube solo si la clave es correcta
+  // (correo_para_ingreso); sin internet, el que esta PC recuerda de la última vez que se entró con internet.
+  async function correoDeUsuario(usuario, clave) {
+    if (!nube.enLinea) await nube.comprobar();
+    if (nube.enLinea) {
+      try {
+        const r = await nube.rpcAnonimo("correo_para_ingreso", { p_usuario: usuario, p_clave: clave });
+        registro(`[auth] usuario corto en línea: ${r.status}${r.ok && !r.cuerpo ? " sin coincidencia" : ""}`);
+        if (r.ok) return r.cuerpo ? { email: String(r.cuerpo).toLowerCase() } : { fallo: [400, "Usuario o clave incorrectos"] };
+        if (r.cuerpo?.code === "P0429") return { fallo: [429, `Demasiados intentos. Espera ${Number(r.cuerpo.hint) || 15} min y vuelve a probar (o entra con tu correo).`, "over_request_rate_limit"] };
+        if (r.status < 500) return { fallo: [400, "Usuario o clave incorrectos"] };
+        return { fallo: [503, "El servicio no respondió. Vuelve a intentar en un momento o entra con tu correo.", "unexpected_failure"] };
+      } catch (e) { nube.marcarCaida(`al buscar el usuario: ${e.message}`); }
+    }
+    const local = Object.values(d().usuarios).find((u) => u.usuario === usuario);
+    return { email: local?.email || usuario };
+  }
+
+  // El usuario corto que esta PC recuerda (para entrar con él sin internet); uno solo por usuario
+  async function recordarUsuarioCorto(uid, escrito) {
+    let usuario = escrito.includes("@") ? undefined : escrito;
+    if (usuario === undefined) { try { usuario = (await nube.rpc(uid, "mi_usuario_ingreso", {})) || null; } catch { return; } }
+    for (const [otro, u] of Object.entries(d().usuarios)) if (otro !== uid && usuario && u.usuario === usuario) delete u.usuario;
+    if (usuario) d().usuarios[uid].usuario = usuario; else delete d().usuarios[uid].usuario;
+    estado.guardar();
+  }
+
   async function entrar(req, res, cuerpo) {
-    const email = String(cuerpo?.email || "").trim().toLowerCase();
+    const escrito = String(cuerpo?.email || "").trim().toLowerCase();
     const clave = String(cuerpo?.password || "");
-    const espera = Math.max(esperaDe(email), esperaDe("*"));
+    const espera = Math.max(esperaDe(escrito), esperaDe("*"));
     if (espera) registro("[auth] entrar: en espera por demasiados intentos");
     if (espera) return errorAuth(res, 429, `Demasiados intentos. Espera ${Math.ceil(espera / 60000)} min y vuelve a probar.`, "over_request_rate_limit");
+    let email = escrito;
+    if (escrito && !escrito.includes("@")) {
+      const r = await correoDeUsuario(escrito, clave);
+      if (r.fallo) {
+        if (r.fallo[0] === 400) anotarFallo(escrito);
+        return errorAuth(res, ...r.fallo);
+      }
+      email = r.email;
+    }
     const conocido = Object.entries(d().usuarios).find(([, u]) => u.email === email);
     if (!nube.enLinea) await nube.comprobar(); // antes de entrar sin conexión, se confirma que de verdad no hay internet
     if (nube.enLinea) {
@@ -129,8 +172,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         Object.assign(d().usuarios[uid], huellaClave(clave));
         if (rol) d().usuarios[uid].rol = rol;
         intentos.delete(email);
+        intentos.delete(escrito);
         estado.guardar();
         await anotarUsuarioLocal(uid, email);
+        await recordarUsuarioCorto(uid, escrito);
         replica.ciclo().catch(() => {});
         return responder(res, 200, sesionLocal(uid));
       } catch (e) {
@@ -146,10 +191,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!claveCorrecta(clave, u)) {
       registro("[auth] entrar sin conexión: clave incorrecta");
       anotarFallo(email);
-      return errorAuth(res, 400, "Correo o clave incorrectos");
+      return errorAuth(res, 400, "Usuario, correo o clave incorrectos");
     }
     registro(`[auth] entrar sin conexión: ${u.bloqueado ? "bloqueado" : u.requiereNube ? "requiere internet" : "ok"}`);
     intentos.delete(email);
+    intentos.delete(escrito);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
     if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
     if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
@@ -187,6 +233,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
+    const inicio = Date.now();
     try {
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
@@ -207,6 +254,9 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       }
       res.writeHead(r.status, salida);
       res.end(cuerpoRespuesta);
+      // Lo que tarda la nube queda en puerta.log: así se mide en la PC real por qué una pantalla demora
+      const ms = Date.now() - inicio;
+      if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${rutaParaRegistro(req.url)} ${ms} ms (nube, ${r.status})`);
       return true;
     } catch (e) {
       nube.marcarCaida(`${req.method} ${req.url.split("?")[0]}: ${e.message}`);

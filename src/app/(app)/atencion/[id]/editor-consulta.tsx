@@ -484,7 +484,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   setGuardado(JSON.stringify(nuevo));
                   setCorrigiendo(false);
                   setMotivoCorreccion("");
-                  router.refresh();
+                  // corregirConsulta invalida /atencion: su respuesta ya trae el historial de versiones al día
                 })}
               >
                 {guardando ? <Loader2 className="animate-spin" /> : <RotateCcw />} Abrir para corregir

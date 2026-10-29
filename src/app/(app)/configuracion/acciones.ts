@@ -289,6 +289,19 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
   }
 }
 
+// Usuario corto para entrar sin escribir el correo (vacío lo quita). La base valida el formato y que no se repita.
+export async function guardarUsuarioIngreso(usuarioId: string, usuario: string): Promise<Resultado & { usuario?: string | null }> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { data, error } = await supabase.rpc("asignar_usuario_ingreso", { p_usuario_id: usuarioId, p_usuario: usuario });
+    if (error) return { ok: false, mensaje: error.message };
+    revalidatePath("/configuracion/usuarios");
+    return { ok: true, mensaje: data ? `Ya puede entrar con «${data}» y su contraseña.` : "Usuario quitado: entra con su correo.", usuario: data };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
 // Firma y sello del médico (imagen PNG en data URL, ya reducida en el navegador) y si se imprimen
 export async function guardarImagenFirma(tipo: "firma" | "sello", imagen: string | null): Promise<Resultado> {
   try {
