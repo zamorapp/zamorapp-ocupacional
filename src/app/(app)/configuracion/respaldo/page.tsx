@@ -53,23 +53,27 @@ async function CopiaProgramada({ puede }: { puede: boolean }) {
   const sesion = await obtenerSesion();
   const respaldo = puede ? await estadoRespaldo(sesion) : null;
   return (
-    <section aria-labelledby="copia-programada" className="space-y-3 rounded-xl border bg-card p-5 text-sm">
+    <section aria-labelledby="copia-programada" className="space-y-3 rounded-xl border bg-card p-5">
       <h2 id="copia-programada" className="flex items-center gap-2 font-semibold"><CalendarClock className="size-4 text-primary" /> Copia programada de la nube</h2>
       {respaldo && (
         <div className="rounded-lg border px-3 py-2">
-          <p className="flex items-center gap-2 font-medium"><Semaforo estado={respaldo.estado} /> {respaldo.titulo}</p>
+          <p className="flex items-center gap-2 text-sm font-medium"><Semaforo estado={respaldo.estado} /> {respaldo.titulo}</p>
           <p className="break-words text-xs text-muted-foreground">{respaldo.detalle}</p>
         </div>
       )}
-      <p className="text-muted-foreground">
-        Es el segundo respaldo: cada día la tarea «zamorApp respaldo» guarda la base de la nube y sus archivos nuevos en
-        Documentos\zamorApp Respaldos y en Google Drive (Mi unidad\zamorApp\respaldos-zamorApp), con 30 días y uno por mes
-        durante un año, y una vez por semana prueba que se restaura.
+      <p className="text-sm text-muted-foreground">
+        Es el segundo respaldo: cada día guarda la base de la nube y sus archivos en Documentos\zamorApp Respaldos y en
+        Google Drive, con 30 días y uno por mes durante un año, y una vez por semana prueba que se restaura.
       </p>
-      <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-        <li>Se programa una sola vez con doble clic en «programar-respaldo.cmd», en la carpeta zamorapp-ocupacional.</li>
-        <li>Para una copia manual de la nube: scripts\respaldo.ps1.</li>
-      </ul>
+      {/* Lo técnico, plegado: se hace una sola vez al instalar */}
+      <details className="group text-sm text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground marker:text-muted-foreground">Cómo se programa</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Una sola vez: doble clic en «programar-respaldo.cmd», en la carpeta zamorapp-ocupacional. Crea la tarea «zamorApp respaldo».</li>
+          <li>En Google Drive queda en Mi unidad\zamorApp\respaldos-zamorApp.</li>
+          <li>Copia manual de la nube: scripts\respaldo.ps1.</li>
+        </ul>
+      </details>
     </section>
   );
 }
