@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, FileText, Link2Off, Mail, MessageCircle } 
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ConsultaLote, Contacto, EnvioHistorial, Plantilla } from "@/lib/envios-tipos";
+import { describirEnvio, type ConsultaLote, type Contacto, type EnvioHistorial, type Plantilla } from "@/lib/envios-tipos";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { anularEnlace } from "./acciones";
@@ -123,7 +123,7 @@ function FilaHistorial({ h }: { h: EnvioHistorial }) {
       <span className="w-36 shrink-0 font-mono text-xs text-muted-foreground">{fechaHora(h.creadoEn)}</span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 font-medium">{h.canal === "correo" ? <Mail className="size-3.5" /> : <MessageCircle className="size-3.5" />} {h.destinatario}</span>
-        <span className="block text-xs text-muted-foreground">{h.cantidad} evaluación{h.cantidad === 1 ? "" : "es"} del {h.fechaLote.split("-").reverse().join("/")} · {h.documentos.map((d) => (d === "consulta" ? "consulta médica" : "constancias")).join(" y ")}{h.error && ` · ${h.error}`}</span>
+        <span className="block text-xs text-muted-foreground">{describirEnvio(h.documentos, h.cantidad, h.fechaLote)}{h.error && ` · ${h.error}`}</span>
       </span>
       <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium", estado.c)}>{h.estado === "enviado" && <CheckCircle2 className="size-3" />}{estado.t}</span>
       {vigente && (

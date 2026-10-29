@@ -17,8 +17,9 @@ export const MARCAS = [
   { marca: "[cantidad]", que: "número de evaluaciones" },
 ] as const;
 
-export function rellenar(texto: string, v: { fechaHora: string; empresa: string; fecha: string; cantidad: number }) {
+export function rellenar(texto: string, v: { fechaHora: string; empresa: string; fecha: string; cantidad: number; documento?: string }) {
   return texto
+    .replaceAll("[documento]", v.documento ?? "")
     .replaceAll(MARCA_FECHA, v.fechaHora)
     .replaceAll("[empresa]", v.empresa)
     .replaceAll("[fecha]", v.fecha)
@@ -52,6 +53,45 @@ export function mensajeSoloConstancias(texto: string) {
 }
 
 export type Canal = "correo" | "whatsapp";
+
+// Documentos que salen a la empresa. De cada consulta: constancia de aptitud, consulta médica (informe completo),
+// constancia de atención (sin diagnóstico), referencias y récipes. Informes: puesto, vigilancia y atendidos.
+export type DocConsulta = "atencion" | "referencia" | "recipe";
+export type DocInforme = "puesto" | "vigilancia" | "atendidos";
+export const NOMBRE_DOCUMENTO: Record<string, string> = {
+  constancia: "Constancias de aptitud",
+  consulta: "Consultas médicas",
+  atencion: "Constancias de atención",
+  referencia: "Referencias médicas",
+  recipe: "Récipes",
+  puesto: "Evaluación del puesto de trabajo",
+  vigilancia: "Vigilancia epidemiológica",
+  atendidos: "Pacientes atendidos",
+};
+const CORTO: Record<string, string> = { constancia: "constancias", consulta: "consulta médica", atencion: "constancias de atención", referencia: "referencias", recipe: "récipes" };
+// «3 evaluaciones del 28/10 · constancias y consulta médica» o, si es un informe, su nombre
+export function describirEnvio(documentos: string[], cantidad: number, fechaLote: string) {
+  if (cantidad === 0) return NOMBRE_DOCUMENTO[documentos[0]] ?? documentos[0];
+  return `${cantidad} evaluación${cantidad === 1 ? "" : "es"} del ${fechaLote.split("-").reverse().join("/")} · ${documentos.map((d) => CORTO[d] ?? d).join(" y ")}`;
+}
+
+// Llevan datos clínicos: solo por correo y solo al personal de salud autorizado de la empresa (lo exige la base)
+export const DOCS_CLINICOS = ["consulta", "referencia", "recipe"];
+// Texto de los informes: el mismo cierre de Cesar («resguardar en los expedientes respectivos»)
+export const MENSAJE_INFORME = "Adjunto [documento] de [empresa], enviado el [fecha y hora]. Recuerden resguardarlo en los expedientes respectivos.";
+export const ASUNTO_INFORME = "[documento] · [empresa]";
+
+export type EntradaInforme = {
+  empresaId: string;
+  documento: DocInforme;
+  ruta: string; // la página del informe (/imprimir/…); la base exige que sea de esa empresa
+  contactoIds: string[];
+  correosExtra: string[];
+  telefonosExtra: string[];
+  canal: Canal;
+  asunto: string;
+  mensaje: string;
+};
 
 export type ConsultaLote = {
   id: string;
@@ -108,6 +148,7 @@ export type EntradaEnvio = {
   telefonosExtra: string[];
   canal: Canal;
   incluirConsulta: boolean;
+  extras?: DocConsulta[]; // constancia de atención (a todos); referencias y récipes (solo con la consulta, al personal de salud)
   mensaje: string;
   asunto?: string; // con marcas; vacío = el de fábrica
   mensajeConstancias?: string | null; // para quien no recibe la consulta; vacío = el mensaje sin mencionarla

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MARCAS, mensajeSoloConstancias, plantillaInicial, rellenar, type Canal, type Contacto, type Plantilla, type ResultadoEnvio } from "@/lib/envios-tipos";
+import { MARCAS, mensajeSoloConstancias, plantillaInicial, rellenar, type Canal, type Contacto, type DocConsulta, type Plantilla, type ResultadoEnvio } from "@/lib/envios-tipos";
 import { cn } from "@/lib/utils";
 import { enviar } from "./acciones";
 import { Contactos } from "./contactos";
@@ -36,6 +36,8 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
   const [para, setPara] = useState(() => new Set(contactos.filter((c) => c.correo).map((c) => c.id)));
   const [extra, setExtra] = useState("");
   const [conConsulta, setConConsulta] = useState(true);
+  const [conAtencion, setConAtencion] = useState(false);
+  const [conRecetas, setConRecetas] = useState(false);
   const opciones = plantillas.filter((p) => !p.empresaId || p.empresaId === empresa.id);
   const [plantilla, setPlantilla] = useState(() => plantillaInicial(opciones, empresa.id));
   const [asunto, setAsunto] = useState(plantilla.asunto);
@@ -56,6 +58,8 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
   const deSalud = canal === "correo" ? destinatarios.filter((c) => c.recibeConsulta) : [];
   const incluir = conConsulta && deSalud.length > 0;
   const autorizados = incluir ? deSalud : [];
+  // Referencias y récipes viajan con la consulta (mismo destinatario de salud); la constancia de atención, a todos
+  const extrasDocs = [conAtencion ? "atencion" : null, incluir && conRecetas ? "referencia" : null, incluir && conRecetas ? "recipe" : null].filter((x): x is DocConsulta => x !== null);
   const extras = extra.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
   const total = destinatarios.length + extras.length;
   const valores = { fechaHora: "27/10/2026, 3:40 p. m.", empresa: empresa.nombre, fecha: fecha.split("-").reverse().join("/"), cantidad: consultaIds.length };
@@ -71,7 +75,7 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
     if (!consultaIds.length || !total) return;
     const ok = await confirmar({
       titulo: canal === "correo" ? `¿Enviar ${consultaIds.length} evaluación${consultaIds.length === 1 ? "" : "es"} a ${total} destinatario${total === 1 ? "" : "s"}?` : `¿Crear ${total} enlace${total === 1 ? "" : "s"} para WhatsApp?`,
-      texto: autorizados.length ? `La consulta médica va solo a: ${autorizados.map((c) => c.nombre).join(", ")}. El resto recibe las constancias.` : "Se envían solo las constancias de aptitud.",
+      texto: `${autorizados.length ? `La consulta médica${extrasDocs.includes("referencia") ? ", las referencias y los récipes van" : " va"} solo a: ${autorizados.map((c) => c.nombre).join(", ")}. El resto recibe las constancias.` : "Se envían solo las constancias de aptitud."}${conAtencion ? " Incluye la constancia de atención." : ""}`,
       accion: canal === "correo" ? "Enviar" : "Crear enlaces",
     });
     if (!ok) return;
@@ -86,6 +90,7 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
           telefonosExtra: canal === "whatsapp" ? extras : [],
           canal,
           incluirConsulta: incluir,
+          extras: extrasDocs,
           mensaje,
           asunto,
           mensajeConstancias: plantilla.mensajeConstancias,
@@ -148,6 +153,19 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
         ) : (
           <p className="text-xs text-muted-foreground">Por WhatsApp va un enlace seguro a las constancias que vence en 7 días y se puede anular. La consulta médica nunca va por WhatsApp.</p>
         )}
+        <fieldset className="space-y-2">
+          <legend className="mb-1.5 text-sm font-medium">También enviar</legend>
+          <label className="flex items-start gap-3 rounded-md border px-3 py-2.5 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={conAtencion} onChange={(e) => setConAtencion(e.target.checked)} />
+            <span>Constancia de atención médica <span className="block text-xs text-muted-foreground">Hora de llegada y salida y el reposo, sin diagnóstico. Va a todos los destinatarios.</span></span>
+          </label>
+          {canal === "correo" && (
+            <label className="flex items-start gap-3 rounded-md border px-3 py-2.5 text-sm">
+              <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={incluir && conRecetas} disabled={!incluir} onChange={(e) => setConRecetas(e.target.checked)} />
+              <span className={cn(!incluir && "text-muted-foreground")}>Referencias y récipes <span className="block text-xs text-muted-foreground">Solo de las consultas que los tienen y solo junto con la consulta médica, al personal de salud.</span></span>
+            </label>
+          )}
+        </fieldset>
 
         <div className="space-y-3">
           {opciones.length > 1 && (

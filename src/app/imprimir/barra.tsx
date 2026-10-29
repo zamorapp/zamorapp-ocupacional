@@ -6,13 +6,14 @@ import { ArrowLeft, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRigh
 import { Button } from "@/components/ui/button";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
 import { ANEXOS_LISTOS } from "./anexos";
+import { EnviarInforme, type EnvioInforme } from "./enviar-informe";
 
 const hoy = () => new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
 
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).
 // esperarAnexos: los botones se habilitan cuando los exámenes escaneados terminan de dibujarse (si no, saldrían en blanco).
-export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean }) {
+export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null }) {
   const [escritorio, setEscritorio] = useState(false);
   const [ocupado, setOcupado] = useState<"imprimir" | "pdf" | null>(null);
   const [guardado, setGuardado] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { v
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" asChild><Link href={volver}><ArrowLeft /> Volver</Link></Button>
         <span className="min-w-0 flex-1 truncate font-medium">{titulo}</span>
+        {envio && <EnviarInforme {...envio} />}
         {escritorio ? (
           <div className="flex gap-2">
             <Button variant="outline" disabled={inactivo} onClick={() => hacer("pdf")} data-accion="guardar-pdf">
