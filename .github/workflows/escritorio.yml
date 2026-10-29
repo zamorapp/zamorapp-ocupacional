@@ -249,22 +249,27 @@ jobs:
                 if ($a.TargetPath -match "Integral\.exe") { $f.Add("acceso|$($_.FullName)|$($a.TargetPath)|$($a.Arguments)|$($a.WorkingDirectory)|$((Get-FileHash $_.FullName).Hash)") }
               }
             }
-            foreach ($k in $clavesAjenas) {
-              # Una clave sin valores (p. ej. Uninstall, que el instalador crea si no existía) no es del SAME: solo cuentan los valores
+            # Bajo MediSoftware, SQL Server y sus servicios no se filtra nada: cualquier rastro de zamorApp ahí hace fallar la prueba.
+            # En Run y Uninstall zamorApp sí puede tener lo suyo: se quitan solo sus subclaves y sus valores, uno por uno (Analizar).
+            # Edge y WebView2 se actualizan solos en el equipo del CI. Una clave sin valores no cuenta (Uninstall la crea el instalador).
+            $servicios = @(Get-Item "HKLM:\SYSTEM\CurrentControlSet\Services\MSSQL*", "HKLM:\SYSTEM\CurrentControlSet\Services\SQLBrowser" -ErrorAction SilentlyContinue | ForEach-Object { $_.PSPath })
+            foreach ($k in @($clavesAjenas) + $servicios) {
               if (-not (Test-Path $k)) { continue }
+              $estricta = $k -match "MediSoftware|Microsoft SQL Server|\\Services\\"
               foreach ($c in @(Get-Item $k) + @(Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue)) {
-                # Lo de zamorApp sí puede cambiar; Edge y WebView2 se actualizan solos en el equipo del CI
-                if ($c.Name -match "zamorapp|Microsoft Edge|EdgeUpdate|WebView") { continue }
-                $v = $c.GetValueNames() | Sort-Object | ForEach-Object { "$_=$($c.GetValue($_, $null, 'DoNotExpandEnvironmentNames') -join ',')" }
-                if (-not $v -or ($v -join ";") -match "zamorapp") { continue }
-                $f.Add("clave|$($c.Name)|$($v -join ';')")
+                if (-not $estricta -and $c.Name -match "zamorapp|Microsoft Edge|EdgeUpdate|WebView") { continue }
+                foreach ($n in ($c.GetValueNames() | Sort-Object)) {
+                  $dato = $c.GetValue($n, $null, 'DoNotExpandEnvironmentNames') -join ','
+                  if (-not $estricta -and "$n=$dato" -match "zamorapp") { continue }
+                  $f.Add("valor|$($c.Name)|$n=$dato")
+                }
               }
             }
             return $f
           }
           $fotoSame = FotoSame
           if (-not ($fotoSame | Where-Object { $_ -like "acceso|*" })) { throw "La foto del SAME no encontró sus accesos directos" }
-          if (-not ($fotoSame | Where-Object { $_ -like "clave|*MediSoftware\Integral|*" })) { throw "La foto del SAME no encontró su clave del registro" }
+          if (-not ($fotoSame | Where-Object { $_ -like "valor|*MediSoftware\Integral|*" })) { throw "La foto del SAME no encontró su clave del registro" }
           function RevisarSame([string]$momento) {
             $dif = Compare-Object $fotoSame (FotoSame)
             if ($dif) {
