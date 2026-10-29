@@ -705,8 +705,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
       if (ruta === "/zamorapp/bandeja" && req.method === "GET") {
         if (!bandeja) return responder(res, 200, { pendientes: 0, revisar: [] });
-        if (!usuarioDe(req)) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
-        return responder(res, 200, await bandeja.lista());
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        return responder(res, 200, await bandeja.lista({ uid: quien.uid, rol: quien.u.rol }));
       }
       if (ruta === "/zamorapp/bandeja/resolver" && req.method === "POST") {
         const quien = usuarioDe(req);

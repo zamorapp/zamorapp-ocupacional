@@ -6,6 +6,8 @@ import pg from "pg";
 
 const LOTE = 200;
 const REINTENTOS = 5;
+const TABLA = /^(public|clinico)\.[a-z_0-9]+$/; // nombre de tabla seguro para armar la consulta
+const RESUELVEN = ["administrador", "gerente_medico"]; // además del autor
 
 export class Bandeja {
   constructor(estado, nube, motor, replica, registro = () => {}) {
@@ -151,16 +153,55 @@ export class Bandeja {
     return subio;
   }
 
-  // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué
-  async lista() {
+  // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué.
+  // Solo los casos que quien pregunta puede resolver: los suyos, y los de otros si es administrador o gerente médico
+  // Y su propia RLS le deja ver esa fila (un administrador sin acceso clínico no ve casos de clinico.*). La versión de
+  // la nube (la fila en conflicto ya volvió a bajar a la copia) se lee también con su RLS y solo con los campos del
+  // cambio. Sin `quien` es solo para uso interno de la puerta (nunca para responder a una ventana).
+  async lista(quien = null) {
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
       const { rows } = await c.query(
         "select id, tabla, fila_id, op, estado, motivo, autor, creado, intentos, datos from local.bandeja where estado <> 'pendiente' order by creado desc limit 500");
       const { rows: [p] } = await c.query("select count(*)::int as n from local.bandeja where estado = 'pendiente'");
-      return { pendientes: p.n, revisar: rows.map((f) => ({ ...f, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null })) };
+      const candidatos = rows.filter((f) => !quien || f.autor === quien.uid || RESUELVEN.includes(quien.rol));
+      const revisar = [];
+      await this.#comoUsuario(c, quien, async () => {
+        for (const f of candidatos) {
+          const fila = await this.#fila(c, f, Boolean(quien));
+          if (quien && f.autor !== quien.uid && !fila) continue;
+          const nube = fila ? Object.fromEntries(Object.keys(f.datos || {}).map((k) => [k, fila[k] ?? null])) : null;
+          revisar.push({ ...f, nube, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null });
+        }
+      });
+      return { pendientes: p.n, revisar };
     } finally { await c.end().catch(() => {}); }
+  }
+
+  // Corre `fn` con la identidad y la RLS de quien pregunta (como lo haría PostgREST) y deshace todo al final
+  async #comoUsuario(c, quien, fn) {
+    if (!quien) return fn();
+    await c.query("begin");
+    try {
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: quien.uid, role: "authenticated", aal: quien.aal })]);
+      await c.query("set local role authenticated");
+      return await fn();
+    } finally { await c.query("rollback").catch(() => {}); }
+  }
+
+  // La fila tal como está en la copia; dentro de #comoUsuario, con su RLS (un error de permiso cuenta como «no la ve»)
+  async #fila(c, f, enTx = false) {
+    if (!TABLA.test(f.tabla)) return null;
+    if (enTx) await c.query("savepoint fila");
+    try {
+      const { rows: [n] } = await c.query(`select to_jsonb(t) as fila from ${f.tabla} t where id = $1`, [f.fila_id]);
+      if (enTx) await c.query("release savepoint fila");
+      return n?.fila ?? null;
+    } catch {
+      if (enTx) await c.query("rollback to savepoint fila").catch(() => {});
+      return null;
+    }
   }
 
   // Decisión de quien revisa un conflicto: «descartar» (la nube manda; la copia ya la muestra) o «reintentar»
@@ -172,13 +213,15 @@ export class Bandeja {
       await c.connect();
       const { rows: [f] } = await c.query("select id, tabla, fila_id, autor from local.bandeja where id = $1 and estado <> 'pendiente'", [id]);
       if (!f) return { error: "No existe ese cambio o ya está resuelto" };
-      if (f.autor !== quien.uid && !["administrador", "gerente_medico"].includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      if (f.autor !== quien.uid && !RESUELVEN.includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      // De otro autor, solo si su propia RLS le deja ver esa fila (lo mismo que en la lista)
+      if (f.autor !== quien.uid && !(await this.#comoUsuario(c, quien, () => this.#fila(c, f, true)))) return { error: "No tienes acceso a ese registro" };
       if (accion === "descartar") { await c.query("delete from local.bandeja where id = $1", [id]); return { hecho: "descartado" }; }
       if (accion === "reintentar") {
         // Sobre la versión que la nube tiene ahora (la que la copia repuso tras el conflicto), nunca la de la copia,
         // que el disparador local sube en cada guardado
         const { rows: [n] } = await c.query("select version from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
-        const { rows: [v] } = n ? { rows: [n] } : await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+        const { rows: [v] } = n ? { rows: [n] } : await c.query(`select version from ${TABLA.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
         await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
         return { hecho: "pendiente" };
       }

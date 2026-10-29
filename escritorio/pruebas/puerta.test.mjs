@@ -319,13 +319,34 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   assert.equal(lista.status, 200);
   const item = lista.json.revisar.find((x) => x.fila_id === CONSULTA_MED);
   assert.ok(item && item.estado === "conflicto" && item.datos.motivo_texto === "cambiado en la PC" && item.motivo, JSON.stringify(lista.json));
+  // Lado a lado: la versión de la nube, solo de los campos que cambió la PC
+  assert.deepEqual(item.nube, { motivo_texto: "cambiado en la nube" }, JSON.stringify(item));
   assert.equal((await pedir("/zamorapp/bandeja")).status, 401, "la lista exige sesión");
   // Quien revisa decide: otro usuario sin rol no puede; el autor descarta y la bandeja queda limpia
   const admin = estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
   const rolAdmin = admin.rol; admin.rol = "rrhh"; // alguien que no es el autor ni administra
+  const ajenaLista = await pedir("/zamorapp/bandeja", { token: tokenAdmin });
+  assert.ok(!ajenaLista.json.revisar.some((x) => x.id === item.id), "quien no puede resolverlo no lo ve");
   const ajeno = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenAdmin, cuerpo: { id: item.id, accion: "descartar" } });
   admin.rol = rolAdmin;
   assert.equal(ajeno.status, 400, JSON.stringify(ajeno.json));
+  // Un administrador sin acceso clínico no ve ni resuelve el conflicto de la consulta de otro médico; el gerente médico sí
+  const A1 = "00000000-0000-0000-0000-0000000000a1";
+  const sinDisparar = (sql) => enLocal(`begin; set local session_replication_role = replica; ${sql}; commit`);
+  const [m1] = await enLocal("select rol::text, acceso_clinico from public.miembros where usuario_id = $1", [A1]);
+  await sinDisparar(`update public.miembros set rol = 'administrador', acceso_clinico = false where usuario_id = '${A1}'`);
+  admin.rol = "administrador";
+  const sinClinico = await pedir("/zamorapp/bandeja", { token: tokenAdmin });
+  assert.ok(!sinClinico.json.revisar.some((x) => x.id === item.id), "admin sin acceso clínico no ve el caso clínico de otro");
+  const noResuelve = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenAdmin, cuerpo: { id: item.id, accion: "descartar" } });
+  assert.equal(noResuelve.status, 400, JSON.stringify(noResuelve.json));
+  await sinDisparar(`update public.miembros set rol = 'gerente_medico' where usuario_id = '${A1}'`);
+  admin.rol = "gerente_medico";
+  const gerente = await pedir("/zamorapp/bandeja", { token: tokenAdmin });
+  const visto = gerente.json.revisar.find((x) => x.id === item.id);
+  assert.deepEqual(visto?.nube, { motivo_texto: "cambiado en la nube" }, JSON.stringify(gerente.json));
+  await sinDisparar(`update public.miembros set rol = '${m1.rol}', acceso_clinico = ${m1.acceso_clinico} where usuario_id = '${A1}'`);
+  admin.rol = rolAdmin;
   const ok = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenMed, cuerpo: { id: item.id, accion: "descartar" } });
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
