@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
-import { MOTIVO_HELLO } from "@/lib/huella";
+import { MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
+import { OfrecerHuella } from "@/components/app/huella";
 
 export function FormularioDosPasos() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export function FormularioDosPasos() {
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [desdeHello, setDesdeHello] = useState(false);
+  const [ofrecer, setOfrecer] = useState(false);
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
@@ -42,6 +44,12 @@ export function FormularioDosPasos() {
     setError(null);
     const fallo = await confirmarCodigo(crearClienteNavegador(), paso.factorId, codigo);
     if (fallo) { setCargando(false); setError(fallo); setCodigo(""); return; }
+    // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
+    if (!desdeHello && (await puedeOfrecerHuella(crearClienteNavegador()))) { setCargando(false); setOfrecer(true); return; }
+    alPanel();
+  }
+
+  function alPanel() {
     router.replace("/panel");
     router.refresh();
   }
@@ -52,6 +60,7 @@ export function FormularioDosPasos() {
     router.refresh();
   }
 
+  if (ofrecer) return <OfrecerHuella alTerminar={alPanel} />;
   if (paso.tipo === "cargando") return <div className="grid place-items-center py-10"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>;
   if (paso.tipo === "error") {
     return (
