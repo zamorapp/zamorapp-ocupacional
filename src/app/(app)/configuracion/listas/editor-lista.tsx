@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, Wand2, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,8 +9,9 @@ import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
 import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
 import { sinonimosDe } from "@/lib/ocr/interpretar";
+import { cambiosSugeridos, datosSugeridos, sugeridoPara } from "@/lib/paraclinicos-sugeridos";
 import { cn } from "@/lib/utils";
-import { alternarItem, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
+import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
@@ -73,11 +74,16 @@ function SelectorVarios({ nombre, titulo, opciones, inicial }: { nombre: string;
 }
 
 // Paraclínicos: unidad y rango de referencia para el semáforo del resultado (se guardan en lista_items.datos)
-function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
+function CamposResultado({ datos: inicial, nombre }: { datos?: Record<string, unknown>; nombre?: string }) {
+  // «Volver al valor sugerido» rellena el formulario con la tabla de la app (sin internet); se guarda con «Guardar»
+  const [datos, setDatos] = useState(inicial);
+  const [version, setVersion] = useState(0);
+  const sugerido = nombre ? sugeridoPara(nombre) : null;
   const d = defExamen(datos);
   const v = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
+  const fuente = typeof datos?.fuente === "string" ? datos.fuente : "";
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-3 sm:col-span-3 sm:grid-cols-6">
+    <div key={version} className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-3 sm:col-span-3 sm:grid-cols-6">
       <div className="col-span-2 sm:col-span-1">
         <label htmlFor="d_tipo" className="mb-1.5 block text-sm font-medium">Resultado</label>
         <select id="d_tipo" name="d_tipo" defaultValue={d.tipo} className="h-10 w-full rounded-md border bg-transparent px-2 text-sm">
@@ -93,6 +99,17 @@ function CamposResultado({ datos }: { datos?: Record<string, unknown> }) {
       <div className="col-span-2 sm:col-span-6">
         <Campo id="d_sinonimos" etiqueta="Otros nombres en los informes del laboratorio (separados por coma)" defaultValue={sinonimosDe(datos).join(", ")} placeholder="HGB, Hb" maxLength={1300} />
       </div>
+      <div className="col-span-2 sm:col-span-6">
+        <Campo id="d_fuente" etiqueta="Fuente del rango (sociedad o guía y año)" defaultValue={fuente} placeholder="ADA, Standards of Care 2025" maxLength={400} />
+      </div>
+      {sugerido && (
+        <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-6">
+          <Button type="button" variant="outline" size="sm" onClick={() => { setDatos({ ...(datos ?? {}), ...datosSugeridos(sugerido) }); setVersion(version + 1); }}>
+            <Wand2 /> Volver al valor sugerido
+          </Button>
+          <span className="text-xs text-muted-foreground">Llena el formulario con la tabla de la app ({sugerido.nombre}). Revísalo y toca «Guardar».</span>
+        </div>
+      )}
       <p className="col-span-2 text-xs text-muted-foreground sm:col-span-6">Con el rango, el resultado se pinta solo: verde normal, ámbar fuera de rango, rojo alterado. Deja vacío lo que no aplique (p. ej. solo máximo para colesterol). «Mujer» solo si el rango cambia por sexo.</p>
     </div>
   );
@@ -158,7 +175,7 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
-      {lista === "paraclinico" && <CamposResultado datos={item?.datos} />}
+      {lista === "paraclinico" && <CamposResultado datos={item?.datos} nombre={item?.nombre} />}
       {conTexto ? (
         <div className="sm:col-span-3">
           <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3}
@@ -181,6 +198,46 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
   );
 }
 
+// Paraclínicos: vista previa de «Completar con valores sugeridos» (solo lo vacío) antes de guardar
+function CompletarSugeridos({ items, alTerminar }: { items: Item[]; alTerminar: () => void }) {
+  const [hecho, setHecho] = useState<Resultado | null>(null);
+  const [aplicando, iniciar] = useTransition();
+  const { cambios, sinCatalogo } = cambiosSugeridos(items);
+  return (
+    <div className="space-y-3 border-b bg-muted/30 px-5 py-4 text-sm">
+      {hecho ? (
+        <Aviso resultado={hecho} />
+      ) : cambios.length === 0 ? (
+        <p className="text-muted-foreground">No hay nada vacío que completar: los exámenes que reconozco ya tienen su unidad, su rango y sus otros nombres.</p>
+      ) : (
+        <>
+          <p>Se completará <strong>solo lo que está vacío</strong> en {cambios.length} {cambios.length === 1 ? "examen" : "exámenes"}. Lo que ya escribiste no cambia. Son rangos de referencia general en adultos: ajústalos a tu laboratorio.</p>
+          <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border bg-card p-2">
+            {cambios.map((c) => (
+              <li key={c.id} className="min-w-0">
+                <span className="font-medium">{c.nombre}</span>
+                {c.sugerido !== c.nombre && <span className="text-muted-foreground"> (como {c.sugerido})</span>}
+                <span className="text-muted-foreground">: {c.resumen.join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {!hecho && sinCatalogo.length > 0 && (
+        <p className="text-xs text-muted-foreground">No están en tu catálogo (agrégalos con «Agregar» si los usas): {sinCatalogo.map((x) => x.nombre).join(" · ")}.</p>
+      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={alTerminar}>{hecho ? "Cerrar" : <><X /> Cancelar</>}</Button>
+        {!hecho && cambios.length > 0 && (
+          <Button type="button" disabled={aplicando} onClick={() => iniciar(async () => setHecho(await completarSugeridos()))}>
+            {aplicando && <Loader2 className="animate-spin" />} Completar {cambios.length}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function EditorLista({ lista, items, editable, motivos, alcance }: { lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[]; alcance?: Alcance }) {
   const nombreDe = new Map([...(alcance?.empresas ?? []), ...(alcance?.motivos ?? [])].map((o) => [o.id, o.nombre]));
   const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
@@ -191,6 +248,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
   const [verInactivos, setVerInactivos] = useState(true);
+  const [sugeridos, setSugeridos] = useState(false);
 
   const ejecutar = (f: () => Promise<Resultado>) =>
     iniciar(async () => {
@@ -216,6 +274,11 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
             {verInactivos ? `Ocultar ${inactivos} inactivos` : `Ver ${inactivos} inactivos`}
           </Button>
         )}
+        {editable && lista.codigo === "paraclinico" && (
+          <Button size="sm" variant="outline" onClick={() => setSugeridos(true)} disabled={sugeridos} title="Unidad, rango de referencia y otros nombres de los exámenes más pedidos, solo donde falten">
+            <Wand2 /> Completar con valores sugeridos
+          </Button>
+        )}
         {editable && (
           <Button size="sm" onClick={() => setEditando("nuevo")} disabled={editando === "nuevo"}>
             <Plus /> Agregar
@@ -231,6 +294,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
         </label>
       )}
       {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
+      {sugeridos && <CompletarSugeridos items={items} alTerminar={() => setSugeridos(false)} />}
       {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alcance={alcance} alTerminar={() => setEditando(null)} />}
 
       {visibles.length === 0 && editando !== "nuevo" && (
@@ -253,8 +317,9 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                 {lista.codigo === "paraclinico" && (() => {
                   const dx = defExamen(item.datos);
                   const ref = textoReferencia(dx, null);
-                  return dx.tipo === "informe" ? <p className="mt-0.5 text-xs text-muted-foreground">Normal / Alterado</p>
-                    : ref || dx.unidad ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{[ref, dx.unidad].filter(Boolean).join(" ")}</p>
+                  const fuente = typeof item.datos?.fuente === "string" && item.datos.fuente ? <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">Fuente: {item.datos.fuente}</p> : null;
+                  return dx.tipo === "informe" ? <><p className="mt-0.5 text-xs text-muted-foreground">Normal / Alterado</p>{fuente}</>
+                    : ref || dx.unidad ? <><p className="mt-0.5 font-mono text-xs text-muted-foreground">{[ref, dx.unidad].filter(Boolean).join(" ")}</p>{fuente}</>
                     : <p className="mt-0.5 text-xs text-aviso-texto">Sin rango: el resultado no se colorea</p>;
                 })()}
                 {alcance && (() => {

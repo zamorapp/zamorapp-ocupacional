@@ -7,6 +7,7 @@ import { URL_PUBLICA } from "@/lib/invitaciones";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -48,7 +49,9 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
       // Otros nombres con que lo escriben los laboratorios (lector de resultados): hasta 20, de hasta 60 letras
       const sinonimos = [...new Set((texto(datos, "d_sinonimos") ?? "").split(",").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 20);
-      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos };
+      // Fuente del rango (sociedad o guía y año): se ve en la lista; hasta 400 letras
+      const fuente = (texto(datos, "d_fuente") ?? "").replace(/\s+/g, " ").slice(0, 400);
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos, fuente };
     }
 
     // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
@@ -70,6 +73,26 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
     }
     revalidatePath("/configuracion", "layout");
     return { ok: true, mensaje: "Guardado." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Paraclínicos: completa con los valores sugeridos solo lo que está vacío (unidad, rango, otros nombres). Se calcula
+// otra vez aquí con lo que hay en la base, así que nunca pisa algo que se escribió mientras la vista previa estaba abierta.
+export async function completarSugeridos(): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
+    const { data, error } = await supabase.from("lista_items").select("id, nombre, datos").eq("org_id", sesion.orgId!).eq("lista", "paraclinico");
+    if (error) throw error;
+    const { cambios } = cambiosSugeridos(data ?? []);
+    if (!cambios.length) return { ok: true, mensaje: "No había nada vacío que completar." };
+    const r = await Promise.all(cambios.map((c) => supabase.from("lista_items").update({ datos: c.datos }).eq("id", c.id).eq("org_id", sesion.orgId!)));
+    const fallidos = r.filter((x) => x.error).length;
+    revalidatePath("/configuracion", "layout");
+    return fallidos
+      ? { ok: false, mensaje: `Se completaron ${cambios.length - fallidos} de ${cambios.length}. Vuelve a intentarlo para los que faltan.` }
+      : { ok: true, mensaje: `Listo: ${cambios.length} exámenes completados. Revísalos y ajústalos a tu laboratorio.` };
   } catch (e) {
     return fallo(e);
   }
