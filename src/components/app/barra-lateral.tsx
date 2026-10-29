@@ -8,7 +8,7 @@ import { APP_NOMBRE } from "@/lib/config";
 import { buscarActualizacion, ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
-import { AL_PASAR, IconoEnlace } from "./icono-enlace";
+import { alPasar, IconoEnlace } from "./icono-enlace";
 
 type Props = { organizacion: string; portal?: boolean; alNavegar?: () => void };
 
@@ -27,11 +27,11 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
         {secciones.map(({ href, titulo, icono: Icono }) => {
           const activa = ruta === href || ruta.startsWith(href + "/");
           return (
-            // Al pasar el mouse se pide la pantalla completa: al hacer clic ya está (o casi)
+            // En Inicio, Pacientes y Atención se pide la pantalla completa al pasar el mouse
             <Link
               key={href}
               href={href}
-              {...AL_PASAR}
+              {...alPasar(href)}
               aria-current={activa ? "page" : undefined}
               onClick={alNavegar}
               className={cn(
