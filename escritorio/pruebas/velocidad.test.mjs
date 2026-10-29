@@ -48,7 +48,12 @@ before(async () => {
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 300_000 });
-after(async () => { puerta?.closeAllConnections?.(); puerta?.close(); motor?.detener(); await nube?.cerrar(); fs.rmSync(datos, { recursive: true, force: true }); });
+after(async () => {
+  // Lo que el último guardado lanzó en segundo plano (bandeja, réplica) termina antes de cerrar la nube simulada:
+  // si no, usa su pool ya cerrado y la prueba falla después de pasar
+  await bandejaObj?.enCurso?.catch(() => {});
+  for (let i = 0; replicaObj?.ocupada && i < 200; i++) await new Promise((r) => setTimeout(r, 50));
+  puerta?.closeAllConnections?.(); puerta?.close(); motor?.detener(); await nube?.cerrar(); fs.rmSync(datos, { recursive: true, force: true }); });
 
 const ms = (a) => { const s = [...a].sort((x, y) => x - y); const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))]; return { mediana: Math.round(q(0.5)), p95: Math.round(q(0.95)), max: Math.round(s[s.length - 1]) }; };
 async function medir(veces, fn) { const t = []; for (let i = 0; i < veces; i++) { const a = performance.now(); await fn(i); t.push(performance.now() - a); } return ms(t); }
