@@ -132,7 +132,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
       // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
       observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
-      constancia_copias: datos.get("constancia_copias") === "on",
+      constancia_copia: datos.get("constancia_copia") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
