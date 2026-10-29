@@ -303,6 +303,8 @@ test("vuelve internet: la firma hecha en la PC conserva su hora y la nube la ano
   const e = (await pedir("/zamorapp/estado")).json;
   assert.equal(e.bandeja.pendientes, 0, JSON.stringify(e.bandeja));
   assert.equal(e.bandeja.conflictos, 0, JSON.stringify(await bandejaObj.lista()));
+  // Abierta, cerrada y firmada sin internet sube como un solo alta ya firmada (migración 20261030380000)
+  assert.equal(e.bandeja.rechazados, 0, JSON.stringify(await bandejaObj.lista()));
   const [c] = await enNube("select estado, fecha::text as fecha, firmada_en, hora_equipo, (now() at time zone 'America/Caracas')::date::text as hoy from clinico.consultas where id = $1", [cuarta]);
   assert.equal(c.estado, "firmada");
   assert.equal(c.fecha, c.hoy);
