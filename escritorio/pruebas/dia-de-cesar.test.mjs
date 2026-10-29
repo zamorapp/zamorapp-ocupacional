@@ -203,8 +203,11 @@ test("día 2: tres pacientes nuevos con números del bloque, consultas cerradas 
 
 test("día 2: firmar y enviar esperan a internet (sin bloquear al médico)", { skip: omitir }, async () => {
   const fi = await pedir("/rest/v1/rpc/firmar_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: consultas[0] } });
-  assert.equal(fi.status, 503, JSON.stringify(fi.json));
-  anotar(`firmar sin internet → 503 «${fi.json?.message || fi.json}»: firmar va a la nube porque la base local no tiene public.ahora_de_la_puerta (migración hora-anclada); con ella firmaría en la PC solo con ancla`);
+  // Con la hora anclada (#116) la PC firma sola solo si la hora está verificada con la nube; aquí Windows está atrasado
+  // y no hubo ancla, así que la base local lo rechaza con un aviso claro y la consulta queda cerrada
+  assert.equal(fi.status, 400, JSON.stringify(fi.json));
+  assert.match(fi.json?.message || "", /hora verificada/);
+  anotar(`firmar sin internet y sin ancla → ${fi.status} «${fi.json?.message}»: la PC solo firma con la hora verificada (public.ahora, hora-anclada)`);
   const [c] = await enLocal("select estado from clinico.consultas where id = $1", [consultas[0]]);
   assert.equal(c.estado, "cerrada", "la consulta sigue cerrada, lista para firmar");
   const env = await pedir("/rest/v1/envios", { metodo: "POST", token: tokenMed, cabeceras: { Prefer: "return=representation" }, cuerpo: {

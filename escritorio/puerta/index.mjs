@@ -45,6 +45,8 @@ let adjuntos = null; // lo crea la puerta (crearPuerta)
 const sincronizar = async () => {
   await nube.comprobar(); await bandeja.subir(); await replica.ciclo();
   if (adjuntos) await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
+  // Los archivos que la PC aún no tiene (subidos desde la web u otra PC), con tope por ciclo y por día
+  if (adjuntos) await adjuntos.bajarPendientes(replica.usuarioSincronia()).catch((e) => registro(`[adjuntos] ${e.message}`));
   await cola.barrer();
   await bloques.reponer(); await respaldo.anotarPendientes();
 };

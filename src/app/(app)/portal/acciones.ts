@@ -32,15 +32,14 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   if (nuevos.length) {
     const empresaId = texto(datos, "empresa_nuevos");
     if (!empresaId) return { ok: false, mensaje: "Elige la empresa de los trabajadores nuevos." };
-    const { data: creados, error } = await supabase
-      .from("trabajadores")
-      .insert(nuevos.map((n) => ({ ...n, org_id: sesion.orgId, empresa_id: empresaId })))
-      .select("id");
+    // Ids creados aquí, sin pedir las filas de vuelta (las columnas de salud están ocultas: ver crearPaciente)
+    const creados = nuevos.map((n) => ({ ...n, id: crypto.randomUUID(), org_id: sesion.orgId, empresa_id: empresaId }));
+    const { error } = await supabase.from("trabajadores").insert(creados);
     if (error) {
       if (error.code === "23505") return { ok: false, mensaje: "No se pudo registrar uno de los trabajadores nuevos. Búscalo por cédula; si no aparece, avísale al servicio médico." };
       return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede registrar trabajadores en esa empresa." : error.message };
     }
-    ids.push(...(creados ?? []).map((c) => c.id));
+    ids.push(...creados.map((c) => c.id));
   }
   // En tandas de 100 para no pasar el límite de largo de la URL (200 UUID ≈ 7,5 KB)
   const tandas = await Promise.all(

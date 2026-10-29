@@ -109,12 +109,14 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
           </div>
         ))}
       </div>
-      {diag && <p><b>Diagnóstico:</b> {diag.cie10} {diag.descripcion}</p>}
-      <p className="text-[10.5px] text-doc-tenue">
-        {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
-      </p>
-      <Firmas>
-        <span />
+      {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
+      <Firmas compacto>
+        <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
+          {diag && <p><b>Diagnóstico:</b> {diag.cie10} {diag.descripcion}</p>}
+          <p className="text-[10.5px] text-doc-tenue">
+            {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
+          </p>
+        </div>
         <FirmaMedico d={d} compacto />
       </Firmas>
       <Pie d={d} derecha={`Folio ${folio("RP", d.datos.id)}`} />
@@ -634,7 +636,8 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
         </Bloque>
       )}
       <Bloque titulo="Evaluaciones a practicar">
-        <div className="grid grid-cols-2 gap-x-8">
+        {/* Muchas evaluaciones (pre-empleo completo): tres columnas para que la orden quepa en una hoja */}
+        <div className={`grid gap-x-8 ${evaluaciones.length > 12 ? "grid-cols-3 text-[11px]" : "grid-cols-2"}`}>
           {evaluaciones.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><span className="size-3 shrink-0 rounded-[2px] border border-[#15201e]" />{n}</div>)}
         </div>
       </Bloque>

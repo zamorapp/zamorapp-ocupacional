@@ -27,6 +27,15 @@ const eslintConfig = [
           selector: "CallExpression[callee.property.name=/^get(FullYear|Month|Date|Day|Hours)$/][callee.object.type='NewExpression'][callee.object.arguments.length=0]",
           message: "new Date().getX() depende de la zona del servidor: usa anioCaracas() / mesCaracas() / hoyCaracas() de @/lib/fecha.",
         },
+        // trabajadores tiene columnas de salud sin SELECT (#41): pedir la fila al guardar o con «*» da 42501
+        {
+          selector: "CallExpression[callee.property.name='select'][callee.object.callee.property.name=/^(insert|update|upsert)$/][callee.object.callee.object.callee.property.name='from'][callee.object.callee.object.arguments.0.value='trabajadores']",
+          message: "No pidas la fila de trabajadores al guardar (da 42501 por las columnas de salud ocultas): crea el id con crypto.randomUUID() e inserta sin .select().",
+        },
+        {
+          selector: "CallExpression[callee.property.name='select'][arguments.0.value='*'][callee.object.callee.property.name='from'][callee.object.arguments.0.value='trabajadores']",
+          message: "select('*') en trabajadores da 42501 (columnas de salud ocultas): nombra las columnas.",
+        },
       ],
     },
   },
@@ -55,6 +64,7 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "supabase/functions/**", // Deno (funciones de Supabase), con sus propios tipos
     ],
   },
 ];

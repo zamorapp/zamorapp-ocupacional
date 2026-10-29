@@ -41,6 +41,8 @@ export class Replica {
     this.ocupada = true;
     const inicio = performance.now();
     const c = new pg.Client({ connectionString: this.motor.url() });
+    // Una conexión cortada por fuera (restauración, base detenida) no tumba la puerta: se anota y el ciclo falla solo
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
     try {
       await c.connect();
       await c.query("set session_replication_role = replica");
@@ -154,6 +156,7 @@ export class Replica {
     tabla = this.#seguro(tabla);
     const [esquema, nombre] = tabla.split(".");
     const c = new pg.Client({ connectionString: this.motor.url() });
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
     try {
       await c.connect();
       // Se piden las columnas que la copia tiene y el rol puede leer (sin «*»: una columna de salud oculta a un rol

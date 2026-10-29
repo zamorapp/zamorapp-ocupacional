@@ -793,6 +793,7 @@ test("verificación en dos pasos: la puerta pide el código para abrir la app y 
     const ren = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
     assert.equal(aal(ren.json.access_token), "aal2", "renovar conserva el segundo paso");
   } finally {
+    estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"].segundoPasoEn = 0; // sin plazo de confianza para las pruebas siguientes
     nube.estado.conAal = false;
     delete nube.usuarios["admin@x"].factor;
   }
@@ -851,6 +852,7 @@ test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el códi
   const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
   let token, nubeAal2;
   try {
+    admin().segundoPasoEn = 0;
     token = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
     const nubeAal1 = admin().nube.access_token;
     const prep = await pedir("/zamorapp/huella/preparar", { metodo: "POST", token });
@@ -878,6 +880,62 @@ test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el códi
     nube.estado.caida = false;
     await nubeObj.comprobar();
     if (token) await pedir("/zamorapp/huella/quitar", { metodo: "POST", token });
+    admin().segundoPasoEn = 0;
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
+// 29-oct: Cesar desconectó internet a propósito y el escritorio le pidió el código del teléfono, que sin internet no
+// se puede verificar. Ahora: sin internet vale el plazo de confianza de esta PC (desde el último código escrito
+// aquí); fuera del plazo, Windows Hello. Con internet, dentro del plazo, la clave basta (no pide el código cada vez).
+test("sin internet no se pide el código: vale el plazo de confianza de esta PC; fuera de él, Windows Hello", { skip: omitir }, async () => {
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const entrar = () => pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  try {
+    admin().segundoPasoEn = 0;
+    let r = await entrar();
+    assert.equal(aal(r.json.access_token), "aal1", "sin código escrito en esta PC, con internet se pide");
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: r.json.access_token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    assert.equal(aal(ok.json.access_token), "aal2");
+    assert.ok(admin().segundoPasoEn > 0, "queda anotado cuándo se escribió el código");
+
+    r = await entrar();
+    assert.equal(r.status, 200);
+    assert.equal(aal(r.json.access_token), "aal2", "con internet y dentro del plazo, la clave basta");
+    assert.equal(aal(admin().nube.access_token), "aal2", "se conserva la sesión de la nube que ya pasó el código");
+
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    r = await entrar();
+    assert.equal(r.status, 200);
+    assert.equal(aal(r.json.access_token), "aal2", "sin internet y dentro del plazo: entra sin código");
+
+    admin().segundoPasoEn = Date.now() - 31 * 864e5;
+    r = await entrar();
+    assert.equal(r.status, 200, "fuera del plazo igual abre la sesión (la app ofrece Windows Hello)");
+    assert.equal(aal(r.json.access_token), "aal1");
+    assert.ok(lineas.some((l) => l.includes("segundo paso pendiente (Windows Hello)")));
+
+    admin().segundoPasoEn = Date.now() + 400 * 864e5; // fecha de Windows atrasada por el SAME: cuenta la distancia
+    assert.equal(aal((await entrar()).json.access_token), "aal1");
+    admin().segundoPasoEn = Date.now() + 2 * 864e5;
+    assert.equal(aal((await entrar()).json.access_token), "aal2");
+
+    admin().diasConfianza = 0; // la organización pide el código siempre
+    assert.equal(aal((await entrar()).json.access_token), "aal1");
+    delete admin().diasConfianza;
+
+    delete admin().segundoPasoEn; // PC instalada antes del cambio: la sesión guardada de la nube ya pasó el código
+    assert.equal(aal((await entrar()).json.access_token), "aal2");
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    admin().segundoPasoEn = 0;
+    delete admin().diasConfianza;
     nube.estado.conAal = false;
     delete nube.usuarios["admin@x"].factor;
   }
@@ -1286,6 +1344,54 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   assert.equal(pr3.json.adjuntos, false); assert.match(pr3.json.aviso, /solo la base/);
   assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
   fs.rmSync(externa, { recursive: true, force: true });
+});
+
+test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tiene (tope por ciclo, reintentos, sin pisar)", { skip: omitir }, async () => {
+  const ADMIN = "00000000-0000-0000-0000-0000000000a1";
+  const T = "30000000-0000-0000-0000-00000000000a";
+  const rutas = ["bajar-1.pdf", "bajar-2.pdf", "bajar-3.pdf", "no-esta-en-la-nube.pdf", "ya-en-la-pc.pdf", "otro-tamano.pdf"].map((n) => `${ORG}/${T}/${n}`);
+  for (const [i, ruta] of rutas.entries()) {
+    // creado_en en el futuro: van primero en la cola de bajada (la más nueva primero)
+    await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'b.pdf', $3, 'application/pdf', $5, now() + make_interval(days => 10 - $4::int)) on conflict (ruta) do nothing`, [ORG, T, ruta, i, i === 5 ? 999 : Buffer.byteLength(PDF)]);
+    if (i !== 3) nube.estado.archivos.set(`adjuntos/${ruta}`, { cuerpo: PDF, tipo: "application/pdf" });
+  }
+  const enPc = (ruta) => path.join(datos, "adjuntos", "adjuntos", ...ruta.split("/"));
+  fs.mkdirSync(path.dirname(enPc(rutas[4])), { recursive: true });
+  fs.writeFileSync(enPc(rutas[4]), "version de la PC");
+  await replicaObj.enCurso;
+  await replicaObj.ciclo();
+  let r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 2 });
+  assert.equal(r.bajados, 2);
+  assert.ok(r.faltan >= 2, JSON.stringify(r));
+  assert.ok(fs.existsSync(enPc(rutas[0])) && fs.existsSync(enPc(rutas[1])) && !fs.existsSync(enPc(rutas[2])));
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 2 });
+  assert.ok(fs.existsSync(enPc(rutas[2])), JSON.stringify(r));
+  // El que no está en la nube se reintenta hasta 5 veces y luego se deja; nada se borra ni se pisa
+  for (let i = 0; i < 6; i++) await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.ok(!fs.existsSync(enPc(rutas[3])));
+  assert.equal(fs.readFileSync(enPc(rutas[4]), "utf8"), "version de la PC");
+  assert.equal(fs.readFileSync(enPc(rutas[0]), "utf8"), PDF);
+  // Si no pesa lo que dice la fila, no se guarda ni se reintenta
+  assert.ok(!fs.existsSync(enPc(rutas[5])));
+  // Lo subido desde esta PC ya está en su disco: no se vuelve a bajar (no gasta salida del plan)
+  const bajadoAntes = estado.d.adjuntosBajada.bytes;
+  const propia = `${ORG}/${T}/subido-desde-la-pc.pdf`;
+  conEstado(await subirArchivo(propia, { token: tokenMed }), 200);
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'p.pdf', $3, 'application/pdf', $4, now() + interval '30 days') on conflict (ruta) do nothing`, [ORG, T, propia, Buffer.byteLength(PDF)]);
+  await replicaObj.ciclo();
+  await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.equal(estado.d.adjuntosBajada.bytes, bajadoAntes, "lo subido desde la PC no se bajó otra vez");
+  // Tope diario: con lo de hoy ya gastado, la bajada en segundo plano espera a mañana
+  const nueva = `${ORG}/${T}/manana.pdf`;
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'm.pdf', $3, 'application/pdf', $4, now() + interval '40 days') on conflict (ruta) do nothing`, [ORG, T, nueva, Buffer.byteLength(PDF)]);
+  nube.estado.archivos.set(`adjuntos/${nueva}`, { cuerpo: PDF, tipo: "application/pdf" });
+  await replicaObj.ciclo();
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50, maxDia: bajadoAntes });
+  assert.ok(!fs.existsSync(enPc(nueva)) && r.faltan >= 1, JSON.stringify(r));
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.ok(fs.existsSync(enPc(nueva)), JSON.stringify(r));
+  // Sin sesión de la sincronía o sin internet no hace nada
+  assert.deepEqual(await puerta.adjuntos.bajarPendientes(null), { bajados: 0, faltan: 0 });
 });
 
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {

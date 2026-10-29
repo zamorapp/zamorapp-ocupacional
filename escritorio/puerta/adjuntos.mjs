@@ -120,7 +120,16 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
   }
 
   // Lo que no está en la PC se baja de la nube con la sesión del usuario y queda guardado (para verlo sin internet)
-  async function bajarDeLaNube(bucket, ruta, uid) {
+  // Bytes bajados hoy (día de Caracas con la hora anclada a la nube, no la fecha de Windows): se guarda en el estado
+  const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(nube.reloj?.ahora?.() ?? Date.now()));
+  const bajadoHoy = () => (d().adjuntosBajada?.dia === hoy() ? d().adjuntosBajada.bytes : 0);
+  function anotarBajada(bytes) {
+    d().adjuntosBajada = { dia: hoy(), bytes: bajadoHoy() + bytes };
+    estado.guardar();
+  }
+
+  // tamano: el de la fila; si lo que llega no pesa eso (descarga cortada o archivo cambiado), no se guarda
+  async function bajarDeLaNube(bucket, ruta, uid, tamano = null, info = {}) {
     if (!await nube.confirmar()) return false;
     const token = await nube.token(uid).catch(() => null);
     if (!token) return false;
@@ -129,7 +138,14 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
         headers: { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(60000),
       });
       if (!r.ok) return false;
-      escribir(archivo(bucket, ruta), Buffer.from(await r.arrayBuffer()));
+      const bytes = Buffer.from(await r.arrayBuffer());
+      anotarBajada(bytes.length);
+      if (tamano !== null && bytes.length !== Number(tamano)) {
+        registro(`[adjuntos] ${ruta}: llegaron ${bytes.length} bytes y la fila dice ${tamano}; no se guarda`);
+        info.tamanoDistinto = true;
+        return false;
+      }
+      escribir(archivo(bucket, ruta), bytes);
       return true;
     } catch (e) {
       nube.marcarCaida(`al bajar un adjunto: ${e.message}`);
@@ -192,6 +208,41 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
       return { subidos, rechazados };
     })().finally(() => { subiendo = null; });
     return subiendo;
+  }
+
+  // Bajada completa: los archivos de clinico.adjuntos que la réplica ya bajó y aún no están en la PC (subidos desde la
+  // web o desde otra PC) se bajan de a poco en cada sincronía, para verlos sin internet aunque nadie los haya abierto.
+  // Tope por ciclo: 20 archivos o 50 MB, y por día CONFIG.bajadaDiariaMb (300 MB): el plan gratis da 5 GB de salida
+  // al mes y los escaneados del SAME la agotarían en horas. Lo que se sube desde esta PC ya queda en su disco (se
+  // guarda antes de subirlo) y no se vuelve a bajar. Un archivo que falla 5 veces se deja hasta reiniciar (y se anota).
+  // Nunca se borra ni se reemplaza un archivo que ya está en la PC.
+  const fallasBajada = new Map();
+  let bajando = null;
+  async function bajarPendientes(uid, { maxArchivos = 20, maxBytes = 50 * 1024 * 1024, maxDia = CONFIG.bajadaDiariaMb * 1024 * 1024 } = {}) {
+    if (bajando) return bajando;
+    bajando = (async () => {
+      let bajados = 0, bytes = 0, faltan = 0;
+      if (!uid || !await nube.confirmar()) return { bajados, faltan };
+      const filas = await conBase(async (c) =>
+        (await c.query("select ruta, tamano from clinico.adjuntos order by creado_en desc")).rows);
+      for (const f of filas) {
+        let destino;
+        try { destino = archivo("adjuntos", f.ruta); } catch { continue; } // ruta rara: no se toca el disco
+        if (fs.existsSync(destino) || (fallasBajada.get(f.ruta) || 0) >= MAX_INTENTOS) continue;
+        if (bajados >= maxArchivos || (bajados && bytes + (f.tamano || 0) > maxBytes) || bajadoHoy() + (f.tamano || 0) > maxDia) { faltan++; continue; }
+        const info = {};
+        if (await bajarDeLaNube("adjuntos", f.ruta, uid, f.tamano, info)) { bajados++; bytes += f.tamano || 0; fallasBajada.delete(f.ruta); continue; }
+        if (!nube.enLinea) { faltan++; break; } // se cortó internet: el resto, en la próxima sincronía
+        // Tamaño distinto: reintentarlo gastaría la salida del plan gratis en lo mismo; se deja hasta reiniciar
+        const n = info.tamanoDistinto ? MAX_INTENTOS : (fallasBajada.get(f.ruta) || 0) + 1;
+        fallasBajada.set(f.ruta, n);
+        if (n >= MAX_INTENTOS) registro(`[adjuntos] no se pudo bajar ${f.ruta} tras ${n} intentos; se reintenta al reiniciar`);
+        faltan++;
+      }
+      if (bajados || faltan) registro(`[adjuntos] bajados ${bajados} archivos (${Math.round(bytes / 1024)} KB)${faltan ? `; faltan ${faltan} (hoy van ${Math.round(bajadoHoy() / 1048576)} MB de ${Math.round(maxDia / 1048576)})` : ""}`);
+      return { bajados, faltan, hoy: bajadoHoy() };
+    })().finally(() => { bajando = null; });
+    return bajando;
   }
 
   async function contar() {
@@ -302,5 +353,5 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     }
   }
 
-  return { atender, servirFirmado, subir, contar, alBorrar, carpeta };
+  return { atender, servirFirmado, subir, bajarPendientes, contar, alBorrar, carpeta };
 }

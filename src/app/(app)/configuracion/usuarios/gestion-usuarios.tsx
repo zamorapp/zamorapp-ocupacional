@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { AtSign, Check, Loader2, Pencil, UserPlus, X } from "lucide-react";
+import { AtSign, Check, Loader2, Pencil, ShieldOff, UserPlus, X } from "lucide-react";
+import { confirmar } from "@/components/app/confirmar";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
-import { agregarUsuario, cambiarRol, guardarUsuarioIngreso, type Resultado } from "../acciones";
+import { agregarUsuario, cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
@@ -94,6 +95,14 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
                   <Button variant="ghost" size="sm" onClick={() => actualizar(m, { activo: !m.activo })}>
                     {m.activo ? "Desactivar" : "Activar"}
                   </Button>
+                  {m.usuario_id !== yo && ["administrador", "gerente_medico"].includes(m.rol) && (
+                    <Button variant="ghost" size="sm" title="Si perdió el teléfono del código de dos pasos" onClick={async () => {
+                      if (!(await confirmar({ titulo: `¿Reiniciar la verificación en dos pasos de ${m.nombre || m.correo}?`, texto: "Úsalo solo si perdió el teléfono y sus códigos de respaldo. Al entrar escaneará un código QR nuevo.", accion: "Reiniciar", peligro: true }))) return;
+                      iniciar(async () => setAviso(await reiniciarDosPasos(m.usuario_id)));
+                    }}>
+                      <ShieldOff /> Reiniciar dos pasos
+                    </Button>
+                  )}
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">{ETIQUETA_ROL[m.rol]}</span>

@@ -82,6 +82,13 @@ if ($codigo -ne 0) {
 "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $salida" | Add-Content $registro
 Write-Host $salida
 
+# Archivos (PDF y escaneados del Storage): solo lo nuevo, en «archivos» dentro de las mismas carpetas. Si falla, queda
+# anotado (el Inicio avisa) pero no tumba el respaldo de la base, que ya quedó guardado.
+$archivos = & node scripts\respaldo-archivos.mjs @destinos 2>$errores
+if ($LASTEXITCODE -ne 0) { $archivos = "FALLÓ el respaldo de archivos: $archivos $((Get-Content $errores -ErrorAction SilentlyContinue) -join ' ')" }
+"$(Get-Date -Format 'yyyy-MM-dd HH:mm') $archivos" | Add-Content $registro
+Write-Host $archivos
+
 # Prueba de restauración semanal: el último respaldo se restaura en una base temporal con el PostgreSQL portátil de
 # zamorApp Escritorio (otro puerto, solo 127.0.0.1; no toca la base del programa ni el SAME) y se borra al terminar.
 # Con poca memoria libre se pospone y se intenta en el próximo respaldo. El resultado se ve en el Inicio.

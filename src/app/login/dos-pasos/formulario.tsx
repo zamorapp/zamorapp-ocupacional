@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2, ShieldCheck, Smartphone } from "lucide-react";
+import { Copy, Fingerprint, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
-import { ES_ESCRITORIO, MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
+import { ES_ESCRITORIO, MOTIVO_HELLO, entrarConHuella, huellaActivaAqui, puedeOfrecerHuella } from "@/lib/huella";
 import { guardarEquipoNavegador, nombreEquipo } from "@/lib/equipo-confianza";
 import { OfrecerHuella } from "@/components/app/huella";
+import { VerCodigosRespaldo } from "@/components/app/codigos-respaldo";
 
 export function FormularioDosPasos() {
   const router = useRouter();
@@ -23,6 +24,9 @@ export function FormularioDosPasos() {
   const [ofrecer, setOfrecer] = useState(false);
   const [recordar, setRecordar] = useState(true); // equipo de confianza: no pedir el código en cada entrada
   const [dias, setDias] = useState(0); // días que dura la confianza según la organización (0 = no se ofrece)
+  const [respaldo, setRespaldo] = useState<string | null>(null); // perdió el teléfono: escribe un código de respaldo
+  const [codigos, setCodigos] = useState<string[] | null>(null); // recién activado: códigos para guardar
+  const [hello, setHello] = useState(false); // escritorio con Windows Hello activo: cuenta como segundo paso sin internet
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
@@ -36,6 +40,7 @@ export function FormularioDosPasos() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) { router.replace("/login"); return; }
+      if (ES_ESCRITORIO) huellaActivaAqui().then(setHello).catch(() => {});
       setPaso(await prepararDosPasos(supabase));
       if (!ES_ESCRITORIO) supabase.rpc("dias_equipo_confianza").then(({ data }) => setDias(typeof data === "number" ? data : 0));
     })();
@@ -54,10 +59,60 @@ export function FormularioDosPasos() {
       const equipo = data as { token: string; vence: string } | null;
       if (equipo?.token) guardarEquipoNavegador(equipo.token, equipo.vence);
     }
-    // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
+    // Teléfono recién activado: se crean los códigos de respaldo y se muestran una sola vez
+    if (paso.tipo === "activar") {
+      const { data } = await crearClienteNavegador().rpc("generar_codigos_respaldo");
+      if (Array.isArray(data) && data.length) { setCargando(false); setCodigos(data as string[]); return; }
+    }
+    await seguir();
+  }
+
+  // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
+  async function seguir() {
+    setCodigos(null);
     if (!desdeHello && (await puedeOfrecerHuella(crearClienteNavegador()))) { setCargando(false); setOfrecer(true); return; }
     alPanel();
   }
+
+  // Código de respaldo: borra el teléfono perdido y lleva a escanear un QR nuevo (no abre los datos por sí solo)
+  async function usarRespaldo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!respaldo?.trim()) return;
+    setCargando(true);
+    setError(null);
+    const supabase = crearClienteNavegador();
+    const { data, error } = await supabase.rpc("usar_codigo_respaldo", { p_codigo: respaldo });
+    if (error || data !== "ok") {
+      setCargando(false);
+      setError(data === "espera" ? "Demasiados intentos. Espera 15 minutos y vuelve a probar." : data === "incorrecto" ? "Ese código no es válido o ya se usó." : "No se pudo verificar el código. Intenta de nuevo.");
+      return;
+    }
+    setRespaldo(null);
+    setCodigo("");
+    setPaso(await prepararDosPasos(supabase));
+    setCargando(false);
+  }
+
+  // Escritorio: Windows Hello en vez del código. Sin internet siempre basta; con internet basta si la nube ya tiene
+  // el segundo paso de esta cuenta (si no, la pantalla explica que hace falta el código una vez).
+  async function conHello() {
+    setCargando(true);
+    setError(null);
+    const supabase = crearClienteNavegador();
+    const r = await entrarConHuella(supabase);
+    if (!r.ok) { setCargando(false); setError(r.mensaje); return; }
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims?.aal === "aal2") { alPanel(); return; }
+    try { sessionStorage.removeItem(MOTIVO_HELLO); } catch { /* sin almacenamiento */ }
+    setCargando(false);
+    setDesdeHello(true);
+  }
+
+  const botonHello = hello && (
+    <Button type="button" variant="outline" className="h-11 w-full gap-2 border-primary/40" onClick={conHello} disabled={cargando}>
+      {cargando ? <Loader2 className="animate-spin" /> : <Fingerprint className="size-5 text-primary" />} Confirmar con Windows Hello
+    </Button>
+  );
 
   function alPanel() {
     router.replace("/panel");
@@ -71,13 +126,48 @@ export function FormularioDosPasos() {
   }
 
   if (ofrecer) return <OfrecerHuella alTerminar={alPanel} />;
+  if (codigos) return <VerCodigosRespaldo codigos={codigos} alTerminar={() => void seguir()} />;
   if (paso.tipo === "cargando") return <div className="grid place-items-center py-10"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>;
   if (paso.tipo === "error") {
     return (
       <div className="space-y-4">
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{paso.mensaje}</p>
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {ES_ESCRITORIO && hello ? "Sin internet no se puede usar el código del teléfono. Confirma con Windows Hello: cuenta como segundo paso." : paso.mensaje}
+        </p>
+        {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {botonHello}
         <Button variant="outline" className="w-full" onClick={salir}>Volver a entrar</Button>
       </div>
+    );
+  }
+
+  if (respaldo !== null) {
+    return (
+      <form onSubmit={usarRespaldo} className="space-y-5">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight">Usar un código de respaldo</h1>
+          <p className="text-sm text-muted-foreground">
+            Escribe uno de los 10 códigos que guardaste al activar la verificación. Después escanearás un código QR
+            con tu teléfono nuevo.
+          </p>
+        </div>
+        <Input
+          autoFocus
+          autoComplete="off"
+          placeholder="ABCDE-23456"
+          className="h-12 text-center font-mono text-xl uppercase tracking-widest"
+          value={respaldo}
+          onChange={(e) => { setRespaldo(e.target.value); setError(null); }}
+        />
+        {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="h-11 w-full" disabled={cargando || respaldo.replace(/[^0-9a-z]/gi, "").length !== 10}>
+          {cargando && <Loader2 className="animate-spin" />} Continuar
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          ¿Tampoco tienes los códigos? Pide a otro administrador que reinicie tu verificación (Configuración → Usuarios). ·{" "}
+          <button type="button" className="text-primary hover:underline" onClick={() => { setRespaldo(null); setError(null); }}>Volver</button>
+        </p>
+      </form>
     );
   }
 
@@ -117,6 +207,14 @@ export function FormularioDosPasos() {
         </ol>
       )}
 
+      {paso.tipo === "codigo" && botonHello && !desdeHello && (
+        <>
+          {botonHello}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> o con el código del teléfono <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
       <div className="space-y-2">
         <Label htmlFor="codigo" className="sr-only">Código de 6 dígitos</Label>
         <Input
@@ -152,7 +250,10 @@ export function FormularioDosPasos() {
         {cargando && <Loader2 className="animate-spin" />} {paso.tipo === "activar" ? "Activar y entrar" : "Entrar"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        {paso.tipo === "codigo" && <>¿Perdiste el teléfono? Pide a soporte de zamorApp que reinicie tu verificación. · </>}
+        {paso.tipo === "codigo" && !ES_ESCRITORIO && (
+          <><button type="button" className="text-primary hover:underline" onClick={() => { setRespaldo(""); setError(null); }}>¿Perdiste el teléfono? Usa un código de respaldo</button> · </>
+        )}
+        {paso.tipo === "codigo" && ES_ESCRITORIO && <>¿Perdiste el teléfono? Usa un código de respaldo en zamorapp-ocupacional.vercel.app. · </>}
         <button type="button" className="text-primary hover:underline" onClick={salir}>Salir</button>
       </p>
     </form>

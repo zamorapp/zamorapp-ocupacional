@@ -24,7 +24,7 @@ export type PacienteEncontrado = { id: string; nombre: string; cedula: string; e
 
 export async function buscarPacientes(texto: string): Promise<PacienteEncontrado[]> {
   const q = texto.trim().replace(/[%,()]/g, "");
-  if (q.length < 2) return [];
+  if (q.length < 2 || (await obtenerSesion()).demo) return [];
   const supabase = await crearClienteServidor();
   const soloNumeros = q.replace(/\D/g, "");
   let consulta = supabase.from("trabajadores").select("id, nombres, apellidos, cedula, empresas(razon_social)").limit(12);

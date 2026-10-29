@@ -96,9 +96,13 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
       [texto(datos, "dependencia")].filter(Boolean) as string[],
       [texto(datos, "cargo")].filter(Boolean) as string[],
     );
-    const { data, error } = await supabase
+    // El id se crea aquí y se inserta sin pedir la fila de vuelta: con las columnas de salud ocultas (#41), pedir la
+    // representación de la fila nueva da 42501 en PostgREST según el rol y la versión (web y escritorio)
+    const id = crypto.randomUUID();
+    const { error } = await supabase
       .from("trabajadores")
       .insert({
+        id,
         org_id: sesion.orgId,
         empresa_id: empresaId,
         cedula,
@@ -114,16 +118,14 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
         dependencia_id: cat.dependencia(texto(datos, "dependencia")),
         puesto_id: cat.puesto(texto(datos, "cargo")),
         estado: (texto(datos, "estado") ?? "activo") as "activo",
-      })
-      .select("id")
-      .single();
+      });
     if (error) {
       return { ok: false, mensaje: error.code === "23505" ? "Ya existe un paciente con esa cédula." : "No se pudo guardar: " + error.message };
     }
     invalidarEmpresas();
     revalidatePath("/", "layout");
     olvidar("");
-    return { ok: true, mensaje: `${nombres} ${apellidos} registrado.`, id: data.id };
+    return { ok: true, mensaje: `${nombres} ${apellidos} registrado.`, id };
   } catch (e) {
     return { ok: false, mensaje: (e as Error).message };
   }
