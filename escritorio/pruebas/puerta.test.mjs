@@ -1271,13 +1271,15 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   assert.equal(pr3.json.adjuntos, false); assert.match(pr3.json.aviso, /solo la base/);
   assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
   fs.rmSync(externa, { recursive: true, force: true });
+});
+
 test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tiene (tope por ciclo, reintentos, sin pisar)", { skip: omitir }, async () => {
   const ADMIN = "00000000-0000-0000-0000-0000000000a1";
   const T = "30000000-0000-0000-0000-00000000000a";
-  const rutas = ["bajar-1.pdf", "bajar-2.pdf", "bajar-3.pdf", "no-esta-en-la-nube.pdf", "ya-en-la-pc.pdf"].map((n) => `${ORG}/${T}/${n}`);
+  const rutas = ["bajar-1.pdf", "bajar-2.pdf", "bajar-3.pdf", "no-esta-en-la-nube.pdf", "ya-en-la-pc.pdf", "otro-tamano.pdf"].map((n) => `${ORG}/${T}/${n}`);
   for (const [i, ruta] of rutas.entries()) {
     // creado_en en el futuro: van primero en la cola de bajada (la más nueva primero)
-    await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'b.pdf', $3, 'application/pdf', 40, now() + make_interval(days => 10 - $4::int)) on conflict (ruta) do nothing`, [ORG, T, ruta, i]);
+    await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'b.pdf', $3, 'application/pdf', $5, now() + make_interval(days => 10 - $4::int)) on conflict (ruta) do nothing`, [ORG, T, ruta, i, i === 5 ? 999 : Buffer.byteLength(PDF)]);
     if (i !== 3) nube.estado.archivos.set(`adjuntos/${ruta}`, { cuerpo: PDF, tipo: "application/pdf" });
   }
   const enPc = (ruta) => path.join(datos, "adjuntos", "adjuntos", ...ruta.split("/"));
@@ -1296,6 +1298,25 @@ test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tien
   assert.ok(!fs.existsSync(enPc(rutas[3])));
   assert.equal(fs.readFileSync(enPc(rutas[4]), "utf8"), "version de la PC");
   assert.equal(fs.readFileSync(enPc(rutas[0]), "utf8"), PDF);
+  // Si no pesa lo que dice la fila, no se guarda ni se reintenta
+  assert.ok(!fs.existsSync(enPc(rutas[5])));
+  // Lo subido desde esta PC ya está en su disco: no se vuelve a bajar (no gasta salida del plan)
+  const bajadoAntes = estado.d.adjuntosBajada.bytes;
+  const propia = `${ORG}/${T}/subido-desde-la-pc.pdf`;
+  conEstado(await subirArchivo(propia, { token: tokenMed }), 200);
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'p.pdf', $3, 'application/pdf', $4, now() + interval '30 days') on conflict (ruta) do nothing`, [ORG, T, propia, Buffer.byteLength(PDF)]);
+  await replicaObj.ciclo();
+  await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.equal(estado.d.adjuntosBajada.bytes, bajadoAntes, "lo subido desde la PC no se bajó otra vez");
+  // Tope diario: con lo de hoy ya gastado, la bajada en segundo plano espera a mañana
+  const nueva = `${ORG}/${T}/manana.pdf`;
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, nombre, ruta, tipo_mime, tamano, creado_en) values ($1, $2, 'm.pdf', $3, 'application/pdf', $4, now() + interval '40 days') on conflict (ruta) do nothing`, [ORG, T, nueva, Buffer.byteLength(PDF)]);
+  nube.estado.archivos.set(`adjuntos/${nueva}`, { cuerpo: PDF, tipo: "application/pdf" });
+  await replicaObj.ciclo();
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50, maxDia: bajadoAntes });
+  assert.ok(!fs.existsSync(enPc(nueva)) && r.faltan >= 1, JSON.stringify(r));
+  r = await puerta.adjuntos.bajarPendientes(ADMIN, { maxArchivos: 50 });
+  assert.ok(fs.existsSync(enPc(nueva)), JSON.stringify(r));
   // Sin sesión de la sincronía o sin internet no hace nada
   assert.deepEqual(await puerta.adjuntos.bajarPendientes(null), { bajados: 0, faltan: 0 });
 });

@@ -30,6 +30,8 @@ export const CONFIG = {
   // Fase A (local primero): lo que se guarda en tablas que sincronizan se escribe en la base local al instante y
   // sube a la nube por la bandeja de salida (con o sin internet). Lo demás sigue yendo a la nube.
   escrituraLocal: env.ZAMORAPP_ESCRITURA_LOCAL !== "0",
+  // Tope diario de la bajada de adjuntos en segundo plano: el plan gratis de Supabase da 5 GB de salida al mes
+  bajadaDiariaMb: Number(env.ZAMORAPP_BAJADA_DIARIA_MB) > 0 ? Number(env.ZAMORAPP_BAJADA_DIARIA_MB) : 300,
 };
 
 // Funciones que escriben SOLO en tablas que sincronizan (sync.tablas.subible): corren en la base local y sus
