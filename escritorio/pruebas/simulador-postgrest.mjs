@@ -12,7 +12,7 @@ const conf = { "db-uri": e.PGRST_DB_URI, "jwt-secret": e.PGRST_JWT_SECRET, "serv
 const pool = new pg.Pool({ connectionString: conf["db-uri"], max: 4 });
 
 http.createServer(async (req, res) => {
-  const datos = verificar((req.headers.authorization || "").replace(/^Bearer /, ""), conf["jwt-secret"]);
+  const datos = verificar((req.headers.authorization || "").replace(/^Bearer /, ""), conf["jwt-secret"], Date.now());
   if (req.url === "/") { res.writeHead(200); return res.end("{}"); }
   if (!datos) { res.writeHead(401); return res.end('{"message":"JWT inválido"}'); }
   const url = new URL(req.url, "http://x");
