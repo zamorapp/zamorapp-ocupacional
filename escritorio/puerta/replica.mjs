@@ -12,7 +12,8 @@ export class Replica {
     Object.assign(this, { estado, nube, motor, registro });
     this.ocupada = false;
     this.ultima = null;
-    this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (ms): una escritura anterior ya bajó
+    this.ultimaMs = null; // cuándo terminó bien el último ciclo, con performance.now(): Cesar cambia la fecha de Windows
+    this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (performance.now()): una escritura anterior ya bajó
     this.error = null;
   }
 
@@ -38,7 +39,7 @@ export class Replica {
     const uid = this.usuarioSincronia();
     if (!uid) return;
     this.ocupada = true;
-    const inicio = Date.now();
+    const inicio = performance.now();
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
@@ -47,6 +48,7 @@ export class Replica {
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
       this.ultima = new Date().toISOString();
+      this.ultimaMs = performance.now();
       this.inicioCiclo = inicio;
       this.error = null;
     } catch (e) {

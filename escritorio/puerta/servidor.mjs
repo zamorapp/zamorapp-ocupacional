@@ -41,11 +41,16 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   // el cambio: así el médico siempre ve lo que acaba de guardar.
   let ultimaEscritura = 0;
   let modoLectura = "nube";
+  // Todo con performance.now(): nunca con la fecha de la PC (Cesar la atrasa para abrir el SAME)
   const copiaAlDia = () => Boolean(
-    CONFIG.lecturaLocal && d().copiaCompleta && replica.ultima && !replica.error
-      && Date.now() - Date.parse(replica.ultima) < CONFIG.frescuraLectura
+    CONFIG.lecturaLocal && d().copiaCompleta && replica.ultimaMs !== null && !replica.error
+      && performance.now() - replica.ultimaMs < CONFIG.frescuraLectura
       && replica.inicioCiclo > ultimaEscritura,
   );
+  // El segundo paso lo decide la nube: estas funciones siempre van a ella, y una sesión aal1 de quien lo necesita no
+  // lee la copia (con internet va a la nube, que responde 403 «dos_pasos»; sin internet se rechaza igual, Hello da aal2)
+  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso"];
+  const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   const anotarModo = (modo, motivo) => {
     if (modo === modoLectura) return;
     modoLectura = modo;
@@ -80,7 +85,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   const usuarioDe = (req) => {
     const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
     const u = datos && d().usuarios[datos.sub];
-    return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u } : null;
+    return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u, aal: datos.aal } : null;
   };
 
   // Freno a quien prueba claves: por correo y en total. Vive en memoria (la puerta solo atiende a esta PC).
@@ -534,14 +539,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
         const enLinea = await nube.confirmar();
-        if (enLinea && lectura && copiaAlDia()) {
-          anotarModo("local", `copia sincronizada hace ${Math.round((Date.now() - Date.parse(replica.ultima)) / 1000)} s`);
+        if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia()) {
+          anotarModo("local", `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
           return await aLaCopia(req, res, crudo);
         }
         if (enLinea && lectura) anotarModo("nube", ultimaEscritura > replica.inicioCiclo ? "hay una escritura que aún no bajó" : !d().copiaCompleta ? "la copia no está completa" : replica.error ? `la sincronía falló: ${replica.error}` : "la copia no está al día");
         if (enLinea && await aLaNube(req, res, crudo, quien.uid)) {
           if (ruta.startsWith("/rest/v1/") && !lectura) {
-            ultimaEscritura = Date.now();
+            ultimaEscritura = performance.now();
             replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
           }
           return;
@@ -551,6 +556,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
           return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
         }
+        if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
         return await aLaCopia(req, res, crudo);
       }
       return responder(res, 404, { message: "No encontrado" });

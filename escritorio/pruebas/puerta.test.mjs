@@ -160,13 +160,13 @@ test("tras guardar en la nube se lee de la nube hasta que el cambio baja; luego 
 });
 
 test("copia vieja (más de 1 min) o con error: se lee de la nube", { skip: omitir }, async () => {
-  const guardada = replicaObj.ultima;
-  replicaObj.ultima = new Date(Date.now() - 120_000).toISOString();
+  const guardada = replicaObj.ultimaMs;
+  replicaObj.ultimaMs = performance.now() - 120_000;
   nube.estado.rest = [];
   const r = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
   assert.equal(r.status, 200);
   assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "copia vieja: va a la nube");
-  replicaObj.ultima = guardada;
+  replicaObj.ultimaMs = guardada;
   replicaObj.error = "prueba";
   nube.estado.rest = [];
   await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
@@ -429,6 +429,43 @@ test("verificación en dos pasos: la puerta pide el código para abrir la app y 
   }
 });
 
+test("dos pasos y copia local: una sesión aal1 no lee la copia (ni sin internet); requiere_dos_pasos siempre va a la nube", { skip: omitir }, async () => {
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const nubeAntes = admin().nube.access_token;
+  try {
+    const token1 = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
+    await replicaObj.ciclo();
+    assert.equal((await pedir("/zamorapp/estado")).json.lecturaLocal, true, "la copia está al día");
+    nube.estado.rest = [];
+    const r1 = await pedir("/rest/v1/trabajadores?select=id", { token: token1 });
+    assert.equal(r1.status, 200);
+    assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "aal1: la lectura va a la nube aunque la copia esté al día");
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: token1, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    const token2 = ok.json.access_token;
+    nube.estado.rest = [];
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: token2 })).status, 200);
+    assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "aal2: vuelve a leer de la copia");
+    await pedir("/rest/v1/rpc/requiere_dos_pasos", { metodo: "POST", token: token2, cuerpo: {} });
+    await pedir("/rest/v1/rpc/falta_segundo_paso", { metodo: "POST", token: token2, cuerpo: {} });
+    assert.ok(nube.estado.rest.includes("/rest/v1/rpc/requiere_dos_pasos") && nube.estado.rest.includes("/rest/v1/rpc/falta_segundo_paso"), "el segundo paso lo decide la nube");
+    // Sin internet, aal1 tampoco lee la copia (Windows Hello da aal2); aal2 sí
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    const sin = await pedir("/rest/v1/trabajadores?select=id", { token: token1 });
+    assert.equal(sin.status, 403);
+    assert.equal(sin.json.code, "dos_pasos");
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: token2 })).status, 200);
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    admin().nube.access_token = nubeAntes;
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
 test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el código; sin internet basta Windows Hello", { skip: omitir }, async () => {
   const ventana = (ruta) => fetch(`${urlPuerta}${ruta}`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } }).then(async (r) => ({ status: r.status, json: await r.json() }));
   const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
@@ -555,7 +592,7 @@ test("la nube cambió y esta versión no la entiende: se avisa que hay que actua
   let e = await pedir("/zamorapp/estado");
   assert.equal(e.json.actualizar, false);
   nube.estado.migradaPorDelante = true;
-  replicaObj.ultima = new Date(Date.now() - 120_000).toISOString(); // copia vieja: la lectura va a la nube (C11)
+  replicaObj.ultimaMs = performance.now() - 120_000; // copia vieja: la lectura va a la nube (C11)
   try {
     const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
     assert.equal(r.status, 403);
