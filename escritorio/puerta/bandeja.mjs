@@ -87,6 +87,21 @@ export class Bandeja {
                 const { rowCount } = await c.query("delete from local.bandeja where id = $1 and datos is not distinct from $2::jsonb", [f.id, f.datos == null ? null : JSON.stringify(f.datos)]);
                 if (!rowCount) quedaron += 1;
                 if (!rowCount) await c.query("update local.bandeja set id = gen_random_uuid(), op = case when op = 'I' then 'U' else op end, version_base = case when $2::bigint is null then version_base else $2::bigint end, intentos = 0 where id = $1", [f.id, propia ? x.version : null]);
+                // La nube ya tenía esa fila con otro id (misma clave natural, p. ej. el informe de vigilancia de la empresa
+                // y el período hecho también en la web) y fundió ahí lo de esta PC: la copia local pasa a ese id, lo que
+                // quedó pendiente apunta a él (sobre la versión fundida) y la fila completa vuelve a bajar
+                if (x.fusionado_en && x.fusionado_en !== f.fila_id) {
+                  const tabla = f.tabla.split(".").map((p) => `"${p.replace(/"/g, '""')}"`).join(".");
+                  await c.query("set local session_replication_role = replica"); // sin disparadores: no vuelve a la bandeja
+                  await c.query(`delete from ${tabla} where id = $1`, [x.fusionado_en]);
+                  await c.query(`update ${tabla} set id = $2 where id = $1`, [f.fila_id, x.fusionado_en]);
+                  await c.query("set local session_replication_role = origin");
+                  await c.query(`update local.bandeja set fila_id = $3, version_base = case when estado = 'pendiente' then $4::bigint else version_base end,
+                                   datos = case when datos ? 'id' then jsonb_set(datos, '{id}', to_jsonb($5::text)) else datos end
+                                 where tabla = $1 and fila_id = $2`, [f.tabla, f.fila_id, x.fusionado_en, x.version, x.fusionado_en]);
+                  await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+                  reponer.push({ ...f, fila_id: x.fusionado_en });
+                }
               } else {
                 await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
                 this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);

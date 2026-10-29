@@ -297,6 +297,34 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
 });
 
+test("el informe de vigilancia hecho sin internet y también en la web se funde en uno: la PC pasa al id de la nube", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const EMP = "20000000-0000-0000-0000-00000000000a", ENPC = crypto.randomUUID(), WEB = crypto.randomUUID();
+  const clave = { org_id: "10000000-0000-0000-0000-000000000001", empresa_id: EMP, desde: "2031-01-01", hasta: "2031-03-31" };
+  try {
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    const r = await pedir("/rest/v1/informes_vigilancia", { metodo: "POST", token: tokenMed, cuerpo: { id: ENPC, ...clave, conclusiones: "Conclusiones de la PC", analisis: { sexo: "60 % mujeres" } } });
+    assert.ok([200, 201].includes(r.status), JSON.stringify(r.json));
+    // Mientras tanto, en la web hicieron el mismo informe (otro id)
+    await enNube("insert into public.informes_vigilancia (id, org_id, empresa_id, desde, hasta, resumen, analisis) values ($1, $2, $3, $4, $5, 'Resumen de la web', '{\"edad\":\"30 a 40\"}')",
+      [WEB, clave.org_id, EMP, clave.desde, clave.hasta]);
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    await bandejaObj.subir();
+    const [n] = await enNube("select count(*)::int n, max(resumen) resumen, max(conclusiones) conclusiones, (array_agg(analisis))[1] analisis from public.informes_vigilancia where empresa_id = $1 and desde = $2", [EMP, clave.desde]);
+    assert.deepEqual(n, { n: 1, resumen: "Resumen de la web", conclusiones: "Conclusiones de la PC", analisis: { edad: "30 a 40", sexo: "60 % mujeres" } }, "uno solo en la nube, con lo de los dos");
+    const l = await enLocal("select id, resumen, conclusiones from public.informes_vigilancia where empresa_id = $1 and desde = $2", [EMP, clave.desde]);
+    assert.deepEqual(l, [{ id: WEB, resumen: "Resumen de la web", conclusiones: "Conclusiones de la PC" }], "la PC pasó al id de la nube y tiene la fila completa");
+    const [b] = await enLocal("select count(*)::int n from local.bandeja where fila_id in ($1, $2)", [ENPC, WEB]);
+    assert.equal(b.n, 0, "nada queda en la bandeja ni en Conflictos");
+  } finally {
+    nube.estado.caida = false;
+    await enNube("delete from public.informes_vigilancia where id in ($1, $2)", [ENPC, WEB]);
+    await enLocalReplica("delete from public.informes_vigilancia where id in ($1, $2)", [ENPC, WEB]);
+    await enLocal("delete from local.bandeja where fila_id in ($1, $2)", [ENPC, WEB]);
+  }
+});
+
 test("un autor sin sesión en la nube no frena a los demás: sus cambios esperan y los otros suben", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   await replicaObj.ciclo();
   // El médico guarda sin internet; luego «pierde» su sesión en la nube (p. ej. entró solo sin conexión)
