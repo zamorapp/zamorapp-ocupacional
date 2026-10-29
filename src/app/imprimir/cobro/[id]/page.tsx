@@ -5,7 +5,7 @@ import { bs, totales, usd } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
-import { fechaCorta, Hoja } from "../../componentes";
+import { fechaCorta, Hoja, Marca } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
 
@@ -15,7 +15,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
   if (!c || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
   const [{ data: org }, { data: emp }] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo").eq("id", sesion.orgId).single(),
+    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo").eq("id", sesion.orgId).single(),
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
   ]);
   const t = totales(c);
@@ -25,9 +25,12 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
       <BarraImpresion volver={`/facturacion/${id}`} titulo={`${c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"} #${c.numero}`} />
       <Hoja>
         <header className="mb-5 flex items-start justify-between border-b-2 border-teal-700 pb-3">
-          <div>
-            <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
-            <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
+          <div className="flex items-center gap-3">
+            <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
+            <div>
+              <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
+            </div>
           </div>
           <div className="text-right">
             <div className="text-base font-bold uppercase">{c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"}</div>

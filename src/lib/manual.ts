@@ -15,6 +15,8 @@ export const MANUAL_ACTUALIZADO = "2026-10-29";
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
+  { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
+  { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -61,7 +63,7 @@ export const MANUAL: TemaManual[] = [
       "En el programa de escritorio el último usuario queda escrito: solo pones la contraseña. Sin internet también entras con tu usuario, si ya entraste con él (o con tu correo) en esa PC con internet.",
       "Para tenerla como app de escritorio o en el celular, toca «Instalar app» arriba, junto a la campanita. En iPhone: Compartir → «Agregar a inicio».",
       "Si olvidaste la contraseña, toca «¿La olvidaste?», escribe tu correo y abre el enlace que te llega. Ahí creas la nueva.",
-      "Entrar con huella: después de entrar con tu contraseña (y tu código de dos pasos, si te lo pide), zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses.",
+      "Entrar con huella: después de entrar con tu contraseña (y tu código de dos pasos, si te lo pide), zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses. Si tocas «Ahora no», vuelve a ofrecerla en 7 días (o tras 5 entradas con contraseña). Si al tocar «Entrar con huella» el navegador dice que no hay llaves de acceso, es que en ese equipo aún no la activaste.",
       "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
       "Verificación en dos pasos (obligatoria para administradores y gerentes médicos): la primera vez zamorApp muestra un código QR; escanéalo con Google Authenticator o Microsoft Authenticator en tu teléfono y escribe el código de 6 dígitos. Con la huella o la clave, en un equipo de confianza no vuelve a pedirlo hasta que venza el plazo.",
       "Equipo de confianza: al escribir el código deja marcado «Confiar en este equipo» y ahí no te lo volverá a pedir por 30 días (el administrador lo cambia en Configuración → Organización; 0 = pedirlo siempre). No lo marques en un equipo compartido. Para quitar la confianza de todos tus equipos: Mi perfil → «Verificación en dos pasos» → «Olvidar todos».",
@@ -72,6 +74,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Necesita internet: los datos viven en la nube y se respaldan cada día en tu PC y en Google Drive.",
       "Si ves «No se pudo conectar con zamorApp», revisa el internet y toca «Reintentar». No se pierde nada de lo ya guardado.",
+      "En zamorApp Escritorio, «Buscar actualización» (abajo en el menú izquierdo, o menú zamorApp → «Buscar actualizaciones») revisa al momento: si hay versión nueva la descarga enseguida con su avance en la franja de abajo y en el título, y al final pregunta cuándo instalar. El programa también revisa solo al abrir y cada cierto tiempo.",
       "En zamorApp Escritorio, si aparece «Hay una versión nueva de zamorApp» es que la nube ya cambió: toca «Buscar actualización» (o menú zamorApp → «Buscar actualizaciones») y acepta «Actualizar ahora». Si aún no aparece, «Trabajar en la web» abre la web mientras tanto.",
     ],
   },
@@ -260,6 +263,7 @@ export const MANUAL: TemaManual[] = [
       "En «Clasificación de la lesión» elige sin tiempo perdido, temporal, parcial permanente, absoluta permanente o fatal: los días cargados se calculan solos (6.000 por muerte o incapacidad absoluta; parcial con la Tabla 1 por el % de pérdida, tope 6.000).",
       "Para el accidente, anota turno, actividad que realizaba, motivo, lesiones, testigos (presencial o referencial) y observaciones: son los datos del Anexo D para el INPSASEL.",
       "La app avisa del plazo de 24 horas para declarar, de 7 días para registrar las causas de la investigación y del informe NT-02 (15 o 30 días).",
+      "Centinela de plazos: aunque nadie abra el evento, la campana avisa a médicos, enfermería, coordinador SST y administración de cada empresa cuando un plazo empieza, cuando queda poco (12 horas para declarar; 2 días para el informe y la investigación) y cuando vence. Si lo enciendes en Configuración → Organización → Avisos, también llega por correo (solo el número de evento, la empresa y el plazo). El aviso nunca dice el diagnóstico; se revisa como máximo cada 10 minutos.",
       "En una enfermedad ocupacional, «Informe de investigación (6 partes)» abre el informe de la NT-02: «Llenar las partes vacías» propone cada parte con la historia, el puesto, los reposos, la morbilidad de la empresa y los paraclínicos. Completa lo marcado «[por completar]», agrega los participantes y pulsa «Terminar informe»: queda anotada la fecha de entrega. Solo lo ve el personal de salud.",
       "En «Certificación del INPSASEL» lleva el estado, la fecha y el número de la certificación, la discapacidad certificada y su porcentaje. Marca «Puede dejar discapacidad» para hacer seguimiento hasta que llegue.",
       "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad. En la parcial permanente, el índice de severidad toma el mayor entre el cargo y los días de reposo.",
@@ -396,8 +400,10 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
-      "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube.",
-      "En el Inicio, el administrador y el gerente médico ven el último respaldo: verde si está al día, amarillo si quedó solo en la PC o falló un intento, rojo si pasó más de un día sin respaldo correcto.",
+      "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube. Si al encender la PC Drive tarda, el respaldo lo espera hasta 5 minutos; y si quedó solo en la PC, sube a Drive en el siguiente respaldo.",
+      "Una vez por semana, el respaldo se restaura de prueba en una base temporal de la PC (con el motor de zamorApp Escritorio), se comparan todas las filas y se borra. Si la PC tiene poca memoria libre, la prueba se pospone para no frenarla.",
+      "En el Inicio, el administrador y el gerente médico ven el último respaldo y cuándo se probó la restauración: verde si está al día, amarillo si quedó solo en la PC, falló un intento o la prueba de restauración falló o tiene más de 8 días, rojo si pasó más de un día sin respaldo correcto.",
+      "Para recuperar los datos en otra base: scripts\\restaurar.mjs con el último archivo de respaldo (lo hace el soporte técnico).",
     ],
   },
   {

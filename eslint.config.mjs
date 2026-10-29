@@ -30,6 +30,21 @@ const eslintConfig = [
       ],
     },
   },
+  // Nada de diálogos nativos: se ven del sistema, bloquean la página y en el escritorio (Tauri) no siempre salen.
+  // Usar confirmar() de @/components/app/confirmar, o un aviso en la pantalla.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...["confirm", "alert", "prompt"].map((name) => ({ name, message: "Usa confirmar() de @/components/app/confirmar o un aviso en la pantalla." })),
+      ],
+      "no-restricted-properties": [
+        "error",
+        ...["confirm", "alert", "prompt"].map((property) => ({ object: "window", property, message: "Usa confirmar() de @/components/app/confirmar o un aviso en la pantalla." })),
+      ],
+    },
+  },
   {
     ignores: [
       "node_modules/**",

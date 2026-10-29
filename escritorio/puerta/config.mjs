@@ -20,6 +20,7 @@ export const CONFIG = {
   // Reglas de seguridad acordadas
   diasSinConexion: 7,
   sesionSegundos: 3600,
+  reusoRefrescoMs: 30_000, // un refresco ya usado entrega la misma sesión durante este margen
   cadaSincronia: 30_000,
 };
 
