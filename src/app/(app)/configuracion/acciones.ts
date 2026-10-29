@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
 import { URL_PUBLICA } from "@/lib/invitaciones";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -132,7 +133,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
       // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
       observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
-      constancia_copias: datos.get("constancia_copias") === "on",
+      constancia_copia: datos.get("constancia_copia") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
@@ -144,6 +145,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       certificado_titulo: texto(datos, "certificado_titulo"),
       certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
+      // Centinela de plazos legales: además de la campana, avisar por correo al personal de salud
+      centinela_correo: datos.get("centinela_correo") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
@@ -217,6 +220,7 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     const empresas = datos.getAll("empresas").map(String).filter(Boolean);
     const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol, p_empresas: empresas.length ? empresas : null });
     if (error) return { ok: false, mensaje: error.message };
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
@@ -281,6 +285,7 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     }
     const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
     if (error) throw error;
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };

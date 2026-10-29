@@ -1,21 +1,27 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import type { Paraclinico } from "@/lib/consultas-tipos";
-import { contarResultados } from "@/lib/paraclinicos";
 import type { Sesion } from "@/lib/sesion";
-import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Tarea = { titulo: string; valor: number; detalle: string; href: string; urgente?: boolean };
 export type Enfoque = { titulo: string; tareas: Tarea[]; acciones: { titulo: string; href: string; icono: "consulta" | "paciente" | "accidente" | "constancia" | "cita" | "cobro" | "reporte" | "usuarios" }[] };
 
-// Lo primero que ve cada rol al entrar. El rol viene de la base (miembros, el mismo que usa mi_rol()).
-// Solo se piden conteos (head: true): la base cuenta y no se descarga ninguna fila.
-export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
+export type Tareas = { citados: number; en_espera: number; solicitadas: number; eventos_abiertos: number; por_cobrar: number; por_firmar?: number; abiertas?: number; por_recibir?: number };
+
+const ACCIONES_DE = (sesion: Pick<Sesion, "rol" | "clinico">) =>
+  sesion.clinico ? ACCIONES.clinico : sesion.rol === "recepcion" ? ACCIONES.recepcion : sesion.rol === "coordinador_sst" ? ACCIONES.sst : ACCIONES.admin;
+
+// Accesos rápidos: solo dependen del rol, salen al instante sin esperar a la base
+export const accionesDelRol = (sesion: Pick<Sesion, "rol" | "clinico">) => ACCIONES_DE(sesion);
+
+// El médico ve solo sus consultas por firmar y abiertas; el gerente médico y el administrador, todas
+export const soloMias = (sesion: Pick<Sesion, "rol">) => sesion.rol !== "gerente_medico" && sesion.rol !== "administrador";
+
+// Lo primero que ve cada rol al entrar. Los conteos llegan todos juntos de la base (inicio_conteos).
+export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
   const rol = sesion.rol;
   const firma = sesion.clinico && rol !== "enfermeria";
 
-  if (!supabaseConfigurado) {
+  if (!supabaseConfigurado || !t) {
     return {
       titulo: "Tu día",
       tareas: [
@@ -27,75 +33,48 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
     };
   }
 
-  const supabase = await crearClienteServidor();
-  const hoy = hoyCaracas();
-  const contar = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
-  const citas = (estado: string) => supabase.from("citas").select("id", { count: "exact", head: true }).eq("fecha", hoy).eq("estado", estado);
-  const solicitudes = () => supabase.from("citas").select("id", { count: "exact", head: true }).eq("estado", "solicitada");
-
   if (sesion.clinico) {
-    let porFirmar = supabase.from("consultas").select("id", { count: "exact", head: true }).eq("estado", "cerrada");
-    let abiertas = supabase.from("consultas").select("id", { count: "exact", head: true }).eq("estado", "borrador");
-    if (rol !== "gerente_medico" && rol !== "administrador") {
-      porFirmar = porFirmar.eq("medico_id", sesion.usuarioId);
-      abiertas = abiertas.eq("medico_id", sesion.usuarioId);
-    }
-    // Resultados por recibir: exámenes sin resultado en consultas de los últimos 60 días (las importadas del SAME no cuentan)
-    let conExamenes = supabase.from("consultas").select("paraclinicos").is("origen", null).neq("paraclinicos", "[]")
-      .gte("fecha", sumarDias(hoyCaracas(), -60)).limit(1000);
-    if (rol !== "gerente_medico" && rol !== "administrador") conExamenes = conExamenes.eq("medico_id", sesion.usuarioId);
-    const porRecibir = conExamenes.then(({ data }) => (data ?? []).reduce((n, c) => n + contarResultados((c.paraclinicos ?? []) as Paraclinico[]).pendientes, 0));
-    const [espera, firmar, enCurso, resultados] = await Promise.all([contar(citas("en_espera")), firma ? contar(porFirmar) : Promise.resolve(0), contar(abiertas), porRecibir]);
     return {
       titulo: "Tu consulta de hoy",
       tareas: [
-        { titulo: "En espera ahora", valor: espera, detalle: "Llegaron y esperan consulta", href: "/atencion", urgente: espera > 0 },
-        ...(firma ? [{ titulo: "Por firmar", valor: firmar, detalle: "Consultas cerradas sin firma", href: "/atencion" }] : []),
-        { titulo: "Consultas abiertas", valor: enCurso, detalle: "Empezadas y sin cerrar", href: "/atencion" },
-        { titulo: "Resultados por recibir", valor: resultados, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
+        { titulo: "En espera ahora", valor: t.en_espera, detalle: "Llegaron y esperan consulta", href: "/atencion", urgente: t.en_espera > 0 },
+        ...(firma ? [{ titulo: "Por firmar", valor: t.por_firmar ?? 0, detalle: "Consultas cerradas sin firma", href: "/atencion" }] : []),
+        { titulo: "Consultas abiertas", valor: t.abiertas ?? 0, detalle: "Empezadas y sin cerrar", href: "/atencion" },
+        { titulo: "Resultados por recibir", valor: t.por_recibir ?? 0, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
       ],
       acciones: ACCIONES.clinico,
     };
   }
 
   if (rol === "recepcion") {
-    const [porLlegar, espera, pedidas] = await Promise.all([contar(citas("citado")), contar(citas("en_espera")), contar(solicitudes())]);
     return {
       titulo: "Recepción de hoy",
       tareas: [
-        { titulo: "Por llegar", valor: porLlegar, detalle: "Citados para hoy", href: "/atencion" },
-        { titulo: "En espera", valor: espera, detalle: "Ya llegaron", href: "/atencion", urgente: espera > 0 },
-        { titulo: "Solicitudes del portal", valor: pedidas, detalle: "Por confirmar", href: "/atencion", urgente: pedidas > 0 },
+        { titulo: "Por llegar", valor: t.citados, detalle: "Citados para hoy", href: "/atencion" },
+        { titulo: "En espera", valor: t.en_espera, detalle: "Ya llegaron", href: "/atencion", urgente: t.en_espera > 0 },
+        { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Por confirmar", href: "/atencion", urgente: t.solicitadas > 0 },
       ],
       acciones: ACCIONES.recepcion,
     };
   }
 
   if (rol === "coordinador_sst") {
-    const [eventos, pedidas] = await Promise.all([
-      contar(supabase.from("eventos").select("id", { count: "exact", head: true }).neq("estado", "cerrado")),
-      contar(solicitudes()),
-    ]);
     return {
       titulo: "Seguridad y salud",
       tareas: [
-        { titulo: "Eventos abiertos", valor: eventos, detalle: "Accidentes e incidentes sin cerrar", href: "/accidentes", urgente: eventos > 0 },
-        { titulo: "Solicitudes del portal", valor: pedidas, detalle: "Citas por confirmar", href: "/atencion" },
+        { titulo: "Eventos abiertos", valor: t.eventos_abiertos, detalle: "Accidentes e incidentes sin cerrar", href: "/accidentes", urgente: t.eventos_abiertos > 0 },
+        { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Citas por confirmar", href: "/atencion" },
       ],
       acciones: ACCIONES.sst,
     };
   }
 
   // Administración, auditoría y demás roles internos: cobros y operación general
-  const [porCobrar, pedidas] = await Promise.all([
-    contar(supabase.from("cobros").select("id", { count: "exact", head: true }).eq("estado", "emitida")),
-    contar(solicitudes()),
-  ]);
   return {
     titulo: "Operación",
     tareas: [
-      { titulo: "Notas por cobrar", valor: porCobrar, detalle: "Emitidas sin pagar", href: "/facturacion", urgente: porCobrar > 0 },
-      { titulo: "Solicitudes del portal", valor: pedidas, detalle: "Citas por confirmar", href: "/atencion" },
+      { titulo: "Notas por cobrar", valor: t.por_cobrar, detalle: "Emitidas sin pagar", href: "/facturacion", urgente: t.por_cobrar > 0 },
+      { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Citas por confirmar", href: "/atencion" },
     ],
     acciones: ACCIONES.admin,
   };

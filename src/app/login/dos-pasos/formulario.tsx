@@ -65,7 +65,7 @@ export function FormularioDosPasos() {
   }
 
   async function salir() {
-    await crearClienteNavegador().auth.signOut();
+    await crearClienteNavegador().auth.signOut({ scope: "local" });
     router.replace("/login");
     router.refresh();
   }

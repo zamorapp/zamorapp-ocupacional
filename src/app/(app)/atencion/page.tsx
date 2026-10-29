@@ -18,6 +18,7 @@ import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
 import { recordarResultados } from "@/lib/recordatorios";
+import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
 import { RefrescarAlVolver } from "./refrescar-al-volver";
@@ -43,6 +44,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     sesion.demo ? [] : listarSolicitudes(),
     datosOrganizacion(),
     recordarResultados(sesion),
+    vigilarPlazos(sesion),
   ]);
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
