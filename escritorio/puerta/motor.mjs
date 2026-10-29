@@ -7,6 +7,7 @@ import path from "node:path";
 import pg from "pg";
 import { CONFIG } from "./config.mjs";
 
+const MARCA_ESCRITURA_LOCAL = "marca_escritura_local_1";
 const exe = (nombre) => path.join(CONFIG.pgBin, process.platform === "win32" ? `${nombre}.exe` : nombre);
 
 // Si el puerto está ocupado, toma el siguiente libre (hasta 20 intentos).
@@ -80,11 +81,24 @@ export class Motor {
 
   // Mismas migraciones que la nube, en orden, una sola vez cada una; más los ajustes propios de la PC.
   async #migrar() {
+    const TABLA = "create schema if not exists local; create table if not exists local.migraciones (nombre text primary key, en timestamptz default now())";
+    const hechasEn = async () => {
+      const c0 = new pg.Client({ connectionString: this.url() });
+      await c0.connect();
+      try { await c0.query(TABLA); return new Set((await c0.query("select nombre from local.migraciones")).rows.map((r) => r.nombre)); } finally { await c0.end(); }
+    };
+    let hechas = await hechasEn();
+    // Una base de antes de la fase A quedó sin permisos de escritura (la copia era de solo lectura) y no hay forma
+    // de reponerlos uno a uno: se rehace desde cero y la copia completa vuelve a bajar. Solo pasa una vez.
+    if (hechas.size && !hechas.has(MARCA_ESCRITURA_LOCAL)) {
+      this.registro?.("[base] la copia local es de una versión anterior: se rehace para poder guardar en la PC");
+      await this.#rehacerBase();
+      hechas = await hechasEn();
+    }
     const c = new pg.Client({ connectionString: this.url() });
     await c.connect();
     try {
-      await c.query("create schema if not exists local; create table if not exists local.migraciones (nombre text primary key, en timestamptz default now())");
-      const hechas = new Set((await c.query("select nombre from local.migraciones")).rows.map((r) => r.nombre));
+      await c.query("insert into local.migraciones (nombre) values ($1) on conflict do nothing", [MARCA_ESCRITURA_LOCAL]);
       const pasos = [
         ["000_stubs_supabase.sql", CONFIG.stubs],
         ...fs.readdirSync(CONFIG.migraciones).filter((f) => f.endsWith(".sql")).sort().map((f) => [f, path.join(CONFIG.migraciones, f)]),
@@ -107,6 +121,19 @@ export class Motor {
     } finally {
       await c.end();
     }
+  }
+
+  // Borra y crea de nuevo la base local (sin PostgREST ni réplica en marcha). El estado olvida el cursor y la copia.
+  async #rehacerBase() {
+    const c = new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
+    await c.connect();
+    try {
+      await c.query("drop database if exists zamorapp with (force)");
+      await c.query("create database zamorapp");
+    } finally { await c.end(); }
+    this.estado.d.cursor = null;
+    this.estado.d.copiaCompleta = null;
+    this.estado.guardar();
   }
 
   // La configuración va por variables de entorno del proceso hijo: el secreto JWT y la clave del rol

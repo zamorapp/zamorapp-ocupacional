@@ -25,7 +25,14 @@ export const CONFIG = {
   // frescuraLectura y sin escrituras pendientes de bajar): la pantalla no paga el viaje a la nube (C11).
   lecturaLocal: env.ZAMORAPP_LECTURA_LOCAL !== "0",
   frescuraLectura: Number(env.ZAMORAPP_FRESCURA_LECTURA || 60_000),
+  // Fase A (local primero): lo que se guarda en tablas que sincronizan se escribe en la base local al instante y
+  // sube a la nube por la bandeja de salida (con o sin internet). Lo demás sigue yendo a la nube.
+  escrituraLocal: env.ZAMORAPP_ESCRITURA_LOCAL !== "0",
 };
+
+// Funciones que escriben SOLO en tablas que sincronizan (sync.tablas.subible): corren en la base local y sus
+// cambios suben por la bandeja. Una función que toque otra tabla (versiones, recordatorios, accesos) va a la nube.
+export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta", "guardar_resultados", "duplicar_consulta"]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([

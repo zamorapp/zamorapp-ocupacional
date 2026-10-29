@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
-import { CATALOGOS, CONFIG, RPC_LECTURA } from "./config.mjs";
+import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
@@ -33,7 +33,7 @@ const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).spl
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
@@ -356,6 +356,43 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     return lectura.nombres;
   }
 
+  // Fase A (local primero): tablas que se escriben en la PC (sync.tablas.subible, leídas de la copia) y funciones
+  // de escritura que solo las tocan. Con la copia completa, esas escrituras van a la base local y suben por la bandeja.
+  let subibles = { nombres: new Map(), en: 0 };
+  async function tablasSubibles() {
+    if (Date.now() - subibles.en < 300e3) return subibles.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      // Tablas que suben y las vistas (consultas, adjuntos, historia_laboral…) que la app usa sobre UNA de ellas: nombre → tabla base
+      const { rows } = await c.query(`
+        select nombre, nombre as base from sync.tablas where subible
+        union all
+        select v.view_schema || '.' || v.view_name, min(v.table_schema || '.' || v.table_name)
+          from information_schema.view_table_usage v
+         where v.view_schema in ('public', 'clinico')
+         group by 1 having count(*) = 1 and bool_and(v.table_schema || '.' || v.table_name in (select nombre from sync.tablas where subible))`);
+      subibles = { nombres: new Map(rows.map((f) => [f.nombre, f.base])), en: Date.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué tablas sincronizan: ${e.message}`);
+      subibles.en = Date.now() - 240e3;
+    } finally { await c.end().catch(() => {}); }
+    return subibles.nombres;
+  }
+  const escrituraLocal = async (req) => {
+    if (!CONFIG.escrituraLocal || !bandeja || !d().copiaCompleta || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return false;
+    const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(req.url);
+    if (!m) return false;
+    if (m[1]) return RPC_ESCRITURA_LOCAL.has(m[2]);
+    const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
+    const base = (await tablasSubibles()).get(`${perfil}.${m[2]}`);
+    if (!base) return false;
+    if (req.method === "DELETE" && base.startsWith("clinico.")) return false; // nada clínico se borra desde la PC: va a la nube como hasta ahora
+    // Alta de un paciente: numero_historia es serial y chocaría con la nube; hasta la fase B (bloques por equipo) va a la nube
+    if (req.method === "POST" && base === "public.trabajadores") return false;
+    return true;
+  };
+
   const soloLectura = async (req) => {
     if (["GET", "HEAD"].includes(req.method)) return true;
     const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
@@ -501,6 +538,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
+          bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -527,8 +565,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const esperada = Buffer.from(control);
         if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
         await nube.comprobar();
+        if (bandeja) await bandeja.subir();
         await replica.ciclo();
-        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
+          bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
       }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
@@ -580,6 +620,14 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
+        // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio
+        if (!lectura && await escrituraLocal(req)) {
+          // Guardar en la PC exige el segundo paso igual que la nube (aplicar_cambios lo vuelve a exigir al subir)
+          if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
+          await aLaCopia(req, res, crudo);
+          if (res.statusCode < 400 && nube.enLinea) bandeja.subir().catch(() => {});
+          return;
+        }
         const enLinea = await nube.confirmar();
         if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia() && await lecturaEnCopia(req)) {
           anotarModo("local", `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
