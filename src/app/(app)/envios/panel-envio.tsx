@@ -119,7 +119,12 @@ export function PanelEnvio({ empresa, fecha, consultaIds, contactos, plantillas 
             </button>
           ))}
         </div>
-        {canal === "whatsapp" && sinInternet && <RequiereInternet texto="El enlace de WhatsApp se crea en la nube. Conéctate para crearlo, o envía por correo: queda en cola y sale solo al volver la conexión." />}
+        {canal === "whatsapp" && sinInternet && (
+          <RequiereInternet
+            texto={correo ? "El enlace de WhatsApp se crea en la nube. Puedes enviarlo por correo: queda en cola y sale solo al volver la conexión." : "El enlace de WhatsApp se crea en la nube. Vuelve a intentarlo cuando haya conexión."}
+            salida={correo && <Button type="button" size="sm" onClick={() => cambiarCanal("correo")}><Mail /> Enviar por correo</Button>}
+          />
+        )}
         {canal === "correo" && !correo && (
           <p className="flex items-start gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto"><AlertTriangle className="mt-0.5 size-4 shrink-0" /> Falta conectar el correo remitente. Mientras tanto puedes usar WhatsApp o «Ver constancias» para descargar el PDF.</p>
         )}
