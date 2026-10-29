@@ -11,7 +11,7 @@ insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,m
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 select 'producción: la reasignada cuenta para el médico histórico (debe 1): ' || coalesce(sum((x ->> 'consultas')::int), 0)
-  from jsonb_array_elements(public.reporte_listado('medicos', null, '2019-03-14', '2019-03-14')) x where x ->> 'medico' = 'Histórico 143';
+  from jsonb_array_elements(public.reporte_listado('medicos', null, '2019-03-14', '2019-03-14')) x where x ->> 'medico' = 'Histórico 143 (histórico)';
 select 'producción: la otra queda para quien la atendió (debe 1): ' || coalesce(sum((x ->> 'consultas')::int), 0)
   from jsonb_array_elements(public.reporte_listado('medicos', null, '2019-03-14', '2019-03-14')) x where x ->> 'medico' = 'Admin 143';
 select 'estadística: dos médicos distintos (debe 2): ' || count(distinct x ->> 'medico')
