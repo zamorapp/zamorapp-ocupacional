@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-28";
+export const MANUAL_ACTUALIZADO = "2026-10-29";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -219,12 +220,12 @@ export const MANUAL: TemaManual[] = [
   },
   {
     id: "inspeccion",
-    titulo: "Inspección del INPSASEL",
+    titulo: "Cumplimiento INPSASEL",
     para: "servicio",
-    resumen: "Índice de cumplimiento de una empresa y un solo documento con todo lo que pide el inspector.",
+    resumen: "Lo que revisa un inspector del INPSASEL, medido con tus registros: un porcentaje de cumplimiento por empresa y un solo paquete para imprimir. No reemplaza la inspección: te muestra antes que el inspector qué te falta.",
     pasos: [
-      "Menú «Inspección»: elige la empresa y el período (por defecto, los últimos 12 meses).",
-      "Cada requisito muestra cuántos cumplen, su base legal y un semáforo: verde cumple, amarillo 80 % o más, rojo menos. La flecha lleva a donde se corrige.",
+      "Menú «Cumplimiento INPSASEL»: arriba, «¿Qué es esto?» explica la pantalla con un ejemplo y los 5 pasos (la primera vez se abre sola). Elige la empresa y el período (por defecto, los últimos 12 meses).",
+      "Revisa 10 puntos que pide el inspector (Servicio y Programa de SST registrados, declaraciones en 24 h, investigaciones, informes NT-02, acciones correctivas, puestos evaluados, notificación de riesgos firmada, evaluación médica vigente e informes trimestrales). Cada uno muestra cuántos cumplen, su base legal y un semáforo: verde cumple, amarillo cumple en parte (80 % o más), rojo no cumple o falta el dato, gris no aplica. La flecha lleva a donde se corrige.",
       "«Sin notificación de riesgos vigente y firmada» lista a quién falta; «Notificar a los N» registra y abre las hojas de los que nunca la recibieron o la tienen desactualizada.",
       "«Imprimir paquete» arma un solo documento: portada con el índice, registro de eventos, trabajadores, puestos e informes trimestrales, y luego cada declaración, cada informe de investigación (solo si eres personal de salud) y cada notificación firmada.",
     ],

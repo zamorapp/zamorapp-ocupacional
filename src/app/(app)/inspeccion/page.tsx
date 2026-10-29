@@ -13,13 +13,14 @@ import { CLAVES_CRITERIOS, periodoInspeccion, resumenInspeccion } from "@/lib/in
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { obtenerSesion, type Sesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
+import { QueEs } from "./que-es";
 
-export const metadata: Metadata = { title: "Inspección INPSASEL" };
+export const metadata: Metadata = { title: "Cumplimiento INPSASEL" };
 export const dynamic = "force-dynamic";
 
 const fecha = (v: string | null) => (v ? v.slice(0, 10).split("-").reverse().join("/") : "—");
 
-// Índice de cumplimiento por empresa y paquete imprimible para la inspección del INPSASEL
+// Cumplimiento INPSASEL: índice por empresa y paquete imprimible para la inspección (la ruta sigue siendo /inspeccion)
 export default async function Inspeccion({ searchParams }: { searchParams: Promise<{ empresa?: string; desde?: string; hasta?: string }> }) {
   const q = await searchParams;
   const [sesion, todas, activa] = await Promise.all([obtenerSesion(), listarEmpresas(), empresaActivaId()]);
@@ -32,13 +33,15 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold"><ShieldCheck className="size-6 text-primary" /> Inspección INPSASEL</h1>
-          <p className="text-sm text-muted-foreground">Lo que pide el inspector, medido con los registros de la app, y todo en un solo documento.</p>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold"><ShieldCheck className="size-6 text-primary" /> Cumplimiento INPSASEL</h1>
+          <p className="text-sm text-muted-foreground">Lo que revisa un inspector del INPSASEL, medido con tus registros, y listo para imprimir en un solo paquete.</p>
         </div>
         {medir && (
           <Button asChild><Link href={`/imprimir/inspeccion/${empresaId}?desde=${desde}&hasta=${hasta}`} target="_blank"><Printer /> Imprimir paquete</Link></Button>
         )}
       </div>
+
+      <QueEs />
 
       <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
         <label className="min-w-56 flex-1 text-sm">
