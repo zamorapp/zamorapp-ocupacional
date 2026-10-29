@@ -6,7 +6,7 @@ import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 import {
-  type CasoBandeja, comparar, EVENTO_BANDEJA, explicarMotivo, leerBandeja, type ListaBandeja, nombreOperacion, nombreTabla, resolverCaso, textoValor,
+  type CasoBandeja, comparar, internosDistintos, EVENTO_BANDEJA, explicarMotivo, leerBandeja, type ListaBandeja, nombreOperacion, nombreTabla, resolverCaso, textoValor,
 } from "@/lib/escritorio-bandeja";
 import { cn } from "@/lib/utils";
 
@@ -54,10 +54,15 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
   const motivo = explicarMotivo(c.motivo, c.estado);
   const filas = comparar(c.datos, c.nube);
   const borrado = c.op === "D";
+  // Si la nube tiene el registro, los campos iguales se pliegan: el médico ve primero solo lo que cambió
+  const distintos = c.nube ? filas.filter((f) => f.distinto) : filas;
+  const iguales = c.nube ? filas.filter((f) => !f.distinto) : [];
+  const internos = internosDistintos(c.datos, c.nube);
+  const etiquetaDescartar = c.nube ? "Quedarme con la nube" : "Descartar lo de esta PC";
 
   const resolver = async (accion: "descartar" | "reintentar") => {
     const si = await confirmar(accion === "descartar"
-      ? { titulo: "¿Quedarte con la versión de la nube?", texto: "Lo escrito en esta PC para este registro se descarta. No se puede deshacer.", accion: "Quedarme con la nube", peligro: true }
+      ? { titulo: c.nube ? "¿Quedarte con la versión de la nube?" : "¿Descartar lo de esta PC?", texto: "Lo escrito en esta PC para este registro se descarta. No se puede deshacer.", accion: etiquetaDescartar, peligro: true }
       : { titulo: "¿Volver a subir la versión de esta PC?", texto: "Se sube sobre lo que hay ahora en la nube y reemplaza esos campos.", accion: "Volver a subir" });
     if (!si) return;
     setOcupado(accion);
@@ -86,8 +91,8 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
         </div>
       </div>
       <div className="space-y-3 p-4">
-        <div className="flex gap-2 rounded-lg bg-muted p-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-aviso-texto" aria-hidden />
+        <div className={cn("flex gap-2 rounded-lg border p-3 text-sm", c.estado === "conflicto" ? "border-aviso/40 bg-aviso/10" : "border-alerta/40 bg-alerta/10")}>
+          <AlertTriangle className={cn("mt-0.5 size-4 shrink-0", c.estado === "conflicto" ? "text-aviso-texto" : "text-alerta-texto")} aria-hidden />
           <div className="min-w-0">
             <p className="font-medium">{motivo.titulo}</p>
             <p className="text-muted-foreground">{motivo.texto}</p>
@@ -105,8 +110,8 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
           <>
           {/* Celular: un bloque por campo */}
           <dl className="space-y-2 sm:hidden">
-            {filas.map((f) => (
-              <div key={f.campo} className={cn("rounded-lg border p-3 text-sm", f.distinto && "border-aviso/40 bg-aviso/5")}>
+            {distintos.map((f) => (
+              <div key={f.campo} className={cn("rounded-lg border p-3 text-sm", f.distinto && "border-aviso/50 bg-aviso/10")}>
                 <dt className="font-medium">{f.etiqueta}{f.distinto && <span className="sr-only"> (distinto)</span>}</dt>
                 <dd className="mt-1.5 grid gap-1.5">
                   <span><span className="flex items-center gap-1 text-xs text-muted-foreground"><Laptop className="size-3.5" aria-hidden /> En esta PC</span><span className={cn("block whitespace-pre-wrap break-words", f.distinto && "font-medium")}>{f.pc}</span></span>
@@ -115,7 +120,7 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
               </div>
             ))}
           </dl>
-          <div className="hidden overflow-x-auto rounded-lg border sm:block">
+          <div className={cn("hidden overflow-x-auto rounded-lg border", distintos.length > 0 && "sm:block")}>
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
                 <tr>
@@ -125,11 +130,11 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                {filas.map((f) => (
-                  <tr key={f.campo} className={cn("border-t align-top", f.distinto && "bg-aviso/5")}>
+                {distintos.map((f) => (
+                  <tr key={f.campo} className={cn("border-t align-top", f.distinto && "bg-aviso/10")}>
                     <th scope="row" className="p-2 text-left font-medium">
                       {f.etiqueta}
-                      {f.distinto && <span className="sr-only"> (distinto)</span>}
+                      {f.distinto && c.nube && <span className="ml-2 rounded-full bg-aviso/20 px-1.5 py-0.5 text-[11px] font-medium text-aviso-texto">Distinto</span>}
                     </th>
                     <td className={cn("whitespace-pre-wrap break-words p-2", f.distinto && "font-medium")}>{f.pc}</td>
                     <td className="whitespace-pre-wrap break-words p-2">{c.nube ? f.nube : <span className="text-muted-foreground">No está en la nube</span>}</td>
@@ -138,11 +143,39 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
               </tbody>
             </table>
           </div>
+          {distintos.length === 0 && internos.length === 0 && <p className="text-sm text-muted-foreground">Lo que se ve es igual en las dos versiones.</p>}
+          {internos.length > 0 && (
+            <details className="text-sm" open={distintos.length === 0}>
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Datos internos que también cambian ({internos.length})</summary>
+              <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 rounded-lg border border-aviso/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)]">
+                {internos.map((f) => (
+                  <div key={f.campo} className="contents">
+                    <dt className="font-medium text-muted-foreground">{f.etiqueta}</dt>
+                    <dd className="break-words"><span className="text-xs text-muted-foreground sm:sr-only">En esta PC: </span>{f.pc}</dd>
+                    <dd className="break-words"><span className="text-xs text-muted-foreground sm:sr-only">En la nube: </span>{f.nube}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
+          {iguales.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver {iguales.length === 1 ? "1 campo igual" : `${iguales.length} campos iguales`}</summary>
+              <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+                {iguales.map((f) => (
+                  <div key={f.campo} className="contents">
+                    <dt className="font-medium text-muted-foreground">{f.etiqueta}</dt>
+                    <dd className="whitespace-pre-wrap break-words">{f.pc}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
           </>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" disabled={Boolean(ocupado)} onClick={() => resolver("descartar")}>
-            {ocupado === "descartar" ? <Loader2 className="animate-spin" aria-hidden /> : <CloudDownload aria-hidden />} Quedarme con la nube
+            {ocupado === "descartar" ? <Loader2 className="animate-spin" aria-hidden /> : <CloudDownload aria-hidden />} {etiquetaDescartar}
           </Button>
           <Button size="sm" disabled={Boolean(ocupado)} onClick={() => resolver("reintentar")}>
             {ocupado === "reintentar" ? <Loader2 className="animate-spin" aria-hidden /> : <Upload aria-hidden />} Volver a subir la de esta PC

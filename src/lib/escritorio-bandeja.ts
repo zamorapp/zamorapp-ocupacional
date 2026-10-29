@@ -126,7 +126,12 @@ export function explicarMotivo(motivo: string | null, estado: string): { titulo:
 
 // ─── Comparación lado a lado ────────────────────────────────
 
-const OCULTOS = new Set(["id", "org_id", "version", "creado_en", "actualizado_en", "creado_por", "actualizado_por"]);
+// Lista fija (Analizar): campos como firmada_en o atendida_por sí los debe ver el médico
+const OCULTOS = new Set([
+  "id", "org_id", "version",
+  "creado_en", "creado_por", "actualizado_en", "actualizado_por", "cambiado_en", "cambiado_por", "registrado_en", "registrado_por",
+  "subido_por", "usado_en", "usado_por", "usada_en", "usada_por",
+]);
 
 const ETIQUETAS: Record<string, string> = {
   motivo_texto: "Motivo de consulta",
@@ -150,8 +155,18 @@ const ETIQUETAS: Record<string, string> = {
   hasta: "Hasta",
 };
 
+// Palabras que en el nombre del campo van sin tilde (examen_fisico → «Examen físico»)
+const TILDES: Record<string, string> = {
+  fisico: "físico", tension: "tensión", diagnostico: "diagnóstico", diagnosticos: "diagnósticos", direccion: "dirección", cardiaca: "cardíaca",
+  telefono: "teléfono", cedula: "cédula", descripcion: "descripción", observacion: "observación", conclusion: "conclusión", medico: "médico",
+  clinica: "clínica", clinico: "clínico", numero: "número", dias: "días", sintomas: "síntomas", evaluacion: "evaluación", informacion: "información",
+  ocupacion: "ocupación", posicion: "posición", presion: "presión", revision: "revisión", accion: "acción", tecnico: "técnico", genero: "género",
+  periodo: "período", indice: "índice", masa: "masa", habitos: "hábitos", alergicos: "alérgicos", quirurgicos: "quirúrgicos", farmacologicos: "farmacológicos",
+};
+
 export function etiquetaCampo(campo: string): string {
-  return ETIQUETAS[campo] ?? campo.replace(/_id$/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const texto = campo.replace(/_id$/, "").split("_").map((p) => TILDES[p] ?? p).join(" ");
+  return ETIQUETAS[campo] ?? texto.replace(/^./, (c) => c.toUpperCase());
 }
 
 const HORA_CARACAS = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -186,4 +201,13 @@ export function comparar(datos: Record<string, unknown>, nube: Record<string, un
       return { campo: k, etiqueta: etiquetaCampo(k), pc, nube: n, distinto: !nube || pc !== n };
     });
   return filas.sort((a, b) => Number(b.distinto) - Number(a.distinto));
+}
+
+// Los ocultos que también difieren: se muestran plegados para que nada cambie sin verse
+export function internosDistintos(datos: Record<string, unknown>, nube: Record<string, unknown> | null): FilaComparada[] {
+  if (!nube) return [];
+  return Object.keys(datos ?? {})
+    .filter((k) => OCULTOS.has(k) && k !== "id" && k !== "org_id")
+    .map((k) => ({ campo: k, etiqueta: etiquetaCampo(k), pc: textoValor(datos[k]), nube: textoValor(nube[k]), distinto: true }))
+    .filter((f) => f.pc !== f.nube);
 }
