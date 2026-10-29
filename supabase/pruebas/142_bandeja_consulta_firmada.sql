@@ -6,10 +6,28 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4'
 do $$ begin insert into clinico.consultas (org_id,empresa_id,trabajador_id,estado,hora_cierre,firmada_en) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',now(),now());
  raise notice 'fuera de la bandeja creó una consulta ya firmada: FALLA'; exception when others then raise notice 'fuera de la bandeja, consulta ya firmada rechazada (ok)'; end $$;
 select set_config('sync.cambio_id', gen_random_uuid()::text, false) \g /dev/null
+select set_config('sync.equipo_id', '14200000-0000-0000-0000-0000000000e1', false) \g /dev/null
 select set_config('sync.hora_anclada', 'on', false) \g /dev/null
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,hora_cierre,firmada_en) values ('14200000-0000-0000-0000-0000000000f1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada','2026-10-29 15:00+00','2026-10-29 15:01+00');
 select 'bandeja: el médico sube su consulta firmada en la PC con su hora (debe 1): ' || count(*) from clinico.consultas
  where id = '14200000-0000-0000-0000-0000000000f1' and estado = 'firmada' and firmada_en = timestamptz '2026-10-29 15:01+00' and (hora_equipo #>> '{firmada_en,verificada}')::boolean;
+-- Sus filas hijas suben después: otra PC o la web no pueden agregarlas; la PC que firmó sí, y la empresa recibe el aviso
+select set_config('sync.equipo_id', '14200000-0000-0000-0000-0000000000e2', false) \g /dev/null
+do $$ begin insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion) values ('10000000-0000-0000-0000-000000000001','14200000-0000-0000-0000-0000000000f1','Z00.0','Otra PC');
+ raise notice 'bandeja de otra PC agrega un diagnóstico a la firmada: FALLA'; exception when insufficient_privilege then raise notice 'bandeja de otra PC no toca la firmada (ok)'; end $$;
+select set_config('sync.equipo_id', '', false) \g /dev/null
+do $$ begin insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion) values ('10000000-0000-0000-0000-000000000001','14200000-0000-0000-0000-0000000000f1','Z00.0','Web');
+ raise notice 'fuera de la bandeja se agrega un diagnóstico a la firmada: FALLA'; exception when insufficient_privilege then raise notice 'fuera de la bandeja la firmada no cambia (ok)'; end $$;
+select set_config('sync.equipo_id', '14200000-0000-0000-0000-0000000000e1', false) \g /dev/null
+insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion) values ('10000000-0000-0000-0000-000000000001','14200000-0000-0000-0000-0000000000f1','Z00.0','Examen médico general');
+insert into clinico.aptitudes (org_id,consulta_id,trabajador_id,clasificacion) values ('10000000-0000-0000-0000-000000000001','14200000-0000-0000-0000-0000000000f1','30000000-0000-0000-0000-00000000000a','elegible');
+reset role;
+select 'bandeja: la PC que firmó sube su diagnóstico (debe 1): ' || count(*) from clinico.diagnosticos where consulta_id = '14200000-0000-0000-0000-0000000000f1';
+select 'bandeja: la aptitud de la consulta firmada sin internet avisa a la empresa (debe 1): ' || count(*) from clinico.aptitudes
+ where consulta_id = '14200000-0000-0000-0000-0000000000f1' and avisada_en is not null;
+select 'el aviso al crear una consulta cerrada o firmada existe y solo corre en la nube (debe 1): ' || count(*) from pg_trigger
+ where tgname = 'avisar_aptitud_al_crear_cerrada' and tgrelid = 'clinico.consultas'::regclass and pg_get_triggerdef(oid) like '%es_base_local%';
+set role authenticated;
 do $$ begin insert into clinico.consultas (org_id,empresa_id,trabajador_id,estado,firmada_en) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',now());
  raise notice 'bandeja: firmada sin hora de cierre aceptada: FALLA'; exception when others then raise notice 'bandeja: firmada sin cerrar rechazada (ok)'; end $$;
 do $$ begin insert into clinico.consultas (org_id,empresa_id,trabajador_id,medico_id,estado,hora_cierre,firmada_en) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a2','firmada',now(),now());
@@ -24,6 +42,7 @@ insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,hora_ci
 select 'bandeja sin hora verificada: firma con la hora de la nube (debe 1): ' || count(*) from clinico.consultas
  where id = '14200000-0000-0000-0000-0000000000f2' and firmada_en > now() - interval '1 minute' and (hora_equipo #>> '{firmada_en,hora}')::timestamptz = timestamptz '2020-01-01 10:01+00';
 select set_config('sync.cambio_id', '', false) \g /dev/null
+select set_config('sync.equipo_id', '', false) \g /dev/null
 select set_config('sync.hora_anclada', '', false) \g /dev/null
 reset role;
 delete from clinico.consultas where id in ('14200000-0000-0000-0000-0000000000f1', '14200000-0000-0000-0000-0000000000f2');
