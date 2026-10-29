@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
@@ -151,7 +150,6 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
   });
   if (error) return { ok: false, mensaje: error.message };
 
-  revalidatePath("/", "layout");
   olvidar("");
   return { ok: true, mensaje: cerrar ? "Consulta cerrada." : "Guardado." };
 }
@@ -160,7 +158,6 @@ export async function reabrirConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("consultas").update({ estado: "borrador", hora_cierre: null }).eq("id", id).eq("estado", "cerrada");
   if (error) return { ok: false, mensaje: error.message };
-  revalidatePath(`/atencion/${id}`);
   olvidar("");
   return { ok: true, mensaje: "Consulta reabierta." };
 }
@@ -170,7 +167,6 @@ export async function firmarConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("firmar_consulta", { p_id: id });
   if (error) return { ok: false, mensaje: error.message };
-  revalidatePath(`/atencion/${id}`);
   olvidar("");
   return { ok: true, mensaje: "Consulta firmada. Si encuentras un error, usa «Corregir» e indica el motivo." };
 }
@@ -181,7 +177,6 @@ export async function corregirConsulta(id: string, motivo: string): Promise<Resu
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("reabrir_consulta", { p_id: id, p_motivo: motivo.trim() });
   if (error) return { ok: false, mensaje: error.message };
-  revalidatePath(`/atencion/${id}`);
   olvidar("");
   return { ok: true, mensaje: "Consulta abierta para corregir. La versión firmada quedó guardada en el historial.", revision: data as number };
 }
@@ -193,7 +188,6 @@ export async function guardarResultados(id: string, paraclinicos: DatosConsulta[
   const resultados = paraclinicos.map((p) => ({ id: p.id, resultado: p.resultado, estado: p.estado ?? "", manual: Boolean(p.manual), unidad: p.unidad ?? "", referencia: p.referencia ?? "" }));
   const { error } = await supabase.rpc("guardar_resultados", { p_id: id, p_resultados: resultados });
   if (error) return { ok: false, mensaje: error.message };
-  revalidatePath("/", "layout");
   olvidar("");
   return { ok: true, mensaje: "Resultados guardados." };
 }
@@ -214,7 +208,6 @@ export async function duplicarConsulta(id: string): Promise<Resultado & { id?: s
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("duplicar_consulta", { p_id: id });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no tiene acceso clínico para crear consultas." : error.message };
-  revalidatePath("/", "layout");
   olvidar("");
   return { ok: true, mensaje: "Consulta duplicada.", id: data as string };
 }
