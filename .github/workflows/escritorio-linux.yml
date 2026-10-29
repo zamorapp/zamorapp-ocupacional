@@ -58,7 +58,8 @@ jobs:
           NUBE_DB: postgresql://postgres:postgres@127.0.0.1:5432/zamorapp_prueba
         run: |
           npm ci
-          node --test --test-reporter=spec "pruebas/*.test.mjs"
+          # Un archivo a la vez: todos usan la misma base de la nube (zamorapp_prueba) y en paralelo se pisan
+          node --test --test-concurrency=1 --test-reporter=spec "pruebas/*.test.mjs"
 
       - name: App en modo escritorio (Next autónomo)
         env:
