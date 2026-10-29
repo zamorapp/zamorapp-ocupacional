@@ -43,7 +43,7 @@ export default function PaginaLogin() {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold tracking-tight">Bienvenido</h2>
-            <p className="text-muted-foreground">Ingresa con tu correo para continuar.</p>
+            <p className="text-muted-foreground">Ingresa con tu usuario o tu correo.</p>
           </div>
           <FormularioLogin modoDemo={!supabaseConfigurado} />
         </div>

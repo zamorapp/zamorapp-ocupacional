@@ -80,6 +80,12 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     const enviar = (s, j) => { res.writeHead(s, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
     if (url.pathname === "/auth/v1/health") return enviar(200, {});
     if (url.pathname === "/auth/v1/recover") { estado.ultimoRecuperar = url.searchParams.get("redirect_to"); return enviar(200, {}); }
+    // Usuario corto: correo_para_ingreso se llama sin sesión y da el correo solo con la clave correcta
+    if (url.pathname === "/rest/v1/rpc/correo_para_ingreso") {
+      const b = JSON.parse(cuerpo || "{}");
+      const [email, u] = Object.entries(usuarios).find(([, u]) => u?.usuario && u.usuario === b.p_usuario) || [];
+      return enviar(200, u && u.clave === b.p_clave ? email : null);
+    }
     if (url.pathname === "/auth/v1/token") {
       const b = JSON.parse(cuerpo || "{}");
       if (url.searchParams.get("grant_type") === "password") {

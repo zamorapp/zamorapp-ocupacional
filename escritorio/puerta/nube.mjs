@@ -129,6 +129,16 @@ export class Nube {
     return json;
   }
 
+  // Función de la base que se llama sin sesión (solo con la clave pública), p. ej. correo_para_ingreso.
+  // Devuelve { ok, status, cuerpo } como auth(); lanza solo si la nube no responde.
+  async rpcAnonimo(funcion, args) {
+    const r = await fetch(`${CONFIG.nube}/rest/v1/rpc/${funcion}`, {
+      method: "POST", headers: this.cabeceras(), body: JSON.stringify(args), signal: AbortSignal.timeout(15000),
+    });
+    const cuerpo = await r.json().catch(() => null);
+    return { ok: r.ok, status: r.status, cuerpo };
+  }
+
   async leer(uid, ruta) {
     const token = await this.token(uid);
     if (!token) throw new Error("Sin sesión en la nube");
