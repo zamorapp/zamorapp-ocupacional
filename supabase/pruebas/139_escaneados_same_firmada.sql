@@ -3,9 +3,11 @@
 \pset tuples_only on
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
-insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,origen,codigo_origen) values
- ('4e000000-0000-0000-0000-0000000139a1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada','2020-01-15','integral','139-1'),
- ('4e000000-0000-0000-0000-0000000139a2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',public.hoy_caracas(),null,null);
+insert into public.importaciones (id,org_id,origen,etapa) values ('13900000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','integral','historial');
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,origen,codigo_origen,lote_importacion) values
+ ('4e000000-0000-0000-0000-0000000139a1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada','2020-01-15','integral','139-1','13900000-0000-0000-0000-000000000001'),
+ ('4e000000-0000-0000-0000-0000000139a2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','firmada',public.hoy_caracas(),null,null,null),
+ ('4e000000-0000-0000-0000-0000000139a3','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada',public.hoy_caracas(),null,null,null);
 
 set role authenticated;
 -- Administrador
@@ -48,4 +50,17 @@ do $$ begin
 exception when others then
   if sqlerrm like '%firmada%' then raise notice 'el médico no sube a una consulta firmada aunque sea del SAME (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
+-- El médico no puede fabricar una consulta «del SAME»: ni al crearla ni al editarla
+update public.consultas set origen = 'integral', codigo_origen = 'falso', lote_importacion = '13900000-0000-0000-0000-000000000001'
+ where id = '4e000000-0000-0000-0000-0000000139a3';
+select 'el médico no pone origen al editar (debe 1): ' || count(*) from public.consultas
+ where id = '4e000000-0000-0000-0000-0000000139a3' and origen is null and codigo_origen is null and lote_importacion is null;
+with x as (insert into public.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,origen,codigo_origen,lote_importacion) values
+  ('4e000000-0000-0000-0000-0000000139a4','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador',public.hoy_caracas(),'integral','falso-2','13900000-0000-0000-0000-000000000001')
+  returning origen, codigo_origen, lote_importacion)
+select 'el médico no pone origen al crear (debe 1): ' || count(*) from x where origen is null and codigo_origen is null and lote_importacion is null;
 reset role;
+-- La importación (sin sesión) sí lo pone
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+update clinico.consultas set origen = 'integral', codigo_origen = '139-3' where id = '4e000000-0000-0000-0000-0000000139a3';
+select 'la importación sin sesión sí pone el origen (debe 1): ' || count(*) from clinico.consultas where id = '4e000000-0000-0000-0000-0000000139a3' and origen = 'integral';

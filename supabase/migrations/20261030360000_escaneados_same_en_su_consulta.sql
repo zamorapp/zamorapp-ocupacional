@@ -8,6 +8,26 @@
 --   · lo sube el administrador o el gerente médico de la organización,
 --   · no se liga a exámenes.
 -- Nada más cambia: después de subido no se religa ni se borra (sigue la regla de la consulta firmada).
+-- Para que la excepción no se pueda fabricar, origen, codigo_origen y lote_importacion de una consulta solo los
+-- pone la importación (clave de servicio, sin sesión): con sesión, al crear quedan vacíos y al editar no cambian
+-- (revisión de Analizar, 29-oct-2026).
+
+create or replace function public.proteger_origen_importacion()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if; -- importación con la clave de servicio
+  if tg_op = 'INSERT' then
+    new.origen := null; new.codigo_origen := null; new.lote_importacion := null;
+  else
+    new.origen := old.origen; new.codigo_origen := old.codigo_origen; new.lote_importacion := old.lote_importacion;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.proteger_origen_importacion() from public, authenticated;
+
+drop trigger if exists proteger_origen_importacion on clinico.consultas;
+create trigger proteger_origen_importacion before insert or update on clinico.consultas
+  for each row execute function public.proteger_origen_importacion();
 
 create or replace function public.validar_adjunto()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -37,14 +57,15 @@ begin
   end if;
 
   if new.consulta_id is not null then
-    select org_id, trabajador_id, estado, paraclinicos, origen into c from clinico.consultas where id = new.consulta_id;
+    select org_id, trabajador_id, estado, paraclinicos, origen, codigo_origen, lote_importacion into c from clinico.consultas where id = new.consulta_id;
     if not found or c.org_id <> new.org_id or c.trabajador_id <> new.trabajador_id then
       raise exception 'El archivo y la consulta deben ser del mismo trabajador.';
     end if;
     -- Excepción única: el escaneado del SAME de una consulta importada del SAME (ya firmada allá) entra a esa
     -- consulta, solo como alta, solo por el administrador o el gerente médico y sin ligarlo a exámenes.
     if c.estado = 'firmada' and auth.uid() is not null
-       and not (tg_op = 'INSERT' and coalesce(c.origen, '') = 'integral' and coalesce(new.descripcion, '') like '[SAME %'
+       and not (tg_op = 'INSERT' and coalesce(c.origen, '') = 'integral' and c.codigo_origen is not null
+                and c.lote_importacion is not null and coalesce(new.descripcion, '') like '[SAME %'
                 and cardinality(coalesce(new.examenes, '{}')) = 0
                 and coalesce(public.mi_rol(new.org_id)::text in ('administrador', 'gerente_medico'), false)) then
       raise exception 'La consulta está firmada: sus archivos no se cambian. Usa «Corregir» o súbelo a la ficha del paciente.';
