@@ -8,6 +8,7 @@ const HOSTS_ESCRITORIO = ["127.0.0.1:54332", "localhost:54332"];
 // Refresca la sesión de Supabase y protege las rutas internas.
 // Sin Supabase configurado la app corre en modo demo y no bloquea nada.
 export async function middleware(request: NextRequest) {
+  const inicio = Date.now();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -19,6 +20,8 @@ export async function middleware(request: NextRequest) {
   if (!url || !key) return seguir();
 
   let respuesta = seguir();
+  // Server-Timing: el navegador (DevTools › Network › Timing) muestra cuánto tardó el chequeo de sesión
+  const conTiempo = (r: NextResponse) => { r.headers.set("Server-Timing", `sesion;dur=${Date.now() - inicio}`); return r; };
   const supabase = createServerClient(url, key, {
     global: { headers: cabecerasEquipo(request.cookies.get(COOKIE_EQUIPO)?.value) },
     cookies: {
@@ -37,9 +40,9 @@ export async function middleware(request: NextRequest) {
   const conSesion = Boolean(data?.claims?.sub);
   const enLogin = request.nextUrl.pathname.startsWith("/login");
   // Enlaces seguros de documentos enviados por WhatsApp: los abre la empresa sin cuenta (valida el token)
-  if (request.nextUrl.pathname.startsWith("/e/")) return respuesta;
+  if (request.nextUrl.pathname.startsWith("/e/")) return conTiempo(respuesta);
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
-  if (request.nextUrl.pathname.startsWith("/invitacion/")) return respuesta;
+  if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
 
   // En el programa de escritorio las redirecciones conservan el host con el que llegó la petición (solo
   // 127.0.0.1:54332 o localhost:54332): Next armaba request.url con "localhost", la ventana pasaba de
@@ -73,7 +76,7 @@ export async function middleware(request: NextRequest) {
   if (conSesion && enLogin && !ruta.startsWith("/login/nueva-clave") && !enDosPasos) {
     return irA("/panel");
   }
-  return respuesta;
+  return conTiempo(respuesta);
 }
 
 export const config = {
