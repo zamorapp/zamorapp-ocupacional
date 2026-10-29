@@ -120,13 +120,13 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   const sesionLocal = (uid, segundoPaso = false, sid = crypto.randomUUID()) => {
     const u = d().usuarios[uid];
     // La puerta revisa el vencimiento con la hora anclada (zexp): con la fecha de Windows cambiada el token igual
-    // vence a la hora. PostgREST local lo revisa con la de Windows (exp, iat): se le da margen hacia los dos lados
-    // para que no rechace una sesión vigente cuando Windows va adelantado o atrasado.
+    // vence a la hora. PostgREST local lo revisa con la de Windows (exp, iat): van en esa hora, sin margen de más
+    // (Analizar: con max(anclada, Windows) y Windows atrasado, PostgREST lo aceptaría por años al volver la fecha).
     const ahora = nube.reloj.segundos();
     const windows = Math.floor(nube.reloj.windows() / 1000);
     const zexp = ahora + CONFIG.sesionSegundos;
-    const exp = Math.max(ahora, windows) + CONFIG.sesionSegundos;
-    const iat = Math.min(ahora, windows) - 60;
+    const exp = windows + CONFIG.sesionSegundos;
+    const iat = windows - 60;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
     const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat, exp, zexp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");

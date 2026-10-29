@@ -618,7 +618,7 @@ test("más de 7 días sin conexión: tampoco se renueva una sesión abierta", { 
   assert.equal(r.json.error_code, "session_expired");
 });
 
-test("Windows adelantado o atrasado: el plazo de 7 días no se salta y PostgREST acepta la sesión vigente", { skip: omitir || !postgrestReal }, async () => {
+test("Windows adelantado o atrasado: el plazo de 7 días no se salta y un token de Windows atrasado no vale al volver la fecha", { skip: omitir || !postgrestReal }, async () => {
   nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: manda el plazo guardado en la PC
   const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
   const antes = u.ultimoOnline, fechaW = nubeObj.reloj.fecha;
@@ -635,20 +635,33 @@ test("Windows adelantado o atrasado: el plazo de 7 días no se salta y PostgREST
       r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
       assert.equal(r.status, 400, `vence con Windows corrido ${corrimiento > 0 ? "adelante" : "atrás"}`);
     }
-    // Dentro del plazo, con Windows corrido: la sesión sirve en la puerta y en PostgREST (lee la copia sin internet)
+    // Dentro del plazo: la puerta vence la sesión con la hora anclada (zexp); para PostgREST, exp e iat van en la hora
+    // de Windows (su reloj), sin margen de más
     u.ultimoOnline = nubeObj.reloj.ahora() - 864e5;
-    for (const corrimiento of [-3 * 3600e3, 3 * 3600e3]) {
+    const entrar = async () => {
+      const e = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+      assert.equal(e.status, 200, JSON.stringify(e.json));
+      return { e, datos: JSON.parse(Buffer.from(e.json.access_token.split(".")[1], "base64url")) };
+    };
+    for (const corrimiento of [-3 * 3600e3, 0, 3 * 3600e3]) {
       nubeObj.reloj.fecha = () => fechaW() + corrimiento;
-      r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
-      assert.equal(r.status, 200, JSON.stringify(r.json));
-      const datos = JSON.parse(Buffer.from(r.json.access_token.split(".")[1], "base64url"));
+      const { e, datos } = await entrar();
       const ahora = nubeObj.reloj.segundos(), win = Math.floor(nubeObj.reloj.fecha() / 1000);
       assert.equal(datos.zexp, ahora + 3600, "la puerta vence con la hora anclada");
-      assert.ok(datos.exp >= Math.max(ahora, win) + 3600 && datos.iat <= Math.min(ahora, win) - 60, "PostgREST tiene margen hacia los dos lados");
-      assert.equal(r.json.expires_at, win + 3600, "la app renueva según su propio reloj");
-      const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: r.json.access_token });
-      assert.equal(t.status, 200, JSON.stringify(t.json));
+      assert.ok(Math.abs(datos.exp - (win + 3600)) <= 1 && Math.abs(datos.iat - (win - 60)) <= 1, "exp e iat en la hora de Windows");
+      assert.equal(e.json.expires_at, datos.exp, "la app renueva según su propio reloj");
     }
+    nubeObj.reloj.fecha = fechaW;
+    const { e: ok } = await entrar();
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: ok.json.access_token })).status, 200, "con la fecha real, PostgREST la acepta");
+    // Analizar: token firmado con Windows atrasado un año (SAME); al volver Windows a la fecha real, PostgREST lo
+    // rechaza aunque se le llame directo en 127.0.0.1 (no vale «por años»)
+    nubeObj.reloj.fecha = () => fechaW() - 365 * 864e5;
+    const { e: atrasado, datos: dAtrasado } = await entrar();
+    nubeObj.reloj.fecha = fechaW;
+    assert.ok(dAtrasado.exp * 1000 < Date.now(), "su exp quedó en la hora de Windows de ese momento");
+    const directo = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/trabajadores?select=id&limit=1`, { headers: { Authorization: `Bearer ${atrasado.json.access_token}` } });
+    assert.equal(directo.status, 401, "PostgREST local lo rechaza con la fecha real");
   } finally {
     u.ultimoOnline = antes; nubeObj.reloj.fecha = fechaW;
   }
