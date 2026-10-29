@@ -75,6 +75,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   const uidDe = (token) => (secreto ? verificar(token, secreto)?.sub : sesiones.get(token)) || null;
   const servidor = http.createServer(async (req, res) => {
     if (estado.caida) return req.socket.destroy();
+    if (estado.latenciaMs) await new Promise((r) => setTimeout(r, estado.latenciaMs)); // ida y vuelta a la nube (Venezuela: 108-380 ms)
     let cuerpo = ""; for await (const p of req) cuerpo += p;
     const url = new URL(req.url, "http://x");
     const enviar = (s, j) => { res.writeHead(s, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
