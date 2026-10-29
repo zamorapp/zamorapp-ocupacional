@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { ShieldCheck, Stethoscope, Timer } from "lucide-react";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
+import { AvisoConfirmado } from "./aviso-confirmado";
 import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -45,6 +47,7 @@ export default function PaginaLogin() {
             <h2 className="text-2xl font-semibold tracking-tight">Bienvenido</h2>
             <p className="text-muted-foreground">Ingresa con tu usuario o tu correo.</p>
           </div>
+          <Suspense fallback={null}><AvisoConfirmado /></Suspense>
           <FormularioLogin modoDemo={!supabaseConfigurado} />
         </div>
       </section>

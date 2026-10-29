@@ -87,7 +87,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           password: clave,
           options: {
             data: { nombre_completo: String(datos.get("nombre")) },
-            emailRedirectTo: `${window.location.origin}${siguiente}`,
+            emailRedirectTo: `${window.location.origin}/login/confirmar?siguiente=${encodeURIComponent(siguiente)}`,
           },
         });
         if (error) {
