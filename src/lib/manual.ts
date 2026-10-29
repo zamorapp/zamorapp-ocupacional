@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-28";
+export const MANUAL_ACTUALIZADO = "2026-10-29";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -259,6 +260,7 @@ export const MANUAL: TemaManual[] = [
       "En «Clasificación de la lesión» elige sin tiempo perdido, temporal, parcial permanente, absoluta permanente o fatal: los días cargados se calculan solos (6.000 por muerte o incapacidad absoluta; parcial con la Tabla 1 por el % de pérdida, tope 6.000).",
       "Para el accidente, anota turno, actividad que realizaba, motivo, lesiones, testigos (presencial o referencial) y observaciones: son los datos del Anexo D para el INPSASEL.",
       "La app avisa del plazo de 24 horas para declarar, de 7 días para registrar las causas de la investigación y del informe NT-02 (15 o 30 días).",
+      "Centinela de plazos: aunque nadie abra el evento, la campana avisa a médicos, enfermería, coordinador SST y administración de cada empresa cuando un plazo empieza, cuando queda poco (12 horas para declarar; 2 días para el informe y la investigación) y cuando vence. También llega por correo; se apaga en Configuración → Organización. El aviso no dice el diagnóstico.",
       "En una enfermedad ocupacional, «Informe de investigación (6 partes)» abre el informe de la NT-02: «Llenar las partes vacías» propone cada parte con la historia, el puesto, los reposos, la morbilidad de la empresa y los paraclínicos. Completa lo marcado «[por completar]», agrega los participantes y pulsa «Terminar informe»: queda anotada la fecha de entrega. Solo lo ve el personal de salud.",
       "En «Certificación del INPSASEL» lleva el estado, la fecha y el número de la certificación, la discapacidad certificada y su porcentaje. Marca «Puede dejar discapacidad» para hacer seguimiento hasta que llegue.",
       "Con las horas trabajadas cargadas en la empresa, se calculan los índices de frecuencia, frecuencia bruta y severidad. En la parcial permanente, el índice de severidad toma el mayor entre el cargo y los días de reposo.",

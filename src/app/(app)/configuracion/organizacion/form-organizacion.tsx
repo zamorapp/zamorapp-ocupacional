@@ -27,6 +27,7 @@ type Ajustes = {
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
   recordatorio_resultados_dias?: number;
+  centinela_correo?: boolean;
   dias_equipo_confianza?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
@@ -95,6 +96,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
               <Casilla id="constancia_copias" etiqueta="Constancia en original (RR. HH.) y copia (servicio médico)" defecto={a.constancia_copias ?? true} />
               <Casilla id="firma_paciente_constancia" etiqueta="Espacio de firma del trabajador" defecto={a.firma_paciente_constancia ?? false} />
               <Casilla id="firma_sello_separados" etiqueta="Firma y sello del médico en casillas separadas (todos los documentos)" defecto={a.firma_sello_separados ?? true} />
+              <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración INPSASEL, informe NT-02, investigación)" defecto={a.centinela_correo ?? true} />
             </div>
           </CardContent>
         </Card>
