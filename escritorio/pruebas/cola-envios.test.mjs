@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, test } from "node:test";
-import { ColaEnvios } from "../puerta/cola-envios.mjs";
+import { ColaEnvios, URL_WEB, webDeCola } from "../puerta/cola-envios.mjs";
 
 let web, url;
 const pedidos = [];
@@ -51,4 +51,11 @@ test("sin sesión de nube del usuario no llama a la web", async () => {
 test("sin ids pide todos los del usuario", async () => {
   await new ColaEnvios({ nube: nube(), motor: null, web: url }).despachar("u1");
   assert.deepEqual(pedidos.at(-1).cuerpo, {});
+});
+
+test("el token de nube solo va a la web oficial, salvo en el banco de pruebas", () => {
+  assert.equal(webDeCola("https://xgso.supabase.co", "https://otro-sitio.com"), URL_WEB);
+  assert.equal(webDeCola("https://xgso.supabase.co", undefined), URL_WEB);
+  assert.equal(webDeCola("http://127.0.0.1:5400", "http://127.0.0.1:3000"), "http://127.0.0.1:3000");
+  assert.equal(webDeCola("http://localhost:5400", "https://otro-sitio.com"), URL_WEB);
 });

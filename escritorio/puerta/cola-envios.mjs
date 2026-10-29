@@ -6,6 +6,13 @@ import { performance } from "node:perf_hooks";
 import pg from "pg";
 
 const ESPERA_MS = 2 * 60 * 1000; // entre barridos del mismo usuario, si lo anterior no avanzó
+export const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
+
+// A dónde va el token de nube: siempre la web oficial. Solo el banco de pruebas (nube en 127.0.0.1) puede cambiarla,
+// para que ninguna variable de entorno mande la sesión de nube a otro sitio.
+export function webDeCola(nube, otra) {
+  return otra && String(nube || "").startsWith("http://127.0.0.1:") ? otra : URL_WEB;
+}
 
 export class ColaEnvios {
   constructor({ nube, motor, web, registro = () => {} }) {

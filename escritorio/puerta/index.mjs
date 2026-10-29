@@ -5,7 +5,7 @@ import { CONFIG } from "./config.mjs";
 import { Estado } from "./estado.mjs";
 import { Motor, puertoLibre } from "./motor.mjs";
 import { Nube } from "./nube.mjs";
-import { ColaEnvios } from "./cola-envios.mjs";
+import { ColaEnvios, webDeCola } from "./cola-envios.mjs";
 import { Replica } from "./replica.mjs";
 import { crearPuerta } from "./servidor.mjs";
 
@@ -31,7 +31,7 @@ const motor = new Motor(estado);
 motor.registro = registro;
 const nube = new Nube(estado, registro);
 const replica = new Replica(estado, nube, motor, registro);
-const cola = new ColaEnvios({ nube, motor, web: process.env.ZAMORAPP_WEB || "https://zamorapp-ocupacional.vercel.app", registro });
+const cola = new ColaEnvios({ nube, motor, web: webDeCola(CONFIG.nube, process.env.ZAMORAPP_WEB), registro });
 
 async function principal() {
   await motor.iniciar();

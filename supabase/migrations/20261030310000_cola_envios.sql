@@ -136,7 +136,8 @@ create policy envios_cola_borrar on storage.objects for delete to authenticated
 insert into sync.tablas (nombre, clinica, subible) values
   ('public.empresa_contactos', false, true), ('public.plantillas_correo', false, true),
   ('public.envios', false, true), ('public.solicitudes', false, true)
-on conflict (nombre) do nothing;
+-- La 240000 (#110) dejó envios como solo bajada: la cola tiene que subir, así que aquí se corrige
+on conflict (nombre) do update set subible = excluded.subible;
 do $$
 declare t text;
 begin
