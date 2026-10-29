@@ -61,6 +61,7 @@ export class Bandeja {
           });
           const resultados = new Map((Array.isArray(r) ? r : []).map((x) => [x.id, x]));
           const reponer = [];
+          let quedaron = 0; // cambios que siguieron pendientes porque se guardó otra vez mientras subían
           await c.query("begin");
           try {
             for (const f of lote) {
@@ -84,6 +85,7 @@ export class Bandeja {
                 // borra, queda pendiente con todo lo que falta subir. Lleva un id nuevo: la nube ya anotó este id como
                 // aplicado y lo volvería a contestar «duplicado» (se perdería lo fundido)
                 const { rowCount } = await c.query("delete from local.bandeja where id = $1 and datos is not distinct from $2::jsonb", [f.id, f.datos == null ? null : JSON.stringify(f.datos)]);
+                if (!rowCount) quedaron += 1;
                 if (!rowCount) await c.query("update local.bandeja set id = gen_random_uuid(), op = case when op = 'I' then 'U' else op end, version_base = case when $2::bigint is null then version_base else $2::bigint end, intentos = 0 where id = $1", [f.id, propia ? x.version : null]);
               } else {
                 await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
@@ -98,7 +100,8 @@ export class Bandeja {
           for (const f of reponer) {
             try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id}: ${e.message}`); }
           }
-          if (todos.length < LOTE && lote.length === todos.length) break;
+          // Lo que se fundió mientras viajaba sube en esta misma pasada (sin esperar a otro guardado o al ciclo)
+          if (todos.length < LOTE && lote.length === todos.length && !quedaron) break;
         }
       }
       this.ultimoError = sinSesion.length
