@@ -407,15 +407,12 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
 }
 
 // Correos fallidos o sin confirmar de los últimos 30 días que aún no se reintentaron (número en la pestaña Bitácora)
-export async function contarPendientes(): Promise<number> {
+// Números de las pestañas (bandeja «Por enviar» y correos por reintentar) en una sola consulta a la base
+export async function contarEnvios(): Promise<{ porEnviar: number; pendientes: number }> {
   const supabase = await crearClienteServidor();
-  const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const { data } = await supabase.from("envios").select("id, estado, creado_en").eq("canal", "correo").in("estado", ["fallido", "enviando"]).gte("creado_en", desde).limit(200);
-  const candidatos = (data ?? []).filter((e) => e.estado === "fallido" || sinConfirmarViejo(e.estado, e.creado_en));
-  if (!candidatos.length) return 0;
-  const { data: hijos } = await supabase.from("envios").select("reintento_de").in("reintento_de", candidatos.map((e) => e.id));
-  const hechos = new Set((hijos ?? []).map((h) => h.reintento_de));
-  return candidatos.filter((e) => !hechos.has(e.id)).length;
+  const { data } = await supabase.rpc("contar_envios", { p_dias: 14, p_espera_min: ESPERA_SIN_CONFIRMAR_MIN });
+  const fila = (data as { por_enviar: number; pendientes: number }[] | null)?.[0];
+  return { porEnviar: fila?.por_enviar ?? 0, pendientes: fila?.pendientes ?? 0 };
 }
 
 // Bandeja «Por enviar»: lo firmado con constancia de aptitud en los últimos días que aún no salió a la empresa

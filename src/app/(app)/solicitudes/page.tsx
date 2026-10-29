@@ -29,8 +29,14 @@ export default async function Solicitudes({ searchParams }: { searchParams: Prom
   if (!sesion.rol || !SERVICIO.includes(sesion.rol)) notFound();
   const { ver = "abiertas" } = await searchParams;
   const filtro = FILTROS.find((f) => f.clave === ver)?.clave ?? "abiertas";
-  const [empresas, activa, listas] = await Promise.all([listarEmpresas(), empresaActivaId(), opciones(sesion.orgId, ["tipo_solicitud"])]);
-  const solicitudes = await listarSolicitudes({ estado: filtro === "todas" ? undefined : filtro, empresaId: activa });
+  // Las solicitudes salen junto con las listas (la empresa activa es una cookie, no espera a la base)
+  const pedirActiva = empresaActivaId();
+  const [empresas, activa, listas, solicitudes] = await Promise.all([
+    listarEmpresas(),
+    pedirActiva,
+    opciones(sesion.orgId, ["tipo_solicitud"]),
+    pedirActiva.then((empresaId) => listarSolicitudes({ estado: filtro === "todas" ? undefined : filtro, empresaId })),
+  ]);
   const consultas = sesion.clinico ? await consultasParaResponder([...new Set(solicitudes.filter((s) => s.trabajadorId && ["pendiente", "en_proceso"].includes(s.estado)).map((s) => s.trabajadorId!))]) : {};
 
   return (
