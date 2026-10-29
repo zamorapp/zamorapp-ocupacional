@@ -103,7 +103,8 @@ begin
   -- mientras está firmada): se conserva y se sigue
   on conflict (consulta_id, revision) do nothing;
   -- Si esa versión la dejó otra persona, la bitácora dice quién reabrió de verdad, con su motivo y la hora
-  if exists (select 1 from clinico.consultas_versiones v where v.consulta_id = c.id and v.revision = c.revision and v.reabierta_por <> v_uid) then
+  -- (solo en la nube: bitacora no sube desde la PC)
+  if not public.es_base_local() and exists (select 1 from clinico.consultas_versiones v where v.consulta_id = c.id and v.revision = c.revision and v.reabierta_por <> v_uid) then
     insert into public.bitacora (org_id, usuario_id, tabla, registro_id, accion, despues)
     values (c.org_id, v_uid, 'clinico.consultas_versiones', c.id, 'REABRIR',
             jsonb_build_object('revision', c.revision, 'motivo', trim(p_motivo), 'reabierta_en', public.ahora(),
@@ -154,6 +155,8 @@ begin
               order by r.version desc, r.seq desc limit 1) = v_equipo
         and new.contenido #>> '{consulta,estado}' = 'firmada' and new.firmada_en is not null then
     -- Firmada y corregida sin internet: la nube nunca vio la firma; vale la copia de la PC que hizo las dos cosas
+    -- (llega así porque la bandeja funde firmar y reabrir en el cambio pendiente de la consulta, que tiene un orden
+    -- anterior al de la versión: la consulta sube primero. Si cambia el orden de la bandeja, revisar este caso)
     null;
   else
     raise exception 'La consulta cambió en la nube mientras se corregía en la PC: revisa la corrección.';
