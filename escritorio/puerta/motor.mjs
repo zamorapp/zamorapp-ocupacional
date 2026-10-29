@@ -64,7 +64,9 @@ export class Motor {
     }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
-    const log = path.join(CONFIG.datos, "base.log");
+    // Junto a su carpeta de datos (en la PC real es CONFIG.datos/base.log). Dos bases no comparten registro: en Windows
+    // la segunda base no arrancó con el registro de la primera abierto (la «PC nueva» de las pruebas).
+    const log = path.join(path.dirname(this.carpetaBase), "base.log");
     const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
       "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(this.carpetaBase)}`}`],
