@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2, ShieldCheck, Smartphone } from "lucide-react";
+import { Copy, Fingerprint, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
-import { ES_ESCRITORIO, MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
+import { ES_ESCRITORIO, MOTIVO_HELLO, entrarConHuella, huellaActivaAqui, puedeOfrecerHuella } from "@/lib/huella";
 import { guardarEquipoNavegador, nombreEquipo } from "@/lib/equipo-confianza";
 import { OfrecerHuella } from "@/components/app/huella";
 import { VerCodigosRespaldo } from "@/components/app/codigos-respaldo";
@@ -26,6 +26,7 @@ export function FormularioDosPasos() {
   const [dias, setDias] = useState(0); // días que dura la confianza según la organización (0 = no se ofrece)
   const [respaldo, setRespaldo] = useState<string | null>(null); // perdió el teléfono: escribe un código de respaldo
   const [codigos, setCodigos] = useState<string[] | null>(null); // recién activado: códigos para guardar
+  const [hello, setHello] = useState(false); // escritorio con Windows Hello activo: cuenta como segundo paso sin internet
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export function FormularioDosPasos() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) { router.replace("/login"); return; }
+      if (ES_ESCRITORIO) huellaActivaAqui().then(setHello).catch(() => {});
       setPaso(await prepararDosPasos(supabase));
       if (!ES_ESCRITORIO) supabase.rpc("dias_equipo_confianza").then(({ data }) => setDias(typeof data === "number" ? data : 0));
     })();
@@ -91,6 +93,27 @@ export function FormularioDosPasos() {
     setCargando(false);
   }
 
+  // Escritorio: Windows Hello en vez del código. Sin internet siempre basta; con internet basta si la nube ya tiene
+  // el segundo paso de esta cuenta (si no, la pantalla explica que hace falta el código una vez).
+  async function conHello() {
+    setCargando(true);
+    setError(null);
+    const supabase = crearClienteNavegador();
+    const r = await entrarConHuella(supabase);
+    if (!r.ok) { setCargando(false); setError(r.mensaje); return; }
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims?.aal === "aal2") { alPanel(); return; }
+    try { sessionStorage.removeItem(MOTIVO_HELLO); } catch { /* sin almacenamiento */ }
+    setCargando(false);
+    setDesdeHello(true);
+  }
+
+  const botonHello = hello && (
+    <Button type="button" variant="outline" className="h-11 w-full gap-2 border-primary/40" onClick={conHello} disabled={cargando}>
+      {cargando ? <Loader2 className="animate-spin" /> : <Fingerprint className="size-5 text-primary" />} Confirmar con Windows Hello
+    </Button>
+  );
+
   function alPanel() {
     router.replace("/panel");
     router.refresh();
@@ -108,7 +131,11 @@ export function FormularioDosPasos() {
   if (paso.tipo === "error") {
     return (
       <div className="space-y-4">
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{paso.mensaje}</p>
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {ES_ESCRITORIO && hello ? "Sin internet no se puede usar el código del teléfono. Confirma con Windows Hello: cuenta como segundo paso." : paso.mensaje}
+        </p>
+        {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {botonHello}
         <Button variant="outline" className="w-full" onClick={salir}>Volver a entrar</Button>
       </div>
     );
@@ -180,6 +207,14 @@ export function FormularioDosPasos() {
         </ol>
       )}
 
+      {paso.tipo === "codigo" && botonHello && !desdeHello && (
+        <>
+          {botonHello}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> o con el código del teléfono <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
       <div className="space-y-2">
         <Label htmlFor="codigo" className="sr-only">Código de 6 dígitos</Label>
         <Input

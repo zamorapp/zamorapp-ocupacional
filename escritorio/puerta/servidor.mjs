@@ -63,6 +63,20 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
 
+  // Segundo paso «de confianza» en esta PC (decisión de Cesar, 29-oct): tras escribir el código del teléfono aquí,
+  // durante el plazo de la organización (30 días por omisión) la clave basta, con o sin internet. Sin internet
+  // nunca se pide el código (no se puede verificar): vale la confianza o Windows Hello. El plazo cuenta desde el
+  // último código escrito, no desde la última renovación. La fecha de Windows se cambia a veces (por el SAME): se
+  // mide la distancia en valor absoluto.
+  const anotarSegundoPaso = (uid) => { const u = d().usuarios[uid]; if (u) { u.segundoPasoEn = Date.now(); estado.guardar(); } };
+  const segundoPasoVigente = (u) => {
+    if (!exigeDosPasos(u)) return false;
+    // PC instalada antes de este cambio: si la sesión guardada de la nube ya pasó el código, cuenta desde la última vez en línea
+    const en = u.segundoPasoEn ?? (aalDe(u.nube?.access_token) === "aal2" ? u.ultimoOnline : undefined);
+    const dias = Number.isInteger(u.diasConfianza) ? u.diasConfianza : 30;
+    return Boolean(en) && dias > 0 && Math.abs(Date.now() - en) <= dias * 864e5;
+  };
+
   const usuarioDe = (req) => {
     const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
     const u = datos && d().usuarios[datos.sub];
@@ -161,9 +175,18 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
           return responder(res, r.status, r.cuerpo ?? r.texto);
         }
         const uid = r.cuerpo.user.id;
+        // Dentro del plazo de confianza se conserva la sesión de la nube que ya pasó el código (aal2) y se descarta
+        // la nueva (aal1): así la nube no pide el código en cada entrada con clave en esta PC.
+        const previo = d().usuarios[uid];
+        const conservar = previo && !previo.requiereNube && aalDe(previo.nube?.access_token) === "aal2" && segundoPasoVigente(previo)
+          && Boolean(await nube.token(uid).catch(() => null));
         // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
         d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user, nubeConAal: Boolean(aalDe(r.cuerpo.access_token)) };
-        nube.guardarSesion(uid, r.cuerpo);
+        if (conservar) {
+          d().usuarios[uid].ultimoOnline = Date.now();
+          nube.auth("logout?scope=local", {}, r.cuerpo.access_token).catch(() => {});
+          registro("[auth] entrar en línea: equipo de confianza, se conserva la sesión con segundo paso");
+        } else nube.guardarSesion(uid, r.cuerpo);
         const rol = await rolEnNube(uid);
         if (rol === null) {
           registro("[auth] entrar: no es miembro activo; acceso bloqueado en esta PC");
@@ -177,8 +200,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         estado.guardar();
         await anotarUsuarioLocal(uid, email);
         await recordarUsuarioCorto(uid, escrito);
+        if (exigeDosPasos(d().usuarios[uid])) {
+          try { const dias = await nube.rpc(uid, "dias_equipo_confianza", {}); if (Number.isInteger(dias)) { d().usuarios[uid].diasConfianza = dias; estado.guardar(); } } catch { /* queda el último conocido */ }
+        }
         replica.ciclo().catch(() => {});
-        return responder(res, 200, sesionLocal(uid));
+        return responder(res, 200, sesionLocal(uid, conservar));
       } catch (e) {
         nube.marcarCaida(`al entrar: ${e.message}`);
       }
@@ -202,7 +228,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
-    return responder(res, 200, sesionLocal(uid));
+    // Sin internet no se puede verificar el código del teléfono: vale el plazo de confianza de esta PC. Fuera del
+    // plazo la app ofrece Windows Hello (que siempre cuenta sin internet) en vez del código.
+    const confia = segundoPasoVigente(u);
+    if (exigeDosPasos(u)) registro(`[auth] entrar sin conexión: segundo paso ${confia ? "por equipo de confianza" : "pendiente (Windows Hello)"}`);
+    return responder(res, 200, sesionLocal(uid, confia));
   }
 
   // Un refresco ya usado vale 30 s más y entrega la misma sesión nueva (como el margen de reutilización de Supabase):
@@ -362,6 +392,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     registro(`[auth] verificación en dos pasos: ${r.ok ? "ok" : r.status}`);
     if (!r.ok) return r.status === 429 ? "Demasiados intentos. Espera unos minutos." : "El código no es correcto o ya cambió. Escribe el que muestra ahora la app.";
     nube.guardarSesion(uid, r.cuerpo);
+    anotarSegundoPaso(uid);
     return null;
   }
 
@@ -372,12 +403,13 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
     if (!nube.enLinea) await nube.comprobar();
     const token = nube.enLinea ? await nube.token(quien.uid) : null;
-    if (!token) return errorAuth(res, 503, "La verificación en dos pasos necesita internet. Sin conexión, sal y entra con Windows Hello (PIN, huella o rostro), que cuenta como segundo paso.", "offline");
+    if (!token) return errorAuth(res, 503, "Sin internet no se puede usar el código del teléfono. Confirma con Windows Hello (PIN, huella o rostro), que cuenta como segundo paso.", "offline");
     const ruta = `factors${factor ? `/${factor}` : ""}${accion ? `/${accion}` : ""}`;
     const r = await nube.auth(ruta, req.method === "DELETE" ? null : cuerpo ?? {}, token, req.method);
     registro(`[auth] ${req.method} ${ruta}: ${r.status}`);
     if (r.ok && accion === "verify") {
       nube.guardarSesion(quien.uid, r.cuerpo);
+      anotarSegundoPaso(quien.uid);
       return responder(res, 200, sesionLocal(quien.uid, true));
     }
     if (r.ok && !accion) { // inscribir o borrar: la lista de factores de la persona cambió
