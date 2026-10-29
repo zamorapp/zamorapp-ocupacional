@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-29";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-29", texto: "Los exámenes escaneados, firmas y PDF de solicitudes también entran en el respaldo diario (PC y Drive)", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
@@ -398,6 +399,7 @@ export const MANUAL: TemaManual[] = [
       "Para que sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
       "Para un respaldo manual en cualquier momento: scripts\\respaldo.ps1.",
       "Deja abierto Google Drive para escritorio con tu cuenta, para que la copia suba a la nube. Si al encender la PC Drive tarda, el respaldo lo espera hasta 5 minutos; y si quedó solo en la PC, sube a Drive en el siguiente respaldo.",
+      "Los archivos (exámenes escaneados, firmas y PDF de solicitudes) también se respaldan: cada día bajan solo los nuevos a la carpeta «archivos» dentro de los mismos respaldos, en la PC y en Drive. Nunca se borran del respaldo.",
       "Una vez por semana, el respaldo se restaura de prueba en una base temporal de la PC (con el motor de zamorApp Escritorio), se comparan todas las filas y se borra. Si la PC tiene poca memoria libre, la prueba se pospone para no frenarla.",
       "En el Inicio, el administrador y el gerente médico ven el último respaldo y cuándo se probó la restauración: verde si está al día, amarillo si quedó solo en la PC, falló un intento o la prueba de restauración falló o tiene más de 8 días, rojo si pasó más de un día sin respaldo correcto.",
       "Para recuperar los datos en otra base: scripts\\restaurar.mjs con el último archivo de respaldo (lo hace el soporte técnico).",
