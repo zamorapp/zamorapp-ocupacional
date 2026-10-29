@@ -8,6 +8,7 @@ import type { DatosConsulta } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { siguienteEnEspera } from "@/lib/citas";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -83,6 +84,22 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
     await supabase.from("citas").update({ estado: "en_consulta", consulta_id: data.id }).eq("id", citaId);
   }
   redirect(`/atencion/${data.id}`);
+}
+
+// «Siguiente paciente»: toma al primero que espera hoy y le abre la consulta en un clic. La cita se aparta primero
+// (en_espera → en_consulta solo si nadie la tomó) para que dos médicos no abran dos consultas al mismo paciente.
+export async function atenderSiguiente(): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  for (let intento = 0; intento < 3; intento++) {
+    const s = await siguienteEnEspera();
+    if (!s) return { ok: false, mensaje: "No hay nadie en espera." };
+    const { data: tomada } = await supabase.from("citas").update({ estado: "en_consulta" }).eq("id", s.citaId).eq("estado", "en_espera").select("id");
+    if (!tomada?.length) continue; // otro médico la tomó en ese instante: se busca el siguiente
+    const r = await iniciarConsulta(s.trabajadorId, s.motivoId ?? undefined, s.citaId); // si abre, redirige
+    await supabase.from("citas").update({ estado: "en_espera" }).eq("id", s.citaId).eq("estado", "en_consulta").is("consulta_id", null);
+    return r;
+  }
+  return { ok: false, mensaje: "La cola cambió mientras tanto. Vuelve a intentarlo." };
 }
 
 export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promise<Resultado> {

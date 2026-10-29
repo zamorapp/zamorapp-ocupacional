@@ -93,3 +93,31 @@ export async function listarSolicitudes(): Promise<Cita[]> {
     observacion: c.nota_empresa ?? c.observacion,
   }));
 }
+
+// El primero que llegó y espera hoy (para «Siguiente paciente» al terminar una consulta) y cuántos esperan
+export type SiguienteCita = { citaId: string; trabajadorId: string; motivoId: string | null; paciente: string; enEspera: number };
+
+export async function siguienteEnEspera(): Promise<SiguienteCita | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  let q = supabase
+    .from("citas")
+    .select("id, trabajador_id, motivo_id, trabajadores(nombres, apellidos)", { count: "exact" })
+    .eq("fecha", hoyCaracas())
+    .eq("estado", "en_espera")
+    .order("llegada", { nullsFirst: false })
+    .order("hora", { nullsFirst: false })
+    .limit(1);
+  const empresa = await empresaActivaId();
+  if (empresa) q = q.eq("empresa_id", empresa);
+  const { data, count, error } = await q;
+  if (error || !data?.length) return null;
+  const c = data[0] as unknown as { id: string; trabajador_id: string; motivo_id: string | null; trabajadores: { nombres: string; apellidos: string } | null };
+  return {
+    citaId: c.id,
+    trabajadorId: c.trabajador_id,
+    motivoId: c.motivo_id,
+    paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
+    enEspera: count ?? 1,
+  };
+}

@@ -50,6 +50,8 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+import type { SiguienteCita } from "@/lib/citas";
+import { SiguientePaciente } from "../siguiente-paciente";
 import { mensajeGuardadoLocal, refrescarEstado, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
@@ -76,6 +78,7 @@ type Props = {
   nueva: boolean;
   pasoInicial?: string;
   declaraciones: DeclaracionConsulta[];
+  siguiente?: SiguienteCita | null;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -176,7 +179,7 @@ function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, 
   return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -580,6 +583,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               {puedeFirmar && !corrigiendo && (
                 <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
               )}
+              {!corrigiendo && <SiguientePaciente siguiente={siguiente} variante="default" />}
             </div>
           ) : bloqueado ? (
             <div className="flex flex-wrap gap-2">
@@ -595,6 +599,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
                 </>
               )}
+              <SiguientePaciente siguiente={siguiente} />
             </div>
           ) : (
             <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
