@@ -29,6 +29,7 @@ function abrirEstado() {
 }
 const estado = abrirEstado();
 const bitacora = fs.createWriteStream(path.join(CONFIG.datos, "puerta.log"), { flags: "a" });
+// hora de Windows: solo para leer el registro (ningún plazo se mide con ella)
 const registro = (m) => bitacora.write(`${new Date().toISOString()} ${String(m).trimEnd()}\n`);
 const motor = new Motor(estado);
 motor.registro = registro;

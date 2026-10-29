@@ -538,7 +538,7 @@ test("sin internet: las funciones de lectura (stable) responden desde la copia; 
 test("volvió internet: la puerta lo nota sola en la siguiente petición", { skip: omitir }, async () => {
   nube.estado.caida = false;
   assert.equal(nubeObj.enLinea, false);
-  nubeObj.revisadaEn = Date.now() - 16_000;
+  nubeObj.revisadaEn = performance.now() - 16_000;
   const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: tokenMed });
   assert.equal(t.status, 200);
   assert.equal(nubeObj.enLinea, true);
@@ -618,6 +618,42 @@ test("más de 7 días sin conexión: tampoco se renueva una sesión abierta", { 
   assert.equal(r.json.error_code, "session_expired");
 });
 
+test("Windows adelantado o atrasado: el plazo de 7 días no se salta y PostgREST acepta la sesión vigente", { skip: omitir || !postgrestReal }, async () => {
+  nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: manda el plazo guardado en la PC
+  const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  const antes = u.ultimoOnline, fechaW = nubeObj.reloj.fecha;
+  try {
+    // Una versión vieja anotó el último contacto con Windows adelantado un año: ya no deja entrar sin internet
+    u.ultimoOnline = nubeObj.reloj.ahora() + 365 * 864e5;
+    let r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+    assert.equal(r.status, 400, "un último contacto en el futuro cuenta como vencido");
+    assert.equal(r.json.error_code, "session_expired");
+    // 8 días sin conexión con la hora anclada, y Windows atrasado un año (o adelantado): igual vence
+    for (const corrimiento of [-365 * 864e5, 365 * 864e5]) {
+      u.ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
+      nubeObj.reloj.fecha = () => fechaW() + corrimiento;
+      r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+      assert.equal(r.status, 400, `vence con Windows corrido ${corrimiento > 0 ? "adelante" : "atrás"}`);
+    }
+    // Dentro del plazo, con Windows corrido: la sesión sirve en la puerta y en PostgREST (lee la copia sin internet)
+    u.ultimoOnline = nubeObj.reloj.ahora() - 864e5;
+    for (const corrimiento of [-3 * 3600e3, 3 * 3600e3]) {
+      nubeObj.reloj.fecha = () => fechaW() + corrimiento;
+      r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+      assert.equal(r.status, 200, JSON.stringify(r.json));
+      const datos = JSON.parse(Buffer.from(r.json.access_token.split(".")[1], "base64url"));
+      const ahora = nubeObj.reloj.segundos(), win = Math.floor(nubeObj.reloj.fecha() / 1000);
+      assert.equal(datos.zexp, ahora + 3600, "la puerta vence con la hora anclada");
+      assert.ok(datos.exp >= Math.max(ahora, win) + 3600 && datos.iat <= Math.min(ahora, win) - 60, "PostgREST tiene margen hacia los dos lados");
+      assert.equal(r.json.expires_at, win + 3600, "la app renueva según su propio reloj");
+      const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: r.json.access_token });
+      assert.equal(t.status, 200, JSON.stringify(t.json));
+    }
+  } finally {
+    u.ultimoOnline = antes; nubeObj.reloj.fecha = fechaW;
+  }
+});
+
 test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir }, async () => {
   nube.estado.caida = false;
   await nubeObj.comprobar();
@@ -626,13 +662,19 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
   const nombre = `Ana ${Date.now()}`;
   await nubeDb.query("update public.trabajadores set nombres = $1 where id = '30000000-0000-0000-0000-00000000000a'", [nombre]);
   await nubeDb.end();
+  // La PC tiene por subir un teléfono guardado sin internet (prueba de la hora anclada): mientras tanto la copia no
+  // se pisa con la nube (se vería el teléfono viejo); al subir, la nube combina los campos y baja la fila completa
   await replicaObj.ciclo();
   assert.equal(replicaObj.error, null);
   const c = new pg.Client({ connectionString: motor.url() });
   await c.connect();
-  const { rows } = await c.query("select nombres from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'");
+  const fila = async () => (await c.query("select nombres, telefono from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'")).rows[0];
+  assert.equal((await fila()).telefono, "0414-0000014", "lo guardado en la PC sigue a la vista hasta que sube");
+  await bandejaObj.subir();
+  const f = await fila();
   await c.end();
-  assert.equal(rows[0].nombres, nombre);
+  assert.equal(f.nombres, nombre, "el cambio de la nube llega a la PC");
+  assert.equal(f.telefono, "0414-0000014", "y el de la PC no se pierde");
 });
 
 test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
@@ -741,7 +783,7 @@ test("Windows Hello: se activa con la sesión abierta y luego entra sin clave", 
   assert.equal(sinRed.json.ok, true);
   // ...pero no tras más de 7 días sin conexión
   const antes = estado.d.usuarios[medA].ultimoOnline;
-  estado.d.usuarios[medA].ultimoOnline = Date.now() - 8 * 864e5;
+  estado.d.usuarios[medA].ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
   const viejo = await ventana("/zamorapp/huella/entrar");
   estado.d.usuarios[medA].ultimoOnline = antes;
   assert.equal(viejo.json.ok, false);
@@ -914,16 +956,29 @@ test("sin internet no se pide el código: vale el plazo de confianza de esta PC;
     assert.equal(r.status, 200);
     assert.equal(aal(r.json.access_token), "aal2", "sin internet y dentro del plazo: entra sin código");
 
-    admin().segundoPasoEn = Date.now() - 31 * 864e5;
+    admin().segundoPasoEn = nubeObj.reloj.ahora() - 31 * 864e5;
     r = await entrar();
     assert.equal(r.status, 200, "fuera del plazo igual abre la sesión (la app ofrece Windows Hello)");
     assert.equal(aal(r.json.access_token), "aal1");
     assert.ok(lineas.some((l) => l.includes("segundo paso pendiente (Windows Hello)")));
 
-    admin().segundoPasoEn = Date.now() + 400 * 864e5; // fecha de Windows atrasada por el SAME: cuenta la distancia
+    // Anotado por una versión vieja con la fecha de Windows adelantada: más de un día en el futuro no vale
+    admin().segundoPasoEn = nubeObj.reloj.ahora() + 400 * 864e5;
     assert.equal(aal((await entrar()).json.access_token), "aal1");
-    admin().segundoPasoEn = Date.now() + 2 * 864e5;
-    assert.equal(aal((await entrar()).json.access_token), "aal2");
+    admin().segundoPasoEn = nubeObj.reloj.ahora() + 2 * 864e5;
+    assert.equal(aal((await entrar()).json.access_token), "aal1", "dos días en el futuro tampoco");
+    admin().segundoPasoEn = nubeObj.reloj.ahora() + 12 * 3600e3;
+    assert.equal(aal((await entrar()).json.access_token), "aal2", "unas horas de diferencia sí (margen de un día)");
+    // La fecha de Windows se mueve (SAME) y el plazo no: se mide con la hora anclada
+    const fechaW = nubeObj.reloj.fecha;
+    admin().segundoPasoEn = nubeObj.reloj.ahora() - 31 * 864e5;
+    nubeObj.reloj.fecha = () => fechaW() - 400 * 864e5;
+    assert.equal(aal((await entrar()).json.access_token), "aal1", "con Windows atrasado, 31 días siguen siendo 31");
+    nubeObj.reloj.fecha = fechaW;
+    admin().segundoPasoEn = nubeObj.reloj.ahora() - 5 * 864e5;
+    nubeObj.reloj.fecha = () => fechaW() + 400 * 864e5;
+    assert.equal(aal((await entrar()).json.access_token), "aal2", "con Windows adelantado, 5 días siguen siendo 5");
+    nubeObj.reloj.fecha = fechaW;
 
     admin().diasConfianza = 0; // la organización pide el código siempre
     assert.equal(aal((await entrar()).json.access_token), "aal1");
@@ -975,7 +1030,7 @@ test("usuario desactivado en la nube: queda bloqueado en la PC", { skip: omitir 
   try {
     await replicaObj.enCurso; // entrar con internet dispara un ciclo en segundo plano: que no se cruce con este
     await nubeDb.query("update public.miembros set activo = false where usuario_id = $1", [medA]);
-    estado.d.usuarios[medA].ultimoOnline = Date.now(); // que sea el usuario de la sincronía
+    estado.d.usuarios[medA].ultimoOnline = nubeObj.reloj.ahora(); // que sea el usuario de la sincronía
     await replicaObj.ciclo();
     assert.equal(estado.d.usuarios[medA].bloqueado, true);
     assert.equal((await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed })).status, 401);
@@ -1310,7 +1365,10 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   assert.equal(jj.adjuntos.nuevo, true);
   assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 2, fs.readdirSync(externa).join(", "));
   assert.equal(fs.readdirSync(respaldoObj.carpetaLocal).filter((f) => f.endsWith(".adjuntos.tar")).length, 1);
-  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length, basesAntes, "las copias de la base no se tocan (30 en Drive)");
+  // La copia nueva de la base se suma (o reemplaza la del mismo minuto); las de días anteriores siguen (30 en Drive)
+  const basesDespues = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp"));
+  assert.ok(basesDespues.length === basesAntes || basesDespues.length === basesAntes + 1, basesDespues.join(", "));
+  for (const d of ["20260101-0900", "20260102-0900", "20260103-0900"]) assert.ok(basesDespues.includes(`zamorapp-${d}.zamorapp`), "las copias de la base no se tocan");
   for (const f of fs.readdirSync(externa)) if (f.startsWith("zamorapp-202601")) fs.rmSync(path.join(externa, f)); // las de mentira
   // Analizar: si el paquete de adjuntos más nuevo no abre, se restaura la base igual con el paquete anterior que sí abra
   const buenos = fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).sort();

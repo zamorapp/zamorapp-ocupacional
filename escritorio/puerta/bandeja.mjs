@@ -48,9 +48,13 @@ export class Bandeja {
         // código, ese autor espera a entrar con internet y los demás siguen
         if (!autor || !(await this.nube.token(autor).catch(() => null))) { sinSesion.push({ autor, n }); continue; }
         for (;;) {
-          const { rows: lote } = await c.query(
+          const { rows: todos } = await c.query(
             "select id, tabla, fila_id, op, version_base, datos, hora_verificada from local.bandeja where estado = 'pendiente' and autor = $1 order by orden limit $2", [autor, LOTE]);
-          if (!lote.length) break;
+          if (!todos.length) break;
+          // Un solo cambio por fila en cada envío: el siguiente de la misma fila sale en el próximo, sobre la versión
+          // que deje este (si fueran juntos, el segundo llevaría una base ya vieja y sería un conflicto falso)
+          const vistas = new Set();
+          const lote = todos.filter((f) => { const k = `${f.tabla}:${f.fila_id}`; if (vistas.has(k)) return false; vistas.add(k); return true; });
           const r = await this.nube.rpc(autor, "aplicar_cambios", {
             p_equipo: eq.id, p_secreto: eq.secreto,
             p_lote: lote.map((f) => ({ id: f.id, tabla: f.tabla, fila_id: f.fila_id, op: f.op, version_base: f.version_base, datos: f.datos, hora_verificada: f.hora_verificada })),
@@ -66,8 +70,22 @@ export class Bandeja {
                 continue;
               }
               // «duplicado» solo llega por el mismo cambio o por una fila igual con el mismo id: no hay nada que conservar
-              if (x.estado === "aplicado" || x.estado === "duplicado") await c.query("delete from local.bandeja where id = $1", [f.id]);
-              else {
+              if (x.estado === "aplicado" || x.estado === "duplicado") {
+                // La versión que dejó este cambio es la base de los siguientes de esta PC en la misma fila (la copia
+                // aún no la bajó). Solo si es justo la siguiente de su base: así nadie más la tocó en medio y no se
+                // salta un conflicto de verdad. Si otro la cambió en medio, la base no avanza y la nube decide.
+                const propia = x.estado === "aplicado" && x.version != null &&
+                  (f.op === "I" ? Number(x.version) === 1 : f.version_base != null && Number(x.version) === Number(f.version_base) + 1);
+                if (f.op === "D") await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+                else if (propia) {
+                  await c.query("insert into local.version_nube (tabla, fila_id, version) values ($1, $2, $3) on conflict (tabla, fila_id) do update set version = greatest(local.version_nube.version, excluded.version)", [f.tabla, f.fila_id, x.version]);
+                }
+                // Si mientras subía se guardó otra vez la misma fila, ese guardado se fundió en este cambio: no se
+                // borra, queda pendiente con todo lo que falta subir. Lleva un id nuevo: la nube ya anotó este id como
+                // aplicado y lo volvería a contestar «duplicado» (se perdería lo fundido)
+                const { rowCount } = await c.query("delete from local.bandeja where id = $1 and datos is not distinct from $2::jsonb", [f.id, f.datos == null ? null : JSON.stringify(f.datos)]);
+                if (!rowCount) await c.query("update local.bandeja set id = gen_random_uuid(), op = case when op = 'I' then 'U' else op end, version_base = case when $2::bigint is null then version_base else $2::bigint end, intentos = 0 where id = $1", [f.id, propia ? x.version : null]);
+              } else {
                 await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
                 this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);
                 reponer.push(f);
@@ -80,7 +98,7 @@ export class Bandeja {
           for (const f of reponer) {
             try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id}: ${e.message}`); }
           }
-          if (lote.length < LOTE) break;
+          if (todos.length < LOTE && lote.length === todos.length) break;
         }
       }
       this.ultimoError = sinSesion.length
@@ -122,7 +140,10 @@ export class Bandeja {
       if (f.autor !== quien.uid && !["administrador", "gerente_medico"].includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
       if (accion === "descartar") { await c.query("delete from local.bandeja where id = $1", [id]); return { hecho: "descartado" }; }
       if (accion === "reintentar") {
-        const { rows: [v] } = await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+        // Sobre la versión que la nube tiene ahora (la que la copia repuso tras el conflicto), nunca la de la copia,
+        // que el disparador local sube en cada guardado
+        const { rows: [n] } = await c.query("select version from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+        const { rows: [v] } = n ? { rows: [n] } : await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
         await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
         return { hecho: "pendiente" };
       }

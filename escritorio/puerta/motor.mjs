@@ -311,7 +311,7 @@ export class Motor {
     this.hijos.push(p);
     // En una PC real la primera vez puede tardar: el antivirus revisa postgrest.exe y PostgREST carga el
     // esquema. Se espera hasta 2 minutos, pero si el proceso se cae se avisa de inmediato con su motivo.
-    const inicio = Date.now();
+    const inicio = performance.now();
     for (;;) {
       if (salida !== null) {
         const e = new Error(`No arrancó PostgREST (salió con ${salida}): ${ultimas.join(" | ") || "sin mensajes"}`);
@@ -319,14 +319,14 @@ export class Motor {
         throw e;
       }
       // No se le pregunta nada hasta que diga que cargó el esquema (o pasen 10 s): sin pedidos durante su arranque
-      if (esquemaListo || Date.now() - inicio > 10_000) try {
+      if (esquemaListo || performance.now() - inicio > 10_000) try {
         const r = await fetch(`http://127.0.0.1:${this.puertoPostgrest}/`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(3000) });
         if (r.status < 500) break;
       } catch { /* aún no escucha */ }
-      if (Date.now() - inicio > 120_000) throw new Error(`No arrancó PostgREST en 2 minutos: ${ultimas.join(" | ") || "sin mensajes"}`);
+      if (performance.now() - inicio > 120_000) throw new Error(`No arrancó PostgREST en 2 minutos: ${ultimas.join(" | ") || "sin mensajes"}`);
       await new Promise((r) => setTimeout(r, 500));
     }
-    this.registro?.(`[postgrest] listo en ${Math.round((Date.now() - inicio) / 1000)} s`);
+    this.registro?.(`[postgrest] listo en ${Math.round((performance.now() - inicio) / 1000)} s`);
     // Si después se cae mientras el programa está abierto, se vuelve a lanzar en el mismo puerto
     p.once("close", (codigo) => {
       if (this.deteniendo) return;

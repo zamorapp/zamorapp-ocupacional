@@ -96,7 +96,7 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     (await c.query("select autor, tipo from local.adjuntos_cola where bucket = $1 and ruta = $2", [bucket, ruta])).rows[0] || null);
 
   const firmarUrl = (bucket, ruta, uid) => {
-    const datos = Buffer.from(JSON.stringify({ b: bucket, r: ruta, u: uid, e: Math.floor(Date.now() / 1000) + SEGUNDOS_FIRMA })).toString("base64url");
+    const datos = Buffer.from(JSON.stringify({ b: bucket, r: ruta, u: uid, e: nube.reloj.segundos() + SEGUNDOS_FIRMA })).toString("base64url");
     const firma = crypto.createHmac("sha256", clave()).update(datos).digest("base64url");
     // Misma forma que la nube: supabase-js arma encodeURI(<url>/storage/v1 + signedURL), así que va sin codificar
     return `/object/sign/${bucket}/${ruta}?token=${datos}.${firma}`;
@@ -109,7 +109,7 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     if (dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return null;
     try {
       const v = JSON.parse(Buffer.from(datos, "base64url"));
-      return v.e * 1000 >= Date.now() ? v : null;
+      return v.e * 1000 >= nube.reloj.ahora() ? v : null;
     } catch { return null; }
   };
 
@@ -121,7 +121,7 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
 
   // Lo que no está en la PC se baja de la nube con la sesión del usuario y queda guardado (para verlo sin internet)
   // Bytes bajados hoy (día de Caracas con la hora anclada a la nube, no la fecha de Windows): se guarda en el estado
-  const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(nube.reloj?.ahora?.() ?? Date.now()));
+  const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(nube.reloj.ahora()));
   const bajadoHoy = () => (d().adjuntosBajada?.dia === hoy() ? d().adjuntosBajada.bytes : 0);
   function anotarBajada(bytes) {
     d().adjuntosBajada = { dia: hoy(), bytes: bajadoHoy() + bytes };

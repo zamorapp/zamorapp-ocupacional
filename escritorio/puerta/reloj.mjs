@@ -72,7 +72,20 @@ export class Reloj {
 
   // ¿Pasó más de «dias» sin contacto con la nube? También si hubo demasiados arranques seguidos sin internet
   // (sin ancla, una fecha de Windows detenida no cuenta los días).
+  // Un último contacto más de un día POR DELANTE de la hora actual también vence: lo anotó una fecha de Windows
+  // adelantada (versiones viejas) y, si no, el plazo nunca llegaría.
   sinConexionVencida(ultimoOnline, dias, maxArranques) {
-    return this.ahora() - (ultimoOnline || 0) > dias * 864e5 || this.arranquesSinNube() > maxArranques;
+    return !this.dentroDelPlazo(ultimoOnline, dias) || this.arranquesSinNube() > maxArranques;
   }
+
+  // ¿«desde» (ms, hora anclada) está a menos de «dias» atrás? Si está más de un día en el futuro, no.
+  dentroDelPlazo(desde, dias) {
+    if (!desde || !(dias > 0)) return false;
+    const dif = this.ahora() - desde;
+    return dif >= -864e5 && dif <= dias * 864e5;
+  }
+
+  // Fecha de Windows en ms: SOLO para lo que la revisa con ese reloj (PostgREST local, el navegador). Ningún plazo
+  // de zamorApp se mide con ella.
+  windows() { return this.fecha(); }
 }
