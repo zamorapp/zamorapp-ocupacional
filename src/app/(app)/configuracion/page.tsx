@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Building, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -15,8 +15,12 @@ const OPCIONES = [
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", texto: "Cédula, MPPS, Colegio de Médicos y registro INPSASEL para los documentos.", icono: UserCog },
 ];
 
+// Importación de una sola vez (escaneados del SAME): solo administrador o gerente médico con acceso clínico
+const ESCANEADOS = { href: "/configuracion/escaneados-same", titulo: "Escaneados del SAME", texto: "Sube a cada historia los exámenes escaneados que tenía el SAME (una sola vez).", icono: FolderInput };
+
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
+  const opciones = sesion.clinico && (sesion.rol === "administrador" || sesion.rol === "gerente_medico") ? [...OPCIONES, ESCANEADOS] : OPCIONES;
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -24,7 +28,7 @@ export default async function Configuracion() {
         <p className="text-muted-foreground">Todo se ajusta desde aquí, sin tocar código. {sesion.demo && "En modo demo no se guardan cambios."}</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {OPCIONES.map(({ href, titulo, texto, icono: Icono }) => (
+        {opciones.map(({ href, titulo, texto, icono: Icono }) => (
           <Link key={href} href={href} className="group flex gap-4 rounded-xl border bg-card p-5 transition hover:border-primary/40 hover:bg-primary/5">
             <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
               <Icono className="size-5" />
