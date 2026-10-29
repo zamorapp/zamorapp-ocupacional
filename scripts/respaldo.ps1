@@ -53,10 +53,19 @@ if ($Programar) {
 $segura = Get-Content $credencial | ConvertTo-SecureString
 $env:DATABASE_URL = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
 $destinos = @(Join-Path ([Environment]::GetFolderPath("MyDocuments")) "zamorApp Respaldos")
-# Copia externa en Google Drive para escritorio (unidad «Mi unidad» o «My Drive» en cualquier letra)
-$drive = Get-PSDrive -PSProvider FileSystem | ForEach-Object { "$($_.Root)Mi unidad", "$($_.Root)My Drive" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+# Copia externa en Google Drive para escritorio, en cualquier letra (G:, H:…). Con varias cuentas montadas se usa la
+# unidad que ya tiene la carpeta zamorApp. Recién encendida la PC, Drive tarda en montar: se espera hasta 5 minutos.
+function Buscar-Drive([switch]$CualquieraSirve) {
+  $raices = @(Get-PSDrive -PSProvider FileSystem | ForEach-Object { "$($_.Root)Mi unidad", "$($_.Root)My Drive" } | Where-Object { Test-Path $_ })
+  $conCarpeta = $raices | Where-Object { Test-Path (Join-Path $_ "zamorApp") } | Select-Object -First 1
+  if ($conCarpeta) { return $conCarpeta }
+  if ($CualquieraSirve) { return $raices | Select-Object -First 1 }
+}
+$drive = Buscar-Drive
+for ($i = 0; -not $drive -and $i -lt 10; $i++) { Start-Sleep -Seconds 30; $drive = Buscar-Drive }
+if (-not $drive) { $drive = Buscar-Drive -CualquieraSirve }
 if ($drive) { $destinos += Join-Path $drive "zamorApp\respaldos-zamorApp" }
-else { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no encontré Google Drive; el respaldo quedó solo en la PC" | Add-Content $registro }
+else { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no encontré Google Drive tras esperar 5 minutos; el respaldo quedó solo en la PC y subirá a Drive en el próximo respaldo" | Add-Content $registro }
 
 Set-Location $raiz
 # La salida de error de node se lee aparte: con ErrorActionPreference=Stop, «2>&1» la convierte en excepción
@@ -72,3 +81,29 @@ if ($codigo -ne 0) {
 }
 "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $salida" | Add-Content $registro
 Write-Host $salida
+
+# Prueba de restauración semanal: el último respaldo se restaura en una base temporal con el PostgreSQL portátil de
+# zamorApp Escritorio (otro puerto, solo 127.0.0.1; no toca la base del programa ni el SAME) y se borra al terminar.
+# Con poca memoria libre se pospone y se intenta en el próximo respaldo. El resultado se ve en el Inicio.
+$marca = Join-Path $carpeta "ultima-restauracion.txt"
+$vencida = -not (Test-Path $marca) -or ((Get-Item $marca).LastWriteTime -lt (Get-Date).AddDays(-7))
+if ($vencida) {
+  $instalado = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -like "zamorApp Escritorio*" } | Select-Object -First 1 -ExpandProperty InstallLocation -ErrorAction SilentlyContinue
+  $pgBin = @($instalado, (Join-Path $env:LOCALAPPDATA "zamorApp Escritorio"), (Join-Path $env:ProgramFiles "zamorApp Escritorio")) |
+    Where-Object { $_ } | ForEach-Object { Join-Path ($_.Trim('"')) "recursos\pgsql\bin" } |
+    Where-Object { Test-Path (Join-Path $_ "initdb.exe") } | Select-Object -First 1
+  $ultimo = Get-ChildItem $destinos[0] -Filter "respaldo-*.json.gz" | Sort-Object Name -Descending | Select-Object -First 1
+  if (-not $pgBin) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no probé la restauración porque no encontré zamorApp Escritorio instalado" | Add-Content $registro
+  } elseif ($ultimo) {
+    $env:ZAMORAPP_PG_BIN = $pgBin
+    $prueba = & node scripts\probar-restauracion.mjs $ultimo.FullName (Join-Path $carpeta "prueba-restauracion") 2>$errores
+    $codigoPrueba = $LASTEXITCODE
+    if ($codigoPrueba -ne 0 -and $codigoPrueba -ne 3) { $prueba = "$prueba $((Get-Content $errores -ErrorAction SilentlyContinue) -join ' ')" }
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $prueba" | Add-Content $registro
+    Write-Host $prueba
+    # Solo un resultado (bueno o malo) cuenta como hecha; si se pospuso, se reintenta en el próximo respaldo
+    if ($codigoPrueba -ne 3) { Set-Content $marca (Get-Date -Format "yyyy-MM-dd HH:mm") }
+  }
+}

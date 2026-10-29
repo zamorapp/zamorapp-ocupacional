@@ -42,7 +42,7 @@ function iniciales(nombre: string) {
   return nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+";
 }
 
-function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
+export function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   if (logo) return <img src={logo} alt="" className="h-12 max-w-32 object-contain" />;
   return (
