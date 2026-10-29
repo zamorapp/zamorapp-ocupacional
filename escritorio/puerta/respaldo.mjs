@@ -115,7 +115,8 @@ export class Respaldo {
       if (sincronizar) { this.paso = "nube"; resultado.sincronizado = await this.sincronizar().then(() => true).catch(() => false); }
       this.paso = "pc";
       fs.mkdirSync(this.carpetaLocal, { recursive: true });
-      const nombre = `zamorapp-${resultado.fecha.slice(0, 16).replace(/[-:T]/g, "").replace(/(\d{8})(\d{4})/, "$1-$2")}`;
+      // AAAAMMDD-HHMMSS: con los segundos, dos respaldos en el mismo minuto no se pisan (antes era AAAAMMDD-HHMM)
+      const nombre = `zamorapp-${resultado.fecha.slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})(\d{6})/, "$1-$2")}`;
       const archivo = path.join(this.carpetaLocal, `${nombre}.dump`);
       await this.#volcar(archivo);
       resultado.archivo = archivo;

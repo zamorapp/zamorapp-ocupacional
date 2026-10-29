@@ -1304,16 +1304,15 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   const adjDir = path.join(datos, "adjuntos", "adjuntos", ORG, "30000000-0000-0000-0000-00000000000a");
   fs.writeFileSync(path.join(adjDir, "extra-1.pdf"), PDF);
   const basesAntes = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length;
+  await new Promise((ok) => setTimeout(ok, 1100)); // otro segundo: el nombre de la copia no choca con el del respaldo anterior
   const rr = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
   const jj = await rr.json();
   assert.equal(rr.status, 200, JSON.stringify(jj));
   assert.equal(jj.adjuntos.nuevo, true);
   assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 2, fs.readdirSync(externa).join(", "));
   assert.equal(fs.readdirSync(respaldoObj.carpetaLocal).filter((f) => f.endsWith(".adjuntos.tar")).length, 1);
-  // Las copias de la base no se tocan (30 en Drive). Este respaldo arma la suya con el nombre del minuto: si el
-  // minuto cambió desde el anterior queda una más; nunca una menos, y las viejas siguen ahí.
-  const basesDespues = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length;
-  assert.ok(basesDespues === basesAntes || basesDespues === basesAntes + 1, `las copias de la base no se tocan (30 en Drive): ${basesAntes} → ${basesDespues}`);
+  // Las copias de la base no se tocan (30 en Drive): este respaldo suma la suya (el nombre lleva los segundos) y las viejas siguen
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length, basesAntes + 1, "las copias de la base no se tocan (30 en Drive)");
   for (const d of ["20260101-0900", "20260102-0900", "20260103-0900"]) assert.ok(fs.existsSync(path.join(externa, `zamorapp-${d}.zamorapp`)), `sigue la copia de la base del ${d}`);
   for (const f of fs.readdirSync(externa)) if (f.startsWith("zamorapp-202601")) fs.rmSync(path.join(externa, f)); // las de mentira
   // Analizar: si el paquete de adjuntos más nuevo no abre, se restaura la base igual con el paquete anterior que sí abra

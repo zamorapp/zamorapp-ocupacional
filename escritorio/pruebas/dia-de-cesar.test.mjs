@@ -302,8 +302,9 @@ test("PC nueva: se registra, restaura la copia de Drive (base + adjuntos) y sigu
   const cuerpo4 = { id: id4, org_id: ORG, empresa_id: EMPRESA, cedula: `8${crypto.randomInt(1e7)}`, nombres: "Cuarto", apellidos: "En la PC nueva" };
   let alta = await pedirEn(pc2.urlPuerta, "/rest/v1/trabajadores", { metodo: "POST", token: med2, cuerpo: cuerpo4 });
   // La restauración en caliente cortó la conexión que PostgREST tenía abierta: en la PC real no pasa (restaura antes
-  // de arrancar PostgREST). En Linux llega como 57P01; en Windows, como un error sin código ni mensaje.
-  for (let i = 0; i < 5 && ![200, 201].includes(alta.status) && ["57P01", ""].includes(alta.json?.code); i++) {
+  // de arrancar PostgREST). En Linux llega como 57P01; en Windows, como un error sin código y luego PGRST001
+  // («no connection to the server») mientras PostgREST rehace su conexión.
+  for (let i = 0; i < 20 && ![200, 201].includes(alta.status) && ["57P01", "", "PGRST001"].includes(alta.json?.code); i++) {
     if (i === 0) anotar(`tras una restauración en caliente, el primer pedido a PostgREST local responde ${alta.status} ${JSON.stringify(alta.json?.code)} (su conexión fue terminada); en producción la restauración corre antes de arrancar PostgREST`);
     await new Promise((ok) => setTimeout(ok, 500));
     alta = await pedirEn(pc2.urlPuerta, "/rest/v1/trabajadores", { metodo: "POST", token: med2, cuerpo: cuerpo4 });
