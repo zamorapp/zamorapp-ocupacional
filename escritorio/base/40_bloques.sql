@@ -24,14 +24,19 @@ begin
     if new.numero_historia is distinct from old.numero_historia then new.numero_historia := old.numero_historia; end if;
     return new;
   end if;
-  select * into b from local.bloques where siguiente <= hasta order by desde limit 1 for update;
-  if not found then
-    raise exception 'Esta PC no tiene números de historia reservados: para registrar un paciente nuevo necesita internet un momento'
-      using errcode = 'P0001';
-  end if;
-  new.numero_historia := b.siguiente;
-  update local.bloques set siguiente = b.siguiente + 1 where id = b.id;
-  return new;
+  -- Un respaldo viejo restaurado puede traer «siguiente» atrasado: nunca por debajo del mayor número ya usado
+  -- del bloque (si el bloque quedó lleno, se pasa al siguiente)
+  for b in select * from local.bloques where siguiente <= hasta order by desde for update loop
+    new.numero_historia := greatest(b.siguiente, coalesce((select max(t.numero_historia) + 1 from public.trabajadores t
+                                                            where t.numero_historia between b.desde and b.hasta), b.desde));
+    if new.numero_historia <= b.hasta then
+      update local.bloques set siguiente = new.numero_historia + 1 where id = b.id;
+      return new;
+    end if;
+    update local.bloques set siguiente = b.hasta + 1 where id = b.id; -- agotado
+  end loop;
+  raise exception 'Esta PC no tiene números de historia reservados: para registrar un paciente nuevo necesita internet un momento'
+    using errcode = 'P0001';
 end $$;
 -- Reemplaza al disparador de la nube del mismo nombre (que aquí no aplica: no hay sync.equipo_id)
 drop trigger if exists numero_de_bloque on public.trabajadores;

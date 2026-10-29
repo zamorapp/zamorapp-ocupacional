@@ -17,12 +17,34 @@ create table if not exists sync.bloques (
 create index if not exists bloques_equipo on sync.bloques (equipo_id, desde);
 revoke all on sync.bloques from anon, authenticated;
 
--- El siguiente número para la web o un cargador: nextval bajo el cerrojo de la numeración
+-- Un número de historia por organización (Analizar): si la nube ya tuviera repetidos, esta migración se detiene y
+-- hay que resolverlos a mano antes (nunca se renumera sola: es el número de la historia impresa).
+do $$
+declare v_n int;
+begin
+  select count(*) into v_n from (select org_id, numero_historia from public.trabajadores
+                                  where numero_historia is not null group by 1, 2 having count(*) > 1) x;
+  if v_n > 0 then
+    raise exception 'Hay % números de historia repetidos en trabajadores (org_id, numero_historia); corrígelos antes de aplicar esta migración', v_n;
+  end if;
+end $$;
+create unique index if not exists trabajadores_numero_historia_unico on public.trabajadores (org_id, numero_historia)
+  where numero_historia is not null;
+
+-- El siguiente número para la web o un cargador: nextval bajo el cerrojo de la numeración, nunca por debajo del
+-- mayor número ya usado
 create or replace function public.numero_historia_siguiente()
 returns bigint language plpgsql security definer set search_path = public as $$
+declare v_seq text := pg_get_serial_sequence('public.trabajadores', 'numero_historia'); v bigint; v_max bigint;
 begin
   perform pg_advisory_xact_lock(hashtext('zamorapp.numero_historia'));
-  return nextval(pg_get_serial_sequence('public.trabajadores', 'numero_historia'));
+  v := nextval(v_seq);
+  select max(numero_historia) into v_max from public.trabajadores;
+  if v_max is not null and v <= v_max then
+    v := v_max + 1;
+    perform setval(v_seq, v);
+  end if;
+  return v;
 end $$;
 revoke all on function public.numero_historia_siguiente() from public;
 grant execute on function public.numero_historia_siguiente() to authenticated, service_role;
@@ -39,9 +61,15 @@ begin
   if p_tamano < 1 or p_tamano > 500 then
     raise exception 'El bloque debe tener entre 1 y 500 números';
   end if;
+  -- Tope (Analizar): un equipo no acumula más de 2 bloques sin estrenar
+  if (select count(*) from sync.bloques b where b.equipo_id = p_equipo
+        and not exists (select 1 from public.trabajadores t where t.numero_historia between b.desde and b.hasta)) >= 2 then
+    raise exception 'Este equipo ya tiene 2 bloques de números sin usar' using errcode = 'P0001';
+  end if;
   v_seq := pg_get_serial_sequence('public.trabajadores', 'numero_historia');
   perform pg_advisory_xact_lock(hashtext('zamorapp.numero_historia'));
-  v_desde := nextval(v_seq);
+  -- Arranca después del mayor número ya usado (la carga del Integral trajo números altos)
+  v_desde := greatest(nextval(v_seq), coalesce((select max(numero_historia) from public.trabajadores), 0) + 1);
   v_hasta := v_desde + p_tamano - 1;
   perform setval(v_seq, v_hasta);
   insert into sync.bloques (org_id, equipo_id, desde, hasta) values (v_org, p_equipo, v_desde, v_hasta);
@@ -63,8 +91,13 @@ begin
     return new;
   end if;
   if v_eq is null then
-    -- web (authenticated): siempre el de la nube; cargadores (service_role) pueden traer el suyo
-    if new.numero_historia is null or auth.role() = 'authenticated' then new.numero_historia := public.numero_historia_siguiente(); end if;
+    -- web (authenticated): siempre el de la nube; cargadores (service_role) pueden traer el suyo, salvo uno que
+    -- esté dentro del bloque de algún equipo (ese número ya es de esa PC)
+    if new.numero_historia is null or auth.role() = 'authenticated' then
+      new.numero_historia := public.numero_historia_siguiente();
+    elsif exists (select 1 from sync.bloques b where new.numero_historia between b.desde and b.hasta) then
+      raise exception 'El número de historia % está reservado a un equipo', new.numero_historia using errcode = '23514';
+    end if;
     return new;
   end if;
   if new.numero_historia is null then

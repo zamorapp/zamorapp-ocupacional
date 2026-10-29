@@ -339,6 +339,17 @@ test("fase B: con un bloque reservado, el alta de un paciente sin internet lleva
   await bandejaObj.subir();
   const [n] = await enNube("select numero_historia from public.trabajadores where id = $1", [id]);
   assert.equal(Number(n.numero_historia), Number(b.desde));
+  // Un respaldo viejo restaurado deja «siguiente» atrasado: el próximo alta no repite el número ya usado
+  await enLocal("update local.bloques set siguiente = desde");
+  nube.estado.caida = true; await nubeObj.comprobar();
+  const id2 = "30000000-0000-0000-0000-0000000000fc";
+  const alta2 = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { id: id2, org_id: "10000000-0000-0000-0000-000000000001", empresa_id: "20000000-0000-0000-0000-00000000000a", cedula: "7003", nombres: "Tras", apellidos: "Restaurar" } });
+  assert.ok([200, 201].includes(alta2.status), JSON.stringify(alta2.json));
+  const [t2] = await enLocal("select numero_historia from public.trabajadores where id = $1", [id2]);
+  assert.equal(Number(t2.numero_historia), Number(b.desde) + 1, "salta el número ya usado");
+  nube.estado.caida = false; await nubeObj.comprobar();
+  await bandejaObj.subir();
+  assert.equal((await bandejaObj.resumen()).conflictos, 0);
   // La web, mientras tanto, numera por encima del bloque
   const [w] = await enNube("insert into public.trabajadores (org_id, empresa_id, cedula, nombres, apellidos) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','7002','Web','Numera') returning numero_historia");
   assert.ok(Number(w.numero_historia) > Number(b.hasta), `${w.numero_historia} > ${b.hasta}`);
