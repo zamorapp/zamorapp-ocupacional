@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,6 +49,15 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+
+// Respaldo legible si la lista «Clasificación de aptitud» no trae el código
+const APTITUD_LEGIBLE: Record<Aptitud, string> = {
+  elegible: "Apto",
+  elegible_con_restricciones: "Apto con restricciones",
+  no_elegible: "No apto",
+  espera_resultados: "Espera resultados",
+  diferido: "Diferido",
+};
 
 type Props = {
   inicial: DatosConsulta;
@@ -221,7 +230,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   };
   const preventivo = motivo?.grupo === "preventivo";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
-  const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? a;
+  const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
   // Pasos de la consulta; "hecho" marca con ✓ los que ya tienen información
   const pasos = [
@@ -334,8 +343,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     });
   const pendientesResultado = contarResultados(d.paraclinicos).pendientes;
 
-  const menuImprimir = (variante: "default" | "outline") => (
+  const menuImprimir = (variante: "default" | "outline", extra?: { className?: string; soloOpciones?: boolean }) => (
     <MenuImprimir
+      {...extra}
       consultaId={d.id}
       aptitud={Boolean(d.aptitud.clasificacion)}
       reposo={d.reposo.activo}
@@ -405,9 +415,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <Input
               value={d.signos[k] ?? ""}
               placeholder={ph}
+              className={cn("h-9 placeholder:text-muted-foreground/60", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
               inputMode={k === "ta" ? "text" : "decimal"}
               onChange={(e) => set("signos", { ...d.signos, [k]: e.target.value })}
-              className={cn("h-9", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
             />
           </div>
         ))}
@@ -566,20 +576,28 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               )}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {menuImprimir("outline")}
+            <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
+              {/* En el celular: la acción principal a todo el ancho; Imprimir y Cerrar consulta van al menú «…» */}
+              {menuImprimir("outline", { className: "hidden sm:inline-flex" })}
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
-              <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>
-              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>}
+              <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando} className={cn(puedeFirmar ? "hidden sm:inline-flex" : "flex-1 sm:flex-none")}><CheckCircle2 /> Cerrar consulta</Button>
+              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir</Button>}
             </div>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Más acciones" disabled={guardando}><MoreHorizontal /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-y-auto">
+              {!bloqueado && d.estado !== "firmada" && (
+                <div className="sm:hidden">
+                  {puedeFirmar && <DropdownMenuItem onSelect={() => guardar(true)}><CheckCircle2 /> Cerrar consulta</DropdownMenuItem>}
+                  {menuImprimir("outline", { soloOpciones: true })}
+                  <DropdownMenuSeparator />
+                </div>
+              )}
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
             </DropdownMenuContent>
@@ -655,8 +673,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {/* Falta resultado: solo avisa, no impide cerrar ni firmar */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm">
-            <FlaskConical className="size-4 text-aviso-texto" />
-            <span className="min-w-0 flex-1">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
+            <FlaskConical className="size-4 shrink-0 text-aviso-texto" />
+            <span className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
             <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" title="No volver a avisar en la campana por esta consulta"

@@ -56,7 +56,7 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
 
   return (
     <div className="space-y-4">
-      <p className="flex items-start gap-2 rounded-lg bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+      <p className="flex scroll-mt-24 items-start gap-2 rounded-lg bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
         <Zap className="mt-0.5 size-4 shrink-0 text-primary" />
         <span>Evaluación rápida: todo lo esencial en una pantalla. Los pasos de arriba siguen disponibles para el detalle.</span>
       </p>
