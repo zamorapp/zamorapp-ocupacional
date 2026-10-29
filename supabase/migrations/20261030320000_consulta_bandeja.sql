@@ -162,6 +162,7 @@ begin
     informe_libre = nullif(p_consulta -> 'informe_libre', 'null'::jsonb),
     potencial_discapacidad = coalesce((p_consulta ->> 'potencial_discapacidad')::boolean, false),
     discapacidad_nota = nullif(p_consulta ->> 'discapacidad_nota', ''),
+    especialidad = nullif(trim(p_consulta ->> 'especialidad'), ''),
     estado = case when p_cerrar then 'cerrada' else estado end,
     hora_cierre = case when p_cerrar then public.ahora() else hora_cierre end
   where id = p_id;
