@@ -49,7 +49,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   const pool = new pg.Pool({ connectionString: baseUrl, max: 4 });
   // conAal: los tokens llevan "aal" como los de Supabase (verificación en dos pasos); usuarios[correo].factor = id
   // de su autenticador ya activado, que se verifica con el código 123456
-  const estado = { caida: false, vencerTokens: false, conAal: false, rest: [] }; // rest: rutas REST que llegaron a la nube (para saber qué se leyó de la copia)
+  const estado = { caida: false, vencerTokens: false, conAal: false, rest: [], archivos: new Map(), storageRechaza: 0 }; // rest: rutas REST que llegaron a la nube (para saber qué se leyó de la copia)
   const aales = new Map(); // token → aal
   const secreto = postgrest ? crypto.randomBytes(32).toString("hex") : null;
   const pgrst = postgrest ? lanzarPostgrest(postgrest, baseUrl, secreto) : null;
@@ -105,6 +105,23 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       const b = JSON.parse(cuerpo || "{}");
       return factor[1] === usuarios[correoDe(uid)]?.factor && b.code === "123456"
         ? enviar(200, emitir(uid, "aal2")) : enviar(422, { error_code: "mfa_verification_failed", msg: "Invalid TOTP code entered" });
+    }
+    // Storage mínimo (fase B): guarda en memoria lo que sube la puerta y lo devuelve. storageRechaza: cuántos 400 dar
+    const objeto = /^\/storage\/v1\/object\/(?:authenticated\/)?([a-z0-9_-]+)\/(.+)$/.exec(url.pathname);
+    if (objeto) {
+      const clave = `${objeto[1]}/${decodeURIComponent(objeto[2])}`;
+      if (req.method === "PUT" || req.method === "POST") {
+        if (estado.storageRechaza > 0) { estado.storageRechaza--; return enviar(400, { statusCode: "400", error: "invalid_mime_type", message: "mime type not supported" }); }
+        // Como Supabase con un bucket sin UPDATE: sin x-upsert, lo que ya existe da 409
+        if (estado.archivos.has(clave) && req.headers["x-upsert"] !== "true") return enviar(409, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+        estado.archivos.set(clave, { cuerpo, tipo: req.headers["content-type"], uid });
+        return enviar(200, { Key: clave });
+      }
+      if (req.method === "GET") {
+        const a = estado.archivos.get(clave);
+        if (!a) return enviar(400, { statusCode: "404", error: "not_found", message: "Object not found" });
+        res.writeHead(200, { "content-type": a.tipo }); return res.end(a.cuerpo);
+      }
     }
     // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
     // Simula una RLS que niega una escritura con razón (mismo código 42501): NO es «hay que actualizar»

@@ -41,13 +41,15 @@ async function principal() {
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
-  crearPuerta({ estado, nube, motor, replica, bandeja, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
+  const puerta = crearPuerta({ estado, nube, motor, replica, bandeja, origen, control: process.env.ZAMORAPP_CONTROL || "", registro });
+  puerta.listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
   });
-  // Cada ciclo: primero sube lo guardado en la PC, luego baja lo de la nube
-  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); };
+  // Cada ciclo: primero sube lo guardado en la PC, luego baja lo de la nube y al final suben los adjuntos
+  // (después de sus filas, así clinico.adjuntos ya está en la nube cuando llega el archivo)
+  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await puerta.adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`)); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();
 }
