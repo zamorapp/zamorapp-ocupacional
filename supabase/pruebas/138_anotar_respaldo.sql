@@ -6,7 +6,11 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2'
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated","aal":"aal1"}',false) \g /dev/null
 select 'respaldo anotado (debe 1): ' || (public.anotar_respaldo('e0000000-0000-0000-0000-000000000001','s1','respaldo','ok','zamorapp-20261029-1000.dump', 1234, 2, 'copia en la PC y en Drive') > 0)::int;
 select 'prueba de restauración anotada (debe 1): ' || (public.anotar_respaldo('e0000000-0000-0000-0000-000000000001','s1','restauracion','ok','zamorapp-20261029-1000.zamorapp', 1234, null, 'descifrada con la clave de respaldo') > 0)::int;
-select 'el Inicio la muestra (debe 1): ' || (public.estado_respaldo()->'ultima_restauracion'->>'estado' = 'ok')::int;
+-- el Inicio (administrador) la muestra; el médico no ve estado_respaldo (null)
+select 'el médico no ve el estado del respaldo (debe 1): ' || (public.estado_respaldo() is null)::int;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal2"}',false) \g /dev/null
+select 'el Inicio la muestra (debe 1): ' || coalesce((public.estado_respaldo()->'ultima_restauracion'->>'estado' = 'ok')::int, 0);
 reset role;
 select 'con el nombre del equipo (debe 1): ' || count(*) from public.respaldos where equipo = 'PC consultorio' and tipo = 'restauracion';
 set role authenticated;
