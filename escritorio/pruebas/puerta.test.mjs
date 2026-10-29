@@ -277,6 +277,7 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   await nubeObj.comprobar();
   const r = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "cambiado en la PC" } });
   assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  if (diag) console.log(`[diag dos equipos] PATCH ${r.status} ${JSON.stringify(r.json)} local=${JSON.stringify(await enLocal("select id, estado, version, motivo_texto, medico_id from clinico.consultas where id = $1", [CONSULTA_MED]))} bandeja=${JSON.stringify(await enLocal("select fila_id, op, estado, autor from local.bandeja"))} enLinea=${nubeObj.enLinea}`);
   // Mientras tanto, otro equipo (o la web) cambió la misma ficha en la nube
   await enNube("update clinico.consultas set motivo_texto = 'cambiado en la nube' where id = $1", [CONSULTA_MED]);
   nube.estado.caida = false;
