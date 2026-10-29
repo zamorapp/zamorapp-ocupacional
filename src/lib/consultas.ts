@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { DatosConsulta, EstadoConsulta, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
-import { contarResultados } from "@/lib/paraclinicos";
+import { contarResultados, listaParaclinicos } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -77,7 +77,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
       aptitud: apt?.clasificacion ?? null,
       tieneReposo: (c.reposos ?? []).length > 0,
       tieneTratamiento: (c.tratamiento ?? []).length > 0,
-      pendientes: c.origen ? 0 : contarResultados(c.paraclinicos ?? []).pendientes,
+      pendientes: c.origen ? 0 : contarResultados(listaParaclinicos(c.paraclinicos)).pendientes,
     };
   });
 }
@@ -142,7 +142,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       signos: c.signos_vitales ?? {},
       examenFuncional: c.examen_funcional ?? [],
       examenFisico: c.examen_fisico ?? [],
-      paraclinicos: c.paraclinicos ?? [],
+      paraclinicos: listaParaclinicos(c.paraclinicos),
       diagnosticos: (diags ?? []).map((d) => ({ ...d, sistema: d.sistema ?? "" })),
       aptitud: {
         clasificacion: apt?.clasificacion ?? "",

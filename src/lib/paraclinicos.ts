@@ -62,8 +62,15 @@ export function estadoCalculado(valor: string, def: DefExamen, sexo: string | nu
 
 export const pendiente = (p: Paraclinico) => !p.resultado?.trim() && !p.estado;
 
+// Lista de paraclínicos tal como viene de la base: una consulta vieja o importada puede traer «{}» o null
+export function listaParaclinicos(valor: unknown): Paraclinico[] {
+  return Array.isArray(valor) ? (valor as Paraclinico[]) : [];
+}
+
 export function contarResultados(lista: Paraclinico[]) {
   const c = { pendientes: 0, normales: 0, fuera: 0, alterados: 0 };
+  // Una consulta vieja o importada puede traer «{}» en vez de una lista: no debe tumbar el panel (las funciones SQL ya lo toleran)
+  if (!Array.isArray(lista)) return c;
   for (const p of lista) {
     if (pendiente(p)) c.pendientes++;
     else if (p.estado === "normal") c.normales++;

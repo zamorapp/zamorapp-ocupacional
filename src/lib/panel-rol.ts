@@ -1,8 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import type { Paraclinico } from "@/lib/consultas-tipos";
-import { contarResultados } from "@/lib/paraclinicos";
+import { contarResultados, listaParaclinicos } from "@/lib/paraclinicos";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -44,7 +43,7 @@ export async function enfoqueDelRol(sesion: Sesion): Promise<Enfoque> {
     let conExamenes = supabase.from("consultas").select("paraclinicos").is("origen", null).neq("paraclinicos", "[]")
       .gte("fecha", sumarDias(hoyCaracas(), -60)).limit(1000);
     if (rol !== "gerente_medico" && rol !== "administrador") conExamenes = conExamenes.eq("medico_id", sesion.usuarioId);
-    const porRecibir = conExamenes.then(({ data }) => (data ?? []).reduce((n, c) => n + contarResultados((c.paraclinicos ?? []) as Paraclinico[]).pendientes, 0));
+    const porRecibir = conExamenes.then(({ data }) => (data ?? []).reduce((n, c) => n + contarResultados(listaParaclinicos(c.paraclinicos)).pendientes, 0));
     const [espera, firmar, enCurso, resultados] = await Promise.all([contar(citas("en_espera")), firma ? contar(porFirmar) : Promise.resolve(0), contar(abiertas), porRecibir]);
     return {
       titulo: "Tu consulta de hoy",
