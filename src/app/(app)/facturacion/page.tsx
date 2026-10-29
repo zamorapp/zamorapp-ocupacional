@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { FilePlus2, Printer, Receipt } from "lucide-react";
 import { NuevoPresupuesto } from "./nuevo-presupuesto";
+import { BotonEnviar } from "@/components/app/boton-enviar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -159,12 +161,12 @@ export default async function Facturacion({ searchParams }: Props) {
         const params = new URLSearchParams({ desde: periodo.desde, hasta: periodo.hasta, ...(empresaId ? { empresa: empresaId } : {}) });
         return (
           <div className="space-y-3">
-            <form className="flex flex-wrap items-end gap-2">
+            <Form action="/facturacion" className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="vista" value="atendidos" />
               <input type="hidden" name="p" value="rango" />
               <input type="date" name="desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
               <input type="date" name="hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
-              <Button type="submit" variant="outline">Ver</Button>
+              <BotonEnviar variant="outline" pendiente="Buscando…">Ver</BotonEnviar>
               <span className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Todas las empresas (elige una arriba para cobrar)"}</span>
               <div className="ml-auto flex gap-2">
                 <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Reporte</Link></Button>
@@ -172,7 +174,7 @@ export default async function Facturacion({ searchParams }: Props) {
                   <Button asChild><Link href={`/facturacion/nuevo?${params}`}><FilePlus2 /> Crear nota de cobro ({pendientes})</Link></Button>
                 )}
               </div>
-            </form>
+            </Form>
             <Card className="overflow-hidden py-0">
               {atenciones.length === 0 ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">Sin consultas cerradas en el periodo.</p>
