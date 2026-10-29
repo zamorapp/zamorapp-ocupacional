@@ -11,6 +11,7 @@ import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
+import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -34,7 +35,7 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  const [datos, enfoqueBase, , respaldo] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion), estadoRespaldo(sesion)]);
+  const [datos, enfoqueBase, , respaldo] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion), estadoRespaldo(sesion), vigilarPlazos(sesion)]);
   const suma = (k: "vencidos" | "por_vencer") => datos.vencimientos.reduce((s, v) => s + v[k], 0);
   const enfoque = conVencimientos(enfoqueBase, sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
   const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);

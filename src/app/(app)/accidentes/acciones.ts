@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { vigilarPlazos } from "@/lib/centinela";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import type { Evento } from "@/lib/eventos-tipos";
@@ -61,6 +62,7 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar eventos." : error.message };
   revalidatePath("/", "layout");
   olvidar("");
+  await vigilarPlazos(sesion);
   return { ok: true, mensaje: "Evento registrado.", id: data.id };
 }
 
@@ -187,5 +189,6 @@ export async function declararDesdeConsulta(consultaId: string, cie10: string, d
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar declaraciones." : error.message };
   revalidatePath("/accidentes");
   olvidar("");
+  await vigilarPlazos(sesion);
   return { ok: true, mensaje: "Declaración iniciada.", id: data.id };
 }
