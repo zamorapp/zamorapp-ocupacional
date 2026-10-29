@@ -1,6 +1,6 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, GitCompareArrows } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -44,6 +44,19 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
       </nav>
       {ESCRITORIO && (
         <div className="mx-3">
+          {!portal && (
+            <Link
+              href="/conflictos"
+              onClick={alNavegar}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                ruta === "/conflictos" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <GitCompareArrows className="size-[18px]" aria-hidden />
+              Conflictos y rechazados
+            </Link>
+          )}
           <button
             type="button"
             data-boton="buscar-actualizacion"

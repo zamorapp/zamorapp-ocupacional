@@ -6,6 +6,8 @@ import pg from "pg";
 
 const LOTE = 200;
 const REINTENTOS = 5;
+const TABLA = /^(public|clinico)\.[a-z_0-9]+$/; // nombre de tabla seguro para armar la consulta
+const RESUELVEN = ["administrador", "gerente_medico"]; // además del autor
 
 export class Bandeja {
   constructor(estado, nube, motor, replica, registro = () => {}) {
@@ -99,14 +101,27 @@ export class Bandeja {
   }
 
   // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué
-  async lista() {
+  // Solo los casos que quien pregunta puede resolver (su autor, un administrador o el gerente médico), cada uno con
+  // lo escrito en la PC (datos) y, para esos mismos campos, lo que hay ahora en la copia de la nube (nube: la fila en
+  // conflicto volvió a bajar). Nunca columnas que no estén en el cambio.
+  async lista(quien = null) {
     const c = new pg.Client({ connectionString: this.motor.url() });
+    const puede = (f) => !quien || f.autor === quien.uid || RESUELVEN.includes(quien.rol);
     try {
       await c.connect();
       const { rows } = await c.query(
         "select id, tabla, fila_id, op, estado, motivo, autor, creado, intentos, datos from local.bandeja where estado <> 'pendiente' order by creado desc limit 500");
       const { rows: [p] } = await c.query("select count(*)::int as n from local.bandeja where estado = 'pendiente'");
-      return { pendientes: p.n, revisar: rows.map((f) => ({ ...f, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null })) };
+      const revisar = [];
+      for (const f of rows.filter(puede)) {
+        let nube = null;
+        if (TABLA.test(f.tabla)) {
+          const { rows: [n] } = await c.query(`select to_jsonb(t) as fila from ${f.tabla} t where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+          if (n?.fila) nube = Object.fromEntries(Object.keys(f.datos || {}).map((k) => [k, n.fila[k] ?? null]));
+        }
+        revisar.push({ ...f, nube, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null });
+      }
+      return { pendientes: p.n, revisar };
     } finally { await c.end().catch(() => {}); }
   }
 
@@ -119,10 +134,10 @@ export class Bandeja {
       await c.connect();
       const { rows: [f] } = await c.query("select id, tabla, fila_id, autor from local.bandeja where id = $1 and estado <> 'pendiente'", [id]);
       if (!f) return { error: "No existe ese cambio o ya está resuelto" };
-      if (f.autor !== quien.uid && !["administrador", "gerente_medico"].includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      if (f.autor !== quien.uid && !RESUELVEN.includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
       if (accion === "descartar") { await c.query("delete from local.bandeja where id = $1", [id]); return { hecho: "descartado" }; }
       if (accion === "reintentar") {
-        const { rows: [v] } = await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+        const { rows: [v] } = await c.query(`select version from ${TABLA.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
         await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
         return { hecho: "pendiente" };
       }

@@ -275,10 +275,14 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   assert.equal(lista.status, 200);
   const item = lista.json.revisar.find((x) => x.fila_id === CONSULTA_MED);
   assert.ok(item && item.estado === "conflicto" && item.datos.motivo_texto === "cambiado en la PC" && item.motivo, JSON.stringify(lista.json));
+  // Lado a lado: la versión de la nube, solo de los campos que cambió la PC
+  assert.deepEqual(item.nube, { motivo_texto: "cambiado en la nube" }, JSON.stringify(item));
   assert.equal((await pedir("/zamorapp/bandeja")).status, 401, "la lista exige sesión");
   // Quien revisa decide: otro usuario sin rol no puede; el autor descarta y la bandeja queda limpia
   const admin = estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
   const rolAdmin = admin.rol; admin.rol = "rrhh"; // alguien que no es el autor ni administra
+  const ajenaLista = await pedir("/zamorapp/bandeja", { token: tokenAdmin });
+  assert.ok(!ajenaLista.json.revisar.some((x) => x.id === item.id), "quien no puede resolverlo no lo ve");
   const ajeno = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenAdmin, cuerpo: { id: item.id, accion: "descartar" } });
   admin.rol = rolAdmin;
   assert.equal(ajeno.status, 400, JSON.stringify(ajeno.json));
