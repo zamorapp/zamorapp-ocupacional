@@ -111,37 +111,41 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
   // Verificación en dos pasos: la sesión local de un administrador o gerente médico lleva "aal" (aal1 tras la clave,
   // aal2 tras el código de 6 dígitos) y la app le pide el código igual que en la web. Sin "aal" la app no lo pide.
   const exigeDosPasos = (u) => Boolean(u?.nubeConAal && CON_DOS_PASOS.includes(u.rol));
+  // Plazo sin conexión con la hora anclada (nube.reloj), nunca con la fecha de Windows; también vence por
+  // demasiados arranques seguidos sin internet (sin ancla, una fecha detenida no cuenta los días)
+  const sinConexionVencida = (u) => nube.reloj.sinConexionVencida(u?.ultimoOnline, CONFIG.diasSinConexion, CONFIG.arranquesSinConexion);
   const sesionLocal = (uid, segundoPaso = false) => {
     const u = d().usuarios[uid];
-    const ahora = Math.floor(Date.now() / 1000);
+    const ahora = nube.reloj.segundos(); // hora anclada: con la fecha de Windows atrasada el token igual vence
     const exp = ahora + CONFIG.sesionSegundos;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
     const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: crypto.randomUUID(), ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
-    for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < Date.now()) delete d().refrescos[t];
-    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5, segundoPaso };
+    for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < nube.reloj.ahora()) delete d().refrescos[t];
+    d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso };
     estado.guardar();
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
 
   const usuarioDe = (req) => {
-    const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
+    const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora());
     const u = datos && d().usuarios[datos.sub];
     return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u, aal: datos.aal } : null;
   };
 
   // Freno a quien prueba claves: por correo y en total. Vive en memoria (la puerta solo atiende a esta PC).
+  // Con performance.now(): mover la fecha de Windows no levanta el freno.
   const intentos = new Map();
-  const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - Date.now());
+  const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - performance.now());
   const anotarFallo = (email) => {
     const f = intentos.get(email) || { fallos: 0, hasta: 0 };
     f.fallos += 1;
-    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = Date.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
+    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = performance.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
     intentos.set(email, f);
-    const g = intentos.get("*") || { fallos: 0, desde: Date.now(), hasta: 0 };
-    if (Date.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: Date.now() });
+    const g = intentos.get("*") || { fallos: 0, desde: performance.now(), hasta: 0 };
+    if (performance.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: performance.now() });
     g.fallos += 1;
-    if (g.fallos >= FALLOS_GLOBALES) g.hasta = Date.now() + 600e3;
+    if (g.fallos >= FALLOS_GLOBALES) g.hasta = performance.now() + 600e3;
     intentos.set("*", g);
   };
 
@@ -260,7 +264,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
     intentos.delete(escrito);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
     if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
-    if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (sinConexionVencida(u)) {
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     return responder(res, 200, sesionLocal(uid));
@@ -269,10 +273,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
   function renovar(res, cuerpo) {
     const r = d().refrescos[cuerpo?.refresh_token];
     const u = r && d().usuarios[r.uid];
-    if (!r || r.vence < Date.now() || !u || u.bloqueado || u.requiereNube) {
+    if (!r || r.vence < nube.reloj.ahora() || !u || u.bloqueado || u.requiereNube) {
       return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
     }
-    if (!nube.enLinea && Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (!nube.enLinea && sinConexionVencida(u)) {
       delete d().refrescos[cuerpo.refresh_token];
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
@@ -300,6 +304,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
       });
+      nube.reloj.anclar(r.headers.get("date"));
       const salida = {};
       for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
       let cuerpoRespuesta = Buffer.from(await r.arrayBuffer());
@@ -327,7 +332,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
   }
 
   async function aLaCopia(req, res, cuerpo) {
-    const cab = { Authorization: req.headers.authorization };
+    // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
+    // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
+    // local lo nota (ahora_de_la_puerta() es null: firmar espera a internet). Nunca la fecha de Windows.
+    const cab = { Authorization: req.headers.authorization, ...(nube.reloj.verificada ? { "X-Zamorapp-Ahora": nube.reloj.iso() } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
     const r = await fetch(`http://127.0.0.1:${motor.puertoPostgrest}${req.url.replace(/^\/rest\/v1/, "")}`, {
       method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo,
@@ -358,9 +366,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
 
   // Fase A (local primero): tablas que se escriben en la PC (sync.tablas.subible, leídas de la copia) y funciones
   // de escritura que solo las tocan. Con la copia completa, esas escrituras van a la base local y suben por la bandeja.
-  let subibles = { nombres: new Map(), en: 0 };
+  let subibles = { nombres: new Map(), en: -1e9 }; // performance.now(): la fecha de Windows cambia (SAME)
   async function tablasSubibles() {
-    if (Date.now() - subibles.en < 300e3) return subibles.nombres;
+    if (performance.now() - subibles.en < 300e3) return subibles.nombres;
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
@@ -372,18 +380,35 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
           from information_schema.view_table_usage v
          where v.view_schema in ('public', 'clinico')
          group by 1 having count(*) = 1 and bool_and(v.table_schema || '.' || v.table_name in (select nombre from sync.tablas where subible))`);
-      subibles = { nombres: new Map(rows.map((f) => [f.nombre, f.base])), en: Date.now() };
+      subibles = { nombres: new Map(rows.map((f) => [f.nombre, f.base])), en: performance.now() };
     } catch (e) {
       registro(`[puerta] no se pudo leer qué tablas sincronizan: ${e.message}`);
-      subibles.en = Date.now() - 240e3;
+      subibles.en = performance.now() - 240e3;
     } finally { await c.end().catch(() => {}); }
     return subibles.nombres;
+  }
+  let horaAnclada = { valor: false, en: -1e9 };
+  async function horaAncladaEnBase() {
+    if (horaAnclada.valor || performance.now() - horaAnclada.en < 300e3) return horaAnclada.valor;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows: [f] } = await c.query("select to_regproc('public.ahora_de_la_puerta') is not null as hay");
+      horaAnclada = { valor: Boolean(f?.hay), en: performance.now() };
+    } catch { horaAnclada.en = performance.now(); } finally { await c.end().catch(() => {}); }
+    return horaAnclada.valor;
   }
   const escrituraLocal = async (req) => {
     if (!CONFIG.escrituraLocal || !bandeja || !d().copiaCompleta || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return false;
     const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(req.url);
     if (!m) return false;
-    if (m[1]) return RPC_ESCRITURA_LOCAL.has(m[2]);
+    if (m[1]) {
+      if (!RPC_ESCRITURA_LOCAL.has(m[2])) return false;
+      // Firmar fija la hora legal: solo en la PC cuando la base local ya usa la hora anclada que manda la puerta
+      // (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces va a la nube (Analizar, 29-oct-2026).
+      if (m[2] === "firmar_consulta" && !(await horaAncladaEnBase())) return false;
+      return true;
+    }
     const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
     const base = (await tablasSubibles()).get(`${perfil}.${m[2]}`);
     if (!base) return false;
@@ -396,7 +421,12 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
   const soloLectura = async (req) => {
     if (["GET", "HEAD"].includes(req.method)) return true;
     const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
-    return Boolean(m && (await funcionesDeLectura()).has(m[1]));
+    if (!m) return false;
+    if ((await funcionesDeLectura()).has(m[1])) return true;
+    // Una función nueva (migración recién aplicada) no espera 5 min: se vuelve a mirar el catálogo, como mucho cada 2 s
+    if (performance.now() - lectura.en < 2e3) return false;
+    lectura.en = -1e9;
+    return (await funcionesDeLectura()).has(m[1]);
   };
 
   async function registrarEquipo(req, res, cuerpo) {
@@ -539,6 +569,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
           ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
+          hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -561,14 +592,30 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, orig
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
       if (ruta === "/zamorapp/sincronizar" && req.method === "POST") {
-        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
-        const esperada = Buffer.from(control);
-        if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
+        // Desde el menú del programa (clave de control) o desde el botón «Sincronizar ahora» de la ventana de zamorApp
+        // o desde la ventana de zamorApp con la sesión del usuario (Bearer): sube y baja como siempre
+        if (!conControl() && !(desdeApp && usuarioDe(req))) return responder(res, 403, { message: "No autorizado" });
         await nube.comprobar();
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
+      }
+      // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
+      if (ruta === "/zamorapp/bandeja" && req.method === "GET") {
+        if (!bandeja) return responder(res, 200, { pendientes: 0, revisar: [] });
+        if (!usuarioDe(req)) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        return responder(res, 200, await bandeja.lista());
+      }
+      if (ruta === "/zamorapp/bandeja/resolver" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        if (!bandeja) return responder(res, 400, { message: "Sin bandeja" });
+        const b = json();
+        const r = await bandeja.resolver(String(b?.id || ""), String(b?.accion || ""), { uid: quien.uid, rol: quien.u.rol });
+        if (r.error) return responder(res, 400, { message: r.error });
+        if (r.hecho === "pendiente" && nube.enLinea) bandeja.subir().catch(() => {});
+        return responder(res, 200, r);
       }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });

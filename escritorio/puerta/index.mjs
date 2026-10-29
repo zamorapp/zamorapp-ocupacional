@@ -36,6 +36,7 @@ const bandeja = new Bandeja(estado, nube, motor, replica, registro);
 async function principal() {
   await motor.iniciar();
   await nube.comprobar();
+  nube.reloj.arranque(nube.enLinea); // arranques seguidos sin nube: parte del plazo sin conexión
   // La app trae grabada la dirección de la puerta: este puerto es fijo (si está ocupado, se avisa).
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);

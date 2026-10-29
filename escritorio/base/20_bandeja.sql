@@ -13,8 +13,14 @@ create table if not exists local.bandeja (
   creado timestamptz not null default now(),
   estado text not null default 'pendiente' check (estado in ('pendiente', 'conflicto', 'rechazado')),
   motivo text,
-  intentos int not null default 0
+  intentos int not null default 0,
+  hora_verificada boolean not null default false
 );
+alter table local.bandeja add column if not exists hora_verificada boolean not null default false;
+-- Reloj anclado (condición 4 de Analizar): la puerta manda X-Zamorapp-Ahora solo cuando su hora viene de la nube
+create or replace function local.hora_verificada() returns boolean language sql stable as $$
+  select nullif(current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora', '') is not null
+$$;
 create index if not exists bandeja_pendientes on local.bandeja (orden) where estado = 'pendiente';
 revoke all on local.bandeja from authenticated;
 
@@ -49,7 +55,7 @@ begin
     foreach k in array v_cols loop v_datos := v_datos || jsonb_build_object(k, nuevo -> k); end loop;
     -- La nube pide org_id en la fila (para confirmar que es de esta organización) y toma el id de fila_id
     v_datos := v_datos || jsonb_build_object('org_id', nuevo -> 'org_id');
-    insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor) values (v_tabla, v_id, 'I', null, v_datos, auth.uid());
+    insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor, hora_verificada) values (v_tabla, v_id, 'I', null, v_datos, auth.uid(), local.hora_verificada());
 
   elsif tg_op = 'UPDATE' then
     v_cols := local.columnas_permitidas(v_tabla, 'UPDATE');
@@ -60,18 +66,18 @@ begin
     if pend.id is not null then
       -- Ya hay algo por subir de esta fila: se funde (una inserción pendiente sigue siendo una inserción, con lo nuevo;
       -- una modificación pendiente conserva la versión que la PC vio en la nube)
-      update local.bandeja set datos = datos || v_datos where id = pend.id;
+      update local.bandeja set datos = datos || v_datos, hora_verificada = hora_verificada and local.hora_verificada() where id = pend.id;
     else
-      insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor)
-      values (v_tabla, v_id, 'U', (viejo ->> 'version')::bigint, v_datos, auth.uid());
+      insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor, hora_verificada)
+      values (v_tabla, v_id, 'U', (viejo ->> 'version')::bigint, v_datos, auth.uid(), local.hora_verificada());
     end if;
 
   else -- DELETE
     -- Una fila creada en la PC y borrada antes de subir nunca existió para la nube
     delete from local.bandeja where tabla = v_tabla and fila_id = v_id and estado = 'pendiente';
     if pend.op is distinct from 'I' then
-      insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor)
-      values (v_tabla, v_id, 'D', (viejo ->> 'version')::bigint, null, auth.uid());
+      insert into local.bandeja (tabla, fila_id, op, version_base, datos, autor, hora_verificada)
+      values (v_tabla, v_id, 'D', (viejo ->> 'version')::bigint, null, auth.uid(), local.hora_verificada());
     end if;
   end if;
   return null;

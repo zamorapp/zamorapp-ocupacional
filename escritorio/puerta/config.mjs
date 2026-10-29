@@ -19,6 +19,7 @@ export const CONFIG = {
   stubs: env.ZAMORAPP_STUBS || path.resolve("supabase/pruebas/00_stubs_supabase.sql"),
   // Reglas de seguridad acordadas
   diasSinConexion: 7,
+  arranquesSinConexion: 7, // arranques seguidos del programa sin nube que se toleran (reloj sin ancla)
   sesionSegundos: 3600,
   cadaSincronia: 30_000,
   // Con internet, las lecturas salen de la copia local cuando está al día (sincronizada hace menos de

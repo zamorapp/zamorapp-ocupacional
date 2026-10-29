@@ -267,6 +267,94 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   const [c] = await enNube("select count(*)::int n from sync.conflictos where fila_id = $1 and resuelto_en is null", [CONSULTA_MED]);
   assert.equal(c.n, 1, "la nube guardó lo que la PC quiso escribir");
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 1);
+  // La copia local vuelve a mostrar lo que hay en la nube; lo que escribió la PC queda en la lista para revisarlo
+  const [l] = await enLocal("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(l.motivo_texto, "cambiado en la nube", "la fila en conflicto volvió a bajar de la nube");
+  const lista = await pedir("/zamorapp/bandeja", { token: tokenMed });
+  assert.equal(lista.status, 200);
+  const item = lista.json.revisar.find((x) => x.fila_id === CONSULTA_MED);
+  assert.ok(item && item.estado === "conflicto" && item.datos.motivo_texto === "cambiado en la PC" && item.motivo, JSON.stringify(lista.json));
+  assert.equal((await pedir("/zamorapp/bandeja")).status, 401, "la lista exige sesión");
+  // Quien revisa decide: otro usuario sin rol no puede; el autor descarta y la bandeja queda limpia
+  const admin = estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const rolAdmin = admin.rol; admin.rol = "rrhh"; // alguien que no es el autor ni administra
+  const ajeno = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenAdmin, cuerpo: { id: item.id, accion: "descartar" } });
+  admin.rol = rolAdmin;
+  assert.equal(ajeno.status, 400, JSON.stringify(ajeno.json));
+  const ok = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenMed, cuerpo: { id: item.id, accion: "descartar" } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
+});
+
+test("un autor sin sesión en la nube no frena a los demás: sus cambios esperan y los otros suben", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await replicaObj.ciclo();
+  // El médico guarda sin internet; luego «pierde» su sesión en la nube (p. ej. entró solo sin conexión)
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const r1 = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "del médico" } });
+  assert.ok([200, 204].includes(r1.status), JSON.stringify(r1.json));
+  const r2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000009" } });
+  assert.ok([200, 204].includes(r2.status), JSON.stringify(r2.json));
+  // La nube rechaza la sesión del médico (clave cambiada o sesión revocada): token() no la renueva
+  const med = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  med.nube = { ...med.nube, access_token: "x", refresh_token: "rota", expires_at: 0 };
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [t] = await enNube("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(t.telefono, "0414-0000009", "lo del administrador subió");
+  const [p] = await enLocal("select count(*)::int n from local.bandeja where estado = 'pendiente' and autor = $1", [med.user?.id || "00000000-0000-0000-0000-0000000000a2"]);
+  assert.equal(p.n, 1, "lo del médico espera");
+  assert.match(bandejaObj.ultimoError || "", /sesión/);
+  // El médico vuelve a entrar con internet: su sesión se recupera y sus cambios suben
+  const entra = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(entra.status, 200, JSON.stringify(entra.json));
+  tokenMed = entra.json.access_token;
+  await bandejaObj.subir();
+  assert.equal((await bandejaObj.resumen()).pendientes, 0);
+  const [n] = await enNube("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(n.motivo_texto, "del médico");
+});
+
+test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tira la del navegador; sin ancla avisa", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
+    as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
+    grant execute on function public.prueba_cabecera_ahora() to authenticated; notify pgrst, 'reload schema'`);
+  await new Promise((r) => setTimeout(r, 3000)); // PostgREST recarga el esquema; la puerta vuelve a mirar el catálogo
+  const est = (await pedir("/zamorapp/estado")).json;
+  // Con ancla, un cambio guardado queda marcado con hora verificada
+  const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
+  assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
+  const [hv] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  assert.equal(hv?.hora_verificada, true);
+  await bandejaObj.subir();
+  assert.equal(est.horaSinAncla, false, "con internet la hora está verificada");
+  assert.ok(Math.abs(Date.parse(est.hora) - Date.now()) < 60e3);
+  // Windows se atrasa un mes: la hora de la app no cambia (manda la nube)
+  const fecha = nubeObj.reloj.fecha;
+  nubeObj.reloj.fecha = () => Date.now() - 30 * 864e5;
+  nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: la lectura stable sale de la copia local
+  const r = await fetch(`${urlPuerta}/rest/v1/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenMed}`, "X-Zamorapp-Ahora": "1999-01-01T00:00:00.000Z" }, body: "{}" });
+  const textoR = await r.text();
+  assert.equal(r.status, 200, textoR);
+  const puesta = Date.parse(JSON.parse(textoR));
+  assert.ok(Math.abs(puesta - Date.now()) < 60e3, "la cabecera es la de la puerta, no la del navegador ni la de Windows");
+  // Reinicio sin internet (sin ancla): no va la cabecera, manda el piso y se avisa «hora sin verificar»
+  nubeObj.reloj.ancla = null;
+  const sin = (await pedir("/zamorapp/estado")).json;
+  assert.equal(sin.horaSinAncla, true);
+  assert.ok(Date.parse(sin.hora) >= puesta - 1000, "no retrocede aunque Windows esté un mes atrás");
+  const sinCab = await pedir("/rest/v1/rpc/prueba_cabecera_ahora", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(sinCab.status, 200, JSON.stringify(sinCab.json));
+  assert.equal(sinCab.json, null, "sin ancla no se manda ninguna hora (ni la de Windows)");
+  const g2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000014" } });
+  assert.ok([200, 204].includes(g2.status));
+  const [hv2] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  assert.equal(hv2?.hora_verificada, false, "guardado sin ancla: hora no verificada");
+  nubeObj.reloj.fecha = fecha;
+  nube.estado.caida = false; await nubeObj.comprobar();
+  assert.equal((await pedir("/zamorapp/estado")).json.horaSinAncla, false, "al volver la nube se vuelve a anclar");
+  await enLocal("drop function public.prueba_cabecera_ahora(); notify pgrst, 'reload schema'");
 });
 
 test("qué se queda en la PC y qué va a la nube: funciones de la consulta sí, borrado clínico y funciones con otras tablas no", { skip: omitir || !postgrestReal }, async () => {
@@ -340,7 +428,7 @@ test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir
 test("más de 7 días sin conexión: no entra hasta reconectar", { skip: omitir }, async () => {
   const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
   const antes = u.ultimoOnline;
-  u.ultimoOnline = Date.now() - 8 * 864e5;
+  u.ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
   const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   u.ultimoOnline = antes;
   assert.equal(r.status, 400);
@@ -352,7 +440,7 @@ test("más de 7 días sin conexión: tampoco se renueva una sesión abierta", { 
   assert.equal(ok.status, 200);
   const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
   const antes = u.ultimoOnline;
-  u.ultimoOnline = Date.now() - 8 * 864e5;
+  u.ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
   const r = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
   u.ultimoOnline = antes;
   assert.equal(r.status, 400);

@@ -147,6 +147,23 @@ export class Replica {
     return (await c.query("select nombre from sync.tablas order by nombre")).rows.map((r) => r.nombre);
   }
 
+  // Vuelve a bajar UNA fila tal como está en la nube (tras un conflicto o rechazo de la bandeja), con los
+  // disparadores apagados para que no vuelva a la bandeja. Si en la nube no existe (o no hay acceso), se quita
+  // de la copia: lo que escribió el equipo queda guardado en la bandeja, en «Conflictos/Rechazados».
+  async reponerFila(uid, tabla, id) {
+    tabla = this.#seguro(tabla);
+    const [esquema, nombre] = tabla.split(".");
+    const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=*`, { "Accept-Profile": esquema });
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      await c.query("set session_replication_role = replica");
+      if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
+      else await c.query(`delete from ${tabla} where id = $1`, [id]);
+    } finally { await c.end().catch(() => {}); }
+    return Array.isArray(filas) ? filas.length : 0;
+  }
+
   async #tieneId(c, tabla) {
     const [esquema, nombre] = this.#seguro(tabla).split(".");
     const { rowCount } = await c.query("select 1 from information_schema.columns where table_schema=$1 and table_name=$2 and column_name='id'", [esquema, nombre]);

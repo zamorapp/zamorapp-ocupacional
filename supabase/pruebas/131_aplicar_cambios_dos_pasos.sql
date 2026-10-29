@@ -33,4 +33,14 @@ exception when insufficient_privilege then
   if sqlerrm like '%dos pasos%' then raise notice 'médico aal1 frenado por dos pasos: FALLA';
   else raise notice 'médico aal1 pasa el segundo paso (ok)'; end if;
 end $$;
+-- «duplicado» solo si es la misma fila con el mismo contenido; con contenido distinto es conflicto (Analizar, 29-oct)
+select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated","aal":"aal1"}',false) \g /dev/null
+select 'misma fila igual es duplicado (debe 1): ' || count(*) from jsonb_array_elements(public.aplicar_cambios('e0000000-0000-0000-0000-000000000001','s1',
+ '[{"id":"c0000000-0000-0000-0000-000000000131","tabla":"public.trabajadores","fila_id":"30000000-0000-0000-0000-0000000000c3","op":"I",
+   "datos":{"org_id":"10000000-0000-0000-0000-000000000001","nombres":"Carla María","apellidos":"Castro"}}]')) x where x->>'estado'='duplicado';
+select 'misma fila distinta es conflicto (debe 1): ' || count(*) from jsonb_array_elements(public.aplicar_cambios('e0000000-0000-0000-0000-000000000001','s1',
+ '[{"id":"c0000000-0000-0000-0000-000000000132","tabla":"public.trabajadores","fila_id":"30000000-0000-0000-0000-0000000000c3","op":"I",
+   "datos":{"org_id":"10000000-0000-0000-0000-000000000001","nombres":"Otra","apellidos":"Persona"}}]')) x where x->>'estado'='conflicto';
+select 'no se pisó (debe 1): ' || count(*) from public.trabajadores where id='30000000-0000-0000-0000-0000000000c3' and nombres='Carla María';
+select 'conflicto anotado (debe 1): ' || count(*) from sync.conflictos where cambio->>'id'='c0000000-0000-0000-0000-000000000132' and tipo='version';
 reset role;

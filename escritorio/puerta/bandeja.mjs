@@ -35,46 +35,56 @@ export class Bandeja {
     if (!eq || !this.nube.enLinea) return false;
     const c = new pg.Client({ connectionString: this.motor.url() });
     let subio = false;
+    const sinSesion = [];
     try {
       await c.connect();
-      for (;;) {
-        const { rows } = await c.query(
-          "select id, tabla, fila_id, op, version_base, datos, autor from local.bandeja where estado = 'pendiente' order by orden limit $1", [LOTE]);
-        if (!rows.length) break;
-        // Se sube en orden y con la sesión de cada autor: un lote termina donde cambia el autor
-        const autor = rows[0].autor;
-        const lote = [];
-        for (const f of rows) { if (f.autor !== autor) break; lote.push(f); }
-        if (!autor || !this.estado.d.usuarios[autor]?.nube) {
-          this.ultimoError = "quien guardó no tiene sesión en la nube; entra con internet para subir sus cambios";
-          this.registro(`[bandeja] ${lote.length} cambios esperan: ${this.ultimoError}`);
-          return subio;
-        }
-        const r = await this.nube.rpc(autor, "aplicar_cambios", {
-          p_equipo: eq.id, p_secreto: eq.secreto,
-          p_lote: lote.map((f) => ({ id: f.id, tabla: f.tabla, fila_id: f.fila_id, op: f.op, version_base: f.version_base, datos: f.datos })),
-        });
-        const resultados = new Map((Array.isArray(r) ? r : []).map((x) => [x.id, x]));
-        await c.query("begin");
-        try {
-          for (const f of lote) {
-            const x = resultados.get(f.id);
-            if (!x) { // la nube no respondió por este cambio: se reintenta unas veces y luego queda anotado, nunca se reintenta para siempre
-              await c.query("update local.bandeja set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = case when intentos + 1 >= $2 then 'La nube no respondió por este cambio' else motivo end where id = $1", [f.id, REINTENTOS]);
-              continue;
+      // El orden se respeta dentro de cada autor; un autor sin sesión en la nube (o sin su código) no detiene
+      // a los demás: sus cambios esperan y se avisa (Analizar, 29-oct-2026).
+      const { rows: autores } = await c.query("select autor, count(*)::int as n from local.bandeja where estado = 'pendiente' group by autor order by min(orden)");
+      for (const { autor, n } of autores) {
+        // token() renueva la sesión del autor; si la nube la rechazó (clave cambiada, sesión revocada) o le falta el
+        // código, ese autor espera a entrar con internet y los demás siguen
+        if (!autor || !(await this.nube.token(autor).catch(() => null))) { sinSesion.push({ autor, n }); continue; }
+        for (;;) {
+          const { rows: lote } = await c.query(
+            "select id, tabla, fila_id, op, version_base, datos, hora_verificada from local.bandeja where estado = 'pendiente' and autor = $1 order by orden limit $2", [autor, LOTE]);
+          if (!lote.length) break;
+          const r = await this.nube.rpc(autor, "aplicar_cambios", {
+            p_equipo: eq.id, p_secreto: eq.secreto,
+            p_lote: lote.map((f) => ({ id: f.id, tabla: f.tabla, fila_id: f.fila_id, op: f.op, version_base: f.version_base, datos: f.datos, hora_verificada: f.hora_verificada })),
+          });
+          const resultados = new Map((Array.isArray(r) ? r : []).map((x) => [x.id, x]));
+          const reponer = [];
+          await c.query("begin");
+          try {
+            for (const f of lote) {
+              const x = resultados.get(f.id);
+              if (!x) { // la nube no respondió por este cambio: se reintenta unas veces y luego queda anotado, nunca se reintenta para siempre
+                await c.query("update local.bandeja set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = case when intentos + 1 >= $2 then 'La nube no respondió por este cambio' else motivo end where id = $1", [f.id, REINTENTOS]);
+                continue;
+              }
+              // «duplicado» solo llega por el mismo cambio o por una fila igual con el mismo id: no hay nada que conservar
+              if (x.estado === "aplicado" || x.estado === "duplicado") await c.query("delete from local.bandeja where id = $1", [f.id]);
+              else {
+                await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
+                this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);
+                reponer.push(f);
+              }
             }
-            if (x.estado === "aplicado" || x.estado === "duplicado") await c.query("delete from local.bandeja where id = $1", [f.id]);
-            else {
-              await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
-              this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);
-            }
+            await c.query("commit");
+          } catch (e) { await c.query("rollback"); throw e; }
+          subio = true;
+          // La copia local vuelve a mostrar lo que hay en la nube; lo escrito aquí queda en la bandeja para revisarlo
+          for (const f of reponer) {
+            try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id}: ${e.message}`); }
           }
-          await c.query("commit");
-        } catch (e) { await c.query("rollback"); throw e; }
-        subio = true;
-        this.ultimoError = null;
-        if (lote.length < rows.length || rows.length < LOTE) { if (lote.length === rows.length) break; }
+          if (lote.length < LOTE) break;
+        }
       }
+      this.ultimoError = sinSesion.length
+        ? `${sinSesion.reduce((a, x) => a + x.n, 0)} cambios esperan: quien los guardó no tiene sesión en la nube (o le falta el código); que entre con internet`
+        : null;
+      if (sinSesion.length) this.registro(`[bandeja] ${this.ultimoError}`);
     } catch (e) {
       this.ultimoError = e.message;
       this.registro(`[bandeja] no se pudo subir: ${e.stack || e.message}`);
@@ -85,4 +95,37 @@ export class Bandeja {
     if (subio) await this.replica.ciclo().catch(() => {});
     return subio;
   }
+
+  // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué
+  async lista() {
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query(
+        "select id, tabla, fila_id, op, estado, motivo, autor, creado, intentos, datos from local.bandeja where estado <> 'pendiente' order by creado desc limit 500");
+      const { rows: [p] } = await c.query("select count(*)::int as n from local.bandeja where estado = 'pendiente'");
+      return { pendientes: p.n, revisar: rows.map((f) => ({ ...f, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null })) };
+    } finally { await c.end().catch(() => {}); }
+  }
+
+  // Decisión de quien revisa un conflicto: «descartar» (la nube manda; la copia ya la muestra) o «reintentar»
+  // (lo escrito en la PC se vuelve a subir sobre la versión actual de la nube). Solo el autor, un administrador
+  // o el gerente médico.
+  async resolver(id, accion, quien) {
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rows: [f] } = await c.query("select id, tabla, fila_id, autor from local.bandeja where id = $1 and estado <> 'pendiente'", [id]);
+      if (!f) return { error: "No existe ese cambio o ya está resuelto" };
+      if (f.autor !== quien.uid && !["administrador", "gerente_medico"].includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      if (accion === "descartar") { await c.query("delete from local.bandeja where id = $1", [id]); return { hecho: "descartado" }; }
+      if (accion === "reintentar") {
+        const { rows: [v] } = await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+        await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
+        return { hecho: "pendiente" };
+      }
+      return { error: "Acción desconocida" };
+    } finally { await c.end().catch(() => {}); }
+  }
 }
+
