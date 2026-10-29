@@ -1,5 +1,5 @@
 // Lector de laboratorio en el navegador: PDF con texto (pdfjs) o imagen/escaneo (Tesseract.js en un Worker).
-// Todos sus archivos los sirve la app en /ocr (ver scripts/recursos-ocr.mjs): funciona sin internet y nada sale del equipo.
+// Todos sus archivos los sirve la app en /ocr (ver src/build/recursos-ocr.mjs): funciona sin internet y nada sale del equipo.
 "use client";
 
 import type { Linea } from "@/lib/ocr/interpretar";

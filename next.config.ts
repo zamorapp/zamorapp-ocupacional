@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { copiarRecursosOcr } from "./scripts/recursos-ocr.mjs";
+import { copiarRecursosOcr } from "./src/build/recursos-ocr.mjs";
 
 // Lector de laboratorio: copia y verifica los archivos de Tesseract en public/ocr (desarrollo, Vercel y escritorio)
 copiarRecursosOcr();
