@@ -112,6 +112,8 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       const clave = `${objeto[1]}/${decodeURIComponent(objeto[2])}`;
       if (req.method === "PUT" || req.method === "POST") {
         if (estado.storageRechaza > 0) { estado.storageRechaza--; return enviar(400, { statusCode: "400", error: "invalid_mime_type", message: "mime type not supported" }); }
+        // Como Supabase con un bucket sin UPDATE: sin x-upsert, lo que ya existe da 409
+        if (estado.archivos.has(clave) && req.headers["x-upsert"] !== "true") return enviar(409, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
         estado.archivos.set(clave, { cuerpo, tipo: req.headers["content-type"], uid });
         return enviar(200, { Key: clave });
       }
