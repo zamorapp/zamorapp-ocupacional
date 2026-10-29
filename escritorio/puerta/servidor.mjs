@@ -20,6 +20,12 @@ const FALLOS_PERMITIDOS = 5; // por correo; luego espera de 15 min que se duplic
 const FALLOS_GLOBALES = 30; // entre todos los correos, por cada 10 minutos
 const SIN_CONEXION = "Sin conexión a internet: en esta PC por ahora solo se puede consultar. Podrás guardar cuando vuelva la conexión.";
 const LENTA_MS = 700; // una petición a la nube que tarda más se anota en puerta.log ([lenta])
+// En puerta.log no queda el nombre de un archivo (puede llevar el nombre del paciente): de storage solo el bucket
+const rutaParaRegistro = (url) => {
+  const ruta = url.split("?")[0];
+  const m = /^(\/storage\/v1\/object\/(?:(?:public|sign|authenticated|info|upload\/sign)\/)?[^/]+)\//.exec(ruta);
+  return m ? `${m[1]}/…` : ruta;
+};
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
@@ -211,7 +217,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       res.end(cuerpoRespuesta);
       // Lo que tarda la nube queda en puerta.log: así se mide en la PC real por qué una pantalla demora
       const ms = Date.now() - inicio;
-      if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${req.url.split("?")[0]} ${ms} ms (nube, ${r.status})`);
+      if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${rutaParaRegistro(req.url)} ${ms} ms (nube, ${r.status})`);
       return true;
     } catch (e) {
       nube.marcarCaida(`${req.method} ${req.url.split("?")[0]}: ${e.message}`);
