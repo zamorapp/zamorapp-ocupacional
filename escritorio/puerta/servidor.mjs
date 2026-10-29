@@ -212,7 +212,8 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   function renovar(res, cuerpo) {
     const token = cuerpo?.refresh_token;
     const reciente = token && recienUsados.get(token);
-    if (reciente && reciente.hasta > Date.now() && d().refrescos[reciente.sesion.refresh_token]) {
+    const ur = reciente && d().usuarios[reciente.uid];
+    if (reciente && reciente.hasta > Date.now() && d().refrescos[reciente.sesion.refresh_token] && ur && !ur.bloqueado && !ur.requiereNube) {
       registro("[auth] renovar: ok (refresco recién usado, misma sesión)");
       return responder(res, 200, reciente.sesion);
     }
@@ -230,7 +231,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     delete d().refrescos[token];
     const sesion = sesionLocal(r.uid, r.segundoPaso, r.sid);
     for (const [t, x] of recienUsados) if (x.hasta < Date.now()) recienUsados.delete(t);
-    recienUsados.set(token, { sesion, hasta: Date.now() + CONFIG.reusoRefrescoMs });
+    recienUsados.set(token, { uid: r.uid, sesion, hasta: Date.now() + CONFIG.reusoRefrescoMs });
     registro("[auth] renovar: ok");
     return responder(res, 200, sesion);
   }

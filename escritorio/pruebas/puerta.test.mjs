@@ -173,6 +173,13 @@ test("sin internet: entra con su clave; con clave equivocada no", { skip: omitir
   const reuso = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
   assert.equal(reuso.status, 200, "dentro del margen, el refresco recién usado no cierra la sesión");
   assert.equal(reuso.json.refresh_token, renovada.json.refresh_token);
+  const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  u.bloqueado = true; // un bloqueo surte efecto al instante, también dentro del margen
+  try {
+    assert.equal((await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } })).status, 400);
+  } finally {
+    delete u.bloqueado;
+  }
   const sid = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString()).session_id;
   assert.equal(sid(renovada.json.access_token), sid(ok.json.access_token), "renovar conserva la sesión");
   const margen = CONFIG.reusoRefrescoMs;
