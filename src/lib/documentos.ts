@@ -86,7 +86,8 @@ export async function obtenerDocumento(consultaId: string) {
 
 export const copiaDeUrl = (copia: string | undefined, ajustes: AjustesDocumentos) => (copia === "1" ? true : copia === "0" ? false : ajustes.constancia_copia === true);
 
-// Campos que exige la Res. MPPS 028 (G.O. 40.131) para imprimir un récipe
+// Campos que exige la Res. MPPS 028 (G.O. 40.131, 19-03-2013), reformada por la Res. 031 (G.O. 40.136, 26-03-2013,
+// art. 6) para imprimir un récipe. Sin uno de ellos la farmacia no puede despachar (art. 7).
 export function faltantesRecipe(d: DatosDocumento) {
   const f: string[] = [];
   const m = d.medicoDatos;
