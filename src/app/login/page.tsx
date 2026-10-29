@@ -33,7 +33,7 @@ export default function PaginaLogin() {
             ))}
           </ul>
         </div>
-        <p className="relative text-sm text-teal-100/70">LOPCYMAT · NT-01-2008 · NT-02-2008 · COVENIN 474</p>
+        <p className="relative text-sm text-teal-100/70">LOPCYMAT · NT-04-2023 · NT-02-2008 · COVENIN 474</p>
       </section>
 
       <section className="flex items-center justify-center p-6 sm:p-12">

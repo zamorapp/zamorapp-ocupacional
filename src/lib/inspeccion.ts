@@ -108,7 +108,7 @@ export async function datosInspeccion(sesion: Sesion, empresaId: string, desde: 
   const criterios = [
     criterio({ clave: "servicio", titulo: "Servicio de Seguridad y Salud en el Trabajo registrado", base: "LOPCYMAT art. 39", cumplidos: emp.servicio_sst_fecha_registro ? 1 : 0, total: 1,
       detalle: emp.servicio_sst_fecha_registro ? `${emp.servicio_sst_tipo ?? "Registrado"} desde el ${emp.servicio_sst_fecha_registro}` : "Falta la fecha de registro en Empresas", href: `/empresas/${empresaId}` }),
-    criterio({ clave: "psst", titulo: "Programa de Seguridad y Salud en el Trabajo registrado", base: "LOPCYMAT art. 61; NT-01-2008", cumplidos: emp.psst_fecha_registro ? 1 : 0, total: 1,
+    criterio({ clave: "psst", titulo: "Programa de Seguridad y Salud en el Trabajo registrado", base: "LOPCYMAT art. 61; NT-04-2023", cumplidos: emp.psst_fecha_registro ? 1 : 0, total: 1,
       detalle: emp.psst_fecha_registro ? `Registrado el ${emp.psst_fecha_registro}` : "Falta la fecha de registro en Empresas", href: `/empresas/${empresaId}` }),
     criterio({ clave: "declaracion", titulo: "Accidentes y enfermedades declarados en 24 horas", base: "LOPCYMAT art. 73", cumplidos: aTiempo.length, total: declarables.length,
       detalle: declarables.length ? `${declarables.length - aTiempo.length} fuera de plazo o sin declarar` : "Sin eventos en el período", href: "/accidentes" }),
