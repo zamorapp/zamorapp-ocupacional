@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { periodoInspeccion, resumenInspeccion } from "@/lib/inspeccion";
+import { CLAVES_CRITERIOS, periodoInspeccion, resumenInspeccion } from "@/lib/inspeccion";
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { obtenerSesion, type Sesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
@@ -123,10 +123,10 @@ async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; 
 
 function EsqueletoCriterios() {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]" aria-busy="true" aria-label="Calculando el cumplimiento">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]" role="status" aria-busy="true" aria-label="Calculando el cumplimiento">
       <div className="h-36 animate-pulse rounded-xl border bg-muted/40" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {Array.from({ length: 10 }, (_, i) => <div key={i} className="h-16 animate-pulse rounded-xl border bg-muted/40" />)}
+        {CLAVES_CRITERIOS.map((c) => <div key={c} className="h-16 animate-pulse rounded-xl border bg-muted/40" />)}
       </div>
     </div>
   );

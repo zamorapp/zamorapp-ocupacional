@@ -59,6 +59,9 @@ function datosEmpresa(emp: EmpresaFila): DatosInspeccion["empresa"] {
 }
 
 // Criterios e índice a partir de los conteos de la base
+// Los criterios que mide la pantalla, en orden (el esqueleto de carga usa cuántos son)
+export const CLAVES_CRITERIOS = ["servicio", "psst", "declaracion", "investigacion", "nt02", "acciones", "puestos", "notificacion", "evaluacion", "vigilancia"] as const;
+
 function armarCriterios(emp: EmpresaFila, c: Conteos, desde: string, hasta: string) {
   const empresaId = emp.id;
   const trimestres = Math.max(1, Math.floor((Date.parse(hasta) - Date.parse(desde) + dia) / (91 * dia)));

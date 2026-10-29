@@ -53,7 +53,10 @@ export default async function Panel() {
         </Button>
       </div>
 
-      <Suspense fallback={null}><Respaldo sesion={sesion} /></Suspense>
+      {/* El respaldo solo lo ven administrador y gerente médico: su espacio queda reservado para que no empuje el Inicio */}
+      <Suspense fallback={!sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico") ? <div role="status" aria-label="Revisando el respaldo" className="h-14 animate-pulse rounded-xl border bg-muted/40" /> : null}>
+        <Respaldo sesion={sesion} />
+      </Suspense>
 
       <Suspense fallback={<Esqueleto filas={1} alto="h-[4.5rem]" columnas="sm:grid-cols-3" titulo />}><Tareas sesion={sesion} /></Suspense>
 
@@ -74,7 +77,7 @@ export default async function Panel() {
           </CardContent>
         </Card>
 
-        <Suspense fallback={<div className="h-64 animate-pulse rounded-xl border bg-muted/40" />}><Alertas /></Suspense>
+        <Suspense fallback={<div role="status" aria-label="Cargando las alertas" className="h-64 animate-pulse rounded-xl border bg-muted/40" />}><Alertas /></Suspense>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -111,7 +114,7 @@ export default async function Panel() {
 
 function Esqueleto({ filas, alto, columnas, titulo }: { filas: number; alto: string; columnas: string; titulo?: boolean }) {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Cargando">
+    <div className="space-y-2" role="status" aria-busy="true" aria-label="Cargando">
       {titulo && <div className="h-4 w-32 animate-pulse rounded bg-muted" />}
       <div className={cn("grid gap-3", columnas)}>
         {Array.from({ length: filas === 1 ? 3 : filas }, (_, i) => <div key={i} className={cn("animate-pulse rounded-xl border bg-muted/40", alto)} />)}
@@ -122,7 +125,7 @@ function Esqueleto({ filas, alto, columnas, titulo }: { filas: number; alto: str
 
 function Lineas() {
   return (
-    <div className="space-y-3 px-6 py-2" aria-busy="true" aria-label="Cargando">
+    <div className="space-y-3 px-6 py-2" role="status" aria-busy="true" aria-label="Cargando">
       {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-8 animate-pulse rounded bg-muted/60" />)}
     </div>
   );
