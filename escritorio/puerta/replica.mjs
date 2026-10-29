@@ -103,6 +103,10 @@ export class Replica {
         let despues = null;
         const conId = await this.#tieneId(c, tabla);
         await c.query(`delete from ${this.#seguro(tabla)}`);
+        // La copia completa es la verdad de la nube: las versiones anotadas se rehacen con lo que baja (si la nube volvió
+        // a una versión anterior, la fila no queda congelada). Las filas con un cambio por subir conservan su base.
+        const { rowCount: viejas } = await c.query("delete from local.version_nube v where v.tabla = $1 and not exists (select 1 from local.bandeja b where b.tabla = v.tabla and b.fila_id = v.fila_id and b.estado = 'pendiente')", [tabla]);
+        if (viejas) this.registro(`[réplica] copia completa de ${tabla}: ${viejas} versiones anotadas se toman de nuevo de la nube`);
         for (;;) {
           const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
           if (seq === null) seq = r.seq;
@@ -170,6 +174,12 @@ export class Replica {
       const select = cols.map((x) => x.column_name).join(",") || "*";
       const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
       await c.query("set session_replication_role = replica");
+      // Si la nube tiene una versión MENOR que la anotada (p. ej. se restauró un respaldo de la nube), manda la nube:
+      // si no, la réplica dejaría esa fila congelada en la PC (Analizar)
+      if (Array.isArray(filas) && filas.length && filas[0].version != null) {
+        const { rowCount } = await c.query("update local.version_nube set version = $3 where tabla = $1 and fila_id = $2 and version > $3", [tabla, id, filas[0].version]);
+        if (rowCount) this.registro(`[réplica] ${tabla} ${id}: la nube volvió a una versión anterior (${filas[0].version}); se toma la de la nube`);
+      }
       if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
       else {
         await c.query(`delete from ${tabla} where id = $1`, [id]);
