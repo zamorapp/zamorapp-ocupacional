@@ -69,27 +69,43 @@ export async function empaquetar(carpeta, destino) {
   return { archivos: lista.length, bytes };
 }
 
+// Nombres que Windows no acepta (Analizar): caracteres <>:"|?*, reservados (CON, PRN, AUX, NUL, COM1-9, LPT1-9) y
+// los que terminan en punto o espacio. Se saltan y se cuentan; el resto del paquete sigue.
+const RESERVADO = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+export function nombreValidoWindows(parte) {
+  return !/[<>:"|?*]/.test(parte) && !RESERVADO.test(parte) && !/[. ]$/.test(parte);
+}
+
 // Saca los archivos a la carpeta. Nunca pisa uno que ya exista (el disco de la PC manda sobre la copia).
+// Devuelve {restaurados, existentes, omitidos}: omitidos = nombres inválidos para Windows o fuera de la carpeta.
 export function desempaquetar(archivo, carpeta) {
   const fd = fs.openSync(archivo, "r");
   const cab = Buffer.alloc(BLOQUE);
-  let pos = 0, restaurados = 0, existentes = 0;
+  fs.mkdirSync(carpeta, { recursive: true });
+  const raiz = fs.realpathSync(carpeta);
+  let pos = 0, restaurados = 0, existentes = 0, omitidos = 0;
   try {
     for (;;) {
       if (fs.readSync(fd, cab, 0, BLOQUE, pos) < BLOQUE || cab.every((x) => x === 0)) break;
       pos += BLOQUE;
       const texto = (d, l) => cab.toString("utf8", d, d + l).replace(/\0.*$/s, "");
       const nombre = texto(0, 100), prefijo = texto(345, 155), tipo = texto(156, 1);
-      const tam = parseInt(texto(124, 12).trim() || "0", 8);
+      const tamTexto = texto(124, 12).trim();
+      if (!/^[0-7]+$/.test(tamTexto)) throw new Error(`Paquete dañado: tamaño no válido en el bloque ${pos / BLOQUE - 1}`);
+      const tam = parseInt(tamTexto, 8);
       const ruta = prefijo ? `${prefijo}/${nombre}` : nombre;
       const partes = ruta.split("/");
-      const valida = (tipo === "0" || tipo === "") && partes.every((p) => p && p !== "." && p !== "..") && !/[\\\0-\x1f]/.test(ruta);
+      const esArchivo = tipo === "0" || tipo === "";
+      const valida = esArchivo && partes.every((p) => p && p !== "." && p !== ".." && nombreValidoWindows(p)) && !/[\\\0-\x1f]/.test(ruta);
+      if (esArchivo && !valida) omitidos++;
       if (valida) {
-        const destino = path.resolve(carpeta, ...partes);
-        if (!destino.startsWith(path.resolve(carpeta) + path.sep)) throw new Error(`Ruta fuera de la carpeta: ${ruta}`);
+        const destino = path.resolve(raiz, ...partes);
+        fs.mkdirSync(path.dirname(destino), { recursive: true });
+        // El padre real (sin junctions ni enlaces) tiene que seguir dentro de la carpeta (Analizar)
+        const padreReal = fs.realpathSync(path.dirname(destino));
+        if (padreReal !== raiz && !padreReal.startsWith(raiz + path.sep)) { omitidos++; pos += Math.ceil(tam / BLOQUE) * BLOQUE; continue; }
         if (fs.existsSync(destino)) existentes++;
         else {
-          fs.mkdirSync(path.dirname(destino), { recursive: true });
           const salida = fs.openSync(`${destino}.tmp`, "w");
           try {
             const trozo = Buffer.alloc(64 * 1024);
@@ -107,5 +123,5 @@ export function desempaquetar(archivo, carpeta) {
       pos += Math.ceil(tam / BLOQUE) * BLOQUE;
     }
   } finally { fs.closeSync(fd); }
-  return { restaurados, existentes };
+  return { restaurados, existentes, omitidos };
 }

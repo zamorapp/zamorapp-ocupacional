@@ -529,7 +529,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
 
   // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
   // Adjuntos en la PC (fase B): carpeta local + cola de subida; ver adjuntos.mjs
-  const adjuntos = crearAdjuntos({ estado, nube, motor, registro });
+  // escrituraLocal: con la copia completa y la fase A activa, un archivo nuevo se guarda en la PC también sin internet
+  // (su fila va a la bandeja y el archivo a la cola). Hallazgo de la prueba integrada «un día de Cesar»: #123 no lo pasaba.
+  const adjuntos = crearAdjuntos({ estado, nube, motor, registro, escrituraLocal: () => Boolean(CONFIG.escrituraLocal && bandeja && estado.d.copiaCompleta) });
 
   const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 

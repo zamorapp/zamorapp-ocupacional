@@ -229,8 +229,12 @@ export class Motor {
     if (pedido.adjuntos && fs.existsSync(pedido.adjuntos)) {
       try {
         const r = desempaquetar(pedido.adjuntos, path.join(CONFIG.datos, "adjuntos"));
-        this.registro?.(`[base] adjuntos restaurados: ${r.restaurados} nuevos, ${r.existentes} ya estaban`);
-      } catch (e) { this.registro?.(`[base] los adjuntos del respaldo no se pudieron restaurar: ${e.message}`); }
+        this.registro?.(`[base] adjuntos restaurados: ${r.restaurados} nuevos, ${r.existentes} ya estaban${r.omitidos ? `, ${r.omitidos} con nombre no válido en Windows (omitidos)` : ""}`);
+        if (r.omitidos) (this.estado.d.respaldo ??= {}).avisoRestauracion = `${r.omitidos} adjunto(s) del respaldo tienen nombres que Windows no acepta y no se restauraron`;
+      } catch (e) { this.registro?.(`[base] los adjuntos del respaldo no se pudieron restaurar: ${e.message}`); (this.estado.d.respaldo ??= {}).avisoRestauracion = `Los adjuntos del respaldo no se pudieron restaurar: ${e.message}`; }
+    } else if (pedido.avisoAdjuntos) {
+      this.registro?.(`[base] ${pedido.avisoAdjuntos}`);
+      (this.estado.d.respaldo ??= {}).avisoRestauracion = pedido.avisoAdjuntos;
     }
     (this.estado.d.respaldo ??= {}).restauracionFallida = null;
     this.estado.guardar();

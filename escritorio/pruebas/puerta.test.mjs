@@ -1155,6 +1155,7 @@ test("adjuntos: sin internet se ven los archivos de la PC (con las reglas de la 
   assert.ok(fs.existsSync(path.join(datos, "adjuntos", "adjuntos", ...RUTA_A2.split("/"))));
 
   // try/finally: si algo falla sin internet, la nube vuelve igual y la falla no arrastra a las pruebas que siguen
+  const rutaNuevo = `${ORG}/30000000-0000-0000-0000-00000000000a/nuevo.pdf`;
   try {
     nube.estado.caida = true;
     await nubeObj.comprobar();
@@ -1171,10 +1172,16 @@ test("adjuntos: sin internet se ven los archivos de la PC (con las reglas de la 
     // Sin sesión no se firma nada
     assert.equal((await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_A}`, { metodo: "POST", cuerpo: { expiresIn: 600 } })).status, 401);
     // Archivos nuevos sin internet: esperan a que vuelva (la fila de clinico.adjuntos aún no se guarda en la PC)
-    const nuevo = await subirArchivo(`${ORG}/30000000-0000-0000-0000-00000000000a/nuevo.pdf`, { token: tokenMed });
-    assert.equal(nuevo.status, 503, JSON.stringify(nuevo.json));
+    // Fase A cableada (hallazgo de «un día de Cesar»): un archivo nuevo sin internet se guarda en la PC y espera en la cola
+    const nuevo = await subirArchivo(rutaNuevo, { token: tokenMed });
+    assert.equal(nuevo.status, 200, JSON.stringify(nuevo.json));
+    assert.ok(fs.existsSync(path.join(datos, "adjuntos", "adjuntos", ...rutaNuevo.split("/"))));
+    assert.equal((await enLaCola(rutaNuevo)).estado, "pendiente");
   } finally {
     nube.estado.caida = false;
+    await nubeObj.comprobar();
+    await puerta.adjuntos.subir(); // el archivo guardado sin internet sube ahora y no estorba a la prueba siguiente
+    assert.equal((await enLaCola(rutaNuevo)).estado, "subido");
     await nubeObj.comprobar();
   }
 });
@@ -1229,6 +1236,40 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   assert.equal(fs.readFileSync(local, "utf8"), PDF, "el adjunto volvió");
   assert.equal(fs.existsSync(path.join(respaldoObj.carpetaLocal, "restaurar.adjuntos.tar")), false);
   await replicaObj.ciclo();
+  // Analizar: en Drive quedan 2 paquetes de adjuntos y en la PC 1 (cada uno trae todo); las copias de la base siguen aparte.
+  // Paquetes «viejos» de días anteriores (los nombres van por fecha) y un adjunto nuevo que obliga a armar otro paquete
+  for (const d of ["20260101-0900", "20260102-0900", "20260103-0900"]) {
+    fs.writeFileSync(path.join(externa, `zamorapp-${d}.adjuntos.zamorapp`), "viejo");
+    fs.writeFileSync(path.join(externa, `zamorapp-${d}.zamorapp`), "viejo");
+    fs.writeFileSync(path.join(respaldoObj.carpetaLocal, `zamorapp-${d}.adjuntos.tar`), "viejo");
+  }
+  const adjDir = path.join(datos, "adjuntos", "adjuntos", ORG, "30000000-0000-0000-0000-00000000000a");
+  fs.writeFileSync(path.join(adjDir, "extra-1.pdf"), PDF);
+  const basesAntes = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length;
+  const rr = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
+  const jj = await rr.json();
+  assert.equal(rr.status, 200, JSON.stringify(jj));
+  assert.equal(jj.adjuntos.nuevo, true);
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 2, fs.readdirSync(externa).join(", "));
+  assert.equal(fs.readdirSync(respaldoObj.carpetaLocal).filter((f) => f.endsWith(".adjuntos.tar")).length, 1);
+  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length, basesAntes, "las copias de la base no se tocan (30 en Drive)");
+  for (const f of fs.readdirSync(externa)) if (f.startsWith("zamorapp-202601")) fs.rmSync(path.join(externa, f)); // las de mentira
+  // Analizar: si el paquete de adjuntos más nuevo no abre, se restaura la base igual con el paquete anterior que sí abra
+  const buenos = fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).sort();
+  const roto = path.join(externa, "zamorapp-29991231-2359.adjuntos.zamorapp");
+  fs.writeFileSync(roto, Buffer.concat([fs.readFileSync(path.join(externa, buenos[buenos.length - 1])).subarray(0, 200), crypto.randomBytes(300)]));
+  const bases = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).sort();
+  const pr2 = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: path.join(externa, bases[bases.length - 1]), clave: "clave-de-respaldo" } });
+  assert.equal(pr2.status, 200, JSON.stringify(pr2.json));
+  assert.equal(pr2.json.adjuntos, true); assert.match(pr2.json.aviso, /más nuevo no abrió/);
+  assert.equal(path.basename(estado.d.restaurar.origenAdjuntos), buenos[buenos.length - 1]);
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionPendiente.aviso, pr2.json.aviso);
+  // Y si ninguno abre (otra clave): solo la base, con aviso
+  for (const f of buenos) fs.rmSync(path.join(externa, f));
+  const pr3 = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: path.join(externa, bases[bases.length - 1]), clave: "clave-de-respaldo" } });
+  assert.equal(pr3.status, 200, JSON.stringify(pr3.json));
+  assert.equal(pr3.json.adjuntos, false); assert.match(pr3.json.aviso, /solo la base/);
+  assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
   fs.rmSync(externa, { recursive: true, force: true });
 });
 
