@@ -46,6 +46,24 @@ const claveNoOfrecer = async () => ES_ESCRITORIO ? `${NO_OFRECER}.${(await estad
 export const ofrecerHuella = async () => leer(await claveNoOfrecer()) !== "1" && (ES_ESCRITORIO || leer(MARCA) !== "1");
 export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1");
 
+/**
+ * ¿Se le puede ofrecer la huella ahora? No mientras falte el código de dos pasos: con la sesión sin ese paso
+ * la nube rechaza registrar una llave (y el aviso confundía). Se ofrece después, en la pantalla del código.
+ */
+export async function puedeOfrecerHuella(supabase: SupabaseClient): Promise<boolean> {
+  if (!(await ofrecerHuella()) || !(await huellaDisponible()) || (await huellaActivaAqui())) return false;
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims?.aal === "aal1") {
+    const { data: requiere } = await supabase.rpc("falta_segundo_paso");
+    if (requiere === true) return false;
+  }
+  if (ES_ESCRITORIO) return true;
+  // Web: si la cuenta ya tiene una llave registrada en el servidor, no se ofrece crear otra (cada intento deja una
+  // llave nueva en el gestor de Google o de Windows). Si la lista no se puede leer, tampoco se ofrece.
+  const llaves = await listarHuellas(supabase);
+  return Array.isArray(llaves) && llaves.length === 0;
+}
+
 /** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */
 export async function activarHuella(supabase: SupabaseClient): Promise<Resultado> {
   if (ES_ESCRITORIO) {
@@ -58,6 +76,9 @@ export async function activarHuella(supabase: SupabaseClient): Promise<Resultado
     const v = await pedirAVentana("activar", cuerpo.codigo);
     return v.ok ? { ok: true } : v;
   }
+  // Sin el segundo paso no se registran llaves (la oferta ya sale después del código; esto cubre «Mi perfil»)
+  const { data: falta } = await supabase.rpc("falta_segundo_paso");
+  if (falta === true) return { ok: false, mensaje: "Primero escribe el código de verificación en dos pasos; después activa la huella." };
   const { error } = await supabase.auth.registerPasskey();
   if (error) return { ok: false, mensaje: mensajeError(error) };
   escribir(MARCA, "1");
@@ -147,7 +168,12 @@ function mensajeError(error: { code?: string; name?: string; message?: string })
   if (codigo === "webauthn_credential_not_found") return "Esta huella ya no está asociada a ninguna cuenta. Entra con tu contraseña y actívala de nuevo.";
   if (codigo.startsWith("webauthn_challenge")) return "Tardó demasiado. Intenta de nuevo.";
   if (codigo === "user_banned") return "Tu acceso fue desactivado. Habla con el administrador.";
+  if (codigo === "insufficient_aal") return "Primero escribe el código de verificación en dos pasos; después activa la huella.";
+  // El navegador rechaza la llave si la dirección de zamorApp no coincide con la configurada en el servidor (RP ID)
+  if (error.name === "SecurityError" || codigo === "webauthn_verification_failed")
+    return `La huella no está configurada para esta dirección de zamorApp. Avísale al soporte (${codigo || error.name}).`;
   if (error.name === "NotAllowedError" || codigo === "ERROR_CEREMONY_ABORTED" || /cancel|not allowed/i.test(error.message ?? ""))
     return "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
-  return "No se pudo usar la huella. Usa tu contraseña.";
+  // Con el código a la vista, soporte sabe qué pasó sin pedir capturas de la consola
+  return `No se pudo usar la huella. Usa tu contraseña. (${[codigo, error.name, error.message].filter(Boolean).join(" · ").slice(0, 120)})`;
 }

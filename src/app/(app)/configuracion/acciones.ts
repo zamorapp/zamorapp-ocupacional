@@ -147,6 +147,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
+      // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)
+      dias_equipo_confianza: Math.min(90, Math.max(0, Math.round(Number(texto(datos, "dias_equipo_confianza") ?? 30)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
     };

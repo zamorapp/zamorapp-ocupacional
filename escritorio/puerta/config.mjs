@@ -26,7 +26,7 @@ export const CONFIG = {
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([
   "buscar_diagnosticos", "firma_sello", "indices_accidentalidad", "miembros_con_correo",
-  "reporte_vigilancia", "requiere_dos_pasos", "resumen_panel",
+  "reporte_vigilancia", "requiere_dos_pasos", "falta_segundo_paso", "resumen_panel",
 ]);
 
 // Tablas que se copian a la PC: las que sincronizan (sync.tablas) más catálogos de solo bajada.

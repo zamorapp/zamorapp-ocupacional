@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { BotonEntrarHuella, OfrecerHuella } from "@/components/app/huella";
-import { huellaActivaAqui, huellaDisponible, ofrecerHuella } from "@/lib/huella";
+import { puedeOfrecerHuella } from "@/lib/huella";
 import { correoParaEntrar, recordarUsuario, ultimoUsuario } from "@/lib/ingreso";
 
 export type Modo = "ingresar" | "registro" | "recuperar";
@@ -114,8 +114,9 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           return;
         }
         recordarUsuario(correo);
-        // Recién entró con la contraseña: se le ofrece (una vez) entrar con huella la próxima vez
-        if ((await ofrecerHuella()) && (await huellaDisponible()) && !(await huellaActivaAqui())) {
+        // Recién entró con la contraseña: se le ofrece (una vez) entrar con huella la próxima vez. Si aún le falta
+        // el código de dos pasos, se ofrece después de escribirlo (pantalla del código)
+        if (await puedeOfrecerHuella(supabase)) {
           setOfrecer(true);
           return;
         }

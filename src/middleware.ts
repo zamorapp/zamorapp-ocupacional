@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { COOKIE_EQUIPO, cabecerasEquipo } from "@/lib/equipo-confianza";
 
 // Direcciones con las que la ventana de zamorApp Escritorio abre la app local
 const HOSTS_ESCRITORIO = ["127.0.0.1:54332", "localhost:54332"];
@@ -19,6 +20,7 @@ export async function middleware(request: NextRequest) {
 
   let respuesta = seguir();
   const supabase = createServerClient(url, key, {
+    global: { headers: cabecerasEquipo(request.cookies.get(COOKIE_EQUIPO)?.value) },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (lista) => {
@@ -63,9 +65,9 @@ export async function middleware(request: NextRequest) {
   const aal = data?.claims?.aal;
   if (conSesion && aal === "aal2" && enDosPasos) return irA("/panel");
   if (conSesion && aal === "aal1" && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
-    // Sin caché: una cookie se podría falsificar. Es una consulta liviana y solo para sesiones aal1.
-    const { data: requiere } = await supabase.rpc("requiere_dos_pasos");
-    if (requiere === true) return irA("/login/dos-pasos");
+    // Sin caché: una cookie se podría falsificar. La base decide (huella, equipo de confianza vigente o código).
+    const { data: falta } = await supabase.rpc("falta_segundo_paso");
+    if (falta === true) return irA("/login/dos-pasos");
   }
 
   if (conSesion && enLogin && !ruta.startsWith("/login/nueva-clave") && !enDosPasos) {

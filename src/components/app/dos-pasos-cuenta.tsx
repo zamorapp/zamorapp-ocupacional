@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { autenticadores } from "@/lib/dos-pasos";
+import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
+import { confirmar } from "@/components/app/confirmar";
 
 type Autenticador = { id: string; friendly_name?: string; created_at: string };
+type Equipo = { id: string; nombre: string; creado_en: string; vence: string };
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-VE", { day: "numeric", month: "short", year: "numeric" });
 
 /** Tarjeta de "Mi perfil": estado de la verificación en dos pasos y cambio de teléfono. */
@@ -17,13 +20,27 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
   const [lista, setLista] = useState<Autenticador[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [equipos, setEquipos] = useState<Equipo[]>([]);
 
   useEffect(() => {
-    autenticadores(crearClienteNavegador()).then(setLista);
+    const supabase = crearClienteNavegador();
+    autenticadores(supabase).then(setLista);
+    supabase.rpc("mis_equipos_confianza").then(({ data }) => setEquipos((data as Equipo[] | null) ?? []));
   }, []);
 
+  // Si perdió o prestó un equipo: todos vuelven a pedir el código la próxima vez
+  async function olvidarEquipos() {
+    if (!(await confirmar({ titulo: "¿Olvidar todos los equipos de confianza?", texto: "Todos volverán a pedir el código la próxima vez que entres.", accion: "Olvidar todos", peligro: true }))) return;
+    setOcupado(true);
+    const { error } = await crearClienteNavegador().rpc("olvidar_equipos");
+    setOcupado(false);
+    if (error) { setError("No se pudo. Intenta de nuevo."); return; }
+    olvidarEquipoNavegador();
+    setEquipos([]);
+  }
+
   async function cambiarTelefono() {
-    if (!confirm("Se desactivará el teléfono actual y te pediremos escanear un código QR nuevo. ¿Continuar?")) return;
+    if (!(await confirmar({ titulo: "¿Cambiar de teléfono?", texto: "Se desactivará el teléfono actual y te pediremos escanear un código QR nuevo.", accion: "Cambiar de teléfono", peligro: true }))) return;
     setOcupado(true);
     setError(null);
     const supabase = crearClienteNavegador();
@@ -42,7 +59,8 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p className="text-muted-foreground">
-          Además de la contraseña, al entrar se pide un código de 6 dígitos de la app autenticadora de tu teléfono.
+          Además de la contraseña, se pide un código de 6 dígitos de la app autenticadora de tu teléfono. En un
+          equipo de confianza se pide solo cada cierto tiempo.
           {obligatoria && " Es obligatoria para administradores y gerentes médicos."}
         </p>
         {lista === null ? (
@@ -58,6 +76,15 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
           </div>
         ) : (
           <Button onClick={() => router.push("/login/dos-pasos")}>Activar ahora</Button>
+        )}
+        {equipos.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <p className="font-medium">Equipos de confianza (no piden el código)</p>
+            <ul className="space-y-1 text-muted-foreground">
+              {equipos.map((e) => <li key={e.id}>{e.nombre || "Equipo"} · hasta el {fecha(e.vence)}</li>)}
+            </ul>
+            <Button variant="outline" size="sm" disabled={ocupado} onClick={olvidarEquipos}>Olvidar todos</Button>
+          </div>
         )}
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{error}</p>}
       </CardContent>
