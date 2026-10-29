@@ -513,16 +513,18 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
     as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
     grant execute on function public.prueba_cabecera_ahora() to authenticated; notify pgrst, 'reload schema'`);
-  // PostgREST recarga el esquema con el aviso; tras una restauración en caliente su escucha puede tardar en volver
-  // (Windows: 404 PGRST202), así que se repite el aviso hasta que la función responda
+  // PostgREST lee el esquema al arrancar. En Windows su aviso «reload schema» no llega (en la PC no hace falta: las
+  // migraciones locales corren antes de lanzarlo), así que se relanza para que vea la función de prueba
+  motor.hijos.find((h) => h.spawnargs.some((a) => /postgrest/.test(a)))?.kill();
+  await new Promise((r) => setTimeout(r, 500));
+  await motor.relanzando;
   for (let i = 0; i < 40; i++) {
     const p = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { Authorization: `Bearer ${tokenMed}`, "Content-Type": "application/json" }, body: "{}" }).catch(() => null);
     if (p?.status === 200) break;
     if (i === 39) assert.fail(`PostgREST local no ve la función de prueba: ${p?.status} ${await p?.text().catch(() => "")}`);
-    if (i % 4 === 3) await enLocal("notify pgrst, 'reload schema'");
     await new Promise((r) => setTimeout(r, 500));
   }
-  await new Promise((r) => setTimeout(r, 1000)); // la puerta vuelve a mirar el catálogo
+  await new Promise((r) => setTimeout(r, 3000)); // la puerta vuelve a mirar el catálogo
   const est = (await pedir("/zamorapp/estado")).json;
   // Con ancla, un cambio guardado queda marcado con hora verificada
   const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
