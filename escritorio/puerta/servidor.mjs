@@ -628,7 +628,8 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
         await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
-        // Orden: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer()
+        await adjuntos.bajarPendientes(replica.usuarioSincronia()).catch((e) => registro(`[adjuntos] ${e.message}`));
+        // Orden: comprobar → bandeja.subir() → replica.ciclo() → adjuntos (subir y bajarPendientes) → cola.barrer() → bloques
         if (cola) await cola.barrer();
         if (bloques) await bloques.reponer();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
