@@ -507,7 +507,15 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
     as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
     grant execute on function public.prueba_cabecera_ahora() to authenticated; notify pgrst, 'reload schema'`);
-  await new Promise((r) => setTimeout(r, 3000)); // PostgREST recarga el esquema; la puerta vuelve a mirar el catálogo
+  // PostgREST recarga el esquema con el aviso; tras una restauración en caliente su escucha puede tardar en volver
+  // (Windows: 404 PGRST202), así que se repite el aviso hasta que la función responda
+  for (let i = 0; i < 40; i++) {
+    const p = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { Authorization: `Bearer ${tokenMed}`, "Content-Type": "application/json" }, body: "{}" }).catch(() => null);
+    if (p?.status === 200) break;
+    if (i % 4 === 3) await enLocal("notify pgrst, 'reload schema'");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  await new Promise((r) => setTimeout(r, 1000)); // la puerta vuelve a mirar el catálogo
   const est = (await pedir("/zamorapp/estado")).json;
   // Con ancla, un cambio guardado queda marcado con hora verificada
   const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
@@ -519,26 +527,29 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   assert.ok(Math.abs(Date.parse(est.hora) - Date.now()) < 60e3);
   // Windows se atrasa un mes: la hora de la app no cambia (manda la nube)
   const fecha = nubeObj.reloj.fecha;
-  nubeObj.reloj.fecha = () => Date.now() - 30 * 864e5;
-  nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: la lectura stable sale de la copia local
-  const r = await fetch(`${urlPuerta}/rest/v1/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenMed}`, "X-Zamorapp-Ahora": "1999-01-01T00:00:00.000Z" }, body: "{}" });
-  const textoR = await r.text();
-  assert.equal(r.status, 200, textoR);
-  const puesta = Date.parse(JSON.parse(textoR));
-  assert.ok(Math.abs(puesta - Date.now()) < 60e3, "la cabecera es la de la puerta, no la del navegador ni la de Windows");
-  // Reinicio sin internet (sin ancla): no va la cabecera, manda el piso y se avisa «hora sin verificar»
-  nubeObj.reloj.ancla = null;
-  const sin = (await pedir("/zamorapp/estado")).json;
-  assert.equal(sin.horaSinAncla, true);
-  assert.ok(Date.parse(sin.hora) >= puesta - 1000, "no retrocede aunque Windows esté un mes atrás");
-  const sinCab = await pedir("/rest/v1/rpc/prueba_cabecera_ahora", { metodo: "POST", token: tokenMed, cuerpo: {} });
-  assert.equal(sinCab.status, 200, JSON.stringify(sinCab.json));
-  assert.equal(sinCab.json, null, "sin ancla no se manda ninguna hora (ni la de Windows)");
-  const g2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000014" } });
-  assert.ok([200, 204].includes(g2.status));
-  const [hv2] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
-  assert.equal(hv2?.hora_verificada, false, "guardado sin ancla: hora no verificada");
-  nubeObj.reloj.fecha = fecha;
+  try {
+    nubeObj.reloj.fecha = () => Date.now() - 30 * 864e5;
+    nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: la lectura stable sale de la copia local
+    const r = await fetch(`${urlPuerta}/rest/v1/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenMed}`, "X-Zamorapp-Ahora": "1999-01-01T00:00:00.000Z" }, body: "{}" });
+    const textoR = await r.text();
+    assert.equal(r.status, 200, textoR);
+    const puesta = Date.parse(JSON.parse(textoR));
+    assert.ok(Math.abs(puesta - Date.now()) < 60e3, "la cabecera es la de la puerta, no la del navegador ni la de Windows");
+    // Reinicio sin internet (sin ancla): no va la cabecera, manda el piso y se avisa «hora sin verificar»
+    nubeObj.reloj.ancla = null;
+    const sin = (await pedir("/zamorapp/estado")).json;
+    assert.equal(sin.horaSinAncla, true);
+    assert.ok(Date.parse(sin.hora) >= puesta - 1000, "no retrocede aunque Windows esté un mes atrás");
+    const sinCab = await pedir("/rest/v1/rpc/prueba_cabecera_ahora", { metodo: "POST", token: tokenMed, cuerpo: {} });
+    assert.equal(sinCab.status, 200, JSON.stringify(sinCab.json));
+    assert.equal(sinCab.json, null, "sin ancla no se manda ninguna hora (ni la de Windows)");
+    const g2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000014" } });
+    assert.ok([200, 204].includes(g2.status));
+    const [hv2] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+    assert.equal(hv2?.hora_verificada, false, "guardado sin ancla: hora no verificada");
+  } finally {
+    nubeObj.reloj.fecha = fecha; // aunque falle, las pruebas siguientes tienen la fecha real
+  }
   nube.estado.caida = false; await nubeObj.comprobar();
   assert.equal((await pedir("/zamorapp/estado")).json.horaSinAncla, false, "al volver la nube se vuelve a anclar");
   await enLocal("drop function public.prueba_cabecera_ahora(); notify pgrst, 'reload schema'");
