@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
+import { supabaseConfigurado } from "@/lib/config";
 import { correoConfigurado, correoDisponible, enviarCorreo } from "@/lib/correo";
 import { archivoCola, CUBETA_COLA } from "@/lib/envios-cola";
 import {
@@ -51,6 +52,7 @@ type FilaConsulta = {
 };
 
 export async function consultasDelDia(empresaId: string, fecha: string): Promise<ConsultaLote[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const [{ data }, { data: envios }] = await Promise.all([
     supabase
@@ -79,6 +81,7 @@ export async function consultasDelDia(empresaId: string, fecha: string): Promise
 }
 
 export async function listarContactos(empresaId: string): Promise<Contacto[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("empresa_contactos")
@@ -91,6 +94,7 @@ export async function listarContactos(empresaId: string): Promise<Contacto[]> {
 }
 
 export async function historialEnvios(empresaId: string, limite = 40): Promise<EnvioHistorial[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("envios")
@@ -130,6 +134,7 @@ export type FiltrosBitacora = { empresaId?: string; estado?: string; canal?: str
 
 // Bitácora de todas las empresas: qué salió, a quién, quién lo envió y qué falló (y si ya se reintentó)
 export async function bitacora(f: FiltrosBitacora, limite = 300): Promise<FilaBitacora[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("envios")
@@ -168,6 +173,7 @@ export async function bitacora(f: FiltrosBitacora, limite = 300): Promise<FilaBi
 }
 
 export async function listarPlantillas(): Promise<Plantilla[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("plantillas_correo")
@@ -566,6 +572,7 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
 
 // Correos fallidos o sin confirmar de los últimos 30 días que aún no se reintentaron (número en la pestaña Bitácora)
 export async function contarPendientes(): Promise<number> {
+  if (!supabaseConfigurado) return 0; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const { data } = await supabase.from("envios").select("id, estado, creado_en").eq("canal", "correo").in("estado", ["fallido", "enviando"]).gte("creado_en", desde).limit(200);
@@ -579,6 +586,7 @@ export async function contarPendientes(): Promise<number> {
 // Bandeja «Por enviar»: lo firmado con constancia de aptitud en los últimos días que aún no salió a la empresa
 // (ni por correo ni por enlace). Se llena sola al firmar y se vacía al enviar.
 export async function porEnviar(dias = 14): Promise<GrupoPorEnviar[]> {
+  if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
   const desde = new Date(Date.now() - dias * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
   const [{ data: consultas }, { data: envios }] = await Promise.all([
