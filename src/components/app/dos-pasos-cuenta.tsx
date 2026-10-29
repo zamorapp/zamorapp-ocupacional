@@ -59,8 +59,8 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p className="text-muted-foreground">
-          Además de la contraseña, se pide un código de 6 dígitos de la app autenticadora de tu teléfono. Entrar con
-          huella no lo pide, y en un equipo de confianza se pide solo cada cierto tiempo.
+          Además de la contraseña, se pide un código de 6 dígitos de la app autenticadora de tu teléfono. En un
+          equipo de confianza se pide solo cada cierto tiempo.
           {obligatoria && " Es obligatoria para administradores y gerentes médicos."}
         </p>
         {lista === null ? (

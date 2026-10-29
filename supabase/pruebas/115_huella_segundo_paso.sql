@@ -1,15 +1,21 @@
--- Segundo paso: la huella (llave de acceso) cuenta; el equipo de confianza solo con su token exacto y vigente.
+-- Segundo paso: una llave de acceso sola no lo salta; el equipo de confianza sí, con su token exacto y vigente.
 \pset tuples_only on
 reset role;
 set role authenticated;
 select set_config('request.path','/clinico/consultas',false) \g /dev/null
 select set_config('request.headers','{}',false) \g /dev/null
+-- Hueco que señaló Analizar: con solo la clave se registra una llave propia; entrar con ella NO salta el código
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1","amr":[{"method":"passkey","timestamp":1}]}',false) \g /dev/null
-select 'admin que entró con huella pasa (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select 'admin que entró con una llave sin código no pasa (debe 0): ' || public.dos_pasos_cumplido()::int;
+do $$ begin
+  perform public.verificar_dos_pasos();
+  raise notice 'admin con llave y sin código abre datos: FALLA';
+exception when others then
+  if sqlstate = 'PGRST' then raise notice 'admin con llave y sin código queda frenado (ok)';
+  else raise notice 'error inesperado %: FALLA', sqlerrm; end if;
+end $$;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1","amr":[{"method":"webauthn","timestamp":1}]}',false) \g /dev/null
-select 'admin con webauthn pasa (debe 1): ' || public.dos_pasos_cumplido()::int;
-select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1","amr":"passkey"}',false) \g /dev/null
-select 'amr mal formado no abre (debe 0): ' || public.dos_pasos_cumplido()::int;
+select 'tampoco con webauthn (debe 0): ' || public.dos_pasos_cumplido()::int;
 
 -- Equipo de confianza
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal1","amr":[{"method":"password","timestamp":1}]}',false) \g /dev/null

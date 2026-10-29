@@ -1,9 +1,9 @@
 -- Segundo paso sin pedir el código en cada entrada (decisión de Cesar, 28-oct): el código queda de respaldo
 -- (si falla la huella) y para revalidar cada cierto tiempo.
--- 1. Entrar con huella (llave de acceso) cuenta como segundo paso, como Windows Hello en el escritorio. La llave vive
---    en el equipo y se desbloquea con la huella, el rostro o el PIN: ya son dos factores. Supabase deja esas
---    sesiones en aal1, pero anota el método en "amr".
--- 2. Equipo de confianza: tras escribir el código, el navegador recibe un token al azar que la base guarda solo como
+-- La huella web (llave de acceso) NO cuenta sola como segundo paso: con solo la clave se podría registrar una llave
+-- propia y saltarse el código para siempre (revisión de Analizar). Lo que evita repetir el código es el equipo de
+-- confianza, que solo se obtiene con el código ya escrito (aal2).
+-- Equipo de confianza: tras escribir el código, el navegador recibe un token al azar que la base guarda solo como
 --    hash (sha256). Con ese token en la cabecera x-zamorapp-equipo, una sesión aal1 de esa persona cuenta como
 --    verificada hasta que venza (días configurables por la organización, 30 por defecto; 0 = pedir siempre).
 --    No se puede falsificar: sin el token exacto no hay hash que coincida, y sirve solo a su dueño.
@@ -89,10 +89,6 @@ declare
   c jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
 begin
   if c is null or c ->> 'aal' is distinct from 'aal1' or c ->> 'role' is distinct from 'authenticated' then
-    return true;
-  end if;
-  if exists (select 1 from jsonb_array_elements(case when jsonb_typeof(c -> 'amr') = 'array' then c -> 'amr' else '[]'::jsonb end) m
-             where m ->> 'method' in ('passkey', 'webauthn')) then
     return true;
   end if;
   if not coalesce((select valor from public.ajustes_seguridad where clave = 'dos_pasos_en_base'), false) then

@@ -76,6 +76,9 @@ export async function activarHuella(supabase: SupabaseClient): Promise<Resultado
     const v = await pedirAVentana("activar", cuerpo.codigo);
     return v.ok ? { ok: true } : v;
   }
+  // Sin el segundo paso no se registran llaves (la oferta ya sale después del código; esto cubre «Mi perfil»)
+  const { data: falta } = await supabase.rpc("falta_segundo_paso");
+  if (falta === true) return { ok: false, mensaje: "Primero escribe el código de verificación en dos pasos; después activa la huella." };
   const { error } = await supabase.auth.registerPasskey();
   if (error) return { ok: false, mensaje: mensajeError(error) };
   escribir(MARCA, "1");
