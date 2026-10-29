@@ -138,7 +138,7 @@ async function Respaldo({ sesion }: { sesion: Sesion }) {
   // Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no
   return (
         <Link
-          href="/ayuda#respaldo"
+          href="/configuracion/respaldo"
           className={cn(
             "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm transition hover:border-primary/50",
             respaldo.estado === "ok" && "bg-card",

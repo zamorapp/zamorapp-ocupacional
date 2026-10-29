@@ -19,6 +19,7 @@ import { BarraLateral } from "./barra-lateral";
 import { abrirBuscador } from "./buscador-global";
 import { SelectorTema } from "./selector-tema";
 import { InstalarApp } from "./instalar-app";
+import { IndicadorSincronia } from "./indicador-sincronia";
 import { Notificaciones } from "./notificaciones";
 import { HuellaCuenta } from "./huella";
 import { elegirEmpresa, salir } from "./acciones";
@@ -97,6 +98,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
       </Button>
 
       <InstalarApp />
+      <IndicadorSincronia />
       <Notificaciones />
 
       <DropdownMenu>

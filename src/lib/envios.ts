@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { correoConfigurado, enviarCorreo } from "@/lib/correo";
+import { correoConfigurado, correoDisponible, enviarCorreo } from "@/lib/correo";
+import { archivoCola, CUBETA_COLA } from "@/lib/envios-cola";
 import {
   ASUNTO_ENVIO,
   ASUNTO_INFORME,
@@ -137,7 +138,7 @@ export async function bitacora(f: FiltrosBitacora, limite = 300): Promise<FilaBi
     .limit(limite);
   if (f.empresaId) q = q.eq("empresa_id", f.empresaId);
   if (f.canal === "correo" || f.canal === "whatsapp") q = q.eq("canal", f.canal);
-  if (f.estado === "fallido" || f.estado === "enviado" || f.estado === "enlace" || f.estado === "enviando") q = q.eq("estado", f.estado);
+  if (["fallido", "enviado", "enlace", "enviando", "en_cola"].includes(f.estado ?? "")) q = q.eq("estado", f.estado!);
   if (f.estado === "pendiente") q = q.in("estado", ["fallido", "enviando"]);
   if (f.desde) q = q.gte("creado_en", `${f.desde}T00:00:00-04:00`);
   if (f.hasta) q = q.lte("creado_en", `${f.hasta}T23:59:59-04:00`);
@@ -193,8 +194,9 @@ type Detalle = NonNullable<ResultadoEnvio["detalle"]>[number];
 
 // Un correo: primero se registra (la base valida firma, empresa y destinatario autorizado); si lo rechaza, el correo no sale.
 // Después se cierra el registro como enviado o fallido.
-async function correoRegistrado(supabase: Cliente, fila: Record<string, unknown>, adjuntos: Adjunto[], remitente: string): Promise<Detalle> {
+async function correoRegistrado(supabase: Cliente, fila: Record<string, unknown>, adjuntos: Adjunto[], remitente: string, cola: Cola): Promise<Detalle> {
   const destinatario = String(fila.destinatario);
+  if (!correoConfigurado()) return correoEnCola(supabase, fila, adjuntos, cola);
   const { data: registro, error: errReg } = await supabase.from("envios").insert({ ...fila, estado: "enviando" }).select("id").single();
   if (errReg || !registro) return { destinatario, estado: "fallido", error: `No se envió: ${errReg?.message ?? "sin registro"}` };
   let estado: "enviado" | "fallido" = "enviado";
@@ -208,6 +210,44 @@ async function correoRegistrado(supabase: Cliente, fila: Record<string, unknown>
   const { error: errCierre } = await supabase.from("envios").update({ estado, error: error ?? null }).eq("id", registro.id);
   return { destinatario, estado, error: error ?? (errCierre ? `Enviado; el registro quedó «sin confirmar»: ${errCierre.message}` : undefined) };
 }
+
+// Escritorio: la clave de Gmail vive solo en Vercel, así que el correo no sale de la PC. Se registra «en_cola», su PDF
+// (armado aquí, desde la copia local) queda en el bucket privado y la puerta local le pide a la web que lo envíe con la
+// sesión de nube de quien lo registró. Sin internet queda en cola en la PC y sale solo al volver (plan local primero, 5.e).
+type Cola = { id: string; d: Detalle }[];
+async function correoEnCola(supabase: Cliente, fila: Record<string, unknown>, adjuntos: Adjunto[], cola: Cola): Promise<Detalle> {
+  const destinatario = String(fila.destinatario);
+  const { data: registro, error: errReg } = await supabase.from("envios").insert({ ...fila, estado: "en_cola" }).select("id, enviado_por").single();
+  if (errReg || !registro) return { destinatario, estado: "fallido", error: `No se envió: ${errReg?.message ?? "sin registro"}` };
+  for (const [i, a] of adjuntos.entries()) {
+    const { error } = await supabase.storage.from(CUBETA_COLA).upload(`${registro.enviado_por}/${registro.id}/${archivoCola(i, a.nombre)}`, a.contenido, { contentType: "application/pdf" });
+    if (error) {
+      const motivo = `No se guardó el PDF para enviarlo: ${error.message}`.slice(0, 300);
+      await supabase.from("envios").update({ estado: "fallido", error: motivo }).eq("id", registro.id);
+      return { destinatario, estado: "fallido", error: motivo };
+    }
+  }
+  const d: Detalle = { destinatario, estado: "en_cola" };
+  cola.push({ id: registro.id, d });
+  return d;
+}
+
+// Le pide a la puerta local que la web envíe ya lo que quedó en cola; lo que no salga ahora sale en la próxima sincronía
+async function despacharCola(supabase: Cliente, cola: Cola) {
+  if (!cola.length) return;
+  const { data } = await supabase.auth.getSession();
+  const r = (await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/zamorapp/enviar-cola`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: cola.map((c) => c.id) }),
+    signal: AbortSignal.timeout(120_000),
+  }).then((x) => x.json()).catch(() => null)) as { resultados?: { id: string; estado: Detalle["estado"]; error?: string }[] } | null;
+  for (const c of cola) {
+    const x = r?.resultados?.find((y) => y.id === c.id);
+    if (x && x.estado !== "en_cola") Object.assign(c.d, { estado: x.estado, error: x.error });
+  }
+}
+const textoCola = (n: number) => (n ? `${n} en cola: sale${n === 1 ? "" : "n"} solo al volver el internet` : null);
 
 // Un PDF por grupo: lo que puede leer cualquiera de la empresa (constancias) y lo clínico (solo personal de salud)
 const PUBLICOS = ["constancia", "atencion"];
@@ -244,7 +284,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   const ids = [...new Set(e.consultaIds)];
   if (!ids.length) return { ok: false, mensaje: "Marca al menos una evaluación." };
   if (ids.length > MAX_LOTE) return { ok: false, mensaje: `Máximo ${MAX_LOTE} evaluaciones por envío.` };
-  if (e.canal === "correo" && !correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+  if (e.canal === "correo" && !correoDisponible()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
 
   const supabase = await crearClienteServidor();
   const [{ data: empresa }, { data: consultas }, contactos] = await Promise.all([
@@ -307,6 +347,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
   const cuando = ahoraVE();
   const marcas = (cantidad: number) => ({ fechaHora: cuando, empresa: nombreEmpresa, fecha: fechaVE(e.fecha), cantidad });
   const detalle: NonNullable<ResultadoEnvio["detalle"]> = [];
+  const cola: Cola = [];
   const enlaces: NonNullable<ResultadoEnvio["enlaces"]> = [];
 
   for (const d of destinos) {
@@ -332,7 +373,7 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
     };
 
     if (e.canal === "correo") {
-      detalle.push(await correoRegistrado(supabase, fila, [constancias, d.consulta ? consultaPdf : null].filter((a) => a !== null), `${sesion.nombre} · ${sesion.organizacion}`));
+      detalle.push(await correoRegistrado(supabase, fila, [constancias, d.consulta ? consultaPdf : null].filter((a) => a !== null), `${sesion.nombre} · ${sesion.organizacion}`, cola));
       continue;
     }
 
@@ -342,14 +383,17 @@ export async function enviarLote(e: EntradaEnvio): Promise<ResultadoEnvio> {
     if (r.enlace) enlaces.push(r.enlace);
   }
 
-  const enviados = detalle.filter((x) => x.estado !== "fallido").length;
-  const fallidos = detalle.length - enviados;
+  await despacharCola(supabase, cola);
+  const enviados = detalle.filter((x) => x.estado === "enviado" || x.estado === "enlace").length;
+  const enCola = detalle.filter((x) => x.estado === "en_cola").length;
+  const fallidos = detalle.length - enviados - enCola;
   const partes = [
-    e.canal === "correo" ? `${enviados} correo${enviados === 1 ? "" : "s"} enviado${enviados === 1 ? "" : "s"}` : `${enviados} enlace${enviados === 1 ? "" : "s"} listo${enviados === 1 ? "" : "s"} para WhatsApp`,
+    e.canal === "correo" ? (enviados || !enCola ? `${enviados} correo${enviados === 1 ? "" : "s"} enviado${enviados === 1 ? "" : "s"}` : null) : `${enviados} enlace${enviados === 1 ? "" : "s"} listo${enviados === 1 ? "" : "s"} para WhatsApp`,
+    textoCola(enCola),
     fallidos ? `${fallidos} con error` : null,
     fuera ? `${fuera} evaluación${fuera === 1 ? "" : "es"} sin firmar quedó fuera` : null,
   ].filter(Boolean);
-  return { ok: enviados > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
+  return { ok: enviados + enCola > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
 }
 
 // La página del informe, siempre de esa empresa (la base lo vuelve a exigir al registrar el envío)
@@ -372,7 +416,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   if (!sesion.clinico && sesion.rol !== "administrador") return { ok: false, mensaje: "Solo el servicio médico envía informes a la empresa." };
   if (!rutaInformeValida(e.documento, e.ruta, e.empresaId)) return { ok: false, mensaje: "Ese informe no es de esta empresa." };
   const ruta = rutaParaEmpresa(e.documento, e.ruta);
-  if (e.canal === "correo" && !correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+  if (e.canal === "correo" && !correoDisponible()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
 
   const supabase = await crearClienteServidor();
   const [{ data: empresa }, contactos] = await Promise.all([
@@ -409,6 +453,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   const mensaje = rellenar(e.mensaje.trim() || MENSAJE_INFORME, valores);
   const asunto = rellenar(e.asunto.trim() || ASUNTO_INFORME, { ...valores, documento }).slice(0, 200);
   const detalle: Detalle[] = [];
+  const cola: Cola = [];
   const enlaces: NonNullable<ResultadoEnvio["enlaces"]> = [];
   for (const d of destinos) {
     const fila = {
@@ -416,20 +461,23 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
       consultas: [], documentos: [e.documento], ruta, asunto, mensaje,
     };
     if (e.canal === "correo") {
-      detalle.push(await correoRegistrado(supabase, fila, [archivo], `${sesion.nombre} · ${sesion.organizacion}`));
+      detalle.push(await correoRegistrado(supabase, fila, [archivo], `${sesion.nombre} · ${sesion.organizacion}`, cola));
       continue;
     }
     const r = await enlaceRegistrado(supabase, sesion.orgId, fila, archivo, d.contacto?.nombre ?? `+${d.destino}`, `${mensaje}\n\n${documento} (enlace válido 7 días):`);
     detalle.push(r.detalle);
     if (r.enlace) enlaces.push(r.enlace);
   }
-  const bien = detalle.filter((x) => x.estado !== "fallido").length;
-  const mal = detalle.length - bien;
+  await despacharCola(supabase, cola);
+  const bien = detalle.filter((x) => x.estado === "enviado" || x.estado === "enlace").length;
+  const enCola = detalle.filter((x) => x.estado === "en_cola").length;
+  const mal = detalle.length - bien - enCola;
   const partes = [
-    e.canal === "correo" ? `${bien} correo${bien === 1 ? "" : "s"} enviado${bien === 1 ? "" : "s"}` : `${bien} enlace${bien === 1 ? "" : "s"} listo${bien === 1 ? "" : "s"} para WhatsApp`,
+    e.canal === "correo" ? (bien || !enCola ? `${bien} correo${bien === 1 ? "" : "s"} enviado${bien === 1 ? "" : "s"}` : null) : `${bien} enlace${bien === 1 ? "" : "s"} listo${bien === 1 ? "" : "s"} para WhatsApp`,
+    textoCola(enCola),
     mal ? `${mal} con error` : null,
   ].filter(Boolean);
-  return { ok: bien > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
+  return { ok: bien + enCola > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
 }
 
 export async function revocarEnlace(envioId: string) {
@@ -446,7 +494,7 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
   if (!sesion.clinico) return { ok: false, mensaje: "Solo el personal de salud reenvía documentos a la empresa." };
-  if (!correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+  if (!correoDisponible()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
   const lista = [...new Set(ids)].slice(0, MAX_REINTENTOS);
   if (!lista.length) return { ok: false, mensaje: "No hay envíos para reintentar." };
   const supabase = await crearClienteServidor();
@@ -471,6 +519,7 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
   // Un PDF por lote y documento, compartido entre los reintentos que llevan las mismas consultas
   const pdfs = new Map<string, Buffer>();
   const detalle: Detalle[] = [];
+  const cola: Cola = [];
   for (const o of originales) {
     const empresa = o.empresas ? o.empresas.nombre_comercial || o.empresas.razon_social : "Empresa";
     const adjuntos: Adjunto[] = [];
@@ -499,17 +548,20 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
       mensaje: o.mensaje,
       reintento_de: o.id,
     };
-    detalle.push(await correoRegistrado(supabase, fila, adjuntos, `${sesion.nombre} · ${sesion.organizacion}`));
+    detalle.push(await correoRegistrado(supabase, fila, adjuntos, `${sesion.nombre} · ${sesion.organizacion}`, cola));
   }
+  await despacharCola(supabase, cola);
   const bien = detalle.filter((d) => d.estado === "enviado").length;
-  const mal = detalle.length - bien;
+  const enCola = detalle.filter((d) => d.estado === "en_cola").length;
+  const mal = detalle.length - bien - enCola;
   const resto = [...new Set(ids)].length - lista.length;
   const partes = [
-    `${bien} correo${bien === 1 ? "" : "s"} reenviado${bien === 1 ? "" : "s"}`,
+    bien || !enCola ? `${bien} correo${bien === 1 ? "" : "s"} reenviado${bien === 1 ? "" : "s"}` : null,
+    textoCola(enCola),
     mal ? `${mal} volvió a fallar` : null,
     resto > 0 ? `quedan ${resto}: vuelve a tocar «Reintentar»` : null,
   ].filter(Boolean);
-  return { ok: bien > 0, mensaje: partes.join(" · ") + ".", detalle };
+  return { ok: bien + enCola > 0, mensaje: partes.join(" · ") + ".", detalle };
 }
 
 // Correos fallidos o sin confirmar de los últimos 30 días que aún no se reintentaron (número en la pestaña Bitácora)

@@ -11,15 +11,15 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
   const codigos = new Map(); // código → { uid, tipo, vence }; solo en memoria
 
   const nuevoCodigo = (uid, tipo, segundos) => {
-    for (const [c, v] of codigos) if (v.vence < Date.now()) codigos.delete(c);
+    for (const [c, v] of codigos) if (v.vence < performance.now()) codigos.delete(c);
     const codigo = crypto.randomBytes(32).toString("base64url");
-    codigos.set(codigo, { uid, tipo, vence: Date.now() + segundos * 1000 });
+    codigos.set(codigo, { uid, tipo, vence: performance.now() + segundos * 1000 }); // monótono: la fecha de Windows no cuenta
     return codigo;
   };
   const canjear = (codigo, tipo) => {
     const v = codigos.get(String(codigo || ""));
     codigos.delete(String(codigo || ""));
-    return v && v.tipo === tipo && v.vence >= Date.now() ? v.uid : null;
+    return v && v.tipo === tipo && v.vence >= performance.now() ? v.uid : null;
   };
 
   const deControl = (req) => {
@@ -44,7 +44,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (rol === null) { nube.exigirNube(uid, true); return "Tu acceso fue desactivado. Habla con el administrador."; }
       return null;
     }
-    if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (nube.reloj.sinConexionVencida(u.ultimoOnline, CONFIG.diasSinConexion, CONFIG.arranquesSinConexion)) {
       return `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet y entra con tu contraseña.`;
     }
     return null;

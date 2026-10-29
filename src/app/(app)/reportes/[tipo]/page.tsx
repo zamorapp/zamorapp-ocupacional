@@ -15,7 +15,7 @@ import { TablaReporte } from "./tabla";
 import { LoteAptitud } from "./lote-aptitud";
 import { estadosDeLote } from "@/lib/lote-aptitud";
 import { hoyCaracas } from "@/lib/fecha";
-import { correoConfigurado, remitente } from "@/lib/correo";
+import { remitenteVisible } from "@/lib/correo";
 import { listarContactos, listarPlantillas } from "@/lib/envios";
 
 export const dynamic = "force-dynamic";
@@ -123,7 +123,7 @@ export default async function ReporteSame({ params, searchParams }: Props) {
           empresa={{ id: empresa.id, nombre: empresa.razonSocial }}
           usuarioId={l.sesion.usuarioId}
           puedeFirmar={l.sesion.clinico && l.sesion.rol !== "enfermeria"}
-          envio={l.sesion.clinico ? { fecha: hoyCaracas(), contactos, plantillas, correo: correoConfigurado() ? remitente() : null, puedeAutorizar: l.sesion.rol === "administrador" || l.sesion.rol === "gerente_medico" } : null}
+          envio={l.sesion.clinico ? { fecha: hoyCaracas(), contactos, plantillas, correo: remitenteVisible(), puedeAutorizar: l.sesion.rol === "administrador" || l.sesion.rol === "gerente_medico" } : null}
         />
       ) : l.pivote ? <TablaPivote p={l.pivote} /> : <TablaReporte columnas={l.columnas} filas={l.filas} totales={l.totales} />}
       {def.nota && <p className="text-xs text-muted-foreground">{def.nota}</p>}

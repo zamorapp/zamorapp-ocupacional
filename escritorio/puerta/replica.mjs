@@ -12,6 +12,8 @@ export class Replica {
     Object.assign(this, { estado, nube, motor, registro });
     this.ocupada = false;
     this.ultima = null;
+    this.ultimaMs = null; // cuándo terminó bien el último ciclo, con performance.now(): Cesar cambia la fecha de Windows
+    this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (performance.now()): una escritura anterior ya bajó
     this.error = null;
   }
 
@@ -37,7 +39,10 @@ export class Replica {
     const uid = this.usuarioSincronia();
     if (!uid) return;
     this.ocupada = true;
+    const inicio = performance.now();
     const c = new pg.Client({ connectionString: this.motor.url() });
+    // Una conexión cortada por fuera (restauración, base detenida) no tumba la puerta: se anota y el ciclo falla solo
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
     try {
       await c.connect();
       await c.query("set session_replication_role = replica");
@@ -45,6 +50,8 @@ export class Replica {
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
       this.ultima = new Date().toISOString();
+      this.ultimaMs = performance.now();
+      this.inicioCiclo = inicio;
       this.error = null;
     } catch (e) {
       this.error = e.message;
@@ -140,6 +147,30 @@ export class Replica {
 
   async #tablasSync(c) {
     return (await c.query("select nombre from sync.tablas order by nombre")).rows.map((r) => r.nombre);
+  }
+
+  // Vuelve a bajar UNA fila tal como está en la nube (tras un conflicto o rechazo de la bandeja), con los
+  // disparadores apagados para que no vuelva a la bandeja. Si en la nube no existe (o no hay acceso), se quita
+  // de la copia: lo que escribió el equipo queda guardado en la bandeja, en «Conflictos/Rechazados».
+  async reponerFila(uid, tabla, id) {
+    tabla = this.#seguro(tabla);
+    const [esquema, nombre] = tabla.split(".");
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
+    try {
+      await c.connect();
+      // Se piden las columnas que la copia tiene y el rol puede leer (sin «*»: una columna de salud oculta a un rol
+      // haría fallar el pedido entero y la fila no se repondría)
+      const { rows: cols } = await c.query(
+        `select column_name from information_schema.columns where table_schema = $1 and table_name = $2 and is_generated = 'NEVER'
+            and has_column_privilege('authenticated', ($1 || '.' || $2)::regclass, column_name::text, 'SELECT') order by ordinal_position`, [esquema, nombre]);
+      const select = cols.map((x) => x.column_name).join(",") || "*";
+      const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
+      await c.query("set session_replication_role = replica");
+      if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
+      else await c.query(`delete from ${tabla} where id = $1`, [id]);
+      return Array.isArray(filas) ? filas.length : 0;
+    } finally { await c.end().catch(() => {}); }
   }
 
   async #tieneId(c, tabla) {
