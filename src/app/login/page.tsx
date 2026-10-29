@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { CheckCircle2, ShieldCheck, Stethoscope, Timer } from "lucide-react";
+import { Suspense } from "react";
+import { ShieldCheck, Stethoscope, Timer } from "lucide-react";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
+import { AvisoConfirmado } from "./aviso-confirmado";
 import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -11,8 +13,7 @@ const PUNTOS = [
   { icono: ShieldCheck, texto: "La historia clínica solo la ve el personal de salud" },
 ];
 
-export default async function PaginaLogin({ searchParams }: { searchParams: Promise<{ confirmado?: string }> }) {
-  const { confirmado } = await searchParams;
+export default function PaginaLogin() {
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
       <section className="relative hidden overflow-hidden bg-gradient-to-br from-teal-700 via-teal-800 to-cyan-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -46,7 +47,7 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
             <h2 className="text-2xl font-semibold tracking-tight">Bienvenido</h2>
             <p className="text-muted-foreground">Ingresa con tu usuario o tu correo.</p>
           </div>
-          {confirmado && <p role="status" className="flex gap-2 rounded-md bg-ok/15 px-3 py-2 text-sm text-ok-texto"><CheckCircle2 className="mt-0.5 size-4 shrink-0" /> Si ya confirmaste tu correo (o abriste el enlace en otro equipo o navegador), ingresa con tu correo y contraseña.</p>}
+          <Suspense fallback={null}><AvisoConfirmado /></Suspense>
           <FormularioLogin modoDemo={!supabaseConfigurado} />
         </div>
       </section>

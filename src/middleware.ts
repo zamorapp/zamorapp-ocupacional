@@ -40,6 +40,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/e/")) return respuesta;
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return respuesta;
+  // Regreso del correo de confirmación: canjea el código y sigue a «siguiente» (con o sin sesión; la ruta valida el destino)
+  if (request.nextUrl.pathname.startsWith("/login/confirmar")) return respuesta;
 
   // En el programa de escritorio las redirecciones conservan el host con el que llegó la petición (solo
   // 127.0.0.1:54332 o localhost:54332): Next armaba request.url con "localhost", la ventana pasaba de

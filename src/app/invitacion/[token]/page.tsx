@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, CalendarClock, CheckCircle2, FileCheck2, ShieldCheck } from "lucide-react";
+import { Building2, CalendarClock, Info, FileCheck2, ShieldCheck } from "lucide-react";
 import { FormularioLogin } from "@/app/login/formulario-login";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
@@ -59,7 +59,7 @@ export default async function Invitacion({ params, searchParams }: { params: Pro
             ) : (
               <div className="space-y-3 border-t pt-5">
                 {confirmado ? (
-                  <p role="status" className="flex gap-2 rounded-md bg-ok/15 px-3 py-2 text-sm text-ok-texto"><CheckCircle2 className="mt-0.5 size-4 shrink-0" /> Si ya confirmaste tu correo (o abriste el enlace en otro equipo o navegador), ingresa con tu correo y contraseña para aceptar la invitación.</p>
+                  <p role="status" className="flex gap-2 rounded-md bg-info/10 px-3 py-2 text-sm text-info-texto"><Info className="mt-0.5 size-4 shrink-0" /> Si ya confirmaste tu correo (o abriste el enlace en otro equipo o navegador), ingresa con tu correo y contraseña para aceptar la invitación.</p>
                 ) : (
                   <p className="text-sm font-medium">Crea tu cuenta para entrar (o ingresa si ya tienes una)</p>
                 )}
