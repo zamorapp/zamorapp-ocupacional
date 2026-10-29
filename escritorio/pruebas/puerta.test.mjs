@@ -136,6 +136,22 @@ test("con internet y la copia al día: las lecturas salen de la copia local, sin
   assert.ok(!nube.estado.rest.includes("/rest/v1/rpc/trabajadores_por_empresa"));
 });
 
+test("lo que la copia no trae se lee de la nube aunque la copia esté al día (accesos, embebidos)", { skip: omitir }, async () => {
+  nube.estado.rest = [];
+  const a = await pedir("/rest/v1/accesos?select=id&limit=1", { token: tokenAdmin });
+  assert.notEqual(a.status, 404);
+  assert.ok(nube.estado.rest.includes("/rest/v1/accesos"), "accesos no está en la copia: va a la nube");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,accesos(id)&limit=1", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "un embebido que la copia no trae manda toda la lectura a la nube");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,empresa:empresas(nombre)&limit=1", { token: tokenAdmin });
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "con todo en la copia, sigue en local");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/ultima_aptitud?select=trabajador_id&limit=1", { token: tokenAdmin });
+  assert.ok(!nube.estado.rest.includes("/rest/v1/ultima_aptitud"), "una vista sobre tablas de la copia se lee en local");
+});
+
 test("tras guardar en la nube se lee de la nube hasta que el cambio baja; luego otra vez de la copia", { skip: omitir }, async () => {
   nube.estado.rest = [];
   // Una escritura (aunque la nube la rechace por datos incompletos) va a la nube y marca «hay cambios por bajar»

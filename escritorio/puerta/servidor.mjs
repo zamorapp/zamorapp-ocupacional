@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
-import { CONFIG, RPC_LECTURA } from "./config.mjs";
+import { CATALOGOS, CONFIG, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
@@ -51,6 +51,46 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   // lee la copia (con internet va a la nube, que responde 403 «dos_pasos»; sin internet se rechaza igual, Hello da aal2)
   const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso"];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
+  // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
+  // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía
+  // por leer en local (hallazgo de Reportes: medicos_historicos, informes_vigilancia, envíos).
+  let enCopia = { nombres: new Set(), en: 0 };
+  async function nombresEnCopia() {
+    if (Date.now() - enCopia.en < 300e3) return enCopia.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query(`
+        with recursive base as (
+          select nombre from sync.tablas union select unnest($1::text[])
+        ), vistas as (
+          select v.view_schema || '.' || v.view_name as vista, bool_and(t.nombre is not null) as completa
+            from information_schema.view_table_usage v
+            left join base t on t.nombre = v.table_schema || '.' || v.table_name
+           where v.view_schema in ('public', 'clinico') group by 1
+        )
+        select nombre from base union select vista from vistas where completa`, [CATALOGOS]);
+      enCopia = { nombres: new Set(rows.map((f) => f.nombre)), en: Date.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué tablas trae la copia: ${e.message}`);
+      enCopia.en = Date.now() - 240e3;
+    } finally { await c.end().catch(() => {}); }
+    return enCopia.nombres;
+  }
+  // true si la tabla o vista pedida y todo lo embebido en select= están en la copia (las funciones se confían)
+  async function lecturaEnCopia(req) {
+    const u = new URL(req.url, "http://x");
+    const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(u.pathname);
+    if (!m || m[1]) return true;
+    const perfil = String(req.headers["accept-profile"] || "public");
+    const nombres = await nombresEnCopia();
+    if (!nombres.has(`${perfil}.${m[2]}`)) return false;
+    // select=a,empresa:empresas(nombre),consultas!inner(...) → empresas, consultas
+    for (const e of (u.searchParams.get("select") || "").matchAll(/(?:^|[,(])\s*(?:[a-z_0-9]+:)?([a-z_0-9]+)(?:!inner|!left|![a-z_0-9]+)?\s*\(/g)) {
+      if (!nombres.has(`${perfil}.${e[1]}`)) return false;
+    }
+    return true;
+  }
   const anotarModo = (modo, motivo) => {
     if (modo === modoLectura) return;
     modoLectura = modo;
@@ -539,7 +579,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
         const enLinea = await nube.confirmar();
-        if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia()) {
+        if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia() && await lecturaEnCopia(req)) {
           anotarModo("local", `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
           return await aLaCopia(req, res, crudo);
         }
