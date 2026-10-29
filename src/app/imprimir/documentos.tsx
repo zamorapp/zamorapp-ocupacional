@@ -258,12 +258,14 @@ function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: strin
   return (
     <div className="flex flex-col rounded-lg border border-doc-linea p-4">
       <div className="mb-2 border-b border-doc-linea pb-2 text-[10.5px]">
-        <div className="flex items-start justify-between gap-2">
-          <div className="text-[13px] font-extrabold uppercase text-doc-acento">{d.org.nombre}</div>
+        <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {d.org.logo && <img src={d.org.logo} alt="" className="h-8 max-w-20 object-contain" />}
+          {d.org.logo && <img src={d.org.logo} alt="" className="h-10 max-w-24 shrink-0 object-contain" />}
+          <div className="min-w-0">
+            <div className="text-[13px] font-extrabold uppercase text-doc-acento">{d.org.nombre}</div>
+            <div className="text-doc-tenue">{d.org.direccion} · RIF {d.org.rif}</div>
+          </div>
         </div>
-        <div className="text-doc-tenue">{d.org.direccion} · RIF {d.org.rif}</div>
         <div className="mt-1 font-semibold">{m?.nombre_completo} · C.I. {m?.cedula} · MPPS {m?.mpps}</div>
       </div>
       <div className="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">{titulo}</div>
