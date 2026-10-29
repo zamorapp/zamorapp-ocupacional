@@ -363,7 +363,7 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
               </button>
             </div>
             <p id="clave-ayuda" className={cn("text-xs", corta ? "text-alerta-texto" : "text-muted-foreground")}>
-              {corta ? `Faltan ${minimo - clave.length} caracteres (mínimo ${minimo}).` : <>Usa una frase fácil de recordar, por ejemplo: <em>maturin-consultorio-2026</em>.</>}
+              {corta ? `Faltan ${minimo - clave.length} caracteres (mínimo ${minimo}).` : <>Usa una frase larga que solo tú conozcas; no copies una que hayas visto escrita.</>}
             </p>
           </div>
           <div className="space-y-1.5">

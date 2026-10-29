@@ -21,13 +21,14 @@ export function CampoTexto({ id, etiqueta, className, ...props }: React.Componen
   );
 }
 
-export function CampoSelect({ id, etiqueta, className, children, ...props }: React.ComponentProps<"select"> & { etiqueta: string }) {
+export function CampoSelect({ id, etiqueta, ayuda, className, children, ...props }: React.ComponentProps<"select"> & { etiqueta: string; ayuda?: string }) {
   return (
     <div className={className}>
       <Label htmlFor={id} className="mb-1.5">{etiqueta}</Label>
       <select id={id} name={props.name ?? id} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm" {...props}>
         {children}
       </select>
+      {ayuda && <p className="mt-1 text-xs text-muted-foreground">{ayuda}</p>}
     </div>
   );
 }

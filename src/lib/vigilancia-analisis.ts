@@ -154,6 +154,11 @@ const LECTURA: Record<string, string[]> = {
   ],
 };
 
+// Versión que va a la empresa: la discapacidad es dato reservado al servicio médico (decisión de Cesar, #41)
+export const sinDiscapacidad = (r: Reporte): Reporte => ({ ...r, poblacion: { ...r.poblacion, discapacidad: undefined } });
+// Un texto guardado que nombra la discapacidad no sale a la empresa hasta que el médico lo edite
+export const mencionaDiscapacidad = (textos: unknown): boolean => /discapacidad/i.test(JSON.stringify(textos ?? ""));
+
 export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   const azar = generador(semilla(`${d.empresa ?? "todas"}|${d.desde}|${d.hasta}|${variante}`));
   const elige = <T,>(a: T[]): T => a[Math.floor(azar() * a.length)];

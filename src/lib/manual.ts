@@ -10,14 +10,17 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-29";
+export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa». La vigilancia que sale a la empresa no lleva discapacidad y oculta cifras menores de 3 (se cambia en Configuración › Organización); hay que guardarla antes de enviarla", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-29", texto: "Configuración › Respaldos: «Respaldar ahora», la carpeta de Google Drive, la clave de respaldo y restaurar una copia en otra PC", tema: "respaldo" },
+  { fecha: "2026-10-29", texto: "Los exámenes escaneados, firmas y PDF de solicitudes también entran en el respaldo diario (PC y Drive)", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "«Inspección» ahora se llama «Cumplimiento INPSASEL» y trae «¿Qué es esto?» con un ejemplo y los 5 pasos", tema: "inspeccion" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
+  { fecha: "2026-10-29", texto: "Vigilancia como el SAME: cuenta a los trabajadores efectivos, separa los permisos del ausentismo y agrega reubicaciones y especialidades por consulta externa (criterios en Configuración › Organización)", tema: "reportes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -67,6 +70,7 @@ export const MANUAL: TemaManual[] = [
       "Entrar con huella: después de entrar con tu contraseña (y tu código de dos pasos, si te lo pide), zamorApp te ofrece «Activar huella». Acéptalo y la próxima vez toca «Entrar con huella» (en el programa de escritorio, «Entrar con Windows Hello»: huella, rostro o PIN de Windows). Actívala en cada equipo que uses. Si tocas «Ahora no», vuelve a ofrecerla en 7 días (o tras 5 entradas con contraseña). Si al tocar «Entrar con huella» el navegador dice que no hay llaves de acceso, es que en ese equipo aún no la activaste.",
       "Para activarla después o quitarla de un equipo: toca tu inicial arriba a la derecha → «Entrar con huella».",
       "Verificación en dos pasos (obligatoria para administradores y gerentes médicos): la primera vez zamorApp muestra un código QR; escanéalo con Google Authenticator o Microsoft Authenticator en tu teléfono y escribe el código de 6 dígitos. Con la huella o la clave, en un equipo de confianza no vuelve a pedirlo hasta que venza el plazo.",
+      "Códigos de respaldo: al activar la verificación, zamorApp te da 10 códigos de un solo uso; descárgalos o cópialos y guárdalos fuera del equipo. Si pierdes el teléfono, en la pantalla del código toca «¿Perdiste el teléfono? Usa un código de respaldo» y luego escanea un QR nuevo. Para crear códigos nuevos: tu inicial → Mi perfil → Verificación en dos pasos. Sin teléfono ni códigos, otro administrador puede tocar «Reiniciar dos pasos» en Configuración → Usuarios.",
       "Equipo de confianza: al escribir el código deja marcado «Confiar en este equipo» y ahí no te lo volverá a pedir por 30 días (el administrador lo cambia en Configuración → Organización; 0 = pedirlo siempre). No lo marques en un equipo compartido. Para quitar la confianza de todos tus equipos: Mi perfil → «Verificación en dos pasos» → «Olvidar todos».",
       "En el programa de escritorio sin internet, Windows Hello (PIN de Windows, huella o rostro) cuenta como segundo paso: entra con «Entrar con Windows Hello» y no hace falta el código.",
       "Para cambiar de teléfono: Configuración → Mi perfil → «Verificación en dos pasos» → «Cambiar de teléfono». Si perdiste el teléfono, pide a soporte de zamorApp que reinicie tu verificación.",
@@ -146,6 +150,7 @@ export const MANUAL: TemaManual[] = [
     resumen: "El editor de la consulta: pasos numerados, dictado por voz, evolución de signos, duplicar, accidentes y avisos que nunca bloquean.",
     pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
+      "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Sexo, cargo y demás datos se completan después.",
       "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar.",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",
       "Evaluación rápida (pre-empleo, periódico, egreso, reintegro y demás preventivos): la consulta abre en el paso «Evaluación rápida», con todo lo esencial en una pantalla: signos vitales, el examen resumido (dice «Normal» o muestra solo lo alterado), los paraclínicos con sus resultados, «Trabajador sano», la aptitud y «Cerrar, firmar e imprimir». Abajo te dice qué falta (TA, peso, diagnóstico o sano, aptitud) sin impedir cerrar. Para el detalle, «Editar» o los pasos de arriba.",
@@ -301,6 +306,10 @@ export const MANUAL: TemaManual[] = [
       "«Diez primeras causas de morbilidad» se puede ver por tipo de consulta, origen, sexo, grupo etario, actividad, aparato o sistema, motivo y dependencia.",
       "En «Redacción del informe» la app propone el resumen, las conclusiones médico-ocupacionales, las recomendaciones de seguridad, los factores de riesgo y las medidas de control. Edítalos, completa los firmantes y pulsa «Guardar» o «Guardar e imprimir». «Guardar» no crea un archivo: guarda esos textos en zamorApp para esa empresa y ese período, y salen en el informe impreso desde cualquier equipo o la web.",
       "Reportes › Vigilancia: cada gráfico trae su análisis, redactado con los datos del período. «Otra redacción» reescribe el resumen, la conclusión y los análisis con otras palabras; puedes editar cualquiera en «Análisis de cada cuadro» y Guardar. El informe impreso trae portada con indicadores, hallazgos clave y comparación con el período anterior; los cortes del SAME van en el anexo.",
+      "Por defecto cuenta como el SAME: solo los trabajadores efectivos (Empleado, Obrero, Contratado, Pasante y Aprendiz); las consultas por motivo y por tipo de paciente incluyen a todos. Qué tipos cuentan se marca en Configuración › Listas › Tipos de paciente, y para contar a todos se cambia en Configuración › Organización › Informe de vigilancia.",
+      "Horas hombre: por defecto se usa la fórmula del SAME (trabajadores × 5,5 h × días del período). En Configuración › Organización puedes elegir las horas de nómina cargadas en cada empresa.",
+      "Los permisos (paternidad, lactancia y toda causa de reposo del tipo «permiso») salen en «Permisos por causa» y no suben el % de ausentismo, igual que pre y postnatal.",
+      "En la consulta, la reubicación tiene «Resultado» (efectiva, negada o en trámite) y, con motivo consulta externa o especializada, aparece «Especialidad»: ambos alimentan los cuadros Reubicaciones y Especialidades por consulta externa.",
       "«Imprimir informe trimestral» abre el informe completo con sus cuadros, el resumen del artículo 34 y la hoja de firmas; desde ahí lo imprimes o lo guardas en PDF (en zamorApp Escritorio, con «Guardar PDF» eliges la carpeta; por omisión Documentos › zamorApp › Informes).",
     ],
     consejos: [
@@ -403,7 +412,7 @@ export const MANUAL: TemaManual[] = [
       "Entra en Configuración › Respaldos (o toca la franja del respaldo en el Inicio). Arriba ves cómo está: verde «Respaldo al día», amarillo «Solo en esta PC» o rojo si falló o pasó más de un día.",
       "«Respaldar ahora» hace una copia en el momento. Verás los pasos: sube a la nube lo pendiente, guarda la copia en esta PC, la copia a Google Drive y prueba que la copia de Drive se abre con la clave.",
       "Elige la carpeta de Google Drive (la primera vez): marca «Google Drive» en «Dónde se guarda la copia externa» y toca «Guardar carpeta». Si no aparece, instala Google Drive para escritorio, abre tu cuenta y vuelve; o escribe la ruta en «Otra carpeta…». Lo hace el administrador o el gerente médico.",
-      "Pon la clave de respaldo: al menos 12 caracteres, escrita dos veces. Usa una frase fácil de recordar, por ejemplo maturin-consultorio-2026. Marca «La anoté en un lugar seguro, fuera de esta PC» y toca «Guardar clave». Sin clave, la copia no sale de la PC.",
+      "Pon la clave de respaldo: al menos 12 caracteres, escrita dos veces. Usa una frase larga que solo tú conozcas (nunca una que hayas visto escrita en otro lado). Marca «La anoté en un lugar seguro, fuera de esta PC» y toca «Guardar clave». Sin clave, la copia no sale de la PC.",
       "Debajo del estado verás «La copia de Google Drive se abre»: zamorApp lo prueba solo después de cada copia a Drive. Si sale en rojo, revisa la clave y vuelve a respaldar.",
       "Para recuperar los datos (PC dañada o zamorApp instalado en otra PC): «Restaurar una copia…» → elige la copia por fecha → si es de Google Drive, escribe la clave que tenías ese día → «Preparar restauración». Pide la verificación en dos pasos.",
       "Después cierra y abre zamorApp: carga la copia y trae de la nube todo lo más nuevo. Los datos que tenía la PC quedan guardados aparte. Si te arrepientes antes de cerrar, toca «Cancelar restauración».",
@@ -414,6 +423,15 @@ export const MANUAL: TemaManual[] = [
       "Si una restauración no se pudo hacer, la pantalla lo dice en rojo y la PC sigue con sus datos de antes. Toca «Ignorar» para ocultar el aviso.",
       "Deja Google Drive para escritorio abierto con tu cuenta: él sube la copia a la nube solo.",
       "En la web (navegador) solo se ve el estado: los respaldos se manejan desde zamorApp Escritorio.",
+      "Cada copia lleva también los archivos de la PC (exámenes escaneados, firmas y adjuntos). En Google Drive quedan los 2 paquetes de archivos más nuevos y en la PC el último; si los archivos pasan de 5 GB, zamorApp avisa.",
+      "Además, la tarea programada «zamorApp respaldo» copia cada día la base de la nube a Documentos\\zamorApp Respaldos y a Google Drive (Mi unidad\\zamorApp\\respaldos-zamorApp): los últimos 30 días y uno por mes durante un año. Es el segundo respaldo, independiente de la copia de la PC.",
+      "Para que la tarea programada sea automática, haz doble clic una vez en «programar-respaldo.cmd» dentro de la carpeta zamorapp-ocupacional.",
+      "Para un respaldo manual de la nube en cualquier momento: scripts\\respaldo.ps1.",
+      "Si al encender la PC Drive tarda, el respaldo lo espera hasta 5 minutos; y si quedó solo en la PC, sube a Drive en el siguiente respaldo.",
+      "En la tarea programada, los archivos de la nube (exámenes escaneados, firmas y PDF de solicitudes) también se respaldan: cada día bajan solo los nuevos a la carpeta «archivos» dentro de los mismos respaldos, en la PC y en Drive. Nunca se borran del respaldo.",
+      "Una vez por semana, el respaldo de la tarea programada se restaura de prueba en una base temporal de la PC (con el motor de zamorApp Escritorio), se comparan todas las filas y se borra. Si la PC tiene poca memoria libre, la prueba se pospone para no frenarla.",
+      "En el Inicio, el administrador y el gerente médico ven el último respaldo y cuándo se probó la restauración: verde si está al día, amarillo si quedó solo en la PC, falló un intento o la prueba de restauración falló o tiene más de 8 días, rojo si pasó más de un día sin respaldo correcto.",
+      "Para recuperar los datos en otra base: scripts\\restaurar.mjs con el último archivo de respaldo (lo hace el soporte técnico).",
     ],
   },
   {
@@ -445,6 +463,8 @@ export const MANUAL: TemaManual[] = [
       "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
       "Envíos › «Por enviar»: cada constancia que firmas aparece sola aquí, agrupada por empresa y día. Toca «WhatsApp · (nombre)» y se abre tu WhatsApp con el mensaje y el enlace seguro a las constancias; solo te falta tocar enviar.",
       "Si la empresa no tiene teléfono guardado, escríbelo en «Otro teléfono». Para mandar por correo o elegir otras opciones, «Correo y más».",
+      "En «Correo y más», bajo «También enviar»: la constancia de atención (sin diagnóstico, a todos) y las referencias y récipes (solo junto con la consulta médica, al personal de salud).",
+      "Informes: abre la evaluación del puesto, la vigilancia epidemiológica de una empresa o los pacientes atendidos de una empresa y toca «Enviar a la empresa». Sale el PDF por correo o un enlace por WhatsApp, y queda en la Bitácora.",
     ],
     consejos: [
       "En el teléfono: usa zamorApp desde el navegador o la app instalada; al tocar WhatsApp se abre tu WhatsApp con tu número.",

@@ -42,7 +42,10 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const { data, error } = await supabase.rpc("estado_respaldo");
   if (error || !data) return null;
   const ahora = await ahoraFiable();
-  const { ultimo, ultimo_ok, ultima_restauracion: prueba } = data as { ultimo: Registro | null; ultimo_ok: Registro | null; ultima_restauracion?: Registro | null };
+  const { ultimo, ultimo_ok, ultima_restauracion: prueba, ultimo_archivos: archivos } = data as {
+    ultimo: Registro | null; ultimo_ok: Registro | null; ultima_restauracion?: Registro | null; ultimo_archivos?: Registro | null;
+  };
+  const falloArchivos = archivos?.estado === "fallo" ? ` · Falló el respaldo de archivos ${hace(archivos.fecha, ahora)}` : "";
   // ¿El respaldo sirve para recuperar los datos? Vencida o fallida, la franja pasa a aviso
   const pruebaMala = !!prueba && (prueba.estado === "fallo" || (ahora - new Date(prueba.fecha).getTime()) / 864e5 > LIMITE_DIAS_RESTAURACION);
   const restauracion = !prueba
@@ -60,10 +63,10 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const fallo = ultimo && ultimo.estado === "fallo" && ultimo.fecha > ultimo_ok.fecha ? ` · Último intento falló ${hace(ultimo.fecha, ahora)}${ultimo.detalle ? `: ${ultimo.detalle}` : ""}` : "";
 
   if (horas > LIMITE_HORAS) {
-    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha, ahora)}`, detalle: `${corto(`Último: ${base}${fallo}${restauracion}`)}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
+    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha, ahora)}`, detalle: `${corto(`Último: ${base}${fallo}${falloArchivos}${restauracion}`)}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
   }
-  if (ultimo_ok.estado === "aviso" || fallo) {
-    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha, ahora)}, con aviso`, detalle: corto(`${base}${fallo}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}`) };
+  if (ultimo_ok.estado === "aviso" || fallo || falloArchivos) {
+    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha, ahora)}, con aviso`, detalle: corto(`${base}${fallo}${falloArchivos}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}`) };
   }
   // El respaldo está bien y el aviso viene solo de la prueba de restauración: título propio
   if (pruebaMala) {
