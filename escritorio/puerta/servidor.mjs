@@ -9,6 +9,7 @@ import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mj
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearAdjuntos } from "./adjuntos.mjs";
 import { crearHello } from "./hello.mjs";
 import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
@@ -527,6 +528,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
   }
 
   // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  // Adjuntos en la PC (fase B): carpeta local + cola de subida; ver adjuntos.mjs
+  const adjuntos = crearAdjuntos({ estado, nube, motor, registro });
+
   const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 
   const servidor = http.createServer(async (req, res) => {
@@ -592,6 +596,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
           numerosLibres: bloques ? await bloques.libres() : null,
           respaldo: respaldo ? respaldo.estadoActual() : null,
+          adjuntos: await adjuntos.contar(),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -620,8 +625,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         await nube.comprobar();
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
+        await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
         if (bloques) await bloques.reponer();
-        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error,
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
       }
       // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración
@@ -724,10 +730,14 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         return errorAuth(res, 503, "Esta acción requiere internet", "offline");
       }
 
+      // URL firmada por esta PC (la piden <img> e <iframe>, sin sesión): la firma dice qué archivo y de quién
+      if (req.method === "GET" && ruta.startsWith("/storage/v1/object/sign/") && await adjuntos.servirFirmado(req, res, ruta)) return;
+
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
+        if (ruta.startsWith("/storage/v1/") && !faltaSegundoPaso(quien) && await adjuntos.atender(req, res, ruta, crudo, quien, responder)) return;
         // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio
         if (!lectura && await escrituraLocal(req)) {
           // Guardar en la PC exige el segundo paso igual que la nube (aplicar_cambios lo vuelve a exigir al subir)
@@ -747,6 +757,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
             ultimaEscritura = performance.now();
             replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
           }
+          await adjuntos.alBorrar(req, crudo, res.statusCode);
           return;
         }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
@@ -763,5 +774,6 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
       if (!res.headersSent) responder(res, 500, { message: "Error interno de la puerta local" });
     }
   });
+  servidor.adjuntos = adjuntos;
   return servidor;
 }
