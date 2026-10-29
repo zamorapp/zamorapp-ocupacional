@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, Download, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ES_ESCRITORIO } from "@/lib/huella";
 
 /** Muestra una sola vez los 10 códigos de respaldo recién creados, para copiarlos o descargarlos. */
 export function VerCodigosRespaldo({ codigos, alTerminar, textoSeguir = "Ya los guardé" }: { codigos: string[]; alTerminar: () => void; textoSeguir?: string }) {
@@ -35,13 +36,14 @@ export function VerCodigosRespaldo({ codigos, alTerminar, textoSeguir = "Ya los 
         {codigos.map((c) => <li key={c} className="text-center tracking-wider">{c}</li>)}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={descargar}><Download /> Descargar</Button>
+        {/* En la ventana del escritorio un enlace de descarga puede no hacer nada: ahí solo se copian */}
+        {!ES_ESCRITORIO && <Button type="button" variant="outline" onClick={descargar}><Download /> Descargar</Button>}
         <Button type="button" variant="outline" onClick={() => navigator.clipboard?.writeText(texto).then(() => { setCopiado(true); setGuardado(true); }).catch(() => {})}>
           {copiado ? <Check /> : <Copy />} {copiado ? "Copiados" : "Copiar"}
         </Button>
       </div>
       <Button type="button" className="h-11 w-full" onClick={alTerminar} disabled={!guardado}>{textoSeguir}</Button>
-      {!guardado && <p className="text-center text-xs text-muted-foreground">Descárgalos o cópialos para seguir.</p>}
+      {!guardado && <p className="text-center text-xs text-muted-foreground">{ES_ESCRITORIO ? "Cópialos y pégalos en tu correo o un documento para seguir." : "Descárgalos o cópialos para seguir."}</p>}
     </div>
   );
 }
