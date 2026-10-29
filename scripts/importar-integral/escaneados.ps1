@@ -65,6 +65,9 @@ try {
   $manifiesto = New-Object System.Collections.Generic.List[object]
   $usados = @{}
   $binarios = 0
+  # Lo que queda fuera, por motivo: el resumen final se lo dice a Cesar (y queda en informe.txt)
+  $fuera = [ordered]@{ "pesa más de 10 MB" = 0; "no es PDF ni imagen" = 0; "imagen dañada" = 0; "sin paciente" = 0; "sin archivo (ni en RecCliente ni en la base)" = 0; "sin dueño en RecCliente" = 0 }
+  $porNombre_ = 0
 
   function Guardar($origen, $bytesOArchivo, $nombreOriginal, $paciente, $consulta, $fecha, $descripcion) {
     $ext = [IO.Path]::GetExtension($nombreOriginal).ToLower()
@@ -78,7 +81,9 @@ try {
       # Imágenes: se pasan a JPG (las de varias páginas, una por página). La base solo acepta PDF, JPG o PNG.
       if ($bytesOArchivo -is [byte[]]) { $flujo = New-Object IO.MemoryStream (,$bytesOArchivo) } else { $flujo = [IO.File]::OpenRead($bytesOArchivo.FullName) }
       try {
-        $img = [System.Drawing.Image]::FromStream($flujo)
+        try { $img = [System.Drawing.Image]::FromStream($flujo) } catch {
+          $fuera["imagen dañada"]++; Anotar "  IMAGEN DAÑADA: $nombreOriginal (no se pudo leer; queda solo en el SAME)"; return
+        }
         $paginas = 1
         try { $paginas = $img.GetFrameCount([System.Drawing.Imaging.FrameDimension]::Page) } catch { }
         for ($p = 0; $p -lt $paginas; $p++) {
@@ -93,6 +98,7 @@ try {
         $img.Dispose()
       } finally { $flujo.Dispose() }
     } else {
+      $fuera["no es PDF ni imagen"]++
       Anotar "  NO SE PUEDE: $nombreOriginal ($ext no es PDF ni imagen). Queda solo en el SAME."
       return
     }
@@ -100,7 +106,7 @@ try {
     foreach ($s in $salidas) {
       $i++
       $clave = $origen; if ($salidas.Count -gt 1) { $clave = "$origen#$i" }
-      if ((Get-Item $s).Length -gt 10MB) { Anotar "  PESA MÁS DE 10 MB: $s (no se subirá)"; continue }
+      if ((Get-Item $s).Length -gt 10MB) { $fuera["pesa más de 10 MB"]++; Anotar "  PESA MÁS DE 10 MB: $s (no se subirá)"; continue }
       $historia = $paciente -replace '^pac:', ''
       $manifiesto.Add([ordered]@{ archivo = (Split-Path $s -Leaf); original = $nombreOriginal; origen = $clave; paciente = $paciente; cedula = $historias[$historia]; consulta = $consulta; fecha = $fecha; descripcion = $descripcion })
     }
@@ -135,7 +141,7 @@ try {
       }
       $id = ""; if ($clavePrimaria.Count) { $id = [string]$f[$clavePrimaria[0].columna] }
       $origen = "{0}:{1}" -f $t.Name, $id
-      if (-not $paciente) { Anotar "  SIN PACIENTE: $origen"; continue }
+      if (-not $paciente) { $fuera["sin paciente"]++; Anotar "  SIN PACIENTE: $origen"; continue }
       $pac = "pac:$paciente"; $con = $null; if ($consulta) { $con = "cons:$consulta" }
       if ($archivo) {
         $usados[$archivo.FullName] = $true
@@ -148,8 +154,8 @@ try {
           $ext = ".jpg"
           if ($bytes.Length -gt 4 -and $bytes[0] -eq 0x25 -and $bytes[1] -eq 0x50) { $ext = ".pdf" }
           Guardar $origen $bytes "$origen$ext" $pac $con $fecha $descripcion
-        } else { Anotar "  SIN ARCHIVO: $origen" }
-      } else { Anotar "  SIN ARCHIVO: $origen" }
+        } else { $fuera["sin archivo (ni en RecCliente ni en la base)"]++; Anotar "  SIN ARCHIVO: $origen" }
+      } else { $fuera["sin archivo (ni en RecCliente ni en la base)"]++; Anotar "  SIN ARCHIVO: $origen" }
     }
   }
 
@@ -160,14 +166,21 @@ try {
     $candidatos = @([regex]::Matches("$carpetaPadre $($a.BaseName)", '\d+') | ForEach-Object { $_.Value } | ForEach-Object { if ($historias.ContainsKey($_)) { $_ } elseif ($cedulaHistoria.ContainsKey($_)) { $cedulaHistoria[$_] } } | Select-Object -Unique)
     if ($candidatos.Count -eq 1) {
       Guardar ("RecCliente:" + $a.FullName.Substring($Carpeta.Length).TrimStart('\')) $a $a.Name "pac:$($candidatos[0])" $null ($a.LastWriteTime.ToString("yyyy-MM-dd")) $null
+      $porNombre_++
       Anotar "  POR NOMBRE: $($a.Name) → historia $($candidatos[0]) (revisar al subir)"
     } else {
+      $fuera["sin dueño en RecCliente"]++
       Anotar "  SIN DUEÑO: $($a.FullName) (queda solo en el SAME; avisar)"
     }
   }
 
   ConvertTo-Json -InputObject @($manifiesto.ToArray()) -Depth 3 | Set-Content (Join-Path $salida "manifiesto.json") -Encoding UTF8
   Anotar ("Listos para subir: {0} archivos ({1} leídos de la base). Carpeta: {2}" -f $manifiesto.Count, $binarios, $salida)
+  if ($porNombre_) { Anotar ("Ligados por el nombre del archivo (revisar al subir): {0}" -f $porNombre_) }
+  $totalFuera = ($fuera.Values | Measure-Object -Sum).Sum
+  Anotar ("QUEDARON FUERA: {0} (siguen en el SAME, que no se toca)" -f $totalFuera)
+  foreach ($k in $fuera.Keys) { if ($fuera[$k]) { Anotar ("  - {0}: {1}" -f $k, $fuera[$k]) } }
+  if ($totalFuera) { Anotar "  El detalle de cada uno está arriba en este informe. Los TIFF y BMP no quedan fuera: se pasan a JPG." }
 } finally {
   $conexion.Close()
   $informe | Set-Content (Join-Path $salida "informe.txt") -Encoding UTF8

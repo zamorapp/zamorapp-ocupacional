@@ -12,7 +12,7 @@ type Entrada = { archivo: string; original: string; origen: string; paciente: st
 type Fila = Entrada & {
   file: File | null;
   trabajador: { id: string; org_id: string; nombre: string; cedula: string } | null;
-  consultaId: string | null; firmada: boolean;
+  consultaId: string | null;
   estado: "listo" | "ya" | "sin_paciente" | "sin_archivo" | "subiendo" | "subido" | "error";
   nota?: string;
 };
@@ -81,7 +81,7 @@ export function ImportarEscaneados({ demo }: { demo: boolean }) {
         return {
           ...m, file,
           trabajador: t ? { id: t.id, org_id: t.org_id, nombre: `${t.nombres} ${t.apellidos}`.trim(), cedula: t.cedula } : null,
-          consultaId: enConsulta?.id ?? null, firmada: enConsulta?.estado === "firmada",
+          consultaId: enConsulta?.id ?? null,
           estado: !file ? "sin_archivo" : !t ? "sin_paciente" : ya(m.origen) ? "ya" : "listo",
         };
       }));
@@ -104,13 +104,12 @@ export function ImportarEscaneados({ demo }: { demo: boolean }) {
       cambiar(i, { estado: "subiendo", nota: undefined });
       const descripcion = `${f.descripcion || f.original}${f.fecha ? ` · ${fechaVe(f.fecha)}` : ""} ${marcaSame(f.origen)}`.slice(0, 500);
       try {
-        const datos = { orgId: f.trabajador!.org_id, trabajadorId: f.trabajador!.id };
-        // Las consultas importadas suelen estar firmadas: entonces el archivo va a la ficha del paciente (con la fecha en la descripción)
+        // La descripción (con la marca [SAME …]) va en el alta: la base deja entrar el escaneado a su consulta importada
+        // aunque esté firmada (migración 20261030360000). Si la consulta no lo acepta, va a la ficha del paciente.
+        const datos = { orgId: f.trabajador!.org_id, trabajadorId: f.trabajador!.id, descripcion };
         let a = null;
-        if (f.consultaId && !f.firmada) a = await subirAdjunto(supabase, { ...datos, consultaId: f.consultaId }, f.file!).catch(() => null);
+        if (f.consultaId) a = await subirAdjunto(supabase, { ...datos, consultaId: f.consultaId }, f.file!).catch(() => null);
         a ??= await subirAdjunto(supabase, datos, f.file!);
-        const { error: e } = await supabase.from("adjuntos").update({ descripcion }).eq("id", a.id);
-        if (e) throw new Error(e.message);
         cambiar(i, { estado: "subido", nota: a.consulta_id ? "En su consulta" : "En la ficha del paciente" });
       } catch (e) {
         cambiar(i, { estado: "error", nota: (e as Error).message });
@@ -164,7 +163,7 @@ export function ImportarEscaneados({ demo }: { demo: boolean }) {
                   <TableRow key={f.origen}>
                     <TableCell className="max-w-56 truncate" title={f.original}>{f.descripcion || f.original}</TableCell>
                     <TableCell>{f.trabajador ? `${f.trabajador.nombre} · ${f.trabajador.cedula}` : <span className="text-muted-foreground">{f.cedula || f.paciente}</span>}</TableCell>
-                    <TableCell className="text-muted-foreground">{f.consultaId && !f.firmada ? "Su consulta" : "Ficha del paciente"}{f.fecha ? ` · ${fechaVe(f.fecha)}` : ""}</TableCell>
+                    <TableCell className="text-muted-foreground">{f.consultaId ? "Su consulta" : "Ficha del paciente"}{f.fecha ? ` · ${fechaVe(f.fecha)}` : ""}</TableCell>
                     <TableCell>
                       {f.estado === "subido" || f.estado === "ya" ? (
                         <span className="inline-flex items-center gap-1 text-ok-texto"><CheckCircle2 className="size-4" /> {f.estado === "ya" ? "Ya estaba" : f.nota}</span>
