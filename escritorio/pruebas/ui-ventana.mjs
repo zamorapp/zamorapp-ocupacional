@@ -377,7 +377,9 @@ try {
         const alFallar = (e) => errores.push(e.message);
         pagina.on("response", alResponder);
         pagina.on("pageerror", alFallar);
-        const antes = await titulo().catch(() => "");
+        // Si ya está en esa pantalla (el panel al empezar) el título no cambia: basta con que esté cargada
+        const yaAqui = new URL(pagina.url()).pathname === ruta;
+        const antes = yaAqui ? "" : await titulo().catch(() => "");
         const t = Date.now();
         let como = "menú";
         try {
