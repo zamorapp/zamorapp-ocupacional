@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { autenticadores } from "@/lib/dos-pasos";
 import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
+import { confirmar } from "@/components/app/confirmar";
 
 type Autenticador = { id: string; friendly_name?: string; created_at: string };
 type Equipo = { id: string; nombre: string; creado_en: string; vence: string };
@@ -29,7 +30,7 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
 
   // Si perdió o prestó un equipo: todos vuelven a pedir el código la próxima vez
   async function olvidarEquipos() {
-    if (!confirm("Todos tus equipos de confianza volverán a pedir el código la próxima vez que entres. ¿Continuar?")) return;
+    if (!(await confirmar({ titulo: "¿Olvidar todos los equipos de confianza?", texto: "Todos volverán a pedir el código la próxima vez que entres.", accion: "Olvidar todos", peligro: true }))) return;
     setOcupado(true);
     const { error } = await crearClienteNavegador().rpc("olvidar_equipos");
     setOcupado(false);
@@ -39,7 +40,7 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
   }
 
   async function cambiarTelefono() {
-    if (!confirm("Se desactivará el teléfono actual y te pediremos escanear un código QR nuevo. ¿Continuar?")) return;
+    if (!(await confirmar({ titulo: "¿Cambiar de teléfono?", texto: "Se desactivará el teléfono actual y te pediremos escanear un código QR nuevo.", accion: "Cambiar de teléfono", peligro: true }))) return;
     setOcupado(true);
     setError(null);
     const supabase = crearClienteNavegador();

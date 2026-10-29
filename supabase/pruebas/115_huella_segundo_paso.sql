@@ -17,6 +17,8 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1'
 select 'admin solo con clave: falta el segundo paso (debe 1): ' || public.falta_segundo_paso()::int;
 select set_config('request.path','/rpc/falta_segundo_paso',false) \g /dev/null
 select 'admin aal1 puede preguntar si falta (debe 1): ' || count(*) from (select public.verificar_dos_pasos()) x;
+select set_config('request.path','/rpc/dias_equipo_confianza',false) \g /dev/null
+select 'admin aal1 lee cuántos días dura la confianza (debe 30): ' || public.dias_equipo_confianza() from (select public.verificar_dos_pasos()) x;
 select set_config('request.path','/clinico/consultas',false) \g /dev/null
 do $$ begin
   perform public.confiar_equipo('PC robada');

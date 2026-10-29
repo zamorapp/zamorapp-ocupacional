@@ -29,6 +29,8 @@ returns int language sql stable security definer set search_path = public as $$
   where m.usuario_id = auth.uid() and m.activo and m.rol in ('administrador', 'gerente_medico');
 $$;
 
+revoke execute on function public.dias_equipo_confianza() from anon;
+
 -- ¿La cabecera trae un token vigente de esta persona?
 create or replace function public.equipo_de_confianza()
 returns boolean language plpgsql stable security definer set search_path = public as $$
@@ -113,7 +115,7 @@ declare
   v_ruta text := current_setting('request.path', true);
 begin
   if public.dos_pasos_cumplido() then return; end if;
-  if v_ruta in ('/rpc/requiere_dos_pasos', '/rpc/falta_segundo_paso', '/rpc/cambios_desde', '/rpc/instantanea', '/rpc/aplicar_cambios')
+  if v_ruta in ('/rpc/requiere_dos_pasos', '/rpc/falta_segundo_paso', '/rpc/dias_equipo_confianza', '/rpc/cambios_desde', '/rpc/instantanea', '/rpc/aplicar_cambios')
      or (v_ruta = '/miembros' and current_setting('request.method', true) = 'GET') then
     return;
   end if;
