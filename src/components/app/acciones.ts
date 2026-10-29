@@ -12,7 +12,8 @@ import { buscarPacientes } from "@/app/(app)/atencion/acciones";
 export async function salir() {
   if (supabaseConfigurado) {
     const supabase = await crearClienteServidor();
-    await supabase.auth.signOut();
+    // Solo esta sesión: «Salir» en la PC no debe cerrar la web ni los otros equipos (por omisión es global)
+    await supabase.auth.signOut({ scope: "local" });
   }
   redirect("/login");
 }
