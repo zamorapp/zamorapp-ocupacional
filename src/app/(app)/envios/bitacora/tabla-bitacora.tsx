@@ -18,6 +18,7 @@ const dia = (iso: string) => iso.split("-").reverse().join("/");
 
 function estadoDe(h: FilaBitacora) {
   if (h.estado === "fallido") return h.reintentado ? { t: "Falló · reintentado", c: "bg-muted text-muted-foreground" } : { t: "Falló", c: "bg-destructive/10 text-destructive" };
+  if (h.estado === "en_cola") return { t: "En cola · sale al volver el internet", c: "bg-info/10 text-info-texto" };
   if (h.estado === "enviando") return h.reintentado ? { t: "Sin confirmar · reintentado", c: "bg-muted text-muted-foreground" } : { t: "Sin confirmar", c: "bg-aviso/20 text-aviso-texto" };
   if (h.enlace) {
     const vigente = !h.enlace.revocado && new Date(h.enlace.vence) > new Date();
@@ -80,6 +81,7 @@ export function TablaBitacora({ filas, filtros, empresas }: { filas: FilaBitacor
           <option value="pendiente">Por reintentar</option>
           <option value="fallido">Fallidos</option>
           <option value="enviando">Sin confirmar</option>
+          <option value="en_cola">En cola (escritorio)</option>
           <option value="enviado">Enviados</option>
           <option value="enlace">Enlaces de WhatsApp</option>
         </CampoSelect>

@@ -33,7 +33,7 @@ const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).spl
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, cola = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
@@ -485,6 +485,13 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         await nube.comprobar();
         await replica.ciclo();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
+      }
+      // Cola de envíos: la app (Next en esta PC) pide que la web envíe ya los correos que acaba de dejar en cola
+      if (ruta === "/zamorapp/enviar-cola" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { message: "Sesión vencida o no válida" });
+        if (!cola) return responder(res, 503, { message: "Cola de envíos no disponible" });
+        return responder(res, 200, await cola.despachar(quien.uid, json()?.ids));
       }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
