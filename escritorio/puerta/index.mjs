@@ -49,8 +49,7 @@ async function principal() {
   });
   // Cada ciclo: primero sube lo guardado en la PC, luego baja lo de la nube y al final suben los adjuntos
   // (después de sus filas, así clinico.adjuntos ya está en la nube cuando llega el archivo)
-  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await puerta.adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
-    await puerta.adjuntos.bajarPendientes(replica.usuarioSincronia()).catch((e) => registro(`[adjuntos] ${e.message}`)); };
+  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await puerta.adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`)); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();
 }

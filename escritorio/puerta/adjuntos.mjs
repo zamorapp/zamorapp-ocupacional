@@ -202,37 +202,6 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     return subiendo;
   }
 
-  // Bajada completa: los archivos de clinico.adjuntos que la réplica ya bajó y aún no están en la PC (subidos desde la
-  // web o desde otra PC) se bajan de a poco en cada sincronía, para verlos sin internet aunque nadie los haya abierto.
-  // Tope por ciclo: 20 archivos o 50 MB. Un archivo que falla 5 veces se deja hasta reiniciar (y se anota).
-  // Nunca se borra ni se reemplaza un archivo que ya está en la PC.
-  const fallasBajada = new Map();
-  let bajando = null;
-  async function bajarPendientes(uid, { maxArchivos = 20, maxBytes = 50 * 1024 * 1024 } = {}) {
-    if (bajando) return bajando;
-    bajando = (async () => {
-      let bajados = 0, bytes = 0, faltan = 0;
-      if (!uid || !await nube.confirmar()) return { bajados, faltan };
-      const filas = await conBase(async (c) =>
-        (await c.query("select ruta, tamano from clinico.adjuntos order by creado_en desc")).rows);
-      for (const f of filas) {
-        let destino;
-        try { destino = archivo("adjuntos", f.ruta); } catch { continue; } // ruta rara: no se toca el disco
-        if (fs.existsSync(destino) || (fallasBajada.get(f.ruta) || 0) >= MAX_INTENTOS) continue;
-        if (bajados >= maxArchivos || (bajados && bytes + (f.tamano || 0) > maxBytes)) { faltan++; continue; }
-        if (await bajarDeLaNube("adjuntos", f.ruta, uid)) { bajados++; bytes += f.tamano || 0; fallasBajada.delete(f.ruta); continue; }
-        if (!nube.enLinea) { faltan++; break; } // se cortó internet: el resto, en la próxima sincronía
-        const n = (fallasBajada.get(f.ruta) || 0) + 1;
-        fallasBajada.set(f.ruta, n);
-        if (n >= MAX_INTENTOS) registro(`[adjuntos] no se pudo bajar ${f.ruta} tras ${n} intentos; se reintenta al reiniciar`);
-        faltan++;
-      }
-      if (bajados) registro(`[adjuntos] bajados ${bajados} archivos (${Math.round(bytes / 1024)} KB)${faltan ? `; faltan ${faltan}` : ""}`);
-      return { bajados, faltan };
-    })().finally(() => { bajando = null; });
-    return bajando;
-  }
-
   async function contar() {
     try {
       return await conBase(async (c) => {
@@ -345,5 +314,5 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     }
   }
 
-  return { atender, servirFirmado, subir, bajarPendientes, contar, alBorrar, carpeta };
+  return { atender, servirFirmado, subir, contar, alBorrar, carpeta };
 }
