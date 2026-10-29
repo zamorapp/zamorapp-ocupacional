@@ -127,9 +127,9 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
               <option value="todos">Todos los pacientes de la empresa (también aspirantes y visitantes)</option>
             </CampoSelect>
             <CampoSelect id="vigilancia_horas" etiqueta="Horas hombre para IFN, IFB, IS, TAEO y TIEO" defaultValue={a.vigilancia_horas ?? "same"}
-              ayuda="Las horas por mes se cargan en la ficha de cada empresa (Horas hombre trabajadas).">
+              ayuda="Según nómina: las horas por mes se cargan en la ficha de cada empresa; si faltan, se estiman con trabajadores × 8 h × días hábiles (COVENIN 474).">
               <option value="same">Fórmula del SAME: trabajadores × 5,5 h × días del período</option>
-              <option value="nomina">Horas cargadas de la nómina (si faltan: trabajadores × 8 h × días hábiles, COVENIN 474)</option>
+              <option value="nomina">Horas cargadas de la nómina</option>
             </CampoSelect>
           </CardContent>
         </Card>
