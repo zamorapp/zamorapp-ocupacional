@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Semaforo } from "@/components/app/semaforo";
-import { datosPanel } from "@/lib/panel";
-import { conVencimientos, enfoqueDelRol } from "@/lib/panel-rol";
+import { accidentabilidadInicio, agendaInicio, alertasInicio, aptitudInicio, indicadoresInicio, panelVacio, tareasInicio, vencimientosInicio } from "@/lib/panel";
+import { accionesDelRol } from "@/lib/panel-rol";
 import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { cn } from "@/lib/utils";
-import { obtenerSesion, primerNombre } from "@/lib/sesion";
+import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
@@ -35,12 +36,12 @@ function saludo() {
 
 export default async function Panel() {
   const sesion = await obtenerSesion();
-  const [datos, enfoqueBase, , respaldo] = await Promise.all([datosPanel(sesion.rol !== "recepcion"), enfoqueDelRol(sesion), recordarResultados(sesion), estadoRespaldo(sesion), vigilarPlazos(sesion)]);
-  const suma = (k: "vencidos" | "por_vencer") => datos.vencimientos.reduce((s, v) => s + v[k], 0);
-  const enfoque = conVencimientos(enfoqueBase, sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
-  const totalAptitud = datos.aptitud.reduce((s, a) => s + a.cantidad, 0);
+  // El recordatorio y el centinela no esperan a la base: corren con after(), cuando la página ya salió
+  await Promise.all([recordarResultados(sesion), vigilarPlazos(sesion)]);
   const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date());
+  const acciones = accionesDelRol(sesion);
 
+  // El encabezado y los accesos rápidos salen al instante; cada sección con cifras llega cuando la base responde
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -53,8 +54,89 @@ export default async function Panel() {
         </Button>
       </div>
 
-      {/* Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no */}
-      {respaldo && (
+      {/* El respaldo solo lo ven administrador y gerente médico: su espacio queda reservado para que no empuje el Inicio */}
+      <Suspense fallback={!sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico") ? <div role="status" aria-label="Revisando el respaldo" className="h-14 animate-pulse rounded-xl border bg-muted/40" /> : null}>
+        <Respaldo sesion={sesion} />
+      </Suspense>
+
+      <Suspense fallback={<Esqueleto filas={1} alto="h-[4.5rem]" columnas="sm:grid-cols-3" titulo />}><Tareas sesion={sesion} /></Suspense>
+
+      <Suspense fallback={null}><PrimerosPasos /></Suspense>
+
+      <Suspense fallback={<Esqueleto filas={4} alto="h-32" columnas="grid-cols-2 lg:grid-cols-4" />}><Indicadores /></Suspense>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarClock className="size-5 text-primary" /> Agenda de hoy
+              <Button variant="ghost" size="sm" className="-my-2 ml-auto" asChild><Link href="/atencion">Ver cola</Link></Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-0">
+            <Suspense fallback={<Lineas />}><Agenda /></Suspense>
+          </CardContent>
+        </Card>
+
+        <Suspense fallback={<div role="status" aria-label="Cargando las alertas" className="h-64 animate-pulse rounded-xl border bg-muted/40" />}><Alertas /></Suspense>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Accesos rápidos</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3">
+            {acciones.map(({ titulo, icono, href }) => { const Icono = ICONOS[icono]; return (
+              <Link key={titulo} href={href} className="group flex flex-col items-start gap-3 rounded-xl border p-4 transition hover:border-primary/40 hover:bg-primary/5">
+                <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
+                  <Icono className="size-5" />
+                </span>
+                <span className="text-sm font-medium">{titulo}</span>
+              </Link>
+            ); })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Aptitud vigente</CardTitle></CardHeader>
+          <CardContent className="space-y-5">
+            <Suspense fallback={<Lineas />}><Aptitud /></Suspense>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tableros: los vencimientos llegan con los conteos; la accidentabilidad (12 meses) va aparte porque es la más lenta */}
+      <div className="grid grid-cols-1 gap-4 empty:hidden lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Suspense fallback={null}><Vencimientos /></Suspense>
+        {sesion.rol !== "recepcion" && <Suspense fallback={null}><Accidentes /></Suspense>}
+      </div>
+    </div>
+  );
+}
+
+function Esqueleto({ filas, alto, columnas, titulo }: { filas: number; alto: string; columnas: string; titulo?: boolean }) {
+  return (
+    <div className="space-y-2" role="status" aria-busy="true" aria-label="Cargando">
+      {titulo && <div className="h-4 w-32 animate-pulse rounded bg-muted" />}
+      <div className={cn("grid gap-3", columnas)}>
+        {Array.from({ length: filas === 1 ? 3 : filas }, (_, i) => <div key={i} className={cn("animate-pulse rounded-xl border bg-muted/40", alto)} />)}
+      </div>
+    </div>
+  );
+}
+
+function Lineas() {
+  return (
+    <div className="space-y-3 px-6 py-2" role="status" aria-busy="true" aria-label="Cargando">
+      {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-8 animate-pulse rounded bg-muted/60" />)}
+    </div>
+  );
+}
+
+async function Respaldo({ sesion }: { sesion: Sesion }) {
+  const respaldo = await estadoRespaldo(sesion);
+  if (!respaldo) return null;
+  // Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no
+  return (
         <Link
           href="/ayuda#respaldo"
           className={cn(
@@ -70,9 +152,13 @@ export default async function Panel() {
             <span className="block break-words text-xs text-muted-foreground">{respaldo.detalle}</span>
           </span>
         </Link>
-      )}
+  );
+}
 
-      {/* Lo primero según el rol: pendientes que se resuelven hoy */}
+async function Tareas({ sesion }: { sesion: Sesion }) {
+  const enfoque = await tareasInicio(sesion);
+  // Lo primero según el rol: pendientes que se resuelven hoy
+  return (
       <section aria-label={enfoque.titulo} className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">{enfoque.titulo}</h2>
         <div className={cn("grid grid-cols-1 gap-3", enfoque.tareas.length === 3 ? "sm:grid-cols-3" : enfoque.tareas.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2")}>
@@ -95,8 +181,12 @@ export default async function Panel() {
           ))}
         </div>
       </section>
+  );
+}
 
-      {datos.vacio && (
+async function PrimerosPasos() {
+  if (!(await panelVacio())) return null;
+  return (
         <Card className="border-primary/30 bg-primary/5 py-5">
           <CardContent className="space-y-4 px-5">
             <div>
@@ -117,10 +207,14 @@ export default async function Panel() {
             </div>
           </CardContent>
         </Card>
-      )}
+  );
+}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        {datos.indicadores.map((i) => (
+async function Indicadores() {
+  const indicadores = await indicadoresInicio();
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        {indicadores.map((i) => (
           <Card key={i.titulo} className="gap-2 py-5">
             <CardContent className="space-y-1 px-5">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -132,22 +226,17 @@ export default async function Panel() {
             </CardContent>
           </Card>
         ))}
-      </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarClock className="size-5 text-primary" /> Agenda de hoy
-              <Button variant="ghost" size="sm" className="-my-2 ml-auto" asChild><Link href="/atencion">Ver cola</Link></Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-0">
-            {datos.agenda.length === 0 ? (
+async function Agenda() {
+  const agenda = await agendaInicio();
+  return agenda.length === 0 ? (
               <p className="px-6 py-8 text-center text-sm text-muted-foreground">No hay citas para hoy. Agéndalas en Atención médica.</p>
             ) : (
               <ul className="divide-y">
-                {datos.agenda.map((c) => (
+                {agenda.map((c) => (
                   <li key={c.hora + c.paciente} className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50">
                     <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora}</span>
                     <div className="min-w-0 flex-1">
@@ -158,24 +247,26 @@ export default async function Panel() {
                   </li>
                 ))}
               </ul>
-            )}
-          </CardContent>
-        </Card>
+            );
+}
 
+async function Alertas() {
+  const alertas = await alertasInicio();
+  return (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="size-5 text-alerta-texto" /> Alertas
-              <Badge variant="secondary" className="ml-auto">{datos.alertas.length}</Badge>
+              <Badge variant="secondary" className="ml-auto">{alertas.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {datos.alertas.length === 0 && (
+            {alertas.length === 0 && (
               <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <CheckCircle2 className="size-4 text-ok-texto" /> Todo al día.
               </p>
             )}
-            {datos.alertas.map((a) => {
+            {alertas.map((a) => {
               const contenido = (
                 <>
                   <Semaforo estado={a.estado} className="mt-1.5" />
@@ -194,33 +285,21 @@ export default async function Panel() {
             })}
           </CardContent>
         </Card>
-      </div>
+  );
+}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Accesos rápidos</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            {enfoque.acciones.map(({ titulo, icono, href }) => { const Icono = ICONOS[icono]; return (
-              <Link key={titulo} href={href} className="group flex flex-col items-start gap-3 rounded-xl border p-4 transition hover:border-primary/40 hover:bg-primary/5">
-                <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
-                  <Icono className="size-5" />
-                </span>
-                <span className="text-sm font-medium">{titulo}</span>
-              </Link>
-            ); })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Aptitud vigente</CardTitle></CardHeader>
-          <CardContent className="space-y-5">
+async function Aptitud() {
+  const aptitud = await aptitudInicio();
+  const totalAptitud = aptitud.reduce((s, a) => s + a.cantidad, 0);
+  return (
+    <>
             <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-              {totalAptitud > 0 && datos.aptitud.map((a) => (
+              {totalAptitud > 0 && aptitud.map((a) => (
                 <div key={a.clase} className={a.color} style={{ width: `${(a.cantidad / totalAptitud) * 100}%` }} />
               ))}
             </div>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-              {datos.aptitud.map((a) => (
+              {aptitud.map((a) => (
                 <li key={a.clase} className="flex items-center gap-2 text-sm">
                   <span className={`size-2.5 rounded-full ${a.color}`} />
                   <span className="text-muted-foreground">{a.clase}</span>
@@ -228,16 +307,16 @@ export default async function Panel() {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      {(datos.vencimientos.length > 0 || datos.accidentes) && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          {datos.vencimientos.length > 0 && <VencimientosPorEmpresa filas={datos.vencimientos} />}
-          {datos.accidentes && <AccidentabilidadAnual datos={datos.accidentes} />}
-        </div>
-      )}
-    </div>
+    </>
   );
+}
+
+async function Vencimientos() {
+  const filas = await vencimientosInicio();
+  return filas.length > 0 ? <VencimientosPorEmpresa filas={filas} /> : null;
+}
+
+async function Accidentes() {
+  const datos = await accidentabilidadInicio();
+  return datos ? <AccidentabilidadAnual datos={datos} /> : null;
 }
