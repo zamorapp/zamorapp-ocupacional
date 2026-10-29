@@ -443,6 +443,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       modo={modoParaclinicos}
       catalogo={listas.paraclinico}
       sexo={trabajador.sexo}
+      paciente={{ cedula: trabajador.cedula, nombre: trabajador.nombre }}
       archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
       asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
       resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}

@@ -46,7 +46,9 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
       if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
-      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+      // Otros nombres con que lo escriben los laboratorios (lector de resultados): hasta 20, de hasta 60 letras
+      const sinonimos = [...new Set((texto(datos, "d_sinonimos") ?? "").split(",").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 20);
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos };
     }
 
     // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
