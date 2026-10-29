@@ -470,7 +470,10 @@ jobs:
           $global:LASTEXITCODE = 0
           $usarLiviano = $anterior -and ($anterior.Trim() -eq $env:COMPONENTES)
           Write-Host "Componentes: antes '$anterior' · ahora '$env:COMPONENTES' → actualización $(if ($usarLiviano) { 'liviana' } else { 'completa' })"
-          Set-Content -NoNewline componentes.txt $env:COMPONENTES
+          # Rutas absolutas y verificadas: la publicación de la 0.1.191 falló con «no matches found for
+          # `componentes.txt`» (gh no encontró el archivo y no se publicó nada)
+          $componentes = Join-Path $PWD "componentes.txt"
+          [IO.File]::WriteAllText($componentes, $env:COMPONENTES)
           $anuncio = { param($archivo, $firma) @{
             version = $v
             notes = "zamorApp Escritorio $v (${{ github.sha }})"
@@ -482,7 +485,9 @@ jobs:
           } | ConvertTo-Json -Depth 5 }
           & $anuncio $nombre "$($exe.FullName).sig" | Out-File -Encoding utf8NoBOM latest-completo.json
           if ($usarLiviano) { & $anuncio $nombreLiviano "$($liviano.FullName).sig" | Out-File -Encoding utf8NoBOM latest.json } else { Copy-Item latest-completo.json latest.json }
-          gh release create "v$v" $nombre $nombreLiviano latest.json latest-completo.json componentes.txt --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
+          $archivos = @($nombre, $nombreLiviano, "latest.json", "latest-completo.json", "componentes.txt") | ForEach-Object { Join-Path $PWD $_ }
+          foreach ($a in $archivos) { if (-not (Test-Path -LiteralPath $a -PathType Leaf)) { throw "Falta $a para publicar" }; Write-Host "publica: $a ($((Get-Item -LiteralPath $a).Length) bytes)" }
+          gh release create "v$v" @archivos --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
           if ($LASTEXITCODE) { throw "No se pudo publicar la versión" }
 
       - uses: actions/upload-artifact@v4

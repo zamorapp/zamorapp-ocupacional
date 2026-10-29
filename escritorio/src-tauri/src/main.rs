@@ -16,6 +16,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
 mod hello;
+mod procesos;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -268,6 +269,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("No arrancó la puerta local: {e}"))?;
+    if let Err(e) = procesos::atar(&puerta) { anotar(&format!("aviso: la puerta no quedó atada al programa: {e}")); }
     anotar("puerta local iniciada; esperando la base");
 
     // La puerta avisa por su salida cuando está lista; el resto se descarta para no llenar el búfer.
@@ -303,6 +305,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("No arrancó la app: {e}"))?;
+    if let Err(e) = procesos::atar(&app) { anotar(&format!("aviso: la app no quedó atada al programa: {e}")); }
     if let Some(s) = app.stdout.take() { volcar_a(s, datos.join("app.log")); }
     if let Some(s) = app.stderr.take() { volcar_a(s, datos.join("app.log")); }
     anotar("app iniciada");
