@@ -11,6 +11,8 @@ import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
+import { empresaActivaId } from "@/lib/empresa-activa";
+import { listarEmpresas } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
 import { EnVivo } from "@/components/app/en-vivo";
@@ -37,7 +39,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const hoy = hoyCaracas();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = sumarDias(hoy, -30);
-  const [consultas, citas, listas, solicitudes, org] = await Promise.all([
+  const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta"]),
@@ -45,7 +47,11 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     datosOrganizacion(),
     recordarResultados(sesion),
     vigilarPlazos(sesion),
+    listarEmpresas(),
+    empresaActivaId(),
   ]);
+  // Para registrar ahí mismo a un paciente nuevo (la misma lista que ya pidió el menú: va una sola consulta)
+  const opcionesEmpresa = empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }));
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
   const etiquetaDia = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dia + "T12:00:00Z"));
@@ -59,8 +65,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
-          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} />
-          <NuevaConsulta habilitado={!sesion.demo} />
+          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={activa} />
+          <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={activa} />
         </div>
       </div>
 

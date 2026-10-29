@@ -11,6 +11,7 @@ import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
 import { ES_ESCRITORIO, MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
 import { guardarEquipoNavegador, nombreEquipo } from "@/lib/equipo-confianza";
 import { OfrecerHuella } from "@/components/app/huella";
+import { VerCodigosRespaldo } from "@/components/app/codigos-respaldo";
 
 export function FormularioDosPasos() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export function FormularioDosPasos() {
   const [ofrecer, setOfrecer] = useState(false);
   const [recordar, setRecordar] = useState(true); // equipo de confianza: no pedir el código en cada entrada
   const [dias, setDias] = useState(0); // días que dura la confianza según la organización (0 = no se ofrece)
+  const [respaldo, setRespaldo] = useState<string | null>(null); // perdió el teléfono: escribe un código de respaldo
+  const [codigos, setCodigos] = useState<string[] | null>(null); // recién activado: códigos para guardar
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
@@ -54,9 +57,38 @@ export function FormularioDosPasos() {
       const equipo = data as { token: string; vence: string } | null;
       if (equipo?.token) guardarEquipoNavegador(equipo.token, equipo.vence);
     }
-    // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
+    // Teléfono recién activado: se crean los códigos de respaldo y se muestran una sola vez
+    if (paso.tipo === "activar") {
+      const { data } = await crearClienteNavegador().rpc("generar_codigos_respaldo");
+      if (Array.isArray(data) && data.length) { setCargando(false); setCodigos(data as string[]); return; }
+    }
+    await seguir();
+  }
+
+  // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
+  async function seguir() {
+    setCodigos(null);
     if (!desdeHello && (await puedeOfrecerHuella(crearClienteNavegador()))) { setCargando(false); setOfrecer(true); return; }
     alPanel();
+  }
+
+  // Código de respaldo: borra el teléfono perdido y lleva a escanear un QR nuevo (no abre los datos por sí solo)
+  async function usarRespaldo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!respaldo?.trim()) return;
+    setCargando(true);
+    setError(null);
+    const supabase = crearClienteNavegador();
+    const { data, error } = await supabase.rpc("usar_codigo_respaldo", { p_codigo: respaldo });
+    if (error || data !== "ok") {
+      setCargando(false);
+      setError(data === "espera" ? "Demasiados intentos. Espera 15 minutos y vuelve a probar." : data === "incorrecto" ? "Ese código no es válido o ya se usó." : "No se pudo verificar el código. Intenta de nuevo.");
+      return;
+    }
+    setRespaldo(null);
+    setCodigo("");
+    setPaso(await prepararDosPasos(supabase));
+    setCargando(false);
   }
 
   function alPanel() {
@@ -71,6 +103,7 @@ export function FormularioDosPasos() {
   }
 
   if (ofrecer) return <OfrecerHuella alTerminar={alPanel} />;
+  if (codigos) return <VerCodigosRespaldo codigos={codigos} alTerminar={() => void seguir()} />;
   if (paso.tipo === "cargando") return <div className="grid place-items-center py-10"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>;
   if (paso.tipo === "error") {
     return (
@@ -78,6 +111,36 @@ export function FormularioDosPasos() {
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{paso.mensaje}</p>
         <Button variant="outline" className="w-full" onClick={salir}>Volver a entrar</Button>
       </div>
+    );
+  }
+
+  if (respaldo !== null) {
+    return (
+      <form onSubmit={usarRespaldo} className="space-y-5">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight">Usar un código de respaldo</h1>
+          <p className="text-sm text-muted-foreground">
+            Escribe uno de los 10 códigos que guardaste al activar la verificación. Después escanearás un código QR
+            con tu teléfono nuevo.
+          </p>
+        </div>
+        <Input
+          autoFocus
+          autoComplete="off"
+          placeholder="ABCDE-23456"
+          className="h-12 text-center font-mono text-xl uppercase tracking-widest"
+          value={respaldo}
+          onChange={(e) => { setRespaldo(e.target.value); setError(null); }}
+        />
+        {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="h-11 w-full" disabled={cargando || respaldo.replace(/[^0-9a-z]/gi, "").length !== 10}>
+          {cargando && <Loader2 className="animate-spin" />} Continuar
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          ¿Tampoco tienes los códigos? Pide a otro administrador que reinicie tu verificación (Configuración → Usuarios). ·{" "}
+          <button type="button" className="text-primary hover:underline" onClick={() => { setRespaldo(null); setError(null); }}>Volver</button>
+        </p>
+      </form>
     );
   }
 
@@ -152,7 +215,10 @@ export function FormularioDosPasos() {
         {cargando && <Loader2 className="animate-spin" />} {paso.tipo === "activar" ? "Activar y entrar" : "Entrar"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        {paso.tipo === "codigo" && <>¿Perdiste el teléfono? Pide a soporte de zamorApp que reinicie tu verificación. · </>}
+        {paso.tipo === "codigo" && !ES_ESCRITORIO && (
+          <><button type="button" className="text-primary hover:underline" onClick={() => { setRespaldo(""); setError(null); }}>¿Perdiste el teléfono? Usa un código de respaldo</button> · </>
+        )}
+        {paso.tipo === "codigo" && ES_ESCRITORIO && <>¿Perdiste el teléfono? Usa un código de respaldo en zamorapp-ocupacional.vercel.app. · </>}
         <button type="button" className="text-primary hover:underline" onClick={salir}>Salir</button>
       </p>
     </form>

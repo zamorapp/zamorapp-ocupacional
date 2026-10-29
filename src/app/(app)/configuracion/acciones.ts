@@ -46,7 +46,9 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
       if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
-      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+      // Otros nombres con que lo escriben los laboratorios (lector de resultados): hasta 20, de hasta 60 letras
+      const sinonimos = [...new Set((texto(datos, "d_sinonimos") ?? "").split(",").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 20);
+      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos };
     }
 
     // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
@@ -154,6 +156,9 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       dias_equipo_confianza: Math.min(90, Math.max(0, Math.round(Number(texto(datos, "dias_equipo_confianza") ?? 30)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
+      // Informe de vigilancia: por defecto, los mismos criterios del SAME (para que la marcha en paralelo cuadre)
+      vigilancia_poblacion: texto(datos, "vigilancia_poblacion") === "todos" ? "todos" : "efectivos",
+      vigilancia_horas: texto(datos, "vigilancia_horas") === "nomina" ? "nomina" : "same",
     };
     const { error } = await supabase
       .from("organizaciones")
@@ -289,6 +294,19 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Perdió el teléfono y los códigos de respaldo: otro administrador borra su verificación en dos pasos y en la
+// próxima entrada escanea un QR nuevo. La base exige que quien reinicia ya haya hecho su propio segundo paso.
+export async function reiniciarDosPasos(usuarioId: string): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.rpc("reiniciar_dos_pasos", { p_usuario: usuarioId });
+    if (error) return { ok: false, mensaje: error.message };
+    return { ok: true, mensaje: "Verificación reiniciada: al entrar escaneará un código QR nuevo con su teléfono." };
   } catch (e) {
     return fallo(e);
   }

@@ -5,7 +5,7 @@ import { opciones } from "@/lib/listas";
 import { recordar } from "@/lib/memo";
 import { mismoPeriodoAnioAnterior, periodoAnterior, periodoDeConsulta, type ConsultaPeriodo, type Periodo } from "@/lib/periodos";
 import {
-  completarHorasHombre, indicadoresAusentismo, indicesCovenin, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
+  completarHorasHombre, indicadoresAusentismo, type CriterioHoras, indicesCovenin, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
 } from "@/lib/reportes";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -27,24 +27,32 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const listo = !sesion.demo && supabaseConfigurado;
   const memo = <T,>(que: string, p: Periodo, fn: () => Promise<T>) => recordar(clave(sesion, que, empresaId, p), TRES_MINUTOS, fn);
 
-  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil] = await Promise.all([
+  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil, criterioHoras] = await Promise.all([
     listo ? memo("reporte", periodo, () => obtenerReporte(empresaId, periodo)) : null,
     listo ? memo("series", periodo, () => obtenerSeries(empresaId, periodo)) : null,
     listo ? memo("series", anterior, () => obtenerSeries(empresaId, anterior)) : null,
     listo ? memo("series", anioAnterior, () => obtenerSeries(empresaId, anioAnterior)) : null,
     listo ? memo("accidentes", periodo, () => obtenerAccidentalidad(empresaId, periodo)) : null,
-    opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud"]),
+    opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud", "resultado_reubicacion"]),
     listo ? obtenerInforme(empresaId, periodo) : null,
     listo ? riesgosDeEmpresa(empresaId) : {},
     listo
       ? (async () => (await (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula").eq("id", sesion.usuarioId).maybeSingle()).data)()
       : null,
+    // Configuración › Organización › Informe de vigilancia: horas hombre como el SAME (por defecto) o según nómina
+    listo
+      ? (async () => {
+          const { data } = await (await crearClienteServidor()).from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle();
+          return ((data?.ajustes as { vigilancia_horas?: string } | null)?.vigilancia_horas === "nomina" ? "nomina" : "same") as CriterioHoras;
+        })()
+      : ("same" as CriterioHoras),
   ]);
   const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
   const entes = nombre("ente_emisor_reposo");
   const aptitudes = nombre("clasificacion_aptitud");
-  const acc = accBase && r ? completarHorasHombre(accBase, r.poblacion.total, periodo) : null;
+  const resultadosReubicacion = nombre("resultado_reubicacion");
+  const acc = accBase && r ? completarHorasHombre(accBase, r.poblacion.total, periodo, criterioHoras) : null;
   const ix = acc ? indicesCovenin(acc) : null;
   const ausentismo = r ? indicadoresAusentismo(r) : { pad: 0, pct: 0 };
 
@@ -89,7 +97,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const firmantesBase: Firmantes = perfil?.nombre_completo ? { medico: { nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "" } } : {};
 
   return {
-    empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, ausentismo,
+    empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, resultadosReubicacion, ausentismo,
     informe, sugeridos, firmantesBase, datosAnalisis, analisis, variante,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ExternalLink, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { confirmar } from "@/components/app/confirmar";
@@ -12,6 +12,7 @@ import { contarResultados, defExamen, ESTILO_RESULTADO, ETIQUETA_RESULTADO, esta
 import { subirAdjunto } from "@/lib/preparar-archivo";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { LectorLaboratorio, type Registro } from "./lector-laboratorio";
 
 // editar: consulta en curso (se agregan y quitan exámenes); resultados: cerrada (solo resultados y archivos);
 // lectura: firmada (resultados bloqueados; los archivos se pueden seguir ligando a sus exámenes)
@@ -27,6 +28,8 @@ type Props = {
   // Antes de ligar un archivo, los exámenes nuevos tienen que estar guardados en la consulta (lo exige la base)
   asegurarGuardado: () => Promise<boolean>;
   resultados?: { sinGuardar: boolean; guardando: boolean; guardar: () => void };
+  // Para comparar con la cédula y el nombre que trae el informe del laboratorio
+  paciente: { cedula: string; nombre: string };
 };
 
 const ARRASTRE = "application/x-zamorapp-adjunto";
@@ -36,7 +39,7 @@ const tamano = (b: number) => (b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)
 const esPdf = (a: Adjunto) => a.tipo_mime === "application/pdf";
 
 /** Paraclínicos de la consulta: resultados con semáforo, archivos ligados a cada examen y visor. */
-export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, sexo, archivos, asegurarGuardado, resultados }: Props) {
+export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, sexo, archivos, asegurarGuardado, resultados, paciente }: Props) {
   const defs = useMemo(() => new Map(catalogo.map((i) => [i.id, defExamen(i.datos)])), [catalogo]);
   const def = useCallback((id: string) => defs.get(id) ?? SIN_DEF, [defs]);
   const editableResultado = modo !== "lectura";
@@ -52,6 +55,10 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [giro, setGiro] = useState(0);
+  // Lector de laboratorio: archivo abierto, el recién subido que se ofrece leer y la liga pendiente tras registrar
+  const [leyendo, setLeyendo] = useState<Adjunto | null>(null);
+  const [ofrecer, setOfrecer] = useState<string | null>(null);
+  const [porLigar, setPorLigar] = useState<{ adjunto: string; examenes: string[] } | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
   const camara = useRef<HTMLInputElement>(null);
 
@@ -104,7 +111,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
         setError((e as Error).message);
       }
     }
-    if (ultimo) setVer(ultimo.id);
+    if (ultimo) { setVer(ultimo.id); setOfrecer(ultimo.id); }
     if (entrada.current) entrada.current.value = "";
     if (camara.current) camara.current.value = "";
     setOcupado(false);
@@ -146,6 +153,33 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
     if (e.dataTransfer.files.length) void subir(e.dataTransfer.files, examen);
   };
   const alPasar = (e: React.DragEvent, clave: string) => { if (archivos) { e.preventDefault(); setSobre(clave); } };
+
+  // Tras «Registrar» los resultados ya están en la consulta (onChange); en el render siguiente se liga el archivo a
+  // sus exámenes (la base exige que estén guardados) y, con la consulta cerrada, se guardan los resultados.
+  useEffect(() => {
+    if (!porLigar || !porLigar.examenes.every((x) => paraclinicos.some((p) => p.id === x))) return;
+    const pendiente = porLigar;
+    setPorLigar(null);
+    void (async () => {
+      const a = lista.find((x) => x.id === pendiente.adjunto);
+      if (a) await cambiarExamenes(a, [...new Set([...a.examenes, ...pendiente.examenes])]);
+      if (modo === "resultados") resultados?.guardar();
+    })();
+  }, [porLigar, paraclinicos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alRegistrar = (r: Registro) => {
+    if (!leyendo) return;
+    setPorLigar({ adjunto: leyendo.id, examenes: r.examenes });
+    // Los que traen el rango del laboratorio llegan con su color fijo (manual); el resto toma el del catálogo
+    onChange(r.paraclinicos.map((p) => (p.manual ? p : recalcular(p))));
+    setLeyendo(null);
+    setOfrecer(null);
+  };
+  const leer = async (a: Adjunto) => {
+    await firmar([a]);
+    setOfrecer(null);
+    setLeyendo(a);
+  };
+  const ofrecido = ofrecer ? deConsulta.find((a) => a.id === ofrecer) : undefined;
 
   const nombreExamen = (id: string) => paraclinicos.find((p) => p.id === id)?.nombre ?? "examen ya no solicitado";
   const ligadosA = (id: string) => deConsulta.filter((a) => a.examenes.includes(id));
@@ -225,6 +259,14 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                 </div>
               </Card>
             </>
+          )}
+          {ofrecido && archivosEditables && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+              <ScanText className="size-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1">¿Leer los resultados de «{ofrecido.nombre}» y registrarlos?</span>
+              <Button size="sm" className="h-7" onClick={() => leer(ofrecido)}>Leer resultados</Button>
+              <Button size="sm" variant="ghost" className="h-7" onClick={() => setOfrecer(null)}>Ahora no</Button>
+            </div>
           )}
           {error && <p className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
 
@@ -375,6 +417,11 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                       <Button size="icon" variant="ghost" className="size-8" aria-label="Girar" onClick={() => setGiro((g) => (g + 90) % 360)}><RotateCw /></Button>
                     </>
                   )}
+                  {archivosEditables && actual.consulta_id === archivos.consultaId && (
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => leer(actual)} title="Leer los resultados del informe y registrarlos en la consulta">
+                      <ScanText /> <span className="max-sm:sr-only">Leer resultados</span>
+                    </Button>
+                  )}
                   {urls[actual.id] && (
                     <Button size="icon" variant="ghost" className="size-8" asChild>
                       <a href={urls[actual.id]} target="_blank" rel="noreferrer" aria-label="Abrir en otra pestaña"><ExternalLink /></a>
@@ -425,6 +472,19 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
           </Card>
         )}
       </div>
+      {leyendo && archivos && urls[leyendo.id] && (
+        <LectorLaboratorio
+          archivo={{ id: leyendo.id, nombre: leyendo.nombre, url: urls[leyendo.id], tipo: leyendo.tipo_mime }}
+          consultaId={archivos.consultaId}
+          paraclinicos={paraclinicos}
+          catalogo={catalogo}
+          sexo={sexo}
+          paciente={paciente}
+          puedeAgregar={modo === "editar"}
+          onRegistrar={alRegistrar}
+          onCerrar={() => setLeyendo(null)}
+        />
+      )}
     </div>
   );
 }
