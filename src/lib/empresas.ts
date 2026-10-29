@@ -29,7 +29,8 @@ export type Empresa = {
 
 // Las empresas y su conteo de trabajadores cambian poco pero el marco de CADA pantalla las pide (selector del
 // encabezado): se guardan 60 s en memoria del servidor por usuario (lo que cada uno puede ver lo decide RLS, así
-// que la llave es el usuario). Se invalidan al crear o editar empresas o trabajadores (invalidarEmpresas).
+// que la llave es el usuario y su nivel de sesión). Se invalidan al crear o editar empresas o trabajadores
+// y al cambiar rol, empresas permitidas o estado de un miembro (invalidarEmpresas).
 const MEMORIA = new Map<string, { datos: Empresa[]; vence: number }>();
 const DURACION = 60 * 1000;
 
@@ -43,7 +44,8 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
   const supabase = await crearClienteServidor();
   // getClaims verifica el token localmente (sin ir al servidor)
   const { data: claims } = await supabase.auth.getClaims();
-  const usuario = claims?.claims?.sub;
+  // Llave: usuario + nivel de la sesión (aal): el marco guardado con dos pasos no se entrega a una sesión sin ellos
+  const usuario = claims?.claims?.sub ? `${claims.claims.sub}:${String(claims.claims.aal ?? "aal1")}` : undefined;
   const guardado = usuario ? MEMORIA.get(usuario) : undefined;
   if (guardado && guardado.vence > Date.now()) return guardado.datos;
   const datos = await consultarEmpresas();
