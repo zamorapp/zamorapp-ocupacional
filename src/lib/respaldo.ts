@@ -21,6 +21,8 @@ const hace = (fecha: string) => {
 };
 const cuando = (fecha: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: ZONA }).format(new Date(fecha));
+// La franja es de un vistazo: el detalle largo (errores del registro) se recorta; el completo está en el registro de la PC
+const corto = (texto: string, max = 140) => (texto.length > max ? `${texto.slice(0, max - 1).trimEnd()}…` : texto);
 const tamano = (kb: number | null) => (kb == null ? "" : kb >= 1024 ? `${(kb / 1024).toFixed(1).replace(".", ",")} MB` : `${kb} KB`);
 
 // Solo administrador y gerente médico (la función de la base devuelve null a los demás)
@@ -35,7 +37,7 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const restauracion = !prueba
     ? " · Restauración aún sin probar"
     : prueba.estado === "fallo"
-      ? ` · La prueba de restauración FALLÓ ${hace(prueba.fecha)}${prueba.detalle ? `: ${prueba.detalle}` : ""}`
+      ? ` · La prueba de restauración falló ${hace(prueba.fecha)}${prueba.detalle ? `: ${prueba.detalle}` : ""}`
       : ` · Restauración probada ${hace(prueba.fecha)}${pruebaMala ? " (toca repetirla)" : ""}`;
 
   if (!ultimo_ok) {
@@ -47,10 +49,15 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const fallo = ultimo && ultimo.estado === "fallo" && ultimo.fecha > ultimo_ok.fecha ? ` · Último intento falló ${hace(ultimo.fecha)}${ultimo.detalle ? `: ${ultimo.detalle}` : ""}` : "";
 
   if (horas > LIMITE_HORAS) {
-    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha)}`, detalle: `Último: ${base}${fallo}${restauracion}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
+    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha)}`, detalle: `${corto(`Último: ${base}${fallo}${restauracion}`)}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
   }
-  if (ultimo_ok.estado === "aviso" || fallo || pruebaMala) {
-    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha)}, con aviso`, detalle: `${base}${fallo}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}` };
+  if (ultimo_ok.estado === "aviso" || fallo) {
+    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha)}, con aviso`, detalle: corto(`${base}${fallo}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}`) };
   }
-  return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha)})`, detalle: `${base}${restauracion}` };
+  // El respaldo está bien y el aviso viene solo de la prueba de restauración: título propio
+  if (pruebaMala) {
+    const titulo = prueba?.estado === "fallo" ? "Respaldo al día, pero falló la prueba de restauración" : "Respaldo al día, pero la restauración no está probada";
+    return { estado: "aviso", titulo, detalle: corto(`${base}${restauracion}`) };
+  }
+  return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha)})`, detalle: corto(`${base}${restauracion}`) };
 }
