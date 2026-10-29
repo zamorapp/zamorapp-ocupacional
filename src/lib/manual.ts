@@ -72,6 +72,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Necesita internet: los datos viven en la nube y se respaldan cada día en tu PC y en Google Drive.",
       "Si ves «No se pudo conectar con zamorApp», revisa el internet y toca «Reintentar». No se pierde nada de lo ya guardado.",
+      "En zamorApp Escritorio, «Buscar actualización» (abajo en el menú izquierdo, o menú zamorApp → «Buscar actualizaciones») revisa al momento: si hay versión nueva la descarga enseguida con su avance en la franja de abajo y en el título, y al final pregunta cuándo instalar. El programa también revisa solo al abrir y cada cierto tiempo.",
       "En zamorApp Escritorio, si aparece «Hay una versión nueva de zamorApp» es que la nube ya cambió: toca «Buscar actualización» (o menú zamorApp → «Buscar actualizaciones») y acepta «Actualizar ahora». Si aún no aparece, «Trabajar en la web» abre la web mientras tanto.",
     ],
   },
