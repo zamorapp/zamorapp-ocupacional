@@ -121,7 +121,7 @@ export type EnvioHistorial = {
   destinatario: string;
   documentos: string[];
   cantidad: number;
-  estado: "enviando" | "enviado" | "fallido" | "enlace";
+  estado: "en_cola" | "enviando" | "enviado" | "fallido" | "enlace";
   error: string | null;
   enlace: { vence: string; revocado: boolean; aperturas: number } | null;
   reintentoDe: string | null;
@@ -157,7 +157,7 @@ export type EntradaEnvio = {
 export type ResultadoEnvio = {
   ok: boolean;
   mensaje: string;
-  detalle?: { destinatario: string; estado: "enviado" | "fallido" | "enlace"; error?: string }[];
+  detalle?: { destinatario: string; estado: "enviado" | "fallido" | "enlace" | "en_cola"; error?: string }[];
   enlaces?: { nombre: string; whatsapp: string }[];
 };
 

@@ -113,6 +113,8 @@ function FilaHistorial({ h }: { h: EnvioHistorial }) {
   const vigente = h.enlace && !h.enlace.revocado && new Date(h.enlace.vence) > new Date();
   const estado = h.estado === "fallido"
     ? { t: "Falló", c: "bg-destructive/10 text-destructive" }
+    : h.estado === "en_cola"
+    ? { t: "En cola · sale al volver el internet", c: "bg-info/10 text-info-texto" }
     : h.estado === "enviando"
     ? { t: "Sin confirmar", c: "bg-aviso/20 text-aviso-texto" }
     : h.enlace

@@ -210,8 +210,10 @@ test("día 2: firmar y enviar esperan a internet (sin bloquear al médico)", { s
   const env = await pedir("/rest/v1/envios", { metodo: "POST", token: tokenMed, cabeceras: { Prefer: "return=representation" }, cuerpo: {
     org_id: ORG, empresa_id: EMPRESA, fecha_lote: "2026-10-29", canal: "correo", destinatario: "rrhh@empresa-a.com", consultas: [consultas[0]],
     documentos: ["constancia"], asunto: "Evaluaciones de hoy", mensaje: "Adjunto las evaluaciones realizadas el día de hoy", estado: "enviando" } });
-  assert.equal(env.status, 503, JSON.stringify(env.json));
-  anotar(`encolar un envío sin internet → ${env.status}: public.envios no es subible en esta rama (la fila de sync.tablas la trae arquitecto/copia-tablas-faltantes 20261030240000 y la cola real es #120 cola-envios)`);
+  // Con la cola (#120) los envíos se guardan en la PC: la base local aplica las mismas reglas y una consulta sin firmar no sale
+  assert.equal(env.status, 400, JSON.stringify(env.json));
+  assert.match(env.json?.message || "", /consultas firmadas/);
+  anotar(`enviar sin internet una consulta sin firmar → ${env.status} «${env.json?.message}»: la PC valida igual que la nube; firmada, el correo queda «en cola» y sale al volver internet`);
 });
 
 test("vuelve internet: sincroniza sin conflictos, firma, envía y respalda base + adjuntos cifrados", { skip: omitir, timeout: 180_000 }, async () => {
@@ -238,9 +240,9 @@ test("vuelve internet: sincroniza sin conflictos, firma, envía y respalda base 
   await replicaObj.ciclo();
   const [f] = await enLocal("select count(*)::int as n from clinico.consultas where id = any($1) and estado = 'firmada' and firmada_en is not null", [consultas]);
   assert.equal(f.n, 3, "las tres firmadas en la copia local");
-  // Enviar (con internet, directo en la nube)
+  // Enviar por WhatsApp (estado «enlace»): se guarda en la PC y la bandeja lo sube con la próxima sincronía
   const env = await pedir("/rest/v1/envios", { metodo: "POST", token: tokenMed, cabeceras: { Prefer: "return=representation" }, cuerpo: {
-    org_id: ORG, empresa_id: EMPRESA, fecha_lote: "2026-10-29", canal: "correo", destinatario: "rrhh@empresa-a.com", consultas,
+    org_id: ORG, empresa_id: EMPRESA, fecha_lote: "2026-10-29", canal: "whatsapp", destinatario: "+584141234567", consultas,
     documentos: ["constancia"], asunto: "Evaluaciones de hoy", mensaje: "Adjunto las evaluaciones realizadas el día de hoy", estado: "enlace" } });
   assert.ok([200, 201].includes(env.status), JSON.stringify(env.json));
   // Respaldar ahora

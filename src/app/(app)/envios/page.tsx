@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { hoyCaracas } from "@/lib/fecha";
-import { correoConfigurado, remitente } from "@/lib/correo";
+import { remitenteVisible } from "@/lib/correo";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { consultasDelDia, contarPendientes, historialEnvios, listarContactos, listarPlantillas, porEnviar } from "@/lib/envios";
@@ -47,7 +47,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
           contactos={contactos}
           historial={historial}
           plantillas={plantillas}
-          correo={correoConfigurado() ? remitente() : null}
+          correo={remitenteVisible()}
           puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"}
         />
       ) : (

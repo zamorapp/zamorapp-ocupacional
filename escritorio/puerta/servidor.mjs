@@ -35,7 +35,7 @@ const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).spl
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloques = null, respaldo = null, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola = null, bloques = null, respaldo = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
   // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
@@ -628,6 +628,8 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         if (bandeja) await bandeja.subir();
         await replica.ciclo();
         await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
+        // Orden: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer()
+        if (cola) await cola.barrer();
         if (bloques) await bloques.reponer();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
@@ -674,6 +676,15 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         if (r.error) return responder(res, 400, { message: r.error });
         if (r.hecho === "pendiente" && nube.enLinea) bandeja.subir().catch(() => {});
         return responder(res, 200, r);
+      }
+      // Cola de envíos: la app (Next en esta PC) pide que la web envíe ya los correos que acaba de dejar en cola
+      if (ruta === "/zamorapp/enviar-cola" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { message: "Sesión vencida o no válida" });
+        if (!cola) return responder(res, 503, { message: "Cola de envíos no disponible" });
+        // La fila se guardó en la PC: primero sube la bandeja, así la web ya la encuentra
+        if (bandeja && await nube.confirmar()) await bandeja.subir().catch(() => {});
+        return responder(res, 200, await cola.despachar(quien.uid, json()?.ids));
       }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });

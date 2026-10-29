@@ -54,6 +54,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/api/salud") return conTiempo(respuesta);
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
+  // Cola de envíos del escritorio: la llama la puerta local con la sesión de nube (Bearer), sin cookies; valida ella misma
+  if (request.nextUrl.pathname === "/api/envios/correo") return conTiempo(respuesta);
 
   // En el programa de escritorio las redirecciones conservan el host con el que llegó la petición (solo
   // 127.0.0.1:54332 o localhost:54332): Next armaba request.url con "localhost", la ventana pasaba de

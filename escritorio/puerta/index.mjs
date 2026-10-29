@@ -5,6 +5,7 @@ import { CONFIG } from "./config.mjs";
 import { Estado } from "./estado.mjs";
 import { Motor, puertoLibre } from "./motor.mjs";
 import { Nube } from "./nube.mjs";
+import { ColaEnvios, webDeCola } from "./cola-envios.mjs";
 import { Replica } from "./replica.mjs";
 import { Bandeja } from "./bandeja.mjs";
 import { Bloques } from "./bloques.mjs";
@@ -34,14 +35,17 @@ motor.registro = registro;
 const nube = new Nube(estado, registro);
 const replica = new Replica(estado, nube, motor, registro);
 const bandeja = new Bandeja(estado, nube, motor, replica, registro);
+const cola = new ColaEnvios({ nube, motor, web: webDeCola(CONFIG.nube, process.env.ZAMORAPP_WEB), registro });
 const bloques = new Bloques(estado, nube, motor, replica, registro);
 // Sincronía completa (la usa el botón «Respaldar ahora» antes de copiar la base)
 // Orden: sube filas, baja lo de la nube, suben los adjuntos (después de sus filas, así clinico.adjuntos ya está en la
-// nube cuando llega el archivo), se reponen bloques y se anotan respaldos pendientes
+// nube cuando llega el archivo), salen los correos en cola (su fila y su PDF ya subieron), se reponen bloques y se
+// anotan respaldos pendientes
 let adjuntos = null; // lo crea la puerta (crearPuerta)
 const sincronizar = async () => {
   await nube.comprobar(); await bandeja.subir(); await replica.ciclo();
   if (adjuntos) await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
+  await cola.barrer();
   await bloques.reponer(); await respaldo.anotarPendientes();
 };
 const respaldo = new Respaldo({ estado, nube, motor, replica, registro, sincronizar });
@@ -54,14 +58,14 @@ async function principal() {
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
-  const puerta = crearPuerta({ estado, nube, motor, replica, bandeja, bloques, respaldo, origen, control: process.env.ZAMORAPP_CONTROL || "", registro });
+  const puerta = crearPuerta({ estado, nube, motor, replica, bandeja, cola, bloques, respaldo, origen, control: process.env.ZAMORAPP_CONTROL || "", registro });
   adjuntos = puerta.adjuntos;
   puerta.listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
   });
-  // Cada ciclo sincroniza (filas, bajada, adjuntos, bloques); una vez al día, además, deja el respaldo automático
+  // Cada ciclo sincroniza (filas, bajada, adjuntos, correos en cola, bloques); una vez al día, además, deja el respaldo automático
   const ciclo = async () => { await sincronizar(); if (respaldo.vencido()) await respaldo.hacer({ sincronizar: false, automatico: true }); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();
