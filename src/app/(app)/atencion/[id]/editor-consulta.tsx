@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -50,6 +50,8 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+import { mensajeGuardadoLocal, refrescarEstado, useEstadoEscritorio } from "@/lib/escritorio-estado";
+import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
 // Respaldo legible si la lista «Clasificación de aptitud» no trae el código
 const APTITUD_LEGIBLE: Record<Aptitud, string> = {
@@ -181,7 +183,22 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const [precarga] = useState(() => (plantillaInicial ? aplicarPlantilla(inicial, plantillaInicial.datos, listas) : inicial));
   const [d, setD] = useState<DatosConsulta>(precarga);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
-  const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  const [aviso, setAvisoBase] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  // Escritorio sin internet: lo guardado queda en esta PC y sube después; el aviso lo dice y el indicador se pone al día
+  const escritorio = useEstadoEscritorio();
+  const sinInternet = ESCRITORIO && escritorio.conocido && !escritorio.enLinea;
+  const setAviso = useCallback((r: { ok: boolean; mensaje: string } | null) => {
+    if (r?.ok && ESCRITORIO) void refrescarEstado();
+    setAvisoBase(r?.ok ? { ...r, mensaje: mensajeGuardadoLocal(r.mensaje) } : r);
+  }, []);
+  // Sin internet desde el arranque, la hora es la de Windows (Cesar la cambia para el SAME): se avisa antes de firmar
+  const confirmarFirma = (accion: string) => ({
+    ...CONFIRMAR_FIRMA,
+    accion,
+    texto: escritorio.horaSinAncla
+      ? `${CONFIRMAR_FIRMA.texto} Esta PC arrancó sin internet y firmará con la fecha de Windows: ${new Date().toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}. Si no es la de hoy, corrígela antes de firmar.`
+      : CONFIRMAR_FIRMA.texto,
+  });
   const [guardando, iniciar] = useTransition();
   const [verTodo, setVerTodo] = useState(false);
   const [paso, setPaso] = useState(() => pasoInicial ?? (
@@ -307,12 +324,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           setGuardado(JSON.stringify(nuevo));
         }
       }),
-    [d],
+    [d, setAviso],
   );
 
   // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
   const firmarEImprimir = async () => {
-    if (!(await confirmar({ ...CONFIRMAR_FIRMA, accion: "Firmar e imprimir" }))) return;
+    if (!(await confirmar(confirmarFirma("Firmar e imprimir")))) return;
     iniciar(async () => {
       if (d.estado === "borrador") {
         const g = await guardarConsulta(d, true);
@@ -570,7 +587,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               </Button>
               {puedeFirmar && (
                 <>
-                  <Button variant="outline" onClick={async () => (await confirmar(CONFIRMAR_FIRMA)) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
+                  <Button variant="outline" onClick={async () => (await confirmar(confirmarFirma("Firmar"))) && iniciar(async () => { const r = await firmarConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "firmada" }); })} disabled={guardando}>
                     <CheckCircle2 /> Firmar
                   </Button>
                   <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
@@ -620,14 +637,20 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
             </p>
+            {sinInternet && (
+              <p role="status" className="flex items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
+                <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                Corregir una consulta firmada necesita internet: la versión firmada se guarda en el historial de la nube. Vuelve a intentarlo cuando haya conexión.
+              </p>
+            )}
             <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
             <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
               placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
               <Button
-                disabled={guardando || motivoCorreccion.trim().length < 10}
-                title={motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
+                disabled={guardando || sinInternet || motivoCorreccion.trim().length < 10}
+                title={sinInternet ? "Necesita internet" : motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
                 onClick={() => iniciar(async () => {
                   const r = await corregirConsulta(d.id, motivoCorreccion);
                   setAviso(r);
