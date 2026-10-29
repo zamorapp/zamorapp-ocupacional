@@ -45,11 +45,12 @@ create trigger avisar_aptitud_al_crear_cerrada after insert on clinico.consultas
 
 -- Filas hijas de una consulta firmada en la PC: las sube la bandeja de esa misma PC (sync.equipo_id) y el último
 -- cambio de la consulta en la nube es el suyo. Una firma hecha en la web, o un cambio posterior, las sigue negando.
+-- Ventana abierta mientras nadie toque la consulta: hoy basta porque la base local niega hijas de una firmada.
 create or replace function public.consulta_abierta(p_consulta uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce((select estado <> 'firmada' from clinico.consultas where id = p_consulta), true)
       or (coalesce(current_setting('sync.equipo_id', true), '') <> ''
           and (select r.equipo_id from sync.registro r
                 where r.tabla = 'clinico.consultas' and r.fila_id = p_consulta
-                order by r.seq desc limit 1) = nullif(current_setting('sync.equipo_id', true), '')::uuid)
+                order by r.version desc nulls last, r.seq desc limit 1) = nullif(current_setting('sync.equipo_id', true), '')::uuid)
 $$;
