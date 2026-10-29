@@ -6,7 +6,7 @@
 create or replace function public.aplicar_cambios(p_equipo uuid, p_secreto text, p_lote jsonb)
 returns jsonb language plpgsql security invoker set search_path = public as $$
 declare
-  v_org uuid := sync.equipo_valido(p_equipo, p_secreto);
+  v_org uuid;
   c jsonb; t sync.tablas; r jsonb; salida jsonb := '[]';
   v_id uuid; v_fila uuid; v_base bigint; v_actual bigint; v_nueva bigint; v_cols text[]; v_lista text;
   v_tocados text[]; v_n int; v_tipo text; v_motivo text;
@@ -16,6 +16,7 @@ begin
   if not public.dos_pasos_cumplido() then
     raise exception 'Falta la verificación en dos pasos para subir cambios desde este equipo' using errcode = '42501';
   end if;
+  v_org := sync.equipo_valido(p_equipo, p_secreto);
   if jsonb_typeof(p_lote) <> 'array' or jsonb_array_length(p_lote) > 500 then
     raise exception 'El lote debe ser una lista de hasta 500 cambios';
   end if;

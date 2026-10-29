@@ -67,7 +67,7 @@ before(async () => {
   nubeObj = new Nube(estado);
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
-  bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj);
+  bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
   puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, origen: "http://127.0.0.1:54332", control: CONTROL });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
@@ -88,7 +88,8 @@ test("entrar con internet y registrar la PC", { skip: omitir }, async () => {
   assert.equal(r.status, 200);
   tokenAdmin = r.json.access_token;
   assert.equal((await pedir("/auth/v1/user", { token: tokenAdmin })).json.id, "00000000-0000-0000-0000-0000000000a1");
-  const serie = "Q" + String.fromCharCode(65 + crypto.randomInt(22));
+  // Dos letras al azar: el banco local conserva los equipos de corridas anteriores y una sola letra chocaba
+  const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
   const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   assert.ok(estado.d.equipo.secreto.length === 64);
@@ -217,6 +218,7 @@ test("guardar en la PC: la base local responde al instante, queda en la bandeja 
   const [local] = await enLocal("select telefono, version from public.trabajadores where id = $1", [TRAB]);
   assert.equal(local.telefono, "0414-0000001");
   await bandejaObj.enCurso; // la puerta disparó la subida al guardar
+  if (process.env.DEPURAR_BANDEJA) console.error("bandeja:", JSON.stringify(await enLocal("select * from local.bandeja")));
   await bandejaObj.subir();
   const e = await pedir("/zamorapp/estado");
   assert.deepEqual({ p: e.json.bandeja.pendientes, c: e.json.bandeja.conflictos }, { p: 0, c: 0 }, JSON.stringify(e.json.bandeja));
@@ -777,7 +779,8 @@ test("el programa consulta /zamorapp/estado con HTTP crudo (como main.rs) y la p
 test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
   nube.estado.rlsNiega = true;
   try {
-    const r = await pedir("/rest/v1/consultas?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { motivo: "x" } });
+    // (miembros no sincroniza: la escritura va a la nube, que aquí la niega por RLS)
+    const r = await pedir("/rest/v1/miembros?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { rol: "x" } });
     assert.equal(r.status, 403);
     assert.equal(r.json.code, "42501");
     assert.match(r.json.message, /^new row violates row-level security policy/);

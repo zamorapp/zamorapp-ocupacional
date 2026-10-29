@@ -135,7 +135,9 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       if (url.pathname.startsWith("/rest/v1/rpc/")) {
         const fn = url.pathname.slice(13).replace(/[^a-z_0-9]/g, "");
         const args = JSON.parse(cuerpo || "{}");
-        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, Object.values(args));
+        // Un argumento jsonb (p. ej. el lote de aplicar_cambios) viaja como texto JSON: node-pg mandaría una lista como arreglo de PostgreSQL
+        const valores = Object.values(args).map((v) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v));
+        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, valores);
         filas = r.rows[0].r;
       } else {
         const tabla = url.pathname.slice(9).replace(/[^a-z_0-9]/g, "");

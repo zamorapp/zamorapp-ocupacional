@@ -37,3 +37,7 @@ begin
     execute format('alter table %s disable trigger %I', t.tabla, t.tgname);
   end loop;
 end $$;
+
+-- Hora anclada (fase A): solo en la base local public.ahora() toma la hora que manda la puerta (cabecera
+-- X-Zamorapp-Ahora o zamorapp.ahora); en la nube esta marca no existe y la cabecera se ignora.
+alter database zamorapp set zamorapp.local = 'on';

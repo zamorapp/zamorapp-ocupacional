@@ -123,8 +123,11 @@ export class Nube {
     });
     const json = await r.json().catch(() => null);
     if (!r.ok) {
+      if (process.env.DEPURAR_BANDEJA) console.error("rpc", funcion, r.status, JSON.stringify(json), JSON.stringify(args).slice(0, 400));
       this.anotarIncompatibilidad(r.status, json, `rpc ${funcion}`);
-      throw Object.assign(new Error(json?.message || `rpc ${funcion}: ${r.status}`), { status: r.status });
+      // El detalle y la pista de PostgREST dicen dónde falló (p. ej. qué disparador): van en el mensaje del registro
+      const detalle = [json?.details, json?.hint].filter(Boolean).join(" · ");
+      throw Object.assign(new Error((json?.message || `rpc ${funcion}: ${r.status}`) + (detalle ? ` (${detalle})` : "")), { status: r.status });
     }
     return json;
   }

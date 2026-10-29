@@ -77,7 +77,7 @@ export class Bandeja {
       }
     } catch (e) {
       this.ultimoError = e.message;
-      this.registro(`[bandeja] no se pudo subir: ${e.message}`);
+      this.registro(`[bandeja] no se pudo subir: ${e.stack || e.message}`);
     } finally {
       await c.end().catch(() => {});
     }
