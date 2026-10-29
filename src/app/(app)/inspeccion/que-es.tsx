@@ -69,7 +69,7 @@ export function QueEs() {
               ))}
             </ul>
             <p className="text-muted-foreground">
-              Cada punto dice en qué norma se apoya y lleva un enlace para corregir lo que falta. <strong className="text-foreground">«Imprimir paquete»</strong> junta
+              Cada punto dice en qué norma se apoya y lleva una flecha para corregir lo que falta. <strong className="text-foreground">«Imprimir paquete»</strong> junta
               en un PDF la portada, el índice, las declaraciones, las investigaciones y las notificaciones firmadas.
             </p>
             <p className="font-medium">No reemplaza la inspección: te muestra antes que el inspector qué te falta.</p>
