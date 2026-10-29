@@ -20,6 +20,9 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
+  // Qué botón se tocó: solo ese gira mientras se guarda (los demás quedan bloqueados)
+  const [tocado, setTocado] = useState<string | null>(null);
+  const giro = (k: string, icono: React.ReactNode) => (ocupado && tocado === k ? <Loader2 className="animate-spin" /> : icono);
   const set = <K extends keyof Cobro>(k: K, v: Cobro[K]) => setC((x) => ({ ...x, [k]: v }));
   const t = totales(c);
   const borrador = c.estado === "borrador";
@@ -113,14 +116,14 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
         <div className="flex flex-wrap items-center gap-2">
           {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
           <div className="ml-auto flex flex-wrap gap-2">
-            {borrador && <Button variant="ghost" className="text-destructive" disabled={ocupado} onClick={async () => (await confirmar(presupuesto ? { titulo: "¿Eliminar este presupuesto?", accion: "Eliminar", peligro: true } : { titulo: "¿Eliminar este borrador?", texto: "Las atenciones vuelven a quedar pendientes de cobro.", accion: "Eliminar", peligro: true })) && iniciar(async () => { const r = await eliminarCobro(c.id); if (r && !r.ok) setAviso(r); })}><Trash2 /> Eliminar</Button>}
-            {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Anular esta nota de cobro?", texto: "Queda registrada como anulada y deja de contar como deuda.", accion: "Anular", peligro: true })) && guardar("anulada")}><XCircle /> Anular</Button>}
-            <Button variant="outline" disabled={ocupado || !cambios} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
-            {borrador && <Button disabled={ocupado || c.items.length === 0} onClick={() => guardar("emitida")}><Send /> {presupuesto ? "Marcar enviado" : "Emitir"}</Button>}
-            {!presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("pagada")}><CheckCircle2 /> Marcar pagada</Button>}
-            {presupuesto && c.estado === "emitida" && <Button variant="outline" disabled={ocupado} onClick={() => guardar("rechazado")}><ThumbsDown /> Rechazado</Button>}
-            {presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("aprobado")}><ThumbsUp /> Aprobado</Button>}
-            {presupuesto && c.estado === "aprobado" && <Button disabled={ocupado} onClick={() => iniciar(async () => { const r = await convertirPresupuesto(c.id); if (r && !r.ok) setAviso(r); })}><ArrowRightLeft /> Convertir en nota de cobro</Button>}
+            {borrador && <Button variant="ghost" className="text-destructive" disabled={ocupado} onClick={async () => (await confirmar(presupuesto ? { titulo: "¿Eliminar este presupuesto?", accion: "Eliminar", peligro: true } : { titulo: "¿Eliminar este borrador?", texto: "Las atenciones vuelven a quedar pendientes de cobro.", accion: "Eliminar", peligro: true })) && (setTocado("eliminar"), iniciar(async () => { const r = await eliminarCobro(c.id); if (r && !r.ok) setAviso(r); }))}>{giro("eliminar", <Trash2 />)} Eliminar</Button>}
+            {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Anular esta nota de cobro?", texto: "Queda registrada como anulada y deja de contar como deuda.", accion: "Anular", peligro: true })) && (setTocado("anulada"), guardar("anulada"))}>{giro("anulada", <XCircle />)} Anular</Button>}
+            <Button variant="outline" disabled={ocupado || !cambios} onClick={() => { setTocado("guardar"); guardar(); }}>{giro("guardar", <Save />)} Guardar</Button>
+            {borrador && <Button disabled={ocupado || c.items.length === 0} onClick={() => { setTocado("emitida"); guardar("emitida"); }}>{giro("emitida", <Send />)} {presupuesto ? "Marcar enviado" : "Emitir"}</Button>}
+            {!presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => { setTocado("pagada"); guardar("pagada"); }}>{giro("pagada", <CheckCircle2 />)} Marcar pagada</Button>}
+            {presupuesto && c.estado === "emitida" && <Button variant="outline" disabled={ocupado} onClick={() => { setTocado("rechazado"); guardar("rechazado"); }}>{giro("rechazado", <ThumbsDown />)} Rechazado</Button>}
+            {presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => { setTocado("aprobado"); guardar("aprobado"); }}>{giro("aprobado", <ThumbsUp />)} Aprobado</Button>}
+            {presupuesto && c.estado === "aprobado" && <Button disabled={ocupado} onClick={() => { setTocado("convertir"); iniciar(async () => { const r = await convertirPresupuesto(c.id); if (r && !r.ok) setAviso(r); }); }}>{giro("convertir", <ArrowRightLeft />)} Convertir en nota de cobro</Button>}
           </div>
         </div>
       )}

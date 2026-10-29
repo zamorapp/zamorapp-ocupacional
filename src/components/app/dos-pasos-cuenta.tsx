@@ -83,7 +83,7 @@ export function DosPasosCuenta({ obligatoria }: { obligatoria: boolean }) {
             <ul className="space-y-1 text-muted-foreground">
               {equipos.map((e) => <li key={e.id}>{e.nombre || "Equipo"} · hasta el {fecha(e.vence)}</li>)}
             </ul>
-            <Button variant="outline" size="sm" disabled={ocupado} onClick={olvidarEquipos}>Olvidar todos</Button>
+            <Button variant="outline" size="sm" disabled={ocupado} onClick={olvidarEquipos}>{ocupado && <Loader2 className="animate-spin" />} Olvidar todos</Button>
           </div>
         )}
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{error}</p>}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Columns3, Search, X } from "lucide-react";
+import { Columns3, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Columna, Opcion } from "@/lib/reportes-catalogo";
@@ -22,6 +22,8 @@ export function FiltrosReporte({ columnas, valores, opciones, elegidas, ver }: {
   const ruta = usePathname();
   const q = useSearchParams();
   const [texto, setTexto] = useState(q.get("q") ?? "");
+  // Mientras llega el reporte filtrado, el botón gira: el cálculo puede tardar unos segundos
+  const [cargando, iniciar] = useTransition();
 
   const ir = (cambios: Record<string, string | null>) => {
     const p = new URLSearchParams(q.toString());
@@ -29,7 +31,7 @@ export function FiltrosReporte({ columnas, valores, opciones, elegidas, ver }: {
       if (v) p.set(k, v);
       else p.delete(k);
     }
-    router.push(`${ruta}?${p}`, { scroll: false });
+    iniciar(() => router.push(`${ruta}?${p}`, { scroll: false }));
   };
   const hayFiltros = [...q.keys()].some((k) => k.startsWith("f_") || k === "q");
   const titulo = (k: string) => columnas.find((c) => c.k === k)?.t ?? k;
@@ -48,7 +50,7 @@ export function FiltrosReporte({ columnas, valores, opciones, elegidas, ver }: {
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
           <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar paciente, cédula, diagnóstico…" aria-label="Buscar en el reporte" className={`${CAMPO} w-full pl-8`} />
         </label>
-        <Button type="submit" size="sm" variant="outline">Buscar</Button>
+        <Button type="submit" size="sm" variant="outline" disabled={cargando}>{cargando ? <><Loader2 className="animate-spin" /> Buscando…</> : "Buscar"}</Button>
       </form>
 
       {opciones.map((o) => (

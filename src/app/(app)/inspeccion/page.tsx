@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { ArrowRight, Printer, ShieldCheck } from "lucide-react";
 import { BotonNotificarTrabajadores } from "@/components/app/notificacion-riesgos";
+import { BotonEnviar } from "@/components/app/boton-enviar";
 import { Semaforo } from "@/components/app/semaforo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +45,7 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
         )}
       </div>
 
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
+      <Form action="/inspeccion" className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
         <label className="min-w-56 flex-1 text-sm">
           <span className="mb-1 block text-muted-foreground">Empresa</span>
           <select name="empresa" defaultValue={empresaId} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm">
@@ -52,8 +54,8 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
         </label>
         <label className="text-sm"><span className="mb-1 block text-muted-foreground">Desde</span><Input type="date" name="desde" defaultValue={desde} /></label>
         <label className="text-sm"><span className="mb-1 block text-muted-foreground">Hasta</span><Input type="date" name="hasta" defaultValue={hasta} /></label>
-        <Button type="submit" variant="outline">Ver</Button>
-      </form>
+        <BotonEnviar variant="outline" pendiente="Calculando…">Ver</BotonEnviar>
+      </Form>
 
       {!d ? (
         <p className="rounded-xl border p-6 text-sm text-muted-foreground">{sesion.demo ? "Conecta Supabase para medir el cumplimiento." : "Elige una empresa."}</p>

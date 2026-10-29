@@ -52,7 +52,7 @@ function Imagen({ tipo, titulo, ayuda, inicial, mostrarInicial }: { tipo: "firma
         </Button>
         {imagen && (
           <Button type="button" size="sm" variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: `¿Quitar ${tipo === "firma" ? "la firma" : "el sello"}?`, texto: "Los documentos nuevos saldrán sin esta imagen hasta que cargues otra.", accion: "Quitar", peligro: true })) && iniciar(async () => { const r = await guardarImagenFirma(tipo, null); if (r.ok) setImagen(null); })}>
-            <Trash2 /> Quitar
+            {ocupado ? <Loader2 className="animate-spin" /> : <Trash2 />} Quitar
           </Button>
         )}
         <label className="ml-auto flex items-center gap-2 text-sm">

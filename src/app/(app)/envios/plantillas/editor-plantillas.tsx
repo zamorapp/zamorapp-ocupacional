@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Building2, Globe, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Building2, Globe, Loader2, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ const NUEVA: Plantilla = { id: "", empresaId: null, nombre: "", asunto: ASUNTO_E
 
 export function EditorPlantillas({ plantillas, empresas, puedeGeneral }: { plantillas: Plantilla[]; empresas: Empresa[]; puedeGeneral: boolean }) {
   const [editando, setEditando] = useState<Plantilla | null>(null);
-  const [, iniciar] = useTransition();
+  const [quitando, iniciar] = useTransition();
   const nombreEmpresa = (id: string | null) => (id ? empresas.find((e) => e.id === id)?.nombre ?? "Empresa" : "Todas las empresas");
   const generales = plantillas.filter((p) => !p.empresaId);
   const porEmpresa = plantillas.filter((p) => p.empresaId);
@@ -39,7 +39,7 @@ export function EditorPlantillas({ plantillas, empresas, puedeGeneral }: { plant
         {editable && (
           <>
             <Button variant="ghost" size="icon" aria-label={`Editar ${p.nombre}`} onClick={() => setEditando(p)}><Pencil /></Button>
-            <Button variant="ghost" size="icon" aria-label={`Quitar ${p.nombre}`} onClick={async () => {
+            <Button variant="ghost" size="icon" disabled={quitando} aria-label={`Quitar ${p.nombre}`} onClick={async () => {
               if (await confirmar({ titulo: `¿Quitar «${p.nombre}»?`, texto: "Deja de ofrecerse al enviar. Los envíos anteriores no cambian.", accion: "Quitar", peligro: true })) iniciar(async () => { await quitarPlantilla(p.id); });
             }}><Trash2 /></Button>
           </>
@@ -120,7 +120,7 @@ function Formulario({ p, empresas, puedeGeneral, cerrar }: { p: Plantilla; empre
           <Aviso resultado={estado} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={cerrar}>Cancelar</Button>
-            <Button type="submit" disabled={guardando}>Guardar</Button>
+            <Button type="submit" disabled={guardando}>{guardando ? <><Loader2 className="animate-spin" /> Guardando…</> : "Guardar"}</Button>
           </div>
         </form>
       </DialogContent>

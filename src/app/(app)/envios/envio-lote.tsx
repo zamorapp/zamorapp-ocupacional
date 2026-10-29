@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, FileText, Link2Off, Mail, MessageCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Link2Off, Loader2, Mail, MessageCircle } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -130,7 +130,7 @@ function FilaHistorial({ h }: { h: EnvioHistorial }) {
         <Button variant="ghost" size="sm" disabled={anulando} onClick={async () => {
           if (!(await confirmar({ titulo: "¿Anular este enlace?", texto: "La empresa ya no podrá abrir el PDF. No se puede deshacer.", accion: "Anular", peligro: true }))) return;
           iniciar(async () => { await anularEnlace(h.id); });
-        }}><Link2Off /> Anular</Button>
+        }}>{anulando ? <Loader2 className="animate-spin" /> : <Link2Off />} {anulando ? "Anulando…" : "Anular"}</Button>
       )}
     </li>
   );
