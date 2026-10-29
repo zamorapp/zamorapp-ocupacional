@@ -34,10 +34,10 @@ test("sin nube: nunca retrocede del piso guardado, y queda «sin verificar» has
   const b = armar(nube - 30 * DIA, structuredClone(a.estado.d));
   assert.equal(b.reloj.verificada, false);
   assert.ok(b.reloj.ahora() >= nube + 3 * DIA - 1000, "no retrocede");
-  // Con Windows adelantado, se usa Windows (es mayor): nunca menos que el piso
+  // Con Windows adelantado, se usa Windows (es mayor), pero el piso NO sube con una fecha sin verificar
   const c = armar(nube + 10 * DIA, structuredClone(a.estado.d));
   assert.ok(Math.abs(c.reloj.ahora() - (nube + 10 * DIA)) < 1000);
-  assert.ok(c.estado.d.reloj.piso >= nube + 10 * DIA - 1000, "el piso sube");
+  assert.ok(c.estado.d.reloj.piso < nube + 4 * DIA, "el piso no sube con la fecha de Windows");
   assert.equal(c.reloj.verificada, false);
   c.reloj.anclar(new Date(nube + 11 * DIA).toUTCString());
   assert.equal(c.reloj.verificada, true);
@@ -61,6 +61,23 @@ test("plazo sin conexión: cuenta con la hora anclada y con los arranques seguid
   r2.reloj.arranque(true);
   assert.equal(r2.reloj.arranquesSinNube(), 0);
   assert.ok(estado.guardadas >= 1, "el piso se guarda en el estado cifrado");
+});
+
+test("arranque sin nube con la fecha 5 años adelante: al anclar, la hora vuelve a la de la nube", () => {
+  const nube = Date.UTC(2026, 9, 29, 12, 0, 0);
+  const { reloj, estado, f } = armar(nube + 5 * 365 * DIA, { reloj: { piso: nube - DIA, arranquesSinNube: 0 } });
+  reloj.arranque(false);
+  assert.ok(Math.abs(reloj.ahora() - (nube + 5 * 365 * DIA)) < 1000, "sin ancla se muestra la de Windows (sin verificar)");
+  assert.equal(estado.d.reloj.piso, nube - DIA, "el piso no se movió");
+  f.mono += 60e3;
+  reloj.anclar(new Date(nube).toUTCString());
+  assert.ok(Math.abs(reloj.ahora() - nube) < 1000, "vuelve a la hora de la nube");
+  assert.ok(estado.d.reloj.piso >= nube - 1000 && estado.d.reloj.piso <= nube + 1000);
+  // Y si por un error el piso hubiera quedado adelantado, anclar lo corrige
+  estado.d.reloj.piso = nube + 365 * DIA;
+  reloj.anclar(new Date(nube + 1000).toUTCString());
+  assert.ok(Math.abs(reloj.ahora() - (nube + 1000)) < 1000);
+  assert.ok(estado.d.reloj.piso <= nube + 2000);
 });
 
 test("una cabecera Date rota no ancla nada", () => {

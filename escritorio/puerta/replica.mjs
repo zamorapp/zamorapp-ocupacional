@@ -153,15 +153,21 @@ export class Replica {
   async reponerFila(uid, tabla, id) {
     tabla = this.#seguro(tabla);
     const [esquema, nombre] = tabla.split(".");
-    const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=*`, { "Accept-Profile": esquema });
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
+      // Se piden las columnas que la copia tiene y el rol puede leer (sin «*»: una columna de salud oculta a un rol
+      // haría fallar el pedido entero y la fila no se repondría)
+      const { rows: cols } = await c.query(
+        `select column_name from information_schema.columns where table_schema = $1 and table_name = $2 and is_generated = 'NEVER'
+            and has_column_privilege('authenticated', ($1 || '.' || $2)::regclass, column_name::text, 'SELECT') order by ordinal_position`, [esquema, nombre]);
+      const select = cols.map((x) => x.column_name).join(",") || "*";
+      const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
       await c.query("set session_replication_role = replica");
       if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
       else await c.query(`delete from ${tabla} where id = $1`, [id]);
+      return Array.isArray(filas) ? filas.length : 0;
     } finally { await c.end().catch(() => {}); }
-    return Array.isArray(filas) ? filas.length : 0;
   }
 
   async #tieneId(c, tabla) {

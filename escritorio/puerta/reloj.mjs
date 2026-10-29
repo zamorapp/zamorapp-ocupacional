@@ -2,7 +2,8 @@
 // para fechas legales ni para contar plazos. Reglas (Analizar, 29-oct-2026):
 // 1) Con internet, la hora es la de la nube (cabecera Date de cada respuesta) más lo que avanzó el reloj
 //    monótono (performance.now(), que no cambia al mover la fecha de Windows).
-// 2) La hora nunca retrocede: un «piso» guardado en el estado cifrado sube y nunca baja.
+// 2) La hora nunca retrocede: un «piso» guardado en el estado cifrado sube SOLO con horas ancladas (nunca con la
+//    fecha de Windows: una PC arrancada sin internet con la fecha en 2030 dejaría el piso en 2030 para siempre).
 // 3) Tras reiniciar sin internet no hay ancla: se usa max(fecha de Windows, piso) y queda la marca
 //    «hora sin verificar» hasta que la nube responda.
 // 4) Los plazos (7 días sin conexión) se cuentan con esta hora, y además hay un límite de arranques seguidos
@@ -25,6 +26,10 @@ export class Reloj {
     if (!Number.isFinite(t)) return false;
     const primera = !this.ancla;
     this.ancla = { nube: t, mono: this.mono() };
+    if (this.#d().piso > t + 60e3) { // un piso por encima de la nube es un error: manda la nube
+      this.registro(`[reloj] el piso guardado (${new Date(this.#d().piso).toISOString()}) estaba por encima de la hora de la nube: se corrige`);
+      this.#d().piso = t; this.estado.guardar();
+    }
     if (primera) {
       const pc = this.fecha();
       const dif = Math.round((pc - t) / 1000);
@@ -36,12 +41,14 @@ export class Reloj {
 
   get verificada() { return Boolean(this.ancla); }
 
-  // Hora real en ms (época Unix). Nunca menor que el piso.
+  // Hora real en ms (época Unix). Nunca menor que el piso. Solo una hora anclada sube el piso.
   ahora() {
-    let t = this.ancla ? this.ancla.nube + (this.mono() - this.ancla.mono) : Math.max(this.fecha(), this.#d().piso);
-    if (t < this.#d().piso) t = this.#d().piso;
-    this.#subirPiso(t);
-    return Math.round(t);
+    if (this.ancla) {
+      const t = Math.max(this.ancla.nube + (this.mono() - this.ancla.mono), this.#d().piso);
+      this.#subirPiso(t);
+      return Math.round(t);
+    }
+    return Math.round(Math.max(this.fecha(), this.#d().piso));
   }
 
   iso() { return new Date(this.ahora()).toISOString(); }

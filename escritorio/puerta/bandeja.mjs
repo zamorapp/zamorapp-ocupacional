@@ -39,7 +39,9 @@ export class Bandeja {
     try {
       await c.connect();
       // El orden se respeta dentro de cada autor; un autor sin sesión en la nube (o sin su código) no detiene
-      // a los demás: sus cambios esperan y se avisa (Analizar, 29-oct-2026).
+      // a los demás: sus cambios esperan y se avisa (Analizar, 29-oct-2026). Entre autores distintos puede haber
+      // un rechazo por llave foránea (B edita lo que A creó y A aún no subió): queda en Rechazados y se resuelve
+      // con «reintentar» cuando lo de A ya subió.
       const { rows: autores } = await c.query("select autor, count(*)::int as n from local.bandeja where estado = 'pendiente' group by autor order by min(orden)");
       for (const { autor, n } of autores) {
         // token() renueva la sesión del autor; si la nube la rechazó (clave cambiada, sesión revocada) o le falta el
