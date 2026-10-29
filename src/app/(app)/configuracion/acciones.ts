@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
 import { URL_PUBLICA } from "@/lib/invitaciones";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -219,6 +220,7 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     const empresas = datos.getAll("empresas").map(String).filter(Boolean);
     const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol, p_empresas: empresas.length ? empresas : null });
     if (error) return { ok: false, mensaje: error.message };
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
@@ -283,6 +285,7 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     }
     const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
     if (error) throw error;
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };
