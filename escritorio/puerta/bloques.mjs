@@ -32,7 +32,7 @@ export class Bloques {
       const r = await this.nube.rpc(uid, "reservar_bloque", { p_equipo: eq.id, p_secreto: eq.secreto, p_tamano: TAMANO });
       if (!r || typeof r.desde !== "number" && typeof r.desde !== "string") throw new Error("la nube no devolvió un bloque");
       await c.connect();
-      await c.query("insert into local.bloques (desde, hasta, siguiente) values ($1, $2, $1)", [r.desde, r.hasta]);
+      await c.query("insert into local.bloques (desde, hasta, siguiente, equipo_id) values ($1, $2, $1, $3)", [r.desde, r.hasta, eq.id]);
       this.registro(`[bloques] números de historia ${r.desde} a ${r.hasta} reservados para esta PC`);
       this.ultimoError = null;
       return true;

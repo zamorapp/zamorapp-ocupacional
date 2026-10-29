@@ -72,7 +72,7 @@ before(async () => {
   replicaObj = new Replica(estado, nubeObj, motor);
   bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
   bloquesObj = new Bloques(estado, nubeObj, motor, replicaObj);
-  respaldoObj = new Respaldo({ estado, nube: nubeObj, motor, sincronizar: async () => { await nubeObj.comprobar(); await bandejaObj.subir(); await replicaObj.ciclo(); } });
+  respaldoObj = new Respaldo({ estado, nube: nubeObj, motor, replica: replicaObj, sincronizar: async () => { await nubeObj.comprobar(); await bandejaObj.subir(); await replicaObj.ciclo(); } });
   puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, respaldo: respaldoObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
@@ -370,7 +370,10 @@ test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia ci
   // Configurar: solo administrador o gerente; carpeta inexistente o clave corta se rechazan
   assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenMed, cuerpo: { carpeta: externa } })).status, 403);
   assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: path.join(externa, "no-existe") } })).status, 400);
-  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "corta" } })).status, 400);
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "corta-corta", confirmacion: "corta-corta" } })).status, 400, "menos de 12 caracteres");
+  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo", confirmacion: "clave-de-respaldO" } })).status, 400, "las dos escrituras no coinciden");
+  // El estado del respaldo lo ve el personal de salud y el administrador; un rol de RR. HH. no
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenMed })).status, 200);
   // Con carpeta pero sin clave, la copia no sale de la PC
   assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { carpeta: externa } })).status, 200);
   let r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
@@ -378,7 +381,8 @@ test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia ci
   assert.equal(r.status, 500); assert.match(j.error, /clave de respaldo/);
   assert.ok(j.archivo && fs.existsSync(j.archivo), "la copia local sí se hizo");
   assert.equal(fs.readdirSync(externa).length, 0);
-  assert.equal((await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo" } })).status, 200);
+  const conf = await pedir("/zamorapp/respaldo/configurar", { metodo: "POST", token: tokenAdmin, cuerpo: { clave: "clave-de-respaldo", confirmacion: "clave-de-respaldo" } });
+  assert.equal(conf.status, 200); assert.match(conf.json.aviso, /anótala en papel/); assert.equal(conf.json.clave, undefined, "la clave nunca vuelve");
   // Un dato nuevo en la PC antes del respaldo
   await enLocalReplica("update public.trabajadores set telefono = '0414-RESPALDO' where id = $1", [TRAB]);
   r = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
@@ -388,6 +392,14 @@ test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia ci
   assert.ok(j.bytes > 1000);
   const est = (await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json;
   assert.equal(est.cifrado, true); assert.equal(est.ultimo.ok, true); assert.ok(est.copias.length >= 2);
+  assert.ok(est.hora && typeof est.horaSinAncla === "boolean" && est.pasos.length === 4, "hora anclada y pasos fijos para la pantalla");
+  // Prueba de descifrado automática: quedó registrada en la PC y anotada en la nube (public.respaldos, #116)
+  assert.equal(est.restauracionProbada?.ok, true, JSON.stringify(est.restauracionProbada));
+  assert.equal(est.restauracionProbada.anotadaEnNube, true);
+  const [anot] = await enNube("select count(*)::int as n from public.respaldos where tipo = 'restauracion' and estado = 'ok' and equipo = 'PC de prueba'");
+  assert.ok(anot.n >= 1, "la prueba de restauración está en la nube");
+  const [anot2] = await enNube("select estado, destinos from public.respaldos where tipo = 'respaldo' order by id desc limit 1");
+  assert.deepEqual(anot2, { estado: "ok", destinos: 2 });
   assert.equal((await pedir("/zamorapp/estado")).json.respaldo.ultimo.ok, true);
   // La copia externa está cifrada: con otra clave no se abre; con la buena es el volcado de pg_dump
   const tmp = path.join(externa, "prueba.dump");
@@ -397,10 +409,32 @@ test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia ci
   assert.ok(!fs.readFileSync(j.externo).includes("0414-RESPALDO"), "nada legible en la copia externa");
   // Restaurar: se pide desde la app y se aplica al arrancar (aquí se aplica directo)
   await enLocalReplica("update public.trabajadores set telefono = '0414-DESPUES' where id = $1", [TRAB]);
-  const pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
+  let pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
   assert.equal(pr.status, 200, JSON.stringify(pr.json));
   assert.ok(estado.d.restaurar?.archivo);
+  // Se puede cancelar antes de reabrir el programa
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionPendiente?.origen, j.externo);
+  assert.equal((await pedir("/zamorapp/restaurar/cancelar", { metodo: "POST", token: tokenAdmin })).json.cancelada, true);
+  assert.equal(estado.d.restaurar, null); assert.equal(fs.existsSync(path.join(respaldoObj.carpetaLocal, "restaurar.dump")), false);
+  // Un archivo dañado NO deja al programa sin abrir: sigue con la base actual y el error queda a la vista
+  const danado = path.join(respaldoObj.carpetaLocal, "restaurar.dump");
+  fs.writeFileSync(danado, Buffer.concat([Buffer.from("PGDMP"), crypto.randomBytes(4096)]));
+  estado.d.restaurar = { archivo: danado, origen: "copia-danada.zamorapp", pedido: nubeObj.reloj.iso() };
+  assert.equal(await motor.restaurarSiPedida(), false);
+  assert.equal(estado.d.restaurar, null);
+  assert.match(estado.d.respaldo.restauracionFallida.mensaje, /No se pudo restaurar/);
+  assert.equal((await pedir("/zamorapp/respaldo", { token: tokenAdmin })).json.restauracionFallida.origen, "copia-danada.zamorapp");
+  assert.equal(fs.existsSync(danado), false, "el volcado dañado se borra");
+  assert.equal((await enLocal("select count(*)::int as n from pg_database where datname = 'zamorapp_restaurada'"))[0].n, 0, "la base a medias se borra");
+  const [sigue] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(sigue.telefono, "0414-DESPUES", "la base actual sigue intacta");
+  // Los bloques de números de historia que traiga un respaldo de OTRA PC se borran al restaurar (condición 7)
+  await enLocalReplica("insert into local.bloques (desde, hasta, siguiente, equipo_id) values (900000, 900099, 900000, '00000000-0000-0000-0000-00000000dead')");
+  pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
+  assert.equal(pr.status, 200, JSON.stringify(pr.json));
   assert.equal(await motor.aplicarRestauracion(), true);
+  const [bl] = await enLocal("select count(*) filter (where equipo_id = '00000000-0000-0000-0000-00000000dead')::int as ajenos, count(*) filter (where equipo_id = $1)::int as propios from local.bloques", [estado.d.equipo.id]);
+  assert.deepEqual(bl, { ajenos: 0, propios: 1 }, "quedan solo los bloques de este equipo");
   const [t] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
   assert.equal(t.telefono, "0414-RESPALDO", "la base volvió al respaldo");
   assert.equal(estado.d.cursor, null, "la nube vuelve a bajar completa");

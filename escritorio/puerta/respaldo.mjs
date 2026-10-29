@@ -15,27 +15,42 @@ const MAGIA = Buffer.from("ZAMORAPP-RESPALDO-1\n");
 const CADA_MS = 24 * 3600e3; // respaldo automático diario
 const GUARDAR_LOCALES = 7;
 const GUARDAR_EXTERNOS = 30;
+const CLAVE_MINIMA = 12;
+// Pasos fijos del avance (para la pantalla): subir a la nube, copia en la PC, copia a Drive, prueba de descifrado
+export const PASOS = ["nube", "pc", "drive", "prueba"];
+export const AVISO_CLAVE = "Sin esta clave, la copia de Drive no sirve; anótala en papel. La nube sigue siendo el otro respaldo.";
 const exe = (nombre) => path.join(CONFIG.pgBin, process.platform === "win32" ? `${nombre}.exe` : nombre);
 
 export class Respaldo {
-  constructor({ estado, nube, motor, registro = () => {}, sincronizar = async () => {} }) {
-    Object.assign(this, { estado, nube, motor, registro, sincronizar });
+  constructor({ estado, nube, motor, replica = null, registro = () => {}, sincronizar = async () => {} }) {
+    Object.assign(this, { estado, nube, motor, replica, registro, sincronizar });
     this.enCurso = null;
     this.paso = null;
   }
 
-  #cfg() { return (this.estado.d.respaldo ??= { carpeta: null, clave: null, ultimo: null, error: null }); }
+  #cfg() {
+    const c = (this.estado.d.respaldo ??= {});
+    for (const k of ["carpeta", "clave", "ultimo", "error", "restauracionProbada", "restauracionFallida"]) c[k] ??= null;
+    c.porAnotar ??= []; // anotaciones para public.respaldos (nube) que no pudieron subir: se reintentan
+    return c;
+  }
   get carpetaLocal() { return path.join(CONFIG.datos, "respaldos"); }
 
   // Para la pantalla: qué hay configurado, cómo fue el último y si hay uno en curso
   estadoActual() {
     const c = this.#cfg();
-    return { enCurso: Boolean(this.enCurso), paso: this.paso, carpeta: c.carpeta, cifrado: Boolean(c.clave), ultimo: c.ultimo, error: c.error,
-      carpetaExternaExiste: Boolean(c.carpeta && fs.existsSync(c.carpeta)) };
+    // La restauración fallida la anota motor.mjs al arrancar, sin hora (allí no hay reloj anclado): se fecha aquí
+    if (c.restauracionFallida && !c.restauracionFallida.fecha) { c.restauracionFallida.fecha = this.nube.reloj.iso(); this.estado.guardar(); }
+    return { enCurso: Boolean(this.enCurso), paso: this.paso, pasos: PASOS, carpeta: c.carpeta, cifrado: Boolean(c.clave), ultimo: c.ultimo, error: c.error,
+      carpetaExternaExiste: Boolean(c.carpeta && fs.existsSync(c.carpeta)),
+      hora: this.nube.reloj.iso(), horaSinAncla: !this.nube.reloj.verificada, claveMinima: CLAVE_MINIMA, avisoClave: AVISO_CLAVE,
+      restauracionProbada: c.restauracionProbada, restauracionFallida: c.restauracionFallida,
+      restauracionPendiente: this.estado.d.restaurar ? { origen: this.estado.d.restaurar.origen, pedido: this.estado.d.restaurar.pedido } : null };
   }
 
-  // Carpeta externa y clave de respaldo (la pone un administrador o el gerente médico desde la app)
-  configurar({ carpeta, clave }) {
+  // Carpeta externa y clave de respaldo (la pone un administrador o el gerente médico desde la app). La clave se
+  // escribe dos veces (confirmacion) y tiene al menos 12 caracteres (Analizar). Nunca se devuelve.
+  configurar({ carpeta, clave, confirmacion }) {
     const c = this.#cfg();
     if (carpeta !== undefined) {
       const ruta = carpeta ? path.resolve(String(carpeta)) : null;
@@ -43,11 +58,24 @@ export class Respaldo {
       c.carpeta = ruta;
     }
     if (clave !== undefined) {
-      if (clave && String(clave).length < 8) throw new Error("La clave de respaldo debe tener al menos 8 caracteres");
+      if (clave) {
+        if (String(clave).length < CLAVE_MINIMA) throw new Error(`La clave de respaldo debe tener al menos ${CLAVE_MINIMA} caracteres`);
+        if (confirmacion !== clave) throw new Error("Escribe la clave de respaldo dos veces iguales");
+      }
       c.clave = clave ? String(clave) : null;
+      c.restauracionProbada = null; // con clave nueva, la próxima copia externa se vuelve a probar
     }
     this.estado.guardar();
-    return this.estadoActual();
+    return { ...this.estadoActual(), aviso: clave ? AVISO_CLAVE : undefined };
+  }
+
+  // «Cancelar restauración» antes de cerrar el programa: se borra el volcado preparado
+  cancelarRestauracion() {
+    const r = this.estado.d.restaurar;
+    if (r?.archivo) fs.rmSync(r.archivo, { force: true });
+    this.estado.d.restaurar = null;
+    this.estado.guardar();
+    return { cancelada: Boolean(r) };
   }
 
   // Carpetas de Google Drive (u otro disco) que suelen existir en una PC con Windows: sugerencias para la pantalla
@@ -74,10 +102,10 @@ export class Respaldo {
   async #hacer({ sincronizar = true, automatico = false } = {}) {
     const c = this.#cfg();
     const inicio = performance.now();
-    const resultado = { fecha: this.nube.reloj.iso(), ok: false, archivo: null, bytes: 0, externo: null, automatico, sincronizado: false };
+    const resultado = { fecha: this.nube.reloj.iso(), ok: false, archivo: null, bytes: 0, externo: null, probada: null, automatico, sincronizado: false };
     try {
-      if (sincronizar) { this.paso = "sincronizando con la nube"; resultado.sincronizado = await this.sincronizar().then(() => true).catch(() => false); }
-      this.paso = "copiando la base de la PC";
+      if (sincronizar) { this.paso = "nube"; resultado.sincronizado = await this.sincronizar().then(() => true).catch(() => false); }
+      this.paso = "pc";
       fs.mkdirSync(this.carpetaLocal, { recursive: true });
       const nombre = `zamorapp-${resultado.fecha.slice(0, 16).replace(/[-:T]/g, "").replace(/(\d{8})(\d{4})/, "$1-$2")}`;
       const archivo = path.join(this.carpetaLocal, `${nombre}.dump`);
@@ -87,10 +115,14 @@ export class Respaldo {
       if (c.carpeta) {
         if (!c.clave) throw new Error("Falta la clave de respaldo: sin ella la copia no sale de la PC");
         if (!fs.existsSync(c.carpeta)) throw new Error(`La carpeta externa no está disponible: ${c.carpeta}`);
-        this.paso = "guardando la copia cifrada en la carpeta externa";
+        this.paso = "drive";
         const externo = path.join(c.carpeta, `${nombre}.zamorapp`);
-        await cifrarArchivo(archivo, externo, c.clave);
+        const huella = await cifrarArchivo(archivo, externo, c.clave);
         resultado.externo = externo;
+        // Prueba de restauración (Analizar): la copia externa se descifra con la clave guardada y tiene que ser
+        // byte a byte el volcado de la PC. Si no, la copia de Drive no sirve y se avisa ya, no cuando haga falta.
+        this.paso = "prueba";
+        resultado.probada = await this.#probar(externo, c.clave, huella, resultado.bytes);
         this.#rotar(c.carpeta, ".zamorapp", GUARDAR_EXTERNOS);
       }
       this.#rotar(this.carpetaLocal, ".dump", GUARDAR_LOCALES);
@@ -103,8 +135,60 @@ export class Respaldo {
     }
     c.ultimo = resultado;
     this.estado.guardar();
+    await this.#anotar({ tipo: "respaldo", estado: resultado.ok ? (resultado.externo ? "ok" : "aviso") : "fallo",
+      archivo: resultado.archivo ? path.basename(resultado.archivo) : null, tamano_kb: Math.round(resultado.bytes / 1024) || null,
+      destinos: resultado.ok ? (resultado.externo ? 2 : 1) : 0,
+      detalle: c.error || (resultado.externo ? "copia en la PC y cifrada en la carpeta externa" : "copia solo en la PC") });
     return { ...resultado, error: c.error };
   }
+
+  async #probar(externo, clave, huella, bytes) {
+    const c = this.#cfg();
+    const prueba = { fecha: this.nube.reloj.iso(), ok: false, archivo: path.basename(externo), detalle: null, anotadaEnNube: false };
+    try {
+      const r = await verificarArchivo(externo, clave);
+      if (r.huella !== huella || r.bytes !== bytes) throw new Error("La copia descifrada no coincide con el volcado de la PC");
+      prueba.ok = true;
+      prueba.detalle = `descifrada con la clave de respaldo: ${Math.round(bytes / 1024)} KB íntegros`;
+    } catch (e) {
+      prueba.detalle = e.message;
+      this.registro(`[respaldo] la prueba de descifrado de ${externo} falló: ${e.message}`);
+    }
+    c.restauracionProbada = prueba;
+    this.estado.guardar();
+    await this.#anotar({ tipo: "restauracion", estado: prueba.ok ? "ok" : "fallo", archivo: prueba.archivo, tamano_kb: Math.round(bytes / 1024), destinos: null, detalle: prueba.detalle });
+    if (!prueba.ok) throw new Error(`La copia de Drive no se pudo abrir con la clave de respaldo: ${prueba.detalle}`);
+    return prueba;
+  }
+
+  // Anota en public.respaldos (nube, #116) con el secreto del equipo; sin internet queda en cola y sube después
+  async #anotar(fila) {
+    const c = this.#cfg();
+    c.porAnotar.push(fila);
+    if (c.porAnotar.length > 50) c.porAnotar.splice(0, c.porAnotar.length - 50);
+    await this.#subirAnotaciones();
+  }
+
+  async #subirAnotaciones() {
+    const c = this.#cfg();
+    const eq = this.estado.d.equipo;
+    const uid = this.replica?.usuarioSincronia?.();
+    if (eq && uid && this.nube.enLinea) {
+      while (c.porAnotar.length) {
+        const f = c.porAnotar[0];
+        try {
+          await this.nube.rpc(uid, "anotar_respaldo", { p_equipo: eq.id, p_secreto: eq.secreto, p_tipo: f.tipo, p_estado: f.estado,
+            p_archivo: f.archivo, p_tamano_kb: f.tamano_kb, p_destinos: f.destinos, p_detalle: f.detalle });
+          c.porAnotar.shift();
+          if (f.tipo === "restauracion" && c.restauracionProbada?.archivo === f.archivo) c.restauracionProbada.anotadaEnNube = true;
+        } catch (e) { this.registro(`[respaldo] no se pudo anotar en la nube (${f.tipo}): ${e.message}`); break; }
+      }
+    }
+    this.estado.guardar();
+  }
+
+  // Anotaciones pendientes (hechas sin internet): las sube el ciclo de sincronía
+  async anotarPendientes() { if (this.#cfg().porAnotar.length) await this.#subirAnotaciones(); }
 
   #volcar(archivo) {
     return new Promise((ok, mal) => {
@@ -157,18 +241,22 @@ export class Respaldo {
 }
 
 // Archivo cifrado: MAGIA + sal(16) + iv(12) + cifrado + etiqueta(16). Clave = scrypt(clave de respaldo, sal)
+// Devuelve la huella SHA-256 del original (para la prueba de descifrado)
 export async function cifrarArchivo(origen, destino, clave) {
   const sal = crypto.randomBytes(16), iv = crypto.randomBytes(12);
   const k = crypto.scryptSync(String(clave), sal, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
   const cifrador = crypto.createCipheriv("aes-256-gcm", k, iv);
   const salida = fs.createWriteStream(`${destino}.parcial`);
   salida.write(Buffer.concat([MAGIA, sal, iv]));
-  await pipeline(fs.createReadStream(origen), cifrador, salida);
+  const huella = crypto.createHash("sha256");
+  await pipeline(fs.createReadStream(origen), async function* (fuente) { for await (const trozo of fuente) { huella.update(trozo); yield trozo; } }, cifrador, salida);
   fs.appendFileSync(`${destino}.parcial`, cifrador.getAuthTag());
   fs.renameSync(`${destino}.parcial`, destino);
+  return huella.digest("hex");
 }
 
-export async function descifrarArchivo(origen, destino, clave) {
+// Lee la cabecera y deja listo el descifrador; el contenido se manda a «destino» (archivo o un hash)
+function abrirCifrado(origen, clave) {
   const tam = fs.statSync(origen).size;
   const cab = Buffer.alloc(MAGIA.length + 28);
   const fd = fs.openSync(origen, "r");
@@ -181,8 +269,23 @@ export async function descifrarArchivo(origen, destino, clave) {
   const k = crypto.scryptSync(String(clave), sal, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
   const d = crypto.createDecipheriv("aes-256-gcm", k, iv);
   d.setAuthTag(etiqueta);
+  return { lector: fs.createReadStream(origen, { start: cab.length, end: tam - 17 }), d };
+}
+
+// Prueba de descifrado sin escribir nada en disco: huella y tamaño del contenido descifrado
+export async function verificarArchivo(origen, clave) {
+  const { lector, d } = abrirCifrado(origen, clave);
+  const huella = crypto.createHash("sha256");
+  let bytes = 0;
+  try { await pipeline(lector, d, async function (fuente) { for await (const trozo of fuente) { huella.update(trozo); bytes += trozo.length; } }); }
+  catch { throw new Error("La clave de respaldo no es la correcta o el archivo está dañado"); }
+  return { huella: huella.digest("hex"), bytes };
+}
+
+export async function descifrarArchivo(origen, destino, clave) {
+  const { lector, d } = abrirCifrado(origen, clave);
   try {
-    await pipeline(fs.createReadStream(origen, { start: cab.length, end: tam - 17 }), d, fs.createWriteStream(`${destino}.parcial`));
+    await pipeline(lector, d, fs.createWriteStream(`${destino}.parcial`));
   } catch {
     fs.rmSync(`${destino}.parcial`, { force: true });
     throw new Error("La clave de respaldo no es la correcta o el archivo está dañado");

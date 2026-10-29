@@ -38,7 +38,8 @@ export class Motor {
     await this.#iniciarPostgres();
     await this.#migrar();
     // Fase C: una restauración pedida desde la app (respaldo.mjs) se aplica aquí, con PostgREST aún apagado
-    if (this.estado.d.restaurar) await this.aplicarRestauracion();
+    if (this.estado.d.restaurar) await this.restaurarSiPedida();
+    await this.limpiarBloquesAjenos();
     // Se elige con la base ya escuchando: si 54329 estaba ocupado y la base tomó 54330, PostgREST no lo pisa
     this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
     await this.#iniciarPostgrest();
@@ -125,7 +126,42 @@ export class Motor {
     }
   }
 
+  // Una restauración que falla (archivo dañado, clave equivocada, disco lleno) NO deja al programa sin abrir
+  // (Analizar): se sigue con la base actual, se borra la base a medias y el error queda a la vista en la pantalla
+  // de respaldos (estado.respaldo.restauracionFallida).
+  async restaurarSiPedida() {
+    const origen = this.estado.d.restaurar?.origen || this.estado.d.restaurar?.archivo;
+    try {
+      return await this.aplicarRestauracion();
+    } catch (e) {
+      this.registro?.(`[base] la restauración falló y se sigue con la base actual: ${e.message}`);
+      const c = new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
+      try { await c.connect(); await c.query("drop database if exists zamorapp_restaurada with (force)"); }
+      catch (e2) { this.registro?.(`[base] no se pudo borrar zamorapp_restaurada: ${e2.message}`); }
+      finally { await c.end().catch(() => {}); }
+      (this.estado.d.respaldo ??= {}).restauracionFallida = { origen, mensaje: e.message, fecha: null };
+      this.estado.d.restaurar = null;
+      this.estado.guardar();
+      return false;
+    }
+  }
+
+  // Los bloques de números de historia son de UN equipo (condición 7 de Analizar): los que trae un respaldo
+  // restaurado en otra PC, o los de un registro de equipo anterior, se borran; con internet se pide uno nuevo.
+  async limpiarBloquesAjenos() {
+    const c = new pg.Client({ connectionString: this.url() });
+    try {
+      await c.connect();
+      const { rowCount } = await c.query("delete from local.bloques where equipo_id is distinct from $1::uuid", [this.estado.d.equipo?.id || null]);
+      if (rowCount) this.registro?.(`[base] ${rowCount} bloque(s) de números de historia de otro equipo borrados`);
+    } catch (e) { this.registro?.(`[base] no se pudieron revisar los bloques: ${e.message}`); }
+    finally { await c.end().catch(() => {}); }
+  }
+
   // Borra y crea de nuevo la base local (sin PostgREST ni réplica en marcha). El estado olvida el cursor y la copia.
+  // OJO: la copia local baja de la nube; una fila borrada FÍSICAMENTE en la nube (no soft delete) después del respaldo
+  // revive al restaurar hasta que la nube la vuelva a bajar... y como ya no existe allá, se queda. Por eso los datos
+  // clínicos solo se borran con soft delete (condición de Analizar) y la restauración es un paso excepcional.
   // Carga el volcado en una base aparte y la cambia por la actual (la vieja queda como zamorapp_anterior por si
   // hace falta volver). Después, #migrar aplica lo que le falte al respaldo y el cursor en cero vuelve a bajar la nube.
   async aplicarRestauracion() {
@@ -133,6 +169,10 @@ export class Motor {
     this.estado.d.restaurar = null;
     this.estado.guardar();
     if (!pedido?.archivo || !fs.existsSync(pedido.archivo)) { this.registro?.("[base] restauración pedida sin archivo: se omite"); return false; }
+    try { return await this.#restaurar(pedido); } finally { fs.rmSync(pedido.archivo, { force: true }); }
+  }
+
+  async #restaurar(pedido) {
     const admin = () => new pg.Client({ connectionString: this.url().replace("/zamorapp", "/postgres") });
     let c = admin();
     await c.connect();
@@ -169,16 +209,23 @@ export class Motor {
     try {
       await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname in ('zamorapp', 'zamorapp_anterior') and pid <> pg_backend_pid()");
       await c.query("drop database if exists zamorapp_anterior with (force)");
-      await c.query("alter database zamorapp rename to zamorapp_anterior");
-      await c.query("alter database zamorapp_restaurada rename to zamorapp");
+      // Los dos renombres juntos: si el segundo falla, no se queda la PC sin base «zamorapp»
+      await c.query("begin");
+      try {
+        await c.query("alter database zamorapp rename to zamorapp_anterior");
+        await c.query("alter database zamorapp_restaurada rename to zamorapp");
+        await c.query("commit");
+      } catch (e) { await c.query("rollback").catch(() => {}); throw e; }
     } finally { await c.end(); }
-    fs.rmSync(pedido.archivo, { force: true });
     // La nube manda: se vuelve a bajar todo; lo que el respaldo tenía pendiente en la bandeja sube con sus versiones
     this.estado.d.cursor = null;
     this.estado.d.copiaCompleta = null;
     this.estado.guardar();
     this.registro?.(`[base] respaldo restaurado desde ${pedido.origen || pedido.archivo}; la base anterior quedó como zamorapp_anterior`);
     await this.#migrar(); // lo que le falte al respaldo (migraciones nuevas) y los ajustes locales de escritorio/base
+    await this.limpiarBloquesAjenos(); // los bloques del respaldo pueden ser de otra PC
+    (this.estado.d.respaldo ??= {}).restauracionFallida = null;
+    this.estado.guardar();
     return true;
   }
 

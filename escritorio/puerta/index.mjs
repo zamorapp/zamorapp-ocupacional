@@ -36,8 +36,8 @@ const replica = new Replica(estado, nube, motor, registro);
 const bandeja = new Bandeja(estado, nube, motor, replica, registro);
 const bloques = new Bloques(estado, nube, motor, replica, registro);
 // Sincronía completa (la usa el botón «Respaldar ahora» antes de copiar la base)
-const sincronizar = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await bloques.reponer(); };
-const respaldo = new Respaldo({ estado, nube, motor, registro, sincronizar });
+const sincronizar = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await bloques.reponer(); await respaldo.anotarPendientes(); };
+const respaldo = new Respaldo({ estado, nube, motor, replica, registro, sincronizar });
 
 async function principal() {
   await motor.iniciar();

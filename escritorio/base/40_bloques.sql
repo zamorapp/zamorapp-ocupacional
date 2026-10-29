@@ -42,3 +42,8 @@ end $$;
 drop trigger if exists numero_de_bloque on public.trabajadores;
 create trigger numero_de_bloque before insert or update of numero_historia on public.trabajadores
   for each row execute function local.numero_de_bloque();
+
+-- Fase C (Analizar): cada bloque recuerda de qué equipo es. Un respaldo restaurado en otra PC trae los bloques de la
+-- PC original; al arrancar, motor.mjs borra los que no sean de este equipo (condición 7: nunca un número ajeno).
+alter table local.bloques add column if not exists equipo_id uuid;
+delete from local.bloques where equipo_id is null;

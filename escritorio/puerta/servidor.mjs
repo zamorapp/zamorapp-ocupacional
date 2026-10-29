@@ -28,6 +28,7 @@ const rutaParaRegistro = (url) => {
 };
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
+const ROLES_RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"]; // ven el estado del respaldo
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
 const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
@@ -626,7 +627,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
       // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración
       if (ruta === "/zamorapp/respaldo" && req.method === "GET") {
         if (!respaldo) return responder(res, 200, null);
-        if (!usuarioDe(req) && !conControl()) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        const quien = usuarioDe(req);
+        if (!quien && !conControl()) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        // Solo el personal de salud y el administrador (Analizar): la lista de copias dice dónde está la base clínica
+        if (quien && !ROLES_RESPALDO.includes(quien.u.rol)) return responder(res, 403, { message: "Solo el personal de salud y el administrador" });
         return responder(res, 200, { ...respaldo.estadoActual(), copias: respaldo.copias(), sugeridas: respaldo.carpetasSugeridas() });
       }
       if (ruta === "/zamorapp/respaldar" && req.method === "POST") {
@@ -635,15 +639,16 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloq
         const r = await respaldo.hacer({ sincronizar: true });
         return responder(res, r.ok ? 200 : 500, r);
       }
-      if ((ruta === "/zamorapp/respaldo/configurar" || ruta === "/zamorapp/restaurar") && req.method === "POST") {
+      if ((ruta === "/zamorapp/respaldo/configurar" || ruta === "/zamorapp/restaurar" || ruta === "/zamorapp/restaurar/cancelar") && req.method === "POST") {
         if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
         const quien = usuarioDe(req);
         if (!quien || !["administrador", "gerente_medico"].includes(quien.u.rol)) return responder(res, 403, { message: "Solo un administrador o el gerente médico" });
         if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos." });
         const b = json() || {};
         try {
+          if (ruta === "/zamorapp/restaurar/cancelar") return responder(res, 200, respaldo.cancelarRestauracion());
           if (ruta === "/zamorapp/restaurar") return responder(res, 200, await respaldo.prepararRestauracion(b.archivo, b.clave));
-          return responder(res, 200, respaldo.configurar({ carpeta: b.carpeta, clave: b.clave }));
+          return responder(res, 200, respaldo.configurar({ carpeta: b.carpeta, clave: b.clave, confirmacion: b.confirmacion }));
         } catch (e) { return responder(res, 400, { message: e.message }); }
       }
       // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
