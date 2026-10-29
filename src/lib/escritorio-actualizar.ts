@@ -19,7 +19,7 @@ const pedirPuerta = (ruta: string) => fetch(`${PUERTA}${ruta}`, { method: "POST"
 // Botón «Buscar actualización»: la puerta se lo pasa al programa, que abre el actualizador
 export async function buscarActualizacion(): Promise<string> {
   const r = await pedirPuerta("/zamorapp/buscar-actualizacion");
-  return r?.pedida ? "Buscando… en unos segundos zamorApp te dice si hay versión nueva y, si la hay, empieza a descargarla." : "No se pudo pedir la actualización. Usa el menú zamorApp → Buscar actualizaciones.";
+  return r?.pedida ? "Buscando… en unos segundos zamorApp te dice si ya tienes la versión más reciente o empieza a descargar la nueva." : "No se pudo pedir la actualización. Usa el menú zamorApp → Buscar actualizaciones.";
 }
 
 // Botón «Trabajar en la web»: el navegador de Windows (dentro de la ventana un enlace externo no abre nada)
