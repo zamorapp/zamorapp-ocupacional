@@ -21,6 +21,32 @@ do $$ begin
 exception when others then raise notice 'WhatsApp no se encola (debe 1): 1';
 end $$;
 
+-- Nunca un relé abierto: en cola solo a un contacto activo de la empresa, con su propio correo, y con tope diario
+do $$ begin
+  insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,asunto,mensaje,estado) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','cualquiera@x.com','{c1350000-0000-0000-0000-000000000001}','{constancia}','x','x','en_cola');
+  raise notice 'FALLA: la cola mandó a un correo suelto';
+exception when others then
+  if sqlerrm like '%contactos guardados%' then raise notice 'la cola no va a un correo suelto (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+do $$ begin
+  insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','otro@x.com','c1350000-0000-0000-0000-0000000000a1','{c1350000-0000-0000-0000-000000000001}','{constancia}','x','x','en_cola');
+  raise notice 'FALLA: la cola usó un contacto con otro correo';
+exception when others then
+  if sqlerrm like '%contactos guardados%' then raise notice 'la cola usa el correo del contacto (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+do $$ begin
+  for i in 1..98 loop
+    insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado) values
+     ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh135@a.com','c1350000-0000-0000-0000-0000000000a1','{c1350000-0000-0000-0000-000000000001}','{constancia}','tope','x','en_cola');
+  end loop;
+  insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,asunto,mensaje,estado) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh135@a.com','c1350000-0000-0000-0000-0000000000a1','{c1350000-0000-0000-0000-000000000001}','{constancia}','tope','x','en_cola');
+  raise notice 'FALLA: pasó el tope de 100 en cola por día';
+exception when others then
+  if sqlerrm like '%tope de 100%' then raise notice 'tope de 100 correos en cola por día (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
 -- PDF en espera: solo en su carpeta y solo para un envío suyo en cola
 insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e1/Constancias.pdf');
 select 'sube el PDF de su envío en cola (debe 1): ' || count(*) from storage.objects where bucket_id = 'envios-cola' and name like '%c1350000-0000-0000-0000-0000000000e1%';
@@ -60,9 +86,9 @@ reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'tablas de envíos en la copia de la PC (debe 4): ' || count(*) from sync.tablas
  where nombre in ('public.empresa_contactos','public.plantillas_correo','public.envios','public.solicitudes');
-select 'las solicitudes solo bajan a la PC (debe false): ' || subible from sync.tablas where nombre = 'public.solicitudes';
+select 'las solicitudes suben desde la PC, como en el #110 (debe true): ' || subible from sync.tablas where nombre = 'public.solicitudes';
 select 'la versión avanza al cerrar un envío (debe 3): ' || version from public.envios where id = 'c1350000-0000-0000-0000-0000000000e1';
 delete from storage.objects where bucket_id = 'envios-cola';
-delete from public.envios where id::text like 'c1350000-%';
+delete from public.envios where id::text like 'c1350000-%' or destinatario = 'rrhh135@a.com';
 delete from public.empresa_contactos where id::text like 'c1350000-%';
 delete from clinico.consultas where id::text like 'c1350000-%';
