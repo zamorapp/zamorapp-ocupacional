@@ -69,7 +69,7 @@ export function HistoriaLaboral({ trabajadorId, empleos }: { trabajadorId: strin
               <Button variant="ghost" size="icon" className="size-8 hover:text-destructive" title="Eliminar"
                 onClick={async () => (await confirmar({ titulo: `¿Eliminar el empleo en ${e.empresa}?`, accion: "Eliminar", peligro: true })) && iniciar(async () => { await eliminarEmpleo(e.id, trabajadorId); })}><Trash2 /></Button>
             </div>
-            <div className="mt-2 grid gap-1 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
               <Dato k="Tareas" v={e.descripcion} />
               <Dato k="Protección" v={e.epp} />
               {CONDICIONES.map(([k, n]) => <Dato key={k} k={n} v={e.condiciones[k]} />)}

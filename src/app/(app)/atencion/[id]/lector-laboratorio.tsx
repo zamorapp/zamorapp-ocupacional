@@ -203,7 +203,7 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
                           onMouseEnter={() => setResaltada(f.linea)}
                           // Ojo: en el celular la grilla ubica a los hijos por posición (nth-child: 1 casilla, 2 examen, 3 valor, 6+ estado y dudas).
                           // Si agregas, quitas o reordenas hijos de este <li>, ajusta esos selectores.
-                          className={cn("grid gap-2 border-l-4 px-3 py-2.5 max-sm:grid-cols-[1.5rem_repeat(3,minmax(0,1fr))] max-sm:[&>*:nth-child(2)]:col-span-3 max-sm:[&>*:nth-child(3)]:col-start-2 max-sm:[&>*:nth-child(n+6)]:col-span-4 sm:grid-cols-[1.5rem_minmax(0,1.4fr)_minmax(5rem,0.8fr)_minmax(4rem,0.6fr)_minmax(5rem,0.8fr)_auto] sm:items-center",
+                          className={cn("grid grid-cols-1 gap-2 border-l-4 px-3 py-2.5 max-sm:grid-cols-[1.5rem_repeat(3,minmax(0,1fr))] max-sm:[&>*:nth-child(2)]:col-span-3 max-sm:[&>*:nth-child(3)]:col-start-2 max-sm:[&>*:nth-child(n+6)]:col-span-4 sm:grid-cols-[1.5rem_minmax(0,1.4fr)_minmax(5rem,0.8fr)_minmax(4rem,0.6fr)_minmax(5rem,0.8fr)_auto] sm:items-center",
                             !f.incluir || bloqueada ? "border-l-transparent opacity-60" : dudosa ? "border-l-aviso bg-aviso/5" : "border-l-ok/60")}
                         >
                           <input type="checkbox" checked={f.incluir && !bloqueada} disabled={bloqueada} aria-label={`Incluir ${f.examen}`} onChange={(e) => cambiar(i, { incluir: e.target.checked })} className="size-4 accent-primary" />
