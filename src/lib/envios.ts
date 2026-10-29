@@ -15,6 +15,7 @@ import {
   telefonoWhatsApp,
   type ConsultaLote,
   type Contacto,
+  type DocInforme,
   type EntradaEnvio,
   type EntradaInforme,
   type EnvioHistorial,
@@ -356,8 +357,12 @@ export function rutaInformeValida(documento: string, ruta: string, empresaId: st
   if (documento === "puesto") return /^\/imprimir\/puesto\/[0-9a-f-]{36}$/.test(ruta);
   if (documento !== "vigilancia" && documento !== "atendidos") return false;
   const m = /^\/imprimir\/(vigilancia|atendidos)\?([A-Za-z0-9=&_.:-]*)$/.exec(ruta);
-  return Boolean(m && m[1] === documento && new URLSearchParams(m[2]).getAll("empresa").join() === empresaId);
+  const q = new URLSearchParams(m?.[2] ?? "");
+  // «para» lo pone solo el servidor (versión para la empresa); si viene del navegador, se rechaza
+  return Boolean(m && m[1] === documento && q.getAll("empresa").join() === empresaId && !q.has("para"));
 }
+// La vigilancia que sale a la empresa es siempre su versión sin discapacidad ni cifras pequeñas (#41)
+const rutaParaEmpresa = (documento: DocInforme, ruta: string) => (documento === "vigilancia" ? `${ruta}&para=empresa` : ruta);
 
 // Informe (puesto, vigilancia o pacientes atendidos) a los contactos de la empresa: mismo registro, texto y bitácora
 // que las evaluaciones. Por correo va el PDF; por WhatsApp, un enlace seguro de 7 días.
@@ -366,6 +371,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
   if (!sesion.clinico && sesion.rol !== "administrador") return { ok: false, mensaje: "Solo el servicio médico envía informes a la empresa." };
   if (!rutaInformeValida(e.documento, e.ruta, e.empresaId)) return { ok: false, mensaje: "Ese informe no es de esta empresa." };
+  const ruta = rutaParaEmpresa(e.documento, e.ruta);
   if (e.canal === "correo" && !correoConfigurado()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
 
   const supabase = await crearClienteServidor();
@@ -395,7 +401,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   const hoy = hoyCaracas();
   let archivo: Adjunto;
   try {
-    archivo = { nombre: `${documento} - ${nombreArchivo(nombreEmpresa, hoy)}`, contenido: (await pdfDeRutas([e.ruta]))[0] };
+    archivo = { nombre: `${documento} - ${nombreArchivo(nombreEmpresa, hoy)}`, contenido: (await pdfDeRutas([ruta]))[0] };
   } catch (err) {
     return { ok: false, mensaje: `No se pudo generar el PDF: ${(err as Error).message}` };
   }
@@ -407,7 +413,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   for (const d of destinos) {
     const fila = {
       org_id: sesion.orgId, empresa_id: e.empresaId, fecha_lote: hoy, canal: e.canal, destinatario: d.destino, contacto_id: d.contacto?.id ?? null,
-      consultas: [], documentos: [e.documento], ruta: e.ruta, asunto, mensaje,
+      consultas: [], documentos: [e.documento], ruta, asunto, mensaje,
     };
     if (e.canal === "correo") {
       detalle.push(await correoRegistrado(supabase, fila, [archivo], `${sesion.nombre} · ${sesion.organizacion}`));

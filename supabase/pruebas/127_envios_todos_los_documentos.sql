@@ -43,7 +43,7 @@ select 'consulta, referencias y récipes van al personal de salud (debe 1): ' ||
 -- Informes: solo con la ruta del documento de su empresa
 insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,contacto_id,consultas,documentos,ruta,asunto,mensaje,estado) values
  ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','c1270000-0000-0000-0000-0000000000a1','{}','{puesto}','/imprimir/puesto/c1270000-0000-0000-0000-0000000000f1','x','x','enviando'),
- ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','c1270000-0000-0000-0000-0000000000a1','{}','{vigilancia}','/imprimir/vigilancia?empresa=20000000-0000-0000-0000-00000000000a&anio=2026&trimestre=3','x','x','enviando'),
+ ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','c1270000-0000-0000-0000-0000000000a1','{}','{vigilancia}','/imprimir/vigilancia?empresa=20000000-0000-0000-0000-00000000000a&anio=2026&trimestre=3&para=empresa','x','x','enviando'),
  ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'whatsapp','584140000127','c1270000-0000-0000-0000-0000000000a1','{}','{atendidos}','/imprimir/atendidos?empresa=20000000-0000-0000-0000-00000000000a&desde=2026-10-01&hasta=2026-10-31','x','x','enlace');
 select 'puesto, vigilancia y atendidos de su empresa se envían (debe 3): ' || count(*) from public.envios where ruta is not null and destinatario in ('rrhh127@a.com','584140000127');
 do $$ begin
@@ -56,10 +56,18 @@ exception when others then
 end $$;
 do $$ begin
   insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,ruta,asunto,mensaje,estado) values
-   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','{}','{vigilancia}','/imprimir/vigilancia?empresa=20000000-0000-0000-0000-00000000000a&empresa=20000000-0000-0000-0000-00000000000b','x','x','enviando');
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','{}','{vigilancia}','/imprimir/vigilancia?empresa=20000000-0000-0000-0000-00000000000a&empresa=20000000-0000-0000-0000-00000000000b&para=empresa','x','x','enviando');
   raise notice 'FALLA: vigilancia con dos empresas';
 exception when others then
   if sqlerrm like '%no es de esta empresa%' then raise notice 'la vigilancia no mezcla empresas (debe 1): 1';
+  else raise notice 'FALLA: %', sqlerrm; end if;
+end $$;
+do $$ begin
+  insert into public.envios (org_id,empresa_id,fecha_lote,canal,destinatario,consultas,documentos,ruta,asunto,mensaje,estado) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',public.hoy_caracas(),'correo','rrhh127@a.com','{}','{vigilancia}','/imprimir/vigilancia?empresa=20000000-0000-0000-0000-00000000000a&anio=2026','x','x','enviando');
+  raise notice 'FALLA: salió la vigilancia con la cifra de discapacidad';
+exception when others then
+  if sqlerrm like '%reservados al servicio%' then raise notice 'la vigilancia solo sale en su versión para la empresa (debe 1): 1';
   else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
 do $$ begin

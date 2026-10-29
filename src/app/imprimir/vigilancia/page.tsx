@@ -18,17 +18,20 @@ export const dynamic = "force-dynamic";
 // «Enviar a la empresa» genera el PDF de esta página en el servidor
 export const maxDuration = 60;
 
-type Props = { searchParams: Promise<ConsultaPeriodo & { empresa?: string }> };
+type Props = { searchParams: Promise<ConsultaPeriodo & { empresa?: string; para?: string }> };
 type Celda = string | number;
 
 const num = (n: number | null | undefined, dec = 2) => (n === null || n === undefined ? "—" : n.toLocaleString("es-VE", { maximumFractionDigits: dec }));
 const porc = (n: number, total: number) => (total ? num(Math.round((n * 1000) / total) / 10, 1) : "0");
 
 // Cuadro compacto: total y % sobre la última columna numérica; sin filas, una sola línea
-function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período." }: {
-  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string;
+// minimo: en lo que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo» (sin su % ni el total que las delata)
+function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0 }: {
+  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number;
 }) {
   if (!filas.length) return <p className="text-[10.5px] italic text-doc-tenue">{vacio}</p>;
+  const oculta = (v: Celda) => minimo > 0 && typeof v === "number" && v > 0 && v < minimo;
+  const conOcultas = filas.some((f) => f.some(oculta));
   const suma = filas.reduce((s, f) => s + (typeof f[f.length - 1] === "number" ? (f[f.length - 1] as number) : 0), 0);
   const th = "px-2 py-1 font-semibold";
   const td = "border-t border-doc-linea px-2 py-[3px]";
@@ -43,11 +46,11 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
       <tbody>
         {filas.map((f, i) => (
           <tr key={i}>
-            {f.map((v, j) => <td key={j} className={`${td} ${j > 0 ? "text-right font-cifra tabular-nums" : ""}`}>{typeof v === "number" ? num(v) : v}</td>)}
-            {porcentaje && <td className={`${td} text-right font-cifra tabular-nums text-doc-tenue`}>{porc(f[f.length - 1] as number, suma)}</td>}
+            {f.map((v, j) => <td key={j} className={`${td} ${j > 0 ? "text-right font-cifra tabular-nums" : ""}`}>{oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
+            {porcentaje && <td className={`${td} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
           </tr>
         ))}
-        {total && filas.length > 1 && (
+        {total && filas.length > 1 && !conOcultas && (
           <tr className="font-semibold">
             <td className={`${td} border-t-doc-acento`} colSpan={columnas.length - 1}>Total</td>
             <td className={`${td} border-t-doc-acento text-right font-cifra tabular-nums`}>{num(suma)}</td>
@@ -119,7 +122,16 @@ function Kpi({ titulo, valor, detalle, delta }: { titulo: string; valor: string;
 // Dato legal faltante: aviso en pantalla, raya en el papel
 const Falta = () => <><span className="font-semibold text-red-700 print:hidden">Falta</span><span className="hidden print:inline">—</span></>;
 const Texto = ({ children }: { children: string }) => <div className="whitespace-pre-line text-[12px] leading-relaxed">{children}</div>;
-const causasFilas = (c: Causa[], pob: number): Celda[][] => c.map((x) => [`${x.cie10} ${x.descripcion}`, porc(x.pacientes ?? 0, pob), x.n]);
+const causasFilas = (c: Causa[], pob: number, minimo = 0): Celda[][] =>
+  c.map((x) => [`${x.cie10} ${x.descripcion}`, minimo && (x.pacientes ?? 0) < minimo ? "—" : porc(x.pacientes ?? 0, pob), x.n]);
+// Gráficos de lo que va a la empresa: las categorías con menos de «minimo» casos se suman en «Otras»; si aun así no llegan, no salen
+function agrupar<F extends { nombre: string; n: number }>(filas: F[], minimo: number): { nombre: string; n: number }[] {
+  if (!minimo) return filas;
+  const chicas = filas.filter((f) => f.n > 0 && f.n < minimo);
+  const resto = chicas.reduce((s, f) => s + f.n, 0);
+  const grandes = filas.filter((f) => !chicas.includes(f));
+  return resto >= minimo ? [...grandes, { nombre: `Otras (menos de ${minimo} cada una)`, n: resto }] : grandes;
+}
 const variacion = (actual: number, base: number | undefined, contra: string) => {
   if (base === undefined || (!base && !actual)) return null;
   if (!base) return `sin datos en ${contra}`;
@@ -139,6 +151,13 @@ export default async function Vigilancia({ searchParams }: Props) {
   ]);
   const { r, s, acc, ix, periodo, empresa, causas, entes, aptitudes, ausentismo } = v;
   if (!r) return <p className="p-10">No hay datos.</p>;
+  // «para=empresa»: la versión que se envía a RR. HH. (la pone el servidor al enviar): sin discapacidad (#41)
+  // y sin cifras pequeñas que identifiquen a alguien en empresas chicas (umbral en Configuración › Organización)
+  const paraEmpresa = q.para === "empresa" && Boolean(empresa);
+  const ajustesOrg = (org?.ajustes ?? {}) as { celda_minima_empresa?: number };
+  const minimo = paraEmpresa ? (ajustesOrg.celda_minima_empresa ?? 3) : 0;
+  const T = (p: Parameters<typeof Tabla>[0]) => <Tabla minimo={minimo} {...p} />;
+  const g = <F extends { nombre: string; n: number }>(filas: F[]) => agrupar(filas, minimo);
 
   const guardados = Object.fromEntries(Object.entries(v.informe ?? {}).filter(([k, x]) => typeof x === "string" && x && k !== "id" && k !== "actualizado_en"));
   const t = { ...v.sugeridos!, ...guardados };
@@ -183,7 +202,7 @@ export default async function Vigilancia({ searchParams }: Props) {
 
   return (
     <div className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
-      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial } : null} />
+      <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && !paraEmpresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial, bloqueo: v.informe?.id ? null : "Guarda el informe antes de enviarlo (Reportes › Vigilancia › Guardar)." } : null} />
 
       {/* Portada ejecutiva */}
       <Hoja>
@@ -265,11 +284,11 @@ export default async function Vigilancia({ searchParams }: Props) {
             {s && <Panel titulo="Pirámide por edad y sexo"><Piramide grupos={s.piramide} /></Panel>}
             <div className="space-y-3">
               <Panel titulo="Distribución por sexo"><Dona tam={84} partes={[{ nombre: "Hombres", n: r.poblacion.masculino }, { nombre: "Mujeres", n: r.poblacion.femenino }]} centro={num(pob, 0)} sub="trabajadores" /></Panel>
-              <Panel titulo="Vigilancia clínica y discapacidad" nota="Vigilancia: sobre la población actual, sin depender del período.">
-                <Tabla porcentaje={false} total={false} columnas={["Condición", "Trabajadores"]} filas={[
+              <Panel titulo={paraEmpresa ? "Vigilancia clínica" : "Vigilancia clínica y discapacidad"} nota="Vigilancia: sobre la población actual, sin depender del período.">
+                <T porcentaje={false} total={false} columnas={["Condición", "Trabajadores"]} filas={[
                   ["Vigilancia de origen ocupacional", r.poblacion.vigilancia_ocupacional ?? 0],
                   ["Vigilancia de origen no ocupacional", r.poblacion.vigilancia_no_ocupacional ?? 0],
-                  ["Con discapacidad registrada", r.poblacion.discapacidad ?? 0],
+                  ...(paraEmpresa ? [] : [["Con discapacidad registrada", r.poblacion.discapacidad ?? 0] as Celda[]]),
                 ]} />
               </Panel>
             </div>
@@ -282,36 +301,36 @@ export default async function Vigilancia({ searchParams }: Props) {
         <Seccion n="2" titulo="Actividad asistencial">
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel titulo="Tipo de atención"><Dona tam={92} partes={[{ nombre: "Preventivas", n: r.consultas.preventivas }, { nombre: "Asistenciales", n: r.consultas.no_preventivas }]} centro={num(r.consultas.total, 0)} sub="consultas" /></Panel>
-            <Panel titulo="Condición clínica"><Dona tam={92} partes={[{ nombre: "Sanos", n: r.consultas.sanos }, { nombre: "Patológicos", n: r.consultas.patologicos ?? 0 }]} centro={num(r.consultas.pacientes, 0)} sub="pacientes" /></Panel>
-            <Panel titulo="Consultas por motivo" className="col-span-2"><BarrasH filas={r.consultas.por_motivo} max={10} /></Panel>
+            <Panel titulo="Condición clínica"><Dona tam={92} partes={g([{ nombre: "Sanos", n: r.consultas.sanos }, { nombre: "Patológicos", n: r.consultas.patologicos ?? 0 }])} centro={num(r.consultas.pacientes, 0)} sub="pacientes" /></Panel>
+            <Panel titulo="Consultas por motivo" className="col-span-2"><BarrasH filas={g(r.consultas.por_motivo)} max={10} /></Panel>
           </div>
           <Analisis texto={a.uso} />
           <div className="grid grid-cols-2 items-start gap-3">
-            <Panel titulo="Por tipo de paciente"><Tabla columnas={["Tipo de paciente", "Casos"]} filas={(r.consultas.por_tipo_paciente ?? []).map((x) => [x.nombre, x.n])} /></Panel>
+            <Panel titulo="Por tipo de paciente"><T columnas={["Tipo de paciente", "Casos"]} filas={(r.consultas.por_tipo_paciente ?? []).map((x) => [x.nombre, x.n])} /></Panel>
             <Panel titulo="Por sexo y grupo etario">
-              <Tabla columnas={["Grupo", "Casos"]} filas={[["Masculino", r.consultas.por_sexo.M], ["Femenino", r.consultas.por_sexo.F]]} />
+              <T columnas={["Grupo", "Casos"]} filas={[["Masculino", r.consultas.por_sexo.M], ["Femenino", r.consultas.por_sexo.F]]} />
               <div className="mt-2" />
-              <Tabla columnas={["Grupo etario", "Casos"]} filas={r.consultas.por_edad.map((e) => [e.grupo, e.n])} />
+              <T columnas={["Grupo etario", "Casos"]} filas={r.consultas.por_edad.map((e) => [e.grupo, e.n])} />
             </Panel>
           </div>
           <Panel titulo="Frecuencia de uso del servicio médico por dependencia">
-            <Tabla columnas={["Dependencia", "Personal efectivo", "Consultas"]} porcentaje={false} filas={(r.consultas.por_dependencia ?? []).map((d) => [d.nombre, d.personal, d.n])} />
+            <T columnas={["Dependencia", "Personal efectivo", "Consultas"]} porcentaje={false} filas={(r.consultas.por_dependencia ?? []).map((d) => [d.nombre, d.personal, d.n])} />
           </Panel>
         </Seccion>
 
         <Seccion n="3" titulo="Morbilidad">
-          {s && <Panel titulo="Morbilidad por capítulo CIE-10 · diagrama de Pareto" nota="Barras: diagnósticos de cada grupo · línea: % acumulado · referencia: 80 %."><Pareto filas={s.capitulos} max={9} /></Panel>}
+          {s && <Panel titulo="Morbilidad por capítulo CIE-10 · diagrama de Pareto" nota="Barras: diagnósticos de cada grupo · línea: % acumulado · referencia: 80 %."><Pareto filas={g(s.capitulos)} max={9} /></Panel>}
           <div className="grid grid-cols-2 items-start gap-3">
-            <Panel titulo="Por aparatos y sistemas"><BarrasH filas={r.morbilidad.por_sistema} max={8} /></Panel>
-            <Panel titulo="Por origen"><Dona tam={92} partes={Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n }))} centro={num(r.morbilidad.total, 0)} sub="diagnósticos" /></Panel>
+            <Panel titulo="Por aparatos y sistemas"><BarrasH filas={g(r.morbilidad.por_sistema)} max={8} /></Panel>
+            <Panel titulo="Por origen"><Dona tam={92} partes={g(Object.entries(r.morbilidad.por_origen).map(([k, n]) => ({ nombre: ETIQUETA_ORIGEN[k as Origen] ?? k, n })))} centro={num(r.morbilidad.total, 0)} sub="diagnósticos" /></Panel>
           </div>
           <Analisis texto={a.morbilidad} />
           <div className="grid grid-cols-[1.6fr_1fr] items-start gap-3">
             <Panel titulo="Diez primeras causas de morbilidad general" nota={`Prev.: pacientes sobre la población (${pob}) · Fcia.: diagnósticos.`}>
-              <Tabla columnas={["Diagnóstico (CIE-10)", "Prev. %", "Fcia."]} filas={causasFilas(r.morbilidad.primeras_causas, pob)} />
+              <T columnas={["Diagnóstico (CIE-10)", "Prev. %", "Fcia."]} filas={causasFilas(r.morbilidad.primeras_causas, pob, minimo)} />
             </Panel>
             <Panel titulo="Frecuencia y prevalencia por tipo de consulta">
-              <Tabla columnas={["Consulta", "Pac.", "Prev. %", "Fcia."]} porcentaje={false} total={false}
+              <T columnas={["Consulta", "Pac.", "Prev. %", "Fcia."]} porcentaje={false} total={false}
                 filas={(["primera", "sucesiva", "derivada"] as const).map((k) => { const x = r.morbilidad.por_tipo_consulta?.[k]; return [ETIQUETA_CLAVE[k], x?.pacientes ?? 0, porc(x?.pacientes ?? 0, pob), x?.n ?? 0]; })} />
             </Panel>
           </div>
@@ -325,7 +344,7 @@ export default async function Vigilancia({ searchParams }: Props) {
               <Meta valor={ausentismo.pct} meta={2.5} />
               <div className="mt-2 text-[10px] text-doc-tenue">{num(r.ausentismo.dias_computables, 0)} días perdidos · {num(r.ausentismo.trabajadores_ausentes ?? 0, 0)} trabajadores ausentes · PAD {num(ausentismo.pad)}</div>
             </Panel>
-            <Panel titulo="Días perdidos por causa"><BarrasH filas={r.ausentismo.por_causa.map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias }))} sufijo="d" serie={2} /></Panel>
+            <Panel titulo="Días perdidos por causa"><BarrasH filas={r.ausentismo.por_causa.filter((c) => !minimo || c.n >= minimo).map((c) => ({ nombre: causas[c.nombre] ?? c.nombre, n: c.dias }))} sufijo="d" serie={2} /></Panel>
           </div>
           <Analisis texto={a.ausentismo} />
           <Indices filas={[
@@ -338,11 +357,11 @@ export default async function Vigilancia({ searchParams }: Props) {
             ["Porcentaje de ausentismo", `${num(ausentismo.pct)} %`, "%A = PAD × 100 / trabajadores. Meta internacional: menor a 2,5 %."],
           ]} />
           <div className="grid grid-cols-2 items-start gap-3">
-            <Panel titulo="Reposos por causa"><Tabla columnas={["Causa", "Casos", "Días"]} filas={r.ausentismo.por_causa.map((c) => [causas[c.nombre] ?? c.nombre, c.n, c.dias])} /></Panel>
-            <Panel titulo="Reposos por ente emisor"><Tabla columnas={["Ente emisor", "Casos", "Días"]} filas={r.ausentismo.por_ente.map((c) => [entes[c.nombre] ?? c.nombre, c.n, c.dias ?? 0])} /></Panel>
+            <Panel titulo="Reposos por causa"><T columnas={["Causa", "Casos", "Días"]} filas={r.ausentismo.por_causa.map((c) => [causas[c.nombre] ?? c.nombre, c.n, c.dias])} /></Panel>
+            <Panel titulo="Reposos por ente emisor"><T columnas={["Ente emisor", "Casos", "Días"]} filas={r.ausentismo.por_ente.map((c) => [entes[c.nombre] ?? c.nombre, c.n, c.dias ?? 0])} /></Panel>
           </div>
           <Panel titulo="Diez primeras causas de reposo">
-            <Tabla columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [`${c.cie10} ${c.descripcion}`, c.dias, c.n])} />
+            <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [`${c.cie10} ${c.descripcion}`, c.dias, c.n])} />
           </Panel>
         </Seccion>
 
@@ -376,8 +395,8 @@ export default async function Vigilancia({ searchParams }: Props) {
 
         <Seccion n="6" titulo="Referencias y exámenes de salud">
           <div className="grid grid-cols-2 items-start gap-3">
-            <Panel titulo="Referencias a especialidades"><BarrasH filas={r.referencias?.por_especialidad ?? []} max={8} /></Panel>
-            <Panel titulo="Aptitud emitida"><Dona tam={92} partes={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0), 0)} sub="evaluaciones" /></Panel>
+            <Panel titulo="Referencias a especialidades"><BarrasH filas={g(r.referencias?.por_especialidad ?? [])} max={8} /></Panel>
+            <Panel titulo="Aptitud emitida"><Dona tam={92} partes={g(Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n })))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0), 0)} sub="evaluaciones" /></Panel>
           </div>
           <Analisis texto={[a.referencias, a.aptitud].filter(Boolean).join(" ")} />
         </Seccion>
@@ -415,20 +434,20 @@ export default async function Vigilancia({ searchParams }: Props) {
                 <div className="grid grid-cols-2 items-start gap-3">
                   {Object.keys(cortes[g]).sort().map((k, i, todas) => (
                     // Si quedan impares, el último ocupa el ancho completo (sin media columna vacía)
-                    <Panel key={k} titulo={ETIQUETA_CLAVE[k] ?? k} className={todas.length % 2 && i === todas.length - 1 ? "col-span-2" : ""}><Tabla columnas={["Diagnóstico", "Prev. %", "Fcia."]} filas={causasFilas(cortes[g][k], pob)} /></Panel>
+                    <Panel key={k} titulo={ETIQUETA_CLAVE[k] ?? k} className={todas.length % 2 && i === todas.length - 1 ? "col-span-2" : ""}><T columnas={["Diagnóstico", "Prev. %", "Fcia."]} filas={causasFilas(cortes[g][k], pob, minimo)} /></Panel>
                   ))}
                 </div>
               </div>
             ))}
             {detalleReposo.map((c) => (
               <Panel key={c} titulo={`Causas de reposo por ${(causas[c] ?? c).toLowerCase()}`}>
-                <Tabla columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, d.cie10 ? `${d.cie10} ${d.descripcion}` : "—", d.dias, d.n])} />
+                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, d.cie10 ? `${d.cie10} ${d.descripcion}` : "—", d.dias, d.n])} />
               </Panel>
             ))}
             <Panel titulo="Causas de reposo por dependencia">
-              <Tabla columnas={["Dependencia", "Casos", "Días"]} filas={(r.ausentismo.por_dependencia ?? []).map((d) => [d.nombre, d.n, d.dias])} />
+              <T columnas={["Dependencia", "Casos", "Días"]} filas={(r.ausentismo.por_dependencia ?? []).map((d) => [d.nombre, d.n, d.dias])} />
             </Panel>
-            <p className="text-[9.5px] italic text-doc-tenue">Solo se imprimen los cortes con casos en el período. Ningún cuadro identifica a trabajadores.</p>
+            <p className="text-[9.5px] italic text-doc-tenue">Solo se imprimen los cortes con casos en el período. Ningún cuadro identifica a trabajadores.{minimo > 0 && ` Las cifras menores de ${minimo} se muestran como «<${minimo}».`}</p>
           </Seccion>
         </Hoja>
       )}

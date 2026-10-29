@@ -4,7 +4,8 @@
 --   informes: evaluación del puesto de trabajo, vigilancia epidemiológica y pacientes atendidos.
 -- Reglas: lo que lleva datos clínicos (consulta, referencia, récipe) solo va por correo al personal de salud
 -- autorizado de la empresa, igual que la consulta. Los informes no llevan consultas: guardan la ruta del documento
--- (siempre de esa empresa) para poder reintentar el mismo PDF.
+-- (siempre de esa empresa) para poder reintentar el mismo PDF. La vigilancia sale con «para=empresa»: sin la cifra de
+-- discapacidad (decisión de Cesar, #41) y con las cifras pequeñas ocultas.
 
 alter table public.envios add column if not exists ruta text;
 
@@ -76,6 +77,11 @@ begin
          or substring(new.ruta from '[?&]empresa=([0-9a-f-]{36})(&|$)') is distinct from new.empresa_id::text
          or (length(new.ruta) - length(replace(new.ruta, 'empresa=', ''))) <> length('empresa=') then
         raise exception 'El informe no es de esta empresa';
+      end if;
+      -- La vigilancia va siempre en su versión para la empresa: sin discapacidad ni cifras pequeñas (#41, prueba 98)
+      if v_doc = 'vigilancia' and (new.ruta !~ '[?&]para=empresa(&|$)'
+         or (length(new.ruta) - length(replace(new.ruta, 'para=', ''))) <> length('para=')) then
+        raise exception 'La vigilancia se envía a la empresa sin datos reservados al servicio médico';
       end if;
     end if;
   end if;

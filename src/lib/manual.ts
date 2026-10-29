@@ -14,7 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
-  { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa»", tema: "rrhh-whatsapp" },
+  { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa». La vigilancia que sale a la empresa no lleva discapacidad y oculta cifras menores de 3 (se cambia en Configuración › Organización); hay que guardarla antes de enviarla", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-29", texto: "Cada semana el respaldo se restaura de prueba en la PC y el Inicio dice cuándo se comprobó que sirve; si Drive tarda en abrir, la copia sube después sola", tema: "respaldo" },
   { fecha: "2026-10-29", texto: "Centinela de plazos legales: la campana y el correo avisan la declaración ante el INPSASEL, el informe NT-02 y la investigación antes de que venzan", tema: "accidentes" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },

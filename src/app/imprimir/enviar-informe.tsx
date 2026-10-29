@@ -11,11 +11,12 @@ import { ASUNTO_INFORME, MENSAJE_INFORME, NOMBRE_DOCUMENTO, type Canal, type Con
 import { cn } from "@/lib/utils";
 import { datosEnvioInforme, enviarInformeEmpresa } from "./enviar-acciones";
 
-export type EnvioInforme = { documento: DocInforme; empresaId: string; empresa: string };
+// bloqueo: motivo para no enviar todavía (p. ej. la vigilancia sin guardar); el botón se ve, desactivado, con el aviso
+export type EnvioInforme = { documento: DocInforme; empresaId: string; empresa: string; bloqueo?: string | null };
 
 // «Enviar a la empresa» en la barra de un informe (puesto, vigilancia, pacientes atendidos): el PDF de esta misma página
 // sale a los contactos de la empresa por correo o por enlace de WhatsApp, con registro en la Bitácora de Envíos.
-export function EnviarInforme({ documento, empresaId, empresa }: EnvioInforme) {
+export function EnviarInforme({ documento, empresaId, empresa, bloqueo }: EnvioInforme) {
   const [abierto, setAbierto] = useState(false);
   const [datos, setDatos] = useState<{ contactos: Contacto[]; correo: string | null } | null>(null);
   const [canal, setCanal] = useState<Canal>("correo");
@@ -64,12 +65,20 @@ export function EnviarInforme({ documento, empresaId, empresa }: EnvioInforme) {
       );
     });
 
+  if (bloqueo)
+    return (
+      <span className="flex items-center gap-2">
+        <Button variant="outline" disabled aria-describedby="envio-bloqueo"><Send /> Enviar a la empresa</Button>
+        <span id="envio-bloqueo" role="status" className="text-xs text-aviso-texto">{bloqueo}</span>
+      </span>
+    );
+
   return (
     <Dialog open={abierto} onOpenChange={abrir}>
       <DialogTrigger asChild>
         <Button variant="outline"><Send /> Enviar a la empresa</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Enviar {nombre.toLowerCase()}</DialogTitle>
           <DialogDescription>A {empresa}. Sale el PDF de esta página y queda en la Bitácora de Envíos.</DialogDescription>
@@ -86,7 +95,7 @@ export function EnviarInforme({ documento, empresaId, empresa }: EnvioInforme) {
                 </button>
               ))}
             </div>
-            {canal === "correo" && !datos.correo && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Falta conectar el correo remitente. Mientras tanto usa WhatsApp.</p>}
+            {canal === "correo" && !datos.correo && <p role="status" className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Falta conectar el correo remitente. Mientras tanto usa WhatsApp.</p>}
             <div>
               <Label className="mb-1.5">Para</Label>
               {disponibles.length === 0 ? (

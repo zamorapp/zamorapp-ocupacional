@@ -151,6 +151,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
       // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)
       dias_equipo_confianza: Math.min(90, Math.max(0, Math.round(Number(texto(datos, "dias_equipo_confianza") ?? 30)) || 0)),
+      // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)
+      celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
     };
