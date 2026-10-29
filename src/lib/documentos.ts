@@ -22,7 +22,8 @@ export type AjustesDocumentos = {
   firma_sello_separados?: boolean;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
-  constancia_copias?: boolean;
+  // Imprimir por defecto también la copia de la constancia para el servicio médico (cada impresión lo puede cambiar)
+  constancia_copia?: boolean;
   orden_nota_preempleo?: string | null;
 };
 
@@ -78,8 +79,12 @@ export async function obtenerDocumento(consultaId: string) {
     cierre: (c.hora_cierre as string | null) ?? null,
     // Partes que se ocultan en esta impresión (?sin=membrete,firma,…): las fija la página según la URL
     sin: [] as OpcionImpresion[],
+    // Constancia con su copia para el servicio médico (?copia=1|0; sin parámetro, lo que diga Configuración)
+    copia: false,
   };
 }
+
+export const copiaDeUrl = (copia: string | undefined, ajustes: AjustesDocumentos) => (copia === "1" ? true : copia === "0" ? false : ajustes.constancia_copia === true);
 
 // Campos que exige la Res. MPPS 028 (G.O. 40.131) para imprimir un récipe
 export function faltantesRecipe(d: DatosDocumento) {
