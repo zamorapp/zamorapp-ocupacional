@@ -33,9 +33,13 @@ export function Confirmador() {
   const [actual, setActual] = useState<Pendiente | null>(null);
   const [abierto, setAbierto] = useState(false);
   const respondido = useRef(false);
+  const pendiente = useRef<Pendiente | null>(null);
 
   useEffect(() => {
     mostrar = (p) => {
+      // Un doble clic pide dos veces: la pregunta anterior se da por cancelada para que ninguna promesa quede colgada
+      if (pendiente.current && !respondido.current) pendiente.current.responder(false);
+      pendiente.current = p;
       respondido.current = false;
       setActual(p);
       setAbierto(true);
@@ -46,10 +50,11 @@ export function Confirmador() {
   }, []);
 
   const responder = (si: boolean) => {
-    if (!actual || respondido.current) return;
+    const p = pendiente.current;
+    if (!p || respondido.current) return;
     respondido.current = true;
     setAbierto(false);
-    actual.responder(si);
+    p.responder(si);
   };
 
   const Icono = actual?.peligro ? AlertTriangle : HelpCircle;
