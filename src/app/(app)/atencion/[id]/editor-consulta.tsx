@@ -191,12 +191,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     if (r?.ok && ESCRITORIO) void refrescarEstado();
     setAvisoBase(r?.ok ? { ...r, mensaje: mensajeGuardadoLocal(r.mensaje) } : r);
   }, []);
-  // Sin internet desde el arranque, la hora es la de Windows (Cesar la cambia para el SAME): se avisa antes de firmar
+  // Sin internet desde el arranque no hay hora verificada (Cesar cambia la fecha de Windows por el SAME): la base no deja
+  // firmar con la fecha de Windows (firmar_consulta), y aquí se avisa antes
   const confirmarFirma = (accion: string) => ({
     ...CONFIRMAR_FIRMA,
     accion,
     texto: escritorio.horaSinAncla
-      ? `${CONFIRMAR_FIRMA.texto} Esta PC arrancó sin internet y firmará con la fecha de Windows: ${new Date().toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}. Si no es la de hoy, corrígela antes de firmar.`
+      ? `${CONFIRMAR_FIRMA.texto} Esta PC arrancó sin internet y aún no tiene la hora verificada con la nube: la consulta queda cerrada y la firma espera a que vuelva internet.`
       : CONFIRMAR_FIRMA.texto,
   });
   const [guardando, iniciar] = useTransition();

@@ -17,7 +17,7 @@ export function IndicadorSincronia() {
   if (!e.conocido || (e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla)) return null;
 
   const Icono = problemas || e.horaSinAncla ? AlertTriangle : e.enLinea ? CloudUpload : CloudOff;
-  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : "Revisa la hora";
+  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : "Hora sin verificar";
 
   return (
     <DropdownMenu onOpenChange={(abierto) => abierto && setAviso("")}>
@@ -47,7 +47,7 @@ export function IndicadorSincronia() {
           </p>
         )}
         {e.horaSinAncla && (
-          <p className="text-aviso-texto">La PC arrancó sin internet y usa la hora de Windows. Si cambiaste la fecha para el SAME, vuelve a ponerla al día antes de firmar.</p>
+          <p className="text-aviso-texto">La PC arrancó sin internet y aún no tiene la hora verificada con la nube. Puedes atender y cerrar consultas; las firmas esperan a que vuelva internet.</p>
         )}
         <Button size="sm" variant="outline" className="w-full" disabled={ocupado}
           onClick={async (ev) => { ev.preventDefault(); setOcupado(true); setAviso(await sincronizarAhora()); setOcupado(false); }}>

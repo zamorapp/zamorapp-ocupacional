@@ -4,6 +4,7 @@
 // (/zamorapp/estado). Una sola consulta cada 10 s para toda la ventana; en la web no hace nada.
 import { useSyncExternalStore } from "react";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
+import { crearClienteNavegador } from "@/lib/supabase/client";
 
 const PUERTA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
@@ -66,7 +67,11 @@ export function useEstadoEscritorio(): EstadoEscritorio {
 // «Sincronizar ahora»: sube la bandeja y baja lo nuevo. Devuelve el mensaje para la persona.
 export async function sincronizarAhora(): Promise<string> {
   try {
-    const r = await fetch(`${PUERTA}/zamorapp/sincronizar`, { method: "POST", credentials: "include" });
+    // La puerta acepta la sesión del usuario (Bearer): solo sube y baja lo que ese usuario puede escribir
+    const { data } = await crearClienteNavegador().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return "Tu sesión venció: vuelve a entrar para sincronizar. Tus cambios siguen guardados en esta PC.";
+    const r = await fetch(`${PUERTA}/zamorapp/sincronizar`, { method: "POST", credentials: "include", headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) throw new Error();
     const e = await refrescarEstado();
     if (!e.enLinea) return "Sin internet: los cambios siguen guardados en esta PC y suben solos al volver la conexión.";
