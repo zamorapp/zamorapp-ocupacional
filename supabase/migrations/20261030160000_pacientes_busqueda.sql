@@ -1,6 +1,6 @@
 -- Pacientes paginado en el servidor (auditoría C2). La pantalla mandaba los 4.200 trabajadores completos
 -- (2,4 MB) en cada visita; ahora pide 50 y busca en la base con un índice trigram, sin acentos ni puntos:
--- «gonzalez», «v18456123» o «18456123» encuentran a «González, V-18.456.123».
+-- «gonzalez», «v18456123» o «18456123» encuentran a «González, V-18.456.123»; también busca por cargo.
 
 -- Como en Supabase (donde ya es así): los usuarios pueden usar unaccent y pg_trgm del esquema extensions
 grant usage on schema extensions to authenticated;
@@ -54,7 +54,9 @@ language sql stable security invoker set search_path = public, extensions as $$
       and (p_estado is null or t.estado = p_estado)
       and (q.texto is null
            or t.busqueda like '%' || q.texto || '%'
-           or (q.digitos is not null and length(q.digitos) >= 3 and t.busqueda like '% ' || q.digitos || '%'))
+           or (q.digitos is not null and length(q.digitos) >= 3 and t.busqueda like '% ' || q.digitos || '%')
+           -- también por cargo (como la lista anterior): los puestos son pocos, la subconsulta es barata
+           or t.puesto_id in (select p.id from public.puestos p where lower(extensions.unaccent(p.nombre)) like '%' || q.texto || '%'))
   ),
   pagina as (
     select f.*, count(*) over () as total from filas f

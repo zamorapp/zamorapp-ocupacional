@@ -66,23 +66,36 @@ export function ListaPacientes({ pagina, empresas, empresaInicial, estadoInicial
 
   const filtros = () => ({ q: busqueda, empresa: empresa === TODAS ? null : empresa, estado: estado === TODAS ? null : estado });
 
-  useEffect(() => {
-    if (primera.current) { primera.current = false; return; }
+  // Los filtros viven en la dirección (?q=&empresa=&estado=): al volver con «Atrás» o recargar, la búsqueda sigue
+  const anotarDireccion = () => {
+    const u = new URL(window.location.href);
+    const poner = (k: string, v: string) => (v ? u.searchParams.set(k, v) : u.searchParams.delete(k));
+    poner("q", busqueda.trim());
+    poner("empresa", empresa === TODAS ? "" : empresa);
+    poner("estado", estado === TODAS ? "" : estado);
+    window.history.replaceState(window.history.state, "", u.toString());
+  };
+
+  async function buscar() {
     const n = ++pedido.current;
     setBuscando(true);
-    const t = setTimeout(async () => {
-      try {
-        const r = await buscarPacientesLista({ ...filtros(), desde: 0 });
-        if (n !== pedido.current) return; // ya hay una búsqueda más nueva
-        setFilas(r.filas);
-        setTotal(r.total);
-        setErrorBusqueda(null);
-      } catch {
-        if (n === pedido.current) setErrorBusqueda("No se pudo buscar. Revisa la conexión y vuelve a intentar.");
-      } finally {
-        if (n === pedido.current) setBuscando(false);
-      }
-    }, 300);
+    try {
+      const r = await buscarPacientesLista({ ...filtros(), desde: 0 });
+      if (n !== pedido.current) return; // ya hay una búsqueda más nueva
+      setFilas(r.filas);
+      setTotal(r.total);
+      setErrorBusqueda(null);
+    } catch {
+      if (n === pedido.current) setErrorBusqueda("No se pudo buscar. Revisa la conexión y vuelve a intentar.");
+    } finally {
+      if (n === pedido.current) setBuscando(false);
+    }
+  }
+
+  useEffect(() => {
+    if (primera.current) { primera.current = false; return; }
+    anotarDireccion();
+    const t = setTimeout(buscar, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busqueda, empresa, estado]);
@@ -130,11 +143,12 @@ export function ListaPacientes({ pagina, empresas, empresaInicial, estadoInicial
             autoFocus
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Cédula, nombre o nº de historia"
+            placeholder="Cédula, nombre, cargo o nº de historia"
             aria-label="Buscar paciente"
             className="h-11 w-full rounded-lg border bg-card pl-9 pr-9 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-          {buscando && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-label="Buscando" />}
+          {buscando && <Loader2 aria-hidden className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+          <span role="status" className="sr-only">{buscando ? "Buscando…" : ""}</span>
         </label>
         <Select value={empresa} onValueChange={setEmpresa}>
           <SelectTrigger aria-label="Empresa" className="h-11! w-full bg-card sm:w-64"><SelectValue /></SelectTrigger>
@@ -153,7 +167,12 @@ export function ListaPacientes({ pagina, empresas, empresaInicial, estadoInicial
       </div>
 
       <Card className="overflow-hidden py-0" aria-busy={buscando}>
-        {errorBusqueda && <p className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">{errorBusqueda}</p>}
+        {errorBusqueda && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-sm text-alerta-texto">
+            <span>{errorBusqueda}</span>
+            <Button variant="outline" size="sm" onClick={() => { setErrorBusqueda(null); buscar(); }}>Reintentar</Button>
+          </div>
+        )}
         {filas.length === 0 ? (
           <div className="grid place-items-center gap-2 py-16 text-center text-muted-foreground">
             <Users className="size-8" />
