@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { after, before, test } from "node:test";
+import { after, afterEach, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { simularNube } from "./simulador-nube.mjs";
@@ -20,6 +20,10 @@ const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : fal
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
 let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, respaldoObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
+// En el CI de Windows (o con DIAGNOSTICO=1) todo lo que anotan la puerta, la nube, la réplica y la bandeja sale también
+// por la consola, con el reloj de cada prueba: el registro en memoria se pierde al fallar
+const diag = !!(process.env.GITHUB_ACTIONS || process.env.DIAGNOSTICO);
+const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
@@ -67,16 +71,23 @@ before(async () => {
   estado = new Estado(datos, CONFIG.llave);
   motor = new Motor(estado);
   await motor.iniciar();
-  nubeObj = new Nube(estado);
+  nubeObj = new Nube(estado, anotar("nube"));
   await nubeObj.comprobar();
-  replicaObj = new Replica(estado, nubeObj, motor);
-  bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
+  replicaObj = new Replica(estado, nubeObj, motor, anotar("réplica"));
+  bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, anotar("bandeja"));
   bloquesObj = new Bloques(estado, nubeObj, motor, replicaObj);
   respaldoObj = new Respaldo({ estado, nube: nubeObj, motor, replica: replicaObj, sincronizar: async () => { await nubeObj.comprobar(); await bandejaObj.subir(); await replicaObj.ciclo(); } });
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, respaldo: respaldoObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, bloques: bloquesObj, respaldo: respaldoObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: anotar("puerta") });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
+
+afterEach(async (t) => {
+  if (!diag || !nubeObj) return;
+  try { console.log(`[diag bandeja] ${JSON.stringify(await enLocal("select tabla, fila_id, op, estado, version_base, motivo from local.bandeja order by orden"))}`); } catch {}
+  const r = nubeObj.reloj;
+  console.log(`[diag reloj] ${t.name.slice(0, 60)}: ahora=${new Date(r.ahora()).toISOString()} windows=${new Date(r.fecha()).toISOString()} ancla=${r.ancla ? new Date(r.ancla.nube).toISOString() + "@" + Math.round(r.ancla.mono) : "no"} mono=${Math.round(r.mono())} piso=${r.estado.d.reloj?.piso ? new Date(r.estado.d.reloj.piso).toISOString() : 0} enLinea=${nubeObj.enLinea}`);
+});
 
 after(async () => {
   puerta?.closeAllConnections?.();
