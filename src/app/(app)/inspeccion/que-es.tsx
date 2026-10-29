@@ -11,7 +11,7 @@ const CLAVE = "zamorapp.cumplimiento.ayuda";
 const LEYENDA = [
   { color: "bg-ok", texto: "Verde: cumple." },
   { color: "bg-aviso", texto: "Amarillo: cumple en parte (80 % o más)." },
-  { color: "bg-alerta", texto: "Rojo: no cumple o falta el dato." },
+  { color: "bg-alerta", texto: "Rojo: cumple menos del 80 % o falta el dato." },
   { color: "bg-muted-foreground/30", texto: "Gris: no aplica en el período (por ejemplo, no hubo accidentes)." },
 ];
 

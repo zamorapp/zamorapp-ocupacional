@@ -94,14 +94,17 @@ async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; 
                     </div>
                     <div className="text-xs text-muted-foreground">{c.detalle} · {c.base}</div>
                   </div>
-                  {c.href && <Link href={c.href} className="mt-0.5 text-muted-foreground hover:text-primary" aria-label="Ver"><ArrowRight className="size-4" /></Link>}
+                  {/* La notificación de riesgos se corrige aquí mismo: su flecha baja a la lista «sin notificación» */}
+                  {(c.href || (c.clave === "notificacion" && sinNotificar.length > 0)) && (
+                    <Link href={c.href ?? "#sin-notificar"} className="mt-0.5 text-muted-foreground hover:text-primary" aria-label={`Corregir: ${c.titulo}`}><ArrowRight className="size-4" /></Link>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
           {sinNotificar.length > 0 && (
-            <Card>
+            <Card id="sin-notificar" className="scroll-mt-20">
               <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base">Sin notificación de riesgos vigente y firmada ({sinNotificar.length})</CardTitle>
                 {ROLES_NOTIFICAN.includes(sesion.rol ?? "") && <BotonNotificarTrabajadores ids={porNotificar} />}
