@@ -9,7 +9,7 @@ insert into sync.tablas (nombre, clinica, subible) values
   ('public.informes_vigilancia', false, true),
   ('public.empresa_contactos', false, true),
   ('public.plantillas_correo', false, true),
-  ('public.solicitudes', false, false),
+  ('public.solicitudes', false, true),
   ('public.notificaciones', false, false),
   ('public.envios', false, false),
   ('public.envio_enlaces', false, false),
