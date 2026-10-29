@@ -1,8 +1,11 @@
 "use client";
 
+import { Download } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { APP_NOMBRE } from "@/lib/config";
+import { buscarActualizacion, ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +14,7 @@ type Props = { organizacion: string; portal?: boolean; alNavegar?: () => void };
 export function BarraLateral({ organizacion, portal = false, alNavegar }: Props) {
   const ruta = usePathname();
   const secciones = portal ? SECCIONES_EMPRESA : SECCIONES;
+  const [aviso, setAviso] = useState("");
   return (
     <div className="flex h-full flex-col">
       <Link href={portal ? "/portal" : "/panel"} onClick={alNavegar} className="flex h-16 items-center gap-3 px-5">
@@ -37,6 +41,20 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
           );
         })}
       </nav>
+      {ESCRITORIO && (
+        <div className="mx-3">
+          <button
+            type="button"
+            data-boton="buscar-actualizacion"
+            onClick={async () => { setAviso("Buscando…"); setAviso(await buscarActualizacion()); }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Download className="size-[18px]" aria-hidden />
+            Buscar actualización
+          </button>
+          {aviso && <p role="status" className="px-3 pb-1 text-xs text-muted-foreground">{aviso}</p>}
+        </div>
+      )}
       <div className="m-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
         {organizacion}
         <br />

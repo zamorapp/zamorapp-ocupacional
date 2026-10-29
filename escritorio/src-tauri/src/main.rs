@@ -516,7 +516,10 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
+                // Pedida a mano (menú o botón): se descarga enseguida, sin volver a preguntar; solo se pregunta al instalar.
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false)
+                    || (a_pedido && !FALTAN_COMPONENTES.load(Ordering::SeqCst))
+                    || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
                         format!("A zamorApp {} le faltan piezas de la base de datos local: hay que descargar el instalador completo.\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version)
                     } else {
                         format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nSe descarga mientras trabajas y al final te pregunta cuándo instalar. No se borra ningún dato.", nueva.version)
@@ -627,7 +630,8 @@ fn vigilar_nube(app: AppHandle) {
             if estado["buscarActualizacion"] == true {
                 // Botón «Buscar actualización» de la pantalla: responde siempre, como desde el menú
                 anotar("actualización pedida desde la pantalla");
-                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, true); }
+                // Desde la barra lateral la nube puede estar al día: «ya tienes la más reciente», no «la nube cambió»
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, estado["actualizar"] == true); }
             }
             if estado["actualizar"] == true && !avisado {
                 avisado = true;
