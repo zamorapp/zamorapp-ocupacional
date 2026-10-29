@@ -306,7 +306,8 @@ test("sin internet: firmar, corregir y volver a firmar; al volver internet sube 
 test("corregir sin internet mientras la web toca la misma consulta: conflicto visible, nada se pierde", { skip: omitir, timeout: 120_000 }, async () => {
   const id = await consultaFirmada(pacientes[1], "Firmada con internet");
   await respaldoObj.sincronizar();
-  assert.equal((await enNube("select estado from clinico.consultas where id = $1", [id]))[0].estado, "firmada");
+  assert.equal((await enNube("select estado from clinico.consultas where id = $1", [id]))[0].estado, "firmada",
+    JSON.stringify({ bandeja: await bandejaObj.lista(), registro: lineas.filter((l) => /bandeja/.test(l)).slice(-10) }));
   nube.estado.caida = true;
   await nubeObj.comprobar();
   const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: id, p_motivo: MOTIVO } });
@@ -386,6 +387,7 @@ test("corregir la consulta firmada después de reconectar: se reabre con rastro 
   const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: cuarta, p_motivo: "Corregir la tensión arterial anotada" } });
   assert.equal(re.status, 200, JSON.stringify(re.json));
   assert.equal(Number(re.json), antes.revision + 1);
+  await respaldoObj.sincronizar(); // con la hora anclada, corregir se hace en la PC y sube por la bandeja
   const [v] = await enNube("select revision, firmada_en, motivo, contenido -> 'consulta' ->> 'estado' as estado from clinico.consultas_versiones where consulta_id = $1", [cuarta]);
   assert.deepEqual({ revision: v.revision, firmada: v.firmada_en.getTime(), motivo: v.motivo, estado: v.estado },
     { revision: antes.revision, firmada: firmaLocal, motivo: "Corregir la tensión arterial anotada", estado: "firmada" });

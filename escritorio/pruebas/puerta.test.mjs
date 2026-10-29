@@ -504,7 +504,7 @@ test("qué se queda en la PC y qué va a la nube: funciones de la consulta sí, 
   const g = await pedir("/rest/v1/rpc/guardar_consulta", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.notEqual(g.status, 503, "guardar_consulta corre en la base local (aquí falla por argumentos, no por falta de internet)");
   const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: CONSULTA_MED, p_motivo: "x" } });
-  assert.equal(re.status, 503, "reabrir_consulta escribe consultas_versiones (no sube): va a la nube");
+  assert.notEqual(re.status, 503, "reabrir_consulta corre en la base local (aquí la niega por el motivo corto o la hora, no por falta de internet)");
   const del = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "DELETE", token: tokenMed });
   assert.equal(del.status, 503, "nada clínico se borra desde la PC");
   nube.estado.caida = false;
