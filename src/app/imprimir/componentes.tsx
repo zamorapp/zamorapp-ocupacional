@@ -61,16 +61,17 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
     <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
       <Marca logo={d.org.logo} nombre={d.org.nombre} />
       <div className="min-w-0">
-        <div className="text-[15px] font-extrabold uppercase tracking-wide">{d.org.nombre}</div>
+        <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px]"}`}>{d.org.nombre}</div>
         {!compacto && d.org.ajustes.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{d.org.ajustes.membrete_lema}</div>}
-        <div className="text-[10.5px] text-doc-tenue">
+        {/* La dirección no pasa de dos líneas: un membrete alto empuja las firmas a otra hoja */}
+        <div className="line-clamp-2 text-[10.5px] text-doc-tenue">
           {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>
       <div className="flex items-center gap-3 text-right">
         <div>
           <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Empresa</div>
-          <div className="max-w-44 text-[11px] font-semibold leading-tight">{d.empresa.razon_social}</div>
+          <div className={`max-w-44 text-[11px] font-semibold leading-tight ${compacto ? "line-clamp-2" : ""}`}>{d.empresa.razon_social}</div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
@@ -232,8 +233,8 @@ export function FirmaTrabajador({ d }: { d: DatosDocumento }) {
 }
 
 // Zona de firmas: siempre al pie de la hoja
-export function Firmas({ children }: { children: React.ReactNode }) {
-  return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
+export function Firmas({ children, compacto }: { children: React.ReactNode; compacto?: boolean }) {
+  return <div className={`mt-auto flex flex-wrap items-end justify-between gap-5 break-inside-avoid ${compacto ? "pt-2" : "pt-5"}`}>{children}</div>;
 }
 
 export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string }) {
@@ -243,7 +244,7 @@ export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; r
       <span>
         Impreso por {d.impreso.por} · {d.impreso.el}
         {/* Una consulta corregida invalida los impresos de su revisión anterior */}
-        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores de esta consulta</b></>}
+        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores</b></>}
       </span>
       {derecha && <span>{derecha}</span>}
     </footer>

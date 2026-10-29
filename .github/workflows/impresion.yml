@@ -1,0 +1,43 @@
+# Prueba de impresión: genera el PDF de los 13 documentos de la consulta (datos normales y «peor caso»)
+# y falla si alguno se pasa de hoja, si un logo no carga o si sale «NaN»/«undefined». Linux, sin Windows.
+# Corre solo cuando un PR toca los documentos impresos o sus estilos.
+name: Impresión
+
+on:
+  pull_request:
+    paths: ["src/app/imprimir/**", "src/lib/documentos*", "src/app/globals.css", "scripts/pruebas/impresion.mjs", ".github/workflows/impresion.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: impresion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Chromium para generar los PDF
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Compilar y arrancar la app (modo demostración, sin base)
+        run: |
+          npx next build
+          ZAMORAPP_PRUEBA_IMPRESION=1 npx next start -p 3100 > next.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3100/login && break; sleep 2; done
+      - name: Generar y revisar los PDF
+        run: node scripts/pruebas/impresion.mjs http://localhost:3100 --pdf pdf
+      - name: Guardar los PDF para mirarlos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-impresion
+          path: pdf/
+          retention-days: 7
