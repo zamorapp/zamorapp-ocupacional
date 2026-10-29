@@ -77,7 +77,14 @@ begin
     ('public.duplicar_consulta(uuid)',
       array[['(now() at time zone ''America/Caracas'')::date', 'public.hoy_caracas()', '1']]),
     ('public.firmar_consulta(uuid)',
-      array[['firmada_en = now()', 'firmada_en = public.ahora()', '1']])
+      array[['firmada_en = now()', 'firmada_en = public.ahora()', '1'],
+            -- En la PC, firmar exige la hora verificada de la puerta: con la fecha de Windows (que Cesar cambia por el
+            -- SAME) una firma podría quedar con fecha falsa. Sin ancla, la firma espera a que haya internet.
+            ['if v_estado <> ''cerrada'' then raise exception ''Cierra la consulta antes de firmarla.''; end if;',
+             'if v_estado <> ''cerrada'' then raise exception ''Cierra la consulta antes de firmarla.''; end if;
+  if current_setting(''zamorapp.local'', true) = ''on'' and public.ahora_de_la_puerta() is null then
+    raise exception ''Para firmar sin internet, esta PC necesita la hora verificada con la nube. Conéctate un momento o firma cuando vuelva internet: la consulta queda cerrada y guardada.'' using errcode = ''P0001'';
+  end if;', '1']])
   ) as t(firma, pares)
   loop
     v_def := pg_get_functiondef(v_fn.firma::regprocedure);

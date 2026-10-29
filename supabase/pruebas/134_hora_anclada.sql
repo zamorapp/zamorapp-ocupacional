@@ -19,6 +19,17 @@ select set_config('zamorapp.ahora', '2020-02-01T15:00:00Z', false) \g /dev/null
 select 'local: conexión propia de la puerta con zamorapp.ahora (debe 1): ' || (public.ahora() = timestamptz '2020-02-01 15:00+00')::int;
 select set_config('zamorapp.ahora', '', false) \g /dev/null
 
+-- En local, firmar sin la hora de la puerta se rechaza (no se firma con la fecha de Windows)
+select set_config('request.headers', '{}', false) \g /dev/null
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado) values
+ ('13400000-0000-0000-0000-0000000000f2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','cerrada');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+do $$ begin perform public.firmar_consulta('13400000-0000-0000-0000-0000000000f2'); raise notice 'firmó sin hora verificada: FALLA'; exception when others then raise notice 'firma sin hora verificada rechazada (ok)'; end $$;
+reset role;
+select 'local: sin hora de la puerta la consulta sigue cerrada (debe 1): ' || count(*) from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f2' and estado = 'cerrada';
+delete from clinico.consultas where id = '13400000-0000-0000-0000-0000000000f2';
+
 -- Consulta completa en local con la PC adelantada: fecha, cierre, aptitud y firma salen de la hora anclada
 select set_config('request.headers', '{"x-zamorapp-ahora":"2020-03-10T14:00:00Z"}', false) \g /dev/null
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado) values
