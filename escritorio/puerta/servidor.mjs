@@ -5,10 +5,11 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "pg";
-import { CONFIG, RPC_LECTURA } from "./config.mjs";
+import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
+import { crearAdjuntos } from "./adjuntos.mjs";
 import { crearHello } from "./hello.mjs";
 import { MENSAJE_ACTUALIZAR } from "./nube.mjs";
 
@@ -28,14 +29,77 @@ const rutaParaRegistro = (url) => {
 };
 // Roles con verificación en dos pasos obligatoria (como public.requiere_dos_pasos en la nube)
 const CON_DOS_PASOS = ["administrador", "gerente_medico"];
+const ROLES_RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"]; // ven el estado del respaldo
 // "aal" de una sesión de la nube (Supabase la pone siempre; el simulador de pruebas no)
 const aalDe = (token) => { try { return JSON.parse(Buffer.from(String(token).split(".")[1], "base64url")).aal; } catch { return undefined; } };
 
 const URL_WEB = "https://zamorapp-ocupacional.vercel.app";
 
-export function crearPuerta({ estado, nube, motor, replica, origen, control = "", registro = () => {} }) {
+export function crearPuerta({ estado, nube, motor, replica, bandeja = null, bloques = null, respaldo = null, origen, control = "", registro = () => {} }) {
   let pedidaActualizacion = false;
   const d = () => estado.d;
+  // C11: con internet, las lecturas salen de la copia local si está al día. Una escritura que se mandó a la
+  // nube obliga a leer de la nube hasta que la sincronía siguiente (que empieza después de esa escritura) baje
+  // el cambio: así el médico siempre ve lo que acaba de guardar.
+  let ultimaEscritura = 0;
+  let modoLectura = "nube";
+  // Todo con performance.now(): nunca con la fecha de la PC (Cesar la atrasa para abrir el SAME)
+  const copiaAlDia = () => Boolean(
+    CONFIG.lecturaLocal && d().copiaCompleta && replica.ultimaMs !== null && !replica.error
+      && performance.now() - replica.ultimaMs < CONFIG.frescuraLectura
+      && replica.inicioCiclo > ultimaEscritura,
+  );
+  // El segundo paso lo decide la nube: estas funciones siempre van a ella, y una sesión aal1 de quien lo necesita no
+  // lee la copia (con internet va a la nube, que responde 403 «dos_pasos»; sin internet se rechaza igual, Hello da aal2)
+  // (miembros_con_correo lee correos de auth.users, que la copia no trae: con internet siempre va a la nube)
+  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo"];
+  const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
+  // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
+  // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía
+  // por leer en local (hallazgo de Reportes: medicos_historicos, informes_vigilancia, envíos).
+  let enCopia = { nombres: new Set(), en: -1e9 }; // caché de 5 min con performance.now() (la fecha de Windows no es fiable)
+  async function nombresEnCopia() {
+    if (performance.now() - enCopia.en < 300e3) return enCopia.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query(`
+        with recursive base as (
+          select nombre from sync.tablas union select unnest($1::text[])
+        ), vistas as (
+          select v.view_schema || '.' || v.view_name as vista, bool_and(t.nombre is not null) as completa
+            from information_schema.view_table_usage v
+            left join base t on t.nombre = v.table_schema || '.' || v.table_name
+           where v.view_schema in ('public', 'clinico') group by 1
+        )
+        select nombre from base union select vista from vistas where completa`, [CATALOGOS]);
+      enCopia = { nombres: new Set(rows.map((f) => f.nombre)), en: performance.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué tablas trae la copia: ${e.message}`);
+      enCopia.en = performance.now() - 240e3;
+    } finally { await c.end().catch(() => {}); }
+    return enCopia.nombres;
+  }
+  // true si la tabla o vista pedida y todo lo embebido en select= están en la copia (las funciones se confían)
+  async function lecturaEnCopia(req) {
+    const u = new URL(req.url, "http://x");
+    const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(u.pathname);
+    if (!m || m[1]) return true;
+    const perfil = String(req.headers["accept-profile"] || "public");
+    const nombres = await nombresEnCopia();
+    if (!nombres.has(`${perfil}.${m[2]}`)) return false;
+    // select=a,empresa:empresas(nombre),consultas!inner(...) → empresas, consultas
+    // select=a,empresa:empresas(nombre),...consultas(*),citas!inner(id) → empresas, consultas, citas
+    for (const e of (u.searchParams.get("select") || "").matchAll(/(?:^|[,(])\s*(?:\.\.\.)?(?:[a-z_0-9]+:)?([a-z_0-9]+)(?:!inner|!left|![a-z_0-9]+)?\s*\(/g)) {
+      if (!nombres.has(`${perfil}.${e[1]}`)) return false;
+    }
+    return true;
+  }
+  const anotarModo = (modo, motivo) => {
+    if (modo === modoLectura) return;
+    modoLectura = modo;
+    registro(`[puerta] lecturas desde ${modo === "local" ? "la copia local" : "la nube"} (${motivo})`);
+  };
   // La ventana de zamorApp puede estar en 127.0.0.1 o en localhost (mismo puerto): las dos son la app
   const origenesApp = [...new Set([origen, origen.replace("//127.0.0.1:", "//localhost:"), origen.replace("//localhost:", "//127.0.0.1:")])];
 
@@ -49,38 +113,42 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   // Verificación en dos pasos: la sesión local de un administrador o gerente médico lleva "aal" (aal1 tras la clave,
   // aal2 tras el código de 6 dígitos) y la app le pide el código igual que en la web. Sin "aal" la app no lo pide.
   const exigeDosPasos = (u) => Boolean(u?.nubeConAal && CON_DOS_PASOS.includes(u.rol));
+  // Plazo sin conexión con la hora anclada (nube.reloj), nunca con la fecha de Windows; también vence por
+  // demasiados arranques seguidos sin internet (sin ancla, una fecha detenida no cuenta los días)
+  const sinConexionVencida = (u) => nube.reloj.sinConexionVencida(u?.ultimoOnline, CONFIG.diasSinConexion, CONFIG.arranquesSinConexion);
   // sid: la sesión de esta ventana. Se conserva al renovar (como en Supabase) para que «Salir» cierre solo esta.
   const sesionLocal = (uid, segundoPaso = false, sid = crypto.randomUUID()) => {
     const u = d().usuarios[uid];
-    const ahora = Math.floor(Date.now() / 1000);
+    const ahora = nube.reloj.segundos(); // hora anclada: con la fecha de Windows atrasada el token igual vence
     const exp = ahora + CONFIG.sesionSegundos;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
     const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
-    for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < Date.now()) delete d().refrescos[t];
-    d().refrescos[refresh_token] = { uid, vence: Date.now() + 30 * 864e5, segundoPaso, sid };
+    for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < nube.reloj.ahora()) delete d().refrescos[t];
+    d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso, sid };
     estado.guardar();
     return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
   };
 
   const usuarioDe = (req) => {
-    const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto);
+    const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora());
     const u = datos && d().usuarios[datos.sub];
-    return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u } : null;
+    return u && !u.bloqueado && !u.requiereNube ? { uid: datos.sub, u, aal: datos.aal } : null;
   };
 
   // Freno a quien prueba claves: por correo y en total. Vive en memoria (la puerta solo atiende a esta PC).
+  // Con performance.now(): mover la fecha de Windows no levanta el freno.
   const intentos = new Map();
-  const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - Date.now());
+  const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - performance.now());
   const anotarFallo = (email) => {
     const f = intentos.get(email) || { fallos: 0, hasta: 0 };
     f.fallos += 1;
-    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = Date.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
+    if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = performance.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
     intentos.set(email, f);
-    const g = intentos.get("*") || { fallos: 0, desde: Date.now(), hasta: 0 };
-    if (Date.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: Date.now() });
+    const g = intentos.get("*") || { fallos: 0, desde: performance.now(), hasta: 0 };
+    if (performance.now() - g.desde > 600e3) Object.assign(g, { fallos: 0, desde: performance.now() });
     g.fallos += 1;
-    if (g.fallos >= FALLOS_GLOBALES) g.hasta = Date.now() + 600e3;
+    if (g.fallos >= FALLOS_GLOBALES) g.hasta = performance.now() + 600e3;
     intentos.set("*", g);
   };
 
@@ -199,7 +267,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     intentos.delete(escrito);
     if (u.bloqueado) return errorAuth(res, 400, "Tu acceso en esta PC fue desactivado. Habla con el administrador.", "user_banned");
     if (u.requiereNube) return errorAuth(res, 400, "Tu sesión fue cerrada desde la nube (por ejemplo, cambiaste la clave). Conecta la PC a internet para entrar.", "session_expired");
-    if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (sinConexionVencida(u)) {
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     return responder(res, 200, sesionLocal(uid));
@@ -213,25 +281,25 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
     const token = cuerpo?.refresh_token;
     const reciente = token && recienUsados.get(token);
     const ur = reciente && d().usuarios[reciente.uid];
-    if (reciente && reciente.hasta > Date.now() && d().refrescos[reciente.sesion.refresh_token] && ur && !ur.bloqueado && !ur.requiereNube) {
+    if (reciente && reciente.hasta > performance.now() && d().refrescos[reciente.sesion.refresh_token] && ur && !ur.bloqueado && !ur.requiereNube) {
       registro("[auth] renovar: ok (refresco recién usado, misma sesión)");
       return responder(res, 200, reciente.sesion);
     }
     const r = d().refrescos[token];
     const u = r && d().usuarios[r.uid];
-    if (!r || r.vence < Date.now() || !u || u.bloqueado || u.requiereNube) {
-      registro(`[auth] renovar: 400 (${!r ? "refresco desconocido o cerrado" : r.vence < Date.now() ? "vencido" : !u ? "usuario no está en la PC" : u.bloqueado ? "bloqueado" : "requiere internet"})`);
+    if (!r || r.vence < nube.reloj.ahora() || !u || u.bloqueado || u.requiereNube) {
+      registro(`[auth] renovar: 400 (${!r ? "refresco desconocido o cerrado" : r.vence < nube.reloj.ahora() ? "vencido" : !u ? "usuario no está en la PC" : u.bloqueado ? "bloqueado" : "requiere internet"})`);
       return errorAuth(res, 400, "La sesión venció. Vuelve a entrar.", "refresh_token_not_found");
     }
-    if (!nube.enLinea && Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (!nube.enLinea && sinConexionVencida(u)) {
       delete d().refrescos[token];
       registro(`[auth] renovar: 400 (más de ${CONFIG.diasSinConexion} días sin conexión)`);
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     delete d().refrescos[token];
     const sesion = sesionLocal(r.uid, r.segundoPaso, r.sid);
-    for (const [t, x] of recienUsados) if (x.hasta < Date.now()) recienUsados.delete(t);
-    recienUsados.set(token, { uid: r.uid, sesion, hasta: Date.now() + CONFIG.reusoRefrescoMs });
+    for (const [t, x] of recienUsados) if (x.hasta < performance.now()) recienUsados.delete(t);
+    recienUsados.set(token, { uid: r.uid, sesion, hasta: performance.now() + CONFIG.reusoRefrescoMs });
     registro("[auth] renovar: ok");
     return responder(res, 200, sesion);
   }
@@ -256,6 +324,7 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
       });
+      nube.reloj.anclar(r.headers.get("date"));
       const salida = {};
       for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
       let cuerpoRespuesta = Buffer.from(await r.arrayBuffer());
@@ -283,7 +352,10 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   }
 
   async function aLaCopia(req, res, cuerpo) {
-    const cab = { Authorization: req.headers.authorization };
+    // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
+    // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
+    // local lo nota (ahora_de_la_puerta() es null: firmar espera a internet). Nunca la fecha de Windows.
+    const cab = { Authorization: req.headers.authorization, ...(nube.reloj.verificada ? { "X-Zamorapp-Ahora": nube.reloj.iso() } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
     const r = await fetch(`http://127.0.0.1:${motor.puertoPostgrest}${req.url.replace(/^\/rest\/v1/, "")}`, {
       method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo,
@@ -297,25 +369,85 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
   // leídas de la copia local, más la lista fija. Así una función de lectura nueva funciona sin conexión sin
   // tener que acordarse de anotarla aquí (la 0.1.168 no abría sin conexión por trabajadores_por_empresa).
-  let lectura = { nombres: new Set(RPC_LECTURA), en: 0 };
+  let lectura = { nombres: new Set(RPC_LECTURA), en: -1e9 };
   async function funcionesDeLectura() {
-    if (Date.now() - lectura.en < 300e3) return lectura.nombres;
+    if (performance.now() - lectura.en < 300e3) return lectura.nombres;
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
       const { rows } = await c.query("select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.provolatile in ('s', 'i')");
-      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: Date.now() };
+      lectura = { nombres: new Set([...RPC_LECTURA, ...rows.map((f) => f.proname)]), en: performance.now() };
     } catch (e) {
       registro(`[puerta] no se pudo leer qué funciones son de lectura: ${e.message}`);
-      lectura.en = Date.now() - 240e3; // se reintenta en un minuto
+      lectura.en = performance.now() - 240e3; // se reintenta en un minuto
     } finally { await c.end().catch(() => {}); }
     return lectura.nombres;
   }
 
+  // Fase A (local primero): tablas que se escriben en la PC (sync.tablas.subible, leídas de la copia) y funciones
+  // de escritura que solo las tocan. Con la copia completa, esas escrituras van a la base local y suben por la bandeja.
+  let subibles = { nombres: new Map(), en: -1e9 }; // performance.now(): la fecha de Windows cambia (SAME)
+  async function tablasSubibles() {
+    if (performance.now() - subibles.en < 300e3) return subibles.nombres;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      // Tablas que suben y las vistas (consultas, adjuntos, historia_laboral…) que la app usa sobre UNA de ellas: nombre → tabla base
+      const { rows } = await c.query(`
+        select nombre, nombre as base from sync.tablas where subible
+        union all
+        select v.view_schema || '.' || v.view_name, min(v.table_schema || '.' || v.table_name)
+          from information_schema.view_table_usage v
+         where v.view_schema in ('public', 'clinico')
+         group by 1 having count(*) = 1 and bool_and(v.table_schema || '.' || v.table_name in (select nombre from sync.tablas where subible))`);
+      subibles = { nombres: new Map(rows.map((f) => [f.nombre, f.base])), en: performance.now() };
+    } catch (e) {
+      registro(`[puerta] no se pudo leer qué tablas sincronizan: ${e.message}`);
+      subibles.en = performance.now() - 240e3;
+    } finally { await c.end().catch(() => {}); }
+    return subibles.nombres;
+  }
+  let horaAnclada = { valor: false, en: -1e9 };
+  async function horaAncladaEnBase() {
+    if (horaAnclada.valor || performance.now() - horaAnclada.en < 300e3) return horaAnclada.valor;
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows: [f] } = await c.query("select to_regproc('public.ahora_de_la_puerta') is not null as hay");
+      horaAnclada = { valor: Boolean(f?.hay), en: performance.now() };
+    } catch { horaAnclada.en = performance.now(); } finally { await c.end().catch(() => {}); }
+    return horaAnclada.valor;
+  }
+  const escrituraLocal = async (req) => {
+    if (!CONFIG.escrituraLocal || !bandeja || !d().copiaCompleta || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return false;
+    const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(req.url);
+    if (!m) return false;
+    if (m[1]) {
+      if (!RPC_ESCRITURA_LOCAL.has(m[2])) return false;
+      // Firmar fija la hora legal: solo en la PC cuando la base local ya usa la hora anclada que manda la puerta
+      // (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces va a la nube (Analizar, 29-oct-2026).
+      if (m[2] === "firmar_consulta" && !(await horaAncladaEnBase())) return false;
+      return true;
+    }
+    const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
+    const base = (await tablasSubibles()).get(`${perfil}.${m[2]}`);
+    if (!base) return false;
+    if (req.method === "DELETE" && base.startsWith("clinico.")) return false; // nada clínico se borra desde la PC: va a la nube como hasta ahora
+    // Alta de un paciente: solo en la PC si tiene números de historia reservados por la nube (fase B, bloques por
+    // equipo); si no, va a la nube como antes (y sin internet se avisa)
+    if (req.method === "POST" && base === "public.trabajadores") return Boolean(bloques) && (await bloques.libres()) > 0;
+    return true;
+  };
+
   const soloLectura = async (req) => {
     if (["GET", "HEAD"].includes(req.method)) return true;
     const m = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(req.url);
-    return Boolean(m && (await funcionesDeLectura()).has(m[1]));
+    if (!m) return false;
+    if ((await funcionesDeLectura()).has(m[1])) return true;
+    // Una función nueva (migración recién aplicada) no espera 5 min: se vuelve a mirar el catálogo, como mucho cada 2 s
+    if (performance.now() - lectura.en < 2e3) return false;
+    lectura.en = -1e9;
+    return (await funcionesDeLectura()).has(m[1]);
   };
 
   async function registrarEquipo(req, res, cuerpo) {
@@ -396,6 +528,11 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
   }
 
   // Windows Hello: la ventana avisa con la clave de control de esta sesión; ver hello.mjs
+  // Adjuntos en la PC (fase B): carpeta local + cola de subida; ver adjuntos.mjs
+  // escrituraLocal: con la copia completa y la fase A activa, un archivo nuevo se guarda en la PC también sin internet
+  // (su fila va a la bandeja y el archivo a la cola). Hallazgo de la prueba integrada «un día de Cesar»: #123 no lo pasaba.
+  const adjuntos = crearAdjuntos({ estado, nube, motor, registro, escrituraLocal: () => Boolean(CONFIG.escrituraLocal && bandeja && estado.d.copiaCompleta) });
+
   const atenderHello = crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolEnNube, responder, errorAuth, registro, cumpleDosPasosEnNube });
 
   const servidor = http.createServer(async (req, res) => {
@@ -456,7 +593,12 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         const buscar = pedidaActualizacion && conControl();
         if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta,
+          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, lecturaLocal: copiaAlDia(),
+          bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
+          hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
+          numerosLibres: bloques ? await bloques.libres() : null,
+          respaldo: respaldo ? respaldo.estadoActual() : null,
+          adjuntos: await adjuntos.contar(),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
@@ -479,12 +621,59 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       if (ruta === "/zamorapp/equipo" && req.method === "POST") return await registrarEquipo(req, res, json());
       // "Sincronizar ahora" del menú: solo la ventana de zamorApp conoce la clave de control de esta sesión.
       if (ruta === "/zamorapp/sincronizar" && req.method === "POST") {
-        const dada = Buffer.from(String(req.headers["x-zamorapp-control"] || ""));
-        const esperada = Buffer.from(control);
-        if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
+        // Desde el menú del programa (clave de control) o desde el botón «Sincronizar ahora» de la ventana de zamorApp
+        // o desde la ventana de zamorApp con la sesión del usuario (Bearer): sube y baja como siempre
+        if (!conControl() && !(desdeApp && usuarioDe(req))) return responder(res, 403, { message: "No autorizado" });
         await nube.comprobar();
+        if (bandeja) await bandeja.subir();
         await replica.ciclo();
-        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
+        await adjuntos.subir().catch((e) => registro(`[adjuntos] ${e.message}`));
+        if (bloques) await bloques.reponer();
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
+          bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
+      }
+      // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración
+      if (ruta === "/zamorapp/respaldo" && req.method === "GET") {
+        if (!respaldo) return responder(res, 200, null);
+        const quien = usuarioDe(req);
+        if (!quien && !conControl()) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        // Solo el personal de salud y el administrador (Analizar): la lista de copias dice dónde está la base clínica
+        if (quien && !ROLES_RESPALDO.includes(quien.u.rol)) return responder(res, 403, { message: "Solo el personal de salud y el administrador" });
+        return responder(res, 200, { ...respaldo.estadoActual(), copias: respaldo.copias(), sugeridas: respaldo.carpetasSugeridas() });
+      }
+      if (ruta === "/zamorapp/respaldar" && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        if (!conControl() && !(desdeApp && usuarioDe(req))) return responder(res, 403, { message: "No autorizado" });
+        const r = await respaldo.hacer({ sincronizar: true });
+        return responder(res, r.ok ? 200 : 500, r);
+      }
+      if ((ruta === "/zamorapp/respaldo/configurar" || ruta === "/zamorapp/restaurar" || ruta === "/zamorapp/restaurar/cancelar") && req.method === "POST") {
+        if (!respaldo) return responder(res, 503, { message: "Respaldo no disponible" });
+        const quien = usuarioDe(req);
+        if (!quien || !["administrador", "gerente_medico"].includes(quien.u.rol)) return responder(res, 403, { message: "Solo un administrador o el gerente médico" });
+        if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos." });
+        const b = json() || {};
+        try {
+          if (ruta === "/zamorapp/restaurar/cancelar") return responder(res, 200, respaldo.cancelarRestauracion());
+          if (ruta === "/zamorapp/restaurar") return responder(res, 200, await respaldo.prepararRestauracion(b.archivo, b.clave));
+          return responder(res, 200, respaldo.configurar({ carpeta: b.carpeta, clave: b.clave, confirmacion: b.confirmacion }));
+        } catch (e) { return responder(res, 400, { message: e.message }); }
+      }
+      // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
+      if (ruta === "/zamorapp/bandeja" && req.method === "GET") {
+        if (!bandeja) return responder(res, 200, { pendientes: 0, revisar: [] });
+        if (!usuarioDe(req)) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        return responder(res, 200, await bandeja.lista());
+      }
+      if (ruta === "/zamorapp/bandeja/resolver" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        if (!bandeja) return responder(res, 400, { message: "Sin bandeja" });
+        const b = json();
+        const r = await bandeja.resolver(String(b?.id || ""), String(b?.accion || ""), { uid: quien.uid, rol: quien.u.rol });
+        if (r.error) return responder(res, 400, { message: r.error });
+        if (r.hecho === "pendiente" && nube.enLinea) bandeja.subir().catch(() => {});
+        return responder(res, 200, r);
       }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
@@ -543,15 +732,42 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
         return errorAuth(res, 503, "Esta acción requiere internet", "offline");
       }
 
+      // URL firmada por esta PC (la piden <img> e <iframe>, sin sesión): la firma dice qué archivo y de quién
+      if (req.method === "GET" && ruta.startsWith("/storage/v1/object/sign/") && await adjuntos.servirFirmado(req, res, ruta)) return;
+
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
-        if (await nube.confirmar() && await aLaNube(req, res, crudo, quien.uid)) return;
+        const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
+        if (ruta.startsWith("/storage/v1/") && !faltaSegundoPaso(quien) && await adjuntos.atender(req, res, ruta, crudo, quien, responder)) return;
+        // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio
+        if (!lectura && await escrituraLocal(req)) {
+          // Guardar en la PC exige el segundo paso igual que la nube (aplicar_cambios lo vuelve a exigir al subir)
+          if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
+          await aLaCopia(req, res, crudo);
+          if (res.statusCode < 400 && nube.enLinea) bandeja.subir().catch(() => {});
+          return;
+        }
+        const enLinea = await nube.confirmar();
+        if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia() && await lecturaEnCopia(req)) {
+          anotarModo("local", `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
+          return await aLaCopia(req, res, crudo);
+        }
+        if (enLinea && lectura) anotarModo("nube", ultimaEscritura > replica.inicioCiclo ? "hay una escritura que aún no bajó" : !d().copiaCompleta ? "la copia no está completa" : replica.error ? `la sincronía falló: ${replica.error}` : "la copia no está al día");
+        if (enLinea && await aLaNube(req, res, crudo, quien.uid)) {
+          if (ruta.startsWith("/rest/v1/") && !lectura) {
+            ultimaEscritura = performance.now();
+            replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
+          }
+          await adjuntos.alBorrar(req, crudo, res.statusCode);
+          return;
+        }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
         if (!await soloLectura(req)) {
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
           return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });
         }
+        if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
         return await aLaCopia(req, res, crudo);
       }
       return responder(res, 404, { message: "No encontrado" });
@@ -560,5 +776,6 @@ export function crearPuerta({ estado, nube, motor, replica, origen, control = ""
       if (!res.headersSent) responder(res, 500, { message: "Error interno de la puerta local" });
     }
   });
+  servidor.adjuntos = adjuntos;
   return servidor;
 }

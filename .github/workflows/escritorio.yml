@@ -86,7 +86,7 @@ jobs:
           $env:PG_BIN = (Resolve-Path recursos/pgsql/bin).Path
           $env:ZAMORAPP_POSTGREST = (Resolve-Path recursos/postgrest/postgrest.exe).Path
           $env:NUBE_DB = "postgresql://postgres:nube@127.0.0.1:55400/zamorapp_prueba"
-          node --test --test-reporter=spec "pruebas/*.test.mjs"
+          node --test --test-concurrency=1 --test-reporter=spec "pruebas/*.test.mjs"
           $codigo = $LASTEXITCODE
           Get-ChildItem $env:TEMP -Directory -Filter "zamorapp-*" | ForEach-Object { Get-ChildItem $_.FullName -Filter *.log | ForEach-Object { Write-Host "== $($_.Name)"; Get-Content $_.FullName -Tail 40 } }
           if ($codigo) { throw "Fallaron las pruebas de la puerta" }

@@ -10,7 +10,7 @@ export function firmar(datos, secreto) {
   return `${cabecera}.${cuerpo}.${firma}`;
 }
 
-export function verificar(token, secreto) {
+export function verificar(token, secreto, ahoraMs = Date.now()) {
   if (typeof token !== "string") return null;
   const [cabecera, cuerpo, firma] = token.split(".");
   if (!cabecera || !cuerpo || !firma) return null;
@@ -20,7 +20,7 @@ export function verificar(token, secreto) {
   try {
     if (JSON.parse(Buffer.from(cabecera, "base64url")).alg !== "HS256") return null;
     const datos = JSON.parse(Buffer.from(cuerpo, "base64url"));
-    if (typeof datos.exp !== "number" || datos.exp * 1000 < Date.now()) return null;
+    if (typeof datos.exp !== "number" || datos.exp * 1000 < ahoraMs) return null;
     return datos;
   } catch {
     return null;
