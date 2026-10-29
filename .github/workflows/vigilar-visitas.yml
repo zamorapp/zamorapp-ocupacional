@@ -2,7 +2,10 @@
 # - Estrella o fork: aviso inmediato con el usuario de GitHub (dato público).
 # - Diario: visitas, clones, sitios de origen y páginas vistas del día anterior (GitHub no dice quién mira).
 #   Requiere el secreto TRAFICO_TOKEN: token fino SOLO de este repo con «Administration: Read-only».
+#   Vence: anotar la fecha aquí al crearlo y poner un recordatorio 3 semanas antes.
 #   Sin el secreto, el aviso diario se omite y lo demás sigue funcionando.
+# Una estrella del mismo usuario solo avisa la primera vez (quitar y poner no hace ruido).
+# OJO: el repo es público, así que el issue también: solo lleva totales y datos públicos.
 # Los avisos se acumulan en un único issue «Vigilancia del repositorio» y mencionan a vars.AVISAR_A (correo de GitHub).
 name: Vigilar visitas
 
@@ -25,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           TRAFICO_TOKEN: ${{ secrets.TRAFICO_TOKEN }}
           AVISAR_A: ${{ vars.AVISAR_A || 'gestionesaguamiel-web' }}
@@ -33,8 +36,15 @@ jobs:
           script: |
             const repo = { owner: context.repo.owner, repo: context.repo.repo };
             const lineas = [];
+            const limpiar = (t) => String(t).replace(/[`@\[\]()<>]/g, "");
+            const titulo = "Vigilancia del repositorio";
+            const { data: abiertos } = await github.rest.issues.listForRepo({ ...repo, state: "open", creator: "github-actions[bot]", per_page: 100 });
+            let issue = abiertos.find((i) => i.title === titulo);
 
             if (context.eventName === "watch") {
+              const marca = `⭐ **${context.actor}** marcó`;
+              const previos = issue ? await github.paginate(github.rest.issues.listComments, { ...repo, issue_number: issue.number, per_page: 100 }) : [];
+              if (previos.some((c) => c.body?.includes(marca))) return core.info(`${context.actor} ya había marcado estrella.`);
               lineas.push(`⭐ **${context.actor}** marcó el repositorio con estrella. Total: ${context.payload.repository.stargazers_count}.`);
             } else if (context.eventName === "fork") {
               lineas.push(`🍴 **${context.actor}** hizo un fork (copia propia): ${context.payload.forkee.html_url}`);
@@ -56,16 +66,13 @@ jobs:
               // Los clones incluyen los de Vercel y Actions al publicar: solo avisan junto con visitas.
               if (v.count > 0) {
                 lineas.push(`📊 **${ayer}**: ${v.count} vistas de ${v.uniques} visitantes · ${c.count} clones de ${c.uniques} equipos (incluye Vercel/Actions).`);
-                if (origenes.data.length) lineas.push(`Llegaron desde (14 días): ${origenes.data.map((o) => `${o.referrer.replace(/[`@]/g, "")} (${o.uniques})`).join(", ")}.`);
-                if (paginas.data.length) lineas.push(`Lo más visto (14 días): ${paginas.data.slice(0, 5).map((p) => `\`${p.path.replace(/[`@]/g, "")}\` (${p.uniques})`).join(", ")}.`);
+                if (origenes.data.length) lineas.push(`Llegaron desde (14 días): ${origenes.data.map((o) => `${limpiar(o.referrer)} (${o.uniques})`).join(", ")}.`);
+                if (paginas.data.length) lineas.push(`Lo más visto (14 días): ${paginas.data.slice(0, 5).map((p) => `\`${limpiar(p.path)}\` (${p.uniques})`).join(", ")}.`);
               }
             }
 
             if (!lineas.length) return core.info("Nada que avisar.");
 
-            const titulo = "Vigilancia del repositorio";
-            const { data: abiertos } = await github.rest.issues.listForRepo({ ...repo, state: "open", creator: "github-actions[bot]", per_page: 100 });
-            let issue = abiertos.find((i) => i.title === titulo);
             if (!issue) {
               ({ data: issue } = await github.rest.issues.create({ ...repo, title: titulo,
                 body: "Avisos automáticos de estrellas, forks y visitas (workflow «Vigilar visitas»). GitHub no revela quién ve el código, solo totales." }));
