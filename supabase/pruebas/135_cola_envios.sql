@@ -74,11 +74,6 @@ update public.envios set estado = 'enviando' where id = 'c1350000-0000-0000-0000
 update public.envios set estado = 'enviado' where id = 'c1350000-0000-0000-0000-0000000000e1';
 update public.envios set estado = 'fallido', error = 'sin internet' where id = 'c1350000-0000-0000-0000-0000000000e2';
 select 'enviado y fallido cerrados por su autor (debe enviado,fallido): ' || string_agg(estado, ',' order by id) from public.envios where id::text like 'c1350000-%';
-do $$ begin
-  insert into storage.objects (bucket_id,name) values ('envios-cola','00000000-0000-0000-0000-0000000000a2/c1350000-0000-0000-0000-0000000000e1/otra.pdf');
-  raise notice 'FALLA: subió un PDF a un envío ya enviado';
-exception when insufficient_privilege then raise notice 'no sube PDF a un envío ya enviado (debe 1): 1';
-end $$;
 delete from storage.objects where bucket_id = 'envios-cola' and name like '00000000-0000-0000-0000-0000000000a2/c1350000-%';
 select 'borra su PDF después de enviar (debe 0): ' || count(*) from storage.objects where bucket_id = 'envios-cola';
 

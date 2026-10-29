@@ -123,10 +123,10 @@ drop policy if exists envios_cola_subir on storage.objects;
 drop policy if exists envios_cola_borrar on storage.objects;
 create policy envios_cola_leer on storage.objects for select to authenticated
   using (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
+-- Sin exigir que el envío ya esté en la nube: con la fase A la fila se guarda en la PC y la bandeja la sube después.
+-- Solo PDF, solo en la carpeta propia; la web solo envía PDFs de filas «en_cola» propias (y los borra al enviarlos).
 create policy envios_cola_subir on storage.objects for insert to authenticated
-  with check (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text
-              and exists (select 1 from public.envios e where e.id::text = (storage.foldername(name))[2]
-                          and e.enviado_por = auth.uid() and e.estado = 'en_cola'));
+  with check (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy envios_cola_borrar on storage.objects for delete to authenticated
   using (bucket_id = 'envios-cola' and (storage.foldername(name))[1] = auth.uid()::text);
 

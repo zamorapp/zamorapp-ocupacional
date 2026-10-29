@@ -18,7 +18,7 @@ type Ajustes = {
   reposo_pie_copia?: string | null;
   orden_nota?: string | null;
   orden_nota_preempleo?: string | null;
-  constancia_copias?: boolean;
+  constancia_copia?: boolean;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
   certificado_titulo?: string | null;
@@ -95,7 +95,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             </div>
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />
-              <Casilla id="constancia_copias" etiqueta="Constancia en original (RR. HH.) y copia (servicio médico)" defecto={a.constancia_copias ?? true} />
+              <Casilla id="constancia_copia" etiqueta="Constancia con copia para el servicio médico (2 hojas)" defecto={a.constancia_copia ?? false} />
               <Casilla id="firma_paciente_constancia" etiqueta="Espacio de firma del trabajador" defecto={a.firma_paciente_constancia ?? false} />
               <Casilla id="firma_sello_separados" etiqueta="Firma y sello del médico en casillas separadas (todos los documentos)" defecto={a.firma_sello_separados ?? true} />
             </div>

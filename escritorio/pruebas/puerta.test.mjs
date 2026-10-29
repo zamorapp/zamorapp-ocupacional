@@ -18,7 +18,7 @@ const postgrestReal = !!process.env.ZAMORAPP_POSTGREST; // en Windows el CI usa 
 const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : false;
 
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
-let nube, puerta, motor, estado, replicaObj, nubeObj, urlPuerta, CONFIG;
+let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
@@ -59,6 +59,7 @@ before(async () => {
   const { Motor } = await import("../puerta/motor.mjs");
   const { Nube } = await import("../puerta/nube.mjs");
   const { Replica } = await import("../puerta/replica.mjs");
+  const { Bandeja } = await import("../puerta/bandeja.mjs");
   const { crearPuerta } = await import("../puerta/servidor.mjs");
   ({ CONFIG } = await import("../puerta/config.mjs"));
   estado = new Estado(datos, CONFIG.llave);
@@ -67,7 +68,8 @@ before(async () => {
   nubeObj = new Nube(estado);
   await nubeObj.comprobar();
   replicaObj = new Replica(estado, nubeObj, motor);
-  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
+  bandejaObj = new Bandeja(estado, nubeObj, motor, replicaObj, process.env.DEPURAR_BANDEJA ? (m) => console.error(m) : undefined);
+  puerta = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaObj, bandeja: bandejaObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: (l) => lineas.push(l) });
   await new Promise((ok) => puerta.listen(0, "127.0.0.1", ok));
   urlPuerta = `http://127.0.0.1:${puerta.address().port}`;
 }, { timeout: 240_000 });
@@ -87,7 +89,8 @@ test("entrar con internet y registrar la PC", { skip: omitir }, async () => {
   assert.equal(r.status, 200);
   tokenAdmin = r.json.access_token;
   assert.equal((await pedir("/auth/v1/user", { token: tokenAdmin })).json.id, "00000000-0000-0000-0000-0000000000a1");
-  const serie = "Q" + String.fromCharCode(65 + crypto.randomInt(22));
+  // Dos letras al azar: el banco local conserva los equipos de corridas anteriores y una sola letra chocaba
+  const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
   const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   assert.ok(estado.d.equipo.secreto.length === 64);
@@ -120,6 +123,254 @@ test("con internet, la app lee de la nube", { skip: omitir }, async () => {
   assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"));
 });
 
+test("con internet y la copia al día: las lecturas salen de la copia local, sin ir a la nube", { skip: omitir }, async () => {
+  await replicaObj.ciclo();
+  assert.equal(replicaObj.error, null);
+  const e = await pedir("/zamorapp/estado");
+  assert.equal(e.json.lecturaLocal, true);
+  nube.estado.rest = [];
+  const t = await pedir("/rest/v1/trabajadores?select=id,empresa_id", { token: tokenMed });
+  assert.equal(t.status, 200);
+  assert.ok(t.json.length >= 1);
+  assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"), "la copia aplica las mismas reglas de acceso");
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), `fue a la nube: ${nube.estado.rest.join(", ")}`);
+  // Una función de lectura (stable) también sale de la copia
+  const f = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(f.status, 200);
+  assert.ok(!nube.estado.rest.includes("/rest/v1/rpc/trabajadores_por_empresa"));
+});
+
+test("lo que la copia no trae se lee de la nube aunque la copia esté al día (accesos, embebidos)", { skip: omitir }, async () => {
+  nube.estado.rest = [];
+  const a = await pedir("/rest/v1/accesos?select=id&limit=1", { token: tokenAdmin });
+  assert.notEqual(a.status, 404);
+  assert.ok(nube.estado.rest.includes("/rest/v1/accesos"), "accesos no está en la copia: va a la nube");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,accesos(id)&limit=1", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "un embebido que la copia no trae manda toda la lectura a la nube");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,empresa:empresas(nombre)&limit=1", { token: tokenAdmin });
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "con todo en la copia, sigue en local");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id,...accesos(id)&limit=1", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "un embebido con ... (spread) también se ve");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/rpc/miembros_con_correo", { metodo: "POST", token: tokenAdmin, cuerpo: {} });
+  assert.ok(nube.estado.rest.includes("/rest/v1/rpc/miembros_con_correo"), "una función de lectura que usa datos fuera de la copia va a la nube");
+  nube.estado.rest = [];
+  await pedir("/rest/v1/ultima_aptitud?select=trabajador_id&limit=1", { token: tokenAdmin });
+  assert.ok(!nube.estado.rest.includes("/rest/v1/ultima_aptitud"), "una vista sobre tablas de la copia se lee en local");
+});
+
+test("tras guardar en la nube se lee de la nube hasta que el cambio baja; luego otra vez de la copia", { skip: omitir }, async () => {
+  nube.estado.rest = [];
+  // Una escritura (aunque la nube la rechace por datos incompletos) va a la nube y marca «hay cambios por bajar»
+  const w = await pedir("/rest/v1/miembros", { metodo: "POST", token: tokenAdmin, cuerpo: { rol: "x" } });
+  assert.notEqual(w.status, 503);
+  assert.ok(nube.estado.rest.includes("/rest/v1/miembros"));
+  await replicaObj.enCurso; // la escritura disparó una sincronía
+  // Mientras una sincronía posterior no termine, la lectura va a la nube
+  const ciclo = replicaObj.inicioCiclo;
+  replicaObj.inicioCiclo = 0;
+  nube.estado.rest = [];
+  const r1 = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r1.status, 200);
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "con una escritura en la nube pendiente de bajar se lee de la nube");
+  assert.equal((await pedir("/zamorapp/estado")).json.lecturaLocal, false);
+  replicaObj.inicioCiclo = ciclo;
+  await replicaObj.ciclo();
+  nube.estado.rest = [];
+  const r2 = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r2.status, 200);
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "tras la sincronía se vuelve a leer de la copia");
+});
+
+test("copia vieja (más de 1 min) o con error: se lee de la nube", { skip: omitir }, async () => {
+  const guardada = replicaObj.ultimaMs;
+  replicaObj.ultimaMs = performance.now() - 120_000;
+  nube.estado.rest = [];
+  const r = await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.equal(r.status, 200);
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "copia vieja: va a la nube");
+  replicaObj.ultimaMs = guardada;
+  replicaObj.error = "prueba";
+  nube.estado.rest = [];
+  await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
+  assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "sincronía con error: va a la nube");
+  replicaObj.error = null;
+});
+
+// ─── Fase A: local primero ───
+const TRAB = "30000000-0000-0000-0000-00000000000a";
+const CONSULTA_MED = "40000000-0000-0000-0000-0000000000d2"; // borrador del médico A
+async function enBase(url, sql, params = []) {
+  const c = new pg.Client({ connectionString: url });
+  await c.connect();
+  try { return (await c.query(sql, params)).rows; } finally { await c.end(); }
+}
+const enLocal = (sql, params) => enBase(motor.url(), sql, params);
+const enNube = (sql, params) => enBase(NUBE_DB, sql, params);
+
+test("guardar en la PC: la base local responde al instante, queda en la bandeja y sube a la nube con la sesión del autor", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  nube.estado.rest = [];
+  const r = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000001" } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "la escritura no fue a la nube");
+  const [local] = await enLocal("select telefono, version from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(local.telefono, "0414-0000001");
+  await bandejaObj.enCurso; // la puerta disparó la subida al guardar
+  if (process.env.DEPURAR_BANDEJA) console.error("bandeja:", JSON.stringify(await enLocal("select * from local.bandeja")));
+  await bandejaObj.subir();
+  const e = await pedir("/zamorapp/estado");
+  assert.deepEqual({ p: e.json.bandeja.pendientes, c: e.json.bandeja.conflictos }, { p: 0, c: 0 }, JSON.stringify(e.json.bandeja));
+  const [nubeFila] = await enNube("select telefono, version from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(nubeFila.telefono, "0414-0000001", "llegó a la nube");
+  const [ap] = await enNube("select autor, equipo_id from sync.aplicados order by en desc limit 1");
+  assert.equal(ap.autor, "00000000-0000-0000-0000-0000000000a1", "subió con la sesión de quien guardó");
+  assert.equal(ap.equipo_id, estado.d.equipo.id);
+  const [tras] = await enLocal("select version from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(Number(tras.version), Number(nubeFila.version), "la versión de la nube bajó a la copia");
+});
+
+test("sin internet: guardar en la PC queda pendiente y sube al volver la conexión", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const r = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000002" } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.pendientes, 1);
+  // Un segundo cambio de la misma fila se funde con el pendiente (una sola subida, con la versión que la PC vio)
+  await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { correo: "t@x.com" } });
+  const [b] = await enLocal("select datos, version_base from local.bandeja where estado = 'pendiente'");
+  assert.deepEqual(b.datos, { telefono: "0414-0000002", correo: "t@x.com" });
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [f] = await enNube("select telefono, correo from public.trabajadores where id = $1", [TRAB]);
+  assert.deepEqual(f, { telefono: "0414-0000002", correo: "t@x.com" });
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.pendientes, 0);
+});
+
+test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y queda en Conflictos", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await replicaObj.ciclo();
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const r = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "cambiado en la PC" } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  // Mientras tanto, otro equipo (o la web) cambió la misma ficha en la nube
+  await enNube("update clinico.consultas set motivo_texto = 'cambiado en la nube' where id = $1", [CONSULTA_MED]);
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [k] = await enLocal("select estado, motivo from local.bandeja where fila_id = $1 order by orden desc limit 1", [CONSULTA_MED]);
+  assert.equal(k.estado, "conflicto", JSON.stringify(k));
+  const [n] = await enNube("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(n.motivo_texto, "cambiado en la nube", "la nube no se pisó");
+  const [c] = await enNube("select count(*)::int n from sync.conflictos where fila_id = $1 and resuelto_en is null", [CONSULTA_MED]);
+  assert.equal(c.n, 1, "la nube guardó lo que la PC quiso escribir");
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 1);
+  // La copia local vuelve a mostrar lo que hay en la nube; lo que escribió la PC queda en la lista para revisarlo
+  const [l] = await enLocal("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(l.motivo_texto, "cambiado en la nube", "la fila en conflicto volvió a bajar de la nube");
+  const lista = await pedir("/zamorapp/bandeja", { token: tokenMed });
+  assert.equal(lista.status, 200);
+  const item = lista.json.revisar.find((x) => x.fila_id === CONSULTA_MED);
+  assert.ok(item && item.estado === "conflicto" && item.datos.motivo_texto === "cambiado en la PC" && item.motivo, JSON.stringify(lista.json));
+  assert.equal((await pedir("/zamorapp/bandeja")).status, 401, "la lista exige sesión");
+  // Quien revisa decide: otro usuario sin rol no puede; el autor descarta y la bandeja queda limpia
+  const admin = estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const rolAdmin = admin.rol; admin.rol = "rrhh"; // alguien que no es el autor ni administra
+  const ajeno = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenAdmin, cuerpo: { id: item.id, accion: "descartar" } });
+  admin.rol = rolAdmin;
+  assert.equal(ajeno.status, 400, JSON.stringify(ajeno.json));
+  const ok = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenMed, cuerpo: { id: item.id, accion: "descartar" } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
+});
+
+test("un autor sin sesión en la nube no frena a los demás: sus cambios esperan y los otros suben", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await replicaObj.ciclo();
+  // El médico guarda sin internet; luego «pierde» su sesión en la nube (p. ej. entró solo sin conexión)
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const r1 = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "del médico" } });
+  assert.ok([200, 204].includes(r1.status), JSON.stringify(r1.json));
+  const r2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000009" } });
+  assert.ok([200, 204].includes(r2.status), JSON.stringify(r2.json));
+  // La nube rechaza la sesión del médico (clave cambiada o sesión revocada): token() no la renueva
+  const med = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
+  med.nube = { ...med.nube, access_token: "x", refresh_token: "rota", expires_at: 0 };
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [t] = await enNube("select telefono from public.trabajadores where id = $1", [TRAB]);
+  assert.equal(t.telefono, "0414-0000009", "lo del administrador subió");
+  const [p] = await enLocal("select count(*)::int n from local.bandeja where estado = 'pendiente' and autor = $1", [med.user?.id || "00000000-0000-0000-0000-0000000000a2"]);
+  assert.equal(p.n, 1, "lo del médico espera");
+  assert.match(bandejaObj.ultimoError || "", /sesión/);
+  // El médico vuelve a entrar con internet: su sesión se recupera y sus cambios suben
+  const entra = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
+  assert.equal(entra.status, 200, JSON.stringify(entra.json));
+  tokenMed = entra.json.access_token;
+  await bandejaObj.subir();
+  assert.equal((await bandejaObj.resumen()).pendientes, 0);
+  const [n] = await enNube("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(n.motivo_texto, "del médico");
+});
+
+test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tira la del navegador; sin ancla avisa", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await enLocal(`create or replace function public.prueba_cabecera_ahora() returns text language sql stable security definer
+    as $$ select current_setting('request.headers', true)::json ->> 'x-zamorapp-ahora' $$;
+    grant execute on function public.prueba_cabecera_ahora() to authenticated; notify pgrst, 'reload schema'`);
+  await new Promise((r) => setTimeout(r, 3000)); // PostgREST recarga el esquema; la puerta vuelve a mirar el catálogo
+  const est = (await pedir("/zamorapp/estado")).json;
+  // Con ancla, un cambio guardado queda marcado con hora verificada
+  const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
+  assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
+  const [hv] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  assert.equal(hv?.hora_verificada, true);
+  await bandejaObj.subir();
+  assert.equal(est.horaSinAncla, false, "con internet la hora está verificada");
+  assert.ok(Math.abs(Date.parse(est.hora) - Date.now()) < 60e3);
+  // Windows se atrasa un mes: la hora de la app no cambia (manda la nube)
+  const fecha = nubeObj.reloj.fecha;
+  nubeObj.reloj.fecha = () => Date.now() - 30 * 864e5;
+  nube.estado.caida = true; await nubeObj.comprobar(); // sin internet: la lectura stable sale de la copia local
+  const r = await fetch(`${urlPuerta}/rest/v1/rpc/prueba_cabecera_ahora`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenMed}`, "X-Zamorapp-Ahora": "1999-01-01T00:00:00.000Z" }, body: "{}" });
+  const textoR = await r.text();
+  assert.equal(r.status, 200, textoR);
+  const puesta = Date.parse(JSON.parse(textoR));
+  assert.ok(Math.abs(puesta - Date.now()) < 60e3, "la cabecera es la de la puerta, no la del navegador ni la de Windows");
+  // Reinicio sin internet (sin ancla): no va la cabecera, manda el piso y se avisa «hora sin verificar»
+  nubeObj.reloj.ancla = null;
+  const sin = (await pedir("/zamorapp/estado")).json;
+  assert.equal(sin.horaSinAncla, true);
+  assert.ok(Date.parse(sin.hora) >= puesta - 1000, "no retrocede aunque Windows esté un mes atrás");
+  const sinCab = await pedir("/rest/v1/rpc/prueba_cabecera_ahora", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.equal(sinCab.status, 200, JSON.stringify(sinCab.json));
+  assert.equal(sinCab.json, null, "sin ancla no se manda ninguna hora (ni la de Windows)");
+  const g2 = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000014" } });
+  assert.ok([200, 204].includes(g2.status));
+  const [hv2] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  assert.equal(hv2?.hora_verificada, false, "guardado sin ancla: hora no verificada");
+  nubeObj.reloj.fecha = fecha;
+  nube.estado.caida = false; await nubeObj.comprobar();
+  assert.equal((await pedir("/zamorapp/estado")).json.horaSinAncla, false, "al volver la nube se vuelve a anclar");
+  await enLocal("drop function public.prueba_cabecera_ahora(); notify pgrst, 'reload schema'");
+});
+
+test("qué se queda en la PC y qué va a la nube: funciones de la consulta sí, borrado clínico y funciones con otras tablas no", { skip: omitir || !postgrestReal }, async () => {
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const g = await pedir("/rest/v1/rpc/guardar_consulta", { metodo: "POST", token: tokenMed, cuerpo: {} });
+  assert.notEqual(g.status, 503, "guardar_consulta corre en la base local (aquí falla por argumentos, no por falta de internet)");
+  const re = await pedir("/rest/v1/rpc/reabrir_consulta", { metodo: "POST", token: tokenMed, cuerpo: { p_id: CONSULTA_MED, p_motivo: "x" } });
+  assert.equal(re.status, 503, "reabrir_consulta escribe consultas_versiones (no sube): va a la nube");
+  const del = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "DELETE", token: tokenMed });
+  assert.equal(del.status, 503, "nada clínico se borra desde la PC");
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+});
+
 test("sin internet: consulta la copia local con las mismas reglas de acceso", { skip: omitir }, async () => {
   nube.estado.caida = true;
   await nubeObj.comprobar();
@@ -130,10 +381,12 @@ test("sin internet: consulta la copia local con las mismas reglas de acceso", { 
   assert.ok(t.json.every((f) => f.empresa_id === "20000000-0000-0000-0000-00000000000a"), "el médico de A no ve trabajadores de B");
 });
 
-test("sin internet: guardar se rechaza con un mensaje claro y los adjuntos esperan", { skip: omitir }, async () => {
-  const w = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { cedula: "9" } });
+test("sin internet: lo que no sincroniza (miembros, alta de paciente) se rechaza con un mensaje claro y los adjuntos esperan", { skip: omitir }, async () => {
+  const w = await pedir("/rest/v1/miembros", { metodo: "POST", token: tokenMed, cuerpo: { rol: "x" } });
   assert.equal(w.status, 503);
   assert.match(w.json.message, /solo se puede consultar/);
+  const alta = await pedir("/rest/v1/trabajadores", { metodo: "POST", token: tokenMed, cuerpo: { cedula: "9" } });
+  assert.equal(alta.status, 503, "el alta de un paciente nuevo exige internet hasta la fase B (numeración por bloques)");
   const s = await pedir("/storage/v1/object/sign/adjuntos/x", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.equal(s.status, 503);
 });
@@ -215,7 +468,7 @@ test("salir: scope local cierra solo esta ventana; global, todas", { skip: omiti
 test("más de 7 días sin conexión: no entra hasta reconectar", { skip: omitir }, async () => {
   const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
   const antes = u.ultimoOnline;
-  u.ultimoOnline = Date.now() - 8 * 864e5;
+  u.ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
   const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   u.ultimoOnline = antes;
   assert.equal(r.status, 400);
@@ -227,7 +480,7 @@ test("más de 7 días sin conexión: tampoco se renueva una sesión abierta", { 
   assert.equal(ok.status, 200);
   const u = estado.d.usuarios["00000000-0000-0000-0000-0000000000a2"];
   const antes = u.ultimoOnline;
-  u.ultimoOnline = Date.now() - 8 * 864e5;
+  u.ultimoOnline = nubeObj.reloj.ahora() - 8 * 864e5;
   const r = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
   u.ultimoOnline = antes;
   assert.equal(r.status, 400);
@@ -414,6 +667,46 @@ test("verificación en dos pasos: la puerta pide el código para abrir la app y 
   }
 });
 
+test("dos pasos y copia local: una sesión aal1 no lee la copia (ni sin internet); requiere_dos_pasos siempre va a la nube", { skip: omitir }, async () => {
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  const nubeAntes = admin().nube.access_token;
+  try {
+    const token1 = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
+    await replicaObj.ciclo();
+    assert.equal((await pedir("/zamorapp/estado")).json.lecturaLocal, true, "la copia está al día");
+    nube.estado.rest = [];
+    const r1 = await pedir("/rest/v1/trabajadores?select=id", { token: token1 });
+    assert.equal(r1.status, 200);
+    assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "aal1: la lectura va a la nube aunque la copia esté al día");
+    const w = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: token1, cuerpo: { telefono: "x" } });
+    assert.equal(w.status, 403);
+    assert.equal(w.json.code, "dos_pasos", "aal1: tampoco guarda en la PC");
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: token1, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    const token2 = ok.json.access_token;
+    nube.estado.rest = [];
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: token2 })).status, 200);
+    assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "aal2: vuelve a leer de la copia");
+    await pedir("/rest/v1/rpc/requiere_dos_pasos", { metodo: "POST", token: token2, cuerpo: {} });
+    await pedir("/rest/v1/rpc/falta_segundo_paso", { metodo: "POST", token: token2, cuerpo: {} });
+    assert.ok(nube.estado.rest.includes("/rest/v1/rpc/requiere_dos_pasos") && nube.estado.rest.includes("/rest/v1/rpc/falta_segundo_paso"), "el segundo paso lo decide la nube");
+    // Sin internet, aal1 tampoco lee la copia (Windows Hello da aal2); aal2 sí
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    const sin = await pedir("/rest/v1/trabajadores?select=id", { token: token1 });
+    assert.equal(sin.status, 403);
+    assert.equal(sin.json.code, "dos_pasos");
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: token2 })).status, 200);
+  } finally {
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    admin().nube.access_token = nubeAntes;
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
 test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el código; sin internet basta Windows Hello", { skip: omitir }, async () => {
   const ventana = (ruta) => fetch(`${urlPuerta}${ruta}`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } }).then(async (r) => ({ status: r.status, json: await r.json() }));
   const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
@@ -540,6 +833,7 @@ test("la nube cambió y esta versión no la entiende: se avisa que hay que actua
   let e = await pedir("/zamorapp/estado");
   assert.equal(e.json.actualizar, false);
   nube.estado.migradaPorDelante = true;
+  replicaObj.ultimaMs = performance.now() - 120_000; // copia vieja: la lectura va a la nube (C11)
   try {
     const r = await pedir("/rest/v1/trabajadores?select=id,grupo_sanguineo", { token: tokenAdmin });
     assert.equal(r.status, 403);
@@ -613,7 +907,8 @@ test("el programa consulta /zamorapp/estado con HTTP crudo (como main.rs) y la p
 test("una RLS que niega una escritura (también 42501) NO se confunde con «hay que actualizar»", { skip: omitir }, async () => {
   nube.estado.rlsNiega = true;
   try {
-    const r = await pedir("/rest/v1/consultas?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { motivo: "x" } });
+    // (miembros no sincroniza: la escritura va a la nube, que aquí la niega por RLS)
+    const r = await pedir("/rest/v1/miembros?id=eq.00000000-0000-0000-0000-0000000000c1", { metodo: "PATCH", token: tokenAdmin, cuerpo: { rol: "x" } });
     assert.equal(r.status, 403);
     assert.equal(r.json.code, "42501");
     assert.match(r.json.message, /^new row violates row-level security policy/);

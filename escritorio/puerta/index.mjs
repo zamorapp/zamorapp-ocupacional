@@ -7,6 +7,7 @@ import { Motor, puertoLibre } from "./motor.mjs";
 import { Nube } from "./nube.mjs";
 import { ColaEnvios, webDeCola } from "./cola-envios.mjs";
 import { Replica } from "./replica.mjs";
+import { Bandeja } from "./bandeja.mjs";
 import { crearPuerta } from "./servidor.mjs";
 
 fs.mkdirSync(CONFIG.datos, { recursive: true });
@@ -31,23 +32,25 @@ const motor = new Motor(estado);
 motor.registro = registro;
 const nube = new Nube(estado, registro);
 const replica = new Replica(estado, nube, motor, registro);
+const bandeja = new Bandeja(estado, nube, motor, replica, registro);
 const cola = new ColaEnvios({ nube, motor, web: webDeCola(CONFIG.nube, process.env.ZAMORAPP_WEB), registro });
 
 async function principal() {
   await motor.iniciar();
   await nube.comprobar();
+  nube.reloj.arranque(nube.enLinea); // arranques seguidos sin nube: parte del plazo sin conexión
   // La app trae grabada la dirección de la puerta: este puerto es fijo (si está ocupado, se avisa).
   const puerto = CONFIG.puertoPuerta;
   if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
-  crearPuerta({ estado, nube, motor, replica, cola, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
+  crearPuerta({ estado, nube, motor, replica, bandeja, cola, origen, control: process.env.ZAMORAPP_CONTROL || "", registro }).listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
   });
-  // Con la fase A: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer() (los correos salen al final,
-  // cuando la fila y el PDF ya subieron)
-  const ciclo = async () => { await nube.comprobar(); await replica.ciclo(); await cola.barrer(); };
+  // Cada ciclo: sube lo guardado en la PC, baja lo de la nube y, al final, salen los correos en cola
+  // (comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer(): la fila y el PDF ya subieron)
+  const ciclo = async () => { await nube.comprobar(); await bandeja.subir(); await replica.ciclo(); await cola.barrer(); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidarEmpresas } from "@/lib/empresas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { obtenerSesion } from "@/lib/sesion";
@@ -119,6 +120,7 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
     if (error) {
       return { ok: false, mensaje: error.code === "23505" ? "Ya existe un paciente con esa cédula." : "No se pudo guardar: " + error.message };
     }
+    invalidarEmpresas();
     revalidatePath("/", "layout");
     olvidar("");
     return { ok: true, mensaje: `${nombres} ${apellidos} registrado.`, id: data.id };
@@ -168,12 +170,14 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
       const lote = registros.slice(i, i + 500);
       const { error } = await supabase.from("trabajadores").insert(lote);
       if (error) {
+        invalidarEmpresas();
         revalidatePath("/", "layout");
         olvidar("");
         return { ok: false, mensaje: `Se guardaron ${guardados}. Error en el lote siguiente: ${error.code === "23505" ? "hay cédulas que ya existen" : error.message}` };
       }
       guardados += lote.length;
     }
+    invalidarEmpresas();
     revalidatePath("/", "layout");
     olvidar("");
     return { ok: true, mensaje: `${guardados} pacientes importados al expediente.` };
@@ -191,6 +195,7 @@ export async function depurarNomina(empresaId: string | null, desde: string, apl
   const { data, error } = await supabase.rpc("depurar_nomina", { p_empresa: empresaId || null, p_desde: desde, p_aplicar: aplicar });
   if (error) return { ok: false, mensaje: error.message.includes("permiso") ? "Solo el administrador o el personal de salud pueden depurar la nómina." : error.message };
   if (aplicar) {
+    invalidarEmpresas();
     revalidatePath("/", "layout");
     olvidar("");
   }

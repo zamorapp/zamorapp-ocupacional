@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
 import { URL_PUBLICA } from "@/lib/invitaciones";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -132,7 +133,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
       // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
       observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
-      constancia_copias: datos.get("constancia_copias") === "on",
+      constancia_copia: datos.get("constancia_copia") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
@@ -221,6 +222,7 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     const empresas = datos.getAll("empresas").map(String).filter(Boolean);
     const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol, p_empresas: empresas.length ? empresas : null });
     if (error) return { ok: false, mensaje: error.message };
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
@@ -285,6 +287,7 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     }
     const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
     if (error) throw error;
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };

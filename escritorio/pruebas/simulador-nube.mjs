@@ -49,7 +49,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   const pool = new pg.Pool({ connectionString: baseUrl, max: 4 });
   // conAal: los tokens llevan "aal" como los de Supabase (verificación en dos pasos); usuarios[correo].factor = id
   // de su autenticador ya activado, que se verifica con el código 123456
-  const estado = { caida: false, vencerTokens: false, conAal: false };
+  const estado = { caida: false, vencerTokens: false, conAal: false, rest: [] }; // rest: rutas REST que llegaron a la nube (para saber qué se leyó de la copia)
   const aales = new Map(); // token → aal
   const secreto = postgrest ? crypto.randomBytes(32).toString("hex") : null;
   const pgrst = postgrest ? lanzarPostgrest(postgrest, baseUrl, secreto) : null;
@@ -108,6 +108,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     }
     // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
     // Simula una RLS que niega una escritura con razón (mismo código 42501): NO es «hay que actualizar»
+    if (url.pathname.startsWith("/rest/v1/")) estado.rest.push(url.pathname);
     if (estado.rlsNiega && url.pathname.startsWith("/rest/v1/")) {
       return enviar(403, { code: "42501", details: null, hint: null, message: 'new row violates row-level security policy for table "consultas"' });
     }
@@ -134,7 +135,9 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       if (url.pathname.startsWith("/rest/v1/rpc/")) {
         const fn = url.pathname.slice(13).replace(/[^a-z_0-9]/g, "");
         const args = JSON.parse(cuerpo || "{}");
-        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, Object.values(args));
+        // Un argumento jsonb (p. ej. el lote de aplicar_cambios) viaja como texto JSON: node-pg mandaría una lista como arreglo de PostgreSQL
+        const valores = Object.values(args).map((v) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v));
+        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, valores);
         filas = r.rows[0].r;
       } else {
         const tabla = url.pathname.slice(9).replace(/[^a-z_0-9]/g, "");

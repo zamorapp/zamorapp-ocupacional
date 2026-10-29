@@ -14,8 +14,19 @@ create or replace function auth.role() returns text language sql stable as $$
                   nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role', 'authenticated')
 $$;
 
--- Fase F1: la copia es de solo lectura para los usuarios. Solo la escribe la réplica (superusuario).
-revoke insert, update, delete, truncate on all tables in schema public, clinico, sync from authenticated;
+-- Fase A (local primero): las tablas que suben a la nube (sync.tablas.subible) conservan los permisos de escritura
+-- de la nube, iguales columna por columna, y lo guardado queda en local.bandeja (20_bandeja.sql) para subir.
+-- Todo lo demás (sync, catálogos, tablas que se cambian solo en línea) sigue siendo de solo lectura en la PC.
+revoke insert, update, delete, truncate on all tables in schema sync from authenticated;
+do $$
+declare t record;
+begin
+  for t in select table_schema || '.' || table_name as nombre from information_schema.tables
+            where table_schema in ('public', 'clinico') and table_type = 'BASE TABLE'
+              and table_schema || '.' || table_name not in (select nombre from sync.tablas where subible) loop
+    execute format('revoke insert, update, delete, truncate on %s from authenticated', t.nombre);
+  end loop;
+end $$;
 
 -- Los avisos y la bitácora oficial corren solo en la nube: en la PC no se disparan.
 do $$
@@ -26,3 +37,7 @@ begin
     execute format('alter table %s disable trigger %I', t.tabla, t.tgname);
   end loop;
 end $$;
+
+-- Hora anclada (fase A): solo en la base local public.ahora() toma la hora que manda la puerta (cabecera
+-- X-Zamorapp-Ahora o zamorapp.ahora); en la nube esta marca no existe y la cabecera se ignora.
+alter database zamorapp set zamorapp.local = 'on';

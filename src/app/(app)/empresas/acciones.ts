@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -58,6 +59,7 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
   if (error) {
     return { ok: false, mensaje: error.code === "23505" ? "Ya existe una empresa con ese RIF." : "No se pudo guardar: " + error.message };
   }
+  invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: id ? "Datos actualizados." : `${razonSocial} registrada.` };
 }
@@ -69,6 +71,7 @@ export async function ignorarAlertaLegal(id: string, ignorar: boolean): Promise<
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("empresas").update({ ignorar_alerta_legal: ignorar }).eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
+  invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { normalizarCedula } from "@/lib/importar";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -63,6 +64,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   };
   const { error } = await supabase.from("citas").insert(validos.map((t) => ({ ...comun, empresa_id: t.empresa_id, trabajador_id: t.id })));
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede solicitar citas para esta empresa." : error.message };
+  invalidarEmpresas();
   revalidatePath("/portal");
   const n = validos.length;
   return {
@@ -95,6 +97,7 @@ export async function cancelarSolicitud(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("citas").update({ estado: "cancelada" }).eq("id", id).eq("estado", "solicitada");
   if (error) return { ok: false, mensaje: error.message };
+  invalidarEmpresas();
   revalidatePath("/portal");
   return { ok: true, mensaje: "" };
 }
