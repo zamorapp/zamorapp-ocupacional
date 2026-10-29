@@ -142,26 +142,31 @@ end $$;
 alter table clinico.consultas add column if not exists hora_equipo jsonb;
 alter table clinico.aptitudes add column if not exists hora_equipo jsonb;
 
+-- hora_equipo la escribe SOLO este disparador: lo que mande un usuario en esa columna se descarta (parte siempre de
+-- la fila anterior), así nadie puede marcar una hora como verificada. Una columna con «?» solo se anota (fecha: el día
+-- de la consulta no se cambia; si no venía verificado, queda marcado en hora_equipo).
 create or replace function public.hora_oficial_de_la_bandeja()
 returns trigger language plpgsql set search_path = '' as $$
 declare
+  v_arg text;
   v_col text;
   v_nueva jsonb := to_jsonb(new);
   v_vieja jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
   v_verificada boolean := coalesce(current_setting('sync.hora_anclada', true), '') = 'on';
-  v_equipo jsonb := coalesce(new.hora_equipo, '{}'::jsonb);
+  v_equipo jsonb := case when tg_op = 'UPDATE' then old.hora_equipo end;
   v_cambios jsonb := '{}'::jsonb;
 begin
-  if coalesce(current_setting('sync.cambio_id', true), '') = '' or current_setting('zamorapp.local', true) = 'on' then
-    return new;
+  -- En la PC se guarda lo que baja de la nube tal cual (lo que se escriba allí no sube: la nube lo descarta aquí)
+  if current_setting('zamorapp.local', true) = 'on' then return new; end if;
+  if coalesce(current_setting('sync.cambio_id', true), '') <> '' then
+    foreach v_arg in array tg_argv loop
+      v_col := rtrim(v_arg, '?');
+      if v_nueva ->> v_col is not null and (v_nueva -> v_col) is distinct from (v_vieja -> v_col) then
+        v_equipo := coalesce(v_equipo, '{}'::jsonb) || jsonb_build_object(v_col, jsonb_build_object('hora', v_nueva -> v_col, 'verificada', v_verificada));
+        if not v_verificada and v_arg = v_col then v_cambios := v_cambios || jsonb_build_object(v_col, now()); end if;
+      end if;
+    end loop;
   end if;
-  foreach v_col in array tg_argv loop
-    if v_nueva ->> v_col is not null and (v_nueva -> v_col) is distinct from (v_vieja -> v_col) then
-      v_equipo := v_equipo || jsonb_build_object(v_col, jsonb_build_object('hora', v_nueva -> v_col, 'verificada', v_verificada));
-      if not v_verificada then v_cambios := v_cambios || jsonb_build_object(v_col, now()); end if;
-    end if;
-  end loop;
-  if v_equipo = coalesce(new.hora_equipo, '{}'::jsonb) then return new; end if;
   new := jsonb_populate_record(new, v_cambios || jsonb_build_object('hora_equipo', v_equipo));
   return new;
 end $$;
@@ -169,7 +174,7 @@ revoke execute on function public.hora_oficial_de_la_bandeja() from public, anon
 
 drop trigger if exists hora_oficial on clinico.consultas;
 create trigger hora_oficial before insert or update on clinico.consultas
-  for each row execute function public.hora_oficial_de_la_bandeja('creado_en', 'hora_inicio', 'hora_cierre', 'firmada_en');
+  for each row execute function public.hora_oficial_de_la_bandeja('creado_en', 'hora_inicio', 'hora_cierre', 'firmada_en', 'fecha?');
 drop trigger if exists hora_oficial on clinico.aptitudes;
 create trigger hora_oficial before insert or update on clinico.aptitudes
   for each row execute function public.hora_oficial_de_la_bandeja('emitida_en');
