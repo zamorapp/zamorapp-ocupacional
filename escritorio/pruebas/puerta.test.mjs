@@ -230,6 +230,18 @@ async function enBase(url, sql, params = []) {
 }
 const enLocal = (sql, params) => enBase(motor.url(), sql, params);
 // Escribe en la copia como lo hace la réplica (sin disparadores: no pasa por la bandeja)
+// La restauración en caliente (solo en las pruebas: en la PC corre al arrancar, antes de PostgREST) corta la conexión
+// que PostgREST local tenía con la base. Hasta que la rehace responde 57P01 (Linux) o un error vacío y PGRST001
+// (Windows): se espera a que lea de nuevo antes de seguir
+async function postgrestLocalListo() {
+  for (let i = 0; i < 60; i++) {
+    const r = await fetch(`http://127.0.0.1:${CONFIG.puertoPostgrest}/trabajadores?select=id&limit=1`, { headers: { Authorization: `Bearer ${tokenAdmin}` } }).catch(() => null);
+    if (r?.status === 200) return;
+    await new Promise((ok) => setTimeout(ok, 250));
+  }
+  assert.fail("PostgREST local no volvió a leer tras restaurar");
+}
+
 async function enLocalReplica(sql, params = []) {
   const c = new pg.Client({ connectionString: motor.url() });
   await c.connect();
@@ -449,6 +461,7 @@ test("fase C: «Respaldar ahora» sincroniza y deja la copia local y la copia ci
   pr = await pedir("/zamorapp/restaurar", { metodo: "POST", token: tokenAdmin, cuerpo: { archivo: j.externo, clave: "clave-de-respaldo" } });
   assert.equal(pr.status, 200, JSON.stringify(pr.json));
   assert.equal(await motor.aplicarRestauracion(), true);
+  await postgrestLocalListo();
   const [bl] = await enLocal("select count(*) filter (where equipo_id = '00000000-0000-0000-0000-00000000dead')::int as ajenos, count(*) filter (where equipo_id = $1)::int as propios from local.bloques", [estado.d.equipo.id]);
   assert.deepEqual(bl, { ajenos: 0, propios: 1 }, "quedan solo los bloques de este equipo");
   const [t] = await enLocal("select telefono from public.trabajadores where id = $1", [TRAB]);
@@ -1375,6 +1388,7 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   assert.ok(estado.d.restaurar?.adjuntos && fs.existsSync(estado.d.restaurar.adjuntos));
   assert.equal(estado.d.restaurar.origenAdjuntos, j.adjuntos.externo);
   assert.equal(await motor.aplicarRestauracion(), true);
+  await postgrestLocalListo();
   assert.equal(fs.readFileSync(local, "utf8"), PDF, "el adjunto volvió");
   assert.equal(fs.existsSync(path.join(respaldoObj.carpetaLocal, "restaurar.adjuntos.tar")), false);
   await replicaObj.ciclo();
