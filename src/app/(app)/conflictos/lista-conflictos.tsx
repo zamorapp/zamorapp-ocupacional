@@ -6,7 +6,7 @@ import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 import {
-  type CasoBandeja, comparar, EVENTO_BANDEJA, explicarMotivo, leerBandeja, type ListaBandeja, nombreOperacion, nombreTabla, resolverCaso, textoValor,
+  type CasoBandeja, comparar, internosDistintos, EVENTO_BANDEJA, explicarMotivo, leerBandeja, type ListaBandeja, nombreOperacion, nombreTabla, resolverCaso, textoValor,
 } from "@/lib/escritorio-bandeja";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +57,7 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
   // Si la nube tiene el registro, los campos iguales se pliegan: el médico ve primero solo lo que cambió
   const distintos = c.nube ? filas.filter((f) => f.distinto) : filas;
   const iguales = c.nube ? filas.filter((f) => !f.distinto) : [];
+  const internos = internosDistintos(c.datos, c.nube);
   const etiquetaDescartar = c.nube ? "Quedarme con la nube" : "Descartar lo de esta PC";
 
   const resolver = async (accion: "descartar" | "reintentar") => {
@@ -142,7 +143,21 @@ function Caso({ c, alResolver }: { c: CasoBandeja; alResolver: () => void }) {
               </tbody>
             </table>
           </div>
-          {distintos.length === 0 && <p className="text-sm text-muted-foreground">Lo que se ve es igual en las dos versiones: cambió algo interno. Cualquiera de las dos sirve.</p>}
+          {distintos.length === 0 && internos.length === 0 && <p className="text-sm text-muted-foreground">Lo que se ve es igual en las dos versiones.</p>}
+          {internos.length > 0 && (
+            <details className="text-sm" open={distintos.length === 0}>
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Datos internos que también cambian ({internos.length})</summary>
+              <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 rounded-lg border border-aviso/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)]">
+                {internos.map((f) => (
+                  <div key={f.campo} className="contents">
+                    <dt className="font-medium text-muted-foreground">{f.etiqueta}</dt>
+                    <dd className="break-words"><span className="text-xs text-muted-foreground sm:sr-only">En esta PC: </span>{f.pc}</dd>
+                    <dd className="break-words"><span className="text-xs text-muted-foreground sm:sr-only">En la nube: </span>{f.nube}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
           {iguales.length > 0 && (
             <details className="text-sm">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver {iguales.length === 1 ? "1 campo igual" : `${iguales.length} campos iguales`}</summary>

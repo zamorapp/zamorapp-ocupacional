@@ -126,7 +126,12 @@ export function explicarMotivo(motivo: string | null, estado: string): { titulo:
 
 // ─── Comparación lado a lado ────────────────────────────────
 
-const OCULTOS = new Set(["id", "org_id", "version", "creado_en", "actualizado_en", "creado_por", "actualizado_por"]);
+// Lista fija (Analizar): campos como firmada_en o atendida_por sí los debe ver el médico
+const OCULTOS = new Set([
+  "id", "org_id", "version",
+  "creado_en", "creado_por", "actualizado_en", "actualizado_por", "cambiado_en", "cambiado_por", "registrado_en", "registrado_por",
+  "subido_por", "usado_en", "usado_por", "usada_en", "usada_por",
+]);
 
 const ETIQUETAS: Record<string, string> = {
   motivo_texto: "Motivo de consulta",
@@ -189,11 +194,20 @@ export type FilaComparada = { campo: string; etiqueta: string; pc: string; nube:
 // Un renglón por campo que escribió la PC (sin los técnicos); los distintos primero
 export function comparar(datos: Record<string, unknown>, nube: Record<string, unknown> | null): FilaComparada[] {
   const filas = Object.keys(datos ?? {})
-    .filter((k) => !OCULTOS.has(k) && !/_(en|at|por)$/.test(k))
+    .filter((k) => !OCULTOS.has(k))
     .map((k) => {
       const pc = textoValor(datos[k]);
       const n = nube ? textoValor(nube[k]) : "—";
       return { campo: k, etiqueta: etiquetaCampo(k), pc, nube: n, distinto: !nube || pc !== n };
     });
   return filas.sort((a, b) => Number(b.distinto) - Number(a.distinto));
+}
+
+// Los ocultos que también difieren: se muestran plegados para que nada cambie sin verse
+export function internosDistintos(datos: Record<string, unknown>, nube: Record<string, unknown> | null): FilaComparada[] {
+  if (!nube) return [];
+  return Object.keys(datos ?? {})
+    .filter((k) => OCULTOS.has(k) && k !== "id" && k !== "org_id")
+    .map((k) => ({ campo: k, etiqueta: etiquetaCampo(k), pc: textoValor(datos[k]), nube: textoValor(nube[k]), distinto: true }))
+    .filter((f) => f.pc !== f.nube);
 }
