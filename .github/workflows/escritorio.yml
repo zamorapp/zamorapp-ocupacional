@@ -250,12 +250,13 @@ jobs:
               }
             }
             foreach ($k in $clavesAjenas) {
-              if (-not (Test-Path $k)) { $f.Add("clave|$k|(no existe)"); continue }
+              # Una clave sin valores (p. ej. Uninstall, que el instalador crea si no existía) no es del SAME: solo cuentan los valores
+              if (-not (Test-Path $k)) { continue }
               foreach ($c in @(Get-Item $k) + @(Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue)) {
                 # Lo de zamorApp sí puede cambiar; Edge y WebView2 se actualizan solos en el equipo del CI
                 if ($c.Name -match "zamorapp|Microsoft Edge|EdgeUpdate|WebView") { continue }
                 $v = $c.GetValueNames() | Sort-Object | ForEach-Object { "$_=$($c.GetValue($_, $null, 'DoNotExpandEnvironmentNames') -join ',')" }
-                if (($v -join ";") -match "zamorapp") { continue }
+                if (-not $v -or ($v -join ";") -match "zamorapp") { continue }
                 $f.Add("clave|$($c.Name)|$($v -join ';')")
               }
             }
@@ -263,6 +264,7 @@ jobs:
           }
           $fotoSame = FotoSame
           if (-not ($fotoSame | Where-Object { $_ -like "acceso|*" })) { throw "La foto del SAME no encontró sus accesos directos" }
+          if (-not ($fotoSame | Where-Object { $_ -like "clave|*MediSoftware\Integral|*" })) { throw "La foto del SAME no encontró su clave del registro" }
           function RevisarSame([string]$momento) {
             $dif = Compare-Object $fotoSame (FotoSame)
             if ($dif) {
