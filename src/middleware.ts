@@ -5,6 +5,15 @@ import { COOKIE_EQUIPO, cabecerasEquipo } from "@/lib/equipo-confianza";
 // Direcciones con las que la ventana de zamorApp Escritorio abre la app local
 const HOSTS_ESCRITORIO = ["127.0.0.1:54332", "localhost:54332"];
 
+// Sesiones que ya cumplieron el segundo paso (equipo de confianza), en la memoria del servidor por 5 minutos: así
+// el menú y sus prefetch no consultan la base en cada clic. Es memoria del servidor, no una cookie: el navegador no
+// la puede falsificar. Y si un equipo se olvida, la base frena los datos al instante; solo la redirección espera.
+const YA_CUMPLE = new Map<string, number>();
+function recordarCumple(clave: string) {
+  if (YA_CUMPLE.size > 500) YA_CUMPLE.clear();
+  YA_CUMPLE.set(clave, Date.now() + 5 * 60 * 1000);
+}
+
 // Refresca la sesión de Supabase y protege las rutas internas.
 // Sin Supabase configurado la app corre en modo demo y no bloquea nada.
 export async function middleware(request: NextRequest) {
@@ -64,10 +73,15 @@ export async function middleware(request: NextRequest) {
   const enDosPasos = ruta.startsWith("/login/dos-pasos");
   const aal = data?.claims?.aal;
   if (conSesion && aal === "aal2" && enDosPasos) return irA("/panel");
-  if (conSesion && aal === "aal1" && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
-    // Sin caché: una cookie se podría falsificar. La base decide (huella, equipo de confianza vigente o código).
-    const { data: falta } = await supabase.rpc("falta_segundo_paso");
-    if (falta === true) return irA("/login/dos-pasos");
+  // La marca «dos_pasos» la pone la nube al firmar el token: si es falsa (médicos, enfermería, RR. HH.) no se consulta
+  // nada. Si es verdadera o no está (hook sin activar), decide la base: equipo de confianza vigente o código.
+  if (conSesion && aal === "aal1" && data?.claims?.dos_pasos !== false && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
+    const clave = `${data?.claims?.session_id ?? data?.claims?.sub}:${request.cookies.get(COOKIE_EQUIPO)?.value ?? ""}`;
+    if ((YA_CUMPLE.get(clave) ?? 0) < Date.now()) {
+      const { data: falta } = await supabase.rpc("falta_segundo_paso");
+      if (falta === true) return irA("/login/dos-pasos");
+      if (falta === false) recordarCumple(clave);
+    }
   }
 
   if (conSesion && enLogin && !ruta.startsWith("/login/nueva-clave") && !enDosPasos) {

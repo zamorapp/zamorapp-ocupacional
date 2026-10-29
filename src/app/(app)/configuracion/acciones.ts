@@ -144,6 +144,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       certificado_titulo: texto(datos, "certificado_titulo"),
       certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
+      // Centinela de plazos legales: además de la campana, avisar por correo al personal de salud
+      centinela_correo: datos.get("centinela_correo") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),

@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "revisar-diseno": "node scripts/revisar-diseno.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
