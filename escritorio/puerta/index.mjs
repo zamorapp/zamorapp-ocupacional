@@ -45,6 +45,8 @@ async function principal() {
     // La ventana lee esta línea para saber el puerto final
     process.stdout.write(`PUERTA_LISTA ${puerto}\n`);
   });
+  // Con la fase A: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer() (los correos salen al final,
+  // cuando la fila y el PDF ya subieron)
   const ciclo = async () => { await nube.comprobar(); await replica.ciclo(); await cola.barrer(); };
   ciclo();
   setInterval(ciclo, CONFIG.cadaSincronia).unref?.();

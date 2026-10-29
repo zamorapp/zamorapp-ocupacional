@@ -484,6 +484,8 @@ export function crearPuerta({ estado, nube, motor, replica, cola = null, origen,
         if (!control || dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return responder(res, 403, { message: "No autorizado" });
         await nube.comprobar();
         await replica.ciclo();
+        // Orden con la fase A: comprobar → bandeja.subir() → replica.ciclo() → adjuntos → cola.barrer()
+        if (cola) await cola.barrer();
         return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error });
       }
       // Cola de envíos: la app (Next en esta PC) pide que la web envíe ya los correos que acaba de dejar en cola
