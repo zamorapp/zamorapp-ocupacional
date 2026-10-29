@@ -160,6 +160,20 @@
   html.dark {
     color-scheme: dark;
   }
+  /* Listas desplegables nativas: la lista que abre Windows (navegador y escritorio) toma el color del texto del
+     select, pero no su fondo si es transparente. En tema oscuro quedaba texto claro sobre fondo blanco. Cada
+     opción lleva su propio fondo y color del tema, así todo <select> de la app se lee, tenga la clase que tenga. */
+  select {
+    color-scheme: inherit;
+  }
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+  select option:disabled {
+    color: var(--muted-foreground);
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";

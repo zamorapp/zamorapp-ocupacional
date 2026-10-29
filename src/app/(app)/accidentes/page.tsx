@@ -8,6 +8,7 @@ import { listarEmpresas } from "@/lib/empresas";
 import { listarEventos } from "@/lib/eventos";
 import { ETIQUETA_ESTADO_EVENTO, ETIQUETA_TIPO, fechaHoraVE, plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+import { vigilarPlazos } from "@/lib/centinela";
 import { ReportarEvento } from "./reportar-evento";
 import { anioCaracas, hoyCaracas } from "@/lib/fecha";
 
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Accidentes() {
   const [sesion, eventos, empresas] = await Promise.all([obtenerSesion(), listarEventos(), listarEmpresas()]);
+  await vigilarPlazos(sesion);
   const pendientes = eventos.filter((e) => plazoDeclaracion(e)?.cumplido === false).length;
   const anio = anioCaracas();
   const delAnio = eventos.filter((e) => hoyCaracas(e.fechaHora).startsWith(String(anio)));
