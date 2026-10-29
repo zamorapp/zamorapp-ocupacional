@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-29";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-29", texto: "Leer resultados del laboratorio desde la foto o el PDF: zamorApp los propone, tú los revisas fila por fila y se registran con el archivo de respaldo", tema: "paraclinicos" },
   { fecha: "2026-10-28", texto: "Informe de vigilancia con gráficos, análisis redactado de cada cuadro y portada con indicadores", tema: "reportes" },
   { fecha: "2026-10-28", texto: "RR. HH. entra por un enlace y le mandas las constancias por WhatsApp desde tu teléfono con un toque (pestaña «Por enviar»)", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-27", texto: "Estado del último respaldo en el Inicio, con aviso si pasa un día sin respaldo correcto", tema: "respaldo" },
@@ -170,12 +171,18 @@ export const MANUAL: TemaManual[] = [
       "Escribe cada resultado: con el rango del catálogo se pinta solo (verde normal, ámbar fuera de rango, rojo alterado). Rx, audiometría y otros informes se marcan «Normal» o «Alterado», con el hallazgo si quieres. Si no estás de acuerdo con el color, tócalo para cambiarlo a mano; la flechita lo devuelve al del rango.",
       "Archivos: suelta los PDF o fotos en «Suelta aquí los resultados» (o «Elegir archivos» / «Tomar foto» en el teléfono). Quedan en «Sin asignar»: arrástralos al examen que corresponde, o toca el archivo y luego el clip del examen. Un mismo PDF puede servir a varios exámenes.",
       "El visor de la derecha muestra el archivo sin descargarlo, con zoom y giro para las fotos. Del escáner: guarda el PDF y suéltalo en la misma zona.",
+      "Leer resultados: al soltar el informe del laboratorio aparece «¿Leer los resultados…?»; toca «Leer resultados» (o el botón del mismo nombre sobre cualquier archivo). Se lee en tu equipo, sin internet y sin enviar la imagen a nadie; la primera vez tarda unos segundos en prepararse.",
+      "Revisa la tabla antes de registrar: a la izquierda (en el celular, con el ojo) ves el informe con la línea marcada. Las filas «Leído» salieron claras; las «Revisar · Confirmar» tienen una duda escrita debajo: corrige lo que haga falta y toca «Confirmar». Lo que cambies queda con borde punteado y, al pasar el mouse, ves lo que se leyó. Enter baja al valor siguiente.",
+      "Si la cédula o el nombre del informe no coinciden con el paciente, arriba sale en ámbar o rojo. Compruébalo; si es su informe, toca «Es su informe · Ignorar» (queda registrado).",
+      "Desmarca la casilla de la fila que no quieras. «Registrar N resultados» se activa cuando no queda nada por revisar: los resultados entran con el color del rango del laboratorio (o del catálogo, si el informe no trae rango) y el archivo queda ligado a esos exámenes. Con la consulta cerrada solo se registran los exámenes que ya estaban pedidos.",
       "Los resultados que llegan días después se escriben con la consulta cerrada: entra a Paraclínicos y toca «Guardar resultados». Con la consulta firmada, sus resultados y archivos no se cambian: hay que «Corregir».",
       "«Faltan N resultados» es solo un aviso (con «Ignorar»; «No recordar más» apaga también el recordatorio de la campana): no impide cerrar ni firmar, y también aparece en la cola de atención, en la lista de consultas y en el Inicio («Resultados por recibir»). Si pasan 3 días sin resultados, la campana te lo recuerda y vuelve a hacerlo cada 3 días; el número de días se cambia en Configuración › Organización (0 = no recordar).",
     ],
     consejos: [
       "Las fotos se comprimen antes de subir y pierden los datos de ubicación. Hasta 10 MB por archivo.",
       "La unidad y el rango de cada examen se editan en Configuración › Listas › Paraclínicos.",
+      "Si el laboratorio llama distinto a un examen (HGB, Hb, «Glicemia basal»), agrégalo en Configuración › Listas › Paraclínicos, en «Otros nombres en los informes del laboratorio», separados por coma. Desde ahí lo reconoce siempre.",
+      "Con fotos borrosas o torcidas la lectura falla más: fotografía de frente, con buena luz y la hoja completa. Si no se lee bien, escribe los resultados a mano como siempre.",
     ],
   },
   {
