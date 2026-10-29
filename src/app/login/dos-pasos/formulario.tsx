@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { confirmarCodigo, prepararDosPasos, type Paso } from "@/lib/dos-pasos";
-import { MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
+import { ES_ESCRITORIO, MOTIVO_HELLO, puedeOfrecerHuella } from "@/lib/huella";
+import { guardarEquipoNavegador, nombreEquipo } from "@/lib/equipo-confianza";
 import { OfrecerHuella } from "@/components/app/huella";
 
 export function FormularioDosPasos() {
@@ -20,6 +21,7 @@ export function FormularioDosPasos() {
   const [copiado, setCopiado] = useState(false);
   const [desdeHello, setDesdeHello] = useState(false);
   const [ofrecer, setOfrecer] = useState(false);
+  const [recordar, setRecordar] = useState(true); // equipo de confianza: no pedir el código en cada entrada
   const preparado = useRef(false); // un solo código QR aunque el efecto corra dos veces
 
   useEffect(() => {
@@ -44,6 +46,12 @@ export function FormularioDosPasos() {
     setError(null);
     const fallo = await confirmarCodigo(crearClienteNavegador(), paso.factorId, codigo);
     if (fallo) { setCargando(false); setError(fallo); setCodigo(""); return; }
+    // Equipo de confianza (decisión de Cesar): el código queda de respaldo y para revalidar cada cierto tiempo
+    if (recordar && !ES_ESCRITORIO) {
+      const { data } = await crearClienteNavegador().rpc("confiar_equipo", { p_nombre: nombreEquipo() });
+      const equipo = data as { token: string; vence: string } | null;
+      if (equipo?.token) guardarEquipoNavegador(equipo.token, equipo.vence);
+    }
     // Ya con el segundo paso se puede registrar la huella: la próxima vez entra sin clave
     if (!desdeHello && (await puedeOfrecerHuella(crearClienteNavegador()))) { setCargando(false); setOfrecer(true); return; }
     alPanel();
@@ -128,6 +136,15 @@ export function FormularioDosPasos() {
         </p>
       )}
       {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {!ES_ESCRITORIO && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} className="mt-0.5 size-4 accent-[var(--primary)]" />
+          <span>
+            Confiar en este equipo
+            <span className="block text-xs text-muted-foreground">No volverá a pedir el código aquí por un tiempo (30 días, lo ajusta el administrador). No lo marques en un equipo compartido.</span>
+          </span>
+        </label>
+      )}
       <Button type="submit" className="h-11 w-full" disabled={cargando || codigo.replace(/\D/g, "").length !== 6}>
         {cargando && <Loader2 className="animate-spin" />} {paso.tipo === "activar" ? "Activar y entrar" : "Entrar"}
       </Button>

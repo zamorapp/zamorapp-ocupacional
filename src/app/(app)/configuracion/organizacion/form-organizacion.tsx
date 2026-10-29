@@ -27,6 +27,7 @@ type Ajustes = {
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
   recordatorio_resultados_dias?: number;
+  dias_equipo_confianza?: number;
   membrete_lema?: string | null;
   certificacion_trabajador?: string | null;
 };
@@ -87,6 +88,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <div className="space-y-3">
               <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
               <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días; 0 = no recordar)" type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
+            <Campo id="dias_equipo_confianza" etiqueta="Equipo de confianza: pedir el código de dos pasos cada (días; 0 = siempre)" type="number" min={0} max={90} defaultValue={a.dias_equipo_confianza ?? 30} />
             </div>
             <div className="flex flex-col justify-end gap-2 pb-1">
               <Casilla id="firma_medico_ocupacional" etiqueta="Espacio de firma del médico ocupacional" defecto={a.firma_medico_ocupacional ?? true} />

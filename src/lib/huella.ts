@@ -53,9 +53,15 @@ export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1")
 export async function puedeOfrecerHuella(supabase: SupabaseClient): Promise<boolean> {
   if (!(await ofrecerHuella()) || !(await huellaDisponible()) || (await huellaActivaAqui())) return false;
   const { data } = await supabase.auth.getClaims();
-  if (data?.claims?.aal !== "aal1") return true;
-  const { data: requiere } = await supabase.rpc("requiere_dos_pasos");
-  return requiere !== true;
+  if (data?.claims?.aal === "aal1") {
+    const { data: requiere } = await supabase.rpc("falta_segundo_paso");
+    if (requiere === true) return false;
+  }
+  if (ES_ESCRITORIO) return true;
+  // Web: si la cuenta ya tiene una llave registrada en el servidor, no se ofrece crear otra (cada intento deja una
+  // llave nueva en el gestor de Google o de Windows). Si la lista no se puede leer, tampoco se ofrece.
+  const llaves = await listarHuellas(supabase);
+  return Array.isArray(llaves) && llaves.length === 0;
 }
 
 /** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { COOKIE_EQUIPO, cabecerasEquipo } from "@/lib/equipo-confianza";
 
 export async function crearClienteServidor() {
   const almacen = await cookies();
@@ -7,6 +8,7 @@ export async function crearClienteServidor() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { headers: cabecerasEquipo(almacen.get(COOKIE_EQUIPO)?.value) },
       cookies: {
         getAll: () => almacen.getAll(),
         setAll: (lista) => {
