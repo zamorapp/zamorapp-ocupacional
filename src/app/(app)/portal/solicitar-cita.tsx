@@ -58,7 +58,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </DialogHeader>
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label className="mb-1.5"><Paso n={1} /> ¿A quién? {total > 0 && <span className="font-normal text-muted-foreground">· {total} elegidos</span>}</Label>
+            <Label className="mb-1.5"><Paso n={1} /> ¿A quién? {total > 0 && <span className="font-normal text-muted-foreground">· {total} {total === 1 ? "elegido" : "elegidos"}</span>}</Label>
             {total > 0 && (
               <ul className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                 {nuevos.map((n) => (

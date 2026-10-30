@@ -21,7 +21,7 @@ function Pasos({ actual }: { actual: number }) {
         const n = i + 1;
         return (
           <li key={t} className="space-y-1">
-            <span className={`mx-auto grid size-8 place-items-center rounded-full text-sm font-semibold ${n < actual ? "bg-ok text-white" : n === actual ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            <span className={`mx-auto grid size-8 place-items-center rounded-full text-sm font-semibold ${n < actual ? "bg-ok/15 text-ok-texto" : n === actual ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
               {n < actual ? <Check className="size-4" /> : n}
             </span>
             <span className={n === actual ? "block font-medium" : "block text-muted-foreground"}>{t}</span>
