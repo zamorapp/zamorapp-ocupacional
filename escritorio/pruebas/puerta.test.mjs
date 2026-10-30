@@ -626,9 +626,28 @@ test("sin internet: las funciones de lectura (stable) responden desde la copia; 
   const conteo = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.equal(conteo.status, 200, JSON.stringify(conteo.json));
   assert.ok(Array.isArray(conteo.json));
-  const escribir = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: "30000000-0000-0000-0000-00000000000a" } });
+  const escribir = await pedir("/rest/v1/rpc/ignorar_recordatorio_resultados", { metodo: "POST", token: tokenMed, cuerpo: { p_consulta: "40000000-0000-0000-0000-0000000000d2" } });
   assert.equal(escribir.status, 503);
   assert.equal(escribir.json.code, "OFFLINE");
+});
+
+test("sin internet: abrir la historia queda como constancia y sube después con la hora de la PC", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
+  const enLaNube = async () => (await enNube("select count(*)::int n from public.accesos where trabajador_id = $1 and usuario_id = $2 and equipo_id = $3", [T, MED, estado.d.equipo.id]))[0].n;
+  const antes = await enLaNube();
+  assert.equal(nubeObj.enLinea, false, "esta prueba corre sin internet");
+  const r = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: T } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  const [k] = await enLocal("select rpc, autor, hora_verificada, estado from local.constancias");
+  assert.deepEqual(k, { rpc: "registrar_acceso", autor: MED, hora_verificada: true, estado: "pendiente" });
+  try {
+    nube.estado.caida = false; await nubeObj.comprobar();
+    await bandejaObj.subir();
+    assert.equal(await enLaNube(), antes + 1, "llegó a la nube con el equipo");
+    assert.equal((await enLocal("select count(*)::int n from local.constancias"))[0].n, 0, "y salió de la PC");
+  } finally {
+    nube.estado.caida = true; await nubeObj.comprobar(); // las pruebas siguientes siguen sin internet
+  }
 });
 
 // Un «sin conexión» de un instante (p. ej. la red de Windows aún no lista al arrancar) no deja la PC sin internet

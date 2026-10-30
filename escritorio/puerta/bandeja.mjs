@@ -27,6 +27,34 @@ export class Bandeja {
     return this.otraVez;
   }
 
+  // Una constancia validada en la copia sin internet (servidor.mjs): queda para subir con la hora de la PC
+  async anotarConstancia(autor, rpc, args) {
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      await c.query("insert into local.constancias (rpc, args, autor, hora, hora_verificada) values ($1, $2, $3, $4, $5)",
+        [rpc, JSON.stringify(args), autor, this.nube.reloj.iso(), this.nube.reloj.verificada]);
+    } finally { await c.end().catch(() => {}); }
+  }
+
+  // Después de las filas (la consulta y el adjunto ya están en la nube): cada constancia con la sesión de su autor.
+  // Un rechazo de la nube queda anotado (nunca se reintenta para siempre); sin sesión o sin red, espera.
+  async #subirConstancias(c) {
+    const eq = this.estado.d.equipo;
+    const { rows } = await c.query("select id, rpc, args, autor, hora, hora_verificada from local.constancias where estado = 'pendiente' order by creado limit 200");
+    for (const k of rows) {
+      if (!(await this.nube.token(k.autor).catch(() => null))) continue;
+      try {
+        await this.nube.rpc(k.autor, "constancia_diferida", { p_equipo: eq.id, p_secreto: eq.secreto, p_id: k.id, p_rpc: k.rpc, p_args: k.args, p_hora: new Date(k.hora).toISOString(), p_hora_verificada: k.hora_verificada });
+        await c.query("delete from local.constancias where id = $1", [k.id]);
+      } catch (e) {
+        if (!e.status || e.status >= 500) throw e; // sin red o la nube caída: otra pasada
+        await c.query("update local.constancias set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = $3 where id = $1", [k.id, REINTENTOS, e.message]);
+        this.registro(`[bandeja] constancia ${k.rpc} no aceptada por la nube: ${e.message}`);
+      }
+    }
+  }
+
   async resumen() {
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
@@ -138,6 +166,7 @@ export class Bandeja {
           if (todos.length < LOTE && lote.length === todos.length && !quedaron) break;
         }
       }
+      await this.#subirConstancias(c);
       this.ultimoError = sinSesion.length
         ? `${sinSesion.reduce((a, x) => a + x.n, 0)} cambios esperan: quien los guardó no tiene sesión en la nube (o le falta el código); que entre con internet`
         : null;
