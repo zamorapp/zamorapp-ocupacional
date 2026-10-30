@@ -21,6 +21,7 @@ export type Equipo = { id: string; secreto: string; org_id: string; nombre: stri
 type Meta = {
   equipo: Equipo | null; cursor: number | null; bloques: { desde: number; hasta: number }[];
   ultimoContacto: number | null; arranquesSinNube: number; catalogosEn: number | null; orden: number; piso: number;
+  recientes: string[]; // últimos pacientes abiertos (ids), para el Inicio
 };
 
 // Lo que pide el celular a la nube: la sesión del usuario (RLS y dos pasos los aplica la nube)
@@ -70,7 +71,7 @@ export class Motor {
   tablas = new Map<string, Map<string, Fila>>();
   versionNube = new Map<string, number>();
   bandeja = new Map<string, Cambio>();
-  meta: Meta = { equipo: null, cursor: null, bloques: [], ultimoContacto: null, arranquesSinNube: 0, catalogosEn: null, orden: 0, piso: 0 };
+  meta: Meta = { equipo: null, cursor: null, bloques: [], ultimoContacto: null, arranquesSinNube: 0, catalogosEn: null, orden: 0, piso: 0, recientes: [] };
   error: string | null = null;
   sincronizando = false;
   progreso: string | null = null;
@@ -86,7 +87,7 @@ export class Motor {
   async cargar() {
     const todo = await this.almacen.todos();
     for (const [k, v] of todo) {
-      if (k === "m") this.meta = { ...this.meta, ...(v as Meta) };
+      if (k === "m") this.meta = { ...this.meta, ...(v as Meta), recientes: (v as Meta).recientes ?? [] };
       else if (k.startsWith("b|")) this.bandeja.set(k.slice(2), v as Cambio);
       else if (k.startsWith("f|")) {
         const [, tabla] = k.split("|");
@@ -185,6 +186,11 @@ export class Motor {
   private nuevoCambio(tabla: string, fila_id: string, op: Op, version_base: number | null, datos: Record<string, unknown> | null, autor: string): Cambio {
     return { id: uuid(), orden: ++this.meta.orden, tabla, fila_id, op, version_base, datos, autor, creado: this.reloj.iso(),
              estado: "pendiente", motivo: null, intentos: 0, hora_verificada: this.reloj.verificada };
+  }
+
+  anotarReciente(id: string) {
+    this.meta.recientes = [id, ...this.meta.recientes.filter((x) => x !== id)].slice(0, 5);
+    this.persistir().catch(() => {});
   }
 
   // ─── Números de historia: bloques reservados por este equipo (sin bloque, el alta pide internet) ───

@@ -129,7 +129,7 @@ export function FormConsulta({ motor, trabajadorId, consultaId, volver }: { moto
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <div className="flex items-center gap-2">
         <Button size="icon" variant="ghost" onClick={volver} aria-label="Volver"><ArrowLeft /></Button>
         <div className="min-w-0">
@@ -152,8 +152,8 @@ export function FormConsulta({ motor, trabajadorId, consultaId, volver }: { moto
               {motivos.map((m) => <option key={s(m.id)} value={s(m.id)}>{s(m.nombre)}</option>)}
             </select>
           )}
-          <Textarea rows={2} value={s(c.motivo_texto)} onChange={(e) => campo("motivo_texto", e.target.value)} placeholder="¿Qué le pasa?" />
-          <Textarea rows={3} value={s(c.enfermedad_actual)} onChange={(e) => campo("enfermedad_actual", e.target.value)} placeholder="Enfermedad actual" />
+          <Etiqueta t="Motivo de consulta"><Textarea rows={2} value={s(c.motivo_texto)} onChange={(e) => campo("motivo_texto", e.target.value)} placeholder="¿Qué le pasa?" /></Etiqueta>
+          <Etiqueta t="Enfermedad actual"><Textarea rows={3} value={s(c.enfermedad_actual)} onChange={(e) => campo("enfermedad_actual", e.target.value)} /></Etiqueta>
         </Bloque>
 
         <Bloque titulo="Signos vitales">
@@ -218,8 +218,8 @@ export function FormConsulta({ motor, trabajadorId, consultaId, volver }: { moto
         </Bloque>
 
         <Bloque titulo="Conducta">
-          <Textarea rows={3} value={s(c.conclusiones)} onChange={(e) => campo("conclusiones", e.target.value)} placeholder="Conclusiones" />
-          <Textarea rows={3} value={s(c.recomendaciones_trabajador)} onChange={(e) => campo("recomendaciones_trabajador", e.target.value)} placeholder="Indicaciones al paciente" />
+          <Etiqueta t="Conclusiones"><Textarea rows={3} value={s(c.conclusiones)} onChange={(e) => campo("conclusiones", e.target.value)} /></Etiqueta>
+          <Etiqueta t="Indicaciones al paciente"><Textarea rows={3} value={s(c.recomendaciones_trabajador)} onChange={(e) => campo("recomendaciones_trabajador", e.target.value)} /></Etiqueta>
         </Bloque>
 
         <Bloque titulo="Reposo">
@@ -240,16 +240,16 @@ export function FormConsulta({ motor, trabajadorId, consultaId, volver }: { moto
               </select>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Hasta {Number(reposo.dias) >= 1 && reposo.desde ? sumarDias(reposo.desde, Number(reposo.dias) - 1) : "—"}</span>
-                <button type="button" className="text-destructive" onClick={() => setReposo(null)}>Quitar reposo</button>
+                <button type="button" className="text-alerta-texto" onClick={() => setReposo(null)}>Quitar reposo</button>
               </div>
             </div>
           )}
         </Bloque>
       </fieldset>
 
-      {aviso && <p className={cn("rounded-lg px-3 py-2 text-sm", aviso.ok ? "bg-ok/10 text-ok-texto" : "bg-destructive/10 text-destructive")} role="status">{aviso.t}</p>}
+      {aviso && <p className={cn("rounded-lg px-3 py-2 text-sm", aviso.ok ? "bg-ok/10 text-ok-texto" : "bg-alerta/10 text-alerta-texto")} role="status">{aviso.t}</p>}
       {!soloLectura && (
-        <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-10 mx-auto grid max-w-xl grid-cols-2 gap-2 border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
           <Button variant="outline" className="h-12" disabled={Boolean(guardando)} onClick={() => guardar(false)}>
             {guardando === "guardar" ? <Loader2 className="animate-spin" /> : null} Guardar
           </Button>
@@ -261,6 +261,10 @@ export function FormConsulta({ motor, trabajadorId, consultaId, volver }: { moto
       {!soloLectura && <p className="text-center text-xs text-muted-foreground">La firma se hace con señal, desde la app completa o la PC.</p>}
     </div>
   );
+}
+
+function Etiqueta({ t, children }: { t: string; children: React.ReactNode }) {
+  return <label className="block space-y-1 text-xs text-muted-foreground"><span>{t}</span>{children}</label>;
 }
 
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronRight, CloudOff, ExternalLink, Lock, RefreshCw, Search, UserPlus } from "lucide-react";
+import { AlertTriangle, ChevronRight, Clock, CloudOff, ExternalLink, Lock, RefreshCw, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buscarPacientes } from "@/lib/movil/datos";
+import { buscarPacientes, paciente as buscarPorId } from "@/lib/movil/datos";
 import type { Motor } from "@/lib/movil/motor";
 import type { Abierta } from "@/lib/movil/sesion";
 import { cn } from "@/lib/utils";
@@ -77,20 +77,20 @@ export function Trabajo({ a, alBloquear }: { a: Abierta; alBloquear: () => void 
         </div>
         <button type="button" onClick={() => ir({ v: "pendientes" })}
           className={cn("mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs",
-            sinRevisar ? "bg-destructive/10 text-destructive" : enLinea ? "bg-ok/10 text-ok-texto" : "bg-aviso/15 text-aviso-texto")}>
+            sinRevisar ? "bg-alerta/10 text-alerta-texto" : "bg-muted text-muted-foreground")}>
           {e.sincronizando ? <RefreshCw className="size-4 shrink-0 animate-spin" /> : !enLinea ? <CloudOff className="size-4 shrink-0" /> : sinRevisar ? <AlertTriangle className="size-4 shrink-0" /> : <RefreshCw className="size-4 shrink-0" />}
           <span className="flex-1">
             {e.progreso ?? (
               <>
                 {enLinea ? "Con señal" : "Sin señal"} · {e.pendientes ? `${e.pendientes} por subir` : "todo subido"}
                 {sinRevisar ? ` · ${sinRevisar} por revisar` : ""} · sincronizado {haceCuanto(e.ultimaSincronia, motor.reloj.ahora())}
+                {!e.horaVerificada && <span className="ml-1 inline-flex items-center gap-0.5 whitespace-nowrap"><Clock className="size-3" /> hora sin verificar</span>}
               </>
             )}
           </span>
           <ChevronRight className="size-4 shrink-0" />
         </button>
-        {e.error && <p className="mt-1.5 text-xs text-destructive">{e.error}</p>}
-        {!e.horaVerificada && <p className="mt-1.5 text-xs text-muted-foreground">Hora sin verificar: se confirma con la nube al sincronizar.</p>}
+        {e.error && <p className="mt-1.5 text-xs text-alerta-texto">{e.error}</p>}
       </header>
 
       <main className="mx-auto max-w-xl px-4 pt-4">
@@ -118,6 +118,8 @@ function Inicio({ motor, enLinea, ir }: { motor: Motor; enLinea: boolean; ir: (v
   const [q, setQ] = useState("");
   const lista = useMemo(() => buscarPacientes(motor, q), [motor, q]);
   const total = motor.tabla("public.trabajadores").size;
+  const abrir = (id: string) => { motor.anotarReciente(id); ir({ v: "ficha", id }); };
+  const recientes = motor.meta.recientes.map((id) => buscarPorId(motor, id)).filter((p): p is NonNullable<typeof p> => Boolean(p));
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -130,7 +132,7 @@ function Inicio({ motor, enLinea, ir }: { motor: Motor; enLinea: boolean; ir: (v
           <ul className="divide-y rounded-xl border bg-card">
             {lista.map((p) => (
               <li key={p.id}>
-                <button type="button" onClick={() => ir({ v: "ficha", id: p.id })} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-muted">
+                <button type="button" onClick={() => abrir(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-muted">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{p.apellidos}, {p.nombres}</div>
                     <div className="truncate text-xs text-muted-foreground">{p.cedula}{p.empresa ? ` · ${p.empresa}` : ""}{p.numero ? ` · H. ${p.numero}` : ""}</div>
@@ -144,7 +146,27 @@ function Inicio({ motor, enLinea, ir }: { motor: Motor; enLinea: boolean; ir: (v
           <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No está en el teléfono. Si es nuevo, regístralo.</p>
         )
       ) : (
-        <p className="text-center text-xs text-muted-foreground">{total.toLocaleString("es-VE")} pacientes en el teléfono</p>
+        <>
+          {recientes.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-xs font-medium text-muted-foreground">Abiertos hace poco</h3>
+              <ul className="divide-y rounded-xl border bg-card">
+                {recientes.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" onClick={() => abrir(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-muted">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{p.apellidos}, {p.nombres}</div>
+                        <div className="truncate text-xs text-muted-foreground">{p.cedula}{p.empresa ? ` · ${p.empresa}` : ""}</div>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <p className="text-center text-xs text-muted-foreground">{total.toLocaleString("es-VE")} pacientes en el teléfono</p>
+        </>
       )}
       <Button variant="outline" className="h-12 w-full text-base" onClick={() => ir({ v: "nuevo" })}><UserPlus /> Paciente nuevo</Button>
       {enLinea && (

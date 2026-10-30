@@ -27,7 +27,7 @@ export function TecladoPin({ titulo, detalle, error, ocupado, largoMin = 6, alLi
           <span key={i} className={cn("size-3 rounded-full border-2 border-primary/50 transition-colors", i < pin.length && "border-primary bg-primary")} />
         ))}
       </div>
-      <p className={cn("min-h-5 text-center text-sm", error ? "text-destructive" : "text-transparent")} role="alert">{error || "·"}</p>
+      <p className={cn("min-h-5 text-center text-sm", error ? "text-alerta-texto" : "text-transparent")} role="alert">{error || "·"}</p>
       <div className="grid w-full grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
           <BotonTecla key={d} onClick={() => tocar(d)}>{d}</BotonTecla>

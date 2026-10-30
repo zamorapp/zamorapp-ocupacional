@@ -66,7 +66,7 @@ export function PacienteNuevo({ motor, enLinea, alCrear, volver }: { motor: Moto
         </select>
         <Input value={f.telefono} onChange={campo("telefono")} placeholder="Teléfono (opcional)" inputMode="tel" className="h-11" />
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto" role="alert">{error}</p>}
       <Button className="h-12 w-full text-base" disabled={ocupado} onClick={crear}>{ocupado ? <Loader2 className="animate-spin" /> : <UserPlus />} Registrar</Button>
       <p className="text-center text-xs text-muted-foreground">El resto de la ficha se completa luego en la app completa o la PC.</p>
     </div>

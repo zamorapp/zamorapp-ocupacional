@@ -5,7 +5,7 @@ import { abrirLlave, cambiarPin, crearLlave, type LlaveEnvuelta } from "./cripto
 import { Motor } from "./motor";
 import { NubeNavegador } from "./nube-navegador";
 import { RelojMovil } from "./reloj";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
 export const INTENTOS_MAXIMOS = 10;
 
@@ -65,8 +65,12 @@ export async function revisarDesactivado(): Promise<boolean> {
   const id = await leerAbierto<string>("equipo").catch(() => undefined);
   if (!id || (typeof navigator !== "undefined" && !navigator.onLine)) return false;
   try {
-    const { data, error } = await crearClienteNavegador().from("equipos").select("activo").eq("id", id).maybeSingle();
-    if (error || !data || data.activo !== false) return false;
+    // Sin sesión a propósito (Analizar): la del teléfono pudo vencer y el borrado remoto debe funcionar igual.
+    // La nube solo contesta true si ese equipo existe y está desactivado (migración 20261030650000).
+    const anonimo = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await anonimo.rpc("equipo_desactivado", { p_equipo: id });
+    if (error || data !== true) return false;
     await borrarTodo();
     return true;
   } catch { return false; }

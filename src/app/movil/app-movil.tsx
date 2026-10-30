@@ -86,7 +86,7 @@ export function AppMovil() {
         <TecladoPin
           key={fase.primero ? "2" : "1"}
           titulo={fase.primero ? "Repite el PIN" : "Crea un PIN"}
-          detalle={fase.primero ? "Para confirmar que lo escribiste bien" : "De 6 a 12 números. Lo pedirá cada vez que abras esta pantalla."}
+          detalle={fase.primero ? "Para confirmar que lo escribiste bien" : "Usa 8 números o más (máximo 12). Lo pedirá cada vez que abras esta pantalla."}
           error={fase.error}
           alListo={(pin) => {
             if (!fase.primero) {
@@ -106,7 +106,7 @@ export function AppMovil() {
       )}
       {fase.f === "borrada" && (
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-          <span className="grid size-14 place-items-center rounded-2xl bg-destructive/10 text-destructive"><ShieldCheck className="size-7" /></span>
+          <span className="grid size-14 place-items-center rounded-2xl bg-alerta/10 text-alerta-texto"><ShieldCheck className="size-7" /></span>
           <p className="text-sm">{fase.motivo}</p>
           <Button onClick={() => setFase({ f: "nueva" })}>Preparar de nuevo</Button>
         </div>
@@ -145,7 +145,7 @@ function Presentacion({ error, alEmpezar }: { error?: string; alEmpezar: () => v
         <ul className="list-disc space-y-1 pl-5 text-muted-foreground">{noPuede.map((t) => <li key={t}>{t}</li>)}</ul>
       </div>
       <p className="text-xs text-muted-foreground">Protección: todo va cifrado con tu PIN, se bloquea a los 5 minutos, 10 PIN errados la borran y si pierdes el teléfono la borras desde Configuración › Equipos.</p>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto" role="alert">{error}</p>}
       {!enLinea && <p className="flex items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm text-aviso-texto"><WifiOff className="size-4" /> Para prepararlo la primera vez hace falta internet.</p>}
       <Button className="h-12 w-full text-base" disabled={!enLinea} onClick={alEmpezar}>Preparar este teléfono</Button>
     </div>

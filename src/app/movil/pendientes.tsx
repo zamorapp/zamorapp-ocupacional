@@ -26,19 +26,20 @@ export function Pendientes({ motor, enLinea, volver }: { motor: Motor; enLinea: 
           {e.sincronizando ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sincronizar ahora
         </Button>
       </div>
+      {!e.horaVerificada && <p className="text-sm text-muted-foreground">Hora sin verificar: el teléfono aún no confirmó la hora con la nube (abrió sin señal). Lo que guardes lleva esa marca y la nube pone su hora al recibirlo.</p>}
       {!enLinea && <p className="text-sm text-muted-foreground">Sin señal: todo queda guardado en el teléfono y sube solo al volver la señal.</p>}
 
       {revisar.length > 0 && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-destructive">Por revisar ({revisar.length})</h3>
+          <h3 className="text-sm font-semibold text-alerta-texto">Por revisar ({revisar.length})</h3>
           <ul className="space-y-2">
             {revisar.map((c) => (
-              <li key={c.id} className="space-y-2 rounded-xl border border-destructive/30 bg-card p-3">
+              <li key={c.id} className="space-y-2 rounded-xl border border-alerta/40 bg-card p-3">
                 <div className="text-sm font-medium">{nombreTabla(c.tabla)} · {aqui(explicarMotivo(c.motivo, c.estado).titulo)}</div>
                 <p className="text-xs text-muted-foreground">{aqui(explicarMotivo(c.motivo, c.estado).texto)}</p>
                 {c.datos && (
                   <table className="w-full table-fixed text-xs">
-                    <thead><tr className="text-left text-muted-foreground"><th className="w-1/4 font-normal">Campo</th><th className="font-normal">Teléfono</th><th className="font-normal">Nube</th></tr></thead>
+                    <thead><tr className="text-left text-muted-foreground"><th className="w-1/4 font-normal">Campo</th><th className="font-normal">En este celular</th><th className="font-normal">En la nube</th></tr></thead>
                     <tbody>
                       {comparar(c.datos, motor.tabla(c.tabla).get(c.fila_id) ?? null).slice(0, 8).map((f) => (
                         <tr key={f.campo} className={cn("align-top", f.distinto && "font-medium")}>
@@ -50,9 +51,9 @@ export function Pendientes({ motor, enLinea, volver }: { motor: Motor; enLinea: 
                     </tbody>
                   </table>
                 )}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => motor.resolver(c.id, "descartar")}>Quedarme con la nube</Button>
-                  <Button size="sm" onClick={() => motor.resolver(c.id, "reintentar")}>Subir lo del teléfono</Button>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button onClick={() => motor.resolver(c.id, "reintentar")}>Subir lo del teléfono</Button>
+                  <Button variant="outline" onClick={() => motor.resolver(c.id, "descartar")}>Quedarme con la nube</Button>
                 </div>
               </li>
             ))}
