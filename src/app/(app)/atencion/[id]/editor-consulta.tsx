@@ -187,6 +187,9 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
   return () => aplicar(filas.map((f) => (f.valor.trim() ? f : { ...f, valor: f.normal })));
 }
 
+// Atajo visible solo en pantallas grandes (en el celular no hay teclado)
+const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
+
 export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
@@ -414,7 +417,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
       } else if (e.altKey && (e.key === "PageDown" || e.key === "PageUp")) {
         const i = a.indice + (e.key === "PageDown" ? 1 : -1);
         if (i >= 0 && i < a.total) { e.preventDefault(); a.irA(i); }
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && a.puede) {
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && a.puede && !(e.target instanceof HTMLTextAreaElement)) {
+        // En un texto largo (evolución, indicaciones) Ctrl+Enter sigue escribiendo; fuera de él, cierra y firma
         e.preventDefault();
         void a.firmar();
       }
@@ -635,7 +639,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
               <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando} className={cn(puedeFirmar ? "hidden sm:inline-flex" : "flex-1 sm:flex-none")}><CheckCircle2 /> Cerrar consulta</Button>
-              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir</Button>}
+              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir{ATAJO_FIRMAR}</Button>}
             </div>
           )}
           <DropdownMenu>
@@ -780,7 +784,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                     {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
                   </Button>
                   {puedeFirmar
-                    ? <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>
+                    ? <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir{ATAJO_FIRMAR}</Button>
                     : <Button onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>}
                 </>}
               />
@@ -1338,7 +1342,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         <Button type="button" variant="ghost" disabled={indicePaso === 0} onClick={() => irA(indicePaso - 1)}>
           <ChevronLeft /> <span className="max-sm:hidden">{indicePaso > 0 ? pasos[indicePaso - 1].titulo : "Anterior"}</span><span className="sm:hidden">Anterior</span>
         </Button>
-        <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos</span>
+        <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos<span className="hidden lg:inline"> · Alt + AvPág / RePág</span></span>
         {indicePaso < pasos.length - 1 ? (
           <Button type="button" variant="outline" onClick={() => irA(indicePaso + 1)}>
             <span className="max-sm:hidden">{pasos[indicePaso + 1].titulo}</span><span className="sm:hidden">Siguiente</span> <ChevronRight />
