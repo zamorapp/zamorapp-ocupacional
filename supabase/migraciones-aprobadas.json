@@ -1,6 +1,6 @@
 {
   "etiqueta": "migraciones-20261030-3",
-  "aprobado": "Cesar: «sí a todo» 30-oct 08:07 UTC (510000 a 560000)",
+  "aprobado": "Cesar: «sí a todo» 30-oct 08:07 UTC (510000 a 550000; la 560000 va aparte)",
   "migraciones": [
     {
       "archivo": "20261030510000_perfil_normal.sql",
@@ -26,11 +26,6 @@
       "archivo": "20261030550000_solicitudes_solo_salud.sql",
       "sha256": "06514313e234c980c8ffd1c0adc7e70b8479402a04f3626107c44c147583ca68",
       "descripcion": "Respuestas médicas de solicitudes solo para salud (cierra la fuga de diagnósticos a RR. HH.)"
-    },
-    {
-      "archivo": "20261030560000_recomendaciones_medicas.sql",
-      "sha256": "2bf0474e340bfbe7bcc03e04fefc79ab7582afe8fea2440e48de271cd58ed12f",
-      "descripcion": "Recomendaciones médicas separadas en la vigilancia"
     }
   ]
 }
