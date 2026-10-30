@@ -53,15 +53,32 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
   };
 
   const supabase = await crearClienteServidor();
+  // El id de la nueva se crea aquí para colgarle sus dependencias sin pedir la fila de vuelta
+  const empresaId = id ?? crypto.randomUUID();
   const { error } = id
     ? await supabase.from("empresas").update(campos).eq("id", id)
-    : await supabase.from("empresas").insert({ ...campos, org_id: c.sesion.orgId! });
+    : await supabase.from("empresas").insert({ ...campos, id: empresaId, org_id: c.sesion.orgId! });
   if (error) {
     return { ok: false, mensaje: error.code === "23505" ? "Ya existe una empresa con ese RIF." : "No se pudo guardar: " + error.message };
   }
+  // Dependencias o departamentos, una por línea (como en el SAME): solo se agregan las que la empresa no tiene
+  const lineas = [...new Map(String(datos.get("dependencias") ?? "").split(/\r?\n/).map((d) => d.trim().replace(/\s+/g, " "))
+    .filter(Boolean).map((d) => [d.toLocaleLowerCase("es"), d])).entries()];
+  let nuevas = 0;
+  if (lineas.length) {
+    const { data: hay } = await supabase.from("dependencias").select("nombre").eq("empresa_id", empresaId);
+    const ya = new Set((hay ?? []).map((d) => d.nombre.trim().toLocaleLowerCase("es")));
+    const filas = lineas.filter(([k]) => !ya.has(k)).map(([, nombre]) => ({ org_id: c.sesion.orgId!, empresa_id: empresaId, nombre }));
+    if (filas.length) {
+      const { error: e } = await supabase.from("dependencias").insert(filas);
+      if (e) return { ok: false, mensaje: `${razonSocial} se guardó, pero no sus dependencias: ${e.message}` };
+      nuevas = filas.length;
+    }
+  }
   invalidarEmpresas();
   revalidatePath("/", "layout");
-  return { ok: true, mensaje: id ? "Datos actualizados." : `${razonSocial} registrada.` };
+  const deps = nuevas ? ` ${nuevas === 1 ? "1 dependencia agregada" : `${nuevas} dependencias agregadas`}.` : "";
+  return { ok: true, mensaje: (id ? "Datos actualizados." : `${razonSocial} registrada.`) + deps };
 }
 
 // Oculta (o vuelve a mostrar) el aviso de datos legales incompletos de una empresa

@@ -12,10 +12,11 @@ type Fila = {
   trabajador_id: string | null;
   detalle: string;
   estado: EstadoSolicitud;
-  respuesta: string | null;
-  documento_nombre: string | null;
   creado_en: string;
   actualizado_en: string | null;
+  en_proceso_en: string | null;
+  respondida_en: string | null;
+  solo_salud: boolean;
   empresas: { razon_social: string } | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string } | null;
 };
@@ -25,14 +26,20 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("solicitudes")
-    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, respuesta, documento_nombre, creado_en, actualizado_en, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
+    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, creado_en, actualizado_en, en_proceso_en, respondida_en, solo_salud, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
     .order("creado_en", { ascending: false })
     .limit(filtro.limite ?? 100);
   if (filtro.estado === "abiertas") q = q.in("estado", ["pendiente", "en_proceso"]);
   else if (filtro.estado) q = q.eq("estado", filtro.estado);
   if (filtro.empresaId) q = q.eq("empresa_id", filtro.empresaId);
   const { data } = await q;
-  return ((data ?? []) as unknown as Fila[]).map((s) => ({
+  const filas = (data ?? []) as unknown as Fila[];
+  // Respuesta y documento se leen aparte: la vista entrega los solo_salud solo al personal clínico y al administrador
+  const { data: respuestas } = filas.length
+    ? await supabase.from("solicitudes_respuesta").select("id, respuesta, documento_nombre").in("id", filas.map((f) => f.id))
+    : { data: [] };
+  const respuesta = new Map((respuestas ?? []).map((r) => [r.id as string, r as { respuesta: string | null; documento_nombre: string | null }]));
+  return filas.map((s) => ({
     id: s.id,
     empresaId: s.empresa_id,
     empresa: s.empresas?.razon_social ?? "",
@@ -42,10 +49,13 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
     cedula: s.trabajadores?.cedula ?? null,
     detalle: s.detalle,
     estado: s.estado,
-    respuesta: s.respuesta,
-    documento: s.documento_nombre,
+    respuesta: respuesta.get(s.id)?.respuesta ?? null,
+    documento: respuesta.get(s.id)?.documento_nombre ?? null,
+    soloSalud: s.solo_salud,
     creadoEn: s.creado_en,
     actualizadoEn: s.actualizado_en,
+    enProcesoEn: s.en_proceso_en,
+    respondidaEn: s.respondida_en,
   }));
 }
 

@@ -52,7 +52,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
-        {esAdmin && <FormEmpresa habilitado empresa={empresa} />}
+        {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -69,7 +69,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
             </CardContent>
           </Card>
           <Card className="h-fit">
-            <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Dependencias o departamentos</CardTitle></CardHeader>
             <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
           </Card>
           <Card className="h-fit">

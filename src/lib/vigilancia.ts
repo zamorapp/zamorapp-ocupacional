@@ -1,11 +1,12 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { listarEmpresas } from "@/lib/empresas";
+import { AUTORIDAD, CUSTODIO } from "@/lib/firmantes";
 import { opciones } from "@/lib/listas";
 import { recordar } from "@/lib/memo";
 import { mismoPeriodoAnioAnterior, periodoAnterior, periodoDeConsulta, type ConsultaPeriodo, type Periodo } from "@/lib/periodos";
 import {
-  completarHorasHombre, indicadoresAusentismo, type CriterioHoras, indicesCovenin, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
+  completarHorasHombre, indicadoresAusentismo, type CriterioHoras, indicesCovenin, firmantesAnteriores, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
 } from "@/lib/reportes";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const listo = !sesion.demo && supabaseConfigurado;
   const memo = <T,>(que: string, p: Periodo, fn: () => Promise<T>) => recordar(clave(sesion, que, empresaId, p), TRES_MINUTOS, fn);
 
-  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil, criterioHoras] = await Promise.all([
+  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil, criterioHoras, previos] = await Promise.all([
     listo ? memo("reporte", periodo, () => obtenerReporte(empresaId, periodo)) : null,
     listo ? memo("series", periodo, () => obtenerSeries(empresaId, periodo)) : null,
     listo ? memo("series", anterior, () => obtenerSeries(empresaId, anterior)) : null,
@@ -38,7 +39,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
     listo ? obtenerInforme(empresaId, periodo) : null,
     listo ? riesgosDeEmpresa(empresaId) : {},
     listo
-      ? (async () => (await (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula").eq("id", sesion.usuarioId).maybeSingle()).data)()
+      ? (async () => (await (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula, mpps, registro_inpsasel").eq("id", sesion.usuarioId).maybeSingle()).data)()
       : null,
     // Configuración › Organización › Informe de vigilancia: horas hombre como el SAME (por defecto) o según nómina
     listo
@@ -47,6 +48,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
           return ((data?.ajustes as { vigilancia_horas?: string } | null)?.vigilancia_horas === "nomina" ? "nomina" : "same") as CriterioHoras;
         })()
       : ("same" as CriterioHoras),
+    listo ? firmantesAnteriores(empresaId) : null,
   ]);
   const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
@@ -76,6 +78,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
           : null,
         causas,
         aptitudes,
+        entes,
       }
     : null;
   const variante = informe?.variante ?? 0;
@@ -95,8 +98,11 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
     : null;
   // Resumen y conclusión salen del análisis (redacción variable); recomendaciones, riesgos y medidas, de las sugerencias por riesgo
   const sugeridos = base && analisis ? { ...base, resumen: analisis.resumen, conclusiones: analisis.conclusion } : base;
-  // El médico que redacta firma por defecto como médico ocupacional
-  const firmantesBase: Firmantes = perfil?.nombre_completo ? { medico: { nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "" } } : {};
+  // Portada: lo del último informe de la empresa; el médico que redacta firma como «Elaborado por»
+  const medico = perfil?.nombre_completo
+    ? { cargo: "Médico ocupacional", ...previos?.medico, nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "", registro: perfil.registro_inpsasel || perfil.mpps || previos?.medico?.registro || "" }
+    : previos?.medico;
+  const firmantesBase: Firmantes = { autoridad: AUTORIDAD, custodio: CUSTODIO, centro_trabajo: empresa?.direccion ?? "", ...previos, medico };
 
   return {
     empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, resultadosReubicacion, ausentismo,

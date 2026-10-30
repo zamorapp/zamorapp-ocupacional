@@ -7,6 +7,7 @@ import { plantillasDeOrg } from "@/lib/plantillas-servidor";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
+import { alertasDeTrabajador } from "@/lib/alertas";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { hoyCaracas } from "@/lib/fecha";
 import { PLANTILLA_APTITUD } from "@/lib/mensajes";
@@ -39,8 +40,9 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     consulta,
     !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
     !consulta || demo ? null : listarAdjuntos(consulta.trabajador.id),
+    !consulta || demo ? [] : alertasDeTrabajador(consulta.trabajador.id, id),
   ]));
-  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
+  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos, alertas], versiones, contacto, declaraciones, siguiente] = await Promise.all([
     porOrg,
     porTrabajador,
     demo ? [] : listarVersiones(id),
@@ -65,7 +67,8 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
         <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
-          puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90} />
+          puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
+          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
       </FrescoAlVolver>
     </div>
   );

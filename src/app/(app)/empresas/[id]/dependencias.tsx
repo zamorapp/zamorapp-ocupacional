@@ -18,7 +18,7 @@ export function Dependencias({ empresaId, dependencias, editable }: { empresaId:
   return (
     <div className="space-y-2">
       <ul className="divide-y rounded-lg border">
-        {dependencias.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Sin dependencias.</li>}
+        {dependencias.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Sin dependencias ni departamentos.</li>}
         {dependencias.map((d) => (
           <li key={d.id} className="flex items-center gap-3 px-4 py-2 text-sm">
             {editando?.id === d.id ? (
@@ -41,7 +41,7 @@ export function Dependencias({ empresaId, dependencias, editable }: { empresaId:
           className="flex gap-2"
           onSubmit={(e) => { e.preventDefault(); correr(() => crearDependencia(empresaId, nombre), () => setNombre("")); }}
         >
-          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nueva dependencia" className="h-9" />
+          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nueva dependencia o departamento" className="h-9" />
           <Button type="submit" variant="outline" disabled={ocupado || !nombre.trim()}>{ocupado ? <Loader2 className="animate-spin" /> : <Plus />} Agregar</Button>
         </form>
       )}

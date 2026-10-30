@@ -47,6 +47,7 @@ export type DatosConsulta = {
   id: string;
   estado: EstadoConsulta;
   revision: number; // 1 = original; sube cada vez que se corrige una consulta firmada
+  copiadaDe?: string | null; // evaluación anterior de la que se copiaron antecedentes, hábitos y examen
   fecha: string;
   tipo: "primera" | "sucesiva" | "derivada";
   motivoId: string | null;

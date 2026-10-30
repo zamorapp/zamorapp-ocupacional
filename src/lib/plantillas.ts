@@ -12,6 +12,8 @@ export type DatosPlantilla = {
   trabajador: string[]; // códigos de recomendacion_paciente
   meses: number | null; // vigencia de la aptitud; null = la de la organización
   conclusiones: string;
+  clasificacion: string; // la que pone «Perfil normal» (código de clasificacion_aptitud); "" = ninguna
+  sano: boolean; // «Perfil normal» marca «sin diagnósticos» si no hay ninguno
 };
 
 export type Plantilla = { id: string; motivo: string; nombre: string; activo: boolean; datos: DatosPlantilla };
@@ -19,7 +21,7 @@ export type Plantilla = { id: string; motivo: string; nombre: string; activo: bo
 // Lo mínimo de un item de lista que hace falta para aplicar (Item de lib/listas cumple)
 type ItemTexto = { codigo: string | null; nombre: string; texto: string | null };
 
-export const PLANTILLA_VACIA: DatosPlantilla = { funcional: null, fisico: null, aptitud: [], empresa: [], trabajador: [], meses: null, conclusiones: "" };
+export const PLANTILLA_VACIA: DatosPlantilla = { funcional: null, fisico: null, aptitud: [], empresa: [], trabajador: [], meses: null, conclusiones: "", clasificacion: "", sano: false };
 
 // Lee el jsonb guardado tolerando campos faltantes o con otro tipo
 export function leerDatosPlantilla(x: unknown): DatosPlantilla {
@@ -35,6 +37,9 @@ export function leerDatosPlantilla(x: unknown): DatosPlantilla {
     trabajador: lista(o.trabajador),
     meses: Number.isInteger(meses) && meses > 0 && meses <= 60 ? meses : null,
     conclusiones: typeof o.conclusiones === "string" ? o.conclusiones : "",
+    // Plantillas guardadas antes de estos campos: «Perfil normal» clasifica «Elegible» y marca sano
+    clasificacion: typeof o.clasificacion === "string" ? o.clasificacion : "elegible",
+    sano: typeof o.sano === "boolean" ? o.sano : true,
   };
 }
 
@@ -93,6 +98,21 @@ export function aplicarPlantilla(d: DatosConsulta, p: DatosPlantilla, listas: Li
     recomendacionesEmpresa: sumarFrases(d.recomendacionesEmpresa, p.empresa, listas.recomendacion_empresa),
     recomendacionesTrabajador: sumarFrases(d.recomendacionesTrabajador, p.trabajador, listas.recomendacion_paciente),
     conclusiones: d.conclusiones.trim() ? d.conclusiones : p.conclusiones,
+  };
+}
+
+// «Perfil normal»: la plantilla completa más todo el examen en su valor normal, la clasificación y «sano». Solo llena lo
+// vacío: lo que el médico ya escribió (filas alteradas, aptitud elegida, diagnósticos) no se toca. No firma.
+export function aplicarPerfilNormal(d: DatosConsulta, p: DatosPlantilla, listas: ListasPlantilla): DatosConsulta {
+  const base = aplicarPlantilla(d, p, listas);
+  const vacias = (filas: FilaExamen[]) => filas.map((f) => (f.valor.trim() || !f.normal.trim() ? f : { ...f, valor: f.normal }));
+  const sinDiagnosticos = !base.diagnosticos.some((x) => x.descripcion.trim());
+  return {
+    ...base,
+    examenFuncional: vacias(base.examenFuncional),
+    examenFisico: vacias(base.examenFisico),
+    aptitud: base.aptitud.clasificacion || !p.clasificacion ? base.aptitud : { ...base.aptitud, clasificacion: p.clasificacion as DatosConsulta["aptitud"]["clasificacion"] },
+    sano: base.sano || (p.sano && sinDiagnosticos),
   };
 }
 

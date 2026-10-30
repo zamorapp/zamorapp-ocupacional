@@ -77,6 +77,15 @@ async function resolverTiposPaciente(supabase: Supabase, orgId: string, nombres:
   return (n: string) => (n ? mapa.get(clave(n)) ?? null : null);
 }
 
+// Dependencias o departamentos de una empresa, para sugerirlas al registrar a un trabajador
+export async function dependenciasDeEmpresa(empresaId: string): Promise<string[]> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId || !empresaId) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("dependencias").select("nombre").eq("empresa_id", empresaId).eq("activa", true).order("nombre");
+  return (data ?? []).map((d) => d.nombre);
+}
+
 export async function crearPaciente(_: Resultado | null, datos: FormData): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };

@@ -4,6 +4,7 @@
 
 import type { Reporte } from "@/lib/reportes";
 import { MESES } from "@/lib/periodos";
+import { confidencial } from "@/lib/vigilancia-ia";
 
 export type Series = {
   por_mes: { mes: string; consultas: number; preventivas: number; diagnosticos: number; dias_reposo: number }[];
@@ -27,13 +28,19 @@ export type DatosAnalisis = {
   acc: { accidentes: number; conTiempoPerdido: number; diasPerdidos: number; ifn: number | null; is: number | null; aTiempo: number | null; porDeclarar: number } | null;
   causas: Record<string, string>;
   aptitudes: Record<string, string>;
+  /** Código → nombre del ente emisor de reposos */
+  entes?: Record<string, string>;
 };
 
 export const SECCIONES_ANALISIS = [
   ["poblacion", "Población"],
   ["uso", "Uso del servicio médico"],
+  ["evaluaciones", "Evaluaciones ocupacionales por motivo"],
+  ["dependencias", "Uso del servicio por dependencia"],
   ["morbilidad", "Morbilidad"],
+  ["causas", "Primeras causas de morbilidad"],
   ["ausentismo", "Ausentismo"],
+  ["reposos", "Reposos por causa, ente emisor y permisos"],
   ["accidentes", "Accidentes y enfermedades ocupacionales"],
   ["referencias", "Referencias"],
   ["aptitud", "Aptitud"],
@@ -76,7 +83,11 @@ const etq = (e: string) => {
 // «a el» → «al», «de el» → «del» (las etiquetas de período se insertan con artículo)
 const contraer = (t: string) => t.replace(/\b([Aa]) el /g, "$1l ").replace(/\b([Dd]e) el /g, "$1l ");
 const humano = (codigo: string) => codigo.replace(/_/g, " ");
+const TIPO_CONSULTA: Record<string, string> = { primera: "las primeras consultas", sucesiva: "las consultas sucesivas", derivada: "las consultas derivadas" };
+const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 // Diagnóstico para el texto: «Lumbago (M54.5)», o solo el código si no hay descripción
+// RR. HH. lee el análisis: un diagnóstico se nombra solo con 3 casos o más y si no es confidencial (VIH, salud mental, embarazo)
+const nombrable = (c: { cie10: string; n: number; pacientes?: number } | undefined) => Boolean(c && Math.min(c.n, c.pacientes ?? c.n) >= 3 && !confidencial(c.cie10));
 const dx = (c: { cie10: string; descripcion: string | null }) => (c.descripcion && c.descripcion !== c.cie10 ? `${c.descripcion} (${c.cie10})` : c.cie10);
 const mesLargo = (aaaamm: string) => MESES[Number(aaaamm.slice(5, 7)) - 1] ?? aaaamm;
 
@@ -240,6 +251,8 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
         `El servicio médico realizó ${plural(c.total, "consulta", "consultas")} a ${plural(c.pacientes, "paciente", "pacientes")}${pob ? `, una cobertura del ${n1(cobertura)} % de la población` : ""}.`,
         `Se atendieron ${plural(c.total, "consulta", "consultas")} en el período, correspondientes a ${plural(c.pacientes, "trabajador", "trabajadores")}${pob ? ` (${n1(cobertura)} % de la plantilla)` : ""}.`,
         `En el período se registran ${plural(c.total, "atención", "atenciones")}${pob ? `; el ${n1(cobertura)} % de los trabajadores acudió al menos una vez` : ""}.`,
+        `La demanda del servicio médico fue de ${plural(c.total, "consulta", "consultas")}${pob ? `, con ${plural(c.pacientes, "trabajador atendido", "trabajadores atendidos")} (${n1(cobertura)} % de cobertura)` : ""}.`,
+        `${mayus(plural(c.pacientes, "trabajador pasó", "trabajadores pasaron"))} por el servicio médico en ${plural(c.total, "consulta", "consultas")}${pob ? `, el ${n1(cobertura)} % de la población` : ""}.`,
       ]),
       c.preventivas
         ? elige([
@@ -278,6 +291,8 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       elige([
         `Se registraron ${plural(m.total, "diagnóstico", "diagnósticos")}${pob ? `, con una prevalencia de ${n1(prevalencia)} % de trabajadores afectados` : ""}.`,
         `La morbilidad del período suma ${plural(m.total, "diagnóstico", "diagnósticos")}${m.pacientes ? ` en ${plural(m.pacientes, "paciente", "pacientes")}` : ""}${pob ? ` (${n1(prevalencia)} % de la población)` : ""}.`,
+        `${pob ? `El ${n1(prevalencia)} % de los trabajadores tuvo al menos un diagnóstico` : "Hubo diagnósticos clínicos"} en el período, para un total de ${plural(m.total, "diagnóstico", "diagnósticos")}.`,
+        `El perfil de morbilidad se construye con ${plural(m.total, "diagnóstico registrado", "diagnósticos registrados")}${pob ? ` y una prevalencia de ${n1(prevalencia)} %` : ""}.`,
       ]),
     ];
     const top = capitulos[0];
@@ -296,7 +311,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       `${mayus(plural(k, "grupo", "grupos"))} de ${capitulos.length} explican el 80 % de la morbilidad, donde deben concentrarse las acciones.`,
       `El análisis de Pareto muestra que ${plural(k, "capítulo concentra", "capítulos concentran")} el 80 % de los diagnósticos.`,
     ]));
-    const causa = m.primeras_causas[0];
+    const causa = m.primeras_causas.find(nombrable);
     if (causa) frases.push(elige([
       `La primera causa individual es ${dx(causa)}, con ${plural(causa.n, "caso", "casos")}.`,
       `Entre los diagnósticos específicos destaca ${dx(causa)}, con ${plural(causa.n, "caso", "casos")}.`,
@@ -335,7 +350,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       `La causa con más días es ${minus(d.causas[causa.nombre] ?? humano(causa.nombre))} (${pc(causa.dias, a.dias_perdidos)} de los días).`,
       `${mayus(d.causas[causa.nombre] ?? humano(causa.nombre))} explica la mayor parte del tiempo perdido, con ${plural(causa.dias, "día", "días")}.`,
     ]));
-    const pc1 = a.primeras_causas?.[0];
+    const pc1 = a.primeras_causas?.find(nombrable);
     if (pc1) frases.push(elige([
       `Por diagnóstico, el primer motivo de reposo es ${dx(pc1)}.`,
       `${mayus(dx(pc1))} es el diagnóstico que más reposos generó.`,
@@ -382,6 +397,156 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     return frases.join(" ");
   })();
 
+  // ---------- Evaluaciones ocupacionales por motivo (preempleo, periódico, vacacionales, egreso…)
+  const evaluaciones = (() => {
+    const prev = r.consultas.por_motivo.filter((m) => m.grupo === "preventivo" && m.n > 0).sort((a, b) => b.n - a.n);
+    const total = prev.reduce((a, m) => a + m.n, 0);
+    if (!total) return elige([
+      "No se registraron evaluaciones ocupacionales (preempleo, periódicas, vacacionales o de egreso) en el período: conviene revisar la programación de la vigilancia preventiva.",
+      "El período no tiene evaluaciones ocupacionales registradas; la vigilancia quedó limitada a la consulta asistencial.",
+      "Sin evaluaciones médico-ocupacionales en el lapso: la actividad preventiva debe retomarse según el programa anual.",
+    ]);
+    const tipo = (re: RegExp) => prev.filter((m) => re.test(sinTildes(m.nombre))).reduce((a, m) => a + m.n, 0);
+    const ingreso = tipo(/pre.?empleo|ingreso/);
+    const egreso = tipo(/egreso|retiro/);
+    const periodicas = tipo(/periodic|anual/);
+    const preVac = tipo(/pre.?vacacion/);
+    const postVac = tipo(/post.?vacacion|reintegro/);
+    const detalle = unir(prev.slice(0, 5).map((m) => `${minus(m.nombre)} ${n0(m.n)} (${pc(m.n, total)})`));
+    const frases = [
+      elige([
+        `Se realizaron ${plural(total, "evaluación ocupacional", "evaluaciones ocupacionales")}: ${detalle}.`,
+        `La vigilancia preventiva sumó ${plural(total, "evaluación", "evaluaciones")}, distribuidas así: ${detalle}.`,
+        `Por motivo, las ${plural(total, "evaluación ocupacional", "evaluaciones ocupacionales")} del período se reparten en ${detalle}.`,
+        `El servicio completó ${plural(total, "evaluación médico-ocupacional", "evaluaciones médico-ocupacionales")}; por motivo: ${detalle}.`,
+      ]),
+    ];
+    if (prev[0] && prev.length > 1) frases.push(elige([
+      `Predominan las evaluaciones de ${minus(prev[0].nombre)}, ${p(prev[0].n, total) >= 50 ? "más de la mitad del total" : "el grupo más numeroso"}.`,
+      `${mayus(prev[0].nombre)} es el motivo preventivo más frecuente.`,
+    ]));
+    if (ingreso || egreso) {
+      if (ingreso && egreso) frases.push(ingreso > egreso
+        ? elige([`Los ingresos superan a los egresos (${n0(ingreso)} frente a ${n0(egreso)}), señal de crecimiento o reposición de personal que exige una inducción y notificación de riesgos oportuna.`, `Con ${plural(ingreso, "preempleo", "preempleos")} y ${plural(egreso, "egreso", "egresos")}, la plantilla tiende a crecer: la inducción en seguridad y salud debe acompañar cada ingreso.`])
+        : ingreso < egreso
+          ? elige([`Los egresos (${n0(egreso)}) superan a los ingresos (${n0(ingreso)}), lo que sugiere reducción o rotación del personal.`, `Hubo más egresos que ingresos (${n0(egreso)} frente a ${n0(ingreso)}): conviene vigilar la rotación y sus causas.`])
+          : `Ingresos y egresos se compensan (${n0(ingreso)} de cada uno), con una plantilla estable pero con rotación.`);
+      else if (ingreso) frases.push(elige([`Hubo ${plural(ingreso, "evaluación de ingreso", "evaluaciones de ingreso")} y ningún egreso evaluado: si hubo retiros, falta su constancia de salud al egreso.`, `Se evaluaron ${plural(ingreso, "ingreso", "ingresos")} sin egresos registrados en el período.`]));
+      else frases.push(elige([`Se registraron ${plural(egreso, "evaluación de egreso", "evaluaciones de egreso")}, que dejan constancia del estado de salud al salir y protegen a la empresa ante reclamos futuros.`, `Las ${plural(egreso, "evaluación", "evaluaciones")} de egreso documentan la condición de salud de quienes se retiran.`]));
+    }
+    if (pob) {
+      const ritmo = p(periodicas, pob);
+      frases.push(!periodicas
+        ? elige(["No hubo evaluaciones periódicas: para cubrir a toda la plantilla en el año, cada trimestre debería evaluarse al menos la cuarta parte.", "Faltan las evaluaciones periódicas, base de la detección precoz de daños a la salud por el trabajo."])
+        : ritmo < 20
+          ? elige([`Las periódicas cubrieron el ${n1(ritmo)} % de la población, un ritmo insuficiente para evaluar a todos en el año (meta trimestral cercana al 25 %).`, `Con ${plural(periodicas, "periódica", "periódicas")} (${n1(ritmo)} % de la plantilla), el programa anual va atrasado.`])
+          : elige([`Las periódicas alcanzaron el ${n1(ritmo)} % de la población, ritmo adecuado para cubrir a todos en el año.`, `El avance de las evaluaciones periódicas (${n1(ritmo)} % de la plantilla) es acorde con el programa anual.`]));
+    }
+    if (preVac && preVac > postVac) frases.push(elige([
+      `Hay ${plural(preVac - postVac, "evaluación prevacacional", "evaluaciones prevacacionales")} más que postvacacionales: verificar que quienes regresaron de vacaciones fueron evaluados al reintegro.`,
+      `Las postvacacionales (${n0(postVac)}) no alcanzan a las prevacacionales (${n0(preVac)}); parte de los reintegros puede estar sin evaluar o caer en el próximo período.`,
+    ]));
+    const cmpA = anioAnt && anioAnt.preventivas ? cambio(t.preventivas, anioAnt.preventivas, "el mismo período del año anterior", "la actividad preventiva") : null;
+    if (cmpA && azar() > 0.4) frases.push(cmpA);
+    return [frases[0], ...baraja(frases.slice(1))].join(" ");
+  })();
+
+  // ---------- Uso del servicio por dependencia
+  const dependencias = (() => {
+    const deps = (r.consultas.por_dependencia ?? []).filter((x) => x.n > 0);
+    const repo = (r.ausentismo.por_dependencia ?? []).filter((x) => x.dias > 0);
+    if (!deps.length && !repo.length) return "";
+    const frases: string[] = [];
+    const tasa = deps.filter((x) => x.personal >= 3).map((x) => ({ ...x, tasa: x.n / x.personal })).sort((a, b) => b.tasa - a.tasa);
+    const masUso = [...deps].sort((a, b) => b.n - a.n)[0];
+    if (masUso) frases.push(elige([
+      `${mayus(masUso.nombre)} es la dependencia con más consultas (${plural(masUso.n, "consulta", "consultas")}, ${pc(masUso.n, r.consultas.total)} del total).`,
+      `Por área, la mayor demanda de atención viene de ${masUso.nombre} (${pc(masUso.n, r.consultas.total)}).`,
+      `La dependencia que más usó el servicio médico fue ${masUso.nombre}, con ${plural(masUso.n, "consulta", "consultas")}.`,
+    ]));
+    if (tasa.length >= 2 && tasa[0].nombre !== masUso?.nombre && tasa[0].tasa >= 1.5 * (r.consultas.total / Math.max(pob, 1))) frases.push(elige([
+      `En proporción a su personal, ${tasa[0].nombre} tiene la frecuencia más alta (${n1(tasa[0].tasa)} consultas por trabajador), dato que orienta la inspección de sus condiciones de trabajo.`,
+      `Relativo al número de trabajadores, destaca ${tasa[0].nombre} (${n1(tasa[0].tasa)} consultas por trabajador): conviene revisar sus puestos.`,
+    ]));
+    // Solo áreas con 3 reposos o más: con menos, el texto señalaría a una persona
+    const masDias = [...repo].filter((x) => x.n >= 3).sort((a, b) => b.dias - a.dias)[0];
+    if (masDias) frases.push(elige([
+      `En días de reposo, el área más afectada es ${masDias.nombre} (${plural(masDias.dias, "día", "días")}).`,
+      `${mayus(masDias.nombre)} acumula más días de reposo (${n0(masDias.dias)}), por lo que su ausentismo merece seguimiento.`,
+    ]));
+    return [frases[0], ...baraja(frases.slice(1))].filter(Boolean).join(" ");
+  })();
+
+  // ---------- Primeras causas de morbilidad (con prevalencia) y por tipo de consulta
+  const causas = (() => {
+    const pcs = r.morbilidad.primeras_causas;
+    if (!pcs.length || !r.morbilidad.total) return "";
+    const tres = pcs.slice(0, 3);
+    const peso = tres.reduce((a, c) => a + c.n, 0);
+    const frases = [elige([
+      `Las tres primeras causas concentran el ${pc(peso, r.morbilidad.total)} de los diagnósticos, ${p(peso, r.morbilidad.total) >= 50 ? "un perfil concentrado donde las acciones dirigidas rinden más" : "un perfil disperso que pide acciones de promoción de la salud más generales"}.`,
+      `Entre las diez primeras causas, las tres primeras suman ${pc(peso, r.morbilidad.total)} de la morbilidad.`,
+      `El ${pc(peso, r.morbilidad.total)} de los diagnósticos se explica por las tres primeras causas.`,
+    ])];
+    const conPrev = pcs.filter((c) => c.pacientes && c.pacientes >= 3);
+    if (pob && conPrev[0]) frases.push(elige([
+      `La de mayor prevalencia afecta al ${pc(conPrev[0].pacientes!, pob)} de los trabajadores.`,
+      `En prevalencia, la primera causa alcanza el ${pc(conPrev[0].pacientes!, pob)} de la población.`,
+    ]));
+    const recurrentes = pcs.filter((c) => c.pacientes && c.n > c.pacientes * 1.5 && c.n >= 3);
+    if (recurrentes.length) frases.push(elige([
+      `Algunas causas se repiten en los mismos pacientes (más consultas que personas), lo que sugiere cuadros recurrentes o mal controlados.`,
+      `Hay diagnósticos con reconsultas frecuentes, señal de casos que no se resuelven en la primera atención.`,
+    ]));
+    const tipos = Object.entries(r.morbilidad.por_tipo_consulta ?? {}).filter(([, x]) => x.n > 0).sort((a, b) => b[1].n - a[1].n);
+    if (tipos.length >= 2) frases.push(elige([
+      `Por tipo de consulta, la morbilidad se detecta sobre todo en ${TIPO_CONSULTA[tipos[0][0]] ?? humano(tipos[0][0])} (${pc(tipos[0][1].n, r.morbilidad.total)}).`,
+      `La mayor parte de los diagnósticos surge de ${TIPO_CONSULTA[tipos[0][0]] ?? humano(tipos[0][0])}.`,
+    ]));
+    return [frases[0], ...baraja(frases.slice(1))].join(" ");
+  })();
+
+  // ---------- Reposos: duración, ente emisor y permisos
+  const reposos = (() => {
+    const a = r.ausentismo;
+    if (!a.reposos && !(a.permisos ?? []).length) return "";
+    const frases: string[] = [];
+    if (a.reposos) {
+      const media = a.dias_perdidos / a.reposos;
+      frases.push(elige([
+        `Cada reposo duró en promedio ${n1(media)} días${media > 7 ? ", lo que indica cuadros de mayor gravedad o reposos prolongados" : ", predominando reposos cortos"}.`,
+        `La duración media de los reposos fue de ${n1(media)} días${media > 7 ? ": hay reposos largos que merecen seguimiento" : ""}.`,
+        `En promedio, un reposo significó ${n1(media)} días fuera del puesto.`,
+      ]));
+    }
+    const ente = [...a.por_ente].sort((x, y) => y.n - x.n)[0];
+    if (ente && a.por_ente.length > 1) frases.push(elige([
+      `La mayoría de los reposos los emitió ${minus(d.entes?.[ente.nombre] ?? humano(ente.nombre))} (${pc(ente.n, a.reposos)}).`,
+      `Por ente emisor, predomina ${minus(d.entes?.[ente.nombre] ?? humano(ente.nombre))}.`,
+    ]));
+    const externos = a.por_ente.filter((e) => !/interno|servicio|propio/i.test(`${e.nombre} ${d.entes?.[e.nombre] ?? ""}`)).reduce((x, e) => x + e.n, 0);
+    if (externos && a.reposos && p(externos, a.reposos) >= 50) frases.push(elige([
+      "Más de la mitad de los reposos son externos: deben conformarse en el servicio médico y verificarse su relación con el trabajo.",
+      "Predominan los reposos emitidos fuera del servicio, que requieren conformación y control del reintegro.",
+    ]));
+    const perm = (a.permisos ?? []).filter((x) => x.n > 0);
+    if (perm.reduce((x, y) => x + y.n, 0) >= 3) frases.push(elige([
+      `Aparte del ausentismo, se otorgaron ${plural(perm.reduce((x, y) => x + y.n, 0), "permiso", "permisos")} (${unir(perm.map((x) => minus(d.causas[x.nombre] ?? humano(x.nombre))))}), que no cuentan como ausentismo por razones de salud.`,
+      `Los permisos (${unir(perm.map((x) => minus(d.causas[x.nombre] ?? humano(x.nombre))))}) suman ${plural(perm.reduce((x, y) => x + y.dias, 0), "día", "días")} y se reportan por separado.`,
+    ]));
+    return frases.join(" ");
+  })();
+
+  // Consultas externas por especialidad y reubicaciones: complementan referencias
+  const extraReferencias = () => {
+    const f: string[] = [];
+    const ext = (r.especialidades_externas ?? []).filter((x) => x.n >= 3);
+    if (ext.length) f.push(elige([` En consulta externa predominan ${unir(ext.slice(0, 2).map((x) => x.nombre.toLowerCase()))}.`, ` La consulta especializada más frecuente fue ${ext[0].nombre.toLowerCase()}.`]));
+    const reu = r.reubicaciones;
+    if (reu?.total) f.push(elige([` Se gestionaron ${plural(reu.total, "reubicación", "reubicaciones")} por razones de salud${reu.por_resultado.length ? `, con resultado ${unir(reu.por_resultado.map((x) => `${humano(x.nombre)} ${n0(x.n)}`))}` : ""}.`, ` Hubo ${plural(reu.total, "reubicación", "reubicaciones")} de puesto, que deben revisarse en su eficacia.`]));
+    return f.join("");
+  };
+
   // ---------- Referencias
   const referencias = (() => {
     const ref = r.referencias;
@@ -390,7 +555,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     return elige([
       `Se emitieron ${plural(ref.total, "referencia", "referencias")} a especialistas${top.length ? `, principalmente a ${unir(top.map((x) => x.nombre.toLowerCase()))}` : ""}.`,
       `${mayus(plural(ref.total, "paciente fue referido", "pacientes fueron referidos"))} a la red especializada${top.length ? `; ${top[0].nombre.toLowerCase()} fue la más solicitada` : ""}.`,
-    ]) + (r.consultas.total ? ` ${elige(["Equivale a", "Representa"])} ${pc(ref.total, r.consultas.total)} de las consultas.` : "");
+    ]) + (r.consultas.total ? ` ${elige(["Equivale a", "Representa"])} ${pc(ref.total, r.consultas.total)} de las consultas.` : "") + extraReferencias();
   })();
 
   // ---------- Aptitud
@@ -436,6 +601,8 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     `El ${etq(d.etiqueta)} ${lugar} deja un balance ${alertas.length <= 1 ? "favorable" : alertas.length <= 3 ? "con aspectos por atender" : "que exige acciones prioritarias"}.`,
     `La vigilancia del ${etq(d.etiqueta)} ${lugar} muestra un estado de salud ${alertas.length <= 1 ? "globalmente satisfactorio" : "con focos de atención definidos"}.`,
     `Del análisis de los datos del ${etq(d.etiqueta)} ${lugar} se desprende un panorama ${alertas.length <= 1 ? "estable" : "con prioridades claras de intervención"}.`,
+    `En el ${etq(d.etiqueta)}, la salud de los trabajadores ${lugar} ${alertas.length <= 1 ? "se mantiene en condiciones favorables" : alertas.length <= 3 ? "presenta aspectos que requieren atención" : "requiere intervenciones prioritarias"}.`,
+    `Los indicadores del ${etq(d.etiqueta)} ${lugar} ${alertas.length <= 1 ? "reflejan un período sin alertas relevantes" : `señalan ${plural(alertas.length, "alerta", "alertas")} que deben atenderse`}.`,
   ]);
   const cuerpo: string[] = [];
   if (fortalezas.length) cuerpo.push(elige([`Como aspectos positivos destacan ${unir(fortalezas)}.`, `A favor se cuentan ${unir(fortalezas)}.`, `Se valoran positivamente ${unir(fortalezas)}.`]));
@@ -456,6 +623,8 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     "Se recomienda mantener la vigilancia médica periódica, ejecutar las medidas de control propuestas y evaluar su efecto en el próximo informe.",
     "Las recomendaciones de este informe deben incorporarse al Programa de Seguridad y Salud en el Trabajo y verificarse en el siguiente trimestre.",
     "El seguimiento de estos indicadores en el próximo período permitirá medir el impacto de las acciones preventivas adoptadas.",
+    "Corresponde al Comité de Seguridad y Salud Laboral dar seguimiento a estas conclusiones y verificar en el próximo trimestre el avance de las medidas.",
+    "La comparación con el siguiente informe dirá si las medidas propuestas modifican la tendencia de los indicadores.",
   ]);
   const conclusion = [apertura, ...baraja(cuerpo), cierre].join(" ");
 
@@ -473,7 +642,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       : `No hubo días perdidos por reposo médico${d.acc?.accidentes ? `, aunque ocurri${d.acc.accidentes === 1 ? "ó" : "eron"} ${plural(d.acc.accidentes, "accidente", "accidentes")} de trabajo` : " ni accidentes de trabajo"}.`,
   ].filter(Boolean).join(" ");
 
-  const secciones = { poblacion, uso, morbilidad, ausentismo, accidentes, referencias, aptitud };
+  const secciones = { poblacion, uso, evaluaciones, dependencias, morbilidad, causas, ausentismo, reposos, accidentes, referencias, aptitud };
   return {
     secciones: Object.fromEntries(Object.entries(secciones).map(([k, v]) => [k, contraer(v)])) as Analisis["secciones"],
     hallazgos: hallazgos.map(contraer),

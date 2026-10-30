@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, UserCheck, UserX, X } from "lucide-react";
+import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, UserCheck, UserX, X } from "lucide-react";
 import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,9 @@ const tonoEspera = (min: number) => (min >= 40 ? "text-alerta-texto" : min >= 20
 
 const minutosDesde = (iso: string | null, ahora: number) => (iso ? Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 60e3)) : 0);
 
+// Trabajadores con «Alerta para la próxima evaluación» pendiente (solo llega lleno para el personal clínico)
+const ConAlerta = createContext<Set<string>>(new Set());
+
 function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React.ReactNode; detalle?: React.ReactNode; arrastrable?: boolean }) {
   return (
     <li
@@ -28,6 +31,11 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
       <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora ?? "—"}</span>
       <div className="min-w-0 flex-1">
         <Link href={`/pacientes/${c.trabajadorId}`} className="font-medium leading-tight hover:text-primary">{c.paciente}</Link>
+        {useContext(ConAlerta).has(c.trabajadorId) && (
+          <span role="img" aria-label="Tiene una alerta para esta evaluación" title="Tiene una alerta para esta evaluación" className="ml-1.5 inline-flex align-[-2px]">
+            <BellRing className="size-3.5 text-aviso-texto" aria-hidden />
+          </span>
+        )}
         <div className="text-xs text-muted-foreground">{[c.motivo, c.cedula].filter(Boolean).join(" · ")}{detalle}</div>
       </div>
       <div className="flex gap-1">{children}</div>
@@ -41,7 +49,10 @@ function Faltan({ n }: { n?: number }) {
   return <span className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px text-[11px] font-semibold whitespace-nowrap text-aviso-texto">Faltan {n} resultado{n === 1 ? "" : "s"}</span>;
 }
 
-export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {} }: { citas: Cita[]; esHoy: boolean; mensaje: { servicio: string; plantilla: string }; pendientes?: Record<string, number> }) {
+export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta = [] }: { citas: Cita[]; esHoy: boolean; mensaje: { servicio: string; plantilla: string }; pendientes?: Record<string, number>; conAlerta?: string[] }) {
+  const claveAlertas = conAlerta.join();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const alertas = useMemo(() => new Set(conAlerta), [claveAlertas]);
   // Recordatorio de cita por WhatsApp (se abre en el WhatsApp del usuario, listo para enviar)
   const recordatorio = (c: Cita) =>
     enlaceWhatsApp(c.telefono, llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio }));
@@ -97,6 +108,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {} }: { citas
   );
 
   return (
+    <ConAlerta.Provider value={alertas}>
     <div className="space-y-3">
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className={cn("grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4", ocupado && "pointer-events-none opacity-70")}>
@@ -148,5 +160,6 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {} }: { citas
         </Columna>
       </div>
     </div>
+    </ConAlerta.Provider>
   );
 }

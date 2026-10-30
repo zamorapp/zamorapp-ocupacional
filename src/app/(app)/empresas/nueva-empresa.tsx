@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { Empresa } from "@/lib/empresas";
 import { MESES } from "@/lib/periodos";
 import { guardarEmpresa } from "./acciones";
@@ -20,7 +21,8 @@ function Campo({ id, etiqueta, className, ...props }: React.ComponentProps<"inpu
 }
 
 // Formulario de empresa: sin "empresa" crea una nueva; con "empresa" edita sus datos
-export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empresa?: Empresa }) {
+// "dependencias": las que la empresa ya tiene (al editar), para verlas antes de agregar
+export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habilitado: boolean; empresa?: Empresa; dependencias?: string[] }) {
   const [abierto, setAbierto] = useState(false);
   const [estado, accion, enviando] = useActionState(guardarEmpresa, null);
   const e = empresa;
@@ -77,6 +79,17 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
           <Campo id="periodicidad_meses" etiqueta="Examen periódico cada (meses)" type="number" min={1} max={60} defaultValue={e?.periodicidadMeses ?? 12} />
           <Campo id="dias_aviso_examen" etiqueta="Avisar antes del vencimiento (días)" type="number" min={0} max={180} defaultValue={e?.diasAvisoExamen ?? 30} />
           <p className="-mt-2 text-xs text-muted-foreground sm:col-span-2">Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esta periodicidad. El inicio y el portal avisan con la anticipación indicada.</p>
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="dependencias" className="mb-1.5">{e ? "Agregar dependencias o departamentos" : "Dependencias o departamentos"}</Label>
+            {dependencias.length > 0 && (
+              <ul aria-label="Dependencias que ya tiene" className="mb-2 flex flex-wrap gap-1.5">
+                {dependencias.map((d) => <li key={d} className="rounded-full border bg-muted px-2.5 py-0.5 text-xs">{d}</li>)}
+              </ul>
+            )}
+            <Textarea id="dependencias" name="dependencias" rows={4} placeholder={"Una por línea. Ejemplo:\nAdministración\nProducción\nMantenimiento"} />
+            <p className="mt-1 text-xs text-muted-foreground">Al registrar o atender a un trabajador de esta empresa, «Dependencia o departamento» muestra estas. {e ? "Las que ya tiene no se repiten." : "También se pueden agregar después."}</p>
+          </div>
 
           {estado && !estado.ok && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">{estado.mensaje}</p>
