@@ -877,6 +877,11 @@ test("Windows Hello: se activa con la sesión abierta y luego entra sin clave", 
   assert.equal((await pedir("/zamorapp/huella/estado")).json.usuarios, 1);
   assert.equal((await pedir("/zamorapp/huella/estado")).json.instalacion, instalacion);
   assert.equal((await pedir("/zamorapp/huella/mia", { token: ok.json.access_token })).json.activa, true);
+  // Queda en el disco: al cerrar y abrir el programa la pantalla de ingreso la ofrece (y entrar con clave no la borra)
+  assert.ok(new estado.constructor(datos, CONFIG.llave).d.usuarios[medA].hello, "Windows Hello queda guardado en la PC");
+  assert.equal((await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } })).status, 200);
+  assert.ok(new estado.constructor(datos, CONFIG.llave).d.usuarios[medA].hello, "entrar con la clave no quita Windows Hello");
+  assert.equal((await pedir("/zamorapp/huella/estado?desde=login-servidor")).json.usuarios, 1, "el servidor de la app lo consulta sin sesión");
   // La dirección que intercepta la ventana: si llega a la puerta, no cambia la página
   assert.equal((await fetch(`${urlPuerta}/zamorapp/huella/ventana/entrar`)).status, 204);
   // Entrar: Windows verificó → código de un solo uso → sesión local

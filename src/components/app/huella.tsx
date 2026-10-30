@@ -15,18 +15,21 @@ const NOMBRE = ES_ESCRITORIO ? "Windows Hello" : "huella";
 const AUTO_HELLO = "zamorapp.hello.automatico";
 
 /** Botón de la pantalla de ingreso. Grande si este equipo ya tiene huella; discreto si solo es posible. */
-export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
-  const [estado, setEstado] = useState<"no" | "posible" | "activa">("no");
+// «activaEnPC»: lo que el servidor de la app ya preguntó a la puerta (escritorio). En la PC de Cesar la consulta
+// desde la página nunca llegaba a la puerta (30-oct) y el botón no salía; con el dato del servidor sale igual.
+export function BotonEntrarHuella({ alEntrar, activaEnPC = false }: { alEntrar: () => void; activaEnPC?: boolean }) {
+  const [estado, setEstado] = useState<"no" | "posible" | "activa">(ES_ESCRITORIO && activaEnPC ? "activa" : "no");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       if (!(await huellaDisponible("ingreso"))) return;
-      const activa = await huellaActivaAqui();
+      const activa = await huellaActivaAqui() || (ES_ESCRITORIO && activaEnPC);
       // En escritorio el botón solo aparece si alguien activó Windows Hello en esta PC
       if (activa || !ES_ESCRITORIO) setEstado(activa ? "activa" : "posible");
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const entrar = async () => {
