@@ -22,7 +22,7 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
 
   useEffect(() => {
     (async () => {
-      if (!(await huellaDisponible())) return;
+      if (!(await huellaDisponible("ingreso"))) return;
       const activa = await huellaActivaAqui();
       // En escritorio el botón solo aparece si alguien activó Windows Hello en esta PC
       if (activa || !ES_ESCRITORIO) setEstado(activa ? "activa" : "posible");

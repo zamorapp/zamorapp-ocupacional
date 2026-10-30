@@ -81,7 +81,7 @@ export const MANUAL: TemaManual[] = [
       "En el programa de escritorio, después de escribir el código del teléfono en esa PC, la clave basta durante el plazo de confianza (30 días si no se cambió), con o sin internet. Sin internet nunca se pide el código del teléfono: dentro del plazo entra con la clave, y fuera de él con Windows Hello (PIN de Windows, huella o rostro), que cuenta como segundo paso. En la pantalla del código también aparece «Confirmar con Windows Hello».",
       "En el programa de escritorio puedes atender sin internet (ver «Trabajar sin internet en el escritorio»).",
       "Si escribes mal la contraseña, la siguiente entrada vuelve a pedir el segundo paso (el código del teléfono o, sin internet, Windows Hello), aunque el equipo sea de confianza.",
-      "Entrar directo: zamorApp recuerda tu último usuario (no la contraseña). En el escritorio con Windows Hello activo, al abrir el programa se pide la huella o el PIN sin tocar nada.",
+      "Entrar directo: zamorApp recuerda tu último usuario (no la contraseña). En el escritorio con Windows Hello activo, al abrir el programa se pide la huella o el PIN sin tocar nada. Ojo: la huella de Chrome (web) y Windows Hello del escritorio son distintas; si en el escritorio aún no la activaste, el panel muestra arriba «Activar Windows Hello» (también en Mi perfil).",
       "Para cambiar de teléfono: Configuración → Mi perfil → «Verificación en dos pasos» → «Cambiar de teléfono». Si perdiste el teléfono, pide a soporte de zamorApp que reinicie tu verificación.",
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],

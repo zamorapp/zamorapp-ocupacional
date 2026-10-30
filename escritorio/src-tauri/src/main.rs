@@ -735,7 +735,9 @@ fn descarga(app: &AppHandle, evento: tauri::webview::DownloadEvent<'_>) -> bool 
 }
 
 fn main() {
-    anotar(&format!("--- zamorApp {} abriendo", env!("CARGO_PKG_VERSION")));
+    // La versión real (0.1.<corrida>) la pone el CI en el instalador y se anota abajo («versión del instalador»);
+    // CARGO_PKG_VERSION siempre dice 0.1.0 y confundía al leer el registro.
+    anotar("--- zamorApp Escritorio abriendo");
     std::panic::set_hook(Box::new(|info| anotar(&format!("PÁNICO: {info}"))));
     match tauri::webview_version() {
         Ok(v) => anotar(&format!("WebView2 {v}")),
