@@ -3,13 +3,20 @@
 import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { claveAvisos, enviarPush, pushConfigurado, type Suscripcion } from "@/lib/push";
+import { claveAvisos, enviarPush, estadoVapid, vapidPublica, type Suscripcion } from "@/lib/push";
 
 type Resultado = { ok: boolean; mensaje: string };
 
+// Llave pública para suscribir este celular (sale de la privada de Vercel; null si falta o no sirve)
+export async function llaveAvisos(): Promise<string | null> {
+  return vapidPublica();
+}
+
 // Activar avisos en este celular: solo el personal del servicio (la base lo vuelve a exigir en guardar_suscripcion_push)
 export async function activarAvisos(s: Suscripcion & { equipo: string }): Promise<Resultado> {
-  if (!pushConfigurado()) return { ok: false, mensaje: "Falta un paso en Vercel (VAPID_PRIVADA). Pídele a Claude la guía." };
+  const vapid = estadoVapid();
+  if (vapid === "falta") return { ok: false, mensaje: "Falta un paso en Vercel (VAPID_PRIVADA). Pídele a Claude la guía." };
+  if (vapid !== "ok") return { ok: false, mensaje: "La llave VAPID_PRIVADA de Vercel no es válida. Pídele a Claude que la renueve." };
   const sesion = await obtenerSesion();
   if (!sesion.orgId || esRolEmpresa(sesion.rol)) return { ok: false, mensaje: "Los avisos son para el personal del servicio." };
   const supabase = await crearClienteServidor();
@@ -25,9 +32,9 @@ export async function probarAviso(endpoint: string, titulo = "Aviso de prueba", 
   const supabase = await crearClienteServidor();
   const { data } = await supabase.from("suscripciones_push").select("endpoint, p256dh, auth").eq("endpoint", endpoint);
   if (!data?.length) return { ok: false, mensaje: "Este celular no tiene avisos activos." };
-  const { enviados, vencidos } = await enviarPush(data, { titulo, cuerpo, ruta: "/panel" });
+  const { enviados, vencidos, fallo } = await enviarPush(data, { titulo, cuerpo, ruta: "/panel" });
   if (vencidos.length) await supabase.from("suscripciones_push").delete().in("endpoint", vencidos);
-  return enviados ? { ok: true, mensaje: "Listo: te llegó un aviso de prueba." } : { ok: false, mensaje: "No se pudo enviar el aviso de prueba. Vuelve a activarlos." };
+  return enviados ? { ok: true, mensaje: "Listo: te llegó un aviso de prueba." } : { ok: false, mensaje: `No se pudo enviar el aviso de prueba${fallo ? ` (el servicio de avisos respondió ${fallo.slice(0, 80)})` : ""}. Vuelve a activarlos.` };
 }
 
 export async function quitarAvisos(endpoint: string): Promise<Resultado> {
