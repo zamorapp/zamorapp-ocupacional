@@ -4,6 +4,7 @@
 
 import type { Reporte } from "@/lib/reportes";
 import { MESES } from "@/lib/periodos";
+import { confidencial } from "@/lib/vigilancia-ia";
 
 export type Series = {
   por_mes: { mes: string; consultas: number; preventivas: number; diagnosticos: number; dias_reposo: number }[];
@@ -85,6 +86,8 @@ const humano = (codigo: string) => codigo.replace(/_/g, " ");
 const TIPO_CONSULTA: Record<string, string> = { primera: "las primeras consultas", sucesiva: "las consultas sucesivas", derivada: "las consultas derivadas" };
 const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 // Diagnóstico para el texto: «Lumbago (M54.5)», o solo el código si no hay descripción
+// RR. HH. lee el análisis: un diagnóstico se nombra solo con 3 casos o más y si no es confidencial (VIH, salud mental, embarazo)
+const nombrable = (c: { cie10: string; n: number; pacientes?: number } | undefined) => Boolean(c && Math.min(c.n, c.pacientes ?? c.n) >= 3 && !confidencial(c.cie10));
 const dx = (c: { cie10: string; descripcion: string | null }) => (c.descripcion && c.descripcion !== c.cie10 ? `${c.descripcion} (${c.cie10})` : c.cie10);
 const mesLargo = (aaaamm: string) => MESES[Number(aaaamm.slice(5, 7)) - 1] ?? aaaamm;
 
@@ -308,7 +311,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       `${mayus(plural(k, "grupo", "grupos"))} de ${capitulos.length} explican el 80 % de la morbilidad, donde deben concentrarse las acciones.`,
       `El análisis de Pareto muestra que ${plural(k, "capítulo concentra", "capítulos concentran")} el 80 % de los diagnósticos.`,
     ]));
-    const causa = m.primeras_causas[0];
+    const causa = m.primeras_causas.find(nombrable);
     if (causa) frases.push(elige([
       `La primera causa individual es ${dx(causa)}, con ${plural(causa.n, "caso", "casos")}.`,
       `Entre los diagnósticos específicos destaca ${dx(causa)}, con ${plural(causa.n, "caso", "casos")}.`,
@@ -347,7 +350,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       `La causa con más días es ${minus(d.causas[causa.nombre] ?? humano(causa.nombre))} (${pc(causa.dias, a.dias_perdidos)} de los días).`,
       `${mayus(d.causas[causa.nombre] ?? humano(causa.nombre))} explica la mayor parte del tiempo perdido, con ${plural(causa.dias, "día", "días")}.`,
     ]));
-    const pc1 = a.primeras_causas?.[0];
+    const pc1 = a.primeras_causas?.find(nombrable);
     if (pc1) frases.push(elige([
       `Por diagnóstico, el primer motivo de reposo es ${dx(pc1)}.`,
       `${mayus(dx(pc1))} es el diagnóstico que más reposos generó.`,

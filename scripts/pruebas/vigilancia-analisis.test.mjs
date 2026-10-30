@@ -43,6 +43,16 @@ test("dependencias, causas y reposos tienen su lectura", () => {
   assert.match(a.reposos, /4 días/);
 });
 
+test("RR. HH. no lee diagnósticos con menos de 3 casos ni confidenciales", () => {
+  const d = structuredClone(datos);
+  d.r.ausentismo.primeras_causas = [{ cie10: "F32.9", descripcion: "Episodio depresivo", n: 1, dias: 10 }];
+  d.r.morbilidad.primeras_causas = [{ cie10: "B24", descripcion: "VIH", n: 4, pacientes: 4 }, { cie10: "L30.9", descripcion: "Dermatitis", n: 2, pacientes: 2 }];
+  for (let v = 0; v < 8; v++) {
+    const todo = JSON.stringify(generarAnalisis(d, v));
+    assert.doesNotMatch(todo, /F32|depresiv|B24|VIH|L30|Dermatitis/i);
+  }
+});
+
 test("otra variante cambia la redacción, no las cifras", () => {
   const textos = new Set(Array.from({ length: 6 }, (_, v) => generarAnalisis(datos, v).secciones.evaluaciones));
   assert.ok(textos.size >= 3, `solo ${textos.size} redacciones distintas`);

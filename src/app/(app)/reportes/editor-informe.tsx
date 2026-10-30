@@ -19,7 +19,7 @@ type Clave = keyof TextosInforme;
 const SECCIONES: [Clave, string, string][] = [
   ["resumen", "Resumen ejecutivo", "Hallazgos clave del período en pocas líneas."],
   ["conclusiones", "Análisis y conclusiones médico-ocupacionales", "Interpretación médica de los indicadores."],
-  ["vision_medico", "Visión del médico ocupacional (opcional)", "Tu perspectiva personal, que complementa al analizador y a la IA. Sale en el informe solo si la escribes."],
+  ["vision_medico", "Visión del médico ocupacional (opcional)", "Tu perspectiva personal, que complementa al analizador y a la IA. Sale en el informe solo si la escribes. No escribas nombres ni diagnósticos de personas: este informe lo lee la empresa."],
   ["recomendaciones_medicas", "Recomendaciones médico-ocupacionales", "Lo que hace el servicio médico: vigilancia, evaluaciones, seguimiento de casos y reintegros."],
   ["recomendaciones", "Recomendaciones de seguridad y salud en el trabajo", "Lo que hacen la empresa, su Servicio de SST y el Comité: controles, EPP, investigación."],
   ["factores_riesgo", "Factores de riesgo, procesos peligrosos y efectos en la salud", "Se sugieren desde los puestos de la empresa."],
