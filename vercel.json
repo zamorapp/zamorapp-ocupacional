@@ -1,11 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["pdx1"],
+  "regions": [
+    "pdx1"
+  ],
   "git": {
     "deploymentEnabled": {
       "main": true,
       "*": false,
       "**": false
     }
-  }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)escritorio' ':(exclude)supabase' ':(exclude)scripts' ':(exclude)docs' ':(exclude).github' ':(exclude)*.md' ':(exclude)auditoria'"
 }

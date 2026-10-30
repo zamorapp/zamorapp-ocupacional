@@ -31,18 +31,10 @@ const nextConfig: NextConfig = {
   experimental: { staleTimes: { dynamic: 30 } },
   // PDF en el servidor (envíos a empresas): Chromium sin ventana. En Vercel su binario se incluye en las rutas que lo usan.
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  // Solo /api/pdf arma los PDF: es la única función que lleva el binario de Chromium (67 MB). Antes iba en 8 rutas
+  // y cada despliegue ocupaba más de 500 MB de «Functions Storage» en el plan gratis de Vercel.
   outputFileTracingIncludes: {
-    "/envios": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/envios/bitacora": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/envios/por-enviar": ["./node_modules/@sparticuz/chromium/bin/**"],
-    // Reportes › Aptitud emitida también envía el lote (PanelEnvio): su acción corre en esta ruta
-    // Las claves son patrones: [tipo] sería una clase de caracteres y no incluiría nada; se usa *
-    "/reportes/*": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/solicitudes": ["./node_modules/@sparticuz/chromium/bin/**"],
-    // «Enviar a la empresa» de los informes: su acción corre en la ruta del informe
-    "/imprimir/puesto/*": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/imprimir/vigilancia": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/imprimir/atendidos": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/api/pdf": ["./node_modules/@sparticuz/chromium/bin/**"],
   },
   async headers() {
     const reglas = [{ source: "/:path*", headers: SEGURIDAD }];
