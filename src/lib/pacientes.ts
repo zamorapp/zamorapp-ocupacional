@@ -12,6 +12,21 @@ export type Aptitud =
 
 export type EstadoTrabajador = "aspirante" | "activo" | "reposo" | "egresado" | "inactivo";
 
+// Fila de la lista de pacientes (página de 50 desde el servidor): solo lo que la lista muestra
+export type PacienteFila = {
+  id: string;
+  historia: number;
+  cedula: string;
+  nombres: string;
+  apellidos: string;
+  fechaNacimiento: string | null;
+  empresaId: string | null;
+  empresa: string;
+  cargo: string;
+  estado: EstadoTrabajador;
+  aptitud: Aptitud | null;
+};
+
 export type Trabajador = {
   id: string;
   historia: number;

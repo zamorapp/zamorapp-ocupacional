@@ -7,6 +7,7 @@ import { olvidar } from "@/lib/memo";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
+import { type BusquedaPacientes, buscarTrabajadores } from "@/lib/pacientes-datos";
 
 export type Resultado = { ok: boolean; mensaje: string; id?: string };
 
@@ -203,4 +204,10 @@ export async function depurarNomina(empresaId: string | null, desde: string, apl
   }
   const n = Number(data ?? 0);
   return { ok: true, cantidad: n, mensaje: aplicar ? `${n} trabajadores marcados como egresados.` : `${n} trabajadores sin consulta desde esa fecha.` };
+}
+
+// Búsqueda y paginación de la lista de pacientes desde el navegador (sin recargar la pantalla)
+export async function buscarPacientesLista(b: BusquedaPacientes) {
+  await obtenerSesion(); // sin sesión: redirige a /login
+  return buscarTrabajadores(b);
 }
