@@ -5,8 +5,9 @@
 -- Ahora cada respuesta lleva solo_salud (lo pone el servicio o la base, nunca la empresa):
 --   · solo_salud = false: constancia de aptitud y constancia de atención (sin diagnóstico): RR. HH. la ve y la baja.
 --   · solo_salud = true: todo lo demás (y por defecto cualquier archivo subido): RR. HH. ve solo el estado.
--- respuesta y documento_ruta dejan de leerse en la tabla; se leen en la vista solicitudes_respuesta, que a RR. HH.
--- solo le muestra las que no son solo_salud. El bucket aplica la misma regla.
+-- respuesta, documento_ruta y documento_nombre (un nombre como «Reposo – lumbalgia.pdf» revela el diagnóstico) dejan
+-- de leerse en la tabla; se leen en la vista solicitudes_respuesta. Una fila solo_salud la ven solo el personal clínico
+-- y el administrador (no recepción, coordinador SST ni RR. HH.); las demás, el servicio y la empresa. El bucket igual.
 
 alter table public.solicitudes add column if not exists solo_salud boolean not null default false;
 
@@ -38,19 +39,24 @@ create trigger solo_salud_solicitud before insert or update on public.solicitude
 -- La tabla ya no entrega respuesta ni documento_ruta (ni siquiera al servicio: todos leen la vista).
 -- OJO: una columna nueva en solicitudes necesita su propio grant select.
 revoke select on public.solicitudes from authenticated;
-grant select (id, org_id, empresa_id, tipo_id, tipo, trabajador_id, detalle, estado, documento_nombre, solicitada_por,
+grant select (id, org_id, empresa_id, tipo_id, tipo, trabajador_id, detalle, estado, solicitada_por,
               creado_en, atendida_por, actualizado_en, version, en_proceso_en, respondida_en, solo_salud)
   on public.solicitudes to authenticated;
 
--- Mismo alcance que la política solicitudes_leer, separado en servicio (todo) y empresa (sin lo de salud)
-create or replace view public.solicitudes_respuesta as
-  select s.id, s.respuesta, s.documento_ruta
+-- security_barrier: un filtro del usuario (like, cast que falla) no se evalúa antes que el where de la vista
+create or replace view public.solicitudes_respuesta with (security_barrier = true) as
+  select s.id, s.respuesta, s.documento_ruta, s.documento_nombre
   from public.solicitudes s
-  where s.org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,enfermeria,recepcion}', p_sin_limite => true))::uuid[])
-     or (s.org_id::text || s.empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,enfermeria,recepcion}'))::text[])
-     or (not s.solo_salud and (
-           s.org_id = any ((select public.orgs_con('{gerente_empresa}', p_sin_limite => true))::uuid[])
-        or (s.org_id::text || s.empresa_id::text) = any ((select public.pares_limitados('{gerente_empresa}'))::text[])));
+  where
+    -- personal clínico (o con acceso clínico) y administrador: todas
+    s.org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+    or (s.org_id::text || s.empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+    or s.org_id = any ((select public.orgs_con('{administrador}', p_sin_limite => true))::uuid[])
+    or (s.org_id::text || s.empresa_id::text) = any ((select public.pares_limitados('{administrador}'))::text[])
+    -- resto del servicio y la empresa: solo las que no llevan datos médicos (mismo alcance que solicitudes_leer)
+    or (not s.solo_salud and (
+          s.org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}', p_sin_limite => true))::uuid[])
+       or (s.org_id::text || s.empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}'))::text[])));
 revoke all on public.solicitudes_respuesta from public, anon;
 grant select on public.solicitudes_respuesta to authenticated;
 
@@ -66,7 +72,11 @@ begin
   end;
   if not exists (select 1 from public.solicitudes where id = v_sol and org_id = v_org and empresa_id = v_emp) then return false; end if;
   if not public.puede_ver_empresa(v_org, v_emp) then return false; end if;
+  -- Documento solo_salud: solo clínico o administrador (ni recepción ni RR. HH.)
+  if exists (select 1 from public.solicitudes where id = v_sol and solo_salud) then
+    return public.es_clinico(v_org) or public.mi_rol(v_org) = 'administrador';
+  end if;
   if public.es_servicio(v_org) then return true; end if;
   return not p_servicio and public.es_empresa(v_org)
-     and exists (select 1 from public.solicitudes where id = v_sol and documento_ruta = p_ruta and not solo_salud);
+     and exists (select 1 from public.solicitudes where id = v_sol and documento_ruta = p_ruta);
 end $$;

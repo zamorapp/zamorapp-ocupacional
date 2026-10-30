@@ -70,6 +70,7 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
       {abrir && (
         <div className="space-y-4 border-t px-4 py-4">
           <p className="whitespace-pre-line text-sm">{s.detalle}</p>
+          {s.soloSalud && !s.documento && <p className="text-sm text-muted-foreground">Respuesta con datos médicos: solo la ve el personal de salud.</p>}
           {s.documento && (
             <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> {s.documento}</a></Button>
           )}

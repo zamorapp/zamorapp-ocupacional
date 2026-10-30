@@ -12,7 +12,6 @@ type Fila = {
   trabajador_id: string | null;
   detalle: string;
   estado: EstadoSolicitud;
-  documento_nombre: string | null;
   creado_en: string;
   actualizado_en: string | null;
   en_proceso_en: string | null;
@@ -27,7 +26,7 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("solicitudes")
-    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, documento_nombre, creado_en, actualizado_en, en_proceso_en, respondida_en, solo_salud, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
+    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, creado_en, actualizado_en, en_proceso_en, respondida_en, solo_salud, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
     .order("creado_en", { ascending: false })
     .limit(filtro.limite ?? 100);
   if (filtro.estado === "abiertas") q = q.in("estado", ["pendiente", "en_proceso"]);
@@ -35,11 +34,11 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
   if (filtro.empresaId) q = q.eq("empresa_id", filtro.empresaId);
   const { data } = await q;
   const filas = (data ?? []) as unknown as Fila[];
-  // La respuesta se lee aparte: la vista solo se la da a RR. HH. cuando no es solo para el personal de salud
+  // Respuesta y documento se leen aparte: la vista entrega los solo_salud solo al personal clínico y al administrador
   const { data: respuestas } = filas.length
-    ? await supabase.from("solicitudes_respuesta").select("id, respuesta").in("id", filas.map((f) => f.id))
+    ? await supabase.from("solicitudes_respuesta").select("id, respuesta, documento_nombre").in("id", filas.map((f) => f.id))
     : { data: [] };
-  const respuesta = new Map((respuestas ?? []).map((r) => [r.id as string, r.respuesta as string | null]));
+  const respuesta = new Map((respuestas ?? []).map((r) => [r.id as string, r as { respuesta: string | null; documento_nombre: string | null }]));
   return filas.map((s) => ({
     id: s.id,
     empresaId: s.empresa_id,
@@ -50,9 +49,9 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
     cedula: s.trabajadores?.cedula ?? null,
     detalle: s.detalle,
     estado: s.estado,
-    respuesta: respuesta.get(s.id) ?? null,
+    respuesta: respuesta.get(s.id)?.respuesta ?? null,
+    documento: respuesta.get(s.id)?.documento_nombre ?? null,
     soloSalud: s.solo_salud,
-    documento: s.documento_nombre,
     creadoEn: s.creado_en,
     actualizadoEn: s.actualizado_en,
     enProcesoEn: s.en_proceso_en,

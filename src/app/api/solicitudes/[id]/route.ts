@@ -7,17 +7,14 @@ export const dynamic = "force-dynamic";
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await crearClienteServidor();
-  const [{ data: r }, { data: s }] = await Promise.all([
-    supabase.from("solicitudes_respuesta").select("documento_ruta").eq("id", id).maybeSingle(),
-    supabase.from("solicitudes").select("documento_nombre").eq("id", id).maybeSingle(),
-  ]);
-  if (!r?.documento_ruta || !s) return new Response("No encontrado", { status: 404 });
+  const { data: r } = await supabase.from("solicitudes_respuesta").select("documento_ruta, documento_nombre").eq("id", id).maybeSingle();
+  if (!r?.documento_ruta) return new Response("No encontrado", { status: 404 });
   const { data: archivo } = await supabase.storage.from("solicitudes").download(r.documento_ruta);
   if (!archivo) return new Response("No encontrado", { status: 404 });
   return new Response(archivo, {
     headers: {
       "Content-Type": archivo.type || "application/octet-stream",
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(s.documento_nombre ?? "documento")}`,
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(r.documento_nombre ?? "documento")}`,
       "Cache-Control": "private, no-store",
     },
   });

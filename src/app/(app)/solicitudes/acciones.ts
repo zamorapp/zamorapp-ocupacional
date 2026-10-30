@@ -71,6 +71,8 @@ export async function atenderSolicitud(_: Resultado | null, d: FormData): Promis
     supabase.from("solicitudes_respuesta").select("documento_ruta").eq("id", id).maybeSingle(),
   ]);
   if (!s) return { ok: false, mensaje: "Solicitud no encontrada." };
+  // La vista no le entrega a recepción ni al coordinador SST una respuesta con datos médicos: no la pueden reescribir
+  if (!previa) return { ok: false, mensaje: "Esta respuesta lleva datos médicos: la atiende el personal de salud." };
 
   // El archivo propio lo sube el navegador directo a Storage (la RLS del bucket lo permite solo al servicio);
   // aquí llega su ruta. El documento de una consulta se genera en PDF en el servidor.
