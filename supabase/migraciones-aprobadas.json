@@ -4,7 +4,7 @@
   "migraciones": [
     {
       "archivo": "20261030480000_ficha_trabajador_consulta.sql",
-      "sha256": "84f230c3d8982f57e0bbf9dc8134f5110e64c365927ff50c51f5aacda177e87d",
+      "sha256": "b12815b5bae1811732949a8a19d4d1f1b913346444ba2d7b7e3798e8bf731e73",
       "descripcion": "Datos del trabajador: estado civil, fecha de ingreso al cargo e historial de cargos"
     },
     {

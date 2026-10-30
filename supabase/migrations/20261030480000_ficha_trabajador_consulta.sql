@@ -26,7 +26,9 @@ alter table public.cargos_historial enable row level security;
 -- Es dato laboral (no clínico): lo ve quien ve al trabajador; solo lo escribe el disparador
 drop policy if exists cargos_historial_leer on public.cargos_historial;
 create policy cargos_historial_leer on public.cargos_historial for select
-  using (public.puede_ver_empresa(org_id, empresa_id) and (public.mi_rol(org_id) is distinct from 'trabajador' or public.es_mi_ficha(trabajador_id)));
+  using ((org_id = any ((select public.orgs_con(p_sin_limite => true))::uuid[])
+          or (org_id::text || empresa_id::text) = any ((select public.pares_limitados())::text[]))
+         and (not org_id = any ((select public.orgs_con('{trabajador}'))::uuid[]) or public.es_mi_ficha(trabajador_id)));
 revoke all on public.cargos_historial from anon, authenticated;
 grant select on public.cargos_historial to authenticated;
 
