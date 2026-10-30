@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, CalendarClock, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,7 @@ import { NotificacionesRiesgo } from "@/components/app/notificacion-riesgos";
 import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
 import { ahora, hoyCaracas } from "@/lib/fecha";
+import { alertasDeTrabajador } from "@/lib/alertas";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -71,6 +72,8 @@ export default async function FichaPaciente({ params }: Props) {
   const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null } | null;
   const notificaciones: NotificacionRiesgo[] = (notifs ?? []).map((n) => ({ id: n.id, puestoId: n.puesto_id, puesto: n.puesto, entregadaEn: n.entregada_en, firmadaEn: n.firmada_en, contenido: n.contenido }));
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
+  // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
+  const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -87,7 +90,14 @@ export default async function FichaPaciente({ params }: Props) {
             <AvatarFallback className="bg-primary text-xl font-semibold text-primary-foreground">{iniciales(t)}</AvatarFallback>
           </Avatar>
           <div className="min-w-56 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t.nombres} {t.apellidos}</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              {t.nombres} {t.apellidos}
+              {alertas.length > 0 && (
+                <span role="img" aria-label="Tiene una alerta para esta evaluación" title="Tiene una alerta para esta evaluación" className="ml-2 inline-flex align-[-1px]">
+                  <BellRing className="size-4 text-aviso-texto" aria-hidden />
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-muted-foreground">
               <span className="font-mono">{t.cedula}</span> · Historia {t.historia}{edad(t.fechaNacimiento) !== null && ` · ${edad(t.fechaNacimiento)} años`}{t.sexo && ` · ${t.sexo === "F" ? "Femenino" : "Masculino"}`}
             </p>
@@ -127,6 +137,21 @@ export default async function FichaPaciente({ params }: Props) {
           <ShieldAlert className="size-5 shrink-0 text-alerta-texto" />
           Examen periódico vencido desde el {fecha(t.proximoExamen)}.
         </div>
+      )}
+
+      {alertas.length > 0 && (
+        <section aria-label="Alertas para la próxima evaluación" className="space-y-1.5 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
+          {alertas.map((a) => (
+            <p key={a.id} className="flex items-start gap-2">
+              <BellRing className="mt-0.5 size-4 shrink-0 text-aviso-texto" aria-hidden />
+              <span className="min-w-0">
+                <span className="font-medium text-aviso-texto">Para la próxima evaluación · nota del {fecha(a.creadaEl)}{a.autor && ` · ${a.autor}`}:</span>{" "}
+                {[a.texto, a.paraclinicos.length ? `pedir ${a.paraclinicos.map((x) => x.nombre).join(", ")}` : ""].filter(Boolean).join(" · ")}
+                {a.revisarAntes && <span className="text-muted-foreground"> · antes del {fecha(a.revisarAntes)}</span>}
+              </span>
+            </p>
+          ))}
+        </section>
       )}
 
       <Tabs defaultValue="resumen">

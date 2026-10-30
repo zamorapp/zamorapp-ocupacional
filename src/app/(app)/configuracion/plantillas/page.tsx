@@ -7,7 +7,7 @@ import { EditorPlantillas } from "./editor-plantillas";
 
 export const metadata: Metadata = { title: "Plantillas de examen" };
 
-const LISTAS = ["motivo_consulta", "perfil_examen_funcional", "perfil_examen_fisico", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente"];
+const LISTAS = ["motivo_consulta", "perfil_examen_funcional", "perfil_examen_fisico", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "clasificacion_aptitud"];
 
 export default async function Plantillas() {
   const sesion = await obtenerSesion();
@@ -25,7 +25,7 @@ export default async function Plantillas() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Plantillas de examen</h1>
         <p className="text-muted-foreground">
-          Al elegir el motivo en la consulta se precargan el examen normal, las recomendaciones y la vigencia. El médico revisa y cambia lo que haga falta; nada se borra de lo ya escrito.
+          Al elegir el motivo en la consulta se precargan el examen normal, las recomendaciones y la vigencia. El botón «Perfil normal» de la consulta, además, pone la aptitud elegida aquí y marca «sin diagnósticos». El médico revisa y cambia lo que haga falta; nada se borra de lo ya escrito.
         </p>
       </div>
       {motivos.length === 0 ? (

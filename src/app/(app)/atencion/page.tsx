@@ -20,6 +20,7 @@ import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
 import { recordarResultados } from "@/lib/recordatorios";
+import { trabajadoresConAlerta } from "@/lib/alertas";
 import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
@@ -50,6 +51,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     listarEmpresas(),
     empresaActivaId(),
   ]);
+  // Campanita junto al nombre: trabajadores de la cola con una alerta para esta evaluación (solo personal clínico)
+  const conAlerta = sesion.clinico ? [...await trabajadoresConAlerta([...new Set(citas.map((c) => c.trabajadorId))])] : [];
   // Para registrar ahí mismo a un paciente nuevo (la misma lista que ya pidió el menú: va una sola consulta)
   const opcionesEmpresa = empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }));
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
@@ -98,7 +101,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
             {citas.length} citas
           </span>
         </div>
-        <ColaAtencion citas={citas} esHoy={dia === hoy} pendientes={Object.fromEntries(consultas.filter((c) => c.pendientes).map((c) => [c.id, c.pendientes]))} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
+        <ColaAtencion citas={citas} esHoy={dia === hoy} conAlerta={conAlerta} pendientes={Object.fromEntries(consultas.filter((c) => c.pendientes).map((c) => [c.id, c.pendientes]))} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
       </section>
 
       {/* Consultas recientes */}

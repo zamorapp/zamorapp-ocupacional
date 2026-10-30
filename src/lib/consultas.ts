@@ -134,6 +134,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       id: c.id,
       estado: c.estado,
       revision: c.revision ?? 1,
+      copiadaDe: c.copiada_de ?? null,
       fecha: c.fecha,
       tipo: c.tipo,
       motivoId: c.motivo_id,
@@ -197,19 +198,28 @@ export async function listarVersiones(consultaId: string): Promise<VersionConsul
 // recientes) y reposos de los últimos dos años, sin los de esta consulta. Solo personal clínico (RLS).
 // tratamientoAnterior: el de la última consulta con medicinas (para «Repetir tratamiento» en controles y crónicos)
 export type TratamientoAnterior = { fecha: string; tratamiento: Medicamento[]; indicaciones: string };
-export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean; tratamientoAnterior?: TratamientoAnterior | null };
+// Evaluación anterior que se puede copiar (solo lo permitido: antecedentes, hábitos y examen; Analizar, 30-oct)
+export type EvaluacionAnterior = {
+  id: string; fecha: string; motivo: string; motivoNombre: string; clasificacion: string; diagnosticos: number; sano: boolean;
+  antecedentes: DatosConsulta["antecedentes"]; habitos: DatosConsulta["habitos"]; examenFuncional: DatosConsulta["examenFuncional"]; examenFisico: DatosConsulta["examenFisico"];
+};
+export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean; tratamientoAnterior?: TratamientoAnterior | null; evaluaciones?: EvaluacionAnterior[] };
 
 export async function historialConsulta(trabajadorId: string, consultaId: string): Promise<HistorialConsulta> {
   const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
   if (!supabaseConfigurado) return vacio;
   const supabase = await crearClienteServidor();
   const hace2Anios = sumarDias(hoyCaracas(), -730);
-  const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
+  const [{ data: cs }, { data: rs }, { data: t }, { data: ev }] = await Promise.all([
     supabase.from("consultas").select("fecha, signos_vitales, tratamiento, indicaciones").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
       .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
     supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
       .order("desde", { ascending: false }).limit(60),
     supabase.from("trabajadores_salud").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
+    // Últimas evaluaciones preventivas cerradas o firmadas con aptitud: la consulta nueva ofrece copiar la que toca
+    supabase.from("consultas").select("id, fecha, sano, antecedentes, habitos, examen_funcional, examen_fisico, motivo:lista_items(codigo, nombre, grupo), aptitudes(clasificacion), diagnosticos(id)")
+      .eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+      .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(12),
   ]);
   return {
     mediciones: (cs ?? []).filter((c) => c.signos_vitales && Object.keys(c.signos_vitales).length).map((c) => ({ fecha: c.fecha, signos: c.signos_vitales })).reverse(),
@@ -218,5 +228,14 @@ export async function historialConsulta(trabajadorId: string, consultaId: string
     discapacidadRegistrada: t?.discapacidad ?? false,
     tratamientoAnterior: ((c) => (c ? { fecha: c.fecha, tratamiento: c.tratamiento as Medicamento[], indicaciones: c.indicaciones ?? "" } : null))(
       (cs ?? []).find((c) => Array.isArray(c.tratamiento) && (c.tratamiento as Medicamento[]).some((m) => m?.medicina?.trim()))),
+    evaluaciones: (ev ?? []).flatMap((c) => {
+      const m = c.motivo as unknown as { codigo: string | null; nombre: string; grupo: string | null } | null;
+      const a = (Array.isArray(c.aptitudes) ? c.aptitudes[0] : c.aptitudes) as { clasificacion: string } | null;
+      if (m?.grupo !== "preventivo" || !a?.clasificacion) return [];
+      return [{ id: c.id, fecha: c.fecha, motivo: m.codigo ?? "", motivoNombre: m.nombre, clasificacion: a.clasificacion,
+        diagnosticos: (c.diagnosticos as unknown[] | null)?.length ?? 0, sano: !!c.sano,
+        antecedentes: c.antecedentes ?? [], habitos: Array.isArray(c.habitos) ? c.habitos : [],
+        examenFuncional: c.examen_funcional ?? [], examenFisico: c.examen_fisico ?? [] }];
+    }).slice(0, 4),
   };
 }
