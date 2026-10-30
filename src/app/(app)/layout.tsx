@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { AvisoActualizar } from "@/components/app/aviso-actualizar";
+import { AvisoConflictos } from "@/components/app/aviso-conflictos";
 import { BarraInferior } from "@/components/app/barra-inferior";
 import { BarraLateral } from "@/components/app/barra-lateral";
 import { BuscadorGlobal } from "@/components/app/buscador-global";
@@ -39,6 +40,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col">
         <Encabezado usuario={usuario} empresas={opciones} empresaActiva={activa} organizacion={sesion.organizacion} portal={portal} />
         <AvisoActualizar />
+        {!portal && <AvisoConflictos />}
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">{children}</main>
       </div>
       <BarraInferior portal={portal} />

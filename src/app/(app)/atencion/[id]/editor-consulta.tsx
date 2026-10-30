@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff } from "lucide-react";
+import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -50,7 +50,7 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
-import { mensajeGuardadoLocal, refrescarEstado, useEstadoEscritorio } from "@/lib/escritorio-estado";
+import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
 // Respaldo legible si la lista «Clasificación de aptitud» no trae el código
@@ -187,6 +187,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   // Escritorio sin internet: lo guardado queda en esta PC y sube después; el aviso lo dice y el indicador se pone al día
   const escritorio = useEstadoEscritorio();
   const sinInternet = ESCRITORIO && escritorio.conocido && !escritorio.enLinea;
+  // Corregir una firmada sin internet se hace en la PC, pero solo con la hora verificada (como firmar)
+  const corregirEspera = sinInternet && escritorio.horaSinAncla;
+  const [reconectando, setReconectando] = useState(false);
+  const [reconexion, setReconexion] = useState("");
   const setAviso = useCallback((r: { ok: boolean; mensaje: string } | null) => {
     if (r?.ok && ESCRITORIO) void refrescarEstado();
     setAvisoBase(r?.ok ? { ...r, mensaje: mensajeGuardadoLocal(r.mensaje) } : r);
@@ -639,20 +643,29 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
             </p>
-            {sinInternet && (
-              <p role="status" className="flex items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
-                <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Corregir una consulta firmada necesita internet: la versión firmada se guarda en el historial de la nube. Vuelve a intentarlo cuando haya conexión.
+            {sinInternet && (corregirEspera ? (
+              <div role="status" className="flex flex-wrap items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">
+                <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1 basis-60">Esta PC arrancó sin internet y aún no tiene la hora verificada: corregir espera a que vuelva la conexión. Puedes escribir el motivo mientras tanto.{reconexion && <span className="block font-normal">{reconexion}</span>}</span>
+                <Button variant="outline" size="sm" disabled={reconectando}
+                  onClick={async () => { setReconectando(true); setReconexion(await sincronizarAhora()); setReconectando(false); }}>
+                  {reconectando ? <Loader2 className="animate-spin" /> : null} Reintentar conexión
+                </Button>
+              </div>
+            ) : (
+              <p role="status" className="flex items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm text-muted-foreground">
+                <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                Sin internet: la corrección y la versión firmada quedan en esta PC y suben solas cuando vuelva la conexión.
               </p>
-            )}
+            ))}
             <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
             <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
-              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus={!sinInternet} readOnly={sinInternet} />
+              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
               <Button
-                disabled={guardando || sinInternet || motivoCorreccion.trim().length < 10}
-                title={sinInternet ? "Necesita internet" : motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
+                disabled={guardando || corregirEspera || motivoCorreccion.trim().length < 10}
+                title={motivoCorreccion.trim().length < 10 ? "Escribe el motivo (al menos 10 caracteres)" : undefined}
                 onClick={() => iniciar(async () => {
                   const r = await corregirConsulta(d.id, motivoCorreccion);
                   setAviso(r);
@@ -830,7 +843,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </TabsContent>
 
           {/* ── Antecedentes y hábitos ── */}
-          <TabsContent value="antecedentes" className="mt-4 grid gap-4 lg:grid-cols-2">
+          <TabsContent value="antecedentes" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Seccion titulo="Antecedentes médicos">
               <Antecedentes items={listas.antecedente_medico} valor={d.antecedentes} onChange={(v) => set("antecedentes", v)} />
             </Seccion>
@@ -970,7 +983,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             >
               {d.diagnosticos.length === 0 && <p className="text-sm text-muted-foreground">Sin diagnósticos. Pulsa Agregar y escribe parte del nombre o del código.</p>}
               {d.diagnosticos.map((x, i) => (
-                <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
                   <BuscadorDiagnostico
                     cie10={x.cie10}
                     descripcion={x.descripcion}
@@ -1049,7 +1062,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
                 {d.tratamiento.map((m, i) => (
-                  <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
                     <Input
                       list="medicinas"
                       value={m.medicina}

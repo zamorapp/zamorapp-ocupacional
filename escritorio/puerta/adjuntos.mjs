@@ -15,6 +15,12 @@ const TIPOS = { ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image
 const MAX_BYTES = 10 * 1024 * 1024; // el mismo tope del bucket y de validar_adjunto
 const MAX_INTENTOS = 5;
 const SEGUNDOS_FIRMA = 3600;
+// Las URL firmadas vencen por performance.now() (no por la fecha de Windows, que Cesar cambia por el SAME) y solo
+// valen en este arranque de la puerta: performance.now() vuelve a 0 al reiniciar, así que el arranque va en la firma.
+const ARRANQUE = crypto.randomBytes(8).toString("hex");
+// Bytes iniciales de cada tipo: un archivo que no empieza así no es lo que dice ser
+const MAGICOS = { "application/pdf": [0x25, 0x50, 0x44, 0x46, 0x2d], "image/jpeg": [0xff, 0xd8, 0xff], "image/png": [0x89, 0x50, 0x4e, 0x47] };
+const esDelTipo = (bytes, tipo) => (MAGICOS[tipo] || []).every((b, i) => bytes[i] === b);
 const noEncontrado = { statusCode: "404", error: "not_found", message: "Object not found" };
 
 // <org>/<trabajador>/<archivo>: sin «..», sin barras invertidas ni caracteres de control
@@ -93,10 +99,10 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     try { return (await nube.rpc(quien.uid, "es_clinico", { p_org: ruta.split("/")[0] })) === true; } catch { return false; }
   }
   const enCola = (bucket, ruta) => conBase(async (c) =>
-    (await c.query("select autor, tipo from local.adjuntos_cola where bucket = $1 and ruta = $2", [bucket, ruta])).rows[0] || null);
+    (await c.query("select autor, tipo, estado from local.adjuntos_cola where bucket = $1 and ruta = $2", [bucket, ruta])).rows[0] || null);
 
   const firmarUrl = (bucket, ruta, uid) => {
-    const datos = Buffer.from(JSON.stringify({ b: bucket, r: ruta, u: uid, e: Math.floor(Date.now() / 1000) + SEGUNDOS_FIRMA })).toString("base64url");
+    const datos = Buffer.from(JSON.stringify({ b: bucket, r: ruta, u: uid, a: ARRANQUE, e: Math.round(performance.now()) + SEGUNDOS_FIRMA * 1000 })).toString("base64url");
     const firma = crypto.createHmac("sha256", clave()).update(datos).digest("base64url");
     // Misma forma que la nube: supabase-js arma encodeURI(<url>/storage/v1 + signedURL), así que va sin codificar
     return `/object/sign/${bucket}/${ruta}?token=${datos}.${firma}`;
@@ -109,7 +115,7 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
     if (dada.length !== esperada.length || !crypto.timingSafeEqual(dada, esperada)) return null;
     try {
       const v = JSON.parse(Buffer.from(datos, "base64url"));
-      return v.e * 1000 >= Date.now() ? v : null;
+      return v.a === ARRANQUE && v.e >= performance.now() ? v : null;
     } catch { return null; }
   };
 
@@ -121,7 +127,7 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
 
   // Lo que no está en la PC se baja de la nube con la sesión del usuario y queda guardado (para verlo sin internet)
   // Bytes bajados hoy (día de Caracas con la hora anclada a la nube, no la fecha de Windows): se guarda en el estado
-  const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(nube.reloj?.ahora?.() ?? Date.now()));
+  const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(nube.reloj.ahora()));
   const bajadoHoy = () => (d().adjuntosBajada?.dia === hoy() ? d().adjuntosBajada.bytes : 0);
   function anotarBajada(bytes) {
     d().adjuntosBajada = { dia: hoy(), bytes: bajadoHoy() + bytes };
@@ -184,8 +190,10 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
         let r;
         try {
           r = await fetch(`${CONFIG.nube}/storage/v1/object/${p.bucket}/${p.ruta.split("/").map(encodeURIComponent).join("/")}`, {
-            method: "POST", body: bytes, signal: AbortSignal.timeout(120000), // POST con x-upsert: en Supabase PUT solo reemplaza uno que ya existe
-            headers: { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token}`, "content-type": p.tipo, "x-upsert": "true", "cache-control": "max-age=3600" },
+            // POST sin upsert: el bucket no tiene UPDATE a propósito (nada clínico se reemplaza en la nube). Si un corte
+            // por tiempo dejó el archivo arriba, el reintento recibe 409 y cuenta como subido.
+            method: "POST", body: bytes, signal: AbortSignal.timeout(120000),
+            headers: { apikey: CONFIG.nubeAnon, Authorization: `Bearer ${token}`, "content-type": p.tipo, "cache-control": "max-age=3600" },
           });
         } catch (e) {
           nube.marcarCaida(`al subir adjuntos: ${e.message}`);
@@ -306,7 +314,11 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
       if (!Object.values(TIPOS).includes(tipo) || tipoDe(r) !== tipo) return responder(res, 415, { statusCode: "415", error: "invalid_mime_type", message: "Solo se aceptan PDF, JPG o PNG." });
       if (!bytes.length || bytes.length > MAX_BYTES) return responder(res, 413, { statusCode: "413", error: "Payload too large", message: "El archivo pesa más de 10 MB." });
       const reemplaza = req.method === "PUT" || req.headers["x-upsert"] === "true";
-      if (fs.existsSync(destino) && !reemplaza) return responder(res, 409, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+      if (bytes.length && !esDelTipo(bytes, tipo)) return responder(res, 415, { statusCode: "415", error: "invalid_mime_type", message: "El archivo no es un PDF, JPG o PNG válido." });
+      // Reemplazar solo lo que aún no llegó a la nube (pendiente o rechazado): lo que ya está allá no se reemplaza,
+      // igual que en la nube, donde el bucket no tiene UPDATE
+      const duplicado = { statusCode: "409", error: "Duplicate", message: "The resource already exists" };
+      if (fs.existsSync(destino) && (!reemplaza || !["pendiente", "rechazado"].includes((await enCola(bucket, r))?.estado))) return responder(res, 409, duplicado);
       escribir(destino, bytes);
       await conBase((c) => c.query(
         `insert into local.adjuntos_cola (bucket, ruta, tipo, tamano, autor) values ($1, $2, $3, $4, $5)

@@ -221,7 +221,13 @@ try {
     });
     const estadoHello = await pagina.evaluate(() => fetch("http://127.0.0.1:54331/zamorapp/huella/estado").then((r) => r.text())).catch((e) => `error: ${e.message}`);
     anotar(`   estado de Windows Hello antes de tocar el botón: ${estadoHello}`);
-    await boton.click();
+    // Con Windows Hello activo, la pantalla de ingreso lo pide sola al abrir: si ese ingreso automático ya va al
+    // panel, no se toca el botón (tocarlo abría una segunda sesión encima de la primera)
+    const auto = Date.now() + 5_000;
+    while (!/\/panel/.test(pagina.url()) && Date.now() < auto && !(await boton.isEnabled().catch(() => false))) await esperar(250);
+    await esperar(1_000);
+    if (/\/panel/.test(pagina.url())) anotar("   el ingreso automático con Windows Hello ya entró");
+    else if (await boton.isEnabled().catch(() => false)) await boton.click();
     const limite = Date.now() + 60_000;
     while (!/\/panel/.test(pagina.url())) {
       const error = await pagina.evaluate(() => document.querySelector(".text-destructive")?.textContent || "").catch(() => "");

@@ -119,30 +119,43 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // sid: la sesión de esta ventana. Se conserva al renovar (como en Supabase) para que «Salir» cierre solo esta.
   const sesionLocal = (uid, segundoPaso = false, sid = crypto.randomUUID()) => {
     const u = d().usuarios[uid];
-    const ahora = nube.reloj.segundos(); // hora anclada: con la fecha de Windows atrasada el token igual vence
-    const exp = ahora + CONFIG.sesionSegundos;
+    // La puerta revisa el vencimiento con la hora anclada (zexp): con la fecha de Windows cambiada el token igual
+    // vence a la hora. PostgREST local lo revisa con la de Windows (exp, iat): van en esa hora, sin margen de más
+    // (Analizar: con max(anclada, Windows) y Windows atrasado, PostgREST lo aceptaría por años al volver la fecha).
+    const ahora = nube.reloj.segundos();
+    const windows = Math.floor(nube.reloj.windows() / 1000);
+    const zexp = ahora + CONFIG.sesionSegundos;
+    const exp = windows + CONFIG.sesionSegundos;
+    const iat = windows - 60;
     const aal = exigeDosPasos(u) ? (segundoPaso ? "aal2" : "aal1") : undefined;
-    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat: ahora, exp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
+    const access_token = firmar({ sub: uid, role: "authenticated", aud: "authenticated", email: u.email, iat, exp, zexp, session_id: sid, ...(aal ? { aal } : {}) }, d().jwtSecreto);
     const refresh_token = crypto.randomBytes(24).toString("base64url");
     for (const [t, r] of Object.entries(d().refrescos)) if (r.vence < nube.reloj.ahora()) delete d().refrescos[t];
     d().refrescos[refresh_token] = { uid, vence: nube.reloj.ahora() + 30 * 864e5, segundoPaso, sid };
     estado.guardar();
-    return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: exp, refresh_token, user: u.user };
+    // expires_at lo compara la app con la fecha de Windows: va en esa hora para que renueve a tiempo
+    return { access_token, token_type: "bearer", expires_in: CONFIG.sesionSegundos, expires_at: windows + CONFIG.sesionSegundos, refresh_token, user: u.user };
   };
 
   // Segundo paso «de confianza» en esta PC (decisión de Cesar, 29-oct): tras escribir el código del teléfono aquí,
   // durante el plazo de la organización (30 días por omisión) la clave basta, con o sin internet. Sin internet
   // nunca se pide el código (no se puede verificar): vale la confianza o Windows Hello. El plazo cuenta desde el
-  // último código escrito, no desde la última renovación. La fecha de Windows se cambia a veces (por el SAME): se
-  // mide la distancia en valor absoluto.
-  const anotarSegundoPaso = (uid) => { const u = d().usuarios[uid]; if (u) { u.segundoPasoEn = Date.now(); estado.guardar(); } };
+  // último código escrito, no desde la última renovación. Con la hora anclada (nube.reloj), nunca la de Windows,
+  // que Cesar cambia por el SAME; una anotación más de un día en el futuro no vale (Analizar, 29-oct).
+  const anotarSegundoPaso = (uid) => { const u = d().usuarios[uid]; if (u) { u.segundoPasoEn = nube.reloj.ahora(); estado.guardar(); } };
   const segundoPasoVigente = (u) => {
     if (!exigeDosPasos(u)) return false;
     // PC instalada antes de este cambio: si la sesión guardada de la nube ya pasó el código, cuenta desde la última vez en línea
     const en = u.segundoPasoEn ?? (aalDe(u.nube?.access_token) === "aal2" ? u.ultimoOnline : undefined);
     const dias = Number.isInteger(u.diasConfianza) ? u.diasConfianza : 30;
-    return Boolean(en) && dias > 0 && Math.abs(Date.now() - en) <= dias * 864e5;
+    return nube.reloj.dentroDelPlazo(en, dias);
   };
+
+  // Con internet, una sesión local aal2 solo vale si la sesión de la nube también pasó el segundo paso. Si no, la nube
+  // rechaza cada pedido con 403 «dos_pasos» y la app, que ve aal2, no pide el código: «No se pudo cargar esta
+  // pantalla» (29-oct, 0.1.218: una entrada con clave cambió la sesión de la nube a aal1 y la ventana seguía en aal2).
+  // Lo mismo al volver internet tras Windows Hello o el plazo de confianza sin conexión. La nube decide.
+  const segundoPasoSinNube = (u, aal) => aal === "aal2" && exigeDosPasos(u) && nube.enLinea && aalDe(u?.nube?.access_token) === "aal1";
 
   const usuarioDe = (req) => {
     const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora());
@@ -155,6 +168,11 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   const intentos = new Map();
   const esperaDe = (clave) => Math.max(0, (intentos.get(clave)?.hasta || 0) - performance.now());
   const anotarFallo = (email) => {
+    // Clave equivocada (pedido de Cesar, 29-oct): la próxima entrada de esa cuenta pide otra vez el segundo paso
+    // (con internet el código; sin internet, Windows Hello). Vale también para el usuario corto.
+    for (const u of Object.values(d().usuarios)) {
+      if ((u.email === email || u.usuario === email) && u.segundoPasoEn !== 0) { u.segundoPasoEn = 0; estado.guardar(); registro("[auth] clave equivocada: se pedirá el segundo paso"); }
+    }
     const f = intentos.get(email) || { fallos: 0, hasta: 0 };
     f.fallos += 1;
     if (f.fallos >= FALLOS_PERMITIDOS) f.hasta = performance.now() + Math.min(3600e3, 900e3 * 2 ** (f.fallos - FALLOS_PERMITIDOS));
@@ -251,7 +269,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // Primero la sesión (para consultar el rol con ella) y la huella solo si es miembro activo.
         d().usuarios[uid] = { ...(d().usuarios[uid] || {}), email, bloqueado: false, requiereNube: false, user: r.cuerpo.user, nubeConAal: Boolean(aalDe(r.cuerpo.access_token)) };
         if (conservar) {
-          d().usuarios[uid].ultimoOnline = Date.now();
+          d().usuarios[uid].ultimoOnline = nube.reloj.ahora();
           nube.auth("logout?scope=local", {}, r.cuerpo.access_token).catch(() => {});
           registro("[auth] entrar en línea: equipo de confianza, se conserva la sesión con segundo paso");
         } else nube.guardarSesion(uid, r.cuerpo);
@@ -327,7 +345,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     delete d().refrescos[token];
-    const sesion = sesionLocal(r.uid, r.segundoPaso, r.sid);
+    const bajar = r.segundoPaso && segundoPasoSinNube(u, "aal2");
+    if (bajar) registro("[auth] renovar: la nube está en aal1; la sesión vuelve a aal1 y la app pide el código");
+    const sesion = sesionLocal(r.uid, r.segundoPaso && !bajar, r.sid);
     for (const [t, x] of recienUsados) if (x.hasta < performance.now()) recienUsados.delete(t);
     recienUsados.set(token, { uid: r.uid, sesion, hasta: performance.now() + CONFIG.reusoRefrescoMs });
     registro("[auth] renovar: ok");
@@ -349,7 +369,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     }
     const cab = { apikey: CONFIG.nubeAnon, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
-    const inicio = Date.now();
+    const inicio = performance.now();
     try {
       const r = await fetch(`${CONFIG.nube}${req.url}`, {
         method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo, signal: AbortSignal.timeout(60000),
@@ -372,7 +392,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       res.writeHead(r.status, salida);
       res.end(cuerpoRespuesta);
       // Lo que tarda la nube queda en puerta.log: así se mide en la PC real por qué una pantalla demora
-      const ms = Date.now() - inicio;
+      const ms = Math.round(performance.now() - inicio);
       if (ms >= LENTA_MS) registro(`[lenta] ${req.method} ${rutaParaRegistro(req.url)} ${ms} ms (nube, ${r.status})`);
       return true;
     } catch (e) {
@@ -454,9 +474,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     if (!m) return false;
     if (m[1]) {
       if (!RPC_ESCRITURA_LOCAL.has(m[2])) return false;
-      // Firmar fija la hora legal: solo en la PC cuando la base local ya usa la hora anclada que manda la puerta
-      // (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces va a la nube (Analizar, 29-oct-2026).
-      if (m[2] === "firmar_consulta" && !(await horaAncladaEnBase())) return false;
+      // Firmar y corregir una firmada fijan la hora legal: solo en la PC cuando la base local ya usa la hora anclada
+      // que manda la puerta (migración hora-anclada: public.ahora_de_la_puerta). Hasta entonces van a la nube
+      // (Analizar, 29-oct-2026). Sin ancla, la base local las niega con un aviso claro.
+      if ((m[2] === "firmar_consulta" || m[2] === "reabrir_consulta") && !(await horaAncladaEnBase())) return false;
       return true;
     }
     const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
@@ -697,8 +718,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       // Lista «Conflictos/Rechazados» de la bandeja y la decisión de quien la revisa (descartar o reintentar)
       if (ruta === "/zamorapp/bandeja" && req.method === "GET") {
         if (!bandeja) return responder(res, 200, { pendientes: 0, revisar: [] });
-        if (!usuarioDe(req)) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
-        return responder(res, 200, await bandeja.lista());
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        return responder(res, 200, await bandeja.lista({ uid: quien.uid, rol: quien.u.rol }));
       }
       if (ruta === "/zamorapp/bandeja/resolver" && req.method === "POST") {
         const quien = usuarioDe(req);
@@ -719,6 +741,22 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (bandeja && await nube.confirmar()) await bandeja.subir().catch(() => {});
         return responder(res, 200, await cola.despachar(quien.uid, json()?.ids));
       }
+      // Subir ya lo guardado en la PC, para lo que la nube necesita en el acto (p. ej. el enlace de WhatsApp apunta a
+      // un envío que debe existir allá). Sin internet responde 503 «requiere internet»; devuelve las filas que aún esperan.
+      if (ruta === "/zamorapp/subir-ahora" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { message: "Sesión vencida o no válida" });
+        if (!(await nube.confirmar())) return responder(res, 503, { code: "offline", message: "Requiere internet" });
+        const filas = (Array.isArray(json()?.filas) ? json().filas : []).map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
+        // Dos vueltas: si ya había una subida en curso (empezó antes de esta fila), la segunda la incluye
+        let esperando = [];
+        for (let i = 0; i < 2 && bandeja; i++) {
+          await bandeja.subir().catch(() => {});
+          esperando = await bandeja.esperando(filas);
+          if (!esperando.length) break;
+        }
+        return responder(res, 200, { esperando });
+      }
       if (ruta === "/zamorapp/inicio") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
         return res.end(PAGINA_INICIO.replace("__ORIGEN__", origen));
@@ -732,6 +770,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       }
       if (ruta === "/auth/v1/user" && req.method === "GET") {
         const quien = usuarioDe(req);
+        if (quien && segundoPasoSinNube(quien.u, quien.aal)) {
+          registro("[auth] sesión aal2 con la nube en aal1: se pide entrar de nuevo (clave y código)");
+          return errorAuth(res, 401, "La verificación en dos pasos venció en la nube. Vuelve a entrar.", "session_expired");
+        }
         return quien ? responder(res, 200, quien.u.user) : errorAuth(res, 401, "Sesión no válida", "bad_jwt");
       }
       const factores = /^\/auth\/v1\/factors(?:\/([\w-]+)(?:\/(challenge|verify))?)?$/.exec(ruta);
@@ -741,7 +783,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // Las sesiones viejas sin sid se cierran también con local: no se sabe de qué ventana son.
         const quien = usuarioDe(req);
         const scope = new URL(req.url, "http://x").searchParams.get("scope") || "global";
-        const sid = quien && verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto)?.session_id;
+        const sid = quien && verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora())?.session_id;
         let cerradas = 0;
         if (quien) for (const [t, r] of Object.entries(d().refrescos)) {
           if (r.uid !== quien.uid) continue;
@@ -782,6 +824,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
+        if (segundoPasoSinNube(quien.u, quien.aal)) return responder(res, 401, { code: "PGRST301", message: "La verificación en dos pasos venció en la nube. Vuelve a entrar.", details: null, hint: null });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
         if (ruta.startsWith("/storage/v1/") && !faltaSegundoPaso(quien) && await adjuntos.atender(req, res, ruta, crudo, quien, responder)) return;
         // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio

@@ -6,6 +6,8 @@ import pg from "pg";
 
 const LOTE = 200;
 const REINTENTOS = 5;
+const TABLA = /^(public|clinico)\.[a-z_0-9]+$/; // nombre de tabla seguro para armar la consulta
+const RESUELVEN = ["administrador", "gerente_medico"]; // además del autor
 
 export class Bandeja {
   constructor(estado, nube, motor, replica, registro = () => {}) {
@@ -13,10 +15,16 @@ export class Bandeja {
     this.ultimoError = null;
   }
 
-  // Una subida a la vez; si ya hay una en curso, se espera esa misma.
+  // Una subida a la vez. Si ya hay una en curso, se encadena UNA pasada más al terminar (la comparten todos los que
+  // pidieron mientras tanto): lo guardado después del último select de la pasada en curso también sube
+  // («Sincronizar ahora» no espera al ciclo de 30 s).
   subir() {
-    this.enCurso ??= this.#subir().finally(() => { this.enCurso = null; });
-    return this.enCurso;
+    if (!this.enCurso) {
+      this.enCurso = this.#subir().finally(() => { this.enCurso = null; });
+      return this.enCurso;
+    }
+    this.otraVez ??= this.enCurso.catch(() => {}).then(() => { this.otraVez = null; return this.subir(); });
+    return this.otraVez;
   }
 
   async resumen() {
@@ -28,6 +36,17 @@ export class Bandeja {
       for (const f of rows) r[f.estado === "pendiente" ? "pendientes" : f.estado === "conflicto" ? "conflictos" : "rechazados"] = f.n;
       return r;
     } catch { return { pendientes: 0, conflictos: 0, rechazados: 0 }; } finally { await c.end().catch(() => {}); }
+  }
+
+  // Filas que aún esperan en la bandeja (de esas `filas`): sirve para saber si una ya llegó a la nube
+  async esperando(filas) {
+    if (!filas.length) return [];
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query("select distinct fila_id::text as id from local.bandeja where fila_id::text = any($1)", [filas]);
+      return rows.map((r) => r.id);
+    } finally { await c.end().catch(() => {}); }
   }
 
   async #subir() {
@@ -48,15 +67,20 @@ export class Bandeja {
         // código, ese autor espera a entrar con internet y los demás siguen
         if (!autor || !(await this.nube.token(autor).catch(() => null))) { sinSesion.push({ autor, n }); continue; }
         for (;;) {
-          const { rows: lote } = await c.query(
+          const { rows: todos } = await c.query(
             "select id, tabla, fila_id, op, version_base, datos, hora_verificada from local.bandeja where estado = 'pendiente' and autor = $1 order by orden limit $2", [autor, LOTE]);
-          if (!lote.length) break;
+          if (!todos.length) break;
+          // Un solo cambio por fila en cada envío: el siguiente de la misma fila sale en el próximo, sobre la versión
+          // que deje este (si fueran juntos, el segundo llevaría una base ya vieja y sería un conflicto falso)
+          const vistas = new Set();
+          const lote = todos.filter((f) => { const k = `${f.tabla}:${f.fila_id}`; if (vistas.has(k)) return false; vistas.add(k); return true; });
           const r = await this.nube.rpc(autor, "aplicar_cambios", {
             p_equipo: eq.id, p_secreto: eq.secreto,
             p_lote: lote.map((f) => ({ id: f.id, tabla: f.tabla, fila_id: f.fila_id, op: f.op, version_base: f.version_base, datos: f.datos, hora_verificada: f.hora_verificada })),
           });
           const resultados = new Map((Array.isArray(r) ? r : []).map((x) => [x.id, x]));
           const reponer = [];
+          let quedaron = 0; // cambios que siguieron pendientes porque se guardó otra vez mientras subían
           await c.query("begin");
           try {
             for (const f of lote) {
@@ -66,8 +90,38 @@ export class Bandeja {
                 continue;
               }
               // «duplicado» solo llega por el mismo cambio o por una fila igual con el mismo id: no hay nada que conservar
-              if (x.estado === "aplicado" || x.estado === "duplicado") await c.query("delete from local.bandeja where id = $1", [f.id]);
-              else {
+              if (x.estado === "aplicado" || x.estado === "duplicado") {
+                // La versión que dejó este cambio es la base de los siguientes de esta PC en la misma fila (la copia
+                // aún no la bajó). Solo si es justo la siguiente de su base: así nadie más la tocó en medio y no se
+                // salta un conflicto de verdad. Si otro la cambió en medio, la base no avanza y la nube decide.
+                const propia = x.estado === "aplicado" && x.version != null &&
+                  (f.op === "I" ? Number(x.version) === 1 : f.version_base != null && Number(x.version) === Number(f.version_base) + 1);
+                if (f.op === "D") await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+                else if (propia) {
+                  await c.query("insert into local.version_nube (tabla, fila_id, version) values ($1, $2, $3) on conflict (tabla, fila_id) do update set version = greatest(local.version_nube.version, excluded.version)", [f.tabla, f.fila_id, x.version]);
+                }
+                // Si mientras subía se guardó otra vez la misma fila, ese guardado se fundió en este cambio: no se
+                // borra, queda pendiente con todo lo que falta subir. Lleva un id nuevo: la nube ya anotó este id como
+                // aplicado y lo volvería a contestar «duplicado» (se perdería lo fundido)
+                const { rowCount } = await c.query("delete from local.bandeja where id = $1 and datos is not distinct from $2::jsonb", [f.id, f.datos == null ? null : JSON.stringify(f.datos)]);
+                if (!rowCount) quedaron += 1;
+                if (!rowCount) await c.query("update local.bandeja set id = gen_random_uuid(), op = case when op = 'I' then 'U' else op end, version_base = case when $2::bigint is null then version_base else $2::bigint end, intentos = 0 where id = $1", [f.id, propia ? x.version : null]);
+                // La nube ya tenía esa fila con otro id (misma clave natural, p. ej. el informe de vigilancia de la empresa
+                // y el período hecho también en la web) y fundió ahí lo de esta PC: la copia local pasa a ese id, lo que
+                // quedó pendiente apunta a él (sobre la versión fundida) y la fila completa vuelve a bajar
+                if (x.fusionado_en && x.fusionado_en !== f.fila_id) {
+                  const tabla = f.tabla.split(".").map((p) => `"${p.replace(/"/g, '""')}"`).join(".");
+                  await c.query("set local session_replication_role = replica"); // sin disparadores: no vuelve a la bandeja
+                  await c.query(`delete from ${tabla} where id = $1`, [x.fusionado_en]);
+                  await c.query(`update ${tabla} set id = $2 where id = $1`, [f.fila_id, x.fusionado_en]);
+                  await c.query("set local session_replication_role = origin");
+                  await c.query(`update local.bandeja set fila_id = $3, version_base = case when estado = 'pendiente' then $4::bigint else version_base end,
+                                   datos = case when datos ? 'id' then jsonb_set(datos, '{id}', to_jsonb($5::text)) else datos end
+                                 where tabla = $1 and fila_id = $2`, [f.tabla, f.fila_id, x.fusionado_en, x.version, x.fusionado_en]);
+                  await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+                  reponer.push({ ...f, fila_id: x.fusionado_en });
+                }
+              } else {
                 await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
                 this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);
                 reponer.push(f);
@@ -80,7 +134,8 @@ export class Bandeja {
           for (const f of reponer) {
             try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id}: ${e.message}`); }
           }
-          if (lote.length < LOTE) break;
+          // Lo que se fundió mientras viajaba sube en esta misma pasada (sin esperar a otro guardado o al ciclo)
+          if (todos.length < LOTE && lote.length === todos.length && !quedaron) break;
         }
       }
       this.ultimoError = sinSesion.length
@@ -98,16 +153,55 @@ export class Bandeja {
     return subio;
   }
 
-  // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué
-  async lista() {
+  // Lista «Conflictos/Rechazados» (y lo pendiente) para la pantalla: qué, de quién, cuándo y por qué.
+  // Solo los casos que quien pregunta puede resolver: los suyos, y los de otros si es administrador o gerente médico
+  // Y su propia RLS le deja ver esa fila (un administrador sin acceso clínico no ve casos de clinico.*). La versión de
+  // la nube (la fila en conflicto ya volvió a bajar a la copia) se lee también con su RLS y solo con los campos del
+  // cambio. Sin `quien` es solo para uso interno de la puerta (nunca para responder a una ventana).
+  async lista(quien = null) {
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
       const { rows } = await c.query(
         "select id, tabla, fila_id, op, estado, motivo, autor, creado, intentos, datos from local.bandeja where estado <> 'pendiente' order by creado desc limit 500");
       const { rows: [p] } = await c.query("select count(*)::int as n from local.bandeja where estado = 'pendiente'");
-      return { pendientes: p.n, revisar: rows.map((f) => ({ ...f, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null })) };
+      const candidatos = rows.filter((f) => !quien || f.autor === quien.uid || RESUELVEN.includes(quien.rol));
+      const revisar = [];
+      await this.#comoUsuario(c, quien, async () => {
+        for (const f of candidatos) {
+          const fila = await this.#fila(c, f, Boolean(quien));
+          if (quien && f.autor !== quien.uid && !fila) continue;
+          const nube = fila ? Object.fromEntries(Object.keys(f.datos || {}).map((k) => [k, fila[k] ?? null])) : null;
+          revisar.push({ ...f, nube, autorNombre: this.estado.d.usuarios[f.autor]?.user?.email || null });
+        }
+      });
+      return { pendientes: p.n, revisar };
     } finally { await c.end().catch(() => {}); }
+  }
+
+  // Corre `fn` con la identidad y la RLS de quien pregunta (como lo haría PostgREST) y deshace todo al final
+  async #comoUsuario(c, quien, fn) {
+    if (!quien) return fn();
+    await c.query("begin");
+    try {
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: quien.uid, role: "authenticated", aal: quien.aal })]);
+      await c.query("set local role authenticated");
+      return await fn();
+    } finally { await c.query("rollback").catch(() => {}); }
+  }
+
+  // La fila tal como está en la copia; dentro de #comoUsuario, con su RLS (un error de permiso cuenta como «no la ve»)
+  async #fila(c, f, enTx = false) {
+    if (!TABLA.test(f.tabla)) return null;
+    if (enTx) await c.query("savepoint fila");
+    try {
+      const { rows: [n] } = await c.query(`select to_jsonb(t) as fila from ${f.tabla} t where id = $1`, [f.fila_id]);
+      if (enTx) await c.query("release savepoint fila");
+      return n?.fila ?? null;
+    } catch {
+      if (enTx) await c.query("rollback to savepoint fila").catch(() => {});
+      return null;
+    }
   }
 
   // Decisión de quien revisa un conflicto: «descartar» (la nube manda; la copia ya la muestra) o «reintentar»
@@ -119,10 +213,15 @@ export class Bandeja {
       await c.connect();
       const { rows: [f] } = await c.query("select id, tabla, fila_id, autor from local.bandeja where id = $1 and estado <> 'pendiente'", [id]);
       if (!f) return { error: "No existe ese cambio o ya está resuelto" };
-      if (f.autor !== quien.uid && !["administrador", "gerente_medico"].includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      if (f.autor !== quien.uid && !RESUELVEN.includes(quien.rol)) return { error: "Solo el autor, un administrador o el gerente médico lo resuelven" };
+      // De otro autor, solo si su propia RLS le deja ver esa fila (lo mismo que en la lista)
+      if (f.autor !== quien.uid && !(await this.#comoUsuario(c, quien, () => this.#fila(c, f, true)))) return { error: "No tienes acceso a ese registro" };
       if (accion === "descartar") { await c.query("delete from local.bandeja where id = $1", [id]); return { hecho: "descartado" }; }
       if (accion === "reintentar") {
-        const { rows: [v] } = await c.query(`select version from ${/^(public|clinico)\.[a-z_0-9]+$/.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
+        // Sobre la versión que la nube tiene ahora (la que la copia repuso tras el conflicto), nunca la de la copia,
+        // que el disparador local sube en cada guardado
+        const { rows: [n] } = await c.query("select version from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
+        const { rows: [v] } = n ? { rows: [n] } : await c.query(`select version from ${TABLA.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
         await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
         return { hecho: "pendiente" };
       }

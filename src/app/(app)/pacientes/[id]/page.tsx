@@ -134,7 +134,7 @@ export default async function FichaPaciente({ params }: Props) {
           {verAdjuntos && <TabsTrigger value="resultados">Resultados ({adjuntos.length})</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="resumen" className="mt-4 grid gap-4 lg:grid-cols-2">
+        <TabsContent value="resumen" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-base">Datos personales</CardTitle></CardHeader>
             <CardContent>
@@ -160,7 +160,7 @@ export default async function FichaPaciente({ params }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="laboral" className="mt-4 grid gap-4 lg:grid-cols-2">
+        <TabsContent value="laboral" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-base">Puesto actual</CardTitle></CardHeader>
             <CardContent>

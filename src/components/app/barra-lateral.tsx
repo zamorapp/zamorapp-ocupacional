@@ -1,9 +1,10 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, GitCompareArrows } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useCasosBandeja } from "@/components/app/aviso-conflictos";
 import { APP_NOMBRE } from "@/lib/config";
 import { buscarActualizacion, ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
@@ -15,6 +16,7 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
   const ruta = usePathname();
   const secciones = portal ? SECCIONES_EMPRESA : SECCIONES;
   const [aviso, setAviso] = useState("");
+  const casos = useCasosBandeja().length;
   return (
     <div className="flex h-full flex-col">
       <Link href={portal ? "/portal" : "/panel"} onClick={alNavegar} className="flex h-16 items-center gap-3 px-5">
@@ -44,6 +46,25 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
       </nav>
       {ESCRITORIO && (
         <div className="mx-3">
+          {!portal && (
+            <Link
+              href="/conflictos"
+              onClick={alNavegar}
+              aria-current={ruta === "/conflictos" ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                ruta === "/conflictos" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <GitCompareArrows className="size-[18px]" aria-hidden />
+              <span className="flex-1">Conflictos y rechazados</span>
+              {casos > 0 && (
+                <span className="rounded-full bg-aviso/15 px-1.5 text-xs font-semibold tabular-nums text-aviso-texto">
+                  {casos}<span className="sr-only"> por revisar</span>
+                </span>
+              )}
+            </Link>
+          )}
           <button
             type="button"
             data-boton="buscar-actualizacion"

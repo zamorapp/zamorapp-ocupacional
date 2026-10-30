@@ -10,6 +10,7 @@ import { crearClienteNavegador } from "@/lib/supabase/client";
 import { BotonEntrarHuella, OfrecerHuella } from "@/components/app/huella";
 import { puedeOfrecerHuella } from "@/lib/huella";
 import { correoParaEntrar, recordarUsuario, ultimoUsuario } from "@/lib/ingreso";
+import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
 
 export type Modo = "ingresar" | "registro" | "recuperar";
 
@@ -25,7 +26,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
   const campoCorreo = useRef<HTMLInputElement>(null);
   const campoClave = useRef<HTMLInputElement>(null);
 
-  // El escritorio recuerda el último usuario: queda escrito y el cursor pasa directo a la contraseña
+  // Se recuerda el último usuario (no la clave): queda escrito y el cursor pasa directo a la contraseña
   useEffect(() => {
     const ultimo = ultimoUsuario();
     if (ultimo && campoCorreo.current && !campoCorreo.current.value) {
@@ -53,6 +54,12 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
   // Lo que respondió el servicio, tal cual: aparece en letra pequeña bajo el aviso para que soporte sepa qué pasó
   function detalleTecnico(error: { message: string; code?: string; status?: number; name?: string }) {
     return `${[error.name, error.status, error.code].filter(Boolean).join(" · ")}: ${error.message}`;
+  }
+
+  // Clave equivocada (pedido de Cesar): este navegador deja de ser equipo de confianza y la próxima entrada pide el
+  // código. En el escritorio lo hace la puerta local.
+  function claveErrada(error: { status?: number; code?: string }) {
+    if (error.status === 400 && !["over_request_rate_limit", "session_expired", "user_banned", "offline", "offline_first_login"].includes(error.code ?? "")) olvidarEquipoNavegador();
   }
 
   async function enviar(e: React.FormEvent<HTMLFormElement>) {
@@ -103,12 +110,14 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         // «correo» puede ser el correo o el usuario corto
         const destino = await correoParaEntrar(supabase, correo, clave);
         if ("error" in destino) {
+          claveErrada(destino.error);
           setError(mensajeIngreso(destino.error));
           setDetalle(detalleTecnico(destino.error));
           return;
         }
         const { error } = await supabase.auth.signInWithPassword({ email: destino.correo, password: clave });
         if (error) {
+          claveErrada(error);
           setError(mensajeIngreso(error));
           setDetalle(detalleTecnico(error));
           return;

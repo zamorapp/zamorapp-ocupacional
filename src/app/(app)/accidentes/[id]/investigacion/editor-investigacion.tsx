@@ -89,7 +89,7 @@ export function EditorInvestigacion({ inicial, sugerencias, evento }: {
           <CardContent className="space-y-2">
             {inv.participantes.length === 0 && <p className="text-sm text-muted-foreground">Servicio de SST, Comité de Seguridad y Salud Laboral o, si no está constituido, los delegados de prevención (NT-02, 6.3).</p>}
             {inv.participantes.map((p, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,2fr)_auto]">
+              <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,2fr)_auto]">
                 <Input value={p.nombre} placeholder="Nombre y apellido" className="h-9" onChange={(x) => participante(i, { nombre: x.target.value })} />
                 <Input value={p.cedula} placeholder="Cédula" className="h-9" onChange={(x) => participante(i, { cedula: x.target.value })} />
                 <Input value={p.cargo} placeholder="Cargo" className="h-9" onChange={(x) => participante(i, { cargo: x.target.value })} />

@@ -14,9 +14,9 @@ export const PAGINA_INICIO = `<!doctype html>
   button:disabled { opacity:.6; cursor:wait; } .error { color:var(--no); margin-top:12px; min-height:1.5em; }
 </style></head>
 <body><main>
-  <h1>Preparar esta PC</h1>
-  <p id="texto">Entra con tu cuenta de administrador para registrar esta PC. Luego zamorApp copia todos los datos desde la nube.</p>
-  <form id="f">
+  <h1 id="titulo">Abriendo zamorApp…</h1>
+  <p id="texto">Un momento.</p>
+  <form id="f" hidden>
     <label for="email">Correo</label><input id="email" type="email" autocomplete="username" required>
     <label for="clave">Clave</label><input id="clave" type="password" autocomplete="current-password" required>
     <label for="nombre">Nombre de esta PC</label><input id="nombre" value="PC consultorio" required>
@@ -41,11 +41,20 @@ async function esperarCopia() {
     await new Promise((r) => setTimeout(r, 2000));
   }
 }
+// El formulario sale solo si esta PC de verdad no está registrada. Antes se veía en cada apertura mientras llegaba
+// el estado, parecía pedir el registro otra vez y Cesar entró con su clave ahí (29-oct): eso dejó la sesión de la
+// nube sin el segundo paso y la app cayó con «No se pudo cargar esta pantalla».
+function pedirRegistro(s) {
+  $("titulo").textContent = "Preparar esta PC";
+  $("texto").textContent = s && !s.enLinea ? "La primera vez hace falta internet para registrar esta PC y copiar los datos."
+    : "Entra con tu cuenta de administrador para registrar esta PC. Luego zamorApp copia todos los datos desde la nube.";
+  $("f").hidden = false;
+}
 estado().then((s) => {
   if (s.equipo && s.copiaCompleta) location.href = app;
   else if (s.equipo) esperarCopia();
-  else if (!s.enLinea) $("texto").textContent = "La primera vez hace falta internet para registrar esta PC y copiar los datos.";
-});
+  else pedirRegistro(s);
+}).catch(() => pedirRegistro(null));
 $("f").addEventListener("submit", async (ev) => {
   ev.preventDefault(); $("b").disabled = true; $("e").textContent = "";
   try {

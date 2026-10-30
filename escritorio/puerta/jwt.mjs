@@ -10,7 +10,9 @@ export function firmar(datos, secreto) {
   return `${cabecera}.${cuerpo}.${firma}`;
 }
 
-export function verificar(token, secreto, ahoraMs = Date.now()) {
+// ahoraMs: la hora anclada de la puerta (nube.reloj.ahora()), obligatoria: nunca la fecha de Windows
+export function verificar(token, secreto, ahoraMs) {
+  if (typeof ahoraMs !== "number") throw new Error("verificar() necesita la hora anclada");
   if (typeof token !== "string") return null;
   const [cabecera, cuerpo, firma] = token.split(".");
   if (!cabecera || !cuerpo || !firma) return null;
@@ -20,7 +22,9 @@ export function verificar(token, secreto, ahoraMs = Date.now()) {
   try {
     if (JSON.parse(Buffer.from(cabecera, "base64url")).alg !== "HS256") return null;
     const datos = JSON.parse(Buffer.from(cuerpo, "base64url"));
-    if (typeof datos.exp !== "number" || datos.exp * 1000 < ahoraMs) return null;
+    // zexp: el vencimiento con la hora anclada; exp lleva margen para PostgREST (reloj de Windows)
+    const vence = typeof datos.zexp === "number" ? datos.zexp : datos.exp;
+    if (typeof vence !== "number" || vence * 1000 < ahoraMs) return null;
     return datos;
   } catch {
     return null;

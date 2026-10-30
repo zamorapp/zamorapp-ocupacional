@@ -47,7 +47,7 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
           {lineas.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted-foreground">No hay atenciones pendientes de cobro.</p>}
           <ul className="divide-y">
             {lineas.map((l, i) => (
-              <li key={l.atencion.id} className="grid items-center gap-2 px-5 py-2 text-sm sm:grid-cols-[auto_minmax(0,2fr)_minmax(0,2fr)_7rem]">
+              <li key={l.atencion.id} className="grid grid-cols-1 items-center gap-2 px-5 py-2 text-sm sm:grid-cols-[auto_minmax(0,2fr)_minmax(0,2fr)_7rem]">
                 <input type="checkbox" checked={l.incluir} onChange={(e) => setLineas(lineas.map((x, j) => (j === i ? { ...x, incluir: e.target.checked } : x)))} className="size-4 accent-[var(--primary)]" />
                 <div>
                   <div className="font-medium">{l.atencion.paciente}</div>
@@ -77,7 +77,7 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
         <CardContent className="space-y-2 px-5 py-3">
           {extras.length === 0 && <p className="text-sm text-muted-foreground">Informes de vigilancia, asesorías por hora, evaluaciones de puestos, charlas…</p>}
           {extras.map((x, i) => (
-            <div key={i} className="grid items-center gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_6rem_7rem_auto]">
+            <div key={i} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_6rem_7rem_auto]">
               <select
                 value={x.servicioId ?? ""}
                 onChange={(e) => {

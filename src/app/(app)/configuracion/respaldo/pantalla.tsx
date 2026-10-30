@@ -402,7 +402,7 @@ function Restaurar({ estado, demo, alPreparar }: { estado: EstadoPuerta; demo: b
   const [preparando, setPreparando] = useState(false);
   const [res, setRes] = useState<Extract<Respuesta<unknown>, { ok: false }> | null>(null);
   // La más reciente primero, sin importar dónde esté
-  const copias = [...estado.copias].sort((a, b) => (/\d{8}-\d{4}/.exec(b.archivo)?.[0] ?? "").localeCompare(/\d{8}-\d{4}/.exec(a.archivo)?.[0] ?? ""));
+  const copias = [...estado.copias].sort((a, b) => (/\d{8}-\d{4}(\d{2})?/.exec(b.archivo)?.[0] ?? "").localeCompare(/\d{8}-\d{4}(\d{2})?/.exec(a.archivo)?.[0] ?? ""));
 
   async function preparar() {
     if (!elegida) return;
