@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { DatosConsulta, SignosVitales } from "@/lib/consultas-tipos";
 import type { Aptitud } from "@/lib/pacientes";
 import { aplicarDictado, faltantes, ordenarDictado, type Aceptado, type CampoTexto } from "@/lib/escriba";
-import { useDictado } from "./dictado";
+import { AyudaMicrofono, useDictado } from "./dictado";
 
 // «Dictar consulta»: el médico habla de corrido diciendo el nombre de cada sección y aquí se ve, en vivo, en qué
 // campo quedará cada cosa. Todo es editable y se puede desmarcar; «Pasar a la consulta» solo agrega (nunca borra)
@@ -171,6 +171,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                 <p className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
                   {error || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
                 </p>
+                <AyudaMicrofono error={error} />
               </div>
               {texto && !grabando && <Button type="button" size="sm" variant="ghost" className="text-alerta-texto hover:text-alerta-texto" onClick={borrar}>Borrar</Button>}
             </div>

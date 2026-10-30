@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { confirmar } from "@/components/app/confirmar";
 import { puntuar } from "@/lib/escriba";
+import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
 // Dictado por voz con el reconocimiento del navegador (Chrome y Edge; sin costo). Solo escribe en el campo:
 // nunca guarda. Un solo campo graba a la vez y el texto se inserta donde está el cursor.
@@ -46,6 +47,22 @@ async function aceptoPrivacidad() {
 
 // sinFin: el navegador corta el reconocimiento tras un silencio o un minuto; para dictar una consulta entera se
 // vuelve a encender solo hasta que el médico lo detiene
+// Sin permiso del micrófono: en el escritorio lo decide Windows (zamorApp ya lo concede por dentro); en el navegador,
+// el candado junto a la dirección
+const SIN_PERMISO = ESCRITORIO
+  ? "Windows no deja usar el micrófono. Activa «Acceso al micrófono» y «Permitir que las aplicaciones de escritorio accedan al micrófono», y vuelve a abrir zamorApp."
+  : "Permite el micrófono: toca el candado junto a la dirección › Micrófono › Permitir.";
+
+// Botón a Configuración › Privacidad › Micrófono de Windows (el escritorio abre solo esa página de Configuración)
+export function AyudaMicrofono({ error }: { error: string }) {
+  if (!ESCRITORIO || error !== SIN_PERMISO) return null;
+  return (
+    <button type="button" onClick={() => window.open("ms-settings:privacy-microphone")} className="mt-1 text-xs font-medium text-primary hover:underline">
+      Abrir la configuración del micrófono de Windows
+    </button>
+  );
+}
+
 export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false) {
   const soportado = useSyncExternalStore(() => () => {}, () => Boolean(constructor()), () => false);
   const grabando = useSyncExternalStore(suscribir, () => activo?.id === id, () => false);
@@ -77,7 +94,8 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
       if (e.error === "no-speech" || e.error === "aborted") return;
       // Un error real no se reintenta: onend apaga el micrófono
       rec.current = null;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") setError("Permite el micrófono para dictar.");
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") setError(SIN_PERMISO);
+      else if (e.error === "audio-capture") setError("No encuentro el micrófono: revisa que esté conectado y vuelve a intentar.");
       else if (e.error === "network") setError("El dictado necesita internet. En Windows también puedes usar Win + H.");
       else setError("No se pudo dictar. En Windows puedes usar Win + H.");
     };
@@ -147,6 +165,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
       <p aria-live="polite" className={cn("text-xs", (grabando || error) && "mt-1", error ? "text-destructive" : "text-alerta-texto")}>
         {grabando ? "Escuchando… toca para detener" : error}
       </p>
+      <AyudaMicrofono error={error} />
     </div>
   );
 }
