@@ -9,6 +9,7 @@ import { ahora } from "@/lib/fecha";
 export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
 export type AjustesDocumentos = {
+  dias_aviso_fecha_futura?: number; // consulta: avisar si la fecha de la evaluación pasa de N días hacia adelante
   palabra_aptitud?: string;
   titulo_constancia?: string;
   observacion_idoneidad?: string | null;

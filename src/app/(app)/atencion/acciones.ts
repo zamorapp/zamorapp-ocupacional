@@ -10,6 +10,8 @@ import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteEnEspera } from "@/lib/citas";
+import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
+import { hoyCaracas } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -130,6 +132,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
   const { error } = await supabase.rpc("guardar_consulta", {
     p_id: d.id,
     p_consulta: {
+      fecha: d.fecha,
       tipo: d.tipo,
       motivo_id: d.motivoId,
       motivo_texto: d.motivoTexto || null,
@@ -248,4 +251,34 @@ export async function duplicarConsulta(id: string): Promise<Resultado & { id?: s
   revalidatePath("/atencion");
   olvidar("");
   return { ok: true, mensaje: "Consulta duplicada.", id: data as string };
+}
+
+// Aviso (no bloquea) al mover la fecha de la evaluación: si la fecha anterior o la nueva cae en un trimestre cuyo
+// informe de vigilancia ya se envió a la empresa, ese informe ya no cuadra con la consulta.
+export async function avisoVigilanciaEntregada(empresaId: string | null, anterior: string, nueva: string): Promise<string | null> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId || !empresaId || anterior === nueva) return null;
+  try {
+    const supabase = await crearClienteServidor();
+    const [{ data: envios }, { data: empresa }] = await Promise.all([
+      supabase.from("envios").select("ruta, creado_en").eq("empresa_id", empresaId).eq("estado", "enviado")
+        .contains("documentos", ["vigilancia"]).not("ruta", "is", null).order("creado_en", { ascending: false }).limit(40),
+      supabase.from("empresas").select("mes_inicio_gestion").eq("id", empresaId).maybeSingle(),
+    ]);
+    for (const e of envios ?? []) {
+      const q = Object.fromEntries(new URLSearchParams((e.ruta as string).split("?")[1] ?? ""));
+      // Solo períodos fijos (trimestre, ventana o rango); «mes» o «año» relativos dependen del día en que se envió
+      if (!["t", "ventana", "rango"].includes(q.p)) continue;
+      const p = periodoDeConsulta(q, empresa?.mes_inicio_gestion ?? 1);
+      const dentro = (f: string) => p.desde <= f && f <= p.hasta;
+      if (dentro(anterior) === dentro(nueva)) continue;
+      const enviado = fechaCorta(hoyCaracas(e.creado_en as string));
+      return dentro(nueva)
+        ? `El informe de vigilancia ${p.etiqueta} ya se envió a la empresa el ${enviado}: esta consulta no aparece en él.`
+        : `Esta consulta salió en el informe de vigilancia ${p.etiqueta}, enviado a la empresa el ${enviado}: con la nueva fecha ya no cuadra.`;
+    }
+  } catch {
+    // Sin conexión o sin permiso para ver los envíos: no hay aviso
+  }
+  return null;
 }

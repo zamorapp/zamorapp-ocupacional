@@ -174,6 +174,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       // Centinela de plazos legales: además de la campana, avisar por correo al personal de salud
       centinela_correo: datos.get("centinela_correo") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
+      // Consulta: aviso (no bloquea) si la fecha de la evaluación pasa de N días hacia adelante
+      dias_aviso_fecha_futura: Math.min(3650, Math.max(1, Math.round(Number(texto(datos, "dias_aviso_fecha_futura") ?? 90)) || 90)),
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
       // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)
