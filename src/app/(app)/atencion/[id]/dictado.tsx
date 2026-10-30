@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { confirmar } from "@/components/app/confirmar";
 import { puntuar } from "@/lib/escriba";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
+import { dictadoWindows, enEscritorio } from "@/lib/escritorio";
 
 // Dictado por voz con el reconocimiento del navegador (Chrome y Edge; sin costo). Solo escribe en el campo:
 // nunca guarda. Un solo campo graba a la vez y el texto se inserta donde está el cursor.
@@ -80,8 +81,11 @@ export function AyudaMicrofono({ error }: { error: string }) {
   );
 }
 
-export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false) {
-  const soportado = useSyncExternalStore(() => () => {}, () => Boolean(constructor()), () => false);
+// En el escritorio el reconocimiento del navegador interno no funciona (falla sin abrir el micrófono): se usa el
+// dictado por voz de Windows, que escribe en el campo con el cursor (campo: id del textarea; por omisión, id)
+export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false, campo = id) {
+  const windows = useSyncExternalStore(() => () => {}, enEscritorio, () => false);
+  const soportado = useSyncExternalStore(() => () => {}, () => enEscritorio() || Boolean(constructor()), () => false);
   const grabando = useSyncExternalStore(suscribir, () => activo?.id === id, () => false);
   const [error, setError] = useState("");
   const rec = useRef<Reconocedor | null>(null);
@@ -94,7 +98,20 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
     if (activo?.id === id) { activo = null; avisar(); }
   };
 
+  const conWindows = async () => {
+    if (!(await aceptoPrivacidad())) return;
+    activo?.detener();
+    document.getElementById(campo)?.focus();
+    try {
+      await dictadoWindows();
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Pulsa Win + H con el cursor en el campo.");
+    }
+  };
+
   const iniciar = async () => {
+    if (windows) return conWindows();
     const C = constructor();
     if (!C) return;
     if (!(await aceptoPrivacidad())) return;
@@ -127,7 +144,7 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
 
   useEffect(() => () => { if (activo?.id === id) { rec.current?.stop(); activo = null; avisar(); } }, [id]);
 
-  return { soportado, grabando, error, alternar: () => (grabando ? detener() : void iniciar()) };
+  return { soportado, grabando, error, windows, alternar: () => (grabando ? detener() : void iniciar()) };
 }
 
 // Textarea con botón de micrófono dentro (abajo a la derecha)
@@ -139,7 +156,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
   const cursor = useRef<number | null>(null);
   useEffect(() => { valorRef.current = valor; }, [valor]);
 
-  const { soportado, grabando, error, alternar } = useDictado(id, (texto) => {
+  const { soportado, grabando, error, windows, alternar } = useDictado(id, (texto) => {
     const v = valorRef.current;
     const pos = Math.min(cursor.current ?? v.length, v.length);
     const insertado = puntuar(texto, v.slice(0, pos));
@@ -168,7 +185,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
             type="button"
             onClick={alternar}
             aria-label={grabando ? "Detener dictado" : "Dictar"}
-            title={grabando ? "Detener dictado" : "Dictar (el audio lo procesa Google o Microsoft). Di «punto», «coma», «punto y aparte»"}
+            title={windows ? "Dictar con Windows (Win + H): habla y Windows escribe aquí; el audio lo procesa Microsoft" : grabando ? "Detener dictado" : "Dictar (el audio lo procesa Google o Microsoft). Di «punto», «coma», «punto y aparte»"}
             className={cn(
               "absolute bottom-2 right-2 grid size-8 place-items-center rounded-full transition",
               grabando ? "animate-pulse bg-alerta text-white motion-reduce:animate-none" : "text-muted-foreground hover:bg-muted hover:text-foreground",

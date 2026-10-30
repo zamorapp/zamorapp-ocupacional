@@ -17,6 +17,7 @@ use tauri_plugin_updater::UpdaterExt;
 mod documentos;
 mod hello;
 mod microfono;
+mod voz;
 mod procesos;
 
 #[cfg(windows)]
@@ -762,7 +763,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(Procesos::default()))
         .manage(documentos::Guardados::default())
-        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf])
+        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf, voz::dictado_windows])
         .on_menu_event(|app, evento| match evento.id().0.as_str() {
             "sincronizar" => sincronizar_ahora(app.clone()),
             "actualizar" => buscar_actualizacion(app.clone(), true),
