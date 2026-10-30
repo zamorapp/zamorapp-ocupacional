@@ -15,7 +15,7 @@ import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
 export type Modo = "ingresar" | "registro" | "recuperar";
 
 // «siguiente»: a dónde volver después de entrar (p. ej. la invitación de RR. HH.); por defecto el panel
-export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean }) {
+export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false, nombreInicial }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean; nombreInicial?: string }) {
   const router = useRouter();
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [cargando, setCargando] = useState(false);
@@ -151,7 +151,9 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         <p className="text-sm text-muted-foreground">
           {modo === "recuperar"
             ? <>Si <b className="text-foreground">{confirmar}</b> tiene cuenta, le llegará un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.</>
-            : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
+            : siguiente.startsWith("/invitacion/")
+              ? <><b className="text-foreground">Paso 2:</b> abre el correo que enviamos a <b className="text-foreground">{confirmar}</b> y toca el botón de confirmación. Se abrirá de nuevo esta página para el paso 3. Si no lo ves en unos minutos, busca en Spam.</>
+              : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
         </p>
         <Button variant="outline" onClick={() => { setConfirmar(null); setModo("ingresar"); }}>Volver al ingreso</Button>
       </div>
@@ -167,7 +169,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
       {registro && (
         <div className="space-y-2">
           <Label htmlFor="nombre">Nombre completo</Label>
-          <Input id="nombre" name="nombre" autoComplete="name" required className="h-11" />
+          <Input id="nombre" name="nombre" autoComplete="name" defaultValue={nombreInicial} required className="h-11" />
         </div>
       )}
       <div className="space-y-2">
@@ -198,10 +200,12 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           name="clave"
           type="password"
           autoComplete={registro ? "new-password" : "current-password"}
+          aria-describedby={registro ? "clave-ayuda" : undefined}
           minLength={registro ? 8 : undefined}
           required={!modoDemo}
           className="h-11"
         />
+        {registro && <p id="clave-ayuda" className="text-xs text-muted-foreground">Mínimo 8 letras o números. Anótala: la usarás cada vez que entres.</p>}
       </div>}
       {error && (
         <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Link2, Link2Off, Loader2, MessageCircle } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
@@ -22,9 +23,9 @@ const ESTADO: Record<Invitacion["estado"], { t: string; c: string }> = {
 const dia = (iso: string) => new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
 // RR. HH. de cada empresa entra al portal con un enlace que el administrador manda por WhatsApp desde su teléfono
-export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; invitaciones: Invitacion[] }) {
+export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empresas: Empresa[]; invitaciones: Invitacion[]; empresaInicial?: string }) {
   const [estado, accion, creando] = useActionState(crearInvitacion, null);
-  const [empresaId, setEmpresaId] = useState(empresas[0]?.id ?? "");
+  const [empresaId, setEmpresaId] = useState(empresas.some((e) => e.id === empresaInicial) ? empresaInicial! : (empresas[0]?.id ?? ""));
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [copiado, setCopiado] = useState(false);
@@ -40,6 +41,11 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
       </CardHeader>
       <CardContent className="space-y-4">
         {sinInternet && <RequiereInternet texto="La invitación vive en la nube para que RR. HH. la abra desde su teléfono. Conéctate para crearla." />}
+        {empresas.length === 0 && (
+          <p className="text-sm">
+            Primero registra la empresa en <Link href="/empresas" className="font-medium text-primary underline-offset-4 hover:underline">Empresas</Link>; luego vuelve aquí para crear el enlace.
+          </p>
+        )}
         <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
           <CampoSelect id="empresa_id" etiqueta="Empresa *" value={empresaId} onChange={(e) => { setEmpresaId(e.target.value); setNombre(""); setTelefono(""); }}>
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}

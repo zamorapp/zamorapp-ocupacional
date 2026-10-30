@@ -277,7 +277,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     () => (plantillaInicial ? { nombre: plantillaInicial.nombre, antes: inicial, despues: precarga } : null));
 
   const bloqueado = d.estado !== "borrador";
-  const cambios = JSON.stringify(d) !== guardado;
+  const [fichaCambiada, setFichaCambiada] = useState(false); // Generales › Datos del trabajador con cambios sin guardar
+  const cambios = JSON.stringify(d) !== guardado || fichaCambiada;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
   // Cambiar la fecha de la evaluación corre con ella la vigencia de la aptitud y los valores por defecto del reposo
   // y la reubicación que aún no se usan (todo cuenta desde la evaluación)
@@ -411,11 +412,19 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     set("informeLibre", { titulo: d.informeLibre.titulo || it.nombre, dirigidoA: d.informeLibre.dirigidoA, cuerpo: llenarModelo(it.texto ?? "", campos) });
   };
 
+  // La ficha del trabajador (Generales) se guarda aparte; si quedó con cambios, va primero junto con la consulta
+  const fichaPendiente = useRef<(() => Promise<{ ok: boolean; mensaje: string } | null>) | null>(null);
+  const guardarConTodo = async (datos: DatosConsulta, cerrar: boolean) => {
+    const f = await fichaPendiente.current?.();
+    if (f && !f.ok) return { ...f, mensaje: `Datos del trabajador: ${f.mensaje}` };
+    return guardarConsulta(datos, cerrar);
+  };
+
   const duplicar = async () => {
     if (!(await confirmar({ titulo: "¿Duplicar la consulta?", texto: "Se crea un borrador nuevo con fecha de hoy y los mismos datos, sin firma ni cierre. No se copian los signos vitales, los resultados de exámenes, la aptitud ni el reposo.", accion: "Duplicar" }))) return;
     iniciar(async () => {
       if (cambios && !bloqueado) {
-        const g = await guardarConsulta(d, false);
+        const g = await guardarConTodo(d, false);
         if (!g.ok) return setAviso(g);
         setGuardado(JSON.stringify(d));
       }
@@ -428,7 +437,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const guardar = useCallback(
     (cerrar: boolean) =>
       iniciar(async () => {
-        const r = await guardarConsulta(d, cerrar);
+        const r = await guardarConTodo(d, cerrar);
         setAviso(r);
         if (r.ok) {
           const nuevo = cerrar ? { ...d, estado: "cerrada" as const } : d;
@@ -444,7 +453,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     if (!(await confirmar(confirmarFirma("Firmar e imprimir")))) return;
     iniciar(async () => {
       if (d.estado === "borrador") {
-        const g = await guardarConsulta(d, true);
+        const g = await guardarConTodo(d, true);
         if (!g.ok) return setAviso(g);
         setGuardado(JSON.stringify({ ...d, estado: "cerrada" }));
       }
@@ -458,7 +467,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
   // Menú Imprimir: con cambios sin guardar, guarda primero para que el documento salga con lo que se ve en pantalla
   const guardarAntes = async () => {
-    const r = await guardarConsulta(d, false);
+    const r = await guardarConTodo(d, false);
     setAviso(r);
     if (r.ok) setGuardado(JSON.stringify(d));
     return r.ok;
@@ -853,7 +862,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {/* Lo que se dejó para revisar hoy: ámbar y siempre primero */}
         <FranjaAlertas alertas={alertas} consultaId={d.id} hoy={hoy} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
           conResultado={new Set(d.paraclinicos.filter((p) => p.resultado?.trim() || p.estado).map((p) => p.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()))} />
-        <AlertasDejadas alertas={alertas} consultaId={d.id} />
+        <AlertasDejadas alertas={alertas} consultaId={d.id} puedeDescartar={puedeRevisarAlertas} onCambio={cambiarAlerta} />
         {/* Falta resultado: solo avisa, no impide cerrar ni firmar (nunca dos franjas ámbar juntas) */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
           <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm", alertaAmbar ? "bg-muted" : "bg-aviso/15")}>
@@ -924,7 +933,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
             <Seccion titulo="Datos del trabajador">
-              <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} />
+              <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} guardarPendiente={fichaPendiente} onPendiente={setFichaCambiada} />
             </Seccion>
 
             <Seccion titulo="Motivo">

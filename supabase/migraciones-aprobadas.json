@@ -1,11 +1,21 @@
 {
-  "etiqueta": "migraciones-20261030-7",
-  "aprobado": "si (Cesar 13:31, alertas por empresa)",
+  "etiqueta": "migraciones-20261030-9",
+  "aprobado": "sí de Cesar 19:36 (invitaciones), 19:52 (unir cargos), 19:53 (celular sin internet)",
   "migraciones": [
     {
-      "archivo": "20261030610000_avisos_por_empresa.sql",
-      "sha256": "468030b419a396727b36a494ef466a9de35eba62c0a27de46fbd6e247a77850c",
-      "descripcion": "Avisos por empresa y corregir o descartar alertas pendientes"
+      "archivo": "20261030630000_unir_cargos.sql",
+      "sha256": "551c86010dd07ee8f9a1e11f772608fff01a8ececcff0e822c919e2cdc92d08e",
+      "descripcion": "Unir cargos repetidos y quitar cargos"
+    },
+    {
+      "archivo": "20261030640000_purgar_invitaciones.sql",
+      "sha256": "ed2ec795ea3c5e114bef2df5afa74b1ac8a041836a1e80a9520fda2890da27fa",
+      "descripcion": "Limpieza automática de invitaciones vencidas"
+    },
+    {
+      "archivo": "20261030650000_equipo_desactivado.sql",
+      "sha256": "2fd011c2e91147ba8d5bdd7fe10765b6e608fba1a2b8ea1be43b5d93b04faa15",
+      "descripcion": "Equipo desactivado (celular sin internet)"
     }
   ]
 }
