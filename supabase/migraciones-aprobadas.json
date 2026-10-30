@@ -1,6 +1,6 @@
 {
   "etiqueta": "migraciones-20261030-2",
-  "aprobado": "Cesar: sí pendiente (lo pide el coordinador)",
+  "aprobado": "Cesar: «SI» 30-oct 07:15 UTC (480000, 490000 y 500000)",
   "migraciones": [
     {
       "archivo": "20261030480000_ficha_trabajador_consulta.sql",
