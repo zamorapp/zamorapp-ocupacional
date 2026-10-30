@@ -213,7 +213,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
               <div className="mb-1 font-medium">De la ficha de la empresa</div>
               <dl className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
                 {empresa.datos.map(([k, v]) => (
-                  <div key={k} className="flex min-w-0 gap-1.5"><dt className="shrink-0 text-muted-foreground">{k}:</dt><dd className={v ? "truncate" : "font-medium text-destructive"}>{v || "Falta"}</dd></div>
+                  <div key={k} className="flex min-w-0 gap-1.5"><dt className="shrink-0 text-muted-foreground">{k}:</dt><dd className={v ? "truncate" : "font-medium text-alerta-texto"}>{v || "Falta"}</dd></div>
                 ))}
               </dl>
               <Link href={`/empresas/${empresa.id}`} className="mt-1 inline-block text-primary underline-offset-2 hover:underline">Corregir en la ficha de la empresa</Link>
