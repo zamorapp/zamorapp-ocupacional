@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { AUTORIDAD, conNombre, CUSTODIO, datosPortada, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
 import { fechaCorta as corta, type Periodo } from "@/lib/periodos";
 import { Hoja, Marca } from "../componentes";
@@ -28,15 +29,24 @@ function FilasFirma({ rol, personas }: { rol: string; personas: Persona[] }) {
           </>
         ) : <span className="text-[10px] italic text-doc-tenue"><span className="print:hidden">Sin datos: complétalo en Reportes › Redacción del informe › Portada y firmantes</span></span>}
       </td>
-      <td className={`${td} h-12 w-[22%]`} />
-      <td className={`${td} w-[13%]`} />
+      <td className={`${td} h-[18mm] w-[30%]`} />
+      <td className={`${td} w-[11%]`} />
     </tr>
   ));
 }
 
+type Dato = [string, string | null];
+// Razón social, actividad, dirección y centro de trabajo a lo ancho; RIF con NIL y teléfonos con trabajadores, en pareja
+function filasFicha(ficha: Dato[], centro: string | null): Dato[][] {
+  const d = Object.fromEntries(ficha) as Record<string, string | null>;
+  const par = (k: string): Dato => [k, d[k] ?? null];
+  return [[par("Razón social")], [par("RIF"), par("NIL")], [par("Actividad económica")], [par("Dirección")], [["Centro de trabajo", centro]], [par("Teléfonos"), par("N.º de trabajadores")]];
+}
+
 // Portada del informe de vigilancia: identificación de la empresa (de su ficha) y control del documento (de Reportes)
-export function Portada({ logoEmpresa, empresa, firmantes, guardadoEn, titulo, subtitulo, periodo, poblacion, org }: {
+export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, guardadoEn, titulo, subtitulo, periodo, poblacion, org }: {
   logoEmpresa: string | null;
+  orgLogo: string | null;
   empresa: FichaEmpresa | null;
   firmantes: Firmantes;
   guardadoEn: string | null;
@@ -51,10 +61,11 @@ export function Portada({ logoEmpresa, empresa, firmantes, guardadoEn, titulo, s
   const pob = poblacion.total;
   return (
     <Hoja>
-      <header className="flex items-start justify-between gap-6">
+      <header className="flex items-center justify-between gap-6">
+        {/* Logo de la empresa; sin él, el de la organización que emite (o sus iniciales) */}
         <div className="flex min-w-0 items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {logoEmpresa ? <img src={logoEmpresa} alt="" className="h-20 max-w-48 object-contain" /> : <Marca logo={null} nombre={empresa?.razonSocial ?? "Consolidado"} />}
+          {logoEmpresa ? <img src={logoEmpresa} alt="" className="h-16 max-w-44 object-contain" /> : <Marca logo={orgLogo} nombre={org ?? ""} />}
         </div>
         <div className="text-right">
           <div className="text-[9px] font-bold uppercase tracking-[.16em] text-doc-tenue">Fecha de emisión</div>
@@ -62,34 +73,41 @@ export function Portada({ logoEmpresa, empresa, firmantes, guardadoEn, titulo, s
         </div>
       </header>
 
-      <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-doc-linea bg-doc-linea text-[11px]">
-        {([["Autoridad", firmantes.autoridad || AUTORIDAD], ["Custodio", firmantes.custodio || CUSTODIO]] as const).map(([k, x]) => (
+      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-doc-linea bg-doc-linea text-[11px]">
+        {([["Autoridad que aprueba", firmantes.autoridad || AUTORIDAD], ["Custodio del documento", firmantes.custodio || CUSTODIO]] as const).map(([k, x]) => (
           <div key={k} className="bg-white px-3.5 py-2"><span className="mr-2 text-[9px] font-bold uppercase tracking-[.14em] text-doc-tenue">{k}</span><span className="font-semibold">{x}</span></div>
         ))}
       </div>
 
-      <div className="relative mt-4 overflow-hidden rounded-[16px] bg-doc-acento px-7 py-6 text-white">
-        <div aria-hidden className="absolute -top-16 -right-10 size-56 rounded-full bg-white/10" />
-        <div aria-hidden className="absolute -bottom-20 right-24 size-40 rounded-full bg-black/10" />
-        <div className="relative">
-          <div className="text-[10px] font-bold uppercase tracking-[.22em] opacity-85">Sistema de vigilancia epidemiológica ocupacional</div>
+      {/* Sin fondos sólidos: rinde el tóner y se lee igual en blanco y negro */}
+      <div className="mt-4 rounded-b-[12px] border-t-4 border-doc-acento bg-doc-suave/45 px-6 py-4 text-doc-acento">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[.22em] text-doc-tenue">Sistema de vigilancia epidemiológica ocupacional</div>
           <h1 className="mt-2 max-w-[80%] text-[25px] font-extrabold leading-[1.12] tracking-tight">Salud de los trabajadores</h1>
-          <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-1">
+          <div className="mt-2.5 flex flex-wrap items-end gap-x-6 gap-y-1">
             <div className="text-[19px] font-extrabold first-letter:uppercase">{titulo}</div>
-            {subtitulo && <div className="text-[12px] font-semibold uppercase tracking-[.08em] opacity-90">{subtitulo}</div>}
-            <div className="font-cifra text-[11px] opacity-85">{corta(periodo.desde)} – {corta(periodo.hasta)}</div>
+            {subtitulo && <div className="text-[12px] font-semibold uppercase tracking-[.08em]">{subtitulo}</div>}
+            <div className="text-[11px] tabular-nums text-doc-tenue">{corta(periodo.desde)} – {corta(periodo.hasta)}</div>
+          </div>
+          <div className="mt-1.5 text-[9.5px] text-doc-tenue">
+            Informe trimestral según el artículo 34 del Reglamento Parcial de la LOPCYMAT{org ? ` · ${org}` : ""}
           </div>
         </div>
       </div>
 
-      <h2 className="mt-6 mb-2 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Identificación de la empresa</h2>
+      <h2 className="mt-4 mb-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Identificación de la empresa</h2>
       {ficha ? (
         <table className="w-full overflow-hidden rounded-[10px] text-[11px] [border-collapse:separate] [border-spacing:0] border border-doc-linea">
           <tbody>
-            {[...ficha.slice(0, 5), ["Centro de trabajo", firmantes.centro_trabajo || empresa?.direccion || null] as [string, string | null], ...ficha.slice(5)].map(([k, x], i) => (
-              <tr key={k} className={i % 2 ? "bg-doc-suave/50" : ""}>
-                <th scope="row" className={`w-[27%] px-3 py-1.5 text-left align-top text-[9.5px] font-bold uppercase tracking-[.1em] text-doc-tenue ${i ? "border-t border-doc-linea" : ""}`}>{k}</th>
-                <td className={`px-3 py-1.5 ${i ? "border-t border-doc-linea font-medium" : "font-bold"}`}>{x || <Falta />}</td>
+            {/* Pares cortos en la misma fila: con firmas de 18 mm la portada tiene que caber en Carta y en A4 */}
+            {filasFicha(ficha, firmantes.centro_trabajo || empresa?.direccion || null).map((fila, i) => (
+              <tr key={i} className={i % 2 ? "bg-doc-suave/50" : ""}>
+                {fila.map(([k, x], j) => (
+                  <Fragment key={k}>
+                    <th scope="row" className={`w-[19%] px-3 py-1 text-left align-top text-[9px] font-bold uppercase tracking-[.1em] text-doc-tenue ${i ? "border-t border-doc-linea" : ""} ${j ? "border-l border-doc-linea" : ""}`}>{k}</th>
+                    <td colSpan={fila.length === 1 ? 3 : 1} className={`px-3 py-1 tabular-nums ${i ? "border-t border-doc-linea font-medium" : "font-bold"}`}>{x || <Falta />}</td>
+                  </Fragment>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -98,7 +116,7 @@ export function Portada({ logoEmpresa, empresa, firmantes, guardadoEn, titulo, s
         <p className="rounded-[10px] border border-doc-linea px-3 py-2 text-[11px]">Consolidado de todas las empresas clientes · {num(pob)} trabajadores (mujeres {num(poblacion.femenino)} · hombres {num(poblacion.masculino)})</p>
       )}
 
-      <h2 className="mt-6 mb-2 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Elaboración y aprobación</h2>
+      <h2 className="mt-4 mb-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Elaboración y aprobación</h2>
       <table className="w-full border-collapse text-[11px]">
         <thead>
           <tr className="text-left text-[9px] uppercase tracking-[.12em] text-doc-tenue">
@@ -116,10 +134,6 @@ export function Portada({ logoEmpresa, empresa, firmantes, guardadoEn, titulo, s
         </tbody>
       </table>
 
-      <footer className="mt-auto flex items-end justify-between gap-4 border-t border-doc-linea pt-3 text-[9.5px] text-doc-tenue">
-        <span>Informe trimestral según el artículo 34 del Reglamento Parcial de la LOPCYMAT{org ? ` · ${org}` : ""}</span>
-        <span className="shrink-0">Documento confidencial de salud ocupacional</span>
-      </footer>
     </Hoja>
   );
 }

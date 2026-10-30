@@ -205,6 +205,7 @@ export default async function Vigilancia({ searchParams }: Props) {
 
       <Portada
         logoEmpresa={logoEmpresa}
+        orgLogo={org?.logo ?? null}
         empresa={empresa}
         firmantes={firmantes}
         guardadoEn={v.informe?.actualizado_en ?? null}
