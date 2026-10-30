@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { invalidarEmpresas } from "@/lib/empresas";
+import { AVISOS_EMPRESA } from "@/lib/empresas-avisos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -50,6 +51,9 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     mes_inicio_gestion: Math.min(12, Math.max(1, Number(datos.get("mes_inicio_gestion")) || 1)),
     periodicidad_meses: Math.min(60, Math.max(1, Number(datos.get("periodicidad_meses")) || 12)),
     dias_aviso_examen: Math.min(180, Math.max(0, Number(datos.get("dias_aviso_examen") ?? 30) || 0)),
+    // Casilla marcada = aviso encendido; se guardan los apagados
+    avisos_apagados: AVISOS_EMPRESA.map((a) => a.clave).filter((k) => datos.get(`aviso_${k}`) !== "on"),
+    ignorar_alerta_legal: datos.get("aviso_datos_legales") !== "on",
   };
 
   const supabase = await crearClienteServidor();

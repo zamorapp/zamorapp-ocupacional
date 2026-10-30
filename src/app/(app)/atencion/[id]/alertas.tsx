@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BellRing, Check, FlaskConical, Loader2, Plus, X } from "lucide-react";
+import { BellRing, Check, FlaskConical, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AlertaClinica, ParaclinicoPedido } from "@/lib/alertas-tipos";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
-import { crearAlerta, revisarAlerta } from "../acciones";
+import { confirmar } from "@/components/app/confirmar";
+import { corregirAlerta, crearAlerta, revisarAlerta } from "../acciones";
 
 const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
 const plano = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
@@ -52,6 +53,7 @@ function Alerta({ a, consultaId, hoy, puedeRevisar, conResultado, onCambio }: {
 }) {
   const [verTodo, setVerTodo] = useState(false);
   const [abierta, setAbierta] = useState(false);
+  const [corrigiendo, setCorrigiendo] = useState(false);
   const [respuesta, setRespuesta] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -112,18 +114,27 @@ function Alerta({ a, consultaId, hoy, puedeRevisar, conResultado, onCambio }: {
         )}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>
-      {!abierta && (puedeRevisar ? (
-        <Button type="button" size="sm" variant="outline" className="h-7 shrink-0 bg-background" onClick={() => setAbierta(true)}><Check /> Revisado</Button>
-      ) : (
-        <span className="shrink-0 text-xs text-muted-foreground">La revisa el médico</span>
-      ))}
+      {!abierta && (
+        <div className="flex shrink-0 items-center gap-1">
+          <Button type="button" size="icon" variant="ghost" className="size-7" aria-label="Corregir la alerta" title="Corregir texto o fecha" onClick={() => setCorrigiendo(true)}><Pencil /></Button>
+          {puedeRevisar ? (
+            <Button type="button" size="sm" variant="outline" className="h-7 bg-background" onClick={() => setAbierta(true)}><Check /> Revisado</Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">La revisa el médico</span>
+          )}
+        </div>
+      )}
+      {corrigiendo && <CorregirAlerta alerta={a} onCerrar={() => setCorrigiendo(false)} puedeDescartar={puedeRevisar} consultaId={consultaId} onGuardada={onCambio} />}
     </div>
   );
 }
 
 // Las que se dejaron en ESTA consulta para la próxima: línea gris, para saber que quedó guardada
-export function AlertasDejadas({ alertas, consultaId }: { alertas: AlertaClinica[]; consultaId: string }) {
-  const dejadas = alertas.filter((a) => a.consultaId === consultaId);
+export function AlertasDejadas({ alertas, consultaId, puedeDescartar, onCambio }: {
+  alertas: AlertaClinica[]; consultaId: string; puedeDescartar: boolean; onCambio: (a: AlertaClinica) => void;
+}) {
+  const [corrigiendo, setCorrigiendo] = useState<AlertaClinica | null>(null);
+  const dejadas = alertas.filter((a) => a.consultaId === consultaId && a.estado === "pendiente");
   if (!dejadas.length) return null;
   return (
     <div className="mt-2 space-y-1">
@@ -134,8 +145,10 @@ export function AlertasDejadas({ alertas, consultaId }: { alertas: AlertaClinica
             Para la próxima evaluación: {[a.texto, a.paraclinicos.length ? `pedir ${a.paraclinicos.map((p) => p.nombre).join(", ")}` : ""].filter(Boolean).join(" · ")}
             {a.revisarAntes && ` · antes del ${fechaCorta(a.revisarAntes)}`}
           </span>
+          <button type="button" className="shrink-0 font-medium text-primary hover:underline" onClick={() => setCorrigiendo(a)}>Corregir</button>
         </p>
       ))}
+      {corrigiendo && <CorregirAlerta alerta={corrigiendo} onCerrar={() => setCorrigiendo(null)} puedeDescartar={puedeDescartar} consultaId={null} onGuardada={onCambio} />}
     </div>
   );
 }
@@ -226,6 +239,83 @@ export function NuevaAlerta({ abierta, onCerrar, consultaId, paraclinicos, hoy, 
           <Button type="button" disabled={guardando || (!texto.trim() && !elegidos.length)} onClick={guardar}>
             {guardando ? <Loader2 className="animate-spin" /> : <BellRing />} Guardar alerta
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Corregir una alerta pendiente: texto y «revisar antes del» (los paraclínicos pedidos no cambian). El médico también
+// puede descartarla aquí, fuera de una consulta (p. ej. desde la ficha del paciente).
+// Se monta solo mientras está abierta: cada vez arranca con lo guardado.
+export function CorregirAlerta({ alerta, onCerrar, puedeDescartar, consultaId = null, onGuardada }: {
+  alerta: AlertaClinica;
+  onCerrar: () => void;
+  puedeDescartar: boolean;
+  consultaId?: string | null;
+  onGuardada: (a: AlertaClinica) => void;
+}) {
+  const [texto, setTexto] = useState(alerta.texto);
+  const [fecha, setFecha] = useState(alerta.revisarAntes ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  const sinCambios = texto.trim() === alerta.texto && (fecha || null) === alerta.revisarAntes;
+
+  async function guardar() {
+    setGuardando(true);
+    setError("");
+    const r = await corregirAlerta(alerta.id, texto, fecha || null);
+    setGuardando(false);
+    if (!r.ok) return setError(r.mensaje);
+    onGuardada({ ...alerta, texto: texto.trim(), revisarAntes: fecha || null });
+    onCerrar();
+  }
+
+  async function descartar() {
+    if (!(await confirmar({ titulo: "¿Descartar esta alerta?", texto: "Deja de salir en la consulta y en la campana. No se puede volver a abrir.", accion: "Descartar", peligro: true }))) return;
+    setGuardando(true);
+    setError("");
+    const r = await revisarAlerta(alerta.id, consultaId, "Descartada al corregir", true);
+    setGuardando(false);
+    if (!r.ok) return setError(r.mensaje);
+    onGuardada({ ...alerta, estado: "descartada", respuesta: "Descartada al corregir", revisadaEnConsulta: consultaId, automatica: false });
+    onCerrar();
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onCerrar()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="text-left">
+          <DialogTitle className="flex items-center gap-2"><Pencil className="size-5 text-aviso-texto" aria-hidden /> Corregir alerta</DialogTitle>
+          <DialogDescription>Nota del {fechaCorta(alerta.creadaEl)}{alerta.autor && ` · ${alerta.autor}`}. La corrige quien la dejó o el médico; queda registro de lo anterior.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Qué revisar</span>
+            <Textarea value={texto} maxLength={500} rows={3} autoFocus onChange={(e) => setTexto(e.target.value)} />
+          </label>
+          {alerta.paraclinicos.length > 0 && (
+            <p className="text-xs text-muted-foreground">Paraclínicos pedidos: {alerta.paraclinicos.map((p) => p.nombre).join(", ")}</p>
+          )}
+          <div className="space-y-1 text-sm">
+            <label htmlFor={`revisar-${alerta.id}`} className="font-medium">Revisar antes del <span className="font-normal text-muted-foreground">(opcional: avisa en la campana)</span></label>
+            <div className="flex items-center gap-2">
+              <Input id={`revisar-${alerta.id}`} type="date" value={fecha} max="2099-12-31" onChange={(e) => setFecha(e.target.value)} className="w-full sm:w-48" />
+              {fecha && <Button type="button" size="sm" variant="ghost" className="h-8 text-muted-foreground" onClick={() => setFecha("")}>Quitar fecha</Button>}
+            </div>
+          </div>
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {puedeDescartar ? (
+            <Button type="button" variant="ghost" className="text-alerta-texto hover:bg-alerta/10 hover:text-alerta-texto" disabled={guardando} onClick={descartar}>Descartar alerta</Button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onCerrar}>Cancelar</Button>
+            <Button type="button" disabled={guardando || sinCambios || (!texto.trim() && !alerta.paraclinicos.length)} onClick={guardar}>
+              {guardando ? <Loader2 className="animate-spin" /> : <Check />} Guardar
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

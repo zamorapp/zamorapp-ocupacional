@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Empresa } from "@/lib/empresas";
+import { AVISOS_EMPRESA } from "@/lib/empresas-avisos";
 import { MESES } from "@/lib/periodos";
 import { guardarEmpresa } from "./acciones";
 
@@ -79,6 +80,22 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
           <Campo id="periodicidad_meses" etiqueta="Examen periódico cada (meses)" type="number" min={1} max={60} defaultValue={e?.periodicidadMeses ?? 12} />
           <Campo id="dias_aviso_examen" etiqueta="Avisar antes del vencimiento (días)" type="number" min={0} max={180} defaultValue={e?.diasAvisoExamen ?? 30} />
           <p className="-mt-2 text-xs text-muted-foreground sm:col-span-2">Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esta periodicidad. El inicio y el portal avisan con la anticipación indicada.</p>
+
+          {/* Avisos por empresa: con las que se trabaja poco se apagan; los reportes y la ficha siguen mostrando todo */}
+          <fieldset className="space-y-2 rounded-lg border px-3 py-2.5 sm:col-span-2">
+            <legend className="px-1 text-sm font-medium">Avisos de esta empresa</legend>
+            {AVISOS_EMPRESA.map((a) => (
+              <label key={a.clave} className="flex items-start gap-2.5 text-sm">
+                <input type="checkbox" name={`aviso_${a.clave}`} defaultChecked={!e?.avisosApagados.includes(a.clave)} className="mt-0.5 size-4 accent-[var(--primary)]" />
+                <span>{a.nombre} <span className="text-xs text-muted-foreground">· {a.detalle}</span></span>
+              </label>
+            ))}
+            <label className="flex items-start gap-2.5 text-sm">
+              <input type="checkbox" name="aviso_datos_legales" defaultChecked={!e?.ignorarAlertaLegal} className="mt-0.5 size-4 accent-[var(--primary)]" />
+              <span>Datos legales incompletos <span className="text-xs text-muted-foreground">· En Inicio y en Empresas</span></span>
+            </label>
+            <p className="text-xs text-muted-foreground">Desmarca los que no quieras recibir. Los reportes y la ficha del trabajador siguen mostrando todo, y los plazos legales de accidentes siempre avisan.</p>
+          </fieldset>
 
           <div className="sm:col-span-2">
             <Label htmlFor="dependencias" className="mb-1.5">{e ? "Agregar dependencias o departamentos" : "Dependencias o departamentos"}</Label>
