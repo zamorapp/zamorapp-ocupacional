@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "El celular trabaja sin internet: en la app del teléfono abre «Sin internet» (o zamorapp-ocupacional.vercel.app/movil), prepáralo una vez con señal y un PIN, y luego busca pacientes, registra nuevos y anota consultas y reposos sin conexión. Se sincroniza solo con la nube y la PC", tema: "celular-sin-internet" },
   { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
@@ -119,6 +120,27 @@ export const MANUAL: TemaManual[] = [
     ],
     consejos: [
       "La primera vez que abres el escritorio en una PC hace falta internet: se registra la PC y se copian los datos de la nube, con su barra de avance. Después abre al instante.",
+    ],
+  },
+  {
+    id: "celular-sin-internet",
+    titulo: "Trabajar sin internet en el celular",
+    para: "servicio",
+    resumen: "La app del teléfono (Android con Chrome) guarda una copia cifrada de tus pacientes para atender sin señal. Lo que anotas sube solo a la nube, y de ahí a la PC, cuando vuelve la señal.",
+    pasos: [
+      "La primera vez, con señal: abre zamorApp en el teléfono, mantén presionado el ícono y elige «Sin internet» (o entra en zamorapp-ocupacional.vercel.app/movil). Toca «Preparar este teléfono» y crea un PIN de 6 a 12 números. El teléfono se registra en Configuración › Equipos y copia tus pacientes (tarda unos minutos).",
+      "Desde ahí, sin señal: abre zamorApp y, si no hay conexión, entra directo a la pantalla sin internet. Escribe tu PIN.",
+      "Busca por cédula o nombre. En la ficha ves las consultas, diagnósticos y reposos anteriores, y «Nueva consulta».",
+      "En la consulta: motivo, signos vitales, examen físico (ya viene en normal: solo anotas los hallazgos), diagnósticos (busca por código o palabras; la estrella marca el principal), conducta y reposo. «Guardar» la deja en borrador; «Cerrar consulta» la deja lista para firmar.",
+      "«Paciente nuevo» lo registra con su número de historia definitivo (el teléfono tiene un grupo de números reservado). Si se acabaron los números, hace falta señal una vez.",
+      "Arriba ves el estado: «Sin señal · 3 por subir» o «Con señal · todo subido». Tócalo para ver el detalle y «Sincronizar ahora». Con señal se sincroniza solo cada minuto.",
+      "Si la PC o la web cambiaron lo mismo mientras estabas sin señal, aparece «por revisar»: ves lo del teléfono al lado de lo de la nube y eliges «Quedarme con la nube» o «Subir lo del teléfono». Nada se borra solo.",
+    ],
+    consejos: [
+      "Todavía NO se puede sin señal: firmar (se firma con un toque al volver la señal, desde la app completa o la PC), imprimir o sacar PDF, corregir consultas firmadas, reportes, vigilancia, facturación, envíos a RR. HH. ni fotos o escaneados.",
+      "Seguridad: todo va cifrado con tu PIN; se bloquea al minuto en segundo plano o a los 5 minutos sin uso; 10 PIN errados borran la copia del teléfono; si pasan 7 días sin señal, pide conectarse antes de mostrar datos (lo pendiente no se pierde).",
+      "Si pierdes el teléfono: Configuración › Equipos › «Revocar y borrar» en ese celular. En cuanto tenga señal, borra su copia. Lo que no había subido se pierde.",
+      "Si olvidas el PIN, la copia del teléfono no se puede abrir: después de 10 intentos se borra y se prepara de nuevo. Lo que ya subió está en la nube.",
     ],
   },
   {
