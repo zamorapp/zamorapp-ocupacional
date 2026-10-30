@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { estaEnMain, refsDeEtiquetas, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
+import { estaEnMain, lineaBase, refsDeEtiquetas, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
 
 const sql = "select 1;";
 const m = (extra = {}) => JSON.stringify({ etiqueta: "migraciones-20261030-1", aprobado: "Cesar", migraciones: [
@@ -62,4 +62,15 @@ test("una pendiente anterior a la última aplicada aborta", () => {
   assert.throws(() => revisarOrden(l, ["20261030410000", "20261030400000"]), /anterior a la última aplicada \(20261030410000\)/);
   revisarOrden([{ archivo: "20261030420000_x.sql" }], ["20261030410000"]);
   revisarOrden(l, []);
+});
+
+test("primera vez sin registro: lo anterior del commit se anota como hecho y solo se aplica lo del manifiesto", () => {
+  const man = leerManifiesto(m(), "migraciones-20261030-1");
+  const base = lineaBase(["20261029400000_x.sql", "README.md", "20261030410000_a.sql", "20261030420000_b.sql", "20261028390000_y.sql"], man);
+  assert.deepEqual(base, [{ version: "20261028390000", nombre: "y" }, { version: "20261029400000", nombre: "x" }]);
+  const aplicadas = base.map((x) => x.version);
+  assert.deepEqual(pendientes(man, aplicadas).map((x) => x.archivo), ["20261030410000_a.sql", "20261030420000_b.sql"]);
+  assert.doesNotThrow(() => revisarOrden(pendientes(man, aplicadas), aplicadas));
+  // ya anotadas en una segunda corrida: no se repite nada (lo que pasó el 30-oct con el aplicador viejo)
+  assert.deepEqual(pendientes(man, [...aplicadas, "20261030410000", "20261030420000"]), []);
 });

@@ -6,7 +6,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { MANIFIESTO, estaEnMain, leerManifiesto, pendientes, refsDeEtiquetas, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
+import { MANIFIESTO, estaEnMain, leerManifiesto, lineaBase, pendientes, refsDeEtiquetas, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
 
 const REPO_GITHUB = "zamorapp/zamorapp-ocupacional";
 const repo = process.cwd();
@@ -42,13 +42,20 @@ console.log(`${hora()} fuente aprobada: ${etiqueta} (${commit.slice(0, 7)}), ${m
 const c = new pg.Client(configuracion(process.env.DATABASE_URL));
 await c.connect();
 try {
+  // Registro de lo aplicado: sin él no se sabe qué falta y se volvería a aplicar todo (pasó el 30-oct con la 410000)
   const { rows: [t] } = await c.query("select to_regclass('supabase_migrations.schema_migrations') is not null as hay");
-  if (!t.hay) throw new Error("la base no tiene supabase_migrations.schema_migrations: no se puede saber qué falta (no se aplicó nada)");
-  const { rows: ya } = await c.query("select version from supabase_migrations.schema_migrations");
-  const lista = pendientes(manifiesto, ya.map((r) => r.version));
-  revisarOrden(lista, ya.map((r) => r.version));
+  const { rows: ya } = t.hay ? await c.query("select version from supabase_migrations.schema_migrations") : { rows: [] };
+  let base = [];
+  if (ya.length === 0) {
+    const nombres = (await bajar(`${API}/contents/supabase/migrations?ref=${commit}`, "json")).map((f) => f.name);
+    base = lineaBase(nombres, manifiesto);
+    console.log(`${hora()} primera vez: el registro está vacío; ${base.length} cambios anteriores (hasta ${base.at(-1)?.version ?? "-"}) se anotan como ya hechos, sin ejecutarlos`);
+  }
+  const aplicadas = [...ya.map((r) => r.version), ...base.map((x) => x.version)];
+  const lista = pendientes(manifiesto, aplicadas);
+  revisarOrden(lista, aplicadas);
   console.log(`\n${resumen(lista)}\n`);
-  if (lista.length === 0) { console.log(`${hora()} OK (nada que hacer)`); process.exit(0); }
+  if (lista.length === 0 && base.length === 0) { console.log(`${hora()} OK (nada que hacer)`); process.exit(0); }
 
   // Se baja y verifica TODO antes de preguntar: si un archivo no coincide, no se pregunta ni se aplica nada
   for (const x of lista) x.sql = verificar(x, await bajar(crudo(`supabase/migrations/${x.archivo}`)));
@@ -64,6 +71,10 @@ try {
     // Dos pasos: el freno de la base arranca APAGADO; se enciende cuando el administrador ya activó su código
     await c.query("create table if not exists public.ajustes_seguridad (clave text primary key, valor boolean not null default false)");
     await c.query("insert into public.ajustes_seguridad (clave, valor) values ('dos_pasos_en_base', false) on conflict (clave) do nothing");
+    // Mismo formato que la CLI de Supabase, para que «supabase db push» también vea lo aplicado
+    await c.query("create schema if not exists supabase_migrations");
+    await c.query("create table if not exists supabase_migrations.schema_migrations (version text primary key, statements text[], name text)");
+    for (const x of base) await c.query("insert into supabase_migrations.schema_migrations (version, name) values ($1, $2) on conflict (version) do nothing", [x.version, x.nombre]);
     for (const x of lista) {
       await c.query(x.sql);
       await c.query("insert into supabase_migrations.schema_migrations (version, name) values ($1, $2)", [x.archivo.slice(0, 14), x.archivo.slice(15, -4)]);
@@ -73,8 +84,10 @@ try {
     const { rows: rep } = await c.query(`select numero_historia, count(*)::int as n from public.trabajadores
       where numero_historia is not null group by org_id, numero_historia having count(*) > 1 order by 1`);
     console.log(`${hora()} historias repetidas (solo informativo): ${rep.length}${rep.length ? " · " + rep.map((x) => `${x.numero_historia}×${x.n}`).join(", ") : ""}`);
+    const { rows: [k] } = await c.query("select count(*)::int as n from supabase_migrations.schema_migrations where version = any($1)", [lista.map((x) => x.archivo.slice(0, 14))]);
+    if (k.n !== lista.length) throw new Error(`solo ${k.n} de ${lista.length} quedaron anotadas en el registro (no se aplicó nada)`);
     await c.query("commit");
-    console.log(`${hora()} OK: ${lista.length} aplicada${lista.length === 1 ? "" : "s"} de ${etiqueta}`);
+    console.log(`${hora()} OK: ${lista.length} aplicada${lista.length === 1 ? "" : "s"} de ${etiqueta}${base.length ? `; ${base.length} anteriores anotadas` : ""}`);
   }
 } catch (e) {
   await c.query("rollback").catch(() => {});

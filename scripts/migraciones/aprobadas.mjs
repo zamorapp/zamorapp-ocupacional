@@ -42,6 +42,16 @@ export function pendientes(manifiesto, versionesAplicadas) {
   return manifiesto.migraciones.filter((x) => !ya.has(x.archivo.slice(0, 14)));
 }
 
+// Primera vez en una base sin registro (las de antes se aplicaron a mano en el SQL Editor o con el aplicador viejo,
+// que no anotaba nada): todo lo que ya está en supabase/migrations del commit aprobado y NO viene en este manifiesto
+// se unió a main después de aplicarse, así que se anota como hecho sin ejecutarlo. Solo se usa con el registro vacío.
+export function lineaBase(nombresEnCommit, manifiesto) {
+  const nuevas = new Set(manifiesto.migraciones.map((x) => x.archivo.slice(0, 14)));
+  return nombresEnCommit.filter((n) => ARCHIVO.test(n)).sort()
+    .map((n) => ({ version: n.slice(0, 14), nombre: n.slice(15, -4) }))
+    .filter((x) => !nuevas.has(x.version));
+}
+
 // Una pendiente más vieja que la última aplicada quiere decir que la base y el repo se desfasaron: no se adivina
 export function revisarOrden(lista, versionesAplicadas) {
   const mayor = [...versionesAplicadas].sort().at(-1);
