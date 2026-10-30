@@ -1,5 +1,6 @@
 // Resultados de paraclínicos: rango del catálogo, semáforo y pendientes. Compartido entre servidor y cliente.
 import type { Paraclinico } from "@/lib/consultas-tipos";
+import { familiaDe } from "@/lib/estudios";
 
 export type EstadoResultado = "" | "normal" | "fuera" | "alterado";
 
@@ -19,10 +20,12 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function defExamen(datos: Record<string, unknown> | null | undefined): DefExamen {
+// Sin tipo guardado: los estudios de imagen y funcionales (Rx, eco, audiometría…) son de informe, no de número
+export function defExamen(datos: Record<string, unknown> | null | undefined, nombre?: string, grupo?: string | null): DefExamen {
   const d = datos ?? {};
+  const tipo = d.tipo === "informe" || d.tipo === "numero" ? d.tipo : nombre && familiaDe({ nombre, grupo, datos: d }) !== "laboratorio" ? "informe" : "numero";
   return {
-    tipo: d.tipo === "informe" ? "informe" : "numero",
+    tipo,
     unidad: typeof d.unidad === "string" ? d.unidad : "",
     min: num(d.rango_min),
     max: num(d.rango_max),

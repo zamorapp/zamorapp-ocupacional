@@ -35,6 +35,7 @@ import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
 import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
+import { separarPorLaboratorio } from "@/lib/estudios";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
@@ -1042,20 +1043,38 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             {modoParaclinicos === "editar" && perfilPropuesto && !ignorarPerfil && (() => {
               const faltan = faltanDePerfil(perfilPropuesto);
               const total = examenesDePerfil(perfilPropuesto.texto).length;
-              const nombres = faltan.map((p) => p.nombre).join(", ");
+              // El laboratorio casi no se pide (Cesar, 30-oct): no va por defecto, queda como opción con su botón
+              const { estudios, laboratorio } = separarPorLaboratorio(faltan, listas.paraclinico);
+              const nombres = estudios.map((p) => p.nombre).join(", ");
+              const nombresLab = laboratorio.map((p) => p.nombre).join(", ");
+              const agregar = (lista: typeof faltan) => set("paraclinicos", [...d.paraclinicos, ...lista]);
               return (
                 <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                   <FlaskConical className="size-5 shrink-0 text-primary" />
                   <div className="min-w-48 flex-1 text-sm">
                     <div className="font-medium">Perfil sugerido: {perfilPropuesto.nombre}</div>
-                    <div className="truncate text-xs text-muted-foreground" title={nombres}>
-                      {faltan.length === total ? `${total} exámenes: ${nombres}` : `Faltan ${faltan.length} de ${total}: ${nombres}`}
-                    </div>
+                    {estudios.length > 0 && (
+                      <div className="truncate text-xs text-muted-foreground" title={nombres}>
+                        {faltan.length === total ? `${estudios.length} ${estudios.length === 1 ? "estudio" : "estudios"}: ${nombres}` : `Faltan ${estudios.length}: ${nombres}`}
+                      </div>
+                    )}
+                    {laboratorio.length > 0 && (
+                      <div className="truncate text-xs text-muted-foreground" title={nombresLab}>
+                        Laboratorio (opcional): {nombresLab}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => set("paraclinicos", [...d.paraclinicos, ...faltan])}>
-                      <Plus /> {faltan.length === total ? "Aplicar" : `Agregar ${faltan.length === 1 ? "el que falta" : `los ${faltan.length}`}`}
-                    </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {estudios.length > 0 && (
+                      <Button size="sm" onClick={() => agregar(estudios)}>
+                        <Plus /> {faltan.length === total ? "Aplicar" : `Agregar ${estudios.length === 1 ? "el que falta" : `los ${estudios.length}`}`}
+                      </Button>
+                    )}
+                    {laboratorio.length > 0 && (
+                      <Button size="sm" variant={estudios.length ? "outline" : "default"} onClick={() => agregar(laboratorio)}>
+                        <Plus /> Laboratorio ({laboratorio.length})
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => setIgnorarPerfil(true)}>Ignorar</Button>
                   </div>
                 </div>
