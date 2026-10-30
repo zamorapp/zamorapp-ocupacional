@@ -13,6 +13,7 @@ import {
 
 const NOMBRE = ES_ESCRITORIO ? "Windows Hello" : "huella";
 const AUTO_HELLO = "zamorapp.hello.automatico";
+export const AVISO_HELLO_VISTO = "zamorapp-aviso-hello";
 
 /** Botón de la pantalla de ingreso. Grande si este equipo ya tiene huella; discreto si solo es posible. */
 // «activaEnPC»: lo que el servidor de la app ya preguntó a la puerta (escritorio). En la PC de Cesar la consulta
@@ -84,6 +85,9 @@ export function BotonEntrarHuella({ alEntrar, activaEnPC = false }: { alEntrar: 
 export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ya se ofreció en esta apertura: el aviso del panel no la repite justo al llegar (se montaba otro botón
+  // «Activar Windows Hello» mientras la activación de aquí terminaba)
+  useEffect(() => { try { sessionStorage.setItem(AVISO_HELLO_VISTO, "1"); } catch { /* sin almacenamiento */ } }, []);
   const activar = async () => {
     setError(null);
     setCargando(true);

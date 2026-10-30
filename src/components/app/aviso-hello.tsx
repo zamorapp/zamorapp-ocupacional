@@ -9,8 +9,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { ES_ESCRITORIO, activarHuella, noOfrecerHuella, puedeOfrecerHuella } from "@/lib/huella";
+import { AVISO_HELLO_VISTO as VISTO } from "@/components/app/huella";
 
-const VISTO = "zamorapp-aviso-hello";
 
 export function AvisoHello() {
   const [mostrar, setMostrar] = useState(false);
