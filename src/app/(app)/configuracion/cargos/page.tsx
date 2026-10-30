@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Cargos() {
   const sesion = await obtenerSesion();
-  const puede = !sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico");
+  const puede = !sesion.demo && sesion.rol === "administrador";
   let cargos: CargoOrg[] = [];
   let error = "";
   if (puede) {
@@ -32,7 +32,7 @@ export default async function Cargos() {
         </p>
       </div>
       {!puede ? (
-        <p className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">Solo el administrador o el gerente médico unen cargos.</p>
+        <p className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">Solo el administrador une cargos.</p>
       ) : error ? (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">No se pudieron leer los cargos: {error}</p>
       ) : (

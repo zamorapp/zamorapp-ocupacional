@@ -33,12 +33,35 @@ update public.puestos set riesgos = '{"fisico":["Vibración"]}' where id = '1670
 select 'editar un cargo ya repetido sí se puede (debe 1): ' || count(*) from public.puestos where id = '16700000-0000-0000-0000-00000000000a' and riesgos ? 'fisico';
 select 'la pantalla ve los tres cargos con sus trabajadores (debe 3): ' || count(*) from public.cargos_de_la_org() where id::text like '16700000%';
 
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+reset role;
+insert into auth.users (id,email) values ('16700000-0000-0000-0000-0000000000f1','rec167@x'),('16700000-0000-0000-0000-0000000000f2','ger167@x');
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
+ ('10000000-0000-0000-0000-000000000001','16700000-0000-0000-0000-0000000000f1','recepcion',null),
+ ('10000000-0000-0000-0000-000000000001','16700000-0000-0000-0000-0000000000f2','gerente_medico',null);
+set role authenticated;
+do $$
+declare u text; n int := 0;
+begin
+  foreach u in array array['00000000-0000-0000-0000-0000000000a2','16700000-0000-0000-0000-0000000000f1','16700000-0000-0000-0000-0000000000f2'] loop
+    perform set_config('request.jwt.claim.sub', u, false);
+    begin
+      perform public.unir_cargos('Administración de contrato', array['16700000-0000-0000-0000-00000000000a','16700000-0000-0000-0000-00000000000b']::uuid[]);
+      raise notice 'FALLA: % unió cargos', u;
+    exception when insufficient_privilege then n := n + 1;
+    end;
+  end loop;
+  raise notice 'médico, recepción y gerente médico no unen cargos (debe 3): %', n;
+end $$;
+
+-- En la copia de la PC no se une (se hace con internet)
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select set_config('zamorapp.local', 'on', false) \g /dev/null
 do $$ begin
   perform public.unir_cargos('Administración de contrato', array['16700000-0000-0000-0000-00000000000a','16700000-0000-0000-0000-00000000000b']::uuid[]);
-  raise notice 'FALLA: un médico unió cargos';
-exception when insufficient_privilege then raise notice 'el médico no une cargos (debe 1): 1';
+  raise notice 'FALLA: unió en la base local';
+exception when feature_not_supported then raise notice 'en la PC sin nube no se une (debe 1): 1';
 end $$;
+select set_config('zamorapp.local', '', false) \g /dev/null
 
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 select 'une en 2 empresas, 1 alias, 1 trabajador y 1 consulta abierta (debe 1): ' ||

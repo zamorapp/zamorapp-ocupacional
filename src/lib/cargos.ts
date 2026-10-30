@@ -49,18 +49,22 @@ export function parecido(a: string, b: string): Parecido | null {
   return Math.min(a.length, b.length) >= 5 && distancia(a, b, tope) <= tope ? "tipeo" : null;
 }
 
-// Al escribir un cargo: el que ya existe con la misma clave (se usará ese) o el más parecido (se sugiere)
+// Al escribir un cargo: el que ya existe con la misma clave (se usará ese) o el más parecido (se sugiere).
+// Entre varios parecidos gana la forma más completa (con acentos, sin MAYÚSCULAS sostenidas, la más larga), no una
+// abreviatura que se está limpiando con «Unir cargos».
+const RANGO: Record<Parecido, number> = { igual: 3, abreviatura: 2, tipeo: 1 };
+const completo = (n: string) => Number(/[^\x00-\x7f]/.test(n)) * 1000 + Number(n !== n.toUpperCase()) * 500 + n.length;
 export function cargoParecido(texto: string, cargos: string[]): { nombre: string; tipo: Parecido } | null {
   const k = claveCargo(texto);
   if (k.length < 3) return null;
   let mejor: { nombre: string; tipo: Parecido } | null = null;
   for (const c of cargos) {
-    if (c.trim() === texto.trim()) return null; // ya es uno de la lista
     const t = parecido(k, claveCargo(c));
-    if (t === "igual") return { nombre: c, tipo: t };
-    if (t && !mejor) mejor = { nombre: c, tipo: t };
+    if (!t) continue;
+    if (!mejor || RANGO[t] > RANGO[mejor.tipo] || (RANGO[t] === RANGO[mejor.tipo] && completo(c) > completo(mejor.nombre))) mejor = { nombre: c, tipo: t };
   }
-  return mejor;
+  // Lo escrito ya es la mejor forma de la lista: nada que sugerir
+  return mejor && mejor.nombre.trim() !== texto.trim() ? mejor : null;
 }
 
 export type CargoOrg = { id: string; empresaId: string; empresa: string; nombre: string; trabajadores: number };

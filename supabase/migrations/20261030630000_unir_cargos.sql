@@ -93,6 +93,8 @@ declare
   o public.puestos;
   n_trab int := 0; n_cons int := 0; n_alias int := 0; n_emp int := 0; n int;
 begin
+  -- En la copia de la PC no: los alias y el traslado de trabajadores se hacen una sola vez, en la nube
+  if public.es_base_local() then raise exception 'Unir cargos se hace con internet' using errcode = '0A000'; end if;
   if v_nombre = '' then raise exception 'Escribe el nombre del cargo' using errcode = '22023'; end if;
   if coalesce(array_length(p_puestos, 1), 0) = 0 then raise exception 'Elige los cargos a unir' using errcode = '22023'; end if;
   select min(org_id::text)::uuid into v_org from public.puestos where id = any (p_puestos);
@@ -100,8 +102,8 @@ begin
      or (select count(*) from public.puestos where id = any (p_puestos)) <> (select count(distinct x) from unnest(p_puestos) x) then
     raise exception 'Algún cargo ya no existe o ya fue unido. Recarga la página.' using errcode = '22023';
   end if;
-  if public.mi_rol(v_org) is null or public.mi_rol(v_org)::text not in ('administrador', 'gerente_medico') then
-    raise exception 'Solo el administrador o el gerente médico unen cargos' using errcode = '42501';
+  if public.mi_rol(v_org) is distinct from 'administrador' then
+    raise exception 'Solo el administrador une cargos' using errcode = '42501';
   end if;
 
   perform set_config('zamorapp.uniendo_cargos', 'si', true);

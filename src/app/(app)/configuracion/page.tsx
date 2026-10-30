@@ -19,7 +19,7 @@ const OPCIONES = [
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", texto: "Cédula, MPPS, Colegio de Médicos y registro INPSASEL para los documentos.", icono: UserCog },
 ];
 
-// Cargos repetidos de todas las empresas: solo administrador o gerente médico
+// Cargos repetidos de todas las empresas: solo el administrador
 const CARGOS = { href: "/configuracion/cargos", titulo: "Unir cargos", texto: "Junta el mismo cargo escrito de varias formas (mayúsculas, acentos, abreviaturas) en todas las empresas.", icono: Briefcase };
 
 // Importación de una sola vez (escaneados del SAME): solo administrador o gerente médico con acceso clínico
@@ -28,7 +28,7 @@ const ESCANEADOS = { href: "/configuracion/escaneados-same", titulo: "Escaneados
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
   const gerencia = sesion.rol === "administrador" || sesion.rol === "gerente_medico";
-  const opciones = [...OPCIONES, ...(gerencia ? [CARGOS] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
+  const opciones = [...OPCIONES, ...(sesion.rol === "administrador" ? [CARGOS] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>

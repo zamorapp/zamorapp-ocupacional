@@ -57,7 +57,7 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
     const v = g.variantes.filter((x) => e.marcadas.has(x.id));
     if (!(await confirmar({
       titulo: `¿Unir en «${e.nombre.trim()}»?`,
-      texto: `${plural(v.length, "variante", "variantes")} de ${plural(new Set(v.map((x) => x.empresaId)).size, "empresa", "empresas")}, ${plural(v.reduce((s, x) => s + x.trabajadores, 0), "trabajador", "trabajadores")}. Los trabajadores y sus historias no se borran.`,
+      texto: `${plural(v.length, "variante", "variantes")} de ${plural(new Set(v.map((x) => x.empresaId)).size, "empresa", "empresas")}, ${plural(v.reduce((s, x) => s + x.trabajadores, 0), "trabajador", "trabajadores")}. Los trabajadores y sus historias no se borran. No se puede deshacer desde aquí.`,
       accion: "Unir",
     }))) return;
     setErrores((x) => ({ ...x, [g.clave]: "" }));
@@ -66,7 +66,7 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
   const unirTodos = async () => {
     if (!(await confirmar({
       titulo: `¿Unir los ${listos.length} grupos marcados?`,
-      texto: "Cada grupo queda con el nombre escrito arriba de él. Los «parecido: revisa» solo se unen si los marcas.",
+      texto: "Cada grupo queda con el nombre escrito arriba de él. Los «parecido: revisa» solo se unen si los marcas. No se puede deshacer desde aquí.",
       accion: "Unir todos",
     }))) return;
     iniciar(async () => { for (const g of listos) await unirUno(g); router.refresh(); });
@@ -84,12 +84,14 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4">
-        <div className="flex flex-1 flex-wrap gap-x-5 gap-y-1 text-sm">
-          <span><b className="text-lg">{grupos.length}</b> cargos repetidos</span>
-          <span className="text-muted-foreground">{plural(grupos.reduce((s, g) => s + g.variantes.length, 0), "variante", "variantes")} · {total} cargos activos</span>
+        <div className="flex min-w-0 basis-full flex-wrap gap-x-5 gap-y-1 text-sm sm:basis-0 sm:flex-1">
+          <span><b className="text-lg">{grupos.length}</b> {grupos.length === 1 ? "cargo repetido" : "cargos repetidos"}</span>
+          <span className="text-muted-foreground">
+            {grupos.reduce((s, g) => s + new Set(g.variantes.map((v) => v.nombre)).size, 0)} nombres distintos para {plural(grupos.length, "cargo", "cargos")} · {total} cargos activos
+          </span>
         </div>
-        <Button onClick={unirTodos} disabled={ocupado || !listos.length}>
-          {ocupado ? <Loader2 className="animate-spin" /> : <Merge />} Unir los marcados ({listos.length})
+        <Button onClick={unirTodos} disabled={ocupado || !listos.length} className="w-full sm:w-auto">
+          {ocupado ? <Loader2 className="animate-spin" /> : <Merge />} {listos.length === 1 ? "Unir el grupo marcado" : `Unir los ${listos.length} grupos`}
         </Button>
       </div>
       <div className="relative">
@@ -110,14 +112,17 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
                   <Input value={e.nombre} list={`nombres-${g.clave}`} disabled={Boolean(hecho)} onChange={(x) => poner(g.clave, { nombre: x.target.value })} className="h-10 font-medium" />
                   <datalist id={`nombres-${g.clave}`}>{[...new Set(g.variantes.map((v) => v.nombre))].map((n) => <option key={n} value={n} />)}</datalist>
                 </label>
-                <div className="flex flex-1 items-center gap-3 text-xs text-muted-foreground sm:flex-none">
-                  <span className="inline-flex items-center gap-1"><Users className="size-3.5" /> {g.trabajadores}</span>
-                  <span className="inline-flex items-center gap-1"><Building2 className="size-3.5" /> {g.empresas}</span>
+                <div className="flex flex-1 items-center gap-3 text-xs text-muted-foreground sm:flex-none"
+                  title={`${plural(g.trabajadores, "trabajador", "trabajadores")} en ${plural(g.empresas, "empresa", "empresas")}`}>
+                  <span className="sr-only">{plural(g.trabajadores, "trabajador", "trabajadores")} en {plural(g.empresas, "empresa", "empresas")}</span>
+                  <span aria-hidden className="inline-flex items-center gap-1"><Users className="size-3.5" /> {g.trabajadores}</span>
+                  <span aria-hidden className="inline-flex items-center gap-1"><Building2 className="size-3.5" /> {g.empresas}</span>
                 </div>
                 {hecho ? (
                   <span className="inline-flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4" /> Unido</span>
                 ) : (
-                  <Button variant="outline" onClick={() => unir(g)} disabled={ocupado || marcadas.length < 2 || !e.nombre.trim()}>
+                  <Button variant="outline" onClick={() => unir(g)} disabled={ocupado || marcadas.length < 2 || !e.nombre.trim()}
+                    title={marcadas.length < 2 ? "Marca al menos 2 para unir" : undefined}>
                     {enCurso === g.clave ? <Loader2 className="animate-spin" /> : <Merge />} Unir {marcadas.length}
                   </Button>
                 )}
@@ -133,6 +138,7 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
                       <span className="min-w-0 flex-1">
                         <span className="font-medium">{v.nombre}</span>
                         <span className="block truncate text-xs text-muted-foreground">{v.empresa}</span>
+                        {v.tipo === "tipeo" && <span className="block text-xs text-aviso-texto sm:hidden">{ETIQUETA.tipeo.texto}</span>}
                       </span>
                       <span className={cn("hidden rounded-full px-2 py-0.5 text-xs sm:inline", ETIQUETA[v.tipo].clase)}>{ETIQUETA[v.tipo].texto}</span>
                       <span className="w-20 text-right tabular-nums text-muted-foreground">{plural(v.trabajadores, "trab.", "trab.")}</span>
