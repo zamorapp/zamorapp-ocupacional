@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import type { Browser } from "puppeteer-core";
 
 // Chromium sin ventana: solo lo usa la ruta /api/pdf, la única función de Vercel que lleva su binario (67 MB).
-// PDF generado en el servidor con la sesión de quien lo pide (nunca con service_role):
+// PDF generado en el servidor con la sesión de quien lo pide (nunca con la llave de servicio):
 // un Chromium sin ventana abre la misma página de /imprimir que ve el usuario, con sus cookies,
 // así la RLS decide qué datos salen y el PDF es idéntico al impreso.
 // En Vercel usa @sparticuz/chromium; en la PC (escritorio o desarrollo) el Edge o Chrome instalado, o CHROME_PATH.
