@@ -38,18 +38,29 @@ async function abrirNavegador(): Promise<Browser> {
   return puppeteer.launch({ executablePath: ruta, headless: true, args: ["--no-first-run", "--disable-extensions"] });
 }
 
+// Solo páginas de /imprimir de la propia app, ya normalizadas (%2e%2e, \.\. y similares se resuelven antes de comparar)
+export function rutaImprimir(ruta: string, base = urlInterna()): string | null {
+  try {
+    const u = new URL(ruta, base);
+    return u.origin === new URL(base).origin && u.pathname.startsWith("/imprimir/") ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 // Genera un PDF por cada ruta de /imprimir, en un solo navegador, con las cookies de la sesión. Mismo orden.
 export async function pdfConNavegador(rutas: string[], sesion: { name: string; value: string }[]): Promise<Buffer[]> {
-  if (rutas.some((r) => !r.startsWith("/imprimir/"))) throw new Error("Solo se convierten páginas de /imprimir");
   const base = urlInterna();
+  const destinos = rutas.map((r) => rutaImprimir(r, base));
+  if (destinos.some((d) => !d)) throw new Error("Solo se convierten páginas de /imprimir");
   const navegador = await abrirNavegador();
   try {
     const pagina = await navegador.newPage();
     await pagina.setCookie(...sesion.map((c) => ({ name: c.name, value: c.value, url: base, httpOnly: true, secure: base.startsWith("https") })));
     await pagina.emulateMediaType("print");
     const salida: Buffer[] = [];
-    for (const ruta of rutas) {
-      const respuesta = await pagina.goto(base + ruta, { waitUntil: "networkidle0", timeout: 45_000 });
+    for (const destino of destinos as string[]) {
+      const respuesta = await pagina.goto(destino, { waitUntil: "networkidle0", timeout: 45_000 });
       if (!respuesta?.ok()) throw new Error(`No se pudo preparar el documento (${respuesta?.status() ?? "sin respuesta"}).`);
       if (new URL(pagina.url()).pathname.startsWith("/login")) throw new Error("La sesión venció: vuelve a entrar y repite el envío.");
       await pagina.evaluate(() => document.fonts.ready);

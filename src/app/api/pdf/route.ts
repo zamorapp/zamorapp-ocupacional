@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { pdfConNavegador } from "@/lib/pdf-navegador";
+import { pdfConNavegador, rutaImprimir } from "@/lib/pdf-navegador";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (!data.user) return Response.json({ error: "La sesión venció: vuelve a entrar y repite el envío." }, { status: 401 });
 
   const { rutas } = await req.json().catch(() => ({ rutas: null }));
-  if (!Array.isArray(rutas) || !rutas.length || rutas.length > 4 || rutas.some((r) => typeof r !== "string" || !r.startsWith("/imprimir/") || r.includes(".."))) {
+  if (!Array.isArray(rutas) || !rutas.length || rutas.length > 4 || rutas.some((r) => typeof r !== "string" || !rutaImprimir(r))) {
     return Response.json({ error: "Rutas no válidas" }, { status: 400 });
   }
   try {
