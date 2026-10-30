@@ -9,20 +9,29 @@
 --    diagnósticos, tratamiento, reposo ni consentimiento (Analizar, 30-oct).
 -- Base de guardar_consulta: 20261030490000_fecha_evaluacion.sql.
 
-insert into public.lista_items (lista, codigo, nombre, orden, datos)
-select 'plantilla_examen', x.codigo, x.nombre, x.orden, x.datos::jsonb
-from (values
-  ('PREV', 'Pre vacacional', 5, '{"funcional":"normal","fisico":"normal","aptitud":["prev_apto"],"empresa":["emp_periodico"],"trabajador":[],"meses":null,"conclusiones":"","clasificacion":"elegible","sano":true}'),
-  ('POSV', 'Post vacacional', 6, '{"funcional":"normal","fisico":"normal","aptitud":["postvacacional"],"empresa":["emp_periodico"],"trabajador":[],"meses":null,"conclusiones":"","clasificacion":"elegible","sano":true}')
-) as x(codigo, nombre, orden, datos)
-where not exists (select 1 from public.lista_items i where i.lista = 'plantilla_examen' and i.org_id is null and i.codigo = x.codigo);
+-- Datos (plantillas): solo en la nube. En la base de la PC llegan por la réplica con sus mismos ids; sembrarlas allí
+-- crearía filas propias que luego chocan o se duplican (Analizar, 30-oct; mismo caso que la 480000)
+create or replace function public.sembrar_plantillas_perfil_normal()
+returns void language plpgsql set search_path = public as $$
+begin
+  if public.es_base_local() then return; end if;
+  insert into public.lista_items (lista, codigo, nombre, orden, datos)
+  select 'plantilla_examen', x.codigo, x.nombre, x.orden, x.datos::jsonb
+  from (values
+    ('PREV', 'Pre vacacional', 5, '{"funcional":"normal","fisico":"normal","aptitud":["prev_apto"],"empresa":["emp_periodico"],"trabajador":[],"meses":null,"conclusiones":"","clasificacion":"elegible","sano":true}'),
+    ('POSV', 'Post vacacional', 6, '{"funcional":"normal","fisico":"normal","aptitud":["postvacacional"],"empresa":["emp_periodico"],"trabajador":[],"meses":null,"conclusiones":"","clasificacion":"elegible","sano":true}')
+  ) as x(codigo, nombre, orden, datos)
+  where not exists (select 1 from public.lista_items i where i.lista = 'plantilla_examen' and i.org_id is null and i.codigo = x.codigo);
 
--- Las plantillas que ya existen (base y de cada organización) ganan los dos campos sin perder lo editado.
--- Egreso no clasifica aptitud.
-update public.lista_items set datos = jsonb_build_object('clasificacion', case when codigo = 'EGR' then '' else 'elegible' end, 'sano', true) || coalesce(datos, '{}'::jsonb)
-where lista = 'plantilla_examen' and not (coalesce(datos, '{}'::jsonb) ? 'clasificacion');
+  -- Las plantillas que ya existen (base y de cada organización) ganan los dos campos sin perder lo editado.
+  -- Egreso no clasifica aptitud.
+  update public.lista_items set datos = jsonb_build_object('clasificacion', case when codigo = 'EGR' then '' else 'elegible' end, 'sano', true) || coalesce(datos, '{}'::jsonb)
+  where lista = 'plantilla_examen' and not (coalesce(datos, '{}'::jsonb) ? 'clasificacion');
 
-select public.copiar_listas_base(id) from public.organizaciones;
+  perform public.copiar_listas_base(id) from public.organizaciones;
+end $$;
+revoke execute on function public.sembrar_plantillas_perfil_normal() from public, anon, authenticated;
+select public.sembrar_plantillas_perfil_normal();
 
 alter table clinico.consultas add column if not exists copiada_de uuid references clinico.consultas (id) on delete set null;
 
@@ -199,3 +208,19 @@ revoke execute on function public.anotar_copia_evaluacion() from public, anon, a
 drop trigger if exists anotar_copia_evaluacion on clinico.consultas;
 create trigger anotar_copia_evaluacion after insert or update of copiada_de on clinico.consultas
   for each row when (not public.es_base_local()) execute function public.anotar_copia_evaluacion();
+
+-- Un UPDATE directo (sin guardar_consulta) tampoco puede apuntar a una consulta de otro trabajador
+create or replace function public.validar_copiada_de()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if new.copiada_de is not null and (new.copiada_de = new.id or not exists (
+       select 1 from clinico.consultas o where o.id = new.copiada_de and o.trabajador_id = new.trabajador_id)) then
+    raise exception 'La evaluación copiada no es de este trabajador.';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.validar_copiada_de() from public, anon, authenticated;
+
+drop trigger if exists validar_copiada_de on clinico.consultas;
+create trigger validar_copiada_de before insert or update of copiada_de on clinico.consultas
+  for each row when (new.copiada_de is not null) execute function public.validar_copiada_de();
