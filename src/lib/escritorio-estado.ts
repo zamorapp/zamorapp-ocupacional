@@ -15,11 +15,9 @@ export type EstadoEscritorio = {
   rechazados: number;
   horaSinAncla: boolean; // la PC arrancó sin internet: la hora es la de Windows
   conocido: boolean; // ya respondió la puerta al menos una vez
-  ultimaSincronia: string | null; // cuándo terminó bien la última sincronía (hora de la nube, ISO)
-  errorSincronia: boolean; // la última sincronía falló aunque haya internet
 };
 
-const INICIAL: EstadoEscritorio = { enLinea: true, pendientes: 0, conflictos: 0, rechazados: 0, horaSinAncla: false, conocido: false, ultimaSincronia: null, errorSincronia: false };
+const INICIAL: EstadoEscritorio = { enLinea: true, pendientes: 0, conflictos: 0, rechazados: 0, horaSinAncla: false, conocido: false };
 let estado = INICIAL;
 const oyentes = new Set<() => void>();
 let reloj: ReturnType<typeof setInterval> | null = null;
@@ -39,8 +37,6 @@ export async function refrescarEstado(): Promise<EstadoEscritorio> {
       rechazados: n(b.rechazados),
       horaSinAncla: j?.horaSinAncla === true,
       conocido: true,
-      ultimaSincronia: typeof j?.ultimaSincronia === "string" ? j.ultimaSincronia : null,
-      errorSincronia: !!j?.error,
     };
     if (JSON.stringify(nuevo) !== JSON.stringify(estado)) {
       estado = nuevo;
