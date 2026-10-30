@@ -260,6 +260,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     else { setD(base); if (intacta) setDeshacer(null); }
   };
   const preventivo = motivo?.grupo === "preventivo";
+  const anterior = historial.tratamientoAnterior ?? null;
+  const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
@@ -1065,6 +1067,22 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               >
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
+                {/* Control o paciente crónico: el tratamiento de la última consulta en un clic (se puede ajustar después) */}
+                {!bloqueado && anterior && !d.tratamiento.some((m) => m.medicina.trim()) && (
+                  <button type="button" data-accion="repetir-tratamiento"
+                    onClick={() => setD((x) => ({
+                      ...x,
+                      tratamiento: anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => ({ ...m, notaFarmacia: undefined })),
+                      indicaciones: x.indicaciones.trim() ? x.indicaciones : anterior.indicaciones,
+                    }))}
+                    className="flex w-full items-start gap-2 rounded-lg border border-dashed px-4 py-3 text-left text-sm hover:border-primary/50">
+                    <RotateCcw className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="font-medium text-primary">Repetir el tratamiento del {anterior.fecha.split("-").reverse().join("/")}</span>
+                      <span className="block truncate text-muted-foreground">{nombresAnterior}</span>
+                    </span>
+                  </button>
+                )}
                 {d.tratamiento.map((m, i) => (
                   <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
                     <Input

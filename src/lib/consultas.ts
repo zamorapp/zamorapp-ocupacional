@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { DatosConsulta, EstadoConsulta, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
+import type { DatosConsulta, EstadoConsulta, Medicamento, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
@@ -193,7 +193,9 @@ export async function listarVersiones(consultaId: string): Promise<VersionConsul
 
 // Historial del trabajador para la consulta: signos de consultas anteriores (cerradas o firmadas, las más
 // recientes) y reposos de los últimos dos años, sin los de esta consulta. Solo personal clínico (RLS).
-export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean };
+// tratamientoAnterior: el de la última consulta con medicinas (para «Repetir tratamiento» en controles y crónicos)
+export type TratamientoAnterior = { fecha: string; tratamiento: Medicamento[]; indicaciones: string };
+export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean; tratamientoAnterior?: TratamientoAnterior | null };
 
 export async function historialConsulta(trabajadorId: string, consultaId: string): Promise<HistorialConsulta> {
   const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
@@ -201,7 +203,7 @@ export async function historialConsulta(trabajadorId: string, consultaId: string
   const supabase = await crearClienteServidor();
   const hace2Anios = sumarDias(hoyCaracas(), -730);
   const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
-    supabase.from("consultas").select("fecha, signos_vitales").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+    supabase.from("consultas").select("fecha, signos_vitales, tratamiento, indicaciones").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
       .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
     supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
       .order("desde", { ascending: false }).limit(60),
@@ -212,5 +214,7 @@ export async function historialConsulta(trabajadorId: string, consultaId: string
     reposos: (rs ?? []).filter((r) => r.consulta_id !== consultaId)
       .map((r) => ({ consultaId: r.consulta_id, desde: r.desde, hasta: r.hasta, causa: r.causa, ente: r.ente_emisor })),
     discapacidadRegistrada: t?.discapacidad ?? false,
+    tratamientoAnterior: ((c) => (c ? { fecha: c.fecha, tratamiento: c.tratamiento as Medicamento[], indicaciones: c.indicaciones ?? "" } : null))(
+      (cs ?? []).find((c) => Array.isArray(c.tratamiento) && (c.tratamiento as Medicamento[]).some((m) => m?.medicina?.trim()))),
   };
 }
