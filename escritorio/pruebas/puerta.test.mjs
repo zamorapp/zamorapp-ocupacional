@@ -1303,14 +1303,18 @@ test("fase C.2: los adjuntos van en el respaldo (paquete tar cifrado en Drive), 
   }
   const adjDir = path.join(datos, "adjuntos", "adjuntos", ORG, "30000000-0000-0000-0000-00000000000a");
   fs.writeFileSync(path.join(adjDir, "extra-1.pdf"), PDF);
-  const basesAntes = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length;
+  const basesAntes = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp"));
   const rr = await fetch(`${urlPuerta}/zamorapp/respaldar`, { method: "POST", headers: { "X-Zamorapp-Control": CONTROL } });
   const jj = await rr.json();
   assert.equal(rr.status, 200, JSON.stringify(jj));
   assert.equal(jj.adjuntos.nuevo, true);
   assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).length, 2, fs.readdirSync(externa).join(", "));
   assert.equal(fs.readdirSync(respaldoObj.carpetaLocal).filter((f) => f.endsWith(".adjuntos.tar")).length, 1);
-  assert.equal(fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp")).length, basesAntes, "las copias de la base no se tocan (30 en Drive)");
+  // Las copias de la base no se tocan (se guardan 30): siguen todas y a lo sumo hay una nueva, la de este respaldo. El nombre va
+  // por minuto, así que según la hora del CI la nueva reemplaza a la del respaldo anterior o se agrega (antes se pedía «igual»).
+  const basesDespues = fs.readdirSync(externa).filter((f) => f.endsWith(".zamorapp") && !f.endsWith(".adjuntos.zamorapp"));
+  assert.deepEqual(basesAntes.filter((f) => !basesDespues.includes(f)), [], "las copias de la base no se tocan (30 en Drive)");
+  assert.ok(basesDespues.length - basesAntes.length <= 1 && basesDespues.includes(path.basename(jj.externo)), basesDespues.join(", "));
   for (const f of fs.readdirSync(externa)) if (f.startsWith("zamorapp-202601")) fs.rmSync(path.join(externa, f)); // las de mentira
   // Analizar: si el paquete de adjuntos más nuevo no abre, se restaura la base igual con el paquete anterior que sí abra
   const buenos = fs.readdirSync(externa).filter((f) => f.endsWith(".adjuntos.zamorapp")).sort();
