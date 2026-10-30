@@ -1,6 +1,7 @@
 -- zamorApp Ocupacional · La hora de cierre y la de firma solo las ponen cerrar, firmar y reabrir (Analizar, 30-oct)
 -- clinico.consultas admite UPDATE directo del médico (RLS): sin esto, un PATCH podía escribir cualquier firmada_en u
--- hora_cierre. En la nube, para un usuario y fuera de la bandeja:
+-- hora_cierre. En la nube, para un usuario y fuera de la bandeja (la firma sin internet sube con su hora verificada
+-- por la bandeja y se conserva; la réplica hacia la PC corre con replication_role = replica, sin disparadores):
 --   · al pasar a cerrada o firmada, la hora es la del servidor (now(), que en la nube es lo mismo que ahora());
 --   · al volver a borrador (reabrir o corregir), ambas quedan vacías;
 --   · en cualquier otro cambio, quedan como estaban.
