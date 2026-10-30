@@ -1,5 +1,5 @@
 -- zamorApp · Avisos de la campana al celular (Cesar, 30-oct: «sí lo quiero, todos»). Plazos legales de accidentes
--- (centinela), resultados por recibir, alerta para la próxima evaluación, estudios recibidos y exámenes por vencer
+-- (centinela), resultados por recibir, alerta para la próxima evaluación, post vacacional, estudios recibidos y exámenes por vencer
 -- llegan como notificación push aunque nadie abra la app ni la laptop esté encendida.
 -- Cada 15 minutos un latido (GitHub Actions, gratis en repo público) llama a /api/avisos/campana en Vercel, que pide
 -- a avisos_campana_para_celular() con la clave del servidor (la misma de los avisos de RR. HH.) qué enviar:
@@ -72,6 +72,8 @@ begin
     begin perform public.centinela_legal(); exception when others then raise warning 'avisos_campana_para_celular: centinela_legal falló: %', sqlerrm; end;
     begin perform public.recordar_resultados(); exception when others then raise warning 'avisos_campana_para_celular: recordar_resultados falló: %', sqlerrm; end;
     begin perform public.recordar_alertas(); exception when others then raise warning 'avisos_campana_para_celular: recordar_alertas falló: %', sqlerrm; end;
+    -- Post vacacional (migración 20261030670000)
+    begin perform public.recordar_post_vacacional(); exception when others then raise warning 'avisos_campana_para_celular: recordar_post_vacacional falló: %', sqlerrm; end;
     perform set_config('request.jwt.claim.sub', '', true);
 
     -- Notificaciones nuevas de la campana que todavía no salieron al celular

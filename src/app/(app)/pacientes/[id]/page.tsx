@@ -38,6 +38,8 @@ import { cn } from "@/lib/utils";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { alertasDeTrabajador } from "@/lib/alertas";
 import { AlertasPaciente } from "./alertas-paciente";
+import { Vacaciones } from "./vacaciones";
+import type { Vacacion } from "./vacaciones-acciones";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -72,13 +74,17 @@ export default async function FichaPaciente({ params }: Props) {
   const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
   const conBase = !sesion.demo && Boolean(sesion.orgId);
-  const [{ data: tp }, { data: notifs }] = conBase
+  const [{ data: tp }, { data: notifs }, { data: vacs }] = conBase
     ? await crearClienteServidor().then((s) => Promise.all([
-        s.from("trabajadores").select("puesto_id, puestos(nombre, evaluado_en)").eq("id", t.id).single(),
+        s.from("trabajadores").select("puesto_id, puestos(nombre, evaluado_en), empresas(dias_post_vacacional)").eq("id", t.id).single(),
         s.from("notificaciones_riesgo").select("id, puesto_id, puesto, entregada_en, firmada_en, contenido").eq("trabajador_id", t.id).order("entregada_en", { ascending: false }).order("creado_en", { ascending: false }).limit(20),
+        s.from("vacaciones").select("id, desde, regreso").eq("trabajador_id", t.id).order("regreso", { ascending: false }).limit(10),
       ]))
-    : [{ data: null }, { data: null }];
-  const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null } | null;
+    : [{ data: null }, { data: null }, { data: null }];
+  const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null; empresas: { dias_post_vacacional: number } | null } | null;
+  // Vacaciones y post vacacional: las anotan el servicio y RR. HH. (no son datos de salud)
+  const vacaciones = (vacs ?? []) as Vacacion[];
+  const anotaVacaciones = ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion", "gerente_empresa"].includes(sesion.rol ?? "");
   const notificaciones: NotificacionRiesgo[] = (notifs ?? []).map((n) => ({ id: n.id, puestoId: n.puesto_id, puesto: n.puesto, entregadaEn: n.entregada_en, firmadaEn: n.firmada_en, contenido: n.contenido }));
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
   // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
@@ -220,6 +226,14 @@ export default async function FichaPaciente({ params }: Props) {
               })}
             </CardContent>
           </Card>
+          {conBase && (
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Vacaciones y post vacacional</CardTitle></CardHeader>
+              <CardContent>
+                <Vacaciones trabajadorId={t.id} iniciales={vacaciones} diasPost={puestoActual?.empresas?.dias_post_vacacional ?? 5} hoy={hoyCaracas()} editable={anotaVacaciones} />
+              </CardContent>
+            </Card>
+          )}
           {conBase && (
             <Card className="lg:col-span-2">
               <CardHeader><CardTitle className="text-base">Notificación de riesgos (LOPCYMAT art. 56.3)</CardTitle></CardHeader>

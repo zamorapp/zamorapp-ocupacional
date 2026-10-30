@@ -26,6 +26,7 @@ export type Empresa = {
   mesInicioGestion: number; // 1-12: los trimestres del informe de vigilancia se cuentan desde este mes
   periodicidadMeses: number; // examen periódico: si la constancia no trae vigencia, vence a los N meses del último
   diasAvisoExamen: number; // con cuántos días de anticipación se avisa que vence
+  diasPostVacacional: number; // días desde el regreso de vacaciones para la evaluación post vacacional
   avisosApagados: AvisoEmpresa[]; // recordatorios que NO salen para esta empresa (Inicio y campana)
 };
 
@@ -80,6 +81,7 @@ function empresasDemo(): Empresa[] {
       mesInicioGestion: 1,
       periodicidadMeses: 12,
       diasAvisoExamen: 30,
+      diasPostVacacional: 5,
       avisosApagados: [],
     }));
   }
@@ -91,7 +93,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
     supabase
       .from("empresas")
-      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, avisos_apagados")
+      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
       .order("razon_social"),
     supabase.rpc("trabajadores_por_empresa"),
   ]);
@@ -121,6 +123,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
     mesInicioGestion: e.mes_inicio_gestion ?? 1,
     periodicidadMeses: e.periodicidad_meses ?? 12,
     diasAvisoExamen: e.dias_aviso_examen ?? 30,
+    diasPostVacacional: e.dias_post_vacacional ?? 5,
     avisosApagados: (e.avisos_apagados ?? []) as AvisoEmpresa[],
   }));
 }
