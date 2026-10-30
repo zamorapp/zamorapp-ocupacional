@@ -28,7 +28,9 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
   const clasificados = useMemo(() => new Map(lista.map((a) => [a.id, clasificarAdjunto(a, catalogo ?? [])])), [lista, catalogo]);
   const fechaConsulta = useMemo(() => new Map((consultas ?? []).map((c) => [c.id, c.fecha])), [consultas]);
   const cuenta = (f: Familia | "sin") => lista.filter((a) => (clasificados.get(a.id)?.familia ?? "sin") === f).length;
-  const visibles = filtro ? lista.filter((a) => (clasificados.get(a.id)?.familia ?? "sin") === filtro) : lista;
+  // Si el filtro se queda sin archivos (se borró el último de esa clase), vuelve a «Todos»
+  const filtroVivo = filtro && cuenta(filtro) > 0 ? filtro : "";
+  const visibles = filtroVivo ? lista.filter((a) => (clasificados.get(a.id)?.familia ?? "sin") === filtroVivo) : lista;
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
@@ -47,6 +49,7 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
       }
     }
     if (entrada.current) entrada.current.value = "";
+    setEstudio("");
     setOcupado(false);
   };
 
@@ -71,7 +74,7 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
       <div className="flex flex-wrap items-center gap-3">
         <input ref={entrada} type="file" multiple accept={TIPOS_ADJUNTO} className="hidden" onChange={(e) => subir(e.target.files)} />
         {catalogo && (
-          <select aria-label="Estudio que se digitaliza" value={estudio} onChange={(e) => setEstudio(e.target.value)} className="h-9 max-w-64 rounded-md border bg-transparent px-2 text-sm">
+          <select aria-label="Estudio que se digitaliza" value={estudio} onChange={(e) => setEstudio(e.target.value)} className="h-9 w-full rounded-md border bg-transparent px-2 text-sm sm:w-auto sm:max-w-64">
             <option value="">Estudio: sin especificar</option>
             {FAMILIAS.map((f) => (
               <optgroup key={f} label={NOMBRE_FAMILIA[f]}>
@@ -90,8 +93,8 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
           {([["", "Todos", lista.length], ...FAMILIAS.map((f) => [f, NOMBRE_FAMILIA[f], cuenta(f)]), ["sin", "Sin clasificar", cuenta("sin")]] as [Familia | "sin" | "", string, number][])
             .filter(([, , n], i) => i === 0 || n > 0)
             .map(([f, etiqueta, n]) => (
-              <button key={f || "todos"} type="button" aria-pressed={filtro === f} onClick={() => setFiltro(f)}
-                className={cn("rounded-full border px-3 py-1 text-xs transition hover:border-primary", filtro === f && "border-primary bg-primary/10 font-medium text-primary")}>
+              <button key={f || "todos"} type="button" aria-pressed={filtroVivo === f} onClick={() => setFiltro(f)}
+                className={cn("whitespace-nowrap rounded-full border px-3 py-1 text-xs transition hover:border-primary", filtroVivo === f && "border-primary bg-primary/10 font-medium text-primary")}>
                 {etiqueta} <span className="text-muted-foreground">({n})</span>
               </button>
             ))}

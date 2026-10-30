@@ -3,6 +3,9 @@
 -- empresa no puede leer (adjuntos_clinico es la única política permisiva), y al bucket privado «adjuntos», donde
 -- RR. HH. solo puede crear su archivo: ni verlo, ni listarlo, ni borrarlo después.
 -- Ruta del archivo: <org>/<trabajador>/rrhh-<uuid>-<nombre>; solo para trabajadores de las empresas que ve.
+-- El bucket ya limita la subida a PDF, JPG y PNG de hasta 10 MB (20261027170000); se reafirma por si alguien lo cambió.
+update storage.buckets set allowed_mime_types = array['application/pdf', 'image/jpeg', 'image/png'], file_size_limit = 10485760
+ where id = 'adjuntos';
 
 -- validar_adjunto: un archivo de la ficha (sin consulta) también se puede ligar a un estudio, siempre que sea un examen
 -- del catálogo de paraclínicos de la organización (historial de estudios del expediente). En una consulta sigue igual:
@@ -38,7 +41,8 @@ create policy adjuntos_empresa_entregar on storage.objects for insert to authent
 create or replace function public.entregar_estudio(p_trabajador uuid, p_ruta text, p_nombre text, p_tipo_mime text,
   p_tamano int, p_examen uuid default null, p_nota text default null)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := auth.uid(); v_org uuid; v_empresa uuid; v_trabajador text; v_examen text; v_id uuid;
+declare v_uid uuid := auth.uid(); v_org uuid; v_empresa uuid; v_trabajador text; v_examen text; v_id uuid; v_obj jsonb;
+  v_mime text; v_tamano bigint;
 begin
   select org_id, empresa_id, nombres || ' ' || apellidos into v_org, v_empresa, v_trabajador from public.trabajadores where id = p_trabajador;
   if v_uid is null or v_org is null or not public.es_empresa(v_org) or not public.ve_trabajador(v_org, p_trabajador) then
@@ -48,12 +52,16 @@ begin
      or array_length(string_to_array(p_ruta, '/'), 1) <> 3 then
     raise exception 'Ruta de archivo no válida.' using errcode = '22023';
   end if;
-  -- El archivo tiene que existir en el bucket y ser de quien lo registra (owner_id en Supabase)
-  if not exists (select 1 from storage.objects o where o.bucket_id = 'adjuntos' and o.name = p_ruta
-                   and coalesce(to_jsonb(o) ->> 'owner_id', v_uid::text) = v_uid::text) then
+  -- El archivo tiene que existir en el bucket y ser de quien lo registra (owner_id en Supabase). Tipo y tamaño se toman
+  -- de lo que guardó storage, no de lo que dice el navegador (Analizar, 30-oct): un HTML declarado «pdf» no entra.
+  select to_jsonb(o) into v_obj from storage.objects o where o.bucket_id = 'adjuntos' and o.name = p_ruta;
+  if v_obj is null or v_obj ->> 'owner_id' is distinct from v_uid::text then
     raise exception 'El archivo no se subió.' using errcode = '22023';
   end if;
-  if p_tipo_mime not in ('application/pdf', 'image/jpeg', 'image/png') or p_tamano not between 1 and 10485760 then
+  v_mime := v_obj -> 'metadata' ->> 'mimetype';
+  v_tamano := case when v_obj -> 'metadata' ->> 'size' ~ '^\d{1,9}$' then (v_obj -> 'metadata' ->> 'size')::bigint end;
+  if v_mime is null or v_mime not in ('application/pdf', 'image/jpeg', 'image/png') or v_tamano is null or v_tamano not between 1 and 10485760
+     or p_tipo_mime is distinct from v_mime then
     raise exception 'Solo PDF o fotos de hasta 10 MB.' using errcode = '22023';
   end if;
   -- Tope por persona y día (Caracas): evita llenar el almacenamiento gratis
@@ -64,7 +72,7 @@ begin
     select nombre into v_examen from public.lista_items where id = p_examen and org_id = v_org and lista = 'paraclinico';
   end if;
   insert into clinico.adjuntos (org_id, trabajador_id, consulta_id, nombre, ruta, tipo_mime, tamano, descripcion, examenes, subido_por)
-  values (v_org, p_trabajador, null, left(coalesce(nullif(btrim(p_nombre), ''), 'Estudio'), 200), p_ruta, p_tipo_mime, p_tamano,
+  values (v_org, p_trabajador, null, left(coalesce(nullif(btrim(p_nombre), ''), 'Estudio'), 200), p_ruta, v_mime, v_tamano,
           left('Enviado por RR. HH.' || coalesce(': ' || nullif(btrim(p_nota), ''), ''), 500),
           case when v_examen is null then '{}'::text[] else array[p_examen::text] end, v_uid)
   returning id into v_id;

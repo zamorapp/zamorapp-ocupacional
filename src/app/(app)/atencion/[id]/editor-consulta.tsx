@@ -975,7 +975,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       </Button>
                     )}
                     {laboratorio.length > 0 && (
-                      <Button size="sm" variant="outline" onClick={() => agregar(laboratorio)}>
+                      <Button size="sm" variant={estudios.length ? "outline" : "default"} onClick={() => agregar(laboratorio)}>
                         <Plus /> Laboratorio ({laboratorio.length})
                       </Button>
                     )}
