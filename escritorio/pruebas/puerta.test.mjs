@@ -27,10 +27,10 @@ const diag = !!(process.env.GITHUB_ACTIONS || process.env.DIAGNOSTICO);
 const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (origen === "bandeja") lineasBandeja.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
-async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
+async function pedir(ruta, { metodo = "GET", token, cuerpo, cabeceras = {} } = {}) {
   const r = await fetch(`${urlPuerta}${ruta}`, {
     method: metodo,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...cabeceras },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
   const texto = await r.text();
@@ -880,7 +880,8 @@ test("Windows adelantado o atrasado: el plazo de 7 días no se salta y un token 
       nubeObj.reloj.fecha = () => fechaW() + corrimiento;
       const { e, datos } = await entrar();
       const ahora = nubeObj.reloj.segundos(), win = Math.floor(nubeObj.reloj.fecha() / 1000);
-      assert.equal(datos.zexp, ahora + 3600, "la puerta vence con la hora anclada");
+      // ahora se lee después de entrar: si cambia el segundo en medio, zexp queda 1 s atrás
+      assert.ok(Math.abs(datos.zexp - (ahora + 3600)) <= 1, "la puerta vence con la hora anclada");
       assert.ok(Math.abs(datos.exp - (win + 3600)) <= 1 && Math.abs(datos.iat - (win - 60)) <= 1, "exp e iat en la hora de Windows");
       assert.equal(e.json.expires_at, datos.exp, "la app renueva según su propio reloj");
     }
@@ -1855,6 +1856,58 @@ test("sin internet: resultados de laboratorio completos (consulta, rangos, PDF, 
   await replicaObj.ciclo();
   assert.equal(await avisosEnPc(), 1, "en la PC queda uno solo: el de la nube");
   assert.equal((await enLaCopiaDB("select count(*)::int n from public.notificaciones where id = '4f000000-0000-0000-0000-0000000000e1'")).rows[0].n, 1, "el aviso que bajó de la nube sigue");
+});
+
+// 30/10/2026 (pedido de Cesar): post vacacional sin internet. El aviso suena en la PC al momento y, al volver
+// internet, queda uno solo (el de la nube).
+const dia = (hoy, n) => { const [a, m, d] = hoy.split("-").map(Number); const f = new Date(Date.UTC(a, m - 1, d + n)); return `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, "0")}-${String(f.getUTCDate()).padStart(2, "0")}`; };
+const avisosPv = async (q, uid) => (await q("select count(*)::int n from public.notificaciones where usuario_id = $1 and titulo like 'Post vacacional%'", [uid])).rows[0].n;
+
+test("sin internet: suena el post vacacional en la PC; al volver queda uno solo", { skip: omitir, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a", V = "4f000000-0000-0000-0000-0000000000f1";
+  nube.estado.caida = false; await nubeObj.comprobar();
+  tokenMed = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } })).json.access_token;
+  const hoy = (await enLaNubeDB("select public.hoy_caracas()::text h")).rows[0].h;
+  await enLaNubeDB("insert into public.vacaciones (id, trabajador_id, desde, regreso) values ($1, $2, $3, $4) on conflict (id) do nothing", [V, T, dia(hoy, -15), dia(hoy, 1)]);
+  await replicaObj.enCurso;
+  await replicaObj.ciclo();
+  try {
+    nube.estado.caida = true; await nubeObj.comprobar();
+    for (let i = 0; i < 2; i++) {
+      const r = await pedir("/rest/v1/rpc/recordar_post_vacacional", { metodo: "POST", token: tokenMed, cuerpo: {} });
+      assert.equal(r.status, 200, JSON.stringify(r.json));
+    }
+    assert.equal(await avisosPv(enLaCopiaDB, MED), 1, "el aviso suena en la PC sin internet, una vez");
+    const ks = await enLocal("select args from local.constancias where rpc = 'recordar_post_vacacional'");
+    assert.equal(ks.length, 1);
+    assert.equal(ks[0].args.locales.length, 1);
+  } finally {
+    nube.estado.caida = false; await nubeObj.comprobar();
+  }
+  await bandejaObj.subir();
+  assert.equal(await avisosPv(enLaNubeDB, MED), 1, "la nube hizo su aviso");
+  await replicaObj.ciclo();
+  assert.equal(await avisosPv(enLaCopiaDB, MED), 1, "en la PC queda uno solo: el de la nube");
+  await enLaNubeDB("delete from public.vacaciones where id = $1", [V]);
+});
+
+test("sin internet: las vacaciones se anotan en la PC (la empresa sale del trabajador) y suben al volver", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const T = "30000000-0000-0000-0000-00000000000a";
+  nube.estado.caida = false; await nubeObj.comprobar();
+  const hoy = (await enLaNubeDB("select public.hoy_caracas()::text h")).rows[0].h;
+  let id;
+  try {
+    nube.estado.caida = true; await nubeObj.comprobar();
+    const v = await pedir("/rest/v1/vacaciones?select=id,empresa_id", { metodo: "POST", token: tokenMed, cuerpo: { trabajador_id: T, desde: dia(hoy, -20), regreso: dia(hoy, -5) }, cabeceras: { Prefer: "return=representation" } });
+    assert.equal(v.status, 201, JSON.stringify(v.json));
+    id = v.json[0].id;
+    assert.equal(v.json[0].empresa_id, "20000000-0000-0000-0000-00000000000a");
+  } finally {
+    nube.estado.caida = false; await nubeObj.comprobar();
+  }
+  await bandejaObj.subir();
+  assert.equal((await enLaNubeDB("select count(*)::int n from public.vacaciones where id = $1", [id])).rows[0].n, 1, "la vacación subió");
+  await enLaNubeDB("delete from public.vacaciones where id = $1", [id]);
 });
 
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {

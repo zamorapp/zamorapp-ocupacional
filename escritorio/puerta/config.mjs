@@ -43,7 +43,10 @@ export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta
 // después por constancia_diferida() con la hora de la PC (si estaba verificada). Así leer resultados no se frena.
 // recordar_resultados (la campana de resultados pendientes) también: sus avisos salen en la PC al momento y, al subir,
 // la nube la vuelve a calcular y la PC borra los suyos (bandeja.mjs).
-export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados"]);
+// recordar_post_vacacional (el aviso del post vacacional) igual: suena en la PC sin internet.
+export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados", "recordar_post_vacacional"]);
+// Constancias que son la campana: sus avisos hechos en la PC se borran cuando la nube hace los suyos
+export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacacional"]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([

@@ -101,12 +101,19 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {escritorio ? (
-          <p className="text-muted-foreground">Los avisos se activan desde tu celular: abre zamorApp en el celular &gt; Mi perfil.</p>
+          <p className="text-muted-foreground">Los avisos se activan desde tu celular: abre zamorApp en el celular › Mi perfil.</p>
         ) : (<>
-        <p className="text-muted-foreground">
-          Te llega una notificación cuando RR. HH. de una empresa se registra con su enlace, pide una cita, registra un
-          trabajador nuevo o hace una solicitud. Llega aunque la laptop esté apagada. Actívalo en cada {equipo} donde lo quieras.
-        </p>
+        <div className="text-muted-foreground">
+          <p>Te avisa al momento de:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            <li>RR. HH.: registros, citas y solicitudes</li>
+            <li>Plazos de accidentes</li>
+            <li>Resultados por recibir</li>
+            <li>Alertas para la próxima evaluación</li>
+            <li>Cada mañana: exámenes por vencer</li>
+          </ul>
+          <p className="mt-1">Llega aunque la laptop esté apagada. Actívalo en cada {equipo} donde lo quieras.</p>
+        </div>
         {estado === "cargando" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {estado === "no-soporta" && <p>Este navegador no recibe avisos. En Android usa Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
         {estado === "instalar-iphone" && <p>En iPhone primero agrega zamorApp a la pantalla de inicio (Compartir › «Agregar a inicio»), ábrela desde ahí y vuelve aquí.</p>}
@@ -151,7 +158,7 @@ export function OfertaAvisosCelular() {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
       <BellRing className="size-5 shrink-0 text-primary" />
-      <p className="flex-1">Recibe en este celular los registros, citas y solicitudes de RR. HH.</p>
+      <p className="flex-1">Recibe en este celular los avisos de RR. HH., accidentes, resultados y vencimientos.</p>
       <Button size="sm" asChild><a href="/configuracion/perfil#avisos-celular">Activar</a></Button>
       <Button size="sm" variant="ghost" onClick={ignorar}>Ignorar</Button>
     </div>

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BellOff, Briefcase, Building2, Users } from "lucide-react";
+import { Briefcase, Building2, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
-import { AVISOS_EMPRESA } from "@/lib/empresas-avisos";
 import { obtenerSesion } from "@/lib/sesion";
 import { AlertaLegal } from "./alerta-legal";
+import { PausarAvisos } from "./pausar-avisos";
 import { FormEmpresa } from "./nueva-empresa";
 
 export const metadata: Metadata = { title: "Empresas" };
@@ -59,11 +59,7 @@ export default async function Empresas() {
                     )}
                   </div>
                   {!sesion.demo && <AlertaLegal empresaId={e.id} faltan={faltan} ignorada={e.ignorarAlertaLegal} editable={esAdmin} />}
-                  {e.avisosApagados.length > 0 && (
-                    <p className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={AVISOS_EMPRESA.filter((x) => e.avisosApagados.includes(x.clave)).map((x) => x.nombre).join(" · ")}>
-                      <BellOff className="size-3" aria-hidden /> {e.avisosApagados.length === AVISOS_EMPRESA.length ? "Avisos apagados" : `${e.avisosApagados.length} ${e.avisosApagados.length === 1 ? "aviso apagado" : "avisos apagados"}`}
-                    </p>
-                  )}
+                  {!sesion.demo && <PausarAvisos empresaId={e.id} apagados={e.avisosApagados} editable={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />}
                   {esAdmin && <div className="-mb-2 flex justify-end"><FormEmpresa habilitado empresa={e} /></div>}
                 </CardContent>
               </Card>

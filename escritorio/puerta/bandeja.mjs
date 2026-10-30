@@ -3,6 +3,7 @@
 // Lo aplicado se borra de la bandeja; un conflicto o rechazo queda anotado y nunca se pierde (la nube lo guarda
 // en sync.conflictos y la PC conserva el cambio con su motivo).
 import pg from "./pg-local.mjs";
+import { RPC_CAMPANA } from "./config.mjs";
 
 const LOTE = 200;
 const REINTENTOS = 5;
@@ -41,14 +42,14 @@ export class Bandeja {
 
   // La campana de resultados sin internet: una sola constancia pendiente por usuario (abrir Inicio diez veces no sube
   // diez); junta los avisos que la copia creó, para borrarlos cuando la nube haga los suyos
-  async anotarCampana(autor, locales) {
+  async anotarCampana(autor, locales, rpc = "recordar_resultados") {
     const c = new pg.Client({ connectionString: this.motor.url() });
     try {
       await c.connect();
       const { rowCount } = await c.query(`update local.constancias set args = jsonb_build_object('locales', coalesce(args -> 'locales', '[]') || to_jsonb($2::uuid[]))
-        where rpc = 'recordar_resultados' and autor = $1 and estado = 'pendiente'`, [autor, locales]);
-      if (!rowCount) await c.query("insert into local.constancias (rpc, args, autor, hora, hora_verificada) values ('recordar_resultados', $1, $2, $3, $4)",
-        [JSON.stringify({ locales }), autor, this.nube.reloj.iso(), this.nube.reloj.verificada]);
+        where rpc = $3 and autor = $1 and estado = 'pendiente'`, [autor, locales, rpc]);
+      if (!rowCount) await c.query("insert into local.constancias (rpc, args, autor, hora, hora_verificada) values ($5, $1, $2, $3, $4)",
+        [JSON.stringify({ locales }), autor, this.nube.reloj.iso(), this.nube.reloj.verificada, rpc]);
     } finally { await c.end().catch(() => {}); }
   }
 
@@ -64,7 +65,7 @@ export class Bandeja {
         // returning: los args al borrar (si llegó otro aviso mientras subía, también se borra con esta pasada)
         const { rows: [hecha] } = await c.query("delete from local.constancias where id = $1 returning args", [k.id]);
         // La nube ya hizo sus avisos (bajan con la sincronía): fuera los que la PC había creado sin internet
-        const locales = k.rpc === "recordar_resultados" ? hecha?.args?.locales : null;
+        const locales = RPC_CAMPANA.has(k.rpc) ? hecha?.args?.locales : null;
         if (Array.isArray(locales) && locales.length) {
           await c.query("delete from public.notificaciones where usuario_id = $1 and id = any($2::uuid[])", [k.autor, locales]);
         }

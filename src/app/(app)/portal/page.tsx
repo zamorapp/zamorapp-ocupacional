@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CancelarSolicitud } from "./cancelar";
 import { Refrescar } from "./refrescar";
 import { SolicitarCita } from "./solicitar-cita";
+import { AnotarVacaciones } from "./anotar-vacaciones";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -70,6 +71,7 @@ export default async function Portal() {
         <div className="flex flex-wrap gap-2">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
+          {gestiona && <AnotarVacaciones />}
           {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
       </div>

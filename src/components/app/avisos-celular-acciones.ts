@@ -17,7 +17,7 @@ export async function activarAvisos(s: Suscripcion & { equipo: string }): Promis
     p_org: sesion.orgId, p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_equipo: s.equipo.slice(0, 120), p_clave: claveAvisos(),
   });
   if (error) return { ok: false, mensaje: error.message };
-  return probarAviso(s.endpoint, "Avisos activos", "Así te llegará cada registro, cita o solicitud de RR. HH.");
+  return probarAviso(s.endpoint, "Avisos activos", "Así te llegarán los avisos de RR. HH. y de la campana.");
 }
 
 // Aviso de prueba a este celular (el usuario solo lee sus propias suscripciones)

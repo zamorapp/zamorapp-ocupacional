@@ -51,6 +51,7 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     mes_inicio_gestion: Math.min(12, Math.max(1, Number(datos.get("mes_inicio_gestion")) || 1)),
     periodicidad_meses: Math.min(60, Math.max(1, Number(datos.get("periodicidad_meses")) || 12)),
     dias_aviso_examen: Math.min(180, Math.max(0, Number(datos.get("dias_aviso_examen") ?? 30) || 0)),
+    dias_post_vacacional: Math.min(60, Math.max(0, Number(datos.get("dias_post_vacacional") ?? 5) || 0)),
     // Casilla marcada = aviso encendido; se guardan los apagados. Solo si el formulario trae las casillas
     // (marca «avisos_en_formulario»): otro formulario sin ellas no apaga nada sin querer.
     ...(datos.get("avisos_en_formulario") === "1" ? {
@@ -95,6 +96,17 @@ export async function ignorarAlertaLegal(id: string, ignorar: boolean): Promise<
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("empresas").update({ ignorar_alerta_legal: ignorar }).eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// Pausar (o reactivar) todos los avisos de una empresa de un toque: las que no se atienden por un tiempo.
+// Vale en la web, el escritorio y el celular (se guarda en la empresa). Los plazos legales de accidentes siguen avisando.
+export async function pausarAvisos(id: string, pausar: boolean): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("pausar_avisos_empresa", { p_empresa: id, p_pausar: pausar });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el gerente médico pausan avisos." : error.message };
   invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };

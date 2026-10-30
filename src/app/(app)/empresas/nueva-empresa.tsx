@@ -80,6 +80,10 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
           <Campo id="periodicidad_meses" etiqueta="Examen periódico cada (meses)" type="number" min={1} max={60} defaultValue={e?.periodicidadMeses ?? 12} />
           <Campo id="dias_aviso_examen" etiqueta="Avisar antes del vencimiento (días)" type="number" min={0} max={180} defaultValue={e?.diasAvisoExamen ?? 30} />
           <p className="-mt-2 text-xs text-muted-foreground sm:col-span-2">Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esta periodicidad. El inicio y el portal avisan con la anticipación indicada.</p>
+          <div>
+            <Campo id="dias_post_vacacional" etiqueta="Post vacacional: días desde el regreso" type="number" min={0} max={60} defaultValue={e?.diasPostVacacional ?? 5} />
+            <p className="mt-1 text-xs text-muted-foreground">Se avisa 2 días antes del regreso y vence a los días indicados aquí.</p>
+          </div>
 
           {/* Avisos por empresa: con las que se trabaja poco se apagan; los reportes y la ficha siguen mostrando todo */}
           <fieldset className="space-y-2 rounded-lg border px-3 py-2.5 sm:col-span-2">
