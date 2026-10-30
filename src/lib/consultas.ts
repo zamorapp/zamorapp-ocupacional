@@ -98,14 +98,19 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
   const { data: c } = await supabase.from("consultas").select("*").eq("id", id).maybeSingle();
   if (!c) return null;
 
-  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }] = await Promise.all([
+  const partes = await Promise.all([
     supabase.from("trabajadores").select("id, nombres, apellidos, cedula, sexo, fecha_nacimiento, empresas(razon_social), puestos(nombre, riesgos)").eq("id", c.trabajador_id).maybeSingle(),
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
     supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss, observacion").eq("consulta_id", id).maybeSingle(),
     c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
-      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
+  // Si una lectura falla, NUNCA se muestra la consulta como si no tuviera diagnósticos, aptitud o reposo: el siguiente
+  // Guardar los borraría (30-oct: la vista de reposos sin la columna «observacion» hacía «desaparecer» el reposo).
+  const fallo = partes.find((p) => p.error);
+  if (fallo?.error) throw new Error(`No se pudo leer la consulta completa (${fallo.error.message}). No guardes cambios y vuelve a intentar.`);
+  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }] = partes;
 
   const tr = t as unknown as {
     id: string; nombres: string; apellidos: string; cedula: string; sexo: string | null; fecha_nacimiento: string | null;

@@ -508,6 +508,62 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
   return { ok: bien + enCola > 0, mensaje: partes.join(" · ") + ".", detalle, enlaces };
 }
 
+// Documento de respuesta de una solicitud (lo lee la sesión: la vista y el bucket deciden quién lo ve)
+async function archivoDeSolicitud(supabase: Cliente, solicitudId: string): Promise<{ archivo: Adjunto; soloSalud: boolean } | null> {
+  const [{ data: r }, { data: s }] = await Promise.all([
+    supabase.from("solicitudes_respuesta").select("documento_ruta, documento_nombre").eq("id", solicitudId).maybeSingle(),
+    supabase.from("solicitudes").select("solo_salud").eq("id", solicitudId).maybeSingle(),
+  ]);
+  if (!r?.documento_ruta || !s) return null;
+  const { data: blob } = await supabase.storage.from("solicitudes").download(r.documento_ruta);
+  if (!blob) return null;
+  return { archivo: { nombre: r.documento_nombre ?? "Documento.pdf", contenido: Buffer.from(await blob.arrayBuffer()) }, soloSalud: Boolean(s.solo_salud) };
+}
+
+// «Responder y enviar»: el documento de la respuesta sale por correo a los contactos de la empresa en el mismo paso.
+// Si lleva datos médicos (solo_salud) va solo a los contactos «personal de salud»; si no, a todos los que tienen correo.
+// Mismo registro, texto de Cesar y bitácora que los demás envíos (documento «solicitud»; la base revisa las reglas).
+export async function enviarRespuestaSolicitud(solicitudId: string): Promise<ResultadoEnvio> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  if (!correoDisponible()) return { ok: false, mensaje: "Falta configurar el correo remitente. Avísale al administrador." };
+  const supabase = await crearClienteServidor();
+  const { data: sol } = await supabase.from("solicitudes").select("id, empresa_id, tipo, empresas(razon_social, nombre_comercial)").eq("id", solicitudId).maybeSingle();
+  if (!sol) return { ok: false, mensaje: "Solicitud no encontrada." };
+  const [doc, contactos] = await Promise.all([archivoDeSolicitud(supabase, solicitudId), listarContactos(sol.empresa_id)]);
+  if (!doc) return { ok: false, mensaje: "La respuesta no tiene documento para enviar." };
+  const destinos = contactos.filter((c) => c.correo && (!doc.soloSalud || c.recibeConsulta));
+  if (!destinos.length) {
+    return { ok: false, mensaje: doc.soloSalud ? "La empresa no tiene un contacto de personal de salud con correo (Envíos › Contactos)." : "La empresa no tiene contactos con correo (Envíos › Contactos)." };
+  }
+  const empresa = sol.empresas as unknown as { razon_social: string; nombre_comercial: string | null } | null;
+  const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "la empresa";
+  const documento = doc.archivo.nombre.replace(/\.pdf$/i, "");
+  const hoy = hoyCaracas();
+  const valores = { fechaHora: ahoraVE(), empresa: nombreEmpresa, fecha: fechaVE(hoy), cantidad: 1, documento: documento.toLowerCase() };
+  const mensaje = rellenar(MENSAJE_INFORME, valores);
+  const asunto = rellenar(ASUNTO_INFORME, { ...valores, documento }).slice(0, 200);
+  const detalle: Detalle[] = [];
+  const cola: Cola = [];
+  for (const c of destinos) {
+    const fila = {
+      org_id: sesion.orgId, empresa_id: sol.empresa_id, fecha_lote: hoy, canal: "correo", destinatario: c.correo!, contacto_id: c.id,
+      consultas: [], documentos: ["solicitud"], ruta: `/api/solicitudes/${solicitudId}`, asunto, mensaje,
+    };
+    detalle.push(await correoRegistrado(supabase, fila, [doc.archivo], `${sesion.nombre} · ${sesion.organizacion}`, cola));
+  }
+  await despacharCola(supabase, cola);
+  const bien = detalle.filter((x) => x.estado === "enviado").length;
+  const enCola = detalle.filter((x) => x.estado === "en_cola").length;
+  const mal = detalle.length - bien - enCola;
+  const partes = [
+    bien || !enCola ? `${bien} correo${bien === 1 ? "" : "s"} enviado${bien === 1 ? "" : "s"}` : null,
+    textoCola(enCola),
+    mal ? `${mal} con error (míralo en Envíos › Bitácora)` : null,
+  ].filter(Boolean);
+  return { ok: bien + enCola > 0, mensaje: partes.join(" · ") + ".", detalle };
+}
+
 export async function revocarEnlace(envioId: string) {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("envio_enlaces").update({ revocado_en: new Date(ahora()).toISOString() }).eq("envio_id", envioId).is("revocado_en", null);
@@ -553,7 +609,12 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
     const adjuntos: Adjunto[] = [];
     try {
       // Informe: el mismo PDF de su ruta; documentos de consultas: un PDF por grupo, como en el envío original
-      const partes = o.ruta ? [{ ruta: o.ruta, nombre: NOMBRE_DOCUMENTO[o.documentos[0]] }] : gruposDe(o.documentos).map((g) => ({ ruta: rutaLote(g, o.consultas), nombre: nombreGrupo(g) }));
+      if (o.documentos[0] === "solicitud" && o.ruta) {
+        const doc = await archivoDeSolicitud(supabase, o.ruta.split("/").pop()!);
+        if (!doc) throw new Error("la respuesta ya no tiene documento");
+        adjuntos.push(doc.archivo);
+      }
+      const partes = o.documentos[0] === "solicitud" ? [] : o.ruta ? [{ ruta: o.ruta, nombre: NOMBRE_DOCUMENTO[o.documentos[0]] }] : gruposDe(o.documentos).map((g) => ({ ruta: rutaLote(g, o.consultas), nombre: nombreGrupo(g) }));
       for (const p of partes) {
         if (!pdfs.has(p.ruta)) pdfs.set(p.ruta, (await pdfDeRutas([p.ruta]))[0]);
         adjuntos.push({ nombre: `${p.nombre} - ${nombreArchivo(empresa, o.fecha_lote)}`, contenido: pdfs.get(p.ruta)! });
