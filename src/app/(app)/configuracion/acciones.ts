@@ -8,6 +8,7 @@ import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
+import { CLASES } from "@/lib/estudios";
 import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -52,7 +53,11 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const sinonimos = [...new Set((texto(datos, "d_sinonimos") ?? "").split(",").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 20);
       // Fuente del rango (sociedad o guía y año): se ve en la lista; hasta 400 letras
       const fuente = (texto(datos, "d_fuente") ?? "").replace(/\s+/g, " ").slice(0, 400);
-      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos, fuente };
+      // Clase de estudio (laboratorio, imagen, funcional): vacía = se deduce del nombre
+      const clase = texto(datos, "d_clase");
+      const previos: Record<string, unknown> = { ...((anterior as Record<string, unknown>) ?? {}) };
+      delete previos.clase;
+      campos.datos = { ...previos, tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos, fuente, ...(clase && clase in CLASES ? { clase } : {}) };
     }
 
     // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren

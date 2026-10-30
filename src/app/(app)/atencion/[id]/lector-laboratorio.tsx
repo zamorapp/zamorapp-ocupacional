@@ -39,7 +39,7 @@ const ESTILO_NIVEL = {
 /** Lee el informe del laboratorio, propone los resultados y espera la confirmación del médico para registrarlos. */
 export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo, sexo, paciente, puedeAgregar, onRegistrar, onCerrar }: Props) {
   const examenes = useMemo<ExamenCatalogo[]>(() => catalogo.map((i) => {
-    const dx = defExamen(i.datos);
+    const dx = defExamen(i.datos, i.nombre, i.grupo);
     return { id: i.id, nombre: i.nombre, grupo: i.grupo, sinonimos: sinonimosDe(i.datos), unidad: dx.unidad, max: rango(dx, sexo).max };
   }), [catalogo, sexo]);
   const [avance, setAvance] = useState<Avance>({ texto: "Abriendo el archivo…", paso: 0, total: 1 });

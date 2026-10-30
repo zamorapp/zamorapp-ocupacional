@@ -40,7 +40,7 @@ const esPdf = (a: Adjunto) => a.tipo_mime === "application/pdf";
 
 /** Paraclínicos de la consulta: resultados con semáforo, archivos ligados a cada examen y visor. */
 export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, sexo, archivos, asegurarGuardado, resultados, paciente }: Props) {
-  const defs = useMemo(() => new Map(catalogo.map((i) => [i.id, defExamen(i.datos)])), [catalogo]);
+  const defs = useMemo(() => new Map(catalogo.map((i) => [i.id, defExamen(i.datos, i.nombre, i.grupo)])), [catalogo]);
   const def = useCallback((id: string) => defs.get(id) ?? SIN_DEF, [defs]);
   const editableResultado = modo !== "lectura";
   // Firmada: los archivos de la consulta no se agregan, religan ni borran (la base lo exige); se ven igual

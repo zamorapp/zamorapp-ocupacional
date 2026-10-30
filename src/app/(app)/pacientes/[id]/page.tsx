@@ -23,6 +23,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
+import { itemsDeLista, type Item } from "@/lib/listas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
@@ -50,14 +51,16 @@ export default async function FichaPaciente({ params }: Props) {
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
-  const [adjuntos, empleos] = verAdjuntos
+  const [adjuntos, empleos, catalogoEstudios] = verAdjuntos
     ? await Promise.all([
         listarAdjuntos(t.id),
         crearClienteServidor().then((s) => s.from("historia_laboral").select("*").eq("trabajador_id", t.id).order("creado_en")).then((r) => (r.data ?? []) as EmpleoAnterior[]),
         // Auditoría: queda registrado quién abrió la historia (la base ignora a quien no es personal de salud)
+        // Catálogo de paraclínicos: clase de cada estudio del historial (imagen, funcional, laboratorio)
+        itemsDeLista(sesion.orgId, "paraclinico", true),
         crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
-    : [[], [] as EmpleoAnterior[]];
+    : [[], [] as EmpleoAnterior[], [] as Item[]];
   // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
   const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
@@ -135,7 +138,7 @@ export default async function FichaPaciente({ params }: Props) {
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
           {verAdjuntos && <TabsTrigger value="historia">Historia laboral ({empleos.length})</TabsTrigger>}
-          {verAdjuntos && <TabsTrigger value="resultados">Resultados ({adjuntos.length})</TabsTrigger>}
+          {verAdjuntos && <TabsTrigger value="resultados">Estudios ({adjuntos.length})</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="resumen" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -241,7 +244,7 @@ export default async function FichaPaciente({ params }: Props) {
         )}
         {verAdjuntos && (
           <TabsContent value="resultados" className="mt-4">
-            <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} /></CardContent></Card>
+            <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} catalogo={catalogoEstudios} consultas={consultas.filter((c) => !c.demo)} /></CardContent></Card>
           </TabsContent>
         )}
       </Tabs>
