@@ -715,6 +715,35 @@ test("sin internet: abrir la historia queda como constancia y sube después con 
   }
 });
 
+// Analizar (30-oct): el texto de un error de la nube puede traer valores («Key (cedula)=(…)»); ni puerta.log ni el
+// resumen lo repiten. Queda solo en local.constancias.
+test("una constancia rechazada por la nube no deja la cédula del motivo en puerta.log ni en el resumen", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", CEDULA = "V-87654321";
+  const [k] = await enLocal("insert into local.constancias (rpc, args, autor, hora) values ('registrar_acceso', '{}', $1, now()) returning id", [MED]);
+  const rpc = nubeObj.rpc;
+  nubeObj.rpc = async (uid, f, args) => {
+    if (f === "constancia_diferida") throw Object.assign(new Error(`duplicate key value: Key (cedula)=(${CEDULA}) already exists`), { status: 409 });
+    return rpc.call(nubeObj, uid, f, args);
+  };
+  const desde = lineasBandeja.length;
+  try {
+    nube.estado.caida = false; await nubeObj.comprobar();
+    await bandejaObj.subir();
+    const [m] = await enLocal("select motivo, intentos from local.constancias where id = $1", [k.id]);
+    assert.ok(m.motivo.includes(CEDULA) && m.intentos === 1, "el motivo queda en la PC");
+    const nuevas = lineasBandeja.slice(desde).join("\n");
+    assert.match(nuevas, /constancia registrar_acceso no aceptada por la nube \(HTTP 409/);
+    assert.ok(!nuevas.includes(CEDULA), nuevas);
+    const r = await pedir("/zamorapp/bandeja/resumen", { token: tokenAdmin });
+    assert.equal(r.status, 200);
+    assert.ok(!JSON.stringify(r.json).includes(CEDULA), JSON.stringify(r.json));
+  } finally {
+    nubeObj.rpc = rpc;
+    await enLocal("delete from local.constancias where id = $1", [k.id]);
+    nube.estado.caida = true; await nubeObj.comprobar();
+  }
+});
+
 // Un «sin conexión» de un instante (p. ej. la red de Windows aún no lista al arrancar) no deja la PC sin internet
 // hasta la próxima sincronía: a los 15 s la puerta vuelve a preguntar sola.
 test("volvió internet: la puerta lo nota sola en la siguiente petición", { skip: omitir }, async () => {

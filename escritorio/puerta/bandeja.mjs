@@ -7,6 +7,8 @@ import pg from "./pg-local.mjs";
 const LOTE = 200;
 const REINTENTOS = 5;
 const TABLA = /^(public|clinico)\.[a-z_0-9]+$/; // nombre de tabla seguro para armar la consulta
+// Cómo se nombra un error sin su texto: estado HTTP, código de PostgreSQL o de Node, o la clase
+const claseDeError = (e) => (e?.status ? `HTTP ${e.status}` : e?.code ? String(e.code) : e?.name || "error");
 const RESUELVEN = ["administrador", "gerente_medico"]; // además del autor
 
 export class Bandeja {
@@ -69,7 +71,7 @@ export class Bandeja {
       } catch (e) {
         if (!e.status || e.status >= 500) throw e; // sin red o la nube caída: otra pasada
         await c.query("update local.constancias set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = $3 where id = $1", [k.id, REINTENTOS, e.message]);
-        this.registro(`[bandeja] constancia ${k.rpc} no aceptada por la nube: ${e.message}`);
+        this.registro(`[bandeja] constancia ${k.rpc} no aceptada por la nube (${claseDeError(e)}; el motivo queda en local.constancias)`);
       }
     }
   }
@@ -201,8 +203,9 @@ export class Bandeja {
         : null;
       if (sinSesion.length) this.registro(`[bandeja] ${this.ultimoError}`);
     } catch (e) {
-      this.ultimoError = e.message;
-      this.registro(`[bandeja] no se pudo subir: ${e.stack || e.message}`);
+      // El mensaje de la nube o de PostgreSQL puede traer valores («Key (cedula)=(…)»): ni al registro ni al estado
+      this.ultimoError = `No se pudo subir (${claseDeError(e)})`;
+      this.registro(`[bandeja] ${this.ultimoError}${(e.stack || "").split("\n").slice(1, 4).join("\n")}`);
     } finally {
       await c.end().catch(() => {});
     }
