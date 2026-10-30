@@ -68,3 +68,14 @@ export async function horasEmpresa(empresaId: string): Promise<MesHorasDatos[]> 
     return { mes, horas: h ? Number(h.horas) : null, trabajadores: h?.trabajadores ?? null, metodo: (h?.metodo as MesHorasDatos["metodo"]) ?? "estimado" };
   });
 }
+
+// Cargos activos de cada empresa, para sugerir al escribir (alta de paciente). Uno por clave: sin variantes.
+export async function cargosPorEmpresa(): Promise<Record<string, string[]>> {
+  if (!supabaseConfigurado) return {};
+  const supabase = await crearClienteServidor();
+  const filas = await todas<{ empresa_id: string; nombre: string }>((d, h) =>
+    supabase.from("puestos").select("empresa_id, nombre", { count: "exact" }).eq("activo", true).order("nombre").order("id").range(d, h)).catch(() => []);
+  const r: Record<string, string[]> = {};
+  for (const f of filas ?? []) (r[f.empresa_id] ??= []).push(f.nombre);
+  return r;
+}
