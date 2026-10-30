@@ -40,3 +40,17 @@ export const sumarMeses = (iso: string, meses: number) => {
 // "AAAA-MM-DDTHH:mm" en Caracas, para los campos datetime-local (ahora, si no se da)
 export const horaLocalCaracas = (momento: Date | string | number = ahora()) =>
   new Date(momento).toLocaleString("sv-SE", { timeZone: ZONA, hour12: false }).slice(0, 16).replace(" ", "T");
+
+// Tiempo entre dos fechas "AAAA-MM-DD" en años y meses: antigüedad en el cargo o en la empresa, edad.
+// «3 años y 2 meses», «5 meses», «menos de un mes». Null si falta la fecha o es posterior a «hasta».
+export const antiguedad = (desde: string | null | undefined, hasta: string = hoyCaracas()): string | null => {
+  if (!desde || desde.slice(0, 10) > hasta.slice(0, 10)) return null;
+  const [a1, m1, d1] = desde.slice(0, 10).split("-").map(Number);
+  const [a2, m2, d2] = hasta.slice(0, 10).split("-").map(Number);
+  const meses = (a2 - a1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  if (meses <= 0) return "menos de un mes";
+  const partes = [anios && `${anios} ${anios === 1 ? "año" : "años"}`, resto && `${resto} ${resto === 1 ? "mes" : "meses"}`].filter(Boolean);
+  return partes.join(" y ");
+};

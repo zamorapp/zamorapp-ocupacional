@@ -33,7 +33,9 @@ do $$
 declare t record;
 begin
   for t in select tgrelid::regclass as tabla, tgname from pg_trigger
-            where not tgisinternal and (tgname like 'avisar%' or tgname like 'bit\_%') loop
+            where not tgisinternal and (tgname like 'avisar%' or tgname like 'bit\_%'
+                 -- el historial de cargos lo escribe la nube al recibir el cambio (la tabla no baja a la PC)
+                 or tgname = 'historial_cargos') loop
     execute format('alter table %s disable trigger %I', t.tabla, t.tgname);
   end loop;
 end $$;

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { invalidarEmpresas } from "@/lib/empresas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
+import { hoyCaracas } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
@@ -203,4 +204,95 @@ export async function depurarNomina(empresaId: string | null, desde: string, apl
   }
   const n = Number(data ?? 0);
   return { ok: true, cantidad: n, mensaje: aplicar ? `${n} trabajadores marcados como egresados.` : `${n} trabajadores sin consulta desde esa fecha.` };
+}
+
+// Ficha del trabajador desde la consulta («Generales» › Datos del trabajador). El cargo o la dependencia nuevos se
+// crean en la empresa del trabajador; si viene la consulta y sigue abierta, también queda con ese cargo y dependencia
+// (de ahí salen los riesgos del puesto, la vigilancia y los informes). Al cambiar de cargo, la base guarda el anterior
+// en el historial (cargos_historial) y, si no se indicó otra, la antigüedad del nuevo empieza hoy.
+const CAMPOS_FICHA = ["sexo", "fecha_nacimiento", "estado_civil", "lugar_nacimiento", "nivel_educativo", "profesion", "telefono", "correo",
+  "direccion", "fecha_ingreso", "fecha_ingreso_cargo", "turno", "lateralidad", "tipo_paciente_id", "ficha"] as const;
+export type FichaTrabajador = Record<(typeof CAMPOS_FICHA)[number] | "cargo" | "dependencia", string>;
+
+export async function actualizarDatosTrabajador(trabajadorId: string, consultaId: string | null, datos: FormData): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!sesion.orgId) return { ok: false, mensaje: "Tu usuario no tiene organización asignada." };
+
+  const supabase = await crearClienteServidor();
+  const { data: t } = await supabase.from("trabajadores").select("empresa_id, puesto_id, fecha_ingreso_cargo").eq("id", trabajadorId).maybeSingle();
+  if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
+  const cargo = texto(datos, "cargo");
+  const dependencia = texto(datos, "dependencia");
+  const hoy = hoyCaracas();
+  for (const [k, n] of [["fecha_nacimiento", "nacimiento"], ["fecha_ingreso", "ingreso a la empresa"], ["fecha_ingreso_cargo", "ingreso al cargo"]] as const) {
+    const f = texto(datos, k);
+    if (f && f > hoy) return { ok: false, mensaje: `La fecha de ${n} no puede ser futura.` };
+  }
+  try {
+    const cat = await resolverCatalogos(supabase, sesion.orgId, t.empresa_id, dependencia ? [dependencia] : [], cargo ? [cargo] : []);
+    const ubicacion = { puesto_id: cat.puesto(cargo), dependencia_id: cat.dependencia(dependencia) };
+    const ficha = Object.fromEntries(CAMPOS_FICHA.map((k) => [k, texto(datos, k)])) as Record<(typeof CAMPOS_FICHA)[number], string | null>;
+    // Cargo nuevo sin cambiar la fecha de ingreso al cargo: empieza hoy (en el escritorio el disparador corre en la nube)
+    if (t.puesto_id && ubicacion.puesto_id !== t.puesto_id && ficha.fecha_ingreso_cargo === t.fecha_ingreso_cargo) ficha.fecha_ingreso_cargo = hoy;
+    const { error } = await supabase
+      .from("trabajadores")
+      .update({ ...ficha, ...ubicacion, sexo: ficha.sexo as "F" | "M" | null })
+      .eq("id", trabajadorId);
+    if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+    if (consultaId) {
+      // Solo la consulta en curso de este trabajador; una firmada no cambia (la base también lo impide)
+      await supabase.from("consultas").update(ubicacion).eq("id", consultaId).eq("trabajador_id", trabajadorId).neq("estado", "firmada");
+    }
+    revalidatePath("/", "layout");
+    olvidar("");
+    return { ok: true, mensaje: "Datos del trabajador guardados." };
+  } catch (e) {
+    return { ok: false, mensaje: (e as Error).message };
+  }
+}
+
+export type OpcionesFicha = {
+  ficha: FichaTrabajador;
+  cargos: string[];
+  dependencias: string[];
+  listas: Record<"estado_civil" | "nivel_educativo" | "turno" | "tipo_paciente", { id: string; nombre: string }[]>;
+  historial: { cargo: string; desde: string | null; hasta: string }[];
+  // «Hoy» del servidor (Caracas): la edad y la antigüedad no dependen de la fecha de Windows
+  hoy: string;
+};
+
+// Ficha actual, cargos y dependencias de su empresa (para sugerir) y las listas editables, en una sola ida
+export async function fichaDeTrabajador(trabajadorId: string): Promise<OpcionesFicha | null> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return null;
+  const supabase = await crearClienteServidor();
+  const { data: t } = await supabase
+    .from("trabajadores")
+    .select(`empresa_id, ${CAMPOS_FICHA.join(", ")}, puestos(nombre), dependencias(nombre)`)
+    .eq("id", trabajadorId)
+    .maybeSingle();
+  if (!t) return null;
+  const fila = t as unknown as Record<string, string | null> & { empresa_id: string; puestos: { nombre: string } | null; dependencias: { nombre: string } | null };
+  const [{ data: p }, { data: d }, { data: items }, { data: h }] = await Promise.all([
+    supabase.from("puestos").select("nombre").eq("empresa_id", fila.empresa_id).order("nombre"),
+    supabase.from("dependencias").select("nombre").eq("empresa_id", fila.empresa_id).order("nombre"),
+    supabase.from("lista_items").select("id, lista, nombre").eq("org_id", sesion.orgId).eq("activo", true)
+      .in("lista", ["estado_civil", "nivel_educativo", "turno", "tipo_paciente"]).order("orden").order("nombre"),
+    supabase.from("cargos_historial").select("cargo, desde, hasta").eq("trabajador_id", trabajadorId).order("hasta", { ascending: false }),
+  ]);
+  const listas: OpcionesFicha["listas"] = { estado_civil: [], nivel_educativo: [], turno: [], tipo_paciente: [] };
+  for (const i of items ?? []) listas[i.lista as keyof typeof listas]?.push({ id: i.id, nombre: i.nombre });
+  return {
+    ficha: {
+      ...(Object.fromEntries(CAMPOS_FICHA.map((k) => [k, fila[k] ?? ""])) as Record<(typeof CAMPOS_FICHA)[number], string>),
+      cargo: fila.puestos?.nombre ?? "",
+      dependencia: fila.dependencias?.nombre ?? "",
+    },
+    cargos: [...new Set((p ?? []).map((x) => x.nombre))],
+    dependencias: [...new Set((d ?? []).map((x) => x.nombre))],
+    listas,
+    historial: h ?? [],
+    hoy: hoyCaracas(),
+  };
 }

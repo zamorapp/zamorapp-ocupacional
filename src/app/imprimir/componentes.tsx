@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import type { DatosDocumento } from "@/lib/documentos";
+import { antiguedad } from "@/lib/fecha";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
 // Los colores son fijos (papel), no siguen el tema oscuro de la app.
@@ -131,6 +132,8 @@ export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; compl
   if (completo) {
     celdas.push(
       { k: "Ingreso · Turno", v: [d.extra.fecha_ingreso && fechaCorta(d.extra.fecha_ingreso), d.extra.turno].filter(Boolean).join(" · ") },
+      // Antigüedad en el cargo a la fecha de la consulta (no a la de impresión), como en el SAME
+      { k: "Antigüedad en el cargo", v: antiguedad(d.extra.fecha_ingreso_cargo, d.datos.fecha) ?? "" },
       { k: "Tipo · Ficha", v: [d.extra.tipo?.nombre, d.extra.ficha].filter(Boolean).join(" · ") },
     );
   } else celdas[3] = { ...celdas[3], ancho: 4 };

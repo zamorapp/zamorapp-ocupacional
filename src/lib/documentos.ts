@@ -67,7 +67,7 @@ export async function obtenerDocumento(consultaId: string) {
     c.motivo_id ? datosMotivo(c.motivo_id) : Promise.resolve({ data: null }),
     datosEmpresa(c.empresa_id),
     c.dependencia_id ? datosDependencia(c.dependencia_id) : Promise.resolve({ data: null }),
-    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
+    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, fecha_ingreso_cargo, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
     obtenerSesion(),
   ]);
 
@@ -83,7 +83,7 @@ export async function obtenerDocumento(consultaId: string) {
     empresa: empresa as { razon_social: string; rif: string; logo: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
     extra: trab as unknown as {
-      fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number;
+      fecha_nacimiento: string | null; fecha_ingreso: string | null; fecha_ingreso_cargo: string | null; turno: string | null; numero_historia: number;
       ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
     },
     // Pie de página: quién imprime y cuándo (hora de Venezuela)
