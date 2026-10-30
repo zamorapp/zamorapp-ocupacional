@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
-import type { Firmantes } from "@/lib/reportes";
+import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
 import { obtenerSesion } from "@/lib/sesion";
 import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -40,7 +40,7 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
     recomendaciones: limpio(t.recomendaciones),
     factores_riesgo: limpio(t.factores_riesgo),
     medidas_control: limpio(t.medidas_control),
-    firmantes: t.firmantes,
+    firmantes: limpiarFirmantes(t.firmantes),
     analisis: Object.fromEntries(Object.entries(t.analisis ?? {}).filter(([k, v]) => SECCIONES.includes(k) && typeof v === "string" && v.trim()).map(([k, v]) => [k, v.trim().slice(0, 4000)])),
     variante: Number.isInteger(t.variante) ? Math.max(0, Math.min(t.variante, 1_000_000)) : 0,
     actualizado_por: sesion.usuarioId,

@@ -12,6 +12,7 @@ import { indicesCovenin, tasasEnfermedadOcupacional, textoMetodoHoras } from "@/
 import { obtenerSesion } from "@/lib/sesion";
 import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
+import { datosPortada } from "@/lib/firmantes";
 import { EditorInforme } from "./editor-informe";
 import { ExploradorCausas } from "./explorador-causas";
 import { SelectorPeriodo } from "./selector-periodo";
@@ -215,6 +216,7 @@ export default async function Reportes({ searchParams }: Props) {
                   firmantesBase={v.firmantesBase}
                   editable={Boolean(sesion.rol && ROLES_REDACTAN.includes(sesion.rol))}
                   enlaceImprimir={enlaceImprimir}
+                  empresa={v.empresa && { id: v.empresa.id, datos: datosPortada(v.empresa, r.poblacion) }}
                 />
               </CardContent>
             </Card>

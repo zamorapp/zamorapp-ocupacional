@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
 import type { Periodo } from "@/lib/periodos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Series } from "@/lib/vigilancia-analisis";
@@ -188,8 +189,22 @@ export type InformeVigilancia = {
   variante: number;
   actualizado_en: string | null;
 };
-export type Persona = { nombre: string; cedula: string };
-export type Firmantes = { medico?: Persona; sst?: Persona; delegados?: Persona[]; empleador?: Persona };
+export type { Firmantes, Persona } from "@/lib/firmantes";
+
+// Firmantes y datos de portada del último informe guardado de esa empresa: los delegados y representantes
+// cambian poco, así que el informe nuevo arranca con ellos (sin la fecha de emisión). Si el período ya
+// tiene su informe, lo guardado en él manda (editor e impreso lo ponen encima)
+export async function firmantesAnteriores(empresaId: string | null): Promise<Firmantes | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  let q = supabase.from("informes_vigilancia").select("firmantes").order("actualizado_en", { ascending: false }).limit(1);
+  q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
+  const { data } = await q.maybeSingle();
+  if (!data?.firmantes) return null;
+  const f = limpiarFirmantes(data.firmantes);
+  delete f.fecha_emision;
+  return f;
+}
 
 // Textos guardados del informe para esa empresa (o el consolidado) y ese período exacto
 export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
