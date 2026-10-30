@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { Loader2, Stethoscope, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { crearPaciente, dependenciasDeEmpresa } from "@/app/(app)/pacientes/acciones";
@@ -39,6 +39,7 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
     dependenciasDeEmpresa(empresaId).then((d) => vigente && setDependencias(d)).catch(() => {});
     return () => { vigente = false; };
   }, [empresaId]);
+  const listaId = useId();
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const campo = "h-10 w-full rounded-lg border bg-card px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -77,21 +78,26 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
         </select>
         <input name="nombres" aria-label="Nombres" placeholder="Nombres" value={valor("nombres")} onChange={escribir("nombres")} required className={campo} />
         <input name="apellidos" aria-label="Apellidos" placeholder="Apellidos" value={valor("apellidos")} onChange={escribir("apellidos")} required className={campo} />
-        {/* Opcionales: si se dejan vacíos, «Generales» de la consulta los pide */}
-        <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
-          Dependencia o departamento (opcional)
-          <input name="dependencia" list="rr-dependencias" placeholder={dependencias.length ? "Elige de la lista o escribe una nueva" : "Escribe una; queda en esta empresa"} className={campo} />
-          <datalist id="rr-dependencias">{dependencias.map((d) => <option key={d} value={d} />)}</datalist>
-        </label>
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Fecha de nacimiento (opcional)
-          <input type="date" name="fecha_nacimiento" min="1920-01-01" className={campo} />
-        </label>
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Profesión u oficio (opcional)
-          <input name="profesion" placeholder="Ej.: Técnico electricista" className={campo} />
-        </label>
       </div>
+      {/* Opcionales: si se dejan vacíos, «Generales» de la consulta los pide */}
+      <details className="rounded-lg border bg-card/60 px-3 py-2">
+        <summary className="cursor-pointer text-sm text-muted-foreground">Más datos (opcional)</summary>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+            Dependencia o departamento
+            <input name="dependencia" list={listaId} placeholder={dependencias.length ? "Elige de la lista o escribe una nueva" : "Escribe una; queda en esta empresa"} className={campo} />
+            <datalist id={listaId}>{dependencias.map((d) => <option key={d} value={d} />)}</datalist>
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            Fecha de nacimiento
+            <input type="date" name="fecha_nacimiento" min="1920-01-01" className={campo} />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            Profesión u oficio
+            <input name="profesion" placeholder="Ej.: Técnico electricista" className={campo} />
+          </label>
+        </div>
+      </details>
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">Cargo y sexo se completan en «Generales» de la consulta.</span>

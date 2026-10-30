@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { Empresa } from "@/lib/empresas";
 import { MESES } from "@/lib/periodos";
 import { guardarEmpresa } from "./acciones";
@@ -20,7 +21,8 @@ function Campo({ id, etiqueta, className, ...props }: React.ComponentProps<"inpu
 }
 
 // Formulario de empresa: sin "empresa" crea una nueva; con "empresa" edita sus datos
-export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empresa?: Empresa }) {
+// "dependencias": las que la empresa ya tiene (al editar), para verlas antes de agregar
+export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habilitado: boolean; empresa?: Empresa; dependencias?: string[] }) {
   const [abierto, setAbierto] = useState(false);
   const [estado, accion, enviando] = useActionState(guardarEmpresa, null);
   const e = empresa;
@@ -80,8 +82,12 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
 
           <div className="sm:col-span-2">
             <Label htmlFor="dependencias" className="mb-1.5">{e ? "Agregar dependencias o departamentos" : "Dependencias o departamentos"}</Label>
-            <textarea id="dependencias" name="dependencias" rows={4} placeholder={"Una por línea. Ejemplo:\nAdministración\nProducción\nMantenimiento"}
-              className="w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+            {dependencias.length > 0 && (
+              <ul aria-label="Dependencias que ya tiene" className="mb-2 flex flex-wrap gap-1.5">
+                {dependencias.map((d) => <li key={d} className="rounded-full border bg-muted px-2.5 py-0.5 text-xs">{d}</li>)}
+              </ul>
+            )}
+            <Textarea id="dependencias" name="dependencias" rows={4} placeholder={"Una por línea. Ejemplo:\nAdministración\nProducción\nMantenimiento"} />
             <p className="mt-1 text-xs text-muted-foreground">Al registrar o atender a un trabajador de esta empresa, «Dependencia o departamento» muestra estas. {e ? "Las que ya tiene no se repiten." : "También se pueden agregar después."}</p>
           </div>
 
