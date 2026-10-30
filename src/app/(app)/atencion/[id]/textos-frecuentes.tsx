@@ -42,9 +42,10 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
     <button
       type="button"
       title={texto(i)}
+      aria-pressed={usado(i)}
       onClick={() => alternar(i)}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition",
         usado(i)
           ? "border-primary bg-primary text-primary-foreground"
           : sugerido

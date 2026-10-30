@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -170,49 +171,63 @@ function ElegirPerfil({ items, onElegir }: { items: Item[]; onElegir: (texto: st
   const [pendiente, setPendiente] = useState<{ item: Item; elegidas: string[] } | null>(null);
   if (!items.length) return null;
   const tramos = pendiente ? tramosDePerfil(pendiente.item.texto ?? "") : [];
+  const elegir = (g: number, o: string) => pendiente && setPendiente({ ...pendiente, elegidas: pendiente.elegidas.map((x, j) => (j === g ? o : x)) });
   let grupo = 0;
   return (
-    <div className="relative">
-      <select
-        value=""
-        onChange={(e) => {
-          const it = items.find((i) => i.id === e.target.value);
-          if (!it?.texto) return;
-          if (tieneOpciones(it.texto)) setPendiente({ item: it, elegidas: tramosDePerfil(it.texto).filter(Array.isArray).map((o) => o[0]) });
-          else onElegir(it.texto);
-        }}
-        className="h-8 max-w-48 rounded-md border bg-transparent px-2 text-xs"
-      >
-        <option value="">Aplicar perfil…</option>
-        {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-      </select>
+    <Popover open={Boolean(pendiente)} onOpenChange={(abierto) => !abierto && setPendiente(null)}>
+      <PopoverAnchor asChild>
+        <select
+          value=""
+          onChange={(e) => {
+            const it = items.find((i) => i.id === e.target.value);
+            if (!it?.texto) return;
+            if (tieneOpciones(it.texto)) setPendiente({ item: it, elegidas: tramosDePerfil(it.texto).filter(Array.isArray).map((o) => o[0]) });
+            else onElegir(it.texto);
+          }}
+          className="h-8 max-w-48 rounded-md border bg-transparent px-2 text-xs"
+        >
+          <option value="">Aplicar perfil…</option>
+          {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+        </select>
+      </PopoverAnchor>
       {pendiente && (
-        <div role="dialog" aria-label={`Completar «${pendiente.item.nombre}»`}
-          onKeyDown={(e) => e.key === "Escape" && setPendiente(null)}
-          className="absolute right-0 top-full z-30 mt-1 w-[min(26rem,calc(100vw-2rem))] space-y-3 rounded-lg border bg-popover p-3 text-sm shadow-lg">
+        <PopoverContent aria-label={`Completar «${pendiente.item.nombre}»`} className="w-[min(26rem,calc(100vw-2rem))] space-y-3 p-3 text-sm">
           <p className="text-xs font-semibold text-muted-foreground">{pendiente.item.nombre} · elige y aplica</p>
-          <p className="whitespace-pre-wrap leading-relaxed">
+          <div className="whitespace-pre-wrap leading-loose">
             {tramos.map((t, k) => {
               if (!Array.isArray(t)) return <span key={k}>{t}</span>;
               const g = grupo++;
+              // Pocas opciones: botones dentro de la frase (mejor al dedo); muchas: lista
+              if (t.length <= 3) return (
+                <span key={k} role="group" aria-label={`Opción ${g + 1}`} className="mx-0.5 inline-flex overflow-hidden rounded-md border border-primary/50 align-middle">
+                  {t.map((o) => {
+                    const activa = pendiente.elegidas[g] === o;
+                    return (
+                      <button key={o} type="button" aria-pressed={activa} onClick={() => elegir(g, o)}
+                        className={cn("h-8 border-l border-primary/30 px-2.5 text-sm font-medium first:border-l-0", activa ? "bg-primary text-primary-foreground" : "bg-primary/5 text-primary hover:bg-primary/10")}>
+                        {o}
+                      </button>
+                    );
+                  })}
+                </span>
+              );
               return (
-                <select key={k} value={pendiente.elegidas[g]} autoFocus={g === 0} aria-label={`Opción ${g + 1}`}
-                  onChange={(e) => setPendiente({ ...pendiente, elegidas: pendiente.elegidas.map((x, j) => (j === g ? e.target.value : x)) })}
-                  className="mx-0.5 inline h-7 rounded-md border border-primary/50 bg-primary/5 px-1.5 text-sm font-medium text-primary">
+                <select key={k} value={pendiente.elegidas[g]} aria-label={`Opción ${g + 1}`} onChange={(e) => elegir(g, e.target.value)}
+                  className="mx-0.5 inline h-8 rounded-md border border-primary/50 bg-primary/5 px-1.5 align-middle text-sm font-medium text-primary">
                   {t.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               );
             })}
-          </p>
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setPendiente(null)}>Cancelar</Button>
             <Button type="button" size="sm" onClick={() => { onElegir(completarPerfil(pendiente.item.texto ?? "", pendiente.elegidas)); setPendiente(null); }}>
               <Check /> Aplicar
             </Button>
           </div>
-        </div>
+        </PopoverContent>
       )}
-    </div>
+    </Popover>
   );
 }
 
