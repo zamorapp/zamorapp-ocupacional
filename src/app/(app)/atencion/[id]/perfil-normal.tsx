@@ -41,7 +41,8 @@ export function OfertaCopia({ ev, motivo, clasificacion, conPerfil, onCopiar, on
         </p>
       </div>
       <div className="flex gap-2">
-        <Button type="button" size="sm" onClick={onCopiar}><Copy /> Copiar igual</Button>
+        {/* Con hallazgos, copiar no es lo esperable: el botón no empuja a hacerlo */}
+        <Button type="button" size="sm" variant={hallazgos ? "outline" : "default"} onClick={onCopiar}><Copy /> Copiar igual</Button>
         <Button type="button" size="sm" variant="ghost" onClick={onDescartar}>Ahora no</Button>
       </div>
     </div>
