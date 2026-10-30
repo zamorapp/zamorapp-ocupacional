@@ -261,6 +261,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   };
   const preventivo = motivo?.grupo === "preventivo";
   const anterior = historial.tratamientoAnterior ?? null;
+  // Lo que había antes de «Repetir el tratamiento», para «Deshacer»
+  const [repetido, setRepetido] = useState<{ fecha: string; tratamiento: DatosConsulta["tratamiento"]; indicaciones: string } | null>(null);
   const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
@@ -1067,19 +1069,33 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               >
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
-                {/* Control o paciente crónico: el tratamiento de la última consulta en un clic (se puede ajustar después) */}
-                {!bloqueado && anterior && !d.tratamiento.some((m) => m.medicina.trim()) && (
+                {/* Control o paciente crónico: el tratamiento de la última consulta en un clic (se puede ajustar o deshacer) */}
+                {!bloqueado && repetido && (
+                  <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                    <RotateCcw className="size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="min-w-0 flex-1 basis-56">Tratamiento del <b>{repetido.fecha.split("-").reverse().join("/")}</b> copiado: ajusta dosis o quita lo que no siga.</span>
+                    <Button type="button" size="sm" variant="ghost" className="h-7"
+                      onClick={() => { setD((x) => ({ ...x, tratamiento: repetido.tratamiento, indicaciones: repetido.indicaciones })); setRepetido(null); }}>
+                      <RotateCcw /> Deshacer
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setRepetido(null)}>Listo</Button>
+                  </div>
+                )}
+                {!bloqueado && anterior && !repetido && !d.tratamiento.some((m) => m.medicina.trim()) && (
                   <button type="button" data-accion="repetir-tratamiento"
-                    onClick={() => setD((x) => ({
-                      ...x,
-                      tratamiento: anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => ({ ...m, notaFarmacia: undefined })),
-                      indicaciones: x.indicaciones.trim() ? x.indicaciones : anterior.indicaciones,
-                    }))}
-                    className="flex w-full items-start gap-2 rounded-lg border border-dashed px-4 py-3 text-left text-sm hover:border-primary/50">
+                    onClick={() => {
+                      setRepetido({ fecha: anterior.fecha, tratamiento: d.tratamiento, indicaciones: d.indicaciones });
+                      setD((x) => ({
+                        ...x,
+                        tratamiento: anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => ({ ...m, notaFarmacia: undefined })),
+                        indicaciones: x.indicaciones.trim() ? x.indicaciones : anterior.indicaciones,
+                      }));
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg border border-dashed px-4 py-3 text-left text-sm outline-none hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40">
                     <RotateCcw className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
                     <span className="min-w-0">
                       <span className="font-medium text-primary">Repetir el tratamiento del {anterior.fecha.split("-").reverse().join("/")}</span>
-                      <span className="block truncate text-muted-foreground">{nombresAnterior}</span>
+                      <span className="line-clamp-2 text-muted-foreground">{nombresAnterior}</span>
                     </span>
                   </button>
                 )}
