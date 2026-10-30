@@ -8,8 +8,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
-import { horaLocalCaracas } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
+
+// Como el resto de la app (auditoría, bitácora de envíos): «08:30 a. m.»
+const HORA = new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" });
 
 export function IndicadorSincronia() {
   const e = useEstadoEscritorio();
@@ -18,11 +20,13 @@ export function IndicadorSincronia() {
   const problemas = e.conflictos + e.rechazados;
   if (!e.conocido) return null;
 
-  const alDia = e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla;
-  const hora = e.ultimaSincronia ? horaLocalCaracas(e.ultimaSincronia).slice(11, 16) : null;
+  const atascada = e.enLinea && e.errorSincronia; // con internet, pero la última sincronía falló: la hora ya no es de «al día»
+  const alDia = e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla && !atascada;
+  const hora = e.ultimaSincronia ? HORA.format(new Date(e.ultimaSincronia)) : null;
   // Sin internet manda el ícono de la nube tachada aunque la hora esté sin verificar: la píldora dice «Sin internet»
   const Icono = problemas ? AlertTriangle : !e.enLinea ? CloudOff : e.horaSinAncla ? AlertTriangle : alDia ? CheckCircle2 : CloudUpload;
-  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : e.horaSinAncla ? "Hora sin verificar" : hora ? `Al día · ${hora}` : "Al día";
+  const sinSincronizar = hora ? `Sin sincronizar desde ${hora}` : "Sin sincronizar";
+  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : e.horaSinAncla ? "Hora sin verificar" : atascada ? sinSincronizar : hora ? `Al día · ${hora}` : "Al día";
 
   return (
     <DropdownMenu onOpenChange={(abierto) => abierto && setAviso("")}>
@@ -31,10 +35,10 @@ export function IndicadorSincronia() {
           aria-label={`Estado de la sincronía: ${texto}`}
           className={cn(
             "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-            problemas ? "bg-alerta/15 text-alerta-texto" : e.horaSinAncla || !e.enLinea ? "bg-aviso/20 text-aviso-texto" : alDia ? "text-muted-foreground hover:bg-muted" : "bg-primary/10 text-primary",
+            problemas ? "bg-alerta/15 text-alerta-texto" : e.horaSinAncla || !e.enLinea || atascada ? "bg-aviso/20 text-aviso-texto" : alDia ? "text-muted-foreground hover:bg-muted" : "bg-primary/10 text-primary",
           )}
         >
-          <Icono className="size-4" aria-hidden />
+          <Icono className={cn("size-4", alDia && "text-ok-texto")} aria-hidden />
           <span className="hidden sm:inline">{texto}</span>
           {(problemas || e.pendientes) > 0 && <span className="sm:hidden">{problemas || e.pendientes}</span>}
         </button>
