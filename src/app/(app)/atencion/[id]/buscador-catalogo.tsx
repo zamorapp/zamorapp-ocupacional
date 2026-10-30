@@ -43,7 +43,7 @@ function puntaje(texto: string, palabras: string[]) {
   return palabras.every((p) => t.startsWith(p) || t.includes(" " + p) || t.includes("(" + p)) ? 0 : 1;
 }
 
-function Resaltado({ texto, palabras }: { texto: string; palabras: string[] }) {
+function Resaltado({ texto, palabras, activo }: { texto: string; palabras: string[]; activo?: boolean }) {
   const letras = [...texto];
   const planas = letras.map((l) => plano(l));
   const unido = planas.join("");
@@ -64,7 +64,7 @@ function Resaltado({ texto, palabras }: { texto: string; palabras: string[] }) {
     let j = i;
     while (j < letras.length && marca[j] === marca[i]) j++;
     const trozo = letras.slice(i, j).join("");
-    partes.push(marca[i] ? <mark key={i} className="rounded-sm bg-primary/15 text-inherit">{trozo}</mark> : trozo);
+    partes.push(marca[i] ? <mark key={i} className={cn("rounded-sm text-inherit", activo ? "bg-primary/25" : "bg-primary/15")}>{trozo}</mark> : trozo);
     i = j;
   }
   return <>{partes}</>;
@@ -249,14 +249,15 @@ export function BuscadorCatalogo(props: Props) {
                   >
                     {f.tipo === "opcion" && (
                       <>
-                        {conCodigo && <span className="w-16 shrink-0 font-mono text-xs leading-5 text-muted-foreground">{f.o.codigo ? <Resaltado texto={f.o.codigo} palabras={palabras} /> : "—"}</span>}
+                        {conCodigo && <span className="w-16 shrink-0 font-mono text-xs leading-5 text-muted-foreground">{f.o.codigo ? <Resaltado texto={f.o.codigo} palabras={palabras} activo={i === indiceActivo} /> : "—"}</span>}
                         <span className="line-clamp-2 min-w-0 flex-1">
-                          <Resaltado texto={f.o.nombre} palabras={palabras} />
+                          <Resaltado texto={f.o.nombre} palabras={palabras} activo={i === indiceActivo} />
                           {f.o.detalle && <span className="text-muted-foreground"> · {f.o.detalle}</span>}
                         </span>
                         {!!f.o.usos && f.o.usos > 0 && f.o.usos < 900000 && (
-                          <span className="flex shrink-0 items-center gap-1 text-xs text-primary" title="Veces usado en el servicio">
-                            <History className="size-3" aria-hidden /> {f.o.usos}
+                          <span className="flex shrink-0 items-center gap-1 text-xs text-primary" title={`Usado ${f.o.usos} ${f.o.usos === 1 ? "vez" : "veces"}`}>
+                            <History className="size-3" aria-hidden /> <span aria-hidden>{f.o.usos}</span>
+                            <span className="sr-only">usado {f.o.usos} {f.o.usos === 1 ? "vez" : "veces"}</span>
                           </span>
                         )}
                       </>
@@ -284,9 +285,10 @@ export function BuscadorCatalogo(props: Props) {
             className="h-9 w-full rounded-md border bg-background px-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
           <select value={nuevo.codigo} aria-label="Código CIE-10" onChange={(e) => setNuevo({ ...nuevo, codigo: e.target.value })}
             className="h-9 w-full rounded-md border bg-background px-2 outline-none focus:border-primary">
-            <option value="">Sin código CIE-10 (puedes elegir uno de los parecidos)</option>
+            <option value="">Sin código CIE-10</option>
             {cercanosNuevo.map((o) => <option key={o.codigo} value={o.codigo}>{o.codigo} · {o.nombre}</option>)}
           </select>
+          {cercanosNuevo.length > 0 && <p className="-mt-1 text-xs text-muted-foreground">Puedes elegir uno parecido</p>}
           {nuevo.error && <p role="alert" className="text-destructive">{nuevo.error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" className="h-8 rounded-md px-3 text-muted-foreground hover:bg-muted" onClick={() => setNuevo(null)}>Cancelar</button>
