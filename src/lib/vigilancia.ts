@@ -78,6 +78,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
           : null,
         causas,
         aptitudes,
+        entes,
       }
     : null;
   const variante = informe?.variante ?? 0;

@@ -33,7 +33,7 @@ export type DatosTexto = {
   aptitudes: Record<string, string>;   // código → nombre de la clasificación de aptitud
 };
 
-export type TextosInforme = { resumen: string; conclusiones: string; recomendaciones_medicas: string; recomendaciones: string; factores_riesgo: string; medidas_control: string };
+export type TextosInforme = { resumen: string; conclusiones: string; vision_medico: string; recomendaciones_medicas: string; recomendaciones: string; factores_riesgo: string; medidas_control: string };
 
 const num = (n: number) => n.toLocaleString("es-VE");
 const pct = (n: number, total: number) => (total ? `${num(Math.round((n * 1000) / total) / 10)} %` : "0 %");
@@ -165,6 +165,8 @@ export function textosSugeridos(d: DatosTexto): TextosInforme {
   return {
     resumen: resumenSugerido(d),
     conclusiones: conclusionesSugeridas(d),
+    // Propia del médico: sin sugerencia
+    vision_medico: "",
     recomendaciones_medicas: recomendacionesMedicasSugeridas(d),
     recomendaciones: recomendacionesSugeridas(d),
     factores_riesgo: factoresSugeridos(d),

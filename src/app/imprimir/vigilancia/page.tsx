@@ -322,6 +322,7 @@ export default async function Vigilancia({ searchParams }: Props) {
             <Panel titulo="Consultas por motivo" className="col-span-2"><BarrasH filas={g(r.consultas.por_motivo)} max={10} /></Panel>
           </div>
           <Analisis texto={a.uso} />
+          <Analisis texto={a.evaluaciones} />
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel titulo="Por tipo de paciente"><T columnas={["Tipo de paciente", "Casos"]} filas={(r.consultas.por_tipo_paciente ?? []).map((x) => [x.nombre, x.n])} /></Panel>
             <Panel titulo="Por sexo y grupo etario">
@@ -333,6 +334,7 @@ export default async function Vigilancia({ searchParams }: Props) {
           <Panel titulo="Frecuencia de uso del servicio médico por dependencia">
             <T columnas={["Dependencia", "Personal efectivo", "Consultas"]} porcentaje={false} filas={(r.consultas.por_dependencia ?? []).map((d) => [d.nombre, d.personal, d.n])} />
           </Panel>
+          <Analisis texto={a.dependencias} />
         </Seccion>
 
         <Seccion n="3" titulo="Morbilidad">
@@ -351,6 +353,7 @@ export default async function Vigilancia({ searchParams }: Props) {
                 filas={(["primera", "sucesiva", "derivada"] as const).map((k) => { const x = r.morbilidad.por_tipo_consulta?.[k]; return [ETIQUETA_CLAVE[k], x?.pacientes ?? 0, porc(x?.pacientes ?? 0, pob), x?.n ?? 0]; })} />
             </Panel>
           </div>
+          <Analisis texto={a.causas} />
           {cortesConDatos.length > 0 && <p className="text-[9.5px] italic text-doc-tenue">Las diez primeras causas por tipo de consulta, origen, sexo, edad, actividad, sistema, motivo y dependencia van en el anexo estadístico.</p>}
         </Seccion>
 
@@ -383,6 +386,7 @@ export default async function Vigilancia({ searchParams }: Props) {
           <Panel titulo="Diez primeras causas de reposo">
             <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [`${c.cie10} ${c.descripcion}`, c.dias, c.n])} />
           </Panel>
+          <Analisis texto={a.reposos} />
         </Seccion>
 
         <Seccion n="5" titulo="Accidentes y enfermedades ocupacionales">
@@ -438,6 +442,12 @@ export default async function Vigilancia({ searchParams }: Props) {
           <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em]">10 · Conclusión médico-ocupacional</h2>
           <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.conclusiones}</div>
         </section>
+        {t.vision_medico?.trim() && (
+          <section className="mb-5 break-inside-avoid rounded-r-[10px] border-l-4 border-doc-acento bg-doc-suave/60 px-5 py-3.5">
+            <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Visión del médico ocupacional</h2>
+            <div className="whitespace-pre-line text-[12px] italic leading-relaxed">{t.vision_medico}</div>
+          </section>
+        )}
         <Seccion n="11" titulo="Recomendaciones médico-ocupacionales"><Texto>{t.recomendaciones_medicas}</Texto></Seccion>
         <Seccion n="12" titulo="Recomendaciones de seguridad y salud en el trabajo"><Texto>{t.recomendaciones}</Texto></Seccion>
 
