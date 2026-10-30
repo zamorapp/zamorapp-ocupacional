@@ -1,16 +1,16 @@
 {
-  "etiqueta": "migraciones-20261030-5",
-  "aprobado": "Cesar: «si a las dos» 30-oct 08:49 UTC (570000 y 580000)",
+  "etiqueta": "migraciones-20261030-6",
+  "aprobado": "Cesar: «si» 13:08 UTC (590000 reposo) y «sí a las dos» 13:08 UTC (600000 responder y enviar)",
   "migraciones": [
     {
-      "archivo": "20261030570000_estudios_funcionales.sql",
-      "sha256": "c35b21f647250edd55dc3e67682e1fa40aa7197cb9dd44bf247078b2b8e5f403",
-      "descripcion": "Estudios funcionales e imágenes en los paraclínicos"
+      "archivo": "20261030590000_vistas_al_dia.sql",
+      "sha256": "db42a1ea7e15ce9c8358dd10f6224e4a786eea126dad41151482b301c07cc6b0",
+      "descripcion": "Vistas al día: el reposo vuelve a verse e imprimirse"
     },
     {
-      "archivo": "20261030580000_estudios_desde_rrhh.sql",
-      "sha256": "2145eda0bde7a9f0d30e6cd0b9fbd8ab193adf1d8d76b67ea8c395fc4bc278fd",
-      "descripcion": "RR. HH. envía estudios digitalizados al expediente (solo los ve salud)"
+      "archivo": "20261030600000_solicitudes_responder_y_enviar.sql",
+      "sha256": "baef92a51abe7fd74e11f1a75ce6e644aade51a2bc33c8f3e35d83ebd5a09cd4",
+      "descripcion": "Solicitudes de RR. HH.: responder y enviar"
     }
   ]
 }
