@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Confirmador } from "@/components/app/confirmar";
 import { RegistroSW } from "@/components/app/registro-sw";
@@ -10,7 +10,8 @@ import { HoraEscritorio } from "@/components/app/hora-escritorio";
 import { desfaseParaLaVentana } from "@/lib/hora-escritorio";
 import "./globals.css";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+// Fuente dentro del repo: la compilación y el escritorio sin internet no dependen de Google Fonts
+const inter = localFont({ variable: "--font-inter", src: "../fuentes/inter.woff2", weight: "100 900", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: APP_NOMBRE, template: `%s · ${APP_NOMBRE}` },
