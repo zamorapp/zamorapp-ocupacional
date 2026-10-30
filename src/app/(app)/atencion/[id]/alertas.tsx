@@ -306,16 +306,19 @@ export function CorregirAlerta({ alerta, onCerrar, puedeDescartar, consultaId = 
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </div>
-        <DialogFooter className="gap-2 sm:justify-between">
-          {puedeDescartar ? (
-            <Button type="button" variant="ghost" className="text-alerta-texto hover:bg-alerta/10 hover:text-alerta-texto" disabled={guardando} onClick={descartar}>Descartar alerta</Button>
-          ) : <span />}
-          <div className="flex gap-2">
+        {/* Móvil: Guardar a lo ancho, Cancelar debajo y «Descartar» al final, separado (acción peligrosa lejos de Guardar) */}
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+          <div className="order-1 flex flex-col-reverse gap-2 sm:order-2 sm:flex-row">
             <Button type="button" variant="ghost" onClick={onCerrar}>Cancelar</Button>
             <Button type="button" disabled={guardando || sinCambios || (!texto.trim() && !alerta.paraclinicos.length)} onClick={guardar}>
               {guardando ? <Loader2 className="animate-spin" /> : <Check />} Guardar
             </Button>
           </div>
+          {puedeDescartar ? (
+            <div className="order-2 border-t pt-3 sm:order-1 sm:border-0 sm:pt-0">
+              <Button type="button" variant="ghost" className="text-alerta-texto hover:bg-alerta/10 hover:text-alerta-texto" disabled={guardando} onClick={descartar}>Descartar alerta</Button>
+            </div>
+          ) : <span className="hidden sm:block" />}
         </DialogFooter>
       </DialogContent>
     </Dialog>

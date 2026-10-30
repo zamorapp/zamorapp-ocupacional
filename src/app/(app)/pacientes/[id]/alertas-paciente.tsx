@@ -26,8 +26,8 @@ export function AlertasPaciente({ alertas, puedeDescartar }: { alertas: AlertaCl
             {[a.texto, a.paraclinicos.length ? `pedir ${a.paraclinicos.map((x) => x.nombre).join(", ")}` : ""].filter(Boolean).join(" · ")}
             {a.revisarAntes && <span className="text-muted-foreground"> · antes del {fechaCorta(a.revisarAntes)}</span>}
           </p>
-          <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 text-aviso-texto hover:bg-aviso/20 hover:text-aviso-texto" onClick={() => setCorrigiendo(a)}>
-            <Pencil /> Corregir
+          <Button type="button" size="sm" variant="ghost" aria-label="Corregir alerta" className="h-7 w-7 shrink-0 px-0 text-aviso-texto hover:bg-aviso/20 hover:text-aviso-texto sm:w-auto sm:px-2.5" onClick={() => setCorrigiendo(a)}>
+            <Pencil /><span className="hidden sm:inline">Corregir</span>
           </Button>
         </div>
       ))}
