@@ -6,6 +6,8 @@ import { Check, ChevronDown, History, Loader2, Pencil, Save } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EntradaCargo } from "@/components/app/entrada-cargo";
+import { claveCargo } from "@/lib/cargos";
 import { antiguedad } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha } from "../../pacientes/acciones";
@@ -89,7 +91,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
     setCambiado(true);
     setResultado(null);
   };
-  const cambioDeCargo = Boolean(op.ficha.cargo) && v("cargo").trim().toLowerCase() !== op.ficha.cargo.trim().toLowerCase();
+  const cambioDeCargo = Boolean(op.ficha.cargo) && claveCargo(v("cargo")) !== claveCargo(op.ficha.cargo);
   const enCargo = antiguedad(op.ficha.fecha_ingreso_cargo, hoy);
   const edad = anios(op.ficha.fecha_nacimiento, hoy);
   const resumen = [op.ficha.cargo, op.ficha.dependencia, enCargo && `${enCargo} en el cargo`, edad, op.ficha.lateralidad].filter(Boolean) as string[];
@@ -140,8 +142,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
         <fieldset disabled={bloqueado} className="space-y-5">
           <Grupo titulo="Trabajo">
             <Campo id="dt-cargo" etiqueta="Cargo" nota={cambioDeCargo ? `Cambio de cargo: «${op.ficha.cargo}» pasa al historial.` : null}>
-              <Input id="dt-cargo" name="cargo" list="dt-cargos" value={v("cargo")} onChange={poner("cargo")} placeholder="Escribe o elige; se crea si no existe" className={borde("cargo")} />
-              <datalist id="dt-cargos">{op.cargos.map((c) => <option key={c} value={c} />)}</datalist>
+              <EntradaCargo id="dt-cargo" name="cargo" cargos={op.cargos} value={v("cargo")} onValor={(x) => { setF((y) => ({ ...y, cargo: x })); setCambiado(true); setResultado(null); }}
+                placeholder="Escribe o elige; si no existe se agrega" className={borde("cargo")} />
             </Campo>
             <Campo id="dt-ingreso-cargo" etiqueta="Ingreso al cargo"
               nota={cambioDeCargo && v("fecha_ingreso_cargo") === op.ficha.fecha_ingreso_cargo ? "Si la dejas igual, el cargo nuevo cuenta desde hoy."

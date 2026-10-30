@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
+import { cargosPorEmpresa } from "@/lib/puestos";
 import { listarTiposPaciente, listarTrabajadores } from "@/lib/pacientes-datos";
 import { obtenerSesion } from "@/lib/sesion";
 import { empresaSoloLectura, esRolEmpresa } from "@/lib/sesion-roles";
@@ -11,13 +12,14 @@ import { DepurarNomina } from "./depurar-nomina";
 export const metadata: Metadata = { title: "Pacientes" };
 
 export default async function Pacientes({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const [{ q }, sesion, trabajadores, empresas, tipos, activa] = await Promise.all([
+  const [{ q }, sesion, trabajadores, empresas, tipos, activa, cargos] = await Promise.all([
     searchParams,
     obtenerSesion(),
     listarTrabajadores(),
     listarEmpresas(),
     listarTiposPaciente(),
     empresaActivaId(),
+    cargosPorEmpresa(),
   ]);
   return (
     <ListaPacientes
@@ -32,6 +34,7 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))}
           empresaInicial={activa ?? empresas[0]?.id ?? ""}
           tipos={tipos}
+          cargos={cargos}
         />
       )}
     />

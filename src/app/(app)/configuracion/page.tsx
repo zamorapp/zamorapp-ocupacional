@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -19,12 +19,16 @@ const OPCIONES = [
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", texto: "Cédula, MPPS, Colegio de Médicos y registro INPSASEL para los documentos.", icono: UserCog },
 ];
 
+// Cargos repetidos de todas las empresas: solo administrador o gerente médico
+const CARGOS = { href: "/configuracion/cargos", titulo: "Unir cargos", texto: "Junta el mismo cargo escrito de varias formas (mayúsculas, acentos, abreviaturas) en todas las empresas.", icono: Briefcase };
+
 // Importación de una sola vez (escaneados del SAME): solo administrador o gerente médico con acceso clínico
 const ESCANEADOS = { href: "/configuracion/escaneados-same", titulo: "Escaneados del SAME", texto: "Sube a cada historia los exámenes escaneados que tenía el SAME (una sola vez).", icono: FolderInput };
 
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
-  const opciones = sesion.clinico && (sesion.rol === "administrador" || sesion.rol === "gerente_medico") ? [...OPCIONES, ESCANEADOS] : OPCIONES;
+  const gerencia = sesion.rol === "administrador" || sesion.rol === "gerente_medico";
+  const opciones = [...OPCIONES, ...(gerencia ? [CARGOS] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
