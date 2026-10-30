@@ -1,11 +1,15 @@
-// Cargador puntual: la fecha de ingreso al cargo (antigüedad en el cargo) del SAME → trabajadores.fecha_ingreso_cargo
-// (migración 20261030480000). La carga del 26/10 trajo cargo, dependencia y fecha de ingreso a la empresa, pero no esta.
-// - No pisa nada: solo llena fecha_ingreso_cargo (y fecha_ingreso, si falta) donde está vacía.
-// - El SAME solo se LEE: primero 1 consulta de diccionario (qué columnas de Integral.paciente tienen fechas de ingreso
-//   o antigüedad), luego 1 consulta pequeña (historia + esa columna), con NOLOCK, una a la vez y con 1 GB libre.
-// - Si no sabe qué columna usar, NO adivina: lista las candidatas en el informe; se vuelve a correr con -Columna <nombre>.
-// Por defecto es un ENSAYO (todo se deshace al final). Para guardar: --guardar, con el sí de Cesar.
-// Uso en la PC de Cesar: powershell -File scripts\importar-integral\cargar-antiguedad-cargo.ps1 [-Columna <nombre>] [-Guardar]
+// Cargador puntual: la antigüedad en el cargo del SAME → trabajadores.fecha_ingreso_cargo (migración 20261030480000).
+// La carga del 26/10 trajo cargo, dependencia y fecha de ingreso a la empresa, pero no esta.
+// En el SAME, Integral.paciente.antiguedadcargo es TEXTO con una duración (leído el 30/10: de 3.540 valores, 3.035 son
+// números solos —meses—, 447 «2M»/«1A»/«NA» y 58 con la unidad en palabras). Decisión del coordinador (30/10/2026):
+// - Referencia: la fecha de la ÚLTIMA consulta del SAME del paciente (cuando se anotó); sin consultas, fecharegistro.
+// - fecha_ingreso_cargo = referencia − duración. Número solo = meses; M = meses; A = años; «meses»/«años» escritos.
+// - «0», «NA», vacío o lo ilegible queda vacío: no se inventa nada.
+// - No pisa nada: solo llena donde fecha_ingreso_cargo está vacía.
+// El SAME solo se LEE: 1 consulta de diccionario (tipos) y 1 consulta pequeña, con NOLOCK, una a la vez y con 1 GB libre.
+// Por defecto es un ENSAYO (todo se deshace al final): el informe dice cuántos quedan en cada caso. Para guardar:
+// --guardar, con el sí de Cesar.
+// Uso en la PC de Cesar: powershell -File scripts\importar-integral\cargar-antiguedad-cargo.ps1 [-Guardar]
 // Informe (solo cifras y números de historia): %USERPROFILE%\.zamorapp\antiguedad-cargo.md
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -15,7 +19,6 @@ import pg from "pg";
 import { configuracion } from "../conexion-segura.mjs";
 
 const GUARDAR = process.argv.includes("--guardar");
-const COLUMNA = process.argv.find((a) => a.startsWith("--columna="))?.slice(10) || null;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "integral-antiguedad-"));
 const informe = [`# Antigüedad en el cargo desde el SAME (${GUARDAR ? "GUARDADO" : "ensayo: no se guardó nada"})`, "",
   `Generado el ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC.`, ""];
@@ -38,43 +41,86 @@ function leer(nombre, consulta, columnas) {
     .map((l) => Object.fromEntries(l.split("<|>").map((v, i) => [columnas[i], v.replace(/\u0000/g, "").trim()])));
 }
 
-// 1) Qué columnas del paciente pueden ser la fecha de ingreso al cargo (solo nombres y tipos, ningún dato)
+// 1) Tipos de las columnas usadas (para leer las fechas sin depender del formato regional de SQL Server)
 console.log("Leyendo el diccionario del SAME…");
-const candidatas = leer("columnas",
-  "select column_name, data_type from Integral.INFORMATION_SCHEMA.COLUMNS where table_schema = 'Integral' and table_name = 'paciente' " +
-  "and (column_name like '%ingres%' or column_name like '%antig%' or column_name like '%cargo%' or column_name like '%fecha%')",
-  ["columna", "tipo"]);
-informe.push("## Columnas candidatas en Integral.paciente", "", ...candidatas.map((c) => `- ${c.columna} (${c.tipo})`), "");
-
-// Sin -Columna: se elige sola solo si hay UNA columna de fecha con «cargo» en el nombre
-const conCargo = candidatas.filter((c) => /cargo/i.test(c.columna) && /(ingres|antig|fecha)/i.test(c.columna));
-const elegida = COLUMNA ? candidatas.find((c) => c.columna.toLowerCase() === COLUMNA.toLowerCase()) : conCargo.length === 1 ? conCargo[0] : null;
-if (!elegida) {
-  informe.push(COLUMNA ? `No existe la columna «${COLUMNA}» entre las candidatas. No se hizo nada.`
-    : "No hay una sola columna clara de ingreso al cargo. Elige una de la lista y vuelve a correr con -Columna <nombre>. No se hizo nada.");
-  terminar(COLUMNA ? 1 : 0);
+const tipos = new Map(leer("columnas",
+  "select table_name + '.' + column_name, data_type from Integral.INFORMATION_SCHEMA.COLUMNS where table_schema = 'Integral' " +
+  "and ((table_name = 'paciente' and column_name in ('historia', 'antiguedadcargo', 'fecharegistro')) or (table_name = 'consulta' and column_name in ('cod_paciente', 'fecha')))",
+  ["columna", "tipo"]).map((c) => [c.columna.toLowerCase(), c.tipo.toLowerCase()]));
+for (const c of ["paciente.historia", "paciente.antiguedadcargo", "paciente.fecharegistro", "consulta.cod_paciente", "consulta.fecha"]) {
+  if (!tipos.has(c)) { informe.push(`Falta la columna ${c} en el SAME. No se hizo nada.`); terminar(1); }
 }
-if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(elegida.columna)) { informe.push("Nombre de columna no válido. No se hizo nada."); terminar(1); }
-informe.push(`Columna usada: **${elegida.columna}** (${elegida.tipo}).`, "");
+// Fecha como texto «AAAA-MM-DD» si es fecha; si es texto, tal cual (se lee «D/M/AAAA» o «AAAA-MM-DD»)
+const comoTexto = (expr, tipo) => (/date|time/.test(tipo) ? `convert(varchar(10), ${expr}, 23)` : `ltrim(rtrim(cast(${expr} as varchar(30))))`);
 
-// 2) Historia + fecha (texto «AAAA-MM-DD» o «D/M/AAAA»), solo las que tienen valor
-const fechaTexto = /date|time/i.test(elegida.tipo) ? `convert(varchar(10), ${elegida.columna}, 23)` : `ltrim(rtrim(cast(${elegida.columna} as varchar(30))))`;
-console.log("Leyendo las fechas del SAME…");
-const filas = leer("fechas", `select historia, ${fechaTexto} from Integral.paciente with (nolock) where ${elegida.columna} is not null`, ["historia", "valor"]);
+// La última consulta: si la fecha es texto, max() de «D/M/AAAA» sería alfabético; se convierte antes (103 = D/M/AAAA)
+const maxFecha = (expr, tipo) => (/date|time/.test(tipo)
+  ? `convert(varchar(10), max(${expr}), 23)`
+  : `convert(varchar(10), max(coalesce(try_convert(date, ${expr}, 103), try_convert(date, ${expr}, 23))), 23)`);
+
+// 2) Historia, antigüedad (texto), última consulta y fecha de registro: una sola consulta
+console.log("Leyendo la antigüedad en el cargo del SAME…");
+const filas = leer("antiguedad",
+  `select p.historia, ltrim(rtrim(cast(p.antiguedadcargo as varchar(60)))), ` +
+  `(select ${maxFecha("c.fecha", tipos.get("consulta.fecha"))} from Integral.consulta c with (nolock) where c.cod_paciente = p.historia), ` +
+  `${comoTexto("p.fecharegistro", tipos.get("paciente.fecharegistro"))} ` +
+  `from Integral.paciente p with (nolock) where p.antiguedadcargo is not null`,
+  ["historia", "antiguedad", "ultima", "registro"]);
+
 const normalizar = (s) => {
-  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s ?? "");
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s ?? "");
   return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : null;
 };
-const validas = [], raras = [];
-for (const f of filas) {
-  const d = normalizar(f.valor);
-  // 1900-01-01 es «vacío» en el SAME. Sin tope de «hoy»: la fecha de Windows se cambia para abrir el SAME y cortaría fechas reales
-  if (d && d > "1930-01-01") validas.push({ codigo_origen: `pac:${f.historia}`, fecha: d });
-  else raras.push(f.historia);
+// Duración en meses: «24» (meses), «2M», «1A», «3 años», «6 meses», «1A 6M», «1 año y 6 meses». Null si no se entiende.
+export function mesesDe(texto) {
+  const t = (texto ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!t || /^n\/?a$/.test(t)) return null;
+  if (/^\d+$/.test(t)) return Number(t) || null;
+  const partes = [...t.matchAll(/(\d+)\s*(anos?|a|meses|mes|m)\b/g)];
+  // Todo el texto tiene que ser «número + unidad» (con «y», comas o espacios entre medio)
+  if (!partes.length || t.replace(/(\d+)\s*(anos?|a|meses|mes|m)\b/g, "").replace(/[\s,y.]/g, "") !== "") return null;
+  const meses = partes.reduce((n, [, num, u]) => n + Number(num) * (u.startsWith("a") ? 12 : 1), 0);
+  return meses || null;
 }
-informe.push("## SAME", "", `- Pacientes con valor: ${filas.length}. Fechas válidas: ${validas.length}. Sin fecha usable: ${raras.length}${raras.length ? ` (historias ${raras.slice(0, 50).join(", ")}${raras.length > 50 ? "…" : ""})` : ""}.`, "");
+const restarMeses = (iso, meses) => {
+  const [a, m, d] = iso.split("-").map(Number);
+  const total = a * 12 + (m - 1) - meses;
+  const anio = Math.floor(total / 12), mes = total % 12;
+  const ultimoDia = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+  return `${anio}-${String(mes + 1).padStart(2, "0")}-${String(Math.min(d, ultimoDia)).padStart(2, "0")}`;
+};
+
+const casos = { numero: 0, conUnidad: 0, ceroOVacio: 0, ilegible: 0, sinReferencia: 0, porUltimaConsulta: 0, porRegistro: 0 };
+const ilegibles = new Map();
+const validas = [];
+for (const f of filas) {
+  const t = f.antiguedad.trim();
+  const meses = mesesDe(t);
+  if (meses === null) {
+    if (!t || /^0+$/.test(t) || /^n\/?a$/i.test(t)) casos.ceroOVacio++;
+    else { casos.ilegible++; ilegibles.set(t, (ilegibles.get(t) ?? 0) + 1); }
+    continue;
+  }
+  if (/^\d+$/.test(t)) casos.numero++; else casos.conUnidad++;
+  const ultima = normalizar(f.ultima), registro = normalizar(f.registro);
+  // 1900-01-01 es «vacío» en el SAME
+  const ref = ultima && ultima > "1930-01-01" ? ultima : registro && registro > "1930-01-01" ? registro : null;
+  if (!ref) { casos.sinReferencia++; continue; }
+  if (ref === ultima) casos.porUltimaConsulta++; else casos.porRegistro++;
+  const fecha = restarMeses(ref, meses);
+  if (fecha > "1930-01-01") validas.push({ codigo_origen: `pac:${f.historia}`, fecha });
+  else casos.ilegible++;
+}
+informe.push("## SAME (Integral.paciente.antiguedadcargo)", "",
+  `- Pacientes con valor: ${filas.length}.`,
+  `- Número solo (meses): ${casos.numero}. Con unidad (M, A, meses, años): ${casos.conUnidad}.`,
+  `- «0», «NA» o vacío (quedan vacíos): ${casos.ceroOVacio}.`,
+  `- Ilegibles (quedan vacíos): ${casos.ilegible}${ilegibles.size ? ` → ${[...ilegibles].slice(0, 30).map(([t, n]) => `«${t}» ×${n}`).join(", ")}` : ""}.`,
+  `- Sin fecha de referencia (quedan vacíos): ${casos.sinReferencia}.`,
+  `- Referencia: última consulta ${casos.porUltimaConsulta}, fecha de registro ${casos.porRegistro}.`,
+  `- Fechas de ingreso al cargo calculadas: ${validas.length}.`, "");
 
 // ─── Escritura en zamorApp ──────────────────────────────────
 const cliente = new pg.Client(configuracion(process.env.DATABASE_URL));
