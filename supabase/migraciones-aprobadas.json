@@ -1,6 +1,6 @@
 {
   "etiqueta": "migraciones-20261030-13",
-  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC (700000) y 23:13 UTC (710000)",
+  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC (700000), 23:13 UTC (710000) y 23:19 UTC (720000)",
   "migraciones": [
     {
       "archivo": "20261030700000_lateralidad_minuscula.sql",
@@ -11,6 +11,11 @@
       "archivo": "20261030710000_cambios_desde_por_tabla.sql",
       "sha256": "0f36571d54e522fe031a04b32a11710794afd915d454d04d86c4741298d113da",
       "descripcion": "Sincronía: la bajada arma el lote por tabla y ya no se corta por tiempo"
+    },
+    {
+      "archivo": "20261030720000_conclusiones_y_perfiles_examen.sql",
+      "sha256": "c163d3a06668da3ac3f4a78810759e0c15c6ae48b5bd65a7460049586ce324d2",
+      "descripcion": "Conclusiones y perfiles de examen físico"
     }
   ]
 }
