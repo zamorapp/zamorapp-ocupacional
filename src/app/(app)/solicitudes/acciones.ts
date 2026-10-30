@@ -8,7 +8,7 @@ import type { EstadoSolicitud } from "@/lib/solicitudes-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { ahora } from "@/lib/fecha";
 
-export type Resultado = { ok: boolean; mensaje: string };
+export type Resultado = { ok: boolean; mensaje: string; aviso?: string };
 
 const texto = (d: FormData, k: string) => String(d.get(k) ?? "").trim() || null;
 const ESTADOS: EstadoSolicitud[] = ["pendiente", "en_proceso", "respondida", "rechazada"];
@@ -112,10 +112,12 @@ export async function atenderSolicitud(_: Resultado | null, d: FormData): Promis
   // «Responder y enviar»: el documento sale por correo en el mismo paso (constancias a la empresa; lo médico, solo
   // al personal de salud de la empresa). Si el correo falla, la respuesta queda guardada igual y se avisa.
   let envio = "";
+  let aviso: string | undefined;
   if (estado === "respondida" && d.get("enviar_correo") === "1" && (documentoRuta || previa?.documento_ruta)) {
     const r = await enviarRespuestaSolicitud(id);
-    envio = r.ok ? ` Correo: ${r.mensaje}` : ` El correo no salió: ${r.mensaje}`;
+    if (r.ok) envio = ` Correo: ${r.mensaje}`;
+    else aviso = `La respuesta quedó guardada, pero el correo no salió: ${r.mensaje}`;
   }
   refrescar();
-  return { ok: true, mensaje: (estado === "respondida" ? "Respondida: la empresa ya recibió el aviso." : "Guardado.") + envio };
+  return { ok: true, mensaje: (estado === "respondida" ? "Respondida: la empresa ya recibió el aviso." : "Guardado.") + envio, aviso };
 }
