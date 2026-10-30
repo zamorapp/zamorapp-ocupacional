@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { invalidarEmpresas } from "@/lib/empresas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
+import { claveCargo } from "@/lib/cargos";
 import { hoyCaracas } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -20,16 +21,18 @@ function normalizarCedula(v: string) {
   return m ? `${m[1] ?? "V"}-${m[2]}` : null;
 }
 
-// Busca por nombre o crea la dependencia y el puesto dentro de la empresa; devuelve sus ids.
+// Busca por nombre o crea la dependencia y el puesto dentro de la empresa; devuelve sus ids. El nombre se compara
+// sin mayúsculas, acentos, signos ni «de/del/la…» (claveCargo, igual que la base): «ADMINISTRACION CONTRATO» usa
+// «Administración de contrato». Un cargo unido a otro (alias, Configuración › Unir cargos) lleva al que quedó.
 async function resolverCatalogos(supabase: Supabase, orgId: string, empresaId: string, dependencias: string[], cargos: string[]) {
   const deps = new Map<string, string>();
   const puestos = new Map<string, string>();
-  const clave = (s: string) => s.trim().toLowerCase();
+  const clave = claveCargo;
 
   if (dependencias.length) {
-    const { data } = await supabase.from("dependencias").select("id, nombre").eq("empresa_id", empresaId);
-    for (const d of data ?? []) deps.set(clave(d.nombre), d.id);
-    const nuevas = [...new Set(dependencias.map((d) => d.trim()))].filter((d) => !deps.has(clave(d)));
+    const { data } = await supabase.from("dependencias").select("id, nombre").eq("empresa_id", empresaId).eq("activa", true);
+    for (const d of data ?? []) if (!deps.has(clave(d.nombre))) deps.set(clave(d.nombre), d.id);
+    const nuevas = [...new Map(dependencias.map((d) => [clave(d), d.trim()])).values()].filter((d) => !deps.has(clave(d)));
     if (nuevas.length) {
       const { data: creadas, error } = await supabase
         .from("dependencias")
@@ -41,9 +44,11 @@ async function resolverCatalogos(supabase: Supabase, orgId: string, empresaId: s
   }
 
   if (cargos.length) {
-    const { data } = await supabase.from("puestos").select("id, nombre").eq("empresa_id", empresaId);
-    for (const p of data ?? []) puestos.set(clave(p.nombre), p.id);
-    const nuevos = [...new Set(cargos.map((c) => c.trim()))].filter((c) => !puestos.has(clave(c)));
+    const { data } = await supabase.from("puestos").select("id, nombre, activo, unido_a").eq("empresa_id", empresaId);
+    const activos = new Set<string>();
+    for (const p of data ?? []) if (p.activo && !puestos.has(clave(p.nombre))) { puestos.set(clave(p.nombre), p.id); activos.add(p.id); }
+    for (const p of data ?? []) if (!p.activo && p.unido_a && activos.has(p.unido_a) && !puestos.has(clave(p.nombre))) puestos.set(clave(p.nombre), p.unido_a);
+    const nuevos = [...new Map(cargos.map((c) => [clave(c), c.trim()])).values()].filter((c) => !puestos.has(clave(c)));
     if (nuevos.length) {
       const { data: creados, error } = await supabase
         .from("puestos")
@@ -287,8 +292,8 @@ export async function fichaDeTrabajador(trabajadorId: string): Promise<OpcionesF
   if (!t) return null;
   const fila = t as unknown as Record<string, string | null> & { empresa_id: string; puestos: { nombre: string } | null; dependencias: { nombre: string } | null };
   const [{ data: p }, { data: d }, { data: items }, { data: h }] = await Promise.all([
-    supabase.from("puestos").select("nombre").eq("empresa_id", fila.empresa_id).order("nombre"),
-    supabase.from("dependencias").select("nombre").eq("empresa_id", fila.empresa_id).order("nombre"),
+    supabase.from("puestos").select("nombre").eq("empresa_id", fila.empresa_id).eq("activo", true).order("nombre"),
+    supabase.from("dependencias").select("nombre").eq("empresa_id", fila.empresa_id).eq("activa", true).order("nombre"),
     supabase.from("lista_items").select("id, lista, nombre").eq("org_id", sesion.orgId).eq("activo", true)
       .in("lista", ["estado_civil", "nivel_educativo", "turno", "tipo_paciente"]).order("orden").order("nombre"),
     supabase.from("cargos_historial").select("cargo, desde, hasta").eq("trabajador_id", trabajadorId).order("hasta", { ascending: false }),

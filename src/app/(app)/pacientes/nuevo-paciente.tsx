@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EntradaCargo } from "@/components/app/entrada-cargo";
 import { crearPaciente } from "./acciones";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
   empresas: { id: string; nombre: string }[];
   empresaInicial: string;
   tipos: { id: string; nombre: string }[];
+  cargos: Record<string, string[]>;
 };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
@@ -27,9 +29,10 @@ function Campo({ id, etiqueta, className, ...props }: React.ComponentProps<"inpu
   );
 }
 
-export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos }: Props) {
+export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, cargos }: Props) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
+  const [empresa, setEmpresa] = useState(empresaInicial);
   const [estado, accion, enviando] = useActionState(crearPaciente, null);
 
   useEffect(() => {
@@ -54,7 +57,7 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos }: P
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label htmlFor="empresa_id" className="mb-1.5">Empresa *</Label>
-            <select id="empresa_id" name="empresa_id" defaultValue={empresaInicial} required className={SELECT}>
+            <select id="empresa_id" name="empresa_id" value={empresa} onChange={(e) => setEmpresa(e.target.value)} required className={SELECT}>
               {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
           </div>
@@ -77,7 +80,10 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos }: P
             </select>
           </div>
           <Campo id="fecha_nacimiento" etiqueta="Fecha de nacimiento" type="date" />
-          <Campo id="cargo" etiqueta="Cargo" placeholder="Se crea si no existe" />
+          <div>
+            <Label htmlFor="cargo" className="mb-1.5">Cargo</Label>
+            <EntradaCargo id="cargo" name="cargo" cargos={cargos[empresa] ?? []} className="h-10" placeholder="Escribe o elige; si no existe se agrega" />
+          </div>
           <Campo id="dependencia" etiqueta="Dependencia" placeholder="Se crea si no existe" />
           <Campo id="fecha_ingreso" etiqueta="Fecha de ingreso" type="date" />
           <div>

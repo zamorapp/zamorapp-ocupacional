@@ -53,11 +53,12 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const textoRef = useRef("");
   const [ayuda, setAyuda] = useState(true);
 
-  const { soportado, grabando, error, alternar } = useDictado("escriba-consulta", (t) => {
+  // En el escritorio dicta Windows (Win + H) escribiendo en «Lo que escuché», que entonces queda siempre a la vista
+  const { soportado, grabando, error, aviso, windows, alternar } = useDictado("escriba-consulta", (t) => {
     const nuevo = textoRef.current ? `${textoRef.current.trimEnd()} ${t.trim()}` : t.trim();
     textoRef.current = nuevo;
     setTexto(nuevo);
-  }, true);
+  }, true, "escriba-texto");
 
   const dictado = useMemo(
     () => ordenarDictado(texto, { funcional: d.examenFuncional, fisico: d.examenFisico, motivos }),
@@ -167,9 +168,12 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                 {grabando ? <Square className="size-5 fill-current" /> : <Mic className="size-6" />}
               </button>
               <div className="min-w-0 flex-1 text-sm">
-                <p className="font-medium">{grabando ? "Escuchando… toca para pausar" : texto ? "En pausa. Toca para seguir dictando" : "Toca para empezar"}</p>
-                <p className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
-                  {error || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
+                <p className="font-medium">
+                  {windows ? "Toca el micrófono y habla. Windows escribe abajo. Para parar: Win + H"
+                    : grabando ? "Escuchando… toca para pausar" : texto ? "En pausa. Toca para seguir dictando" : "Toca para empezar"}
+                </p>
+                <p aria-live="polite" className={cn("flex items-center gap-1 text-xs", error ? "text-alerta-texto" : "text-muted-foreground")}>
+                  {error || (aviso && <><Mic aria-hidden className="size-3.5 shrink-0" /> {aviso}</>) || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
                 </p>
                 <AyudaMicrofono error={error} />
               </div>
@@ -177,13 +181,14 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
             </div>
 
             {/* Lo que se escuchó: editable, y la propuesta se rehace al corregirlo */}
-            {texto && (
+            {(texto || windows) && (
               <div>
                 <button type="button" onClick={() => setVerTexto((v) => !v)} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
                   <ChevronDown className={cn("size-3.5 transition", !verTexto && "-rotate-90")} /> Lo que escuché
                 </button>
-                {verTexto && (
+                {(verTexto || windows) && (
                   <textarea
+                    id="escriba-texto"
                     value={texto}
                     onChange={(e) => { textoRef.current = e.target.value; setTexto(e.target.value); }}
                     className="mt-1.5 field-sizing-content min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm"
