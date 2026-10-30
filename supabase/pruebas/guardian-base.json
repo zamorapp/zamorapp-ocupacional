@@ -15,6 +15,7 @@
     "public.dias_equipo_confianza()",
     "public.dos_pasos_cumplido()",
     "public.equipo_de_confianza()",
+    "public.equipo_desactivado(p_equipo uuid)",
     "public.es_base_local()",
     "public.es_servicio(p_org uuid)",
     "public.falta_segundo_paso()",
