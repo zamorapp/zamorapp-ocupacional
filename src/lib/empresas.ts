@@ -47,8 +47,10 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
   // Llave: usuario + nivel de la sesión (aal): el marco guardado con dos pasos no se entrega a una sesión sin ellos
   const usuario = claims?.claims?.sub ? `${claims.claims.sub}:${String(claims.claims.aal ?? "aal1")}` : undefined;
   const guardado = usuario ? MEMORIA.get(usuario) : undefined;
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   if (guardado && guardado.vence > Date.now()) return guardado.datos;
   const datos = await consultarEmpresas();
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   if (usuario) MEMORIA.set(usuario, { datos, vence: Date.now() + DURACION });
   return datos;
 });

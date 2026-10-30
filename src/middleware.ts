@@ -11,12 +11,14 @@ const HOSTS_ESCRITORIO = ["127.0.0.1:54332", "localhost:54332"];
 const YA_CUMPLE = new Map<string, number>();
 function recordarCumple(clave: string) {
   if (YA_CUMPLE.size > 500) YA_CUMPLE.clear();
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   YA_CUMPLE.set(clave, Date.now() + 5 * 60 * 1000);
 }
 
 // Refresca la sesión de Supabase y protege las rutas internas.
 // Sin Supabase configurado la app corre en modo demo y no bloquea nada.
 export async function middleware(request: NextRequest) {
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   const inicio = Date.now();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -30,6 +32,7 @@ export async function middleware(request: NextRequest) {
 
   let respuesta = seguir();
   // Server-Timing: el navegador (DevTools › Network › Timing) muestra cuánto tardó el chequeo de sesión
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   const conTiempo = (r: NextResponse) => { r.headers.set("Server-Timing", `sesion;dur=${Date.now() - inicio}`); return r; };
   const supabase = createServerClient(url, key, {
     global: { headers: cabecerasEquipo(request.cookies.get(COOKIE_EQUIPO)?.value) },
@@ -84,6 +87,7 @@ export async function middleware(request: NextRequest) {
   // nada. Si es verdadera o no está (hook sin activar), decide la base: equipo de confianza vigente o código.
   if (conSesion && aal === "aal1" && data?.claims?.dos_pasos !== false && !enDosPasos && !ruta.startsWith("/login/nueva-clave") && !ruta.startsWith("/api/")) {
     const clave = `${data?.claims?.session_id ?? data?.claims?.sub}:${request.cookies.get(COOKIE_EQUIPO)?.value ?? ""}`;
+    // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
     if ((YA_CUMPLE.get(clave) ?? 0) < Date.now()) {
       const { data: falta } = await supabase.rpc("falta_segundo_paso");
       if (falta === true) return irA("/login/dos-pasos");

@@ -7,6 +7,7 @@ import { cargarListado, parametrosListado, type ConsultaReporte, type Fila } fro
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { fechaCorta, Hoja, Membrete, Pie } from "../../componentes";
+import { ahora } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
     org: { nombre: org?.nombre ?? sesion.organizacion, rif: org?.rif ?? null, direccion: org?.direccion ?? null, telefono: org?.telefono ?? null, logo: org?.logo ?? null, ajustes: org?.ajustes ?? {} },
     empresa: { razon_social: emp?.razon_social ?? "Todas las empresas", logo: emp?.logo ?? null },
   } as Parameters<typeof Membrete>[0]["d"];
-  const impreso = { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) };
+  const impreso = { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) };
 
   // Consolidado: se agrupa por empresa (o por el grupo de la morbilidad) con subtotal; la columna agrupada sobra
   const agrupar = l.agrupar && l.filas.length > 0 ? l.agrupar : null;

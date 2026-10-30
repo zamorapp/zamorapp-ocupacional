@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { marcarLeidas, misNotificaciones, type Notificacion } from "./acciones";
+import { ahora } from "@/lib/fecha";
 
 const hace = (iso: string) => {
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60e3);
+  const min = Math.round((ahora() - new Date(iso).getTime()) / 60e3);
   if (min < 1) return "ahora";
   if (min < 60) return `hace ${min} min`;
   const h = Math.round(min / 60);

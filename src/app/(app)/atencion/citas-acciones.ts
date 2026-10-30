@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { EstadoCita } from "@/lib/citas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -30,7 +31,7 @@ export async function crearCita(_: Resultado | null, datos: FormData): Promise<R
     hora: texto(datos, "hora"),
     motivo_id: texto(datos, "motivo_id"),
     observacion: texto(datos, "observacion"),
-    ...(llegoYa ? { estado: "en_espera", llegada: new Date().toISOString() } : {}),
+    ...(llegoYa ? { estado: "en_espera", llegada: new Date(ahora()).toISOString() } : {}),
   });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite agendar citas." : error.message };
   revalidatePath("/", "layout");
@@ -41,7 +42,7 @@ export async function cambiarEstadoCita(id: string, estado: EstadoCita): Promise
   const supabase = await crearClienteServidor();
   const { error } = await supabase
     .from("citas")
-    .update({ estado, ...(estado === "en_espera" ? { llegada: new Date().toISOString() } : {}) })
+    .update({ estado, ...(estado === "en_espera" ? { llegada: new Date(ahora()).toISOString() } : {}) })
     .eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");

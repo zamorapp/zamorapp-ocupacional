@@ -49,6 +49,16 @@ const eslintConfig = [
           selector: "CallExpression[callee.property.name=/^get(FullYear|Month|Date|Day|Hours)$/][callee.object.type='NewExpression'][callee.object.arguments.length=0]",
           message: "new Date().getX() depende de la zona del servidor: usa anioCaracas() / mesCaracas() / hoyCaracas() de @/lib/fecha.",
         },
+        // Escritorio: la fecha de Windows no es la hora real (Cesar la cambia para abrir el SAME). Fechas y horas de
+        // negocio con ahora() / hoyCaracas() de @/lib/fecha; una duración o una caché, con su eslint-disable explicado.
+        {
+          selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message: "Date.now() es la fecha de Windows en el escritorio: usa ahora() de @/lib/fecha (o performance.now() para medir duraciones).",
+        },
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: "new Date() es la fecha de Windows en el escritorio: usa new Date(ahora()) de @/lib/fecha.",
+        },
         // trabajadores tiene columnas de salud sin SELECT (#41): pedir la fila al guardar o con «*» da 42501
         {
           selector: "CallExpression[callee.property.name='select'][callee.object.callee.property.name=/^(insert|update|upsert)$/][callee.object.callee.object.callee.property.name='from'][callee.object.callee.object.arguments.0.value='trabajadores']",

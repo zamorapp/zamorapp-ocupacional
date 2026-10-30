@@ -9,6 +9,7 @@ export const LENTA_MS = 700;
 export type Llamada = { ruta: string; ms: number; estado: number };
 type Registro = { inicio: number; llamadas: Llamada[] };
 
+// eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
 const registroDePeticion = cache((): Registro => ({ inicio: Date.now(), llamadas: [] }));
 
 // Nombre corto de la llamada: tabla o función, sin filtros ni claves. En Storage se corta en
@@ -29,6 +30,7 @@ export function nombreLlamada(url: string) {
 // fetch que anota cada llamada en el registro de la petición en curso
 export const fetchMedido: typeof fetch = async (entrada, init) => {
   const url = typeof entrada === "string" ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   const t0 = Date.now();
   let estado = 0;
   try {
@@ -37,6 +39,7 @@ export const fetchMedido: typeof fetch = async (entrada, init) => {
     return r;
   } finally {
     try {
+      // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
       registroDePeticion().llamadas.push({ ruta: nombreLlamada(url), ms: Date.now() - t0, estado });
     } catch {
       // fuera de una petición (p. ej. en una acción de fondo): no se anota
@@ -46,6 +49,7 @@ export const fetchMedido: typeof fetch = async (entrada, init) => {
 
 export function resumenTiempos(ruta: string) {
   const r = registroDePeticion();
+  // eslint-disable-next-line no-restricted-syntax -- duración o caché en memoria, no es una fecha de negocio
   const total = Date.now() - r.inicio;
   const base = r.llamadas.reduce((s, l) => s + l.ms, 0);
   const lenta = [...r.llamadas].sort((a, b) => b.ms - a.ms)[0];

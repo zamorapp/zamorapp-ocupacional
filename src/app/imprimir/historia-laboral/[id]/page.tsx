@@ -9,6 +9,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { Bloque, fechaCorta, Ficha, Firmas, folio, Hoja, Membrete, Pie } from "../../componentes";
+import { ahora } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Historia laboral" };
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export default async function HistoriaLaboral({ params }: { params: Promise<{ id
   const doc = {
     org: { ...(org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
     empresa: { razon_social: emp?.razon_social ?? t.empresa, rif: emp?.rif ?? "", logo: emp?.logo ?? null },
-    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
+    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
   };
   const lista = (empleos ?? []) as EmpleoAnterior[];
   const riesgos = GRUPOS_RIESGO.filter(([k]) => (t.riesgos[k] ?? []).length);

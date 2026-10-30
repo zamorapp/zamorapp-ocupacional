@@ -3,6 +3,7 @@ import { ETIQUETA_TIPO, type Evento, fechaHoraVE } from "@/lib/eventos-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { DocumentoBase } from "../base";
 import { Bloque, fechaCorta, Ficha, Firmas, folio, Hoja, Lista, Membrete, Pie } from "../componentes";
+import { ahora } from "@/lib/fecha";
 
 export const tituloEvento = (e: Pick<Evento, "tipo">) =>
   e.tipo === "enfermedad" ? "Declaración de enfermedad ocupacional" : e.tipo === "incidente" ? "Reporte de incidente" : "Declaración de accidente de trabajo";
@@ -30,7 +31,7 @@ export async function HojaDeclaracion({ e, base }: { e: Evento; base: Omit<Docum
   const cod = (v: string) => (v ? conCodigo(v, catalogo) : "");
   const cargados = diasCargados(e.incapacidad, e.cargos);
   const t = trab as unknown as { fecha_nacimiento: string | null; sexo: string | null; fecha_ingreso: string | null; puestos: { nombre: string } | null } | null;
-  const edad = t?.fecha_nacimiento ? Math.floor((Date.now() - Date.parse(t.fecha_nacimiento)) / (365.25 * 864e5)) : null;
+  const edad = t?.fecha_nacimiento ? Math.floor((ahora() - Date.parse(t.fecha_nacimiento)) / (365.25 * 864e5)) : null;
   const doc = { ...base, empresa: { razon_social: emp?.razon_social ?? e.empresa, rif: emp?.rif ?? "", logo: (emp?.logo as string | null) ?? null } };
   const titulo = tituloEvento(e);
   return (

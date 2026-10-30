@@ -5,6 +5,7 @@ import { pdfDeRutas } from "@/lib/pdf-servidor";
 import { obtenerSesion } from "@/lib/sesion";
 import type { EstadoSolicitud } from "@/lib/solicitudes-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -79,7 +80,7 @@ export async function atenderSolicitud(_: Resultado | null, d: FormData): Promis
     } catch (err) {
       return { ok: false, mensaje: `No se pudo generar el PDF: ${(err as Error).message}` };
     }
-    documentoRuta = `${s.org_id}/${s.empresa_id}/${s.id}/${Date.now()}-${documento}.pdf`;
+    documentoRuta = `${s.org_id}/${s.empresa_id}/${s.id}/${ahora()}-${documento}.pdf`;
     documentoNombre = `${DOCUMENTOS[documento]}.pdf`;
     const { error } = await supabase.storage.from("solicitudes").upload(documentoRuta, pdf, { contentType: "application/pdf", upsert: false });
     if (error) return { ok: false, mensaje: `No se pudo guardar el documento: ${error.message}` };

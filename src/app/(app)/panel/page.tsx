@@ -14,6 +14,7 @@ import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
+import { ahora } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ const ESTILO_CITA: Record<string, string> = {
 };
 
 function saludo() {
-  const hora = Number(new Intl.DateTimeFormat("es-VE", { hour: "numeric", hourCycle: "h23", timeZone: ZONA }).format(new Date()));
+  const hora = Number(new Intl.DateTimeFormat("es-VE", { hour: "numeric", hourCycle: "h23", timeZone: ZONA }).format(new Date(ahora())));
   return hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
 }
 
@@ -38,7 +39,7 @@ export default async function Panel() {
   const sesion = await obtenerSesion();
   // El recordatorio y el centinela no esperan a la base: corren con after(), cuando la página ya salió
   await Promise.all([recordarResultados(sesion), vigilarPlazos(sesion)]);
-  const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date());
+  const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date(ahora()));
   const acciones = accionesDelRol(sesion);
 
   // El encabezado y los accesos rápidos salen al instante; cada sección con cifras llega cuando la base responde
