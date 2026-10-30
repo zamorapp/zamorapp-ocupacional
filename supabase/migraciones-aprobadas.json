@@ -1,16 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-10",
-  "aprobado": "si (Cesar 20:28, #178)",
+  "etiqueta": "migraciones-20261030-11",
+  "aprobado": "Cesar, sí del 2026-10-30 22:08 UTC",
   "migraciones": [
     {
-      "archivo": "20261030660000_avisos_campana_celular.sql",
-      "sha256": "9b2cec33ac5e3bcd9dee41ffbe443b4e9a22ed7a63647b1d8f58f5192185e8f8",
-      "descripcion": "Avisos de la campana al celular"
-    },
-    {
-      "archivo": "20261030670000_vacaciones_post_vacacional.sql",
-      "sha256": "2456bb2d915e186a7c00bbbc8a5c70c4fea5a0beca3f45fe1597f68241a03ac6",
-      "descripcion": "Evaluación post vacacional"
+      "archivo": "20261030680000_clases_estudios_same.sql",
+      "sha256": "563eb8cf6f5c970f6a33a21b2de3b338993747b8f353ffd18c3e2a2f9a597a6d",
+      "descripcion": "Fija la clase de los 103 estudios del catálogo (paraclínicos del SAME); solo datos"
     }
   ]
 }
