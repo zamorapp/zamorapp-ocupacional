@@ -24,7 +24,7 @@ export async function guardarVacaciones(trabajadorId: string, desde: string, reg
 // las empresas que el usuario ve.
 export async function listarVacaciones(trabajadorId: string): Promise<Vacacion[]> {
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("vacaciones").select("id, desde, regreso").eq("trabajador_id", trabajadorId).order("regreso", { ascending: false }).limit(5);
+  const { data } = await supabase.from("vacaciones").select("id, desde, regreso").eq("trabajador_id", trabajadorId).order("regreso", { ascending: false }).limit(3);
   return (data ?? []) as Vacacion[];
 }
 

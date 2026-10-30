@@ -56,6 +56,7 @@ export function AnotarVacaciones() {
   });
   const otra = () => { setListo(null); setElegido(null); setDesde(""); setRegreso(""); setTexto(""); setError(null); setEditando(null); };
   const corregir = (v: Vacacion) => { setEditando(v.id); setDesde(v.desde); setRegreso(v.regreso); setError(null); };
+  const cancelarCorreccion = () => { setEditando(null); setDesde(""); setRegreso(""); };
   const corta = (iso: string) => iso.split("-").reverse().join("/");
   const dias = desde && regreso && regreso > desde ? diasEntre(desde, regreso) : null;
 
@@ -107,15 +108,18 @@ export function AnotarVacaciones() {
               <div className="mt-2 space-y-1 text-xs">
                 <p className="text-muted-foreground">Ya anotadas (toca una para corregir sus fechas):</p>
                 <ul className="flex flex-wrap gap-1.5">
-                  {anotadas.map((v) => (
+                  {anotadas.slice(0, 3).map((v) => (
                     <li key={v.id}>
-                      <button type="button" onClick={() => editando === v.id ? (setEditando(null), setDesde(""), setRegreso("")) : corregir(v)}
+                      <button type="button" aria-pressed={editando === v.id} onClick={() => editando === v.id ? cancelarCorreccion() : corregir(v)}
                         className={`whitespace-nowrap rounded-full border px-2.5 py-1 hover:border-primary ${editando === v.id ? "border-primary bg-primary/10 font-medium text-primary" : ""}`}>
-                        Del {corta(v.desde)} al {corta(v.regreso)}
+                        Del {corta(v.desde)} · vuelve el {corta(v.regreso)}
                       </button>
                     </li>
                   ))}
                 </ul>
+                {editando && (() => { const v = anotadas.find((x) => x.id === editando); return v && (
+                  <p className="text-muted-foreground">Corrigiendo las del {corta(v.desde)} · vuelve el {corta(v.regreso)} · <button type="button" onClick={cancelarCorreccion} className="font-medium text-primary hover:underline">Cancelar</button></p>
+                ); })()}
               </div>
             )}
           </div>
