@@ -12,7 +12,8 @@ export const metadata: Metadata = { title: "Usuarios" };
 
 export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null; usuario?: string | null };
 
-export default async function Usuarios() {
+export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
+  const { empresa: empresaInicial } = await searchParams;
   const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas()]);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
   let miembros: Miembro[] = [];
@@ -38,11 +39,17 @@ export default async function Usuarios() {
           Cada persona crea su cuenta en la pantalla de ingreso; luego la agregas aquí con su rol. La historia clínica solo la ven médico, enfermería y gerente médico.
         </p>
       </div>
-      {esAdmin && empresas.length > 0 && (
+      {esAdmin && (
         <InvitarRrhh
+          empresaInicial={empresaInicial}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial, contactos: contactos.filter((c) => c.empresa_id === e.id).map((c) => ({ nombre: c.nombre, telefono: c.telefono })) }))}
           invitaciones={invitaciones}
         />
+      )}
+      {!esAdmin && !sesion.demo && (
+        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          Las invitaciones por enlace para RR. HH. de las empresas solo las crea un usuario con rol Administrador.
+        </p>
       )}
       <GestionUsuarios empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} miembros={miembros} yo={sesion.usuarioId} esAdmin={esAdmin} />
     </div>

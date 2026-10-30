@@ -15,6 +15,8 @@ import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
 import { ahora } from "@/lib/fecha";
+import { esRolEmpresa } from "@/lib/sesion-roles";
+import { OfertaAvisosCelular } from "@/components/app/avisos-celular";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -54,6 +56,8 @@ export default async function Panel() {
           <Link href="/atencion"><Plus /> Registrar</Link>
         </Button>
       </div>
+
+      {!sesion.demo && !esRolEmpresa(sesion.rol) && process.env.NEXT_PUBLIC_ESCRITORIO !== "1" && <OfertaAvisosCelular />}
 
       {/* El respaldo solo lo ven administrador y gerente médico: su espacio queda reservado para que no empuje el Inicio */}
       <Suspense fallback={!sesion.demo && (sesion.rol === "administrador" || sesion.rol === "gerente_medico") ? <div role="status" aria-label="Revisando el respaldo" className="h-14 animate-pulse rounded-xl border bg-muted/40" /> : null}>

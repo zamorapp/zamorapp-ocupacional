@@ -44,7 +44,7 @@ export async function crearAlerta(consultaId: string, texto: string, paraclinico
 }
 
 // «Revisado» (con lo que se hizo) o «Descartar»: solo médico, gerente médico o administrador (lo exige la base)
-export async function revisarAlerta(alertaId: string, consultaId: string, respuesta: string, descartar = false): Promise<Resultado> {
+export async function revisarAlerta(alertaId: string, consultaId: string | null, respuesta: string, descartar = false): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase." };
   const supabase = await crearClienteServidor();
@@ -54,6 +54,26 @@ export async function revisarAlerta(alertaId: string, consultaId: string, respue
   if (error) return { ok: false, mensaje: error.code === "42501" ? "La alerta la marca revisada el médico." : "No se pudo guardar." };
   if (!data) return { ok: false, mensaje: "Alerta no encontrada." };
   return { ok: true, mensaje: descartar ? "Alerta descartada." : "Alerta revisada." };
+}
+
+// Corregir una alerta pendiente (texto y «revisar antes del»): su autor o el médico; la bitácora guarda lo anterior.
+// Los paraclínicos pedidos no cambian (la base los protege).
+export async function corregirAlerta(alertaId: string, texto: string, revisarAntes: string | null): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase." };
+  if (revisarAntes && !/^\d{4}-\d{2}-\d{2}$/.test(revisarAntes)) return { ok: false, mensaje: "Fecha no válida." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("alertas_clinicas")
+    .update({ texto: texto.trim().slice(0, 500), revisar_antes: revisarAntes })
+    .eq("id", alertaId).eq("estado", "pendiente").select("id").maybeSingle();
+  if (error) {
+    if (error.code === "42501") return { ok: false, mensaje: "La alerta la corrige quien la dejó o el médico." };
+    if (error.code === "23514") return { ok: false, mensaje: "Escribe qué revisar (o deja paraclínicos pedidos)." };
+    return { ok: false, mensaje: "No se pudo guardar." };
+  }
+  if (!data) return { ok: false, mensaje: "La alerta ya fue revisada o no existe." };
+  revalidatePath("/pacientes", "layout");
+  return { ok: true, mensaje: "Alerta corregida." };
 }
 
 // «Agregar "…" a mis diagnósticos / mis medicinas» desde la consulta. Si ya existe con ese nombre (sin importar
