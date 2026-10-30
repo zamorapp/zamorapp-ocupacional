@@ -13,13 +13,14 @@ import { unirCargos } from "./acciones";
 const ETIQUETA: Record<Parecido, { texto: string; clase: string }> = {
   igual: { texto: "misma palabra", clase: "bg-ok/10 text-ok-texto" },
   abreviatura: { texto: "abreviado", clase: "bg-info/10 text-info-texto" },
-  tipeo: { texto: "parecido: revisa", clase: "bg-aviso/10 text-aviso-texto" },
+  tipeo: { texto: "error de tipeo", clase: "bg-info/10 text-info-texto" },
+  parecido: { texto: "parecido: revisa", clase: "bg-aviso/10 text-aviso-texto" },
 };
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 type Estado = { nombre: string; marcadas: Set<string> };
-// Marcadas de entrada: la misma palabra y las abreviaturas; un posible tipeo lo decide el médico
-const inicial = (g: GrupoCargos): Estado => ({ nombre: g.propuesto, marcadas: new Set(g.variantes.filter((v) => v.tipo !== "tipeo").map((v) => v.id)) });
+// Marcadas de entrada: misma palabra, abreviatura y tipeo; lo que solo cambia al final («Cajera» / «Cajero») lo decide el médico
+const inicial = (g: GrupoCargos): Estado => ({ nombre: g.propuesto, marcadas: new Set(g.variantes.filter((v) => v.tipo !== "parecido").map((v) => v.id)) });
 
 export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: number }) {
   const router = useRouter();
@@ -138,7 +139,7 @@ export function UnirCargos({ grupos, total }: { grupos: GrupoCargos[]; total: nu
                       <span className="min-w-0 flex-1">
                         <span className="font-medium">{v.nombre}</span>
                         <span className="block truncate text-xs text-muted-foreground">{v.empresa}</span>
-                        {v.tipo === "tipeo" && <span className="block text-xs text-aviso-texto sm:hidden">{ETIQUETA.tipeo.texto}</span>}
+                        {v.tipo === "parecido" && <span className="block text-xs text-aviso-texto sm:hidden">{ETIQUETA.parecido.texto}</span>}
                       </span>
                       <span className={cn("hidden rounded-full px-2 py-0.5 text-xs sm:inline", ETIQUETA[v.tipo].clase)}>{ETIQUETA[v.tipo].texto}</span>
                       <span className="w-20 text-right tabular-nums text-muted-foreground">{plural(v.trabajadores, "trab.", "trab.")}</span>

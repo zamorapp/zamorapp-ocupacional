@@ -17,7 +17,9 @@ returns text language sql immutable parallel safe set search_path = '' as $$
       'ÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇáàäâãéèëêíìïîóòöôõúùüûñç', 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc')),
       '[^a-z0-9]+', ' ', 'g')) as base
   )
-  select coalesce(nullif(btrim(regexp_replace(regexp_replace(base, '\m(de|del|la|las|el|los|y|e|en|para|al)\M', ' ', 'g'), '\s+', ' ', 'g')), ''), base)
+  -- Sin «de/del/la…» y en singular (palabras de 5 letras o más que terminan en s): «Operador de equipos» = «Operador equipo»
+  select coalesce(nullif(btrim(regexp_replace(regexp_replace(regexp_replace(base,
+           '\m(de|del|la|las|el|los|y|e|en|para|al)\M', ' ', 'g'), '\m([a-z]{4,})s\M', '\1', 'g'), '\s+', ' ', 'g')), ''), base)
     from n
 $$;
 grant execute on function public.clave_cargo(text) to anon, authenticated;

@@ -6,19 +6,45 @@ const VACIAS = new Set(["de", "del", "la", "las", "el", "los", "y", "e", "en", "
 
 export function claveCargo(s: string | null | undefined): string {
   const base = (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const sin = base.split(" ").filter((p) => p && !VACIAS.has(p)).join(" ");
+  // Singular: «Operador De Equipos» = «Operador De Equipo» (palabras de 5 letras o más que terminan en s)
+  const sin = base.split(" ").filter((p) => p && !VACIAS.has(p)).map((p) => p.replace(/^([a-z]{4,})s$/, "$1")).join(" ");
   return sin || base;
 }
 
-// Números y romanos distinguen cargos de verdad: «Operador I» no es «Operador II»
-const GRADO = /^(\d+|[ivx]+|[a-d])$/;
+// Números, romanos y rangos distinguen cargos de verdad: «Operador I» no es «Operador II», ni «Junior» es «Senior»
+const GRADO = /^(\d+|[ivx]+|[a-d]|junior|senior|jr|sr)$/;
 const grados = (k: string) => k.split(" ").filter((p) => GRADO.test(p)).join(" ");
 
-// «adm contrato» ↔ «administracion contrato», «aux enfermeria» ↔ «auxiliar enfermeria»
+// «adm contrato» ↔ «administracion contrato», «aux enfermeria» ↔ «auxiliar enfermeria», «operado» ↔ «operador».
+// La forma corta es abreviatura si tiene hasta 6 letras o le falta solo la última: «almacen» no es «almacenista».
+// Abreviaturas de uso común que no son el comienzo de la palabra
+const SIGLAS: Record<string, string> = { admon: "administracion", adm: "administracion", asist: "asistente", spte: "soporte", sup: "supervisor", tec: "tecnico", tecn: "tecnico", mtto: "mantenimiento", mant: "mantenimiento", ing: "ingeniero", lic: "licenciado" };
 function esAbreviatura(a: string, b: string) {
-  const x = a.split(" "), y = b.split(" ");
+  const x = a.split(" ").map((p) => SIGLAS[p] ?? p), y = b.split(" ").map((p) => SIGLAS[p] ?? p);
   if (x.length !== y.length || a === b) return false;
-  return x.every((p, i) => p === y[i] || (p.length >= 2 && y[i].startsWith(p)) || (y[i].length >= 2 && p.startsWith(y[i])));
+  // Le falta solo la última letra, salvo a/o/e: «Contador» y «Contadora» pueden ser dos cargos (lo decide el médico)
+  const abrevia = (c: string, l: string) => c.length >= 2 && l.startsWith(c) && (c.length <= 6 || (l.length - c.length === 1 && !"aoe".includes(l.at(-1)!)));
+  return x.every((p, i) => p === y[i] || abrevia(p, y[i]) || abrevia(y[i], p));
+}
+
+// Mismas palabras salvo una o dos con una letra de más, de menos o cambiada (dos si la palabra es larga).
+// «tipeo» si el cambio está en medio de la palabra («Clinete»); «parecido» si solo cambia el final («Cajera» /
+// «Cajero», «Ambiente» / «Ambiental»), que puede ser otro cargo y lo decide el médico.
+const FINALES = new Set(["", "a", "o", "e", "al", "es"]);
+function tipeoOParecido(a: string, b: string): "tipeo" | "parecido" | null {
+  const x = a.split(" "), y = b.split(" ");
+  if (x.length !== y.length) return null;
+  let distintas = 0, final = true;
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] === y[i]) continue;
+    if (++distintas > 2 || Math.min(x[i].length, y[i].length) < 3) return null;
+    const tope = Math.max(x[i].length, y[i].length) >= 7 ? 2 : 1;
+    if (distancia(x[i], y[i], tope) > tope) return null;
+    let comun = 0;
+    while (comun < Math.min(x[i].length, y[i].length) && x[i][comun] === y[i][comun]) comun++;
+    if (!FINALES.has(x[i].slice(comun)) || !FINALES.has(y[i].slice(comun))) final = false;
+  }
+  return distintas === 0 ? null : final ? "parecido" : "tipeo";
 }
 
 function distancia(a: string, b: string, tope: number) {
@@ -37,22 +63,22 @@ function distancia(a: string, b: string, tope: number) {
   return previa[b.length];
 }
 
-export type Parecido = "igual" | "abreviatura" | "tipeo";
+export type Parecido = "igual" | "abreviatura" | "tipeo" | "parecido";
 
 // Qué tan parecidas son dos claves (null: distintas)
 export function parecido(a: string, b: string): Parecido | null {
   if (!a || !b) return null;
-  if (a === b) return "igual";
+  // «Sub Gerente» = «Subgerente», «Electro-Mecanico» = «Electromecanico»
+  if (a === b || a.replace(/ /g, "") === b.replace(/ /g, "")) return "igual";
   if (grados(a) !== grados(b)) return null;
   if (esAbreviatura(a, b)) return "abreviatura";
-  const tope = Math.max(a.length, b.length) >= 12 ? 2 : 1;
-  return Math.min(a.length, b.length) >= 5 && distancia(a, b, tope) <= tope ? "tipeo" : null;
+  return tipeoOParecido(a, b);
 }
 
 // Al escribir un cargo: el que ya existe con la misma clave (se usará ese) o el más parecido (se sugiere).
 // Entre varios parecidos gana la forma más completa (con acentos, sin MAYÚSCULAS sostenidas, la más larga), no una
 // abreviatura que se está limpiando con «Unir cargos».
-const RANGO: Record<Parecido, number> = { igual: 3, abreviatura: 2, tipeo: 1 };
+const RANGO: Record<Parecido, number> = { igual: 4, abreviatura: 3, tipeo: 2, parecido: 1 };
 const completo = (n: string) => Number(/[^\x00-\x7f]/.test(n)) * 1000 + Number(n !== n.toUpperCase()) * 500 + n.length;
 export function cargoParecido(texto: string, cargos: string[]): { nombre: string; tipo: Parecido } | null {
   const k = claveCargo(texto);
@@ -107,7 +133,7 @@ export function agruparRepetidos(cargos: CargoOrg[]): GrupoCargos[] {
     grupos.push({
       clave: kp,
       propuesto,
-      variantes: todos.map((c) => ({ ...c, tipo: parecido(kp, claveCargo(c.nombre)) ?? "tipeo" }))
+      variantes: todos.map((c) => ({ ...c, tipo: parecido(kp, claveCargo(c.nombre)) ?? "parecido" }))
         .sort((a, b) => b.trabajadores - a.trabajadores || a.empresa.localeCompare(b.empresa)),
       trabajadores: todos.reduce((s, c) => s + c.trabajadores, 0),
       empresas: empresas.size,
