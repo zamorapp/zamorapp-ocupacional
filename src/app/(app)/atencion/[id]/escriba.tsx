@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { AudioLines, Check, ChevronDown, Mic, RotateCcw, Square } from "lucide-react";
+import { AudioLines, Check, ChevronDown, Mic, Pencil, RotateCcw, Square } from "lucide-react";
+import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,13 @@ const ETIQUETA_TEXTO: Record<CampoTexto, string> = {
 const ETIQUETA_SIGNO: Record<keyof SignosVitales, string> = { ta: "TA", fc: "FC", fr: "FR", temp: "Temp", sat: "SatO₂", peso: "Peso", talla: "Talla" };
 const FRASES = ["motivo", "enfermedad actual", "antecedentes", "interrogatorio", "signos vitales", "examen físico", "abdomen…", "aptitud", "recomendaciones"];
 
-type Propuesta = { id: string; grupo: string; etiqueta: string; texto: string; corto?: boolean };
+// nota: qué pasa con lo que ya tiene la consulta en ese campo (el médico debe saberlo antes de pasar)
+type Propuesta = { id: string; grupo: string; etiqueta: string; texto: string; corto?: boolean; nota?: { texto: string; aviso?: boolean } };
+
+// La ayuda «Qué decir» se muestra abierta hasta el primer uso; después queda plegada en el celular
+const CLAVE_USADO = "zamorapp.escriba.usado";
+const yaUsado = () => { try { return localStorage.getItem(CLAVE_USADO) === "1"; } catch { return false; } };
+const grande = () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
 
 export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, onCambiar }: {
   d: DatosConsulta;
@@ -44,6 +51,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const [editados, setEditados] = useState<Record<string, string>>({});
   const [antes, setAntes] = useState<{ antes: DatosConsulta; despues: DatosConsulta } | null>(null);
   const textoRef = useRef("");
+  const [ayuda, setAyuda] = useState(true);
 
   const { soportado, grabando, error, alternar } = useDictado("escriba-consulta", (t) => {
     const nuevo = textoRef.current ? `${textoRef.current.trimEnd()} ${t.trim()}` : t.trim();
@@ -57,14 +65,22 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   );
   const motivoReconocido = !d.motivoId && dictado.motivoId ? motivos.find((m) => m.id === dictado.motivoId) : undefined;
 
+  const AGREGA = { texto: "Se agrega al final de lo escrito" };
+  // Fila sin tocar (valor normal de la plantilla): se reemplaza; escrita a mano: se agrega al final
+  const notaFila = (f: { valor: string; normal: string }) =>
+    !f.valor.trim() ? undefined : f.valor.trim() === f.normal.trim() ? { texto: "Reemplaza el texto normal de la plantilla" } : AGREGA;
   const propuestas: Propuesta[] = [
     ...(dictado.sinUbicar ? [{ id: "sin", grupo: "Sin ubicar", etiqueta: "Antes de la primera sección (va a Enfermedad actual si lo marcas)", texto: dictado.sinUbicar }] : []),
-    ...(Object.entries(dictado.textos) as [CampoTexto, string][]).map(([k, v]) => ({ id: `t:${k}`, grupo: "Consulta", etiqueta: ETIQUETA_TEXTO[k], texto: v })),
-    ...(Object.entries(dictado.signos) as [keyof SignosVitales, string][]).map(([k, v]) => ({ id: `s:${k}`, grupo: "Signos vitales", etiqueta: ETIQUETA_SIGNO[k], texto: v, corto: true })),
-    ...d.examenFuncional.filter((f) => dictado.funcional[f.clave]).map((f) => ({ id: `fu:${f.clave}`, grupo: "Examen funcional", etiqueta: f.nombre, texto: dictado.funcional[f.clave] })),
-    ...d.examenFisico.filter((f) => dictado.fisico[f.clave]).map((f) => ({ id: `fi:${f.clave}`, grupo: "Examen físico", etiqueta: f.nombre, texto: dictado.fisico[f.clave] })),
+    ...(Object.entries(dictado.textos) as [CampoTexto, string][]).map(([k, v]) => ({ id: `t:${k}`, grupo: "Consulta", etiqueta: ETIQUETA_TEXTO[k], texto: v, nota: d[k].trim() ? AGREGA : undefined })),
+    ...(Object.entries(dictado.signos) as [keyof SignosVitales, string][]).map(([k, v]) => ({ id: `s:${k}`, grupo: "Signos vitales", etiqueta: ETIQUETA_SIGNO[k], texto: v, corto: true,
+      nota: d.signos[k] && d.signos[k] !== v ? { texto: `No se cambia: ya tiene ${d.signos[k]}`, aviso: true } : undefined })),
+    ...d.examenFuncional.filter((f) => dictado.funcional[f.clave]).map((f) => ({ id: `fu:${f.clave}`, grupo: "Examen funcional", etiqueta: f.nombre, texto: dictado.funcional[f.clave], nota: notaFila(f) })),
+    ...d.examenFisico.filter((f) => dictado.fisico[f.clave]).map((f) => ({ id: `fi:${f.clave}`, grupo: "Examen físico", etiqueta: f.nombre, texto: dictado.fisico[f.clave], nota: notaFila(f) })),
     ...(dictado.aptitud.clasificacion || dictado.aptitud.observacion
-      ? [{ id: "ap", grupo: "Aptitud", etiqueta: dictado.aptitud.clasificacion ? etiquetaAptitud(dictado.aptitud.clasificacion) : "Observación de aptitud", texto: dictado.aptitud.observacion }]
+      ? [{ id: "ap", grupo: "Aptitud", etiqueta: dictado.aptitud.clasificacion ? etiquetaAptitud(dictado.aptitud.clasificacion) : "Observación de aptitud", texto: dictado.aptitud.observacion,
+        nota: d.aptitud.clasificacion && dictado.aptitud.clasificacion && d.aptitud.clasificacion !== dictado.aptitud.clasificacion
+          ? { texto: `No se cambia la clasificación: ya es ${etiquetaAptitud(d.aptitud.clasificacion)}`, aviso: true }
+          : d.aptitud.observacion.trim() ? AGREGA : undefined }]
       : []),
   ];
   const marcado = (p: Propuesta) => (p.id === "sin" ? quitados.sin === false : !quitados[p.id]);
@@ -73,6 +89,9 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const falta = texto ? faltantes(dictado, { fisico: d.examenFisico, preventivo }) : [];
 
   const cerrar = () => { if (grabando) alternar(); setAbierto(false); };
+  const borrar = async () => {
+    if (await confirmar({ titulo: "¿Borrar todo lo dictado?", texto: "Se pierde lo que escuché en esta consulta. Lo que ya pasaste a la consulta no cambia.", accion: "Borrar", peligro: true })) empezarDeNuevo();
+  };
   const empezarDeNuevo = () => { textoRef.current = ""; setTexto(""); setQuitados({}); setEditados({}); };
 
   const pasar = () => {
@@ -90,6 +109,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
     const base = motivoReconocido && !quitados.motivo ? conMotivo(d, motivoReconocido.id) : d;
     const despues = aplicarDictado(base, a);
     setAntes({ antes: d, despues });
+    try { localStorage.setItem(CLAVE_USADO, "1"); } catch {}
     onCambiar(despues);
     if (grabando) alternar();
     setAbierto(false);
@@ -100,7 +120,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
 
   return (
     <>
-      <Button variant="outline" onClick={() => setAbierto(true)} title="Dicta la consulta de corrido y se ordena en sus campos">
+      <Button variant="outline" onClick={() => { setAyuda(!yaUsado() || grande()); setAbierto(true); }} title="Dicta la consulta de corrido y se ordena en sus campos">
         <AudioLines /> <span className="hidden md:inline">Dictar consulta</span>
       </Button>
 
@@ -122,9 +142,14 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
             <SheetDescription>
               Habla de corrido y di el nombre de cada parte al empezarla. El audio lo procesa Google o Microsoft: necesita internet.
             </SheetDescription>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {FRASES.map((f) => <span key={f} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">«{f}»</span>)}
-            </div>
+            <details open={ayuda} onToggle={(e) => setAyuda(e.currentTarget.open)} className="group pt-1">
+              <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="size-3.5 transition -rotate-90 group-open:rotate-0" /> Qué decir
+              </summary>
+              <div className="flex flex-wrap gap-1.5 pt-1.5">
+                {FRASES.map((f) => <span key={f} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">«{f}»</span>)}
+              </div>
+            </details>
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -147,7 +172,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                   {error || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
                 </p>
               </div>
-              {texto && !grabando && <Button type="button" size="sm" variant="ghost" onClick={empezarDeNuevo}>Borrar</Button>}
+              {texto && !grabando && <Button type="button" size="sm" variant="ghost" className="text-alerta-texto hover:text-alerta-texto" onClick={borrar}>Borrar</Button>}
             </div>
 
             {/* Lo que se escuchó: editable, y la propuesta se rehace al corregirlo */}
@@ -167,8 +192,8 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
             )}
 
             {falta.length > 0 && (
-              <div className="rounded-md border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
-                <p className="font-medium">Sin dictar: complétalos en la consulta</p>
+              <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Sin dictar: complétalos en la consulta</p>
                 <p className="text-xs text-muted-foreground">{falta.join(" · ")}</p>
               </div>
             )}
@@ -196,13 +221,17 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                         className="mt-1 size-4 shrink-0 accent-primary"
                       />
                       <div className={cn("min-w-0 flex-1", p.corto && "flex items-center gap-3")}>
-                        <p className="text-xs font-medium text-muted-foreground">{p.etiqueta}</p>
+                        <p className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                          {p.etiqueta} <Pencil aria-hidden className="size-3 opacity-60" />
+                        </p>
                         <textarea
                           rows={1}
                           value={valor(p)}
+                          aria-label={`Corregir ${p.etiqueta}`}
                           onChange={(e) => setEditados((x) => ({ ...x, [p.id]: e.target.value }))}
                           className={cn("field-sizing-content w-full resize-none rounded border-0 bg-transparent px-1 py-0.5 text-sm outline-none focus:bg-card focus:ring-1 focus:ring-primary", p.corto && "w-28 font-medium")}
                         />
+                        {p.nota && <p className={cn("text-xs", p.nota.aviso ? "text-aviso-texto" : "text-muted-foreground")}>{p.nota.texto}</p>}
                       </div>
                     </div>
                   </div>
