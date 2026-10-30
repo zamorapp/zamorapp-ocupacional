@@ -16,6 +16,15 @@ select 'vistas atrasadas respecto de su tabla (debe 0): ' || count(*) || coalesc
             from pg_attribute where attrelid = t.oid and attnum > 0 and not attisdropped)
    and exists (select 1 from pg_attribute a where a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped
                  and not exists (select 1 from pg_attribute b where b.attrelid = vc.oid and b.attname = a.attname));
+-- Una vista prefijo de su tabla pero CON filtro (where) no se toca: conserva el filtro y no expone columnas nuevas
+create table public.prueba163_t (id int, visible boolean, secreto text);
+create view public.prueba163_v with (security_invoker=true) as select id, visible from public.prueba163_t where visible;
+select public.vistas_al_dia() \g /dev/null
+select 'una vista con where queda intacta (debe 1): ' || count(*) from pg_attribute a where a.attrelid = 'public.prueba163_v'::regclass and a.attnum > 0
+   and not exists (select 1 from pg_attribute b where b.attrelid = 'public.prueba163_v'::regclass and b.attname = 'secreto')
+   and pg_get_viewdef('public.prueba163_v'::regclass) ~* 'where' and a.attname = 'id';
+drop view public.prueba163_v;
+drop table public.prueba163_t;
 -- El caso de Cesar: el médico guarda un reposo y al leerlo (como lo lee la consulta y el impreso) está, con la observación
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null

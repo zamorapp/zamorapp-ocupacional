@@ -29,7 +29,10 @@ begin
        = (select (array_agg(attname order by attnum))[1:(select count(*) from pg_attribute where attrelid = v.vista and attnum > 0 and not attisdropped)]
             from pg_attribute where attrelid = v.tabla and attnum > 0 and not attisdropped)
        and exists (select 1 from pg_attribute a where a.attrelid = v.tabla and a.attnum > 0 and not a.attisdropped
-                     and not exists (select 1 from pg_attribute b where b.attrelid = v.vista and b.attname = a.attname)) then
+                     and not exists (select 1 from pg_attribute b where b.attrelid = v.vista and b.attname = a.attname))
+       -- Solo vistas espejo: sin filtro ni mezcla (una vista con where/join… se rehará a mano) y con security_invoker
+       and pg_get_viewdef(v.vista) !~* '\m(where|join|distinct|group|union)\M'
+       and coalesce(v.reloptions, '{}') @> array['security_invoker=true'] then
       execute format('create or replace view public.%I %s as select * from %s', v.nombre,
         case when v.reloptions is null then '' else 'with (' || array_to_string(v.reloptions, ', ') || ')' end, v.tabla_nombre);
       v_hechas := v_hechas || v.nombre::text;

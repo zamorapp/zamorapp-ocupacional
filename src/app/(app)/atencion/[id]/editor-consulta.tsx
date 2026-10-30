@@ -90,6 +90,25 @@ type Props = {
 // Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
 const ATAJOS_REPOSO: [string, number][] = [["24 h", 1], ["48 h", 2], ["72 h", 3], ["5 días", 5], ["7 días", 7], ["10 días", 10], ["15 días", 15], ["21 días", 21]];
 const diasDeReposo = (desde: string, hasta: string) => Math.round((Date.parse(hasta + "T12:00:00Z") - Date.parse(desde + "T12:00:00Z")) / 864e5) + 1;
+const DIA_SEMANA = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+// «vie 15/01/2027» desde la cadena AAAA-MM-DD (sin hora local del equipo)
+const fechaConDia = (f: string) => `${DIA_SEMANA[new Date(f + "T12:00:00Z").getUTCDay()]} ${f.split("-").reverse().join("/")}`;
+
+// Días del reposo: mientras se escribe se guarda el texto; vacío no mueve «Hasta» y el mínimo 1 se aplica al salir
+function CampoDiasReposo({ dias, onDias }: { dias: number | null; onDias: (n: number) => void }) {
+  const [texto, setTexto] = useState<string | null>(null);
+  const aplicar = (v: string) => {
+    const n = Math.trunc(Number(v));
+    if (v.trim() !== "" && n >= 1) onDias(Math.min(540, n));
+  };
+  return (
+    <Input id="reposo-dias" type="number" inputMode="numeric" min={1} max={540} className="tabular-nums"
+      value={texto ?? (dias ?? "")}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => { setTexto(e.target.value); aplicar(e.target.value); }}
+      onBlur={() => { if (texto !== null && !(Math.trunc(Number(texto)) >= 1)) onDias(1); setTexto(null); }} />
+  );
+}
 
 const CONFIRMAR_FIRMA = {
   titulo: "¿Firmar la consulta?",
@@ -1209,21 +1228,21 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   Indicar reposo
                 </label>
                 {d.reposo.activo && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                    <div className="sm:col-span-2">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="col-span-2">
                       <Label className="mb-1.5">Causa</Label>
                       <select value={d.reposo.causa} onChange={(e) => set("reposo", { ...d.reposo, causa: e.target.value })} className={SELECT}>
                         {listas.causa_reposo.map((c) => <option key={c.id} value={c.codigo ?? c.nombre}>{c.nombre}</option>)}
                       </select>
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-2">
                       <Label className="mb-1.5">Emitido por</Label>
                       <select value={d.reposo.ente} onChange={(e) => set("reposo", { ...d.reposo, ente: e.target.value })} className={SELECT}>
                         {listas.ente_emisor_reposo.map((c) => <option key={c.id} value={c.codigo ?? c.nombre}>{c.nombre}</option>)}
                       </select>
                     </div>
                     {/* Fechas libres (pasadas o futuras). Los días se calculan solos; escribir los días o un atajo mueve «Hasta» */}
-                    <div>
+                    <div className="col-span-2 sm:col-span-1">
                       <Label className="mb-1.5" htmlFor="reposo-desde">Desde</Label>
                       <Input id="reposo-desde" type="date" max="2099-12-31" value={d.reposo.desde}
                         onChange={(e) => {
@@ -1240,19 +1259,15 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                     </div>
                     <div>
                       <Label className="mb-1.5" htmlFor="reposo-dias">Días</Label>
-                      <Input id="reposo-dias" type="number" inputMode="numeric" min={1} max={540} className="tabular-nums"
-                        value={d.reposo.hasta >= d.reposo.desde ? diasDeReposo(d.reposo.desde, d.reposo.hasta) : ""}
-                        onChange={(e) => {
-                          const n = Math.min(540, Math.max(1, Math.trunc(Number(e.target.value)) || 1));
-                          set("reposo", { ...d.reposo, hasta: sumarDias(d.reposo.desde, n - 1) });
-                        }} />
+                      <CampoDiasReposo dias={d.reposo.hasta >= d.reposo.desde ? diasDeReposo(d.reposo.desde, d.reposo.hasta) : null}
+                        onDias={(n) => set("reposo", { ...d.reposo, hasta: sumarDias(d.reposo.desde, n - 1) })} />
                     </div>
-                    <div className="flex items-end pb-2 text-sm sm:col-span-1">
+                    <div className="col-span-2 flex items-end pb-2 text-sm sm:col-span-1">
                       {d.reposo.hasta >= d.reposo.desde
-                        ? <span className="text-muted-foreground">Reintegro el {sumarDias(d.reposo.hasta, 1).split("-").reverse().join("/")}</span>
+                        ? <span className="text-muted-foreground">Reintegro el {fechaConDia(sumarDias(d.reposo.hasta, 1))}</span>
                         : <span className="font-medium text-alerta-texto">La fecha final es anterior a la inicial</span>}
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:col-span-4" role="group" aria-label="Duración rápida">
+                    <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:col-span-4" role="group" aria-label="Duración rápida">
                       <span className="text-xs text-muted-foreground">Rápido:</span>
                       {ATAJOS_REPOSO.map(([etiqueta, n]) => {
                         const activo = d.reposo.hasta >= d.reposo.desde && diasDeReposo(d.reposo.desde, d.reposo.hasta) === n;
@@ -1266,7 +1281,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       })}
                     </div>
                     {avisoSolape && (
-                      <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-md border border-aviso/50 bg-aviso/10 px-3 py-2 text-sm text-aviso-texto sm:col-span-4">
+                      <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-md border border-aviso/50 bg-aviso/10 px-3 py-2 text-sm text-aviso-texto col-span-2 sm:col-span-4">
                         <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <b>Se solapa con {solapados.length === 1 ? "otro reposo" : `${solapados.length} reposos`}:</b>
@@ -1285,21 +1300,21 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       </div>
                     )}
                     {d.reposo.ente !== "servicio_medico" && (
-                      <div className="sm:col-span-2">
+                      <div className="col-span-2">
                         <Label className="mb-1.5">Médico externo que lo indicó</Label>
                         <Input value={d.reposo.medicoExterno} placeholder="Nombre y MPPS" onChange={(e) => set("reposo", { ...d.reposo, medicoExterno: e.target.value })} />
                       </div>
                     )}
-                    <div className="sm:col-span-2">
+                    <div className="col-span-2">
                       <Label className="mb-1.5">Centro del IVSS</Label>
                       <Input value={d.reposo.centroIvss} placeholder="Si aplica" onChange={(e) => set("reposo", { ...d.reposo, centroIvss: e.target.value })} />
                     </div>
-                    <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <label className="col-span-2 flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={d.reposo.validadoIvss} onChange={(e) => set("reposo", { ...d.reposo, validadoIvss: e.target.checked })} className="size-4 accent-[var(--primary)]" />
                       Validado por el IVSS
                     </label>
                     {d.reposo.observacion && (
-                      <div className="sm:col-span-2">
+                      <div className="col-span-2">
                         <p className="mb-1.5 text-sm font-medium">Observación del reposo <span className="text-xs font-normal text-muted-foreground">· del SAME</span></p>
                         <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/40 px-3 py-2 text-sm">{d.reposo.observacion}</p>
                       </div>
