@@ -11,7 +11,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 //   · Citas que RR. HH. pidió desde el portal (de hoy en adelante): quedan confirmadas.
 //   · Constancias firmadas que no han salido: van por correo a los contactos con correo (WhatsApp necesita el toque
 //     en el teléfono: esas quedan en Envíos › Por enviar).
-//   · Solicitudes respondidas con documento que no salió (casilla desmarcada o correo caído): se envían.
+//   · Solicitudes respondidas cuyo correo falló: se reintentan (las que se respondieron sin correo, a propósito, no).
 export type ResumenAlDia = {
   citas: number;
   constancias: number; // salen por correo
@@ -34,10 +34,12 @@ async function solicitudesSinEnviar() {
   if (!ids.length) return [];
   const [{ data: resp }, { data: envios }] = await Promise.all([
     supabase.from("solicitudes_respuesta").select("id, documento_ruta").in("id", ids).not("documento_ruta", "is", null),
-    supabase.from("envios").select("ruta").in("ruta", ids.map((id) => `/api/solicitudes/${id}`)).neq("estado", "fallido"),
+    supabase.from("envios").select("ruta, estado").in("ruta", ids.map((id) => `/api/solicitudes/${id}`)),
   ]);
-  const salieron = new Set((envios ?? []).map((e) => e.ruta));
-  return (resp ?? []).map((r) => r.id as string).filter((id) => !salieron.has(`/api/solicitudes/${id}`));
+  // Solo las que intentaron salir y fallaron: si alguien desmarcó «Enviar por correo» (p. ej. la entregó en mano), se respeta
+  const fallaron = new Set((envios ?? []).filter((e) => e.estado === "fallido").map((e) => e.ruta));
+  const salieron = new Set((envios ?? []).filter((e) => e.estado !== "fallido").map((e) => e.ruta));
+  return (resp ?? []).map((r) => r.id as string).filter((id) => fallaron.has(`/api/solicitudes/${id}`) && !salieron.has(`/api/solicitudes/${id}`));
 }
 
 export async function resumenAlDia(): Promise<ResumenAlDia | null> {
@@ -98,7 +100,7 @@ export async function ponerAlDia(): Promise<ResultadoAlDia> {
     }
     if (constancias) hecho.push(`${constancias} constancia${constancias === 1 ? " enviada" : "s enviadas"} por correo`);
 
-    // 3. Solicitudes respondidas cuyo documento no salió
+    // 3. Solicitudes respondidas cuyo correo falló
     let solicitudes = 0;
     for (const id of await solicitudesSinEnviar()) {
       if (!queda()) { pendiente = true; break; }

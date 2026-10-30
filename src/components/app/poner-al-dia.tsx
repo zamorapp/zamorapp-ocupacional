@@ -20,7 +20,7 @@ export function PonerAlDia({ r }: { r: ResumenAlDia }) {
   const partes = [
     r.citas ? n(r.citas, "cita del portal por confirmar", "citas del portal por confirmar") : null,
     r.correo && r.constancias ? n(r.constancias, "constancia por enviar", "constancias por enviar") : null,
-    r.correo && r.solicitudes ? n(r.solicitudes, "solicitud respondida sin enviar", "solicitudes respondidas sin enviar") : null,
+    r.correo && r.solicitudes ? n(r.solicitudes, "solicitud cuyo correo falló", "solicitudes cuyo correo falló") : null,
   ].filter(Boolean);
 
   return (
