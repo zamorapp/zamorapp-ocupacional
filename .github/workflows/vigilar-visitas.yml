@@ -52,7 +52,8 @@ jobs:
               core.notice("Sin TRAFICO_TOKEN: se omite el resumen diario de tráfico.");
             } else {
               // El tráfico exige permiso de administración: se usa un cliente aparte con el token mínimo.
-              const api = getOctokit(process.env.TRAFICO_TOKEN);
+              // github-script v7 no trae getOctokit: se crea otro cliente con la misma clase.
+              const api = new github.constructor({ auth: process.env.TRAFICO_TOKEN });
               const ayer = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
               const delDia = (lista) => lista.find((d) => d.timestamp.startsWith(ayer)) ?? { count: 0, uniques: 0 };
               const [vistas, clones, origenes, paginas] = await Promise.all([
