@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-11",
-  "aprobado": "Cesar, sí del 2026-10-30 22:08 UTC",
+  "etiqueta": "migraciones-20261030-12",
+  "aprobado": "Cesar, sí del 2026-10-30 22:28 UTC",
   "migraciones": [
     {
-      "archivo": "20261030680000_clases_estudios_same.sql",
-      "sha256": "563eb8cf6f5c970f6a33a21b2de3b338993747b8f353ffd18c3e2a2f9a597a6d",
-      "descripcion": "Fija la clase de los 103 estudios del catálogo (paraclínicos del SAME); solo datos"
+      "archivo": "20261030690000_deshacer_quitar_cargo.sql",
+      "sha256": "57fa8a9760ba7277d41c7a5eabaad20ed68602fd3a9e34f7722c8c52b1bd84ff",
+      "descripcion": "Unir cargos: deshacer quitar un cargo"
     }
   ]
 }
