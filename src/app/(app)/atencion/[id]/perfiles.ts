@@ -1,13 +1,15 @@
 // Aplicación de perfiles preestablecidos (examen y paraclínicos) a una consulta.
 import type { FilaExamen, Paraclinico } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
+import { completarPerfil } from "@/lib/perfil-opciones";
 
 const clave = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
 // «Fila: valor» por línea. Las filas que no existen en la plantilla se agregan al final.
 export function aplicarPerfilExamen(filas: FilaExamen[], texto: string, comoNormal = false): FilaExamen[] {
   const nuevas = [...filas];
-  for (const linea of texto.split("\n")) {
+  // Opciones {a|b} que nadie eligió: va la primera (nunca se guardan las llaves)
+  for (const linea of completarPerfil(texto).split("\n")) {
     const i = linea.indexOf(":");
     if (i < 1) continue;
     const nombre = linea.slice(0, i).trim();

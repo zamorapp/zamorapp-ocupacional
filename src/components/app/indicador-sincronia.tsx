@@ -60,6 +60,14 @@ export function IndicadorSincronia() {
               : `${problemas} cambios no se pudieron subir porque otro equipo los cambió antes o la nube no los aceptó. Nada se borró: quedan guardados para revisarlos.`}
           </p>
         )}
+        {atascada && (
+          <p className="text-aviso-texto">No se pudieron bajar los cambios de la nube. {e.motivo ?? "Se reintenta sola cada 30 segundos."} Lo guardado en esta PC está a salvo.</p>
+        )}
+        {e.apartadas > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {e.apartadas === 1 ? "1 registro de la nube todavía no entra en esta PC. Se reintenta solo y no frena lo demás." : `${e.apartadas} registros de la nube todavía no entran en esta PC. Se reintentan solos y no frenan lo demás.`}
+          </p>
+        )}
         {e.horaSinAncla && (
           <p className="text-aviso-texto">La PC arrancó sin internet y aún no tiene la hora verificada con la nube. Puedes atender y cerrar consultas; las firmas esperan a que vuelva internet.</p>
         )}

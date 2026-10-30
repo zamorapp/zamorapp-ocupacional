@@ -90,7 +90,7 @@ export function iniciales(t: Pick<Trabajador, "nombres" | "apellidos">) {
 
 const base = {
   turno: "Diurno",
-  lateralidad: "Diestro",
+  lateralidad: "diestro",
   telefono: "0414-0000000",
   correo: "",
 };

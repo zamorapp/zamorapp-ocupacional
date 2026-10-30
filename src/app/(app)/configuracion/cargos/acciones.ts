@@ -49,3 +49,21 @@ export async function quitarCargos(puestos: string[]): Promise<ResultadoUnir> {
   olvidar("");
   return { ok: true, mensaje: `Listo: ${r.trabajadores} ${r.trabajadores === 1 ? "trabajador quedó" : "trabajadores quedaron"} sin cargo; se completa en la próxima consulta.` };
 }
+
+// Deshacer «Quitar»: el cargo vuelve a los trabajadores que tenía (los que siguen sin cargo), según la bitácora
+export async function restaurarCargo(puesto: string): Promise<ResultadoUnir> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (sesion.rol !== "administrador") return { ok: false, mensaje: "Solo el administrador deshace." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("restaurar_cargo_quitado", { p_puesto: puesto });
+  if (error) {
+    const sinRed = error.code === "OFFLINE" || error.code === "0A000" || /sin conexi|internet/i.test(error.message);
+    return { ok: false, mensaje: sinRed ? "Deshacer necesita internet. Vuelve a intentarlo con conexión." : error.message };
+  }
+  const r = data as { cargo: string; trabajadores: number };
+  revalidatePath("/", "layout");
+  invalidarEmpresas();
+  olvidar("");
+  return { ok: true, mensaje: `Deshecho: «${r.cargo}» volvió a ${r.trabajadores} ${r.trabajadores === 1 ? "trabajador" : "trabajadores"}.` };
+}

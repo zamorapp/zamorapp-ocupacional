@@ -3,7 +3,7 @@ import { agruparRepetidos, type CargoOrg } from "@/lib/cargos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Volver } from "../volver";
-import { UnirAMano } from "./unir-a-mano";
+import { UnirAMano, type Quitado } from "./unir-a-mano";
 import { UnirCargos } from "./unir-cargos";
 
 export const metadata: Metadata = { title: "Unir cargos" };
@@ -13,11 +13,16 @@ export default async function Cargos() {
   const sesion = await obtenerSesion();
   const puede = !sesion.demo && sesion.rol === "administrador";
   let cargos: CargoOrg[] = [];
+  let quitados: Quitado[] = [];
   let error = "";
   if (puede) {
     const supabase = await crearClienteServidor();
     const { data, error: e } = await supabase.rpc("cargos_de_la_org");
     if (e) error = e.message;
+    // Sin la migración 690000 la lista viene vacía (no rompe la pantalla)
+    const { data: q } = await supabase.rpc("cargos_quitados");
+    quitados = ((q ?? []) as { id: string; nombre: string; empresa: string; trabajadores: number; quitado_en: string }[])
+      .map((x) => ({ id: x.id, nombre: x.nombre, empresa: x.empresa, trabajadores: Number(x.trabajadores), quitadoEn: x.quitado_en }));
     cargos = ((data ?? []) as { id: string; empresa_id: string; empresa: string; nombre: string; trabajadores: number }[])
       .map((c) => ({ id: c.id, empresaId: c.empresa_id, empresa: c.empresa, nombre: c.nombre, trabajadores: Number(c.trabajadores) }));
   }
@@ -39,7 +44,7 @@ export default async function Cargos() {
       ) : (
         <>
           <UnirCargos grupos={grupos} total={cargos.length} />
-          <UnirAMano cargos={cargos} />
+          <UnirAMano cargos={cargos} quitados={quitados} />
         </>
       )}
     </div>
