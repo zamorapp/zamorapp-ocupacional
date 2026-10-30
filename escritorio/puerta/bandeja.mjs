@@ -188,7 +188,7 @@ export class Bandeja {
           subio = true;
           // La copia local vuelve a mostrar lo que hay en la nube; lo escrito aquí queda en la bandeja para revisarlo
           for (const f of reponer) {
-            try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id}: ${e.message}`); }
+            try { await this.replica.reponerFila(autor, f.tabla, f.fila_id); } catch (e) { this.registro(`[bandeja] no se pudo volver a bajar ${f.tabla} ${f.fila_id} (${claseDeError(e)})`); }
           }
           // Lo que se fundió mientras viajaba sube en esta misma pasada (sin esperar a otro guardado o al ciclo)
           if (todos.length < LOTE && lote.length === todos.length && !quedaron) break;
