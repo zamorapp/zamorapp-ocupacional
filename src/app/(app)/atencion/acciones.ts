@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { DatosConsulta } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { siguienteEnEspera } from "@/lib/citas";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -83,6 +85,32 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
     await supabase.from("citas").update({ estado: "en_consulta", consulta_id: data.id }).eq("id", citaId);
   }
   redirect(`/atencion/${data.id}`);
+}
+
+// «Siguiente paciente»: toma al primero que espera hoy y le abre la consulta en un clic. La cita se aparta primero
+// (en_espera → en_consulta solo si nadie la tomó) para que dos médicos no abran dos consultas al mismo paciente.
+export async function atenderSiguiente(): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
+  if (!sesion.clinico) return { ok: false, mensaje: "Tu usuario no tiene acceso clínico. Pide al administrador que te lo active en Usuarios." };
+  const supabase = await crearClienteServidor();
+  for (let intento = 0; intento < 3; intento++) {
+    const s = await siguienteEnEspera();
+    if (!s) return { ok: false, mensaje: "No hay nadie en espera." };
+    const { data: tomada } = await supabase.from("citas").update({ estado: "en_consulta" }).eq("id", s.citaId).eq("estado", "en_espera").select("id");
+    if (!tomada?.length) continue; // otro médico la tomó en ese instante: se busca el siguiente
+    const devolver = () => supabase.from("citas").update({ estado: "en_espera" }).eq("id", s.citaId).eq("estado", "en_consulta").is("consulta_id", null);
+    try {
+      const r = await iniciarConsulta(s.trabajadorId, s.motivoId ?? undefined, s.citaId); // si abre, redirige
+      await devolver();
+      return r;
+    } catch (e) {
+      if (isRedirectError(e)) throw e; // la consulta se abrió
+      await devolver();
+      return { ok: false, mensaje: (e as Error).message || "No se pudo abrir la consulta." };
+    }
+  }
+  return { ok: false, mensaje: "La cola cambió mientras tanto. Vuelve a intentarlo." };
 }
 
 export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promise<Resultado> {

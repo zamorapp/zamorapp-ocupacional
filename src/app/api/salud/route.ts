@@ -7,18 +7,18 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const inicio = Date.now();
+  const inicio = performance.now();
   let base: number | null = null;
   try {
     const supabase = await crearClienteServidor();
-    const t0 = Date.now();
+    const t0 = performance.now();
     await supabase.from("empresas").select("id", { head: true, count: "exact" }).limit(1);
-    base = Date.now() - t0;
+    base = performance.now() - t0;
   } catch {
     base = null;
   }
   return NextResponse.json(
-    { ok: true, base_ms: base, total_ms: Date.now() - inicio, version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local" },
+    { ok: true, base_ms: base, total_ms: performance.now() - inicio, version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local" },
     { headers: { "Cache-Control": "no-store", "Server-Timing": `base;dur=${base ?? 0}` } },
   );
 }

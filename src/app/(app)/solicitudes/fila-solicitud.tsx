@@ -9,6 +9,7 @@ import { ETIQUETA_SOLICITUD, type Solicitud } from "@/lib/solicitudes-tipos";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { atenderSolicitud } from "./acciones";
+import { ahora } from "@/lib/fecha";
 
 const fechaHora = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
@@ -41,7 +42,7 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
       if (archivo.size > 10 * 1024 * 1024) return setSubiendo("El archivo pasa de 10 MB.");
       setSubiendo("Subiendo…");
       const limpio = archivo.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.-]+/g, "_").slice(-80);
-      const ruta = `${orgId}/${s.empresaId}/${s.id}/${Date.now()}-${limpio}`;
+      const ruta = `${orgId}/${s.empresaId}/${s.id}/${ahora()}-${limpio}`;
       const { error } = await crearClienteNavegador().storage.from("solicitudes").upload(ruta, archivo, { contentType: archivo.type });
       if (error) return setSubiendo(`No se pudo subir: ${error.message}`);
       datos.set("subido_ruta", ruta);

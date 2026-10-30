@@ -7,6 +7,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { InformePuesto, type Evaluador } from "../informe-puesto";
+import { ahora } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Evaluación del puesto de trabajo" };
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function EvaluacionPuesto({ params }: { params: Promise<{ i
   const doc = {
     org: { ...(org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
     empresa: { razon_social: emp?.razon_social ?? "", rif: emp?.rif ?? "", logo: (emp?.logo as string | null) ?? null },
-    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
+    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
   };
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">

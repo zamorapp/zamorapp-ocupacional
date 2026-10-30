@@ -3,6 +3,7 @@ import { obtenerConsulta } from "@/lib/consultas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerSesion } from "@/lib/sesion";
 import type { OpcionImpresion } from "@/lib/documentos-opciones";
+import { ahora } from "@/lib/fecha";
 
 export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
@@ -74,7 +75,7 @@ export async function obtenerDocumento(consultaId: string) {
       ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
     },
     // Pie de página: quién imprime y cuándo (hora de Venezuela)
-    impreso: { por: sesion.nombre, revision: consulta.datos.revision, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
+    impreso: { por: sesion.nombre, revision: consulta.datos.revision, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
     hora: c.hora_inicio as string,
     cierre: (c.hora_cierre as string | null) ?? null,
     // Partes que se ocultan en esta impresión (?sin=membrete,firma,…): las fija la página según la URL

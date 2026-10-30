@@ -149,3 +149,23 @@ begin
     execute format('create trigger local_encolar after insert or update or delete on %s for each row execute function local.encolar()', t.nombre);
   end loop;
 end $$;
+
+-- Constancias sin internet (bitácora de la lectura de laboratorio, quién abrió la historia): ver config.mjs
+create table if not exists local.constancias (
+  id uuid primary key default gen_random_uuid(),
+  rpc text not null,
+  args jsonb not null default '{}',
+  autor uuid not null,
+  hora timestamptz not null,            -- hora anclada de la puerta al registrarla (o el piso, si no estaba verificada)
+  hora_verificada boolean not null default false,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'rechazado')),
+  motivo text,
+  intentos int not null default 0,
+  creado timestamptz not null default clock_timestamp()
+);
+revoke all on local.constancias from public, authenticated;
+
+-- Un cambio sin autor solo puede venir de una migración o un ajuste local (la puerta siempre escribe con
+-- la sesión de alguien): nadie puede subirlo y quedaría pendiente para siempre, frenando la réplica de esa
+-- fila. Se descarta en cada arranque (Analizar, 30-oct-2026).
+delete from local.bandeja where autor is null and estado = 'pendiente';

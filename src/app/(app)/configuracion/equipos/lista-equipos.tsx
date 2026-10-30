@@ -7,10 +7,11 @@ import type { Equipo } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
 import { activarEquipo } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
+import { ahora } from "@/lib/fecha";
 
 const hace = (iso: string | null) => {
   if (!iso) return "Nunca";
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60e3);
+  const min = Math.round((ahora() - new Date(iso).getTime()) / 60e3);
   if (min < 1) return "Hace segundos";
   if (min < 60) return `Hace ${min} min`;
   if (min < 48 * 60) return `Hace ${Math.round(min / 60)} h`;
@@ -19,7 +20,7 @@ const hace = (iso: string | null) => {
 // Punto de estado: al día si sincronizó en la última hora, aviso si hace más de un día, apagado si está revocado
 const tono = (e: Equipo) => {
   if (!e.activo) return "bg-muted-foreground/40";
-  const min = e.ultimoContacto ? (Date.now() - new Date(e.ultimoContacto).getTime()) / 60e3 : Infinity;
+  const min = e.ultimoContacto ? (ahora() - new Date(e.ultimoContacto).getTime()) / 60e3 : Infinity;
   return min <= 60 ? "bg-ok" : min <= 1440 ? "bg-info" : "bg-aviso";
 };
 

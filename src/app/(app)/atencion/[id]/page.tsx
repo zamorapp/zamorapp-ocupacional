@@ -13,6 +13,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
 import { declaracionesDeConsulta } from "../../accidentes/acciones";
+import { siguienteEnEspera } from "@/lib/citas";
 
 export const metadata: Metadata = { title: "Consulta" };
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
     !consulta || demo ? null : listarAdjuntos(consulta.trabajador.id),
   ]));
-  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos], versiones, contacto, declaraciones] = await Promise.all([
+  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
     porOrg,
     porTrabajador,
     demo ? [] : listarVersiones(id),
@@ -43,6 +44,8 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     demo ? null : crearClienteServidor().then((s) => s.from("consultas").select("empresas(telefono, correo)").eq("id", id).maybeSingle()).then((r) => (r.data?.empresas ?? null) as unknown as { telefono: string | null; correo: string | null } | null),
     // Declaraciones de enfermedad ocupacional ya iniciadas desde esta consulta (aviso del paso Diagnóstico)
     declaracionesDeConsulta(id),
+    // Primero en espera hoy: «Siguiente paciente» al cerrar o firmar
+    demo ? null : siguienteEnEspera(),
   ]);
   if (!consulta) notFound();
   const envio = { servicio: org.nombre, plantilla: org.ajustes.mensaje_aptitud ?? PLANTILLA_APTITUD, telefono: contacto?.telefono ?? null, correo: contacto?.correo ?? null };
@@ -55,7 +58,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} />
     </div>
   );
 }

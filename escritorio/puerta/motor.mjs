@@ -4,7 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 import { CONFIG } from "./config.mjs";
 import { desempaquetar } from "./tar.mjs";
 

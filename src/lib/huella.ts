@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ahora } from "@/lib/fecha";
 
 // Entrar con huella (o rostro / PIN del equipo) en vez de escribir la contraseña.
 // - Web, celular y tablet: llaves de acceso (passkeys) de Supabase Auth. La llave vive en el equipo y la
@@ -56,13 +57,13 @@ async function pausaVigente(): Promise<boolean> {
   let p: Pausa;
   try { p = JSON.parse(valor); } catch { return false; } // marca vieja ("1"): ya pasó la pausa
   if (typeof p?.t !== "number" || typeof p?.n !== "number") return false;
-  if (Math.abs(Date.now() - p.t) >= PAUSA_DIAS * 86_400_000 || p.n + 1 >= PAUSA_ENTRADAS) { escribir(clave, null); return false; }
+  if (Math.abs(ahora() - p.t) >= PAUSA_DIAS * 86_400_000 || p.n + 1 >= PAUSA_ENTRADAS) { escribir(clave, null); return false; }
   escribir(clave, JSON.stringify({ t: p.t, n: p.n + 1 }));
   return true;
 }
 /** Se llama una vez por entrada con contraseña: también cuenta la entrada para la pausa de «Ahora no». */
 export const ofrecerHuella = async () => !(await pausaVigente()) && (ES_ESCRITORIO || leer(MARCA) !== "1");
-export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), JSON.stringify({ t: Date.now(), n: 0 } satisfies Pausa));
+export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), JSON.stringify({ t: ahora(), n: 0 } satisfies Pausa));
 
 /**
  * ¿Se le puede ofrecer la huella ahora? No mientras falte el código de dos pasos: con la sesión sin ese paso

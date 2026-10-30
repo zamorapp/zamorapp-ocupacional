@@ -7,7 +7,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 import { CONFIG } from "./config.mjs";
 
 const BUCKETS = new Set(["adjuntos"]); // las firmas y sellos son data: en perfiles: no pasan por aquí
@@ -281,7 +281,6 @@ export function crearAdjuntos({ estado, nube, motor, registro = () => {}, carpet
   // Pedidos de storage con sesión. Devuelve false si no son de un bucket local (los atiende la nube como siempre).
   async function atender(req, res, ruta, crudo, quien, responderJson) {
     const responder = (...a) => { responderJson(...a); return true; }; // atendido: la puerta no sigue con la nube
-    const u = new URL(req.url, "http://x");
     // Firmar varios: POST /storage/v1/object/sign/<bucket> {expiresIn, paths}
     let m = /^\/storage\/v1\/object\/sign\/([a-z0-9_-]+)$/.exec(ruta);
     if (m && req.method === "POST" && BUCKETS.has(m[1])) {

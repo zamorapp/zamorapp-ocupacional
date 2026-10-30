@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listarCitas, listarSolicitudes } from "@/lib/citas";
-import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
@@ -61,7 +61,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Atención médica</h1>
-          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={Date.now()} /></p>
+          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={ahora()} /></p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>

@@ -4,8 +4,8 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
-import pg from "pg";
-import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
+import pg from "./pg-local.mjs";
+import { CATALOGOS, CONFIG, RPC_CONSTANCIA, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
@@ -401,7 +401,36 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     }
   }
 
-  async function aLaCopia(req, res, cuerpo) {
+  // Para la campana sin internet: qué avisos de resultados y qué recordatorios tiene el usuario en la copia. Comparando
+  // antes y después de la llamada salen los avisos que hizo ella. Sin horas: en la copia los avisos llevan la hora
+  // anclada (ahora()) y los recordatorios la del PostgreSQL local, que con la fecha de Windows cambiada no coinciden
+  async function fotoDeLaCampana(uid) {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows: [f] } = await c.query(`select
+          coalesce((select array_agg(id::text) from public.notificaciones where usuario_id = $1 and titulo = 'Resultados por recibir'), '{}') as avisos,
+          coalesce((select jsonb_object_agg(consulta_id, ultimo_aviso) from public.recordatorios_resultados where usuario_id = $1), '{}') as recordatorios`, [uid]);
+      return f;
+    } finally { await c.end().catch(() => {}); }
+  }
+  // Los avisos nuevos de las consultas cuyo recordatorio cambió en esta llamada (un aviso de la nube que baje justo
+  // entonces es de otra consulta, o de una que esta llamada no tocó)
+  function avisosDeLaLlamada(antes, despues, enlaces) {
+    const tocadas = Object.keys(despues.recordatorios).filter((k) => despues.recordatorios[k] !== antes.recordatorios[k]);
+    const ya = new Set(antes.avisos);
+    return despues.avisos.filter((id) => !ya.has(id) && tocadas.some((k) => enlaces.get(id) === `/atencion/${k}?paso=paraclinicos`));
+  }
+  async function enlacesDe(ids) {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      return new Map((await c.query("select id::text, enlace from public.notificaciones where id = any($1::uuid[])", [ids])).rows.map((f) => [f.id, f.enlace]));
+    } finally { await c.end().catch(() => {}); }
+  }
+
+  // antes(status): se espera antes de responder (si falla, la ventana recibe el error y no un «hecho» falso)
+  async function aLaCopia(req, res, cuerpo, antes = null) {
     // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
     // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
     // local lo nota (ahora_de_la_puerta() es null: firmar espera a internet). Nunca la fecha de Windows.
@@ -412,8 +441,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     });
     const salida = {};
     for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+    const datos = Buffer.from(await r.arrayBuffer());
+    if (antes) await antes(r.status);
     res.writeHead(r.status, salida);
-    res.end(Buffer.from(await r.arrayBuffer()));
+    res.end(datos);
   }
 
   // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
@@ -850,6 +881,20 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           return;
         }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
+        // Constancias sin internet (config.mjs): la copia valida con las reglas de la base y queda para subir después
+        const constancia = req.method === "POST" ? /^\/rest\/v1\/rpc\/([a-z_]+)$/.exec(ruta)?.[1] : null;
+        if (constancia && RPC_CONSTANCIA.has(constancia) && bandeja && d().copiaCompleta) {
+          if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
+          // La campana: se anotan los avisos que la copia acaba de crear, para borrarlos cuando la nube cree los suyos
+          const antes = constancia === "recordar_resultados" ? await fotoDeLaCampana(quien.uid) : null;
+          return await aLaCopia(req, res, crudo, async (status) => {
+            if (status >= 300) return;
+            if (!antes) return await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {});
+            const despues = await fotoDeLaCampana(quien.uid);
+            const locales = avisosDeLaLlamada(antes, despues, await enlacesDe(despues.avisos.filter((id) => !antes.avisos.includes(id))));
+            if (locales.length) await bandeja.anotarCampana(quien.uid, locales);
+          });
+        }
         if (!await soloLectura(req)) {
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
           return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });

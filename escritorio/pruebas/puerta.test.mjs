@@ -626,9 +626,61 @@ test("sin internet: las funciones de lectura (stable) responden desde la copia; 
   const conteo = await pedir("/rest/v1/rpc/trabajadores_por_empresa", { metodo: "POST", token: tokenMed, cuerpo: {} });
   assert.equal(conteo.status, 200, JSON.stringify(conteo.json));
   assert.ok(Array.isArray(conteo.json));
-  const escribir = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: "30000000-0000-0000-0000-00000000000a" } });
+  const escribir = await pedir("/rest/v1/rpc/ignorar_recordatorio_resultados", { metodo: "POST", token: tokenMed, cuerpo: { p_consulta: "40000000-0000-0000-0000-0000000000d2" } });
   assert.equal(escribir.status, 503);
   assert.equal(escribir.json.code, "OFFLINE");
+});
+
+// 30/10/2026 (Analizar): un cambio sin autor (de una migración o un ajuste local) nadie puede subirlo; al
+// reaplicar los ajustes locales en el arranque se descarta. Los de una persona se quedan.
+test("al arrancar se descartan los cambios pendientes sin autor; los de una persona esperan", { skip: omitir }, async () => {
+  const [sin] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos) values ('clinico.consultas', gen_random_uuid(), 'U', '{}') returning id");
+  const [con] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos, autor) values ('clinico.consultas', gen_random_uuid(), 'U', '{}', gen_random_uuid()) returning id");
+  try {
+    await enLocal(fs.readFileSync(path.join(aqui, "../base/20_bandeja.sql"), "utf8"));
+    assert.equal((await enLocal("select 1 from local.bandeja where id = $1", [sin.id])).length, 0);
+    assert.equal((await enLocal("select 1 from local.bandeja where id = $1", [con.id])).length, 1);
+  } finally {
+    await enLocal("delete from local.bandeja where id = any($1)", [[sin.id, con.id]]);
+  }
+});
+
+// Plan §9.5: si PostgreSQL corta una conexión quieta (respaldo, restauración), la puerta no se cae.
+test("una conexión cortada por la base no tumba la puerta", { skip: omitir }, async () => {
+  const pg = (await import("../puerta/pg-local.mjs")).default;
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  const [{ pid }] = (await c.query("select pg_backend_pid() as pid")).rows;
+  const errores = [];
+  const antes = console.error;
+  console.error = (m) => errores.push(String(m));
+  try {
+    await enLocal("select pg_terminate_backend($1)", [pid]);
+    for (let i = 0; i < 50 && !errores.length; i++) await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    console.error = antes;
+  }
+  assert.match(errores.join("\n"), /\[base\] conexión cortada/);
+  assert.equal((await pedir("/zamorapp/estado")).status, 200);
+});
+
+test("sin internet: abrir la historia queda como constancia y sube después con la hora de la PC", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
+  const enLaNube = async () => (await enNube("select count(*)::int n from public.accesos where trabajador_id = $1 and usuario_id = $2 and equipo_id = $3", [T, MED, estado.d.equipo.id]))[0].n;
+  const antes = await enLaNube();
+  assert.equal(nubeObj.enLinea, false, "esta prueba corre sin internet");
+  const r = await pedir("/rest/v1/rpc/registrar_acceso", { metodo: "POST", token: tokenMed, cuerpo: { p_trabajador: T } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  const [k] = await enLocal("select rpc, autor, hora_verificada, estado from local.constancias");
+  assert.deepEqual(k, { rpc: "registrar_acceso", autor: MED, hora_verificada: true, estado: "pendiente" });
+  try {
+    nube.estado.caida = false; await nubeObj.comprobar();
+    await bandejaObj.subir();
+    assert.equal(await enLaNube(), antes + 1, "llegó a la nube con el equipo");
+    assert.equal((await enLocal("select count(*)::int n from local.constancias"))[0].n, 0, "y salió de la PC");
+  } finally {
+    nube.estado.caida = true; await nubeObj.comprobar(); // las pruebas siguientes siguen sin internet
+  }
 });
 
 // Un «sin conexión» de un instante (p. ej. la red de Windows aún no lista al arrancar) no deja la PC sin internet
@@ -768,6 +820,20 @@ test("Windows adelantado o atrasado: el plazo de 7 días no se salta y un token 
 test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir }, async () => {
   nube.estado.caida = false;
   await nubeObj.comprobar();
+  // El teléfono por subir lo deja aquí mismo (antes lo dejaba la prueba de la hora anclada, que en Linux se omite: esta
+  // fallaba solo en el banco). Como lo guarda la app: en la base local con la sesión del administrador, a la bandeja
+  const pc = new pg.Client({ connectionString: motor.url() });
+  await pc.connect();
+  try {
+    await pc.query("begin");
+    await pc.query("select set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true)",
+      [JSON.stringify({ sub: "00000000-0000-0000-0000-0000000000a1", role: "authenticated" }), "00000000-0000-0000-0000-0000000000a1"]);
+    // Un valor propio: con PostgREST real la prueba de la hora anclada ya subió «…014» y repetirlo no cambiaría nada
+    await pc.query("update public.trabajadores set telefono = '0414-0000015' where id = '30000000-0000-0000-0000-00000000000a'");
+    await pc.query("commit");
+  } finally { await pc.end(); }
+  const [pend] = await enLocal("select count(*)::int n from local.bandeja where fila_id = '30000000-0000-0000-0000-00000000000a' and estado = 'pendiente'");
+  assert.ok(pend.n >= 1, "el teléfono quedó por subir");
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();
   const nombre = `Ana ${Date.now()}`;
@@ -780,12 +846,12 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
   const c = new pg.Client({ connectionString: motor.url() });
   await c.connect();
   const fila = async () => (await c.query("select nombres, telefono from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'")).rows[0];
-  assert.equal((await fila()).telefono, "0414-0000014", "lo guardado en la PC sigue a la vista hasta que sube");
+  assert.equal((await fila()).telefono, "0414-0000015", "lo guardado en la PC sigue a la vista hasta que sube");
   await bandejaObj.subir();
   const f = await fila();
   await c.end();
   assert.equal(f.nombres, nombre, "el cambio de la nube llega a la PC");
-  assert.equal(f.telefono, "0414-0000014", "y el de la PC no se pierde");
+  assert.equal(f.telefono, "0414-0000015", "y el de la PC no se pierde");
 });
 
 test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
@@ -1634,6 +1700,73 @@ test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tien
   assert.ok(fs.existsSync(enPc(nueva)), JSON.stringify(r));
   // Sin sesión de la sincronía o sin internet no hace nada
   assert.deepEqual(await puerta.adjuntos.bajarPendientes(null), { bajados: 0, faltan: 0 });
+});
+
+// 30/10/2026 (pedido de Cesar): los resultados de laboratorio se trabajan igual sin internet. Con la nube apagada: abrir la
+// consulta con sus valores, el catálogo con sus rangos (semáforo), el PDF del laboratorio, registrar la lectura y la
+// campana de «resultados por recibir». Al volver la conexión todo sube y la campana no queda repetida.
+test("sin internet: resultados de laboratorio completos (consulta, rangos, PDF, lectura y campana) y suben al volver", { skip: omitir, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
+  const CONS = "4f000000-0000-0000-0000-0000000000a1", ITEM = "4f000000-0000-0000-0000-0000000000b1";
+  const RUTA_LAB = `${ORG}/${T}/laboratorio-santa-ana.pdf`;
+  const ENLACE = `/atencion/${CONS}?paso=paraclinicos`;
+  nube.estado.caida = false; await nubeObj.comprobar();
+  tokenMed = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } })).json.access_token;
+  await enLaNubeDB(`insert into public.lista_items (id, lista, org_id, nombre, grupo, datos) values ($1, 'paraclinico', $2, 'Glicemia 30-oct', 'Química',
+    '{"tipo":"numero","unidad":"mg/dL","rango_min":70,"rango_max":99,"fuente":"ADA 2025"}') on conflict (id) do nothing`, [ITEM, ORG]);
+  await enLaNubeDB(`insert into clinico.consultas (id, org_id, empresa_id, trabajador_id, estado, fecha, medico_id, paraclinicos)
+    values ($1, $2, '20000000-0000-0000-0000-00000000000a', $3, 'cerrada', public.hoy_caracas() - 5, $4, $5) on conflict (id) do nothing`,
+    [CONS, ORG, T, MED, JSON.stringify([{ id: ITEM, nombre: "Glicemia 30-oct", resultado: "120" }, { id: "hb", nombre: "Hemoglobina", resultado: "" }])]);
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, consulta_id, nombre, ruta, tipo_mime, tamano) values ($1, $2, $3, 'lab.pdf', $4, 'application/pdf', $5) on conflict (ruta) do nothing`,
+    [ORG, T, CONS, RUTA_LAB, Buffer.byteLength(PDF)]);
+  nube.estado.archivos.set(`adjuntos/${RUTA_LAB}`, { cuerpo: PDF, tipo: "application/pdf" });
+  // Un aviso de la nube con el mismo título (de otra consulta), ya en la PC: no se toca al borrar los de la PC
+  await enLaNubeDB(`insert into public.notificaciones (id, org_id, usuario_id, titulo, texto, enlace) values ('4f000000-0000-0000-0000-0000000000e1', $1, $2,
+    'Resultados por recibir', 'de la nube', '/atencion/otra?paso=paraclinicos') on conflict (id) do nothing`, [ORG, MED]);
+  await replicaObj.enCurso;
+  await replicaObj.ciclo();
+  await puerta.adjuntos.bajarPendientes("00000000-0000-0000-0000-0000000000a1", { maxArchivos: 50, maxDia: 1e9 }); // la sincronía baja el PDF
+  const avisosEnNube = async () => (await enLaNubeDB("select count(*)::int n from public.notificaciones where usuario_id = $1 and enlace = $2", [MED, ENLACE])).rows[0].n;
+  const avisosEnPc = async () => (await enLaCopiaDB("select count(*)::int n from public.notificaciones where usuario_id = $1 and enlace = $2", [MED, ENLACE])).rows[0].n;
+  try {
+    nube.estado.caida = true; await nubeObj.comprobar();
+    assert.equal(nubeObj.enLinea, false);
+    // La consulta con sus valores y el catálogo con su rango: el semáforo se pinta igual
+    const c = await pedir(`/rest/v1/consultas?select=id,paraclinicos&id=eq.${CONS}`, { token: tokenMed });
+    conEstado(c, 200);
+    assert.equal(c.json[0].paraclinicos[0].resultado, "120");
+    const li = await pedir(`/rest/v1/lista_items?select=id,datos&id=eq.${ITEM}`, { token: tokenMed });
+    conEstado(li, 200);
+    assert.deepEqual([li.json[0].datos.rango_min, li.json[0].datos.rango_max, li.json[0].datos.fuente], [70, 99, "ADA 2025"]);
+    // El PDF del laboratorio se abre desde la PC
+    const f = await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_LAB}`, { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600 } });
+    conEstado(f, 200);
+    assert.equal(await (await fetch(encodeURI(`${urlPuerta}/storage/v1${f.json.signedURL}`))).text(), PDF);
+    // Registrar la lectura: se valida en la copia y queda para subir
+    const lec = await pedir("/rest/v1/rpc/registrar_lectura_laboratorio", { metodo: "POST", token: tokenMed, cuerpo: {
+      p_consulta: CONS, p_adjunto: null, p_cedula_leida: "V-1", p_cedula_coincide: true, p_cedula_ignorada: false, p_examenes: 2 } });
+    assert.ok([200, 204].includes(lec.status), JSON.stringify(lec.json));
+    // La campana: el aviso sale en la PC al momento; abrir Inicio otra vez no lo repite ni anota otra constancia
+    for (let i = 0; i < 2; i++) {
+      const rr = await pedir("/rest/v1/rpc/recordar_resultados", { metodo: "POST", token: tokenMed, cuerpo: {} });
+      assert.equal(rr.status, 200, JSON.stringify(rr.json));
+    }
+    assert.equal(await avisosEnPc(), 1, "el aviso está en la campana de la PC");
+    const ks = await enLocal("select rpc, autor, args from local.constancias order by creado");
+    assert.deepEqual(ks.map((k) => k.rpc), ["registrar_lectura_laboratorio", "recordar_resultados"]);
+    assert.equal(ks[1].autor, MED);
+    assert.equal(ks[1].args.locales.length, 1);
+  } finally {
+    nube.estado.caida = false; await nubeObj.comprobar();
+  }
+  // Vuelve internet: suben la lectura y la campana; la nube hace su aviso y el de la PC se borra (no queda repetido)
+  await bandejaObj.subir();
+  assert.equal((await enLocal("select count(*)::int n from local.constancias"))[0].n, 0, "subieron las dos");
+  assert.equal((await enLaNubeDB("select count(*)::int n from public.bitacora where registro_id = $1 and tabla = 'clinico.lectura_laboratorio' and (despues ->> 'registrada_sin_internet')::boolean", [CONS])).rows[0].n, 1);
+  assert.equal(await avisosEnNube(), 1, "la nube hizo su aviso");
+  await replicaObj.ciclo();
+  assert.equal(await avisosEnPc(), 1, "en la PC queda uno solo: el de la nube");
+  assert.equal((await enLaCopiaDB("select count(*)::int n from public.notificaciones where id = '4f000000-0000-0000-0000-0000000000e1'")).rows[0].n, 1, "el aviso que bajó de la nube sigue");
 });
 
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {

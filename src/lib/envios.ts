@@ -27,7 +27,7 @@ import {
   type Plantilla,
   type ResultadoEnvio,
 } from "@/lib/envios-tipos";
-import { hoyCaracas } from "@/lib/fecha";
+import { ahora, hoyCaracas } from "@/lib/fecha";
 import { pdfDeRutas } from "@/lib/pdf-servidor";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -41,7 +41,7 @@ const URL_PUBLICA = (process.env.ZAMORAPP_URL_PUBLICA || "https://zamorapp-ocupa
 const horaVE = (iso: string) => new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 const fechaVE = (iso: string) => iso.split("-").reverse().join("/");
 const ahoraVE = () =>
-  new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date());
+  new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(ahora()));
 
 type FilaConsulta = {
   id: string;
@@ -129,7 +129,7 @@ function aHistorial(e: FilaEnvio): EnvioHistorial {
   };
 }
 
-const sinConfirmarViejo = (estado: string, creadoEn: string) => estado === "enviando" && Date.now() - new Date(creadoEn).getTime() > ESPERA_SIN_CONFIRMAR_MIN * 60_000;
+const sinConfirmarViejo = (estado: string, creadoEn: string) => estado === "enviando" && ahora() - new Date(creadoEn).getTime() > ESPERA_SIN_CONFIRMAR_MIN * 60_000;
 
 export type FiltrosBitacora = { empresaId?: string; estado?: string; canal?: string; desde?: string; hasta?: string };
 
@@ -510,7 +510,7 @@ export async function enviarInforme(e: EntradaInforme): Promise<ResultadoEnvio> 
 
 export async function revocarEnlace(envioId: string) {
   const supabase = await crearClienteServidor();
-  const { error } = await supabase.from("envio_enlaces").update({ revocado_en: new Date().toISOString() }).eq("envio_id", envioId).is("revocado_en", null);
+  const { error } = await supabase.from("envio_enlaces").update({ revocado_en: new Date(ahora()).toISOString() }).eq("envio_id", envioId).is("revocado_en", null);
   return error ? error.message : null;
 }
 
@@ -596,7 +596,7 @@ export async function reintentarEnvios(ids: string[]): Promise<ResultadoEnvio> {
 export async function contarPendientes(): Promise<number> {
   if (!supabaseConfigurado) return 0; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
-  const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const desde = new Date(ahora() - 30 * 86_400_000).toISOString();
   const { data } = await supabase.from("envios").select("id, estado, creado_en").eq("canal", "correo").in("estado", ["fallido", "enviando"]).gte("creado_en", desde).limit(200);
   const candidatos = (data ?? []).filter((e) => e.estado === "fallido" || sinConfirmarViejo(e.estado, e.creado_en));
   if (!candidatos.length) return 0;
@@ -610,7 +610,7 @@ export async function contarPendientes(): Promise<number> {
 export async function porEnviar(dias = 14): Promise<GrupoPorEnviar[]> {
   if (!supabaseConfigurado) return []; // modo demo: sin nube, pantalla vacía en vez de error
   const supabase = await crearClienteServidor();
-  const desde = new Date(Date.now() - dias * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+  const desde = new Date(ahora() - dias * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
   const [{ data: consultas }, { data: envios }] = await Promise.all([
     supabase
       .from("consultas")
