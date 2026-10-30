@@ -46,6 +46,7 @@ import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
+import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { DatosTrabajador } from "./datos-trabajador";
@@ -662,6 +663,17 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
               {/* En el celular: la acción principal a todo el ancho; Imprimir y Cerrar consulta van al menú «…» */}
               {menuImprimir("outline", { className: "hidden sm:inline-flex" })}
+              <Escriba
+                d={d}
+                motivos={listas.motivo_consulta}
+                preventivo={preventivo}
+                etiquetaAptitud={etiquetaAptitud}
+                conMotivo={(c, motivoId) => {
+                  const p = plantillaPara(plantillas, listas, motivoId);
+                  return p ? aplicarPlantilla({ ...c, motivoId }, p.datos, listas) : { ...c, motivoId };
+                }}
+                onCambiar={setD}
+              />
               <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
