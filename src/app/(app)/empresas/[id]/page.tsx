@@ -69,7 +69,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
             </CardContent>
           </Card>
           <Card className="h-fit">
-            <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Dependencias o departamentos</CardTitle></CardHeader>
             <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
           </Card>
           <Card className="h-fit">

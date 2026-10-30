@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Loader2, Stethoscope, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { crearPaciente } from "@/app/(app)/pacientes/acciones";
+import { crearPaciente, dependenciasDeEmpresa } from "@/app/(app)/pacientes/acciones";
 import { iniciarConsulta } from "@/app/(app)/atencion/acciones";
 
 type Props = {
@@ -31,6 +31,14 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
   const [escrito, setEscrito] = useState<Partial<Record<keyof typeof sugerido, string>>>({});
   const valor = (k: keyof typeof sugerido) => escrito[k] ?? sugerido[k];
   const escribir = (k: keyof typeof sugerido) => (e: React.ChangeEvent<HTMLInputElement>) => setEscrito((v) => ({ ...v, [k]: e.target.value }));
+  const [empresaId, setEmpresaId] = useState(empresaActiva ?? empresas[0]?.id ?? "");
+  // Las dependencias o departamentos de la empresa elegida (como en el SAME); escribir una nueva la crea en esa empresa
+  const [dependencias, setDependencias] = useState<string[]>([]);
+  useEffect(() => {
+    let vigente = true;
+    dependenciasDeEmpresa(empresaId).then((d) => vigente && setDependencias(d)).catch(() => {});
+    return () => { vigente = false; };
+  }, [empresaId]);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const campo = "h-10 w-full rounded-lg border bg-card px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -64,12 +72,17 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input name="cedula" aria-label="Cédula" placeholder="Cédula (V-12345678)" value={valor("cedula")} onChange={escribir("cedula")} required className={campo} />
-        <select name="empresa_id" aria-label="Empresa" defaultValue={empresaActiva ?? empresas[0].id} className={campo}>
+        <select name="empresa_id" aria-label="Empresa" value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className={campo}>
           {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
         </select>
         <input name="nombres" aria-label="Nombres" placeholder="Nombres" value={valor("nombres")} onChange={escribir("nombres")} required className={campo} />
         <input name="apellidos" aria-label="Apellidos" placeholder="Apellidos" value={valor("apellidos")} onChange={escribir("apellidos")} required className={campo} />
         {/* Opcionales: si se dejan vacíos, «Generales» de la consulta los pide */}
+        <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+          Dependencia o departamento (opcional)
+          <input name="dependencia" list="rr-dependencias" placeholder={dependencias.length ? "Elige de la lista o escribe una nueva" : "Escribe una; queda en esta empresa"} className={campo} />
+          <datalist id="rr-dependencias">{dependencias.map((d) => <option key={d} value={d} />)}</datalist>
+        </label>
         <label className="space-y-1 text-xs text-muted-foreground">
           Fecha de nacimiento (opcional)
           <input type="date" name="fecha_nacimiento" min="1920-01-01" className={campo} />
@@ -81,7 +94,7 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
       </div>
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Cargo, dependencia y sexo se completan en «Generales» de la consulta.</span>
+        <span className="text-xs text-muted-foreground">Cargo y sexo se completan en «Generales» de la consulta.</span>
         <Button type="submit" size="sm" disabled={ocupado}>
           {ocupado ? <Loader2 className="animate-spin" /> : clinico && !alRegistrar ? <Stethoscope /> : <UserPlus />}
           {clinico && !alRegistrar ? "Registrar y atender" : "Registrar"}

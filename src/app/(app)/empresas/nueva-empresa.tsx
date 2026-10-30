@@ -78,6 +78,13 @@ export function FormEmpresa({ habilitado, empresa }: { habilitado: boolean; empr
           <Campo id="dias_aviso_examen" etiqueta="Avisar antes del vencimiento (días)" type="number" min={0} max={180} defaultValue={e?.diasAvisoExamen ?? 30} />
           <p className="-mt-2 text-xs text-muted-foreground sm:col-span-2">Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esta periodicidad. El inicio y el portal avisan con la anticipación indicada.</p>
 
+          <div className="sm:col-span-2">
+            <Label htmlFor="dependencias" className="mb-1.5">{e ? "Agregar dependencias o departamentos" : "Dependencias o departamentos"}</Label>
+            <textarea id="dependencias" name="dependencias" rows={4} placeholder={"Una por línea. Ejemplo:\nAdministración\nProducción\nMantenimiento"}
+              className="w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+            <p className="mt-1 text-xs text-muted-foreground">Al registrar o atender a un trabajador de esta empresa, «Dependencia o departamento» muestra estas. {e ? "Las que ya tiene no se repiten." : "También se pueden agregar después."}</p>
+          </div>
+
           {estado && !estado.ok && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">{estado.mensaje}</p>
           )}
