@@ -880,7 +880,8 @@ test("Windows adelantado o atrasado: el plazo de 7 días no se salta y un token 
       nubeObj.reloj.fecha = () => fechaW() + corrimiento;
       const { e, datos } = await entrar();
       const ahora = nubeObj.reloj.segundos(), win = Math.floor(nubeObj.reloj.fecha() / 1000);
-      assert.equal(datos.zexp, ahora + 3600, "la puerta vence con la hora anclada");
+      // ahora se lee después de entrar: si cambia el segundo en medio, zexp queda 1 s atrás
+      assert.ok(Math.abs(datos.zexp - (ahora + 3600)) <= 1, "la puerta vence con la hora anclada");
       assert.ok(Math.abs(datos.exp - (win + 3600)) <= 1 && Math.abs(datos.iat - (win - 60)) <= 1, "exp e iat en la hora de Windows");
       assert.equal(e.json.expires_at, datos.exp, "la app renueva según su propio reloj");
     }
