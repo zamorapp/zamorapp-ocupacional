@@ -1,0 +1,17 @@
+{
+  "etiqueta": "migraciones-20261030-1",
+  "aprobado": "Cesar Enrique, sí del 2026-10-30 06:16 UTC (mensaje cmsg_01STXKdDPgC2LLWU7qtkUtxxRKA7yVQgwuAep8JqqRF4uC)",
+  "linea_base_hasta": "20261030450000",
+  "migraciones": [
+    {
+      "archivo": "20261030460000_codigos_respaldo_sin_public.sql",
+      "sha256": "93ee2ad20e2d678c11af160878d398aee649860b6987625067d17d3da585e0a5",
+      "descripcion": "Seguridad: las funciones de los códigos de respaldo solo las usan usuarios con sesión"
+    },
+    {
+      "archivo": "20261030470000_motivos_same.sql",
+      "sha256": "9f0680ac7a0472c24cb7a79761e59180701c5f064988180ebc4e262e29dde7ab",
+      "descripcion": "Motivos de consulta del SAME para la marcha en paralelo; Adecuación de puesto pasa a no preventiva"
+    }
+  ]
+}
