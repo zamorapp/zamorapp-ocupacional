@@ -65,7 +65,7 @@ export function IndicadorSincronia() {
         )}
         {e.apartadas > 0 && (
           <p className="text-xs text-muted-foreground">
-            {e.apartadas === 1 ? "1 registro de la nube no entró en esta PC" : `${e.apartadas} registros de la nube no entraron en esta PC`}: quedan apartados y se reintentan solos, sin frenar a los demás.
+            {e.apartadas === 1 ? "1 registro de la nube todavía no entra en esta PC. Se reintenta solo y no frena lo demás." : `${e.apartadas} registros de la nube todavía no entran en esta PC. Se reintentan solos y no frenan lo demás.`}
           </p>
         )}
         {e.horaSinAncla && (

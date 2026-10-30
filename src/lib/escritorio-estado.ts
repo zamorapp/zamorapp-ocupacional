@@ -85,9 +85,9 @@ export async function sincronizarAhora(): Promise<string> {
     if (!e.enLinea) return "Sin internet: los cambios siguen guardados en esta PC y suben solos al volver la conexión.";
     // Subir y bajar son dos pasos: si la bajada falló, se dice qué pasó y que lo de esta PC sí subió (o sigue en camino)
     const subida = e.pendientes ? `Quedan ${e.pendientes} por subir; siguen en camino.` : "Lo de esta PC ya está en la nube.";
-    if (e.errorSincronia) return `${subida} No se pudieron bajar los cambios de la nube: ${e.motivo ?? "se reintenta sola cada 30 segundos."}`;
+    if (e.errorSincronia) return `${subida} No se pudieron bajar los cambios de la nube. ${e.motivo ?? "Se reintenta sola cada 30 segundos."}`;
     if (e.pendientes) return subida;
-    return e.apartadas ? `Todo está al día, salvo ${e.apartadas === 1 ? "1 registro que esta PC no aceptó" : `${e.apartadas} registros que esta PC no aceptó`}; se reintentan solos.` : "Todo está al día en la nube.";
+    return e.apartadas ? `Todo está al día, salvo ${e.apartadas === 1 ? "1 registro de la nube que todavía no entra en esta PC; se reintenta solo" : `${e.apartadas} registros de la nube que todavía no entran en esta PC; se reintentan solos`}.` : "Todo está al día en la nube.";
   } catch {
     return "No se pudo sincronizar ahora. Tus cambios siguen guardados en esta PC.";
   }
