@@ -3,6 +3,7 @@
 // los perfiles de examen y las recomendaciones de la organización.
 import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
 import { sumarMeses } from "@/lib/fecha";
+import { completarPerfil } from "@/lib/perfil-opciones";
 
 export type DatosPlantilla = {
   funcional: string | null; // código de perfil_examen_funcional
@@ -78,7 +79,11 @@ export type ListasPlantilla = Record<string, ItemTexto[] | undefined>;
 // Aplica la plantilla sin borrar lo escrito: el examen toma el perfil como normal (solo si la fila no fue
 // cambiada a mano), las recomendaciones se suman, y conclusiones y vigencia solo se llenan si están vacías.
 export function aplicarPlantilla(d: DatosConsulta, p: DatosPlantilla, listas: ListasPlantilla): DatosConsulta {
-  const perfil = (items: ItemTexto[] = [], codigo: string | null) => (codigo ? items.find((i) => i.codigo === codigo)?.texto ?? null : null);
+  // Un perfil con opciones {a|b} entra con la primera de cada una (el médico la cambia en la fila)
+  const perfil = (items: ItemTexto[] = [], codigo: string | null) => {
+    const texto = codigo ? items.find((i) => i.codigo === codigo)?.texto ?? null : null;
+    return texto && completarPerfil(texto);
+  };
   const sinTocar = (filas: FilaExamen[]) => filas.filter((f) => f.valor.trim() === f.normal.trim());
   const examen = (filas: FilaExamen[], texto: string | null) => {
     const aplicadas = aplicarExamen(sinTocar(filas), texto);

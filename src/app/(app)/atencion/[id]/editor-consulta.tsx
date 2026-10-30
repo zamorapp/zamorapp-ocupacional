@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -39,6 +40,7 @@ import { separarPorLaboratorio } from "@/lib/estudios";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
+import { completarPerfil, tieneOpciones, tramosDePerfil } from "@/lib/perfil-opciones";
 import { BuscadorDiagnostico, BuscadorMedicina } from "./buscador-diagnostico";
 import { AvisoDeclaracion } from "./aviso-declaracion";
 import { VistaRapida } from "./vista-rapida";
@@ -165,19 +167,67 @@ function AccionesExamen({ perfiles, etiquetaNormal, onAplicar }: { perfiles: Ite
 }
 
 function ElegirPerfil({ items, onElegir }: { items: Item[]; onElegir: (texto: string) => void }) {
+  // Perfil con opciones {derecha|izquierda}: antes de aplicarlo se eligen en la misma frase
+  const [pendiente, setPendiente] = useState<{ item: Item; elegidas: string[] } | null>(null);
   if (!items.length) return null;
+  const tramos = pendiente ? tramosDePerfil(pendiente.item.texto ?? "") : [];
+  const elegir = (g: number, o: string) => pendiente && setPendiente({ ...pendiente, elegidas: pendiente.elegidas.map((x, j) => (j === g ? o : x)) });
+  let grupo = 0;
   return (
-    <select
-      value=""
-      onChange={(e) => {
-        const it = items.find((i) => i.id === e.target.value);
-        if (it?.texto) onElegir(it.texto);
-      }}
-      className="h-8 max-w-48 rounded-md border bg-transparent px-2 text-xs"
-    >
-      <option value="">Aplicar perfil…</option>
-      {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-    </select>
+    <Popover open={Boolean(pendiente)} onOpenChange={(abierto) => !abierto && setPendiente(null)}>
+      <PopoverAnchor asChild>
+        <select
+          value=""
+          onChange={(e) => {
+            const it = items.find((i) => i.id === e.target.value);
+            if (!it?.texto) return;
+            if (tieneOpciones(it.texto)) setPendiente({ item: it, elegidas: tramosDePerfil(it.texto).filter(Array.isArray).map((o) => o[0]) });
+            else onElegir(it.texto);
+          }}
+          className="h-8 max-w-48 rounded-md border bg-transparent px-2 text-xs"
+        >
+          <option value="">Aplicar perfil…</option>
+          {items.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+        </select>
+      </PopoverAnchor>
+      {pendiente && (
+        <PopoverContent aria-label={`Completar «${pendiente.item.nombre}»`} className="w-[min(26rem,calc(100vw-2rem))] space-y-3 p-3 text-sm">
+          <p className="text-xs font-semibold text-muted-foreground">{pendiente.item.nombre} · elige y aplica</p>
+          <div className="whitespace-pre-wrap leading-loose">
+            {tramos.map((t, k) => {
+              if (!Array.isArray(t)) return <span key={k}>{t}</span>;
+              const g = grupo++;
+              // Pocas opciones: botones dentro de la frase (mejor al dedo); muchas: lista
+              if (t.length <= 3) return (
+                <span key={k} role="group" aria-label={`Opción ${g + 1}`} className="mx-0.5 inline-flex overflow-hidden rounded-md border border-primary/50 align-middle">
+                  {t.map((o) => {
+                    const activa = pendiente.elegidas[g] === o;
+                    return (
+                      <button key={o} type="button" aria-pressed={activa} onClick={() => elegir(g, o)}
+                        className={cn("h-8 border-l border-primary/30 px-2.5 text-sm font-medium first:border-l-0", activa ? "bg-primary text-primary-foreground" : "bg-primary/5 text-primary hover:bg-primary/10")}>
+                        {o}
+                      </button>
+                    );
+                  })}
+                </span>
+              );
+              return (
+                <select key={k} value={pendiente.elegidas[g]} aria-label={`Opción ${g + 1}`} onChange={(e) => elegir(g, e.target.value)}
+                  className="mx-0.5 inline h-8 rounded-md border border-primary/50 bg-primary/5 px-1.5 align-middle text-sm font-medium text-primary">
+                  {t.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setPendiente(null)}>Cancelar</Button>
+            <Button type="button" size="sm" onClick={() => { onElegir(completarPerfil(pendiente.item.texto ?? "", pendiente.elegidas)); setPendiente(null); }}>
+              <Check /> Aplicar
+            </Button>
+          </div>
+        </PopoverContent>
+      )}
+    </Popover>
   );
 }
 
@@ -1428,7 +1478,15 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {/* ── Conclusiones ── */}
           <TabsContent value="conclusiones" className="mt-4 space-y-4">
             <Seccion titulo="Conclusiones y recomendaciones">
-              <Texto etiqueta="Conclusiones" valor={d.conclusiones} onChange={(v) => set("conclusiones", v)} />
+              <TextosFrecuentes
+                etiqueta="Conclusiones"
+                items={listas.conclusion_consulta ?? []}
+                motivoCodigo={motivo?.codigo ?? null}
+                motivoNombre={motivo?.nombre ?? null}
+                valor={d.conclusiones}
+                onChange={(v) => set("conclusiones", v)}
+                filas={3}
+              />
               <TextosFrecuentes
                 etiqueta="Recomendaciones para la empresa"
                 items={listas.recomendacion_empresa}
