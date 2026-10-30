@@ -102,11 +102,14 @@ jobs:
           npx next build
           if ($LASTEXITCODE) { throw "Falló la compilación de la app" }
           # La pantalla de ingreso debe traer el código de la huella (diagnóstico de la prueba de Windows Hello)
-          $login = Get-Content .next/server/app/login.html -Raw
-          $chunks = [regex]::Matches($login, 'static/chunks/[^"]+\.js') | ForEach-Object Value | Sort-Object -Unique
-          Write-Host "Scripts de /login: $($chunks -join ' ')"
-          $conHuella = $chunks | Where-Object { Select-String -Path ".next/$_" -Pattern "zamorapp.huella" -SimpleMatch -Quiet }
-          Write-Host "Con la huella: $($conHuella -join ' ')"
+          # /login se arma en cada pedido (pregunta a la puerta si hay Windows Hello): ya no hay login.html prerenderizado
+          if (Test-Path .next/server/app/login.html) {
+            $login = Get-Content .next/server/app/login.html -Raw
+            $chunks = [regex]::Matches($login, 'static/chunks/[^"]+\.js') | ForEach-Object Value | Sort-Object -Unique
+            Write-Host "Scripts de /login: $($chunks -join ' ')"
+            $conHuella = $chunks | Where-Object { Select-String -Path ".next/$_" -Pattern "zamorapp.huella" -SimpleMatch -Quiet }
+            Write-Host "Con la huella: $($conHuella -join ' ')"
+          }
           Write-Host "En .next/static: $((Get-ChildItem .next/static -Recurse -Filter *.js | Select-String -Pattern 'zamorapp.huella' -SimpleMatch -List | ForEach-Object Filename) -join ' ')"
           $r = "escritorio/recursos"
           Copy-Item -Recurse .next/standalone "$r/app"
