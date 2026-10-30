@@ -11,6 +11,11 @@ import { solicitarCita } from "./acciones";
 
 type Nuevo = { cedula: string; nombres: string; apellidos: string };
 
+// Número de paso: RR. HH. sigue la solicitud en orden (1 a quién, 2 qué día, 3 qué evaluación)
+function Paso({ n }: { n: number }) {
+  return <span className="mr-1 inline-grid size-5 place-items-center rounded-full bg-primary text-[0.7rem] font-semibold text-primary-foreground">{n}</span>;
+}
+
 export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { motivos: { id: string; nombre: string }[]; manana: string; empresas: { id: string; nombre: string }[]; empresaActiva: string | null }) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
@@ -53,7 +58,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </DialogHeader>
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label className="mb-1.5">Trabajadores * {total > 0 && <span className="font-normal text-muted-foreground">· {total} elegidos</span>}</Label>
+            <Label className="mb-1.5"><Paso n={1} /> ¿A quién? {total > 0 && <span className="font-normal text-muted-foreground">· {total} elegidos</span>}</Label>
             {total > 0 && (
               <ul className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                 {nuevos.map((n) => (
@@ -72,6 +77,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
                 ))}
               </ul>
             )}
+            {total === 0 && !ficha && <p className="mb-1.5 text-xs text-muted-foreground">Escribe la cédula o el nombre y tócalo en la lista. Si no aparece, toca «Trabajador nuevo».</p>}
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar trabajador" placeholder={elegidos.length ? "Agregar otro: cédula o nombre" : "Cédula o nombre"} className="h-10 w-full rounded-md border bg-transparent pl-9 pr-9 text-sm" />
@@ -93,7 +99,8 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
                     {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                   </select>
                 )}
-                <div className="flex justify-end gap-2 sm:col-span-3">
+                <div className="flex items-center justify-end gap-2 sm:col-span-3">
+                  <span className="mr-auto text-xs text-muted-foreground">Llena los tres datos y toca «Agregar».</span>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setFicha(null)}>Cancelar</Button>
                   <Button type="button" size="sm" disabled={ficha.cedula.replace(/\D/g, "").length < 5 || !ficha.nombres.trim() || !ficha.apellidos.trim()}
                     onClick={() => { setNuevos((l) => (l.some((x) => x.cedula === ficha.cedula) ? l : [...l, { cedula: ficha.cedula.trim(), nombres: ficha.nombres.trim(), apellidos: ficha.apellidos.trim() }])); setFicha(null); }}>
@@ -114,13 +121,13 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
               </ul>
             )}
           </div>
-          <Campo id="fecha" etiqueta="Fecha *" type="date" min={manana} defaultValue={manana} required />
-          <Campo id="hora" etiqueta="Hora preferida" type="time" />
-          <CampoSelect id="motivo_id" etiqueta="Tipo de evaluación" defaultValue="" className="sm:col-span-2">
-            <option value="">Sin definir</option>
+          <Campo id="fecha" etiqueta={<><Paso n={2} /> ¿Qué día?</>} type="date" min={manana} defaultValue={manana} required />
+          <Campo id="hora" etiqueta="Hora (opcional)" type="time" />
+          <CampoSelect id="motivo_id" etiqueta={<><Paso n={3} /> Tipo de evaluación</>} defaultValue="" className="sm:col-span-2">
+            <option value="">No sé / que lo defina el médico</option>
             {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
           </CampoSelect>
-          <Campo id="nota" etiqueta="Nota para el servicio médico" className="sm:col-span-2" />
+          <Campo id="nota" etiqueta="Nota (opcional)" className="sm:col-span-2" />
           <div className="flex items-center gap-2 sm:col-span-2">
             <Aviso resultado={estado && !estado.ok ? estado : null} />
             <Button type="submit" className="ml-auto" disabled={enviando || !total}>

@@ -293,7 +293,7 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
       `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
       "",
       "Son 3 pasos:",
-      "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 6 letras o números):",
+      "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 8 letras o números):",
       enlace,
       "2. Abra su correo y toque el botón de confirmación que le llegó (si no lo ve, busque en Spam).",
       "3. Se abre de nuevo la página del portal: toque el botón verde «Aceptar y entrar al portal». ¡Listo!",

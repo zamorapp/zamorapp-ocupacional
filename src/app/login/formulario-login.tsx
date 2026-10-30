@@ -15,7 +15,7 @@ import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
 export type Modo = "ingresar" | "registro" | "recuperar";
 
 // «siguiente»: a dónde volver después de entrar (p. ej. la invitación de RR. HH.); por defecto el panel
-export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean }) {
+export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false, nombreInicial }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean; nombreInicial?: string }) {
   const router = useRouter();
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [cargando, setCargando] = useState(false);
@@ -169,7 +169,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
       {registro && (
         <div className="space-y-2">
           <Label htmlFor="nombre">Nombre completo</Label>
-          <Input id="nombre" name="nombre" autoComplete="name" required className="h-11" />
+          <Input id="nombre" name="nombre" autoComplete="name" defaultValue={nombreInicial} required className="h-11" />
         </div>
       )}
       <div className="space-y-2">
@@ -204,6 +204,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           required={!modoDemo}
           className="h-11"
         />
+        {registro && <p className="text-xs text-muted-foreground">Mínimo 8 letras o números. Anótala: la usarás cada vez que entres.</p>}
       </div>}
       {error && (
         <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
