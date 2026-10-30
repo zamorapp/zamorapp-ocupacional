@@ -101,7 +101,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("trabajadores").select("id, nombres, apellidos, cedula, sexo, fecha_nacimiento, empresas(razon_social), puestos(nombre, riesgos)").eq("id", c.trabajador_id).maybeSingle(),
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
-    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
+    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss, observacion").eq("consulta_id", id).maybeSingle(),
     c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
       : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -156,7 +156,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       interconsultas: c.interconsultas ?? [],
       reposo: rep
         ? { activo: true, causa: rep.causa, ente: rep.ente_emisor, desde: rep.desde, hasta: rep.hasta, cie10: rep.cie10 ?? "",
-            medicoExterno: rep.medico_externo ?? "", centroIvss: rep.centro_ivss ?? "", validadoIvss: rep.validado_ivss ?? false }
+            medicoExterno: rep.medico_externo ?? "", centroIvss: rep.centro_ivss ?? "", validadoIvss: rep.validado_ivss ?? false, observacion: rep.observacion ?? "" }
         : { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: c.fecha, hasta: c.fecha, cie10: "", medicoExterno: "", centroIvss: "", validadoIvss: false },
       reubicacion: c.reubicacion
         ? {

@@ -65,7 +65,9 @@ export type DatosConsulta = {
   tratamiento: Medicamento[];
   indicaciones: string;
   interconsultas: Interconsulta[];
-  reposo: { activo: boolean; causa: string; ente: string; desde: string; hasta: string; cie10: string; medicoExterno: string; centroIvss: string; validadoIvss: boolean };
+  reposo: { activo: boolean; causa: string; ente: string; desde: string; hasta: string; cie10: string; medicoExterno: string; centroIvss: string; validadoIvss: boolean;
+    // Observación escrita en el SAME (solo lectura: el reposo nuevo no la usa)
+    observacion?: string };
   reubicacion: Reubicacion;
   informeLibre: InformeLibre;
   conclusiones: string;

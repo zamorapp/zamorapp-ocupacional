@@ -1237,6 +1237,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                       <input type="checkbox" checked={d.reposo.validadoIvss} onChange={(e) => set("reposo", { ...d.reposo, validadoIvss: e.target.checked })} className="size-4 accent-[var(--primary)]" />
                       Validado por el IVSS
                     </label>
+                    {d.reposo.observacion && (
+                      <div className="sm:col-span-2">
+                        <p className="mb-1.5 text-sm font-medium">Observación del reposo <span className="text-xs font-normal text-muted-foreground">· del SAME</span></p>
+                        <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/40 px-3 py-2 text-sm">{d.reposo.observacion}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </Seccion>
