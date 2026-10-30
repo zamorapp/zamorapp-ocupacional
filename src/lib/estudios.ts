@@ -38,7 +38,7 @@ const PISTAS: [Clase, RegExp][] = [
   ["tomografia", /\btomograf|\btac\b|\bangiotac/],
   ["rayos_x", /\brayos? ?x\b|\brx\b|\bradiograf|\bmamograf|\bdensitometr|\btelerradiograf/],
   ["imagen", /\bimagen|\bimagenolog|\bgammagraf/],
-  ["funcional", /\bholter\b|\bergometr|\bprueba de esfuerzo|\belectroencefalogra|\beeg\b|\bvisiometr|\bagudeza visual|\boptometr|\bcampimetr|\bpsicotecn/],
+  ["funcional", /\bholter\b|\bergometr|\bprueba de esfuerzo|\belectroencefalogra|\beeg\b|\bvisiometr|\bagudeza visual|\boptometr|\bcampimetr|\bpsicotecn|\bpsicolog/],
 ];
 
 export function claseDeducida(nombre: string, grupo?: string | null): Clase {

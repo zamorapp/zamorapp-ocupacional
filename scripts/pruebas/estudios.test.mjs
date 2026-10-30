@@ -25,6 +25,7 @@ test("deduce la clase por el nombre, sin acentos ni mayúsculas", () => {
   assert.equal(claseDeducida("Electrocardiograma"), "electrocardiograma");
   assert.equal(claseDeducida("ECG en reposo"), "electrocardiograma");
   assert.equal(claseDeducida("Prueba de esfuerzo"), "funcional");
+  assert.equal(claseDeducida("PSICOLÓGICO ESPECIAL"), "funcional");
 });
 
 test("lo de laboratorio sigue siendo laboratorio", () => {
