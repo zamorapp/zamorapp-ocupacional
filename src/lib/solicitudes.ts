@@ -16,6 +16,8 @@ type Fila = {
   documento_nombre: string | null;
   creado_en: string;
   actualizado_en: string | null;
+  en_proceso_en: string | null;
+  respondida_en: string | null;
   empresas: { razon_social: string } | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string } | null;
 };
@@ -25,7 +27,7 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("solicitudes")
-    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, respuesta, documento_nombre, creado_en, actualizado_en, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
+    .select("id, empresa_id, tipo, trabajador_id, detalle, estado, respuesta, documento_nombre, creado_en, actualizado_en, en_proceso_en, respondida_en, empresas(razon_social), trabajadores(nombres, apellidos, cedula)")
     .order("creado_en", { ascending: false })
     .limit(filtro.limite ?? 100);
   if (filtro.estado === "abiertas") q = q.in("estado", ["pendiente", "en_proceso"]);
@@ -46,6 +48,8 @@ export async function listarSolicitudes(filtro: { estado?: EstadoSolicitud | "ab
     documento: s.documento_nombre,
     creadoEn: s.creado_en,
     actualizadoEn: s.actualizado_en,
+    enProcesoEn: s.en_proceso_en,
+    respondidaEn: s.respondida_en,
   }));
 }
 

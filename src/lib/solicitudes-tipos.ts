@@ -15,6 +15,8 @@ export type Solicitud = {
   documento: string | null; // nombre del archivo de respuesta
   creadoEn: string;
   actualizadoEn: string | null;
+  enProcesoEn: string | null;
+  respondidaEn: string | null; // respondida o rechazada
 };
 
 export const ETIQUETA_SOLICITUD: Record<EstadoSolicitud, { texto: string; clase: string }> = {

@@ -5,6 +5,7 @@ import { ChevronDown, Download, Paperclip } from "lucide-react";
 import { Aviso, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Pasos, pasosSolicitud } from "@/components/app/pasos";
 import { ETIQUETA_SOLICITUD, type Solicitud } from "@/lib/solicitudes-tipos";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
           <span className="block font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</span>
           <span className="block text-xs text-muted-foreground">{s.empresa} · {fechaHora(s.creadoEn)}</span>
           <span className="mt-1 line-clamp-2 block text-sm">{s.detalle}</span>
+          {s.estado !== "pendiente" && <Pasos pasos={pasosSolicitud(s)} className="mt-1" />}
         </span>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", e.clase)}>{e.texto}</span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", abrir && "rotate-180")} />
