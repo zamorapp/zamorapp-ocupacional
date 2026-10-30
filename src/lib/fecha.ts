@@ -8,7 +8,7 @@ export const ZONA = "America/Caracas";
 // Hora real en ms. En el escritorio, Next y la ventana corren con la fecha de Windows, que Cesar cambia para abrir el
 // SAME: se le suma el desfase con la hora anclada a la nube que da la puerta (lo fijan hora-escritorio.ts en el
 // servidor y HoraEscritorio en la ventana). En la web el desfase es 0. Toda fecha u hora de negocio sale de aquí;
-// ESLint prohíbe Date.now() y new Date() sin argumentos fuera de este archivo (las duraciones llevan su excepción).
+// ESLint prohíbe Date.now() y new Date() sin argumentos fuera de este archivo; las duraciones usan performance.now().
 type ConDesfase = typeof globalThis & { __zamorappDesfase?: number };
 export const ahora = () => Date.now() + ((globalThis as ConDesfase).__zamorappDesfase ?? 0);
 // La fecha de Windows tal cual: solo para medir el desfase (hora-escritorio)
