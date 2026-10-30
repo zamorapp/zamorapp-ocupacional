@@ -20,6 +20,18 @@ export async function guardarVacaciones(trabajadorId: string, desde: string, reg
   return { ok: true, mensaje: "Vacaciones guardadas." };
 }
 
+// Corregir fechas ya anotadas (misma política de la tabla; en el escritorio sube por la bandeja como cualquier cambio)
+export async function editarVacaciones(trabajadorId: string, id: string, desde: string, regreso: string): Promise<Resultado> {
+  if (!FECHA.test(desde) || !FECHA.test(regreso)) return { ok: false, mensaje: "Escribe las dos fechas." };
+  if (regreso <= desde) return { ok: false, mensaje: "El regreso debe ser después del inicio." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("vacaciones").update({ desde, regreso }).eq("id", id).select("id");
+  if (error) return { ok: false, mensaje: error.code === "23514" ? "Las vacaciones no pueden pasar de 120 días." : error.message };
+  if (!data?.length) return { ok: false, mensaje: "No puedes corregir estas vacaciones." };
+  revalidatePath(`/pacientes/${trabajadorId}`);
+  return { ok: true, mensaje: "Vacaciones corregidas." };
+}
+
 export async function quitarVacaciones(trabajadorId: string, id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("vacaciones").delete().eq("id", id).select("id");

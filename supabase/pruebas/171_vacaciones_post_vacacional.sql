@@ -14,6 +14,11 @@ do $$ begin insert into public.vacaciones (org_id, empresa_id, trabajador_id, de
  raise notice 'disfrazar la empresa: FALLA'; exception when insufficient_privilege then raise notice 'la empresa sale del trabajador (ok)'; end $$;
 do $$ begin insert into public.vacaciones (trabajador_id, desde, regreso) values ('30000000-0000-0000-0000-00000000000a', current_date, current_date);
  raise notice 'regreso igual a la salida: FALLA'; exception when check_violation then raise notice 'regreso después de la salida (ok)'; end $$;
+-- Corregir fechas: RR. HH. corrige las de su empresa; mover la fila a un trabajador de otra empresa no pasa
+update public.vacaciones set regreso = public.hoy_caracas() + 1 where id = '17100000-0000-0000-0000-000000000001';
+select 'RR. HH. corrige las fechas (debe 1): ' || count(*) from public.vacaciones where id = '17100000-0000-0000-0000-000000000001' and regreso = public.hoy_caracas() + 1;
+do $$ begin update public.vacaciones set trabajador_id = '30000000-0000-0000-0000-00000000000b' where id = '17100000-0000-0000-0000-000000000001';
+ raise notice 'mover a otra empresa: FALLA'; exception when insufficient_privilege then raise notice 'no se mueve a otra empresa (ok)'; end $$;
 -- Sin internet (escritorio local primero): la vacación anotada en la PC sube por la bandeja con las mismas reglas
 reset role;
 insert into public.equipos (id, org_id, nombre, serie, secreto_hash) values

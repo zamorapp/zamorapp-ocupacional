@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Palmtree, Trash2 } from "lucide-react";
+import { Loader2, Palmtree, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/app/confirmar";
 import { sumarDias } from "@/lib/fecha";
-import { guardarVacaciones, quitarVacaciones, type Vacacion } from "./vacaciones-acciones";
+import { editarVacaciones, guardarVacaciones, quitarVacaciones, type Vacacion } from "./vacaciones-acciones";
 
 const corta = (iso: string) => iso.split("-").reverse().join("/");
 const CHIP = { alerta: "bg-alerta/15 text-alerta-texto", aviso: "bg-aviso/20 text-aviso-texto", ok: "bg-ok/15 text-ok-texto", neutro: "bg-muted text-muted-foreground" };
@@ -15,14 +15,17 @@ const CHIP = { alerta: "bg-alerta/15 text-alerta-texto", aviso: "bg-aviso/20 tex
 export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, fechasPosv = [] }: { trabajadorId: string; iniciales: Vacacion[]; diasPost: number; hoy: string; editable: boolean; fechasPosv?: string[] }) {
   const [desde, setDesde] = useState("");
   const [regreso, setRegreso] = useState("");
+  const [editando, setEditando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
 
   const guardar = () => iniciar(async () => {
-    const r = await guardarVacaciones(trabajadorId, desde, regreso);
+    const r = editando ? await editarVacaciones(trabajadorId, editando, desde, regreso) : await guardarVacaciones(trabajadorId, desde, regreso);
     setMensaje({ ok: r.ok, texto: r.mensaje });
-    if (r.ok) { setDesde(""); setRegreso(""); }
+    if (r.ok) { setDesde(""); setRegreso(""); setEditando(null); }
   });
+  const editar = (v: Vacacion) => { setEditando(v.id); setDesde(v.desde); setRegreso(v.regreso); setMensaje(null); };
+  const cancelar = () => { setEditando(null); setDesde(""); setRegreso(""); };
   const quitar = async (v: Vacacion) => {
     if (!(await confirmar({ titulo: "¿Quitar estas vacaciones?", texto: `Del ${corta(v.desde)} al ${corta(v.regreso)}. También se quita su aviso de post vacacional.`, accion: "Quitar", peligro: true }))) return;
     iniciar(async () => {
@@ -46,6 +49,11 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
               <span className="text-muted-foreground">Post vacacional antes del {corta(limite)}</span>
               <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${CHIP[tono]}`}>{estado}</span>
               {editable && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={ocupado} onClick={() => editar(v)} aria-label="Corregir fechas" title="Corregir fechas">
+                  <Pencil />
+                </Button>
+              )}
+              {editable && (
                 <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={ocupado} onClick={() => quitar(v)} aria-label="Quitar vacaciones" title="Quitar vacaciones">
                   <Trash2 />
                 </Button>
@@ -63,8 +71,9 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
             <input type="date" value={regreso} min={desde || undefined} onChange={(e) => setRegreso(e.target.value)} className="h-9 rounded-md border bg-transparent px-2 text-sm text-foreground" />
           </label>
           <Button type="button" size="sm" disabled={ocupado || !desde || !regreso} onClick={guardar}>
-            {ocupado && <Loader2 className="animate-spin" />} Anotar vacaciones
+            {ocupado && <Loader2 className="animate-spin" />} {editando ? "Guardar fechas" : "Anotar vacaciones"}
           </Button>
+          {editando && <Button type="button" size="sm" variant="ghost" onClick={cancelar}>Cancelar</Button>}
         </div>
       )}
       {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-alerta-texto"}>{mensaje.texto}</p>}
