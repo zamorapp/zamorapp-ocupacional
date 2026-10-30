@@ -109,7 +109,7 @@ export function UnirAMano({ cargos, quitados }: { cargos: CargoOrg[]; quitados: 
       )}
       {busca.trim() && !lista.length && <p className="text-sm text-muted-foreground">Ningún cargo con «{busca.trim()}».</p>}
       {aviso && (
-        <p className={cn("flex flex-wrap items-center gap-2 rounded-md px-3 py-2 text-sm", aviso.ok ? "bg-ok/10 text-ok-texto" : "bg-destructive/10 text-destructive")}>
+        <p className={cn("flex flex-wrap items-center gap-2 rounded-md px-3 py-2 text-sm", aviso.ok ? "bg-ok/10 text-ok-texto" : "bg-alerta/10 text-alerta-texto")}>
           {aviso.mensaje}
           {aviso.deshacer && (
             <Button size="sm" variant="outline" onClick={() => deshacer(aviso.deshacer!)} disabled={ocupado}><Undo2 /> Deshacer</Button>
@@ -137,9 +137,8 @@ export function UnirAMano({ cargos, quitados }: { cargos: CargoOrg[]; quitados: 
           </Button>
           <Button variant="outline" onClick={quitar} disabled={ocupado || !exacto} className="basis-full text-destructive sm:ml-auto sm:basis-auto"
             title={exacto ? undefined : "Para quitar, escribe en la búsqueda el nombre exacto y marca solo ese"}>
-            <Ban /> {exacto ? `Quitar «${sel[0].nombre}» (${plural(sel[0].trabajadores, "trab.", "trab.")})` : "Quitar"}
+            <Ban /> {exacto ? `Quitar «${sel[0].nombre}» (${plural(sel[0].trabajadores, "trab.", "trab.")})` : sel.length > 1 ? "Quitar: marca solo uno" : `Quitar: escribe «${sel[0].nombre}» en la búsqueda`}
           </Button>
-          {!exacto && <p className="basis-full text-xs text-muted-foreground">«Quitar» solo se activa con un cargo marcado y su nombre exacto escrito en la búsqueda.</p>}
         </div>
       )}
       {quitados.length > 0 && (

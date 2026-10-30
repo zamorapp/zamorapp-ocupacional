@@ -34,11 +34,13 @@ begin
 
   lista := case jsonb_typeof(b.antes -> 'trabajadores') when 'array' then b.antes -> 'trabajadores' else '[]'::jsonb end;
   update public.trabajadores set puesto_id = v_dest
-   where id::text in (select jsonb_array_elements_text(lista)) and puesto_id is null;
+   where id::text in (select jsonb_array_elements_text(lista)) and puesto_id is null
+     and org_id = v_p.org_id and empresa_id = v_p.empresa_id;
   get diagnostics n_t = row_count;
   lista := case jsonb_typeof(b.antes -> 'consultas') when 'array' then b.antes -> 'consultas' else '[]'::jsonb end;
   update clinico.consultas set puesto_id = v_dest
-   where id::text in (select jsonb_array_elements_text(lista)) and puesto_id is null and estado <> 'firmada';
+   where id::text in (select jsonb_array_elements_text(lista)) and puesto_id is null and estado <> 'firmada'
+     and org_id = v_p.org_id and empresa_id = v_p.empresa_id;
   get diagnostics n_c = row_count;
 
   insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
