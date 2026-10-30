@@ -85,8 +85,15 @@ test("medir abrir y guardar una consulta: PC (copia local) frente a nube", { ski
   // 1) Local primero: lecturas de la copia al día y guardado en la PC (bandeja)
   await guardar(0); await abrir(); // calentar
   resultados.pc_abrir = await medir(VUELTAS, abrir);
+  nube.estado.rest = [];
   resultados.pc_guardar = await medir(VUELTAS, async (i) => { const r = await guardar(i); assert.ok([200, 204].includes(r.status), JSON.stringify(r.json)); });
-  assert.ok((await bandejaObj.resumen()).pendientes >= 1, "los guardados quedaron en la bandeja (los de la misma fila se funden)");
+  // Los guardados se hicieron en la PC (ninguno fue a la nube) y llegan por la bandeja. No se cuenta la bandeja al
+  // terminar: la subida en segundo plano puede haberla vaciado ya (Windows, nube simulada rápida)
+  assert.ok(!nube.estado.rest.includes("/rest/v1/rpc/guardar_consulta"), "ningún guardado fue directo a la nube");
+  await bandejaObj.subir();
+  assert.equal((await bandejaObj.resumen()).pendientes, 0, "la bandeja subió todo");
+  const [enNubeV] = await enBase(NUBE_DB, "select motivo_texto from clinico.consultas where id = $1", [cid]);
+  assert.equal(enNubeV.motivo_texto, `Control ${VUELTAS - 1}`, "y la nube quedó con el último guardado");
   // 2) Nube: misma app apuntando a la nube con ida y vuelta de Venezuela (lecturas: copia «vieja»; escrituras: sin copia)
   nube.estado.latenciaMs = LATENCIA_NUBE_MS;
   // Lecturas: con la lectura local apagada, la app lee de la nube como la web (la bandeja que sube en segundo plano
