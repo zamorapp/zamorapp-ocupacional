@@ -53,6 +53,23 @@ const SIN_PERMISO = ESCRITORIO
   ? "Windows no deja usar el micrófono. Activa «Acceso al micrófono» y «Permitir que las aplicaciones de escritorio accedan al micrófono», y vuelve a abrir zamorApp."
   : "Permite el micrófono: toca el candado junto a la dirección › Micrófono › Permitir.";
 
+// El reconocimiento de voz solo dice «not-allowed», venga de donde venga. Se abre el micrófono un instante para
+// saber la causa real: Windows lo bloquea, no hay micrófono, otro programa lo tiene o falla el servicio de voz.
+// En el escritorio zamorApp ya concede el micrófono por dentro (microfono.rs), así que un rechazo aquí es de Windows.
+async function causaMicrofono(): Promise<string> {
+  if (!navigator.mediaDevices?.getUserMedia) return SIN_PERMISO;
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+    return "El micrófono funciona, pero el servicio de voz de Microsoft no respondió. Usa Win + H (dictado de Windows) o la web en Chrome.";
+  } catch (e) {
+    const nombre = (e as DOMException).name;
+    if (nombre === "NotFoundError" || nombre === "OverconstrainedError") return "No encuentro ningún micrófono: revisa que esté conectado (o el de la cámara web) y vuelve a intentar.";
+    if (nombre === "NotReadableError") return "Otro programa está usando el micrófono (Zoom, Meet, WhatsApp…): ciérralo y vuelve a intentar.";
+    return SIN_PERMISO;
+  }
+}
+
 // Botón a Configuración › Privacidad › Micrófono de Windows (el escritorio abre solo esa página de Configuración)
 export function AyudaMicrofono({ error }: { error: string }) {
   if (!ESCRITORIO || error !== SIN_PERMISO) return null;
@@ -94,8 +111,7 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
       if (e.error === "no-speech" || e.error === "aborted") return;
       // Un error real no se reintenta: onend apaga el micrófono
       rec.current = null;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") setError(SIN_PERMISO);
-      else if (e.error === "audio-capture") setError("No encuentro el micrófono: revisa que esté conectado y vuelve a intentar.");
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") void causaMicrofono().then(setError);
       else if (e.error === "network") setError("El dictado necesita internet. En Windows también puedes usar Win + H.");
       else setError("No se pudo dictar. En Windows puedes usar Win + H.");
     };
