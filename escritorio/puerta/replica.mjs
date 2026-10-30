@@ -2,7 +2,7 @@
 // Se aplica como superusuario local con session_replication_role = replica: no corren disparadores
 // (ni avisos ni bitácora duplicados) y el orden de llegada no importa para las llaves foráneas.
 import crypto from "node:crypto";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 import { CATALOGOS } from "./config.mjs";
 
 const ROLES_ACCESO_AMPLIO = ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion", "coordinador_sst", "auditor"];

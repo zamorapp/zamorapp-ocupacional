@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { correoConfigurado, enviarCorreo, type Adjunto } from "@/lib/correo";
 import { CUBETA_COLA, nombreDeArchivoCola } from "@/lib/envios-cola";
+import { ahora } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     const archivos = (lista ?? []).filter((a) => a.name.endsWith(".pdf")).sort((a, b) => a.name.localeCompare(b.name));
     if (!archivos.length) {
       // El PDF todavía no subió (la PC lo sube después de la fila): se espera; si pasó un día, se da por perdido
-      if (Date.now() - new Date(f.creado_en).getTime() < UN_DIA) { resultados.push({ id: f.id, estado: "en_cola" }); continue; }
+      if (ahora() - new Date(f.creado_en).getTime() < UN_DIA) { resultados.push({ id: f.id, estado: "en_cola" }); continue; }
       const motivo = "No llegó el PDF desde la PC. Vuelve a enviarlo.";
       await supabase.from("envios").update({ estado: "fallido", error: motivo }).eq("id", f.id).eq("estado", "en_cola");
       resultados.push({ id: f.id, estado: "fallido", error: motivo });

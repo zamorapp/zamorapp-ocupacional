@@ -1,6 +1,6 @@
 // Fase B (local primero): bloques de números de historia. La nube los reserva a este equipo (reservar_bloque) y la
 // PC numera desde ellos (escritorio/base/40_bloques.sql). Cuando quedan pocos se pide otro, siempre con internet.
-import pg from "pg";
+import pg from "./pg-local.mjs";
 
 const TAMANO = 100; // números por bloque
 const MINIMO = 20; // con menos libres se pide otro bloque

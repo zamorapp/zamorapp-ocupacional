@@ -52,7 +52,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
   const correo = (claims.email as string | undefined) ?? "";
 
   const guardado = MEMORIA.get(usuarioId);
-  if (guardado && guardado.vence > Date.now()) return { demo: false, usuarioId, correo, ...guardado.datos };
+  if (guardado && guardado.vence > performance.now()) return { demo: false, usuarioId, correo, ...guardado.datos };
 
   const [{ data: perfil }, { data: miembro }] = await Promise.all([
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
@@ -73,7 +73,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     rol: (miembro?.rol as Rol) ?? null,
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
   };
-  MEMORIA.set(usuarioId, { datos, vence: Date.now() + DURACION });
+  MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
   return { demo: false, usuarioId, correo, ...datos };
 });
 

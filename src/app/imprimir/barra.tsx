@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
 import { ANEXOS_LISTOS } from "./anexos";
 import { EnviarInforme, type EnvioInforme } from "./enviar-informe";
+import { ahora } from "@/lib/fecha";
 
-const hoy = () => new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
+const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
 
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).

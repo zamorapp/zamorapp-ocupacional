@@ -4,8 +4,8 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
-import pg from "pg";
-import { CATALOGOS, CONFIG, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
+import pg from "./pg-local.mjs";
+import { CATALOGOS, CONFIG, RPC_CONSTANCIA, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
@@ -401,7 +401,8 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     }
   }
 
-  async function aLaCopia(req, res, cuerpo) {
+  // antes(status): se espera antes de responder (si falla, la ventana recibe el error y no un «hecho» falso)
+  async function aLaCopia(req, res, cuerpo, antes = null) {
     // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
     // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
     // local lo nota (ahora_de_la_puerta() es null: firmar espera a internet). Nunca la fecha de Windows.
@@ -412,8 +413,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     });
     const salida = {};
     for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
+    const datos = Buffer.from(await r.arrayBuffer());
+    if (antes) await antes(r.status);
     res.writeHead(r.status, salida);
-    res.end(Buffer.from(await r.arrayBuffer()));
+    res.end(datos);
   }
 
   // Funciones que solo leen: las que la base declara stable o immutable (PostgreSQL no les deja escribir),
@@ -850,6 +853,12 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           return;
         }
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
+        // Constancias sin internet (config.mjs): la copia valida con las reglas de la base y queda para subir después
+        const constancia = req.method === "POST" ? /^\/rest\/v1\/rpc\/([a-z_]+)$/.exec(ruta)?.[1] : null;
+        if (constancia && RPC_CONSTANCIA.has(constancia) && bandeja && d().copiaCompleta) {
+          if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
+          return await aLaCopia(req, res, crudo, async (status) => { if (status < 300) await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {}); });
+        }
         if (!await soloLectura(req)) {
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
           return responder(res, 503, { code: "OFFLINE", message: SIN_CONEXION, details: null, hint: null });

@@ -2,6 +2,7 @@ import "server-only";
 import type { AjustesDocumentos } from "@/lib/documentos";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { ahora } from "@/lib/fecha";
 
 // Datos comunes de los documentos que no salen de una consulta (accidentes, investigación, notificaciones, inspección)
 export type DocumentoBase = {
@@ -17,6 +18,6 @@ export async function documentoBase(sesion: Sesion): Promise<Omit<DocumentoBase,
   return {
     orgId: sesion.orgId!,
     org: { ...(org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
-    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
+    impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
   };
 }

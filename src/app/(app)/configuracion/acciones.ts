@@ -8,6 +8,7 @@ import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
+import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -297,7 +298,7 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
 export async function anularInvitacion(id: string): Promise<Resultado> {
   try {
     const { supabase } = await contexto(["administrador"]);
-    const { error } = await supabase.from("invitaciones").update({ revocada_en: new Date().toISOString() }).eq("id", id).is("revocada_en", null);
+    const { error } = await supabase.from("invitaciones").update({ revocada_en: new Date(ahora()).toISOString() }).eq("id", id).is("revocada_en", null);
     if (error) throw error;
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Invitación anulada." };

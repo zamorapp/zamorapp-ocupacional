@@ -11,6 +11,7 @@ import { ESTILO_APTITUD, ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes"
 import { cn } from "@/lib/utils";
 import { anularEnlace } from "./acciones";
 import { PanelEnvio } from "./panel-envio";
+import { ahora } from "@/lib/fecha";
 
 type Props = {
   empresa: { id: string; nombre: string };
@@ -110,7 +111,7 @@ export function EnvioLote({ empresa, fecha, consultas, contactos, historial, pla
 
 function FilaHistorial({ h }: { h: EnvioHistorial }) {
   const [anulando, iniciar] = useTransition();
-  const vigente = h.enlace && !h.enlace.revocado && new Date(h.enlace.vence) > new Date();
+  const vigente = h.enlace && !h.enlace.revocado && new Date(h.enlace.vence) > new Date(ahora());
   const estado = h.estado === "fallido"
     ? { t: "Falló", c: "bg-destructive/10 text-destructive" }
     : h.estado === "en_cola"

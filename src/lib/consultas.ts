@@ -5,7 +5,7 @@ import { contarResultados } from "@/lib/paraclinicos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export type ResumenConsulta = {
   id: string;
@@ -111,7 +111,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     empresas: { razon_social: string } | null; puestos: { nombre: string; riesgos: Record<string, string[]> } | null;
   } | null;
   const nac = tr?.fecha_nacimiento ? new Date(tr.fecha_nacimiento) : null;
-  const edad = nac ? Math.floor((Date.now() - nac.getTime()) / (365.25 * 864e5)) : null;
+  const edad = nac ? Math.floor((ahora() - nac.getTime()) / (365.25 * 864e5)) : null;
 
   return {
     medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,

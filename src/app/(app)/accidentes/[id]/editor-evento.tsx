@@ -15,7 +15,7 @@ import { type Discapacidad, ETIQUETA_DISCAPACIDAD } from "@/lib/investigacion-ti
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { cerrarEvento, guardarEvento } from "../acciones";
-import { horaLocalCaracas, hoyCaracas } from "@/lib/fecha";
+import { ahora as horaReal, horaLocalCaracas, hoyCaracas } from "@/lib/fecha";
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
 
@@ -51,14 +51,14 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
-  const [ahora, setAhora] = useState(() => new Date());
+  const [ahora, setAhora] = useState(() => new Date(horaReal()));
   const set = <K extends keyof Evento>(k: K, v: Evento[K]) => setE((x) => ({ ...x, [k]: v }));
   const cambios = JSON.stringify(e) !== guardado;
   const cerrado = e.estado === "cerrado";
 
   // El cronómetro se actualiza cada minuto
   useEffect(() => {
-    const t = setInterval(() => setAhora(new Date()), 60e3);
+    const t = setInterval(() => setAhora(new Date(horaReal())), 60e3);
     return () => clearInterval(t);
   }, []);
 
@@ -252,13 +252,13 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
             <C etiqueta="Aviso inmediato (INPSASEL, Comité y delegados)">
               <div className="flex gap-2">
                 <Input type="datetime-local" value={aLocal(e.fechaAviso)} onChange={(x) => set("fechaAviso", deLocal(x.target.value))} />
-                <Button type="button" variant="outline" onClick={() => set("fechaAviso", new Date().toISOString())}>Ahora</Button>
+                <Button type="button" variant="outline" onClick={() => set("fechaAviso", new Date(horaReal()).toISOString())}>Ahora</Button>
               </div>
             </C>
             <C etiqueta="Declaración formal">
               <div className="flex gap-2">
                 <Input type="datetime-local" value={aLocal(e.fechaDeclaracion)} onChange={(x) => set("fechaDeclaracion", deLocal(x.target.value))} />
-                <Button type="button" variant="outline" onClick={() => set("fechaDeclaracion", new Date().toISOString())}>Ahora</Button>
+                <Button type="button" variant="outline" onClick={() => set("fechaDeclaracion", new Date(horaReal()).toISOString())}>Ahora</Button>
               </div>
             </C>
             <C etiqueta="Nº de declaración INPSASEL"><Input value={e.numeroDeclaracion} onChange={(x) => set("numeroDeclaracion", x.target.value)} /></C>

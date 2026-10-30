@@ -3,6 +3,7 @@ import type { Estado } from "@/lib/demo";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
+import { ahora } from "@/lib/fecha";
 
 type Registro = { fecha: string; estado: "ok" | "aviso" | "fallo"; archivo: string | null; tamano_kb: number | null; destinos: number | null; detalle: string | null };
 
@@ -29,10 +30,10 @@ const tamano = (kb: number | null) => (kb == null ? "" : kb >= 1024 ? `${(kb / 1
 // En el escritorio este Next corre en la PC, con la fecha de Windows (Cesar la cambia por el SAME): se usa la hora
 // anclada que manda la puerta. En la web (Vercel) la hora del servidor es fiable.
 async function ahoraFiable(): Promise<number> {
-  if (!ESCRITORIO) return Date.now();
+  if (!ESCRITORIO) return ahora();
   const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/zamorapp/estado`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
   const hora = Date.parse(r?.hora ?? "");
-  return Number.isFinite(hora) ? hora : Date.now();
+  return Number.isFinite(hora) ? hora : ahora();
 }
 
 // Solo administrador y gerente médico (la función de la base devuelve null a los demás)

@@ -6,7 +6,7 @@ const almacen = new Map<string, { vence: number; valor: Promise<unknown> }>();
 const MAXIMO = 300;
 
 export function recordar<T>(clave: string, ms: number, calcular: () => Promise<T>): Promise<T> {
-  const ahora = Date.now();
+  const ahora = performance.now();
   const guardado = almacen.get(clave);
   if (guardado && guardado.vence > ahora) return guardado.valor as Promise<T>;
   const valor = calcular();

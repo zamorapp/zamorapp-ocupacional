@@ -38,6 +38,11 @@ export const CONFIG = {
 // cambios suben por la bandeja. Una función que toque otra tabla (versiones, recordatorios, accesos) va a la nube.
 export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta", "reabrir_consulta", "guardar_resultados", "duplicar_consulta"]);
 
+// Constancias: funciones que solo dejan rastro (bitácora de la lectura de laboratorio, quién abrió la historia). Sin
+// internet se validan en la copia local con las reglas de la base y quedan en local.constancias; la bandeja las sube
+// después por constancia_diferida() con la hora de la PC (si estaba verificada). Así leer resultados no se frena.
+export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso"]);
+
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([
   "buscar_diagnosticos", "firma_sello", "indices_accidentalidad", "miembros_con_correo",

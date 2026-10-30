@@ -7,7 +7,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 import { CONFIG } from "./config.mjs";
 
 const BUCKETS = new Set(["adjuntos"]); // las firmas y sellos son data: en perfiles: no pasan por aquí

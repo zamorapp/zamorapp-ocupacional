@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { describirEnvio, type FilaBitacora, type ResultadoEnvio } from "@/lib/envios-tipos";
 import { cn } from "@/lib/utils";
 import { reintentar } from "../acciones";
+import { ahora } from "@/lib/fecha";
 
 type Filtros = { empresa: string; estado: string; canal: string; desde: string; hasta: string };
 
@@ -21,7 +22,7 @@ function estadoDe(h: FilaBitacora) {
   if (h.estado === "en_cola") return { t: "En cola · sale al volver el internet", c: "bg-info/10 text-info-texto" };
   if (h.estado === "enviando") return h.reintentado ? { t: "Sin confirmar · reintentado", c: "bg-muted text-muted-foreground" } : { t: "Sin confirmar", c: "bg-aviso/20 text-aviso-texto" };
   if (h.enlace) {
-    const vigente = !h.enlace.revocado && new Date(h.enlace.vence) > new Date();
+    const vigente = !h.enlace.revocado && new Date(h.enlace.vence) > new Date(ahora());
     return vigente
       ? { t: `Enlace · ${h.enlace.aperturas} apertura${h.enlace.aperturas === 1 ? "" : "s"}`, c: "bg-primary/10 text-primary" }
       : { t: h.enlace.revocado ? "Enlace anulado" : "Enlace vencido", c: "bg-muted text-muted-foreground" };

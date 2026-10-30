@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { iniciarConsulta } from "./acciones";
 import { cambiarEstadoCita } from "./citas-acciones";
 import { confirmar } from "@/components/app/confirmar";
+import { ahora as horaReal } from "@/lib/fecha";
 
 // Tiempo de espera: normal, aviso desde 20 min y alerta desde 40 min
 const tonoEspera = (min: number) => (min >= 40 ? "text-alerta-texto" : min >= 20 ? "text-aviso-texto" : "text-muted-foreground");
@@ -46,9 +47,9 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {} }: { citas
     enlaceWhatsApp(c.telefono, llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio }));
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [ahora, setAhora] = useState(() => Date.now());
+  const [ahora, setAhora] = useState(() => horaReal());
   useEffect(() => {
-    const t = setInterval(() => setAhora(Date.now()), 30e3);
+    const t = setInterval(() => setAhora(horaReal()), 30e3);
     return () => clearInterval(t);
   }, []);
 

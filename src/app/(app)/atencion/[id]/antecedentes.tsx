@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import type { Antecedente } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
+import { ahora } from "@/lib/fecha";
 
 type Props = { items: Item[]; valor: Antecedente[]; onChange: (v: Antecedente[]) => void };
 
@@ -86,7 +87,7 @@ export function Antecedentes({ items, valor, onChange }: Props) {
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => onChange([...valor, { id: `otro-${Date.now()}`, nombre: "", grupo: "familiar", observacion: "" }])}
+              onClick={() => onChange([...valor, { id: `otro-${ahora()}`, nombre: "", grupo: "familiar", observacion: "" }])}
             >
               <Plus /> Otra enfermedad
             </Button>
