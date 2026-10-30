@@ -1,12 +1,15 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
+import { limpiarLlave } from "@/lib/llaves";
 
 // Correo saliente por Gmail (smtp.gmail.com) con una contraseña de aplicación de la cuenta remitente.
 // GMAIL_USUARIO y GMAIL_CLAVE_APP viven SOLO en las variables de entorno de Vercel: nunca en el repo ni en el instalador
 // del escritorio (allí el correo se encola y lo envía la web).
-export const correoConfigurado = () => Boolean(process.env.GMAIL_USUARIO && process.env.GMAIL_CLAVE_APP);
-export const remitente = () => process.env.GMAIL_USUARIO ?? "";
+// Se limpian espacios y comillas pegados al copiar (la contraseña de aplicación se muestra en 4 grupos con espacios)
+const claveApp = () => limpiarLlave(process.env.GMAIL_CLAVE_APP);
+export const remitente = () => limpiarLlave(process.env.GMAIL_USUARIO);
+export const correoConfigurado = () => Boolean(remitente() && claveApp());
 // En el escritorio el correo sale igual: queda en cola y lo envía la web (lib/envios.ts, /api/envios/correo)
 export const correoDisponible = () => correoConfigurado() || ESCRITORIO;
 export const remitenteVisible = () => (correoConfigurado() ? remitente() : ESCRITORIO ? "el correo del servicio (lo envía la web)" : null);
@@ -17,7 +20,7 @@ function obtenerTransporte() {
     host: "smtp.gmail.com",
     port: 465,
     secure: true,
-    auth: { user: process.env.GMAIL_USUARIO, pass: process.env.GMAIL_CLAVE_APP },
+    auth: { user: remitente(), pass: claveApp() },
   });
   return transporte;
 }

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { BellRing, Loader2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { VAPID_PUBLICA } from "@/lib/push-publica";
-import { activarAvisos, probarAviso, quitarAvisos } from "./avisos-celular-acciones";
+import { activarAvisos, llaveAvisos, probarAviso, quitarAvisos } from "./avisos-celular-acciones";
 
 type Estado = "cargando" | "no-soporta" | "instalar-iphone" | "bloqueado" | "apagado" | "activo";
 const OFERTA_IGNORADA = "zamorapp.avisos-celular.ignorado";
@@ -13,6 +12,11 @@ const OFERTA_IGNORADA = "zamorapp.avisos-celular.ignorado";
 function llave(base64: string) {
   const b = atob((base64 + "=".repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+
+function base64url(llave: ArrayBuffer | null) {
+  if (!llave) return null;
+  return btoa(String.fromCharCode(...new Uint8Array(llave))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 const nombreEquipo = () => {
@@ -38,8 +42,10 @@ function useAvisos(escritorio = false) {
       }
       if (Notification.permission === "denied") return setEstado("bloqueado");
       const sub = await (await registro()).pushManager.getSubscription().catch(() => null);
-      setEndpoint(sub?.endpoint ?? null);
-      setEstado(sub && Notification.permission === "granted" ? "activo" : "apagado");
+      // Suscrita con otra llave (llaves renovadas): sus avisos rebotan, así que se muestra apagada para volver a activarla
+      const vigente = sub && Notification.permission === "granted" && base64url(sub.options.applicationServerKey) === (await llaveAvisos().catch(() => null));
+      setEndpoint(vigente ? sub.endpoint : null);
+      setEstado(vigente ? "activo" : "apagado");
     })();
   }, [escritorio]);
   return { estado, setEstado, endpoint, setEndpoint };
@@ -47,12 +53,14 @@ function useAvisos(escritorio = false) {
 
 async function suscribir() {
   if ((await Notification.requestPermission()) !== "granted") return null;
+  const publica = await llaveAvisos();
+  if (!publica) throw new Error("La llave de avisos de Vercel falta o no es válida. Pídele a Claude que la renueve.");
   const reg = await registro();
   await navigator.serviceWorker.ready;
   const vieja = await reg.pushManager.getSubscription();
   // Una suscripción con otra llave (llaves renovadas) no sirve: se cambia
   if (vieja) await vieja.unsubscribe();
-  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: llave(VAPID_PUBLICA) });
+  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: llave(publica) });
 }
 
 /** Tarjeta de Mi perfil: activar, probar o quitar los avisos en este celular (en el escritorio solo dice dónde se activan). */
