@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-12",
-  "aprobado": "Cesar, sí del 2026-10-30 22:28 UTC",
+  "etiqueta": "migraciones-20261030-13",
+  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC",
   "migraciones": [
     {
-      "archivo": "20261030690000_deshacer_quitar_cargo.sql",
-      "sha256": "57fa8a9760ba7277d41c7a5eabaad20ed68602fd3a9e34f7722c8c52b1bd84ff",
-      "descripcion": "Unir cargos: deshacer quitar un cargo"
+      "archivo": "20261030700000_lateralidad_minuscula.sql",
+      "sha256": "8cac3a9a24d6aa3fd41a7e2e65af602c33ca52c8553864f3fa0b3e43c2f1873c",
+      "descripcion": "Guardado rechazado por la lateralidad: se acepta en minúscula"
     }
   ]
 }
