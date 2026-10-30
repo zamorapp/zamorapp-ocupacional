@@ -96,4 +96,5 @@ drop trigger if exists horas_solicitud on public.solicitudes;
 create trigger horas_solicitud before insert or update on public.solicitudes for each row execute function public.horas_solicitud();
 
 -- Las citas anteriores quedan sin estas horas: no se inventan (el portal muestra solo las que existen)
+revoke execute on function public.columna_hora_cita(text) from public, anon;
 grant execute on function public.columna_hora_cita(text) to authenticated;
