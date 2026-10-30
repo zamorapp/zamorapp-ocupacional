@@ -5,7 +5,7 @@ import { Delete, Loader2, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Teclado de PIN grande, para el pulgar. Llama a `listo` cuando el PIN tiene el largo pedido (o con «OK»).
-export function TecladoPin({ titulo, detalle, error, ocupado, largoMin = 6, alListo }: {
+export function TecladoPin({ titulo, detalle, error, ocupado, largoMin = 8, alListo }: {
   titulo: string; detalle?: string; error?: string | null; ocupado?: boolean; largoMin?: number; alListo: (pin: string) => void;
 }) {
   const [pin, setPin] = useState("");
@@ -23,7 +23,7 @@ export function TecladoPin({ titulo, detalle, error, ocupado, largoMin = 6, alLi
         {detalle && <p className="mt-1 text-sm text-muted-foreground">{detalle}</p>}
       </div>
       <div className="flex h-4 items-center gap-2.5" aria-label={`${pin.length} números escritos`}>
-        {Array.from({ length: Math.max(6, pin.length) }, (_, i) => (
+        {Array.from({ length: Math.max(8, pin.length) }, (_, i) => (
           <span key={i} className={cn("size-3 rounded-full border-2 border-primary/50 transition-colors", i < pin.length && "border-primary bg-primary")} />
         ))}
       </div>

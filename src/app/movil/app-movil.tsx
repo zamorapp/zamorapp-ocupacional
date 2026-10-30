@@ -86,7 +86,7 @@ export function AppMovil() {
         <TecladoPin
           key={fase.primero ? "2" : "1"}
           titulo={fase.primero ? "Repite el PIN" : "Crea un PIN"}
-          detalle={fase.primero ? "Para confirmar que lo escribiste bien" : "Usa 8 números o más (máximo 12). Lo pedirá cada vez que abras esta pantalla."}
+          detalle={fase.primero ? "Para confirmar que lo escribiste bien" : "De 8 a 12 números. Lo pedirá cada vez que abras esta pantalla."}
           error={fase.error}
           alListo={(pin) => {
             if (!fase.primero) {

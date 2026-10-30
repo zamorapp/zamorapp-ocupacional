@@ -69,9 +69,9 @@ export async function descifrar<T = unknown>(llave: CryptoKey, texto: string): P
   return JSON.parse(new TextDecoder().decode(plano)) as T;
 }
 
-// PIN aceptable: 6 a 12 dígitos, sin secuencias obvias (123456, 000000, 654321)
+// PIN aceptable: 8 a 12 dígitos (Analizar: con 6, quien copie los archivos del teléfono lo prueba entero en horas), sin secuencias obvias (123456, 000000, 654321)
 export function pinValido(pin: string): string | null {
-  if (!/^\d{6,12}$/.test(pin)) return "El PIN lleva de 6 a 12 números";
+  if (!/^\d{8,12}$/.test(pin)) return "El PIN lleva de 8 a 12 números";
   if (/^(\d)\1+$/.test(pin)) return "No repitas el mismo número";
   const asc = "01234567890123456789", desc = "98765432109876543210";
   if (asc.includes(pin) || desc.includes(pin)) return "Evita números seguidos (123456)";

@@ -235,16 +235,16 @@ test("reloj: sin ancla no sube el piso ni se marca verificada; con ancla manda l
 });
 
 test("cifrado: el PIN errado no abre, el correcto sí, y se puede cambiar el PIN", async () => {
-  const { llave, envuelta } = await crearLlave("482913", 1000);
+  const { llave, envuelta } = await crearLlave("48291375", 1000);
   const texto = await cifrar(llave, { cedula: "V-123" });
   assert.ok(!texto.includes("V-123"));
-  assert.equal(await abrirLlave("000000", envuelta), null);
-  const abierta = await abrirLlave("482913", envuelta);
+  assert.equal(await abrirLlave("00000000", envuelta), null);
+  const abierta = await abrirLlave("48291375", envuelta);
   assert.deepEqual(await descifrar(abierta, texto), { cedula: "V-123" });
-  const nueva = await cambiarPin("482913", "731946", envuelta);
-  assert.deepEqual(await descifrar(await abrirLlave("731946", nueva), texto), { cedula: "V-123" });
-  assert.equal(pinValido("123456") !== null, true);
-  assert.equal(pinValido("111111") !== null, true);
-  assert.equal(pinValido("48291"), "El PIN lleva de 6 a 12 números");
-  assert.equal(pinValido("482913"), null);
+  const nueva = await cambiarPin("48291375", "73194628", envuelta);
+  assert.deepEqual(await descifrar(await abrirLlave("73194628", nueva), texto), { cedula: "V-123" });
+  assert.equal(pinValido("12345678") !== null, true);
+  assert.equal(pinValido("11111111") !== null, true);
+  assert.equal(pinValido("482913"), "El PIN lleva de 8 a 12 números", "un PIN de 6 ya no basta");
+  assert.equal(pinValido("48291375"), null);
 });
