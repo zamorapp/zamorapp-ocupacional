@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-7",
-  "aprobado": "si (Cesar 13:31, alertas por empresa)",
+  "etiqueta": "migraciones-20261030-8",
+  "aprobado": "si (Cesar 14:47, avisos al celular)",
   "migraciones": [
     {
-      "archivo": "20261030610000_avisos_por_empresa.sql",
-      "sha256": "468030b419a396727b36a494ef466a9de35eba62c0a27de46fbd6e247a77850c",
-      "descripcion": "Avisos por empresa y corregir o descartar alertas pendientes"
+      "archivo": "20261030620000_avisos_push.sql",
+      "sha256": "c1bba1df64de8075573a38920c362a4e2f8cbf5a07ef11829da64bcbde4a3c7a",
+      "descripcion": "Avisos push al celular del servicio"
     }
   ]
 }
