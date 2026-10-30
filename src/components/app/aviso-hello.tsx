@@ -37,16 +37,16 @@ export function AvisoHello() {
   };
 
   return (
-    <div role="status" data-aviso="hello" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-primary/10 px-4 py-2 text-sm sm:px-6">
+    <div role="region" aria-label="Windows Hello" data-aviso="hello" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-primary/10 px-4 py-2 text-sm sm:px-6">
       <span className="flex items-center gap-2 font-medium"><Fingerprint className="size-4 text-primary" aria-hidden /> Entra sin escribir la clave</span>
       <span className="text-muted-foreground">Activa Windows Hello: al abrir zamorApp te pedirá tu PIN o tu huella de Windows.</span>
       {!aviso?.ok && (
         <span className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={activar} disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" aria-hidden /> : <Fingerprint aria-hidden />} Activar Windows Hello</Button>
-          <Button size="sm" variant="ghost" aria-label="Ahora no" onClick={() => { void noOfrecerHuella(); setMostrar(false); }} disabled={ocupado}><X aria-hidden /> Ahora no</Button>
+          <Button size="sm" variant="ghost" onClick={() => { void noOfrecerHuella(); setMostrar(false); }} disabled={ocupado}><X aria-hidden /> Ahora no</Button>
         </span>
       )}
-      {aviso && <span className={`basis-full ${aviso.ok ? "text-primary" : "text-destructive"}`}>{aviso.texto}</span>}
+      {aviso && <span className={`basis-full ${aviso.ok ? "text-ok-texto" : "text-alerta-texto"}`}>{aviso.texto}</span>}
     </div>
   );
 }

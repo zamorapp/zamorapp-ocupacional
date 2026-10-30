@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Fingerprint, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { Building2, ChevronDown, Fingerprint, LogOut, Menu, Search, ShieldCheck, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +123,9 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/configuracion/perfil"><UserRound /> Mi perfil y firma</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/configuracion/ingreso"><ShieldCheck /> Ingreso y seguridad</Link>
           </DropdownMenuItem>
           {!usuario.demo && (
             <DropdownMenuItem onSelect={() => setHuellaAbierta(true)}>
