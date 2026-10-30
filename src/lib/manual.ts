@@ -108,7 +108,7 @@ export const MANUAL: TemaManual[] = [
     para: "servicio",
     resumen: "zamorApp Escritorio guarda todo primero en la PC. Sin internet sigues atendiendo, y los cambios suben solos cuando vuelve la conexión.",
     pasos: [
-      "Sin internet, arriba aparece «Sin internet · N»: N son los cambios guardados en esta PC que aún no suben. Al volver la conexión cambia a «Subiendo N» y, cuando todo está en la nube, a «Al día · 08:30 a. m.» (la hora de la última sincronía); si una sincronía falla, dice «Sin sincronizar desde …». Con internet se sincroniza sola cada 30 segundos.",
+      "Sin internet, arriba aparece «Sin internet · N»: N son los cambios guardados en esta PC que aún no suben. Al volver la conexión cambia a «Subiendo N» y desaparece cuando todo está en la nube.",
       "Al guardar sin internet, el aviso dice «… en esta PC. Sube a la nube cuando vuelva internet.». No tienes que hacer nada más.",
       "Toca la píldora de arriba para ver el detalle. «Sincronizar ahora» (o «Reintentar conexión» sin internet) sube y baja lo pendiente al momento.",
       "Registrar pacientes, atender, cerrar, firmar y corregir una consulta firmada funcionan sin internet. Al corregir, la versión firmada queda en el historial de la PC y sube junto con la corrección.",
