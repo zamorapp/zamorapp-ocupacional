@@ -13,6 +13,11 @@ create table if not exists sync.constancias_aplicadas (
 );
 revoke all on sync.constancias_aplicadas from public, anon, authenticated;
 
+-- Un acceso registrado sin internet dice cuándo llegó a la nube (Analizar): nadie puede fechar un acceso hacia atrás
+-- sin que se vea. Vacío = registrado en el momento (en la web o con internet).
+alter table public.accesos add column if not exists llego_en timestamptz;
+comment on column public.accesos.llego_en is 'Si se registró sin internet en una PC: cuándo llegó a la nube (en = la hora de la PC, si estaba verificada)';
+
 create or replace function public.constancia_diferida(p_equipo uuid, p_secreto text, p_id uuid, p_rpc text, p_args jsonb,
                                                        p_hora timestamptz, p_hora_verificada boolean)
 returns text language plpgsql security definer set search_path = public as $$
@@ -42,10 +47,8 @@ begin
        and registro_id = (p_args ->> 'p_consulta')::uuid;
   elsif p_rpc = 'registrar_acceso' then
     perform public.registrar_acceso((p_args ->> 'p_trabajador')::uuid, (p_args ->> 'p_consulta')::uuid, p_equipo);
-    if v_hora is not null then
-      update public.accesos set en = v_hora
-       where usuario_id = auth.uid() and en = now() and trabajador_id = (p_args ->> 'p_trabajador')::uuid;
-    end if;
+    update public.accesos set en = coalesce(v_hora, en), llego_en = now()
+     where usuario_id = auth.uid() and en = now() and llego_en is null and trabajador_id = (p_args ->> 'p_trabajador')::uuid;
   else
     raise exception 'Constancia desconocida: %', p_rpc using errcode = '22023';
   end if;

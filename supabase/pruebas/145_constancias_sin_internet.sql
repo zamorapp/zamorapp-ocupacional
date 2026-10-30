@@ -14,7 +14,8 @@ select 'el mismo id no se repite (debe 1): ' || (public.constancia_diferida('e00
 reset role;
 select 'con la hora de la PC y el equipo (debe 1): ' || count(*) from public.accesos
  where trabajador_id = '30000000-0000-0000-0000-00000000000a' and usuario_id = '00000000-0000-0000-0000-0000000000a2'
-   and en between now() - interval '2 hours 1 minute' and now() - interval '1 hour 59 minutes' and equipo_id = 'e0000000-0000-0000-0000-000000000001';
+   and en between now() - interval '2 hours 1 minute' and now() - interval '1 hour 59 minutes' and equipo_id = 'e0000000-0000-0000-0000-000000000001'
+   and llego_en > now() - interval '1 minute';
 set role authenticated;
 -- Hora sin verificar o fuera de lo plausible: queda la hora de llegada
 select 'hora sin verificar no se usa (debe 1): ' || (public.constancia_diferida('e0000000-0000-0000-0000-000000000001','s1','45000000-0000-0000-0000-000000000002',
