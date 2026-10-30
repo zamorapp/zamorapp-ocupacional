@@ -24,7 +24,7 @@ select 'empresa con el aviso apagado: no suena (debe 0): ' || count(*) from r170
 select 'lo de RR. HH. no se repite (debe 0): ' || count(*) from r170 where cuerpo like '%Prueba 170 RR. HH.%';
 select 'a otro usuario no le llega la del médico (debe 0): ' || count(*) from r170 where endpoint = 'https://push.ejemplo/admin170' and cuerpo like '%Prueba 170%';
 select 'sin sesión el usuario impersonado no queda puesto (debe 1): ' || (auth.uid() is null)::int;
--- Freno: otra llamada antes de 60 s no hace nada, aunque haya algo nuevo
+-- Freno: otra llamada en los mismos 2 s no hace nada, aunque haya algo nuevo
 reset role;
 insert into public.notificaciones (id, org_id, usuario_id, titulo, texto, enlace) values
  ('17000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a2', 'Estudio recibido de RR. HH.', 'Prueba 170 nueva', '/pacientes/x');
@@ -34,7 +34,7 @@ reset role;
 update public.avisos_push_latido set ultima = public.ahora() - interval '2 minutes';
 set role anon;
 create temp table r170b as select * from public.avisos_campana_para_celular(repeat('k', 40));
-select 'pasado el minuto: sale lo nuevo (debe 1): ' || count(*) from r170b where cuerpo like '%Prueba 170 nueva%';
+select 'pasado el freno: sale lo nuevo (debe 1): ' || count(*) from r170b where cuerpo like '%Prueba 170 nueva%';
 select 'y no se repite lo anterior (debe 0): ' || count(*) from r170b where cuerpo like '%Prueba 170' or cuerpo like '%Prueba 170 ·%';
 drop table r170b;
 do $$ begin perform 1 from public.avisos_push_enviadas;

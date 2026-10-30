@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
-import { guardarVacaciones } from "../pacientes/[id]/vacaciones-acciones";
+import { editarVacaciones, guardarVacaciones, listarVacaciones, type Vacacion } from "../pacientes/[id]/vacaciones-acciones";
 
 // Días entre dos fechas AAAA-MM-DD (solo aritmética del calendario; nunca la hora de la PC)
 const diasEntre = (a: string, b: string) => {
@@ -28,6 +28,8 @@ export function AnotarVacaciones() {
   const [desde, setDesde] = useState("");
   const [regreso, setRegreso] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [anotadas, setAnotadas] = useState<Vacacion[]>([]);
+  const [editando, setEditando] = useState<string | null>(null);
   const [listo, setListo] = useState<string | null>(null);
   const [buscando, iniciarBusqueda] = useTransition();
   const [guardando, iniciar] = useTransition();
@@ -37,14 +39,24 @@ export function AnotarVacaciones() {
     return () => clearTimeout(t);
   }, [texto]);
 
+  // Al elegir al trabajador: sus vacaciones ya anotadas, para corregirlas si hace falta
+  useEffect(() => {
+    let vivo = true;
+    setAnotadas([]); setEditando(null);
+    if (elegido) listarVacaciones(elegido.id).then((v) => { if (vivo) setAnotadas(v); });
+    return () => { vivo = false; };
+  }, [elegido]);
+
   const guardar = () => iniciar(async () => {
     if (!elegido) return;
     setError(null);
-    const r = await guardarVacaciones(elegido.id, desde, regreso);
+    const r = editando ? await editarVacaciones(elegido.id, editando, desde, regreso) : await guardarVacaciones(elegido.id, desde, regreso);
     if (!r.ok) return setError(r.mensaje);
-    setListo(`Vacaciones de ${elegido.nombre} anotadas. El servicio médico te avisará la cita del post vacacional.`);
+    setListo(`Vacaciones de ${elegido.nombre} ${editando ? "corregidas" : "anotadas"}. El servicio médico te avisará la cita del post vacacional.`);
   });
-  const otra = () => { setListo(null); setElegido(null); setDesde(""); setRegreso(""); setTexto(""); setError(null); };
+  const otra = () => { setListo(null); setElegido(null); setDesde(""); setRegreso(""); setTexto(""); setError(null); setEditando(null); };
+  const corregir = (v: Vacacion) => { setEditando(v.id); setDesde(v.desde); setRegreso(v.regreso); setError(null); };
+  const corta = (iso: string) => iso.split("-").reverse().join("/");
   const dias = desde && regreso && regreso > desde ? diasEntre(desde, regreso) : null;
 
   return (
@@ -91,6 +103,21 @@ export function AnotarVacaciones() {
                 )}
               </>
             )}
+            {elegido && anotadas.length > 0 && (
+              <div className="mt-2 space-y-1 text-xs">
+                <p className="text-muted-foreground">Ya anotadas (toca una para corregir sus fechas):</p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {anotadas.map((v) => (
+                    <li key={v.id}>
+                      <button type="button" onClick={() => editando === v.id ? (setEditando(null), setDesde(""), setRegreso("")) : corregir(v)}
+                        className={`whitespace-nowrap rounded-full border px-2.5 py-1 hover:border-primary ${editando === v.id ? "border-primary bg-primary/10 font-medium text-primary" : ""}`}>
+                        Del {corta(v.desde)} al {corta(v.regreso)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <label className="grid gap-1.5 text-sm font-medium"><span><Paso n={2} /> Sale el</span>
             <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="h-10 rounded-md border bg-transparent px-3 text-sm font-normal" />
@@ -102,7 +129,7 @@ export function AnotarVacaciones() {
           <div className="flex items-center gap-2 sm:col-span-2">
             {error && <p role="status" className="text-sm text-alerta-texto">{error}</p>}
             <Button type="button" className="ml-auto" disabled={guardando || !elegido || !desde || !regreso} onClick={guardar}>
-              {guardando && <Loader2 className="animate-spin" />} Anotar vacaciones
+              {guardando && <Loader2 className="animate-spin" />} {editando ? "Guardar fechas" : "Anotar vacaciones"}
             </Button>
           </div>
         </div>

@@ -13,6 +13,10 @@
 -- plazos legales de accidentes no se apagan (igual que en la campana).
 -- Lo que RR. HH. hace en el portal ya sale al instante (lib/aviso-servicio.ts): esos títulos no se repiten aquí.
 -- Sin la clave correcta no hace nada. Llamarla de más no repite avisos.
+-- Al instante (Cesar, 30-oct): cada notificación nueva de alguien con avisos activos llama la ruta en ese momento con
+-- pg_net (incluido en el plan gratis de Supabase), después de guardarse. Esa llamada solo junta lo nuevo; los
+-- generadores (plazos, resultados, alertas, post vacacional, vencimientos) corren como mucho cada 10 min. El latido de
+-- 15 min queda de respaldo. Sin pg_net (base local de la PC, banco de pruebas) el trigger no hace nada.
 
 create table if not exists public.avisos_push_enviadas (
   notificacion_id uuid primary key references public.notificaciones (id) on delete cascade,
@@ -29,10 +33,11 @@ create table if not exists public.avisos_push_resumen (
 alter table public.avisos_push_resumen enable row level security;
 revoke all on public.avisos_push_resumen from anon, authenticated;
 
--- Freno: una sola corrida por minuto (aunque alguien llame la ruta en bucle). Una fila.
+-- Freno: una corrida cada 2 s (aunque alguien llame la ruta en bucle) y los generadores cada 10 min. Una fila.
 create table if not exists public.avisos_push_latido (
   unica boolean primary key default true check (unica),
-  ultima timestamptz not null
+  ultima timestamptz not null,
+  generado timestamptz
 );
 alter table public.avisos_push_latido enable row level security;
 revoke all on public.avisos_push_latido from anon, authenticated;
@@ -52,14 +57,20 @@ declare
   v_ruta text;
   v_venc int;
   v_por_vencer int;
+  v_generar boolean;
 begin
   if length(coalesce(p_clave, '')) < 32 then return; end if;
   if not exists (select 1 from public.avisos_push_clave k where k.clave_hash = v_hash) then return; end if;
   -- Freno (solo con la clave correcta, para que una llamada ajena no pueda frenar los avisos)
   insert into public.avisos_push_latido as l (unica, ultima) values (true, public.ahora())
-  on conflict (unica) do update set ultima = excluded.ultima where l.ultima <= public.ahora() - interval '60 seconds';
+  on conflict (unica) do update set ultima = excluded.ultima where l.ultima <= public.ahora() - interval '2 seconds';
   get diagnostics v_n = row_count;
   if v_n = 0 then return; end if;
+  -- Lo que creen los generadores aquí no vuelve a llamar la ruta (trigger avisar_al_celular_al_instante)
+  perform set_config('zamorapp.latido_avisos', 'on', true);
+  update public.avisos_push_latido set generado = public.ahora()
+   where generado is null or generado <= public.ahora() - interval '10 minutes';
+  v_generar := found;
   for u in
     select distinct s.usuario_id, s.org_id
       from public.suscripciones_push s
@@ -68,6 +79,7 @@ begin
        and m.rol in ('administrador', 'gerente_medico', 'medico', 'enfermeria', 'recepcion')
   loop
     -- Los generadores de la campana, como si este usuario hubiera abierto el Inicio (solo dentro de esta función)
+    if v_generar then
     perform set_config('request.jwt.claim.sub', u.usuario_id::text, true);
     begin perform public.centinela_legal(); exception when others then raise warning 'avisos_campana_para_celular: centinela_legal falló: %', sqlerrm; end;
     begin perform public.recordar_resultados(); exception when others then raise warning 'avisos_campana_para_celular: recordar_resultados falló: %', sqlerrm; end;
@@ -75,6 +87,7 @@ begin
     -- Post vacacional (migración 20261030670000)
     begin perform public.recordar_post_vacacional(); exception when others then raise warning 'avisos_campana_para_celular: recordar_post_vacacional falló: %', sqlerrm; end;
     perform set_config('request.jwt.claim.sub', '', true);
+    end if;
 
     -- Notificaciones nuevas de la campana que todavía no salieron al celular
     with nuevas as (
@@ -154,3 +167,29 @@ returns void language sql security definer set search_path = public as $$
 $$;
 revoke execute on function public.quitar_suscripcion_vencida_clave(text, text) from public;
 grant execute on function public.quitar_suscripcion_vencida_clave(text, text) to anon, authenticated;
+
+-- ─── Al instante: una notificación nueva llama la ruta de avisos con pg_net (después de guardarse) ───
+do $$ begin
+  create extension if not exists pg_net;
+exception when others then raise notice 'pg_net no está disponible aquí: los avisos salen con el latido de 15 min';
+end $$;
+
+create or replace function public.avisar_al_celular_al_instante()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.es_base_local() or to_regnamespace('net') is null
+     or current_setting('zamorapp.latido_avisos', true) = 'on'
+     or new.titulo in ('Nueva solicitud de cita', 'RR. HH. aceptó la invitación', 'Nueva solicitud de la empresa')
+     or not exists (select 1 from public.suscripciones_push s where s.usuario_id = new.usuario_id and s.org_id = new.org_id) then
+    return null;
+  end if;
+  begin
+    execute 'select net.http_get($1)' using 'https://zamorapp-ocupacional.vercel.app/api/avisos/campana';
+  exception when others then raise warning 'avisar_al_celular_al_instante: %', sqlerrm; -- nunca frena la notificación
+  end;
+  return null;
+end $$;
+revoke execute on function public.avisar_al_celular_al_instante() from public, anon, authenticated;
+drop trigger if exists avisar_al_celular_al_instante on public.notificaciones;
+create trigger avisar_al_celular_al_instante after insert on public.notificaciones
+  for each row execute function public.avisar_al_celular_al_instante();

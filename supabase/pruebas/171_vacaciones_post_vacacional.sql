@@ -51,6 +51,14 @@ select 'aviso de post vacacional, una vez (debe 1): ' || count(*) from public.no
  where usuario_id = '00000000-0000-0000-0000-0000000000a2' and titulo = 'Post vacacional pendiente' and enlace = '/pacientes/30000000-0000-0000-0000-00000000000a';
 select 'RR. HH. no recibe el aviso clínico (debe 0): ' || count(*) from public.notificaciones
  where usuario_id = '00000000-0000-0000-0000-0000000000a3' and titulo like 'Post vacacional%';
+-- Si se corrige el regreso, el aviso vuelve a sonar con la fecha nueva
+update public.vacaciones set regreso = public.hoy_caracas() + 2 where id = '17100000-0000-0000-0000-000000000001';
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+select public.recordar_post_vacacional() \g /dev/null
+reset role;
+select 'regreso corregido: suena otra vez (debe 2): ' || count(*) from public.notificaciones
+ where usuario_id = '00000000-0000-0000-0000-0000000000a2' and titulo = 'Post vacacional pendiente' and enlace = '/pacientes/30000000-0000-0000-0000-00000000000a';
 -- Empresa con el aviso apagado: otra vacación no avisa
 delete from public.recordatorios_vacaciones;
 delete from public.notificaciones where titulo like 'Post vacacional%';

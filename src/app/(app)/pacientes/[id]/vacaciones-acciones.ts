@@ -20,6 +20,14 @@ export async function guardarVacaciones(trabajadorId: string, desde: string, reg
   return { ok: true, mensaje: "Vacaciones guardadas." };
 }
 
+// Últimas vacaciones del trabajador (portal de RR. HH.: para corregir las ya anotadas). La tabla solo entrega las de
+// las empresas que el usuario ve.
+export async function listarVacaciones(trabajadorId: string): Promise<Vacacion[]> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("vacaciones").select("id, desde, regreso").eq("trabajador_id", trabajadorId).order("regreso", { ascending: false }).limit(5);
+  return (data ?? []) as Vacacion[];
+}
+
 // Corregir fechas ya anotadas (misma política de la tabla; en el escritorio sube por la bandeja como cualquier cambio)
 export async function editarVacaciones(trabajadorId: string, id: string, desde: string, regreso: string): Promise<Resultado> {
   if (!FECHA.test(desde) || !FECHA.test(regreso)) return { ok: false, mensaje: "Escribe las dos fechas." };
