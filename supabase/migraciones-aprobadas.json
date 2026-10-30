@@ -1,16 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-6",
-  "aprobado": "Cesar: «si» 13:08 UTC (590000 reposo) y «sí a las dos» 13:08 UTC (600000 responder y enviar)",
+  "etiqueta": "migraciones-20261030-7",
+  "aprobado": "si (Cesar 13:31, alertas por empresa)",
   "migraciones": [
     {
-      "archivo": "20261030590000_vistas_al_dia.sql",
-      "sha256": "db42a1ea7e15ce9c8358dd10f6224e4a786eea126dad41151482b301c07cc6b0",
-      "descripcion": "Vistas al día: el reposo vuelve a verse e imprimirse"
-    },
-    {
-      "archivo": "20261030600000_solicitudes_responder_y_enviar.sql",
-      "sha256": "baef92a51abe7fd74e11f1a75ce6e644aade51a2bc33c8f3e35d83ebd5a09cd4",
-      "descripcion": "Solicitudes de RR. HH.: responder y enviar"
+      "archivo": "20261030610000_avisos_por_empresa.sql",
+      "sha256": "468030b419a396727b36a494ef466a9de35eba62c0a27de46fbd6e247a77850c",
+      "descripcion": "Avisos por empresa y corregir o descartar alertas pendientes"
     }
   ]
 }

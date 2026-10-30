@@ -39,10 +39,11 @@ insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000001562',false) \g /dev/null
 select 'médico de otra empresa no la ve (debe 0): ' || count(*) from public.alertas_clinicas;
--- El médico: el texto no cambia, no se borra; revisa con respuesta (autor y hora de la revisión los pone la base)
+-- El médico: el autor no cambia, no se borra; revisa con respuesta (autor y hora de la revisión los pone la base).
+-- Corregir el texto de una pendiente se prueba en la 165.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
-update public.alertas_clinicas set texto = 'Otro texto', creada_por = '00000000-0000-0000-0000-0000000000a2' where id = '15600000-0000-0000-0000-000000000001';
-select 'texto y autor no se editan (debe 1): ' || count(*) from public.alertas_clinicas
+update public.alertas_clinicas set creada_por = '00000000-0000-0000-0000-0000000000a2' where id = '15600000-0000-0000-0000-000000000001';
+select 'el autor no se edita (debe 1): ' || count(*) from public.alertas_clinicas
  where id = '15600000-0000-0000-0000-000000000001' and texto = 'Revisar lesión infectada en el pie' and creada_por = '00000000-0000-0000-0000-0000000000a5';
 do $$ begin delete from public.alertas_clinicas where id = '15600000-0000-0000-0000-000000000001';
  raise notice 'se pudo borrar: FALLA'; exception when insufficient_privilege then raise notice 'nadie borra una alerta (ok)'; end $$;
