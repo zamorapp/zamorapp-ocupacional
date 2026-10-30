@@ -1,11 +1,16 @@
 {
-  "etiqueta": "migraciones-20261030-4",
-  "aprobado": "Cesar: «sí a todo» 30-oct 08:07 UTC (560000, #156 2fdf748)",
+  "etiqueta": "migraciones-20261030-5",
+  "aprobado": "Cesar: «si a las dos» 30-oct 08:49 UTC (570000 y 580000)",
   "migraciones": [
     {
-      "archivo": "20261030560000_recomendaciones_medicas.sql",
-      "sha256": "f72a6d0ebb7cc02a5c7c667c11d51a72c26ea5f1e15114df4058258bedd5295d",
-      "descripcion": "Recomendaciones médicas separadas en la vigilancia"
+      "archivo": "20261030570000_estudios_funcionales.sql",
+      "sha256": "c35b21f647250edd55dc3e67682e1fa40aa7197cb9dd44bf247078b2b8e5f403",
+      "descripcion": "Estudios funcionales e imágenes en los paraclínicos"
+    },
+    {
+      "archivo": "20261030580000_estudios_desde_rrhh.sql",
+      "sha256": "2145eda0bde7a9f0d30e6cd0b9fbd8ab193adf1d8d76b67ea8c395fc4bc278fd",
+      "descripcion": "RR. HH. envía estudios digitalizados al expediente (solo los ve salud)"
     }
   ]
 }
