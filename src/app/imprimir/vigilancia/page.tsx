@@ -13,6 +13,7 @@ import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigil
 import { CORTES, ETIQUETA_CLAVE } from "@/lib/vigilancia-textos";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Hoja, Membrete } from "../componentes";
+import { textoCausa, textoDiagnostico } from "@/lib/diagnostico-texto";
 
 export const metadata: Metadata = { title: "Informe de vigilancia epidemiológica" };
 export const dynamic = "force-dynamic";
@@ -124,7 +125,7 @@ function Kpi({ titulo, valor, detalle, delta }: { titulo: string; valor: string;
 const Falta = () => <><span className="font-semibold text-red-700 print:hidden">Falta</span><span className="hidden print:inline">—</span></>;
 const Texto = ({ children }: { children: string }) => <div className="whitespace-pre-line text-[12px] leading-relaxed">{children}</div>;
 const causasFilas = (c: Causa[], pob: number, minimo = 0): Celda[][] =>
-  c.map((x) => [`${x.cie10} ${x.descripcion}`, minimo && (x.pacientes ?? 0) < minimo ? "—" : porc(x.pacientes ?? 0, pob), x.n]);
+  c.map((x) => [textoCausa(x.cie10, x.descripcion), minimo && (x.pacientes ?? 0) < minimo ? "—" : porc(x.pacientes ?? 0, pob), x.n]);
 // Gráficos de lo que va a la empresa: las categorías con menos de «minimo» casos se suman en «Otras»; si aun así no llegan, no salen
 function agrupar<F extends { nombre: string; n: number }>(filas: F[], minimo: number): { nombre: string; n: number }[] {
   if (!minimo) return filas;
@@ -375,7 +376,7 @@ export default async function Vigilancia({ searchParams }: Props) {
             </Panel>
           </div>
           <Panel titulo="Diez primeras causas de reposo">
-            <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [`${c.cie10} ${c.descripcion}`, c.dias, c.n])} />
+            <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [textoCausa(c.cie10, c.descripcion), c.dias, c.n])} />
           </Panel>
         </Seccion>
 
@@ -461,7 +462,7 @@ export default async function Vigilancia({ searchParams }: Props) {
             ))}
             {detalleReposo.map((c) => (
               <Panel key={c} titulo={`Causas de reposo por ${(causas[c] ?? c).toLowerCase()}`}>
-                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, d.cie10 ? `${d.cie10} ${d.descripcion}` : "—", d.dias, d.n])} />
+                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, textoDiagnostico(d.cie10, d.descripcion), d.dias, d.n])} />
               </Panel>
             ))}
             <Panel titulo="Causas de reposo por dependencia">

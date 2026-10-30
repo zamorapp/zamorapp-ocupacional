@@ -6,6 +6,7 @@ import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type FilaExam
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
+import { sinCodigo, textoDiagnostico } from "@/lib/diagnostico-texto";
 import {
   Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
@@ -112,7 +113,7 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
       {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
       <Firmas compacto>
         <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
-          {diag && <p><b>Diagnóstico:</b> {diag.cie10} {diag.descripcion}</p>}
+          {diag && <p><b>Diagnóstico:</b> {textoDiagnostico(diag.cie10, diag.descripcion)}</p>}
           <p className="text-[10.5px] text-doc-tenue">
             {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
           </p>
@@ -251,7 +252,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
             <tbody>
               {c.diagnosticos.map((x, i) => (
                 <tr key={i} className="border-b border-[#edf1f0]">
-                  <td className="px-1.5 py-1 font-cifra">{x.cie10}</td><td className="px-1.5 py-1">{x.descripcion}</td>
+                  <td className="px-1.5 py-1 font-cifra">{sinCodigo(x.cie10) ? "sin CIE-10" : x.cie10}</td><td className="px-1.5 py-1">{x.descripcion}</td>
                   <td className="px-1.5 py-1"><span className="rounded-full border border-doc-linea px-2 text-[9.5px] text-doc-tenue">{ETIQUETA_ORIGEN[x.origen]}</span></td>
                 </tr>
               ))}
@@ -451,7 +452,7 @@ export function Referencia({ d }: { d: DatosDocumento }) {
             </Bloque>
           )}
           <Bloque titulo="Impresión diagnóstica">
-            {c.diagnosticos.length ? c.diagnosticos.map((x) => `${x.cie10} ${x.descripcion}`).join("\n") : "—"}
+            {c.diagnosticos.length ? c.diagnosticos.map((x) => textoDiagnostico(x.cie10, x.descripcion)).join("\n") : "—"}
           </Bloque>
           {c.tratamiento.some((m) => m.medicina) && (
             <Bloque titulo="Tratamiento indicado">{c.tratamiento.filter((m) => m.medicina).map((m) => [m.medicina, m.concentracion, m.dosis, m.frecuencia].filter(Boolean).join(" · ")).join("\n")}</Bloque>
@@ -562,7 +563,7 @@ export function ConstanciaAtencion({ d, diagnostico = false }: { d: DatosDocumen
           </div>
         ))}
       </div>
-      {diagnostico && c.diagnosticos.length > 0 && <p className="mb-1.5"><b>Diagnóstico:</b> {c.diagnosticos.map((x) => `${x.cie10} ${x.descripcion}`).join("; ")}</p>}
+      {diagnostico && c.diagnosticos.length > 0 && <p className="mb-1.5"><b>Diagnóstico:</b> {c.diagnosticos.map((x) => textoDiagnostico(x.cie10, x.descripcion)).join("; ")}</p>}
       {dias !== null && (
         <p className="mb-1.5">
           Se indicó <b>reposo médico por {dias} día{dias === 1 ? "" : "s"}</b>, del {fechaCorta(r.desde)} al {fechaCorta(r.hasta)}, con reintegro el {fechaCorta(reintegro)}.

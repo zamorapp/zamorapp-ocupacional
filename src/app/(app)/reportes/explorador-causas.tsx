@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Causa } from "@/lib/reportes";
 import { CORTES, ETIQUETA_CLAVE } from "@/lib/vigilancia-textos";
 import { cn } from "@/lib/utils";
+import { sinCodigo } from "@/lib/diagnostico-texto";
 
 // Diez primeras causas de morbilidad por el corte que se elija (lo que el SAME reparte en 20 páginas)
 export function ExploradorCausas({ cortes, poblacion }: { cortes: Record<string, Record<string, Causa[]>>; poblacion: number }) {
@@ -46,7 +47,7 @@ export function ExploradorCausas({ cortes, poblacion }: { cortes: Record<string,
           <tbody>
             {filas.map((c) => (
               <tr key={c.cie10} className="border-b last:border-0">
-                <td className="py-1.5 pr-2"><span className="font-mono text-xs text-muted-foreground">{c.cie10}</span> {c.descripcion}</td>
+                <td className="py-1.5 pr-2">{sinCodigo(c.cie10) ? <span className="text-muted-foreground">Sin CIE-10 (varios diagnósticos)</span> : <><span className="font-mono text-xs text-muted-foreground">{c.cie10}</span> {c.descripcion}</>}</td>
                 <td className="py-1.5 text-right tabular-nums">{c.n}</td>
                 <td className="py-1.5 text-right tabular-nums">{c.pacientes ?? "—"}</td>
                 <td className="py-1.5 text-right tabular-nums">{poblacion ? (Math.round(((c.pacientes ?? 0) * 1000) / poblacion) / 10).toLocaleString("es-VE") : "—"}</td>
