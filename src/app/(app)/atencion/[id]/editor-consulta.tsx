@@ -416,7 +416,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const fichaPendiente = useRef<(() => Promise<{ ok: boolean; mensaje: string } | null>) | null>(null);
   const guardarConTodo = async (datos: DatosConsulta, cerrar: boolean) => {
     const f = await fichaPendiente.current?.();
-    if (f && !f.ok) return { ...f, mensaje: `Datos del trabajador: ${f.mensaje}` };
+    // La ficha rechazada no pasa en silencio: se va a «Generales», donde el aviso rojo dice qué campo corregir
+    if (f && !f.ok) { setPaso("generales"); return { ...f, mensaje: `Datos del trabajador: ${f.mensaje}` }; }
     return guardarConsulta(datos, cerrar);
   };
 
@@ -931,7 +932,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           )}
 
           {/* ── Generales ── */}
-          <TabsContent value="generales" className="mt-4 space-y-4">
+          {/* Siempre montada (oculta si no está activa): la ficha del trabajador guarda lo escrito aunque se cambie de pestaña;
+              antes, al salir de «Generales» se desmontaba y el Guardar de la consulta ya no guardaba la ficha (30-oct) */}
+          <TabsContent value="generales" forceMount className="mt-4 space-y-4 data-[state=inactive]:hidden">
             <Seccion titulo="Datos del trabajador">
               <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} guardarPendiente={fichaPendiente} onPendiente={setFichaCambiada} />
             </Seccion>

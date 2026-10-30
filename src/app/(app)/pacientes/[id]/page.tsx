@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { textoLateralidad } from "@/lib/lateralidad";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -178,7 +179,7 @@ export default async function FichaPaciente({ params }: Props) {
               <Datos filas={[
                 ["Fecha de nacimiento", fecha(t.fechaNacimiento)],
                 ...(verSalud ? [["Grupo sanguíneo", t.grupoSanguineo] as [string, string | null]] : []),
-                ["Lateralidad", t.lateralidad],
+                ["Lateralidad", textoLateralidad(t.lateralidad)],
                 ["Teléfono", t.telefono],
                 ["Correo", t.correo],
               ]} />

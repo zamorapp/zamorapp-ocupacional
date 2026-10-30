@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, History, Loader2, Pencil, Save } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, History, Loader2, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EntradaCargo } from "@/components/app/entrada-cargo";
 import { claveCargo } from "@/lib/cargos";
 import { antiguedad } from "@/lib/fecha";
+import { LATERALIDADES, normalizarLateralidad } from "@/lib/lateralidad";
 import { cn } from "@/lib/utils";
 import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha } from "../../pacientes/acciones";
 
@@ -17,7 +18,15 @@ type Resultado = { ok: boolean; mensaje: string };
 type Props = { trabajadorId: string; consultaId: string; bloqueado: boolean; guardarPendiente?: React.RefObject<(() => Promise<Resultado | null>) | null>; onPendiente?: (hay: boolean) => void };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
-const LATERALIDAD = ["Diestro", "Zurdo", "Ambidiestro"];
+// Lo escrito y no guardado se conserva en esta ventana (sessionStorage): si el guardado falla y la pantalla se recarga
+// o se cambia de consulta, vuelve a aparecer marcado «sin guardar». Se borra al guardar bien o al cerrar la ventana.
+const claveBorrador = (id: string) => `zamorapp:ficha-sin-guardar:${id}`;
+const leerBorrador = (id: string): Record<string, string> | null => {
+  try { const x = sessionStorage.getItem(claveBorrador(id)); return x ? (JSON.parse(x) as Record<string, string>) : null; } catch { return null; }
+};
+const escribirBorrador = (id: string, f: Record<string, string> | null) => {
+  try { if (f) sessionStorage.setItem(claveBorrador(id), JSON.stringify(f)); else sessionStorage.removeItem(claveBorrador(id)); } catch { /* sin almacenamiento: queda solo en pantalla */ }
+};
 const fechaCorta = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
 // La edad, solo en años («41 años»)
 const anios = (nacimiento: string, hoy: string) => {
@@ -64,14 +73,23 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const [cambiado, setCambiado] = useState(false);
   const [guardando, iniciar] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const detallesRef = useRef<HTMLDetailsElement>(null);
+  const [recuperado, setRecuperado] = useState(false);
 
   useEffect(() => {
     fichaDeTrabajador(trabajadorId)
       .then((r) => {
+        if (r) r.ficha.lateralidad = normalizarLateralidad(r.ficha.lateralidad) ?? "";
         setOp(r);
-        setF(r?.ficha ?? {});
-        // Se abre solo si falta algún dato clave
-        if (r && !bloqueado) setAbierto(Object.keys(CLAVE).some((k) => !r.ficha[k as keyof typeof CLAVE]));
+        // Lo que se escribió y no llegó a guardarse vuelve a la pantalla (nunca se pierde en silencio)
+        const ficha: Record<string, string> = r?.ficha ?? {};
+        const borrador = r && !bloqueado ? leerBorrador(trabajadorId) : null;
+        const pendiente = Boolean(borrador) && Object.keys(borrador!).some((k) => (borrador![k] ?? "") !== (ficha[k] ?? ""));
+        if (borrador && !pendiente) escribirBorrador(trabajadorId, null);
+        setF(pendiente ? { ...ficha, ...borrador } : ficha);
+        if (pendiente) { setCambiado(true); setRecuperado(true); }
+        // Se abre solo si falta algún dato clave o si hay cambios sin guardar
+        if (r && !bloqueado) setAbierto(pendiente || Object.keys(CLAVE).some((k) => !r.ficha[k as keyof typeof CLAVE]));
       })
       .catch(() => setOp(null))
       .finally(() => setCargando(false));
@@ -80,7 +98,14 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const guardarFicha = useCallback(async (datos: FormData): Promise<Resultado> => {
     const r = await actualizarDatosTrabajador(trabajadorId, consultaId, datos);
     setResultado(r);
+    if (!r.ok) {
+      // El rechazo se ve: el recuadro se abre y el aviso rojo queda a la vista (30-oct: un rechazo pasó en silencio)
+      setAbierto(true);
+      requestAnimationFrame(() => detallesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
     if (r.ok) {
+      escribirBorrador(trabajadorId, null);
+      setRecuperado(false);
       setCambiado(false);
       const nueva = await fichaDeTrabajador(trabajadorId);
       if (nueva) { setOp(nueva); setF(nueva.ficha); }
@@ -98,6 +123,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
       : null;
     return () => { guardarPendiente.current = null; };
   }, [guardarPendiente, cambiado, bloqueado, guardarFicha]);
+
+  useEffect(() => { if (cambiado && !bloqueado) escribirBorrador(trabajadorId, f); }, [cambiado, bloqueado, f, trabajadorId]);
 
   // Cerrar o recargar con cambios sin guardar pregunta antes (el navegador muestra su aviso)
   useEffect(() => {
@@ -140,7 +167,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   );
 
   return (
-    <details open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)} className="group">
+    <details ref={detallesRef} open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)} className="group">
       {/* En el celular «Editar» va arriba a la derecha y los chips debajo, a todo el ancho */}
       <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
@@ -156,6 +183,16 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
       </summary>
 
       <form ref={formRef} action={guardar} className="mt-4 space-y-5">
+        {resultado && !resultado.ok && (
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-alerta/50 bg-alerta/10 px-3 py-2 text-sm font-medium text-alerta-texto">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /> <span className="min-w-0">{resultado.mensaje}</span>
+          </div>
+        )}
+        {recuperado && !resultado && (
+          <p role="status" className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
+            Recuperamos lo que escribiste en la ficha y todavía no está guardado. Revísalo y pulsa «Guardar datos del trabajador».
+          </p>
+        )}
         {faltan.length > 0 && !bloqueado && (
           <p id="dt-faltan" className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
             Falta: {faltan.map((k) => CLAVE[k]).join(", ")}. Salen en los informes, la constancia y la vigilancia.
@@ -210,8 +247,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
             <Campo id="dt-lateralidad" etiqueta="Lateralidad">
               <select id="dt-lateralidad" name="lateralidad" value={v("lateralidad")} onChange={poner("lateralidad")} className={SELECT}>
                 <option value="">Sin definir</option>
-                {LATERALIDAD.map((x) => <option key={x} value={x}>{x}</option>)}
-                {v("lateralidad") && !LATERALIDAD.includes(v("lateralidad")) && <option value={v("lateralidad")}>{v("lateralidad")}</option>}
+                {LATERALIDADES.map((x) => <option key={x.valor} value={x.valor}>{x.nombre}</option>)}
+                {v("lateralidad") && !LATERALIDADES.some((x) => x.valor === v("lateralidad")) && <option value={v("lateralidad")}>{v("lateralidad")}</option>}
               </select>
             </Campo>
             <Campo id="dt-profesion" etiqueta="Profesión u oficio">
@@ -258,8 +295,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
 
         {!bloqueado && (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {cambiado && !resultado && <span role="status" className="text-sm text-aviso-texto">Cambios sin guardar en la ficha</span>}
-            {resultado && (
+            {cambiado && !resultado?.ok && <span role="status" className="text-sm text-aviso-texto">Cambios sin guardar en la ficha</span>}
+            {resultado?.ok && (
               <span role="status" className={resultado.ok ? "flex items-center gap-1 text-sm text-ok-texto" : "text-sm text-alerta-texto"}>
                 {resultado.ok && <Check className="size-4" />} {resultado.mensaje}
               </span>
