@@ -172,17 +172,21 @@ function revisarCatalogo(actualizar) {
 async function revisarCruces(base) {
   const desde = git("merge-base", base, "HEAD").trim();
   const propios = git("diff", "--name-only", "--diff-filter=A", "--no-renames", desde, "HEAD").split("\n").filter(Boolean);
-  const numeros = (archivos) => archivos.flatMap((f) => {
+  // Cada archivo va con su blob: el mismo archivo idéntico en dos PRs (el PR «solo migración» y la tanda que trae
+  // su código) no es un choque, es la misma migración; solo choca un número igual con contenido distinto.
+  const numeros = (archivos) => archivos.flatMap((x) => {
+    const f = typeof x === "string" ? x : x.nombre;
     const m = /^supabase\/migrations\/(\d{14})_/.exec(f) ?? /^supabase\/pruebas\/(\d+)_[^/]*\.sql$/.exec(f);
-    return m ? [{ clave: `${f.startsWith("supabase/migrations/") ? "migración" : "prueba"} ${m[1]}`, archivo: f }] : [];
+    return m ? [{ clave: `${f.startsWith("supabase/migrations/") ? "migración" : "prueba"} ${m[1]}`, archivo: f, blob: typeof x === "string" ? null : x.blob }] : [];
   });
-  const mios = numeros(propios);
+  const mios = numeros(propios.map((f) => ({ nombre: f, blob: git("rev-parse", `HEAD:${f}`).trim() })));
   if (!mios.length) return;
   const yo = Number(process.env.PR_NUMERO || 0);
   const otros = await prsAbiertos(yo);
   for (const pr of otros) {
-    const suyos = new Set(numeros(pr.archivos).map((x) => x.clave));
-    for (const m of mios.filter((x) => suyos.has(x.clave))) {
+    const suyos = numeros(pr.archivos);
+    const choca = (m) => suyos.some((s) => s.clave === m.clave && !(s.archivo === m.archivo && s.blob && s.blob === m.blob));
+    for (const m of mios.filter(choca)) {
       const texto = `La ${m.clave} ya la usa el PR #${pr.numero} (${pr.rama}). Reserva otro número en el registro de numeración`;
       if (!yo || pr.numero < yo) error(m.archivo, 1, `${texto}: este PR es el más nuevo y debe cambiarlo`);
       else aviso(m.archivo, 1, `${texto}: el #${pr.numero} es más nuevo y es el que debe cambiar`);
@@ -206,7 +210,7 @@ async function prsAbiertos(yo) {
     const archivos = [];
     for (let pagina = 1; pagina <= 10; pagina++) {
       const lote = await api(`/pulls/${pr.number}/files?per_page=100&page=${pagina}`);
-      archivos.push(...lote.filter((f) => f.status === "added" || f.status === "renamed").map((f) => f.filename));
+      archivos.push(...lote.filter((f) => f.status === "added" || f.status === "renamed").map((f) => ({ nombre: f.filename, blob: f.sha })));
       if (lote.length < 100) break;
     }
     salida.push({ numero: pr.number, rama: pr.head.ref, archivos });
