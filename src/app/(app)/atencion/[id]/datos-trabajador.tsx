@@ -26,7 +26,7 @@ const anios = (nacimiento: string, hoy: string) => {
 };
 // Datos clave: si falta uno, el recuadro se abre solo y lo nombra. Importantes (rojo): salen en la constancia y
 // deciden los valores normales por edad y sexo; los demás, en ámbar. El campo vacío toma el color de su aviso.
-const CLAVE = { cargo: "cargo", fecha_ingreso_cargo: "fecha de ingreso al cargo", dependencia: "dependencia", sexo: "sexo", fecha_nacimiento: "fecha de nacimiento" } as const;
+const CLAVE = { cargo: "cargo", fecha_ingreso_cargo: "ingreso al cargo", dependencia: "dependencia", sexo: "sexo", fecha_nacimiento: "fecha de nacimiento" } as const;
 const IMPORTANTE: ReadonlySet<string> = new Set(["cargo", "sexo", "fecha_nacimiento"]);
 const colorFalta = (k: string) => (IMPORTANTE.has(k) ? "border-alerta bg-alerta/10 ring-1 ring-alerta/40" : "border-aviso bg-aviso/10 ring-1 ring-aviso/40");
 const chipFalta = (k: string) => (IMPORTANTE.has(k) ? "bg-alerta/15 text-alerta-texto" : "bg-aviso/15 text-aviso-texto");
@@ -113,6 +113,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const faltan = (Object.keys(CLAVE) as (keyof typeof CLAVE)[]).filter((k) => !v(k));
   const falta = (k: string) => !bloqueado && faltan.includes(k as keyof typeof CLAVE);
   const borde = (k: string) => cn("h-10", falta(k) && colorFalta(k));
+  // Lector de pantalla: el campo que falta dice por qué (no solo el color)
+  const marca = (k: string) => (falta(k) ? { "aria-invalid": true, "aria-describedby": "dt-faltan" } : {});
   const poner = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setF((x) => ({ ...x, [k]: e.target.value }));
     setCambiado(true);
@@ -141,7 +143,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
       <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
           {resumen.map((x) => <span key={x} className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5">{x}</span>)}
-          {!bloqueado && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
+          {!bloqueado && !abierto && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
           {!resumen.length && bloqueado && <span className="text-muted-foreground">Sin datos de la ficha</span>}
           {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
         </div>
@@ -153,23 +155,23 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
 
       <form ref={formRef} action={guardar} className="mt-4 space-y-5">
         {faltan.length > 0 && !bloqueado && (
-          <p className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
+          <p id="dt-faltan" className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
             Falta: {faltan.map((k) => CLAVE[k]).join(", ")}. Salen en los informes, la constancia y la vigilancia.
           </p>
         )}
         <fieldset disabled={bloqueado} className="space-y-5">
           <Grupo titulo="Trabajo">
             <Campo id="dt-cargo" etiqueta="Cargo" nota={cambioDeCargo ? `Cambio de cargo: «${op.ficha.cargo}» pasa al historial.` : null}>
-              <Input id="dt-cargo" name="cargo" list="dt-cargos" value={v("cargo")} onChange={poner("cargo")} placeholder="Escribe o elige; se crea si no existe" className={borde("cargo")} />
+              <Input id="dt-cargo" name="cargo" list="dt-cargos" value={v("cargo")} onChange={poner("cargo")} placeholder="Escribe o elige; se crea si no existe" className={borde("cargo")} {...marca("cargo")} />
               <datalist id="dt-cargos">{op.cargos.map((c) => <option key={c} value={c} />)}</datalist>
             </Campo>
             <Campo id="dt-ingreso-cargo" etiqueta="Ingreso al cargo"
               nota={cambioDeCargo && v("fecha_ingreso_cargo") === op.ficha.fecha_ingreso_cargo ? "Si la dejas igual, el cargo nuevo cuenta desde hoy."
                 : antiguedad(v("fecha_ingreso_cargo"), hoy) && `Antigüedad en el cargo: ${antiguedad(v("fecha_ingreso_cargo"), hoy)}`}>
-              <Input id="dt-ingreso-cargo" name="fecha_ingreso_cargo" type="date" max={hoy} value={v("fecha_ingreso_cargo")} onChange={poner("fecha_ingreso_cargo")} className={borde("fecha_ingreso_cargo")} />
+              <Input id="dt-ingreso-cargo" name="fecha_ingreso_cargo" type="date" max={hoy} value={v("fecha_ingreso_cargo")} onChange={poner("fecha_ingreso_cargo")} className={borde("fecha_ingreso_cargo")} {...marca("fecha_ingreso_cargo")} />
             </Campo>
             <Campo id="dt-dependencia" etiqueta="Dependencia o departamento">
-              <Input id="dt-dependencia" name="dependencia" list="dt-dependencias" value={v("dependencia")} onChange={poner("dependencia")} placeholder="Escribe o elige; se crea si no existe" className={borde("dependencia")} />
+              <Input id="dt-dependencia" name="dependencia" list="dt-dependencias" value={v("dependencia")} onChange={poner("dependencia")} placeholder="Escribe o elige; se crea si no existe" className={borde("dependencia")} {...marca("dependencia")} />
               <datalist id="dt-dependencias">{op.dependencias.map((c) => <option key={c} value={c} />)}</datalist>
             </Campo>
             <Campo id="dt-ingreso" etiqueta="Ingreso a la empresa" nota={antiguedad(v("fecha_ingreso"), hoy) && `Antigüedad en la empresa: ${antiguedad(v("fecha_ingreso"), hoy)}`}>
@@ -188,14 +190,14 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
 
           <Grupo titulo="Personales">
             <Campo id="dt-sexo" etiqueta="Sexo">
-              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={cn(SELECT, falta("sexo") && colorFalta("sexo"))}>
+              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={cn(SELECT, falta("sexo") && colorFalta("sexo"))} {...marca("sexo")}>
                 <option value="">Sin definir</option>
                 <option value="F">Femenino</option>
                 <option value="M">Masculino</option>
               </select>
             </Campo>
             <Campo id="dt-nacimiento" etiqueta="Fecha de nacimiento" nota={anios(v("fecha_nacimiento"), hoy) && `Edad: ${anios(v("fecha_nacimiento"), hoy)}`}>
-              <Input id="dt-nacimiento" name="fecha_nacimiento" type="date" max={hoy} value={v("fecha_nacimiento")} onChange={poner("fecha_nacimiento")} className={borde("fecha_nacimiento")} />
+              <Input id="dt-nacimiento" name="fecha_nacimiento" type="date" max={hoy} value={v("fecha_nacimiento")} onChange={poner("fecha_nacimiento")} className={borde("fecha_nacimiento")} {...marca("fecha_nacimiento")} />
             </Campo>
             <Campo id="dt-lugar" etiqueta="Lugar de nacimiento">
               <Input id="dt-lugar" name="lugar_nacimiento" value={v("lugar_nacimiento")} onChange={poner("lugar_nacimiento")} className="h-10" />
