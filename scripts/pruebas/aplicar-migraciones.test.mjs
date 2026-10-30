@@ -64,13 +64,18 @@ test("una pendiente anterior a la última aplicada aborta", () => {
   revisarOrden(l, []);
 });
 
-test("primera vez sin registro: lo anterior del commit se anota como hecho y solo se aplica lo del manifiesto", () => {
-  const man = leerManifiesto(m(), "migraciones-20261030-1");
-  const base = lineaBase(["20261029400000_x.sql", "README.md", "20261030410000_a.sql", "20261030420000_b.sql", "20261028390000_y.sql"], man);
+test("primera vez sin registro: solo se anota lo que está bajo el corte verificado; lo dudoso aborta", () => {
+  const nombres = ["20261029400000_x.sql", "README.md", "20261030410000_a.sql", "20261030420000_b.sql", "20261028390000_y.sql"];
+  assert.throws(() => lineaBase(nombres, leerManifiesto(m(), "migraciones-20261030-1")), /linea_base_hasta/);
+  assert.throws(() => leerManifiesto(m({ linea_base_hasta: "2026" }), "migraciones-20261030-1"), /linea_base_hasta no válida/);
+  const man = leerManifiesto(m({ linea_base_hasta: "20261029400000" }), "migraciones-20261030-1");
+  const base = lineaBase(nombres, man);
   assert.deepEqual(base, [{ version: "20261028390000", nombre: "y" }, { version: "20261029400000", nombre: "x" }]);
+  // unida a main después del corte y fuera del manifiesto (aprobada pero sin aplicar): no se adivina
+  assert.throws(() => lineaBase([...nombres, "20261029405000_z.sql"], man), /20261029405000.*no se sabe si se aplicó/);
   const aplicadas = base.map((x) => x.version);
   assert.deepEqual(pendientes(man, aplicadas).map((x) => x.archivo), ["20261030410000_a.sql", "20261030420000_b.sql"]);
   assert.doesNotThrow(() => revisarOrden(pendientes(man, aplicadas), aplicadas));
-  // ya anotadas en una segunda corrida: no se repite nada (lo que pasó el 30-oct con el aplicador viejo)
+  // segunda corrida con todo anotado: no se repite nada (lo que pasó el 30-oct con el aplicador viejo)
   assert.deepEqual(pendientes(man, [...aplicadas, "20261030410000", "20261030420000"]), []);
 });

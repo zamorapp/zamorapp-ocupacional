@@ -49,7 +49,8 @@ try {
   if (ya.length === 0) {
     const nombres = (await bajar(`${API}/contents/supabase/migrations?ref=${commit}`, "json")).map((f) => f.name);
     base = lineaBase(nombres, manifiesto);
-    console.log(`${hora()} primera vez: el registro está vacío; ${base.length} cambios anteriores (hasta ${base.at(-1)?.version ?? "-"}) se anotan como ya hechos, sin ejecutarlos`);
+    console.log(`${hora()} primera vez: el registro está vacío; con el corte ${manifiesto.linea_base_hasta} se anotarán ${base.length} cambios anteriores como ya hechos, sin ejecutarlos:`);
+    console.log(base.map((x) => `    ${x.version} ${x.nombre}`).join("\n"));
   }
   const aplicadas = [...ya.map((r) => r.version), ...base.map((x) => x.version)];
   const lista = pendientes(manifiesto, aplicadas);

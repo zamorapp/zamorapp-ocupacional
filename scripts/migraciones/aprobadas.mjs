@@ -24,6 +24,7 @@ export function leerManifiesto(texto, etiqueta) {
   const m = JSON.parse(texto);
   if (m.etiqueta !== etiqueta) throw new Error(`el manifiesto dice «${m.etiqueta}» pero se bajó de «${etiqueta}»`);
   if (!Array.isArray(m.migraciones) || m.migraciones.length === 0) throw new Error("el manifiesto no trae migraciones");
+  if (m.linea_base_hasta !== undefined && !/^\d{14}$/.test(m.linea_base_hasta)) throw new Error(`linea_base_hasta no válida: ${JSON.stringify(m.linea_base_hasta)}`);
   const vistos = new Set();
   for (const x of m.migraciones) {
     if (!ARCHIVO.test(x?.archivo ?? "")) throw new Error(`nombre de migración no válido: ${JSON.stringify(x?.archivo)}`);
@@ -42,14 +43,20 @@ export function pendientes(manifiesto, versionesAplicadas) {
   return manifiesto.migraciones.filter((x) => !ya.has(x.archivo.slice(0, 14)));
 }
 
-// Primera vez en una base sin registro (las de antes se aplicaron a mano en el SQL Editor o con el aplicador viejo,
-// que no anotaba nada): todo lo que ya está en supabase/migrations del commit aprobado y NO viene en este manifiesto
-// se unió a main después de aplicarse, así que se anota como hecho sin ejecutarlo. Solo se usa con el registro vacío.
+// Primera vez en una base sin registro (las de antes se aplicaron a mano o con el aplicador viejo, que no anotaba):
+// se anotan como hechas, sin ejecutarlas, solo las versiones del commit ≤ «linea_base_hasta», el corte que quien
+// publica verificó en producción. Una versión mayor que el corte y fuera del manifiesto aborta: nunca se da por
+// aplicado algo que pudo unirse a main sin aplicarse.
 export function lineaBase(nombresEnCommit, manifiesto) {
+  const corte = manifiesto.linea_base_hasta;
+  if (!corte) throw new Error("el registro de migraciones está vacío y el manifiesto no trae «linea_base_hasta»: no se sabe qué está aplicado (no se aplicó nada)");
   const nuevas = new Set(manifiesto.migraciones.map((x) => x.archivo.slice(0, 14)));
-  return nombresEnCommit.filter((n) => ARCHIVO.test(n)).sort()
+  const fuera = nombresEnCommit.filter((n) => ARCHIVO.test(n)).sort()
     .map((n) => ({ version: n.slice(0, 14), nombre: n.slice(15, -4) }))
     .filter((x) => !nuevas.has(x.version));
+  const dudosas = fuera.filter((x) => x.version > corte);
+  if (dudosas.length) throw new Error(`${dudosas.map((x) => x.version).join(", ")} está en main después del corte ${corte} y no viene en el manifiesto: no se sabe si se aplicó (no se aplicó nada)`);
+  return fuera;
 }
 
 // Una pendiente más vieja que la última aplicada quiere decir que la base y el repo se desfasaron: no se adivina
