@@ -36,10 +36,15 @@ drop trigger if exists preparar_item_propio on public.lista_items;
 create trigger preparar_item_propio before insert on public.lista_items
   for each row when ((new.datos ->> 'propio') = 'true') execute function public.preparar_item_propio();
 
-create unique index if not exists lista_items_propios_unicos on public.lista_items (org_id, lista, lower(nombre))
+-- Índice EXACTO, igual a la clave natural de la bandeja (Analizar, 30-oct): con lower(nombre), «Lumbalgia» de una PC y
+-- «lumbalgia» de otra no se fundirían y el insert chocaría con el índice para siempre. El disparador ya normaliza los
+-- espacios; la reutilización sin mayúsculas la hace la pantalla (agregarAlCatalogo busca con ilike antes de insertar).
+create unique index if not exists lista_items_propios_unicos on public.lista_items (org_id, lista, nombre)
   where (datos ->> 'propio') = 'true';
 
--- Bandeja: el mismo nombre agregado en dos PC sin internet se funde en una sola fila (20261030400000)
+-- Bandeja: el mismo nombre agregado en dos PC sin internet se funde en una sola fila (20261030400000).
+-- La clave vale para TODA la tabla: un ítem de cualquier lista creado en la PC con el mismo (org, lista, nombre) que uno
+-- de la nube también se funde en él en vez de duplicarse. Es lo deseable; las demás listas ya las frenan sus políticas.
 update sync.tablas set clave_natural = array['org_id', 'lista', 'nombre'] where nombre = 'public.lista_items' and clave_natural is null;
 
 create or replace function public.buscar_diagnosticos(p_texto text, p_limite int default 20)
