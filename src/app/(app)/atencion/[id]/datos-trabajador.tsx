@@ -117,16 +117,17 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
 
   return (
     <details open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)} className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+      {/* En el celular «Editar» va arriba a la derecha y los chips debajo, a todo el ancho */}
+      <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
-          {resumen.length
-            ? resumen.map((x) => <span key={x} className="rounded-md bg-muted px-2 py-0.5">{x}</span>)
-            : <span className="text-muted-foreground">Sin datos de la ficha</span>}
-          {cambiado && <span className="rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
+          {resumen.map((x) => <span key={x} className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5">{x}</span>)}
+          {!edad && !bloqueado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Edad: falta</span>}
+          {!resumen.length && bloqueado && <span className="text-muted-foreground">Sin datos de la ficha</span>}
+          {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
         </div>
-        <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
+        <span className="flex shrink-0 items-center gap-1 self-end text-sm font-medium text-primary sm:self-auto">
           {!bloqueado && <Pencil className="size-3.5" />} {abierto ? "Cerrar" : bloqueado ? "Ver" : "Editar"}
-          <ChevronDown className="size-4 transition group-open:rotate-180" />
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
         </span>
       </summary>
 
