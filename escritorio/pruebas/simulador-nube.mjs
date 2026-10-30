@@ -133,6 +133,12 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     if (estado.migradaPorDelante && url.pathname.startsWith("/rest/v1/")) {
       return enviar(403, { code: "42501", details: null, hint: "Grant the required privileges to the current role with: GRANT SELECT ON public.trabajadores TO authenticated;", message: "permission denied for table trabajadores" });
     }
+    // Simula la nube cargada: un cambios_desde que pide más de «cambiosTopeLote» se corta por tiempo, como Supabase a los
+    // 8 s del rol authenticated (30-oct-2026: la PC repetía el mismo pedido y la bajada quedaba trancada)
+    if (estado.cambiosTopeLote && url.pathname === "/rest/v1/rpc/cambios_desde" && JSON.parse(cuerpo || "{}").p_limite > estado.cambiosTopeLote) {
+      estado.cortesPorTiempo = (estado.cortesPorTiempo || 0) + 1;
+      return enviar(500, { code: "57014", details: null, hint: null, message: "canceling statement due to statement timeout" });
+    }
     if (pgrst && url.pathname.startsWith("/rest/v1/")) {
       // PostgREST real: se le pasa la petición tal cual (el token ya va firmado con su secreto)
       let p;

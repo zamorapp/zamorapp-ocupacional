@@ -17,9 +17,11 @@ export type EstadoEscritorio = {
   conocido: boolean; // ya respondió la puerta al menos una vez
   ultimaSincronia: string | null; // cuándo terminó bien la última sincronía (hora de la nube, ISO)
   errorSincronia: boolean; // la última sincronía falló aunque haya internet
+  motivo: string | null; // por qué falló, en palabras para la persona (lo arma la puerta)
+  apartadas: number; // filas que bajaron de la nube y esta PC no aceptó: se reintentan solas
 };
 
-const INICIAL: EstadoEscritorio = { enLinea: true, pendientes: 0, conflictos: 0, rechazados: 0, horaSinAncla: false, conocido: false, ultimaSincronia: null, errorSincronia: false };
+const INICIAL: EstadoEscritorio = { enLinea: true, pendientes: 0, conflictos: 0, rechazados: 0, horaSinAncla: false, conocido: false, ultimaSincronia: null, errorSincronia: false, motivo: null, apartadas: 0 };
 let estado = INICIAL;
 const oyentes = new Set<() => void>();
 let reloj: ReturnType<typeof setInterval> | null = null;
@@ -41,6 +43,8 @@ export async function refrescarEstado(): Promise<EstadoEscritorio> {
       conocido: true,
       ultimaSincronia: typeof j?.ultimaSincronia === "string" ? j.ultimaSincronia : null,
       errorSincronia: !!j?.error,
+      motivo: typeof j?.motivo === "string" ? j.motivo : null,
+      apartadas: n(j?.apartadas),
     };
     if (JSON.stringify(nuevo) !== JSON.stringify(estado)) {
       estado = nuevo;
@@ -79,7 +83,11 @@ export async function sincronizarAhora(): Promise<string> {
     if (!r.ok) throw new Error();
     const e = await refrescarEstado();
     if (!e.enLinea) return "Sin internet: los cambios siguen guardados en esta PC y suben solos al volver la conexión.";
-    return e.pendientes ? `Quedan ${e.pendientes} por subir; siguen en camino.` : "Todo está al día en la nube.";
+    // Subir y bajar son dos pasos: si la bajada falló, se dice qué pasó y que lo de esta PC sí subió (o sigue en camino)
+    const subida = e.pendientes ? `Quedan ${e.pendientes} por subir; siguen en camino.` : "Lo de esta PC ya está en la nube.";
+    if (e.errorSincronia) return `${subida} No se pudieron bajar los cambios de la nube: ${e.motivo ?? "se reintenta sola cada 30 segundos."}`;
+    if (e.pendientes) return subida;
+    return e.apartadas ? `Todo está al día, salvo ${e.apartadas === 1 ? "1 registro que esta PC no aceptó" : `${e.apartadas} registros que esta PC no aceptó`}; se reintentan solos.` : "Todo está al día en la nube.";
   } catch {
     return "No se pudo sincronizar ahora. Tus cambios siguen guardados en esta PC.";
   }
