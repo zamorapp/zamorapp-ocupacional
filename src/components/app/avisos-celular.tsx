@@ -14,6 +14,11 @@ function llave(base64: string) {
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
 }
 
+function base64url(llave: ArrayBuffer | null) {
+  if (!llave) return null;
+  return btoa(String.fromCharCode(...new Uint8Array(llave))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 const nombreEquipo = () => {
   const ua = navigator.userAgent;
   return /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iPhone" : /Windows/i.test(ua) ? "Windows" : /Mac/i.test(ua) ? "Mac" : "Navegador";
@@ -37,8 +42,10 @@ function useAvisos(escritorio = false) {
       }
       if (Notification.permission === "denied") return setEstado("bloqueado");
       const sub = await (await registro()).pushManager.getSubscription().catch(() => null);
-      setEndpoint(sub?.endpoint ?? null);
-      setEstado(sub && Notification.permission === "granted" ? "activo" : "apagado");
+      // Suscrita con otra llave (llaves renovadas): sus avisos rebotan, así que se muestra apagada para volver a activarla
+      const vigente = sub && Notification.permission === "granted" && base64url(sub.options.applicationServerKey) === (await llaveAvisos().catch(() => null));
+      setEndpoint(vigente ? sub.endpoint : null);
+      setEstado(vigente ? "activo" : "apagado");
     })();
   }, [escritorio]);
   return { estado, setEstado, endpoint, setEndpoint };
