@@ -10,6 +10,7 @@ import { defExamen, textoReferencia } from "@/lib/paraclinicos";
 import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
 import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cambiosSugeridos, datosSugeridos, sugeridoPara } from "@/lib/paraclinicos-sugeridos";
+import { CLASES, claseDeducida, FAMILIA, NOMBRE_FAMILIA, type Clase } from "@/lib/estudios";
 import { cn } from "@/lib/utils";
 import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -74,12 +75,12 @@ function SelectorVarios({ nombre, titulo, opciones, inicial }: { nombre: string;
 }
 
 // Paraclínicos: unidad y rango de referencia para el semáforo del resultado (se guardan en lista_items.datos)
-function CamposResultado({ datos: inicial, nombre }: { datos?: Record<string, unknown>; nombre?: string }) {
+function CamposResultado({ datos: inicial, nombre, grupo }: { datos?: Record<string, unknown>; nombre?: string; grupo?: string | null }) {
   // «Volver al valor sugerido» rellena el formulario con la tabla de la app (sin internet); se guarda con «Guardar»
   const [datos, setDatos] = useState(inicial);
   const [version, setVersion] = useState(0);
   const sugerido = nombre ? sugeridoPara(nombre) : null;
-  const d = defExamen(datos);
+  const d = defExamen(datos, nombre, grupo);
   const v = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
   const fuente = typeof datos?.fuente === "string" ? datos.fuente : "";
   return (
@@ -96,6 +97,18 @@ function CamposResultado({ datos: inicial, nombre }: { datos?: Record<string, un
       <Campo id="d_rango_max" etiqueta="Máximo" defaultValue={v(d.max)} inputMode="decimal" placeholder="110" />
       <Campo id="d_rango_min_f" etiqueta="Mín. mujer" defaultValue={v(d.minF)} inputMode="decimal" placeholder="Igual" />
       <Campo id="d_rango_max_f" etiqueta="Máx. mujer" defaultValue={v(d.maxF)} inputMode="decimal" placeholder="Igual" />
+      <div className="col-span-2 sm:col-span-6">
+        <label htmlFor="d_clase" className="mb-1.5 block text-sm font-medium">Clase de estudio</label>
+        {/* Vacío = se deduce del nombre. El perfil sugerido no pone el laboratorio por defecto; el expediente agrupa por clase */}
+        <select id="d_clase" name="d_clase" defaultValue={typeof datos?.clase === "string" && datos.clase in CLASES ? datos.clase : ""} className="h-10 w-full rounded-md border bg-transparent px-2 text-sm sm:w-80">
+          <option value="">Según el nombre ({CLASES[claseDeducida(nombre ?? "", grupo)]})</option>
+          {(["laboratorio", "imagen", "funcional"] as const).map((f) => (
+            <optgroup key={f} label={NOMBRE_FAMILIA[f]}>
+              {(Object.keys(CLASES) as Clase[]).filter((c) => FAMILIA[c] === f).map((c) => <option key={c} value={c}>{CLASES[c]}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
       <div className="col-span-2 sm:col-span-6">
         <Campo id="d_sinonimos" etiqueta="Otros nombres en los informes del laboratorio (separados por coma)" defaultValue={sinonimosDe(datos).join(", ")} placeholder="HGB, Hb" maxLength={1300} />
       </div>
@@ -175,7 +188,7 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
       ) : (
         <Campo id="grupo" etiqueta={ETIQUETA_GRUPO[lista] ?? "Grupo"} defaultValue={item?.grupo ?? ""} />
       )}
-      {lista === "paraclinico" && <CamposResultado datos={item?.datos} nombre={item?.nombre} />}
+      {lista === "paraclinico" && <CamposResultado datos={item?.datos} nombre={item?.nombre} grupo={item?.grupo} />}
       {conTexto ? (
         <div className="sm:col-span-3">
           <CampoTexto id="texto" etiqueta={ETIQUETA_TEXTO[lista] ?? "Texto"} defaultValue={item?.texto ?? ""} rows={3}
@@ -315,7 +328,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                   {!item.activo && <span className="text-xs text-muted-foreground">inactivo</span>}
                 </div>
                 {lista.codigo === "paraclinico" && (() => {
-                  const dx = defExamen(item.datos);
+                  const dx = defExamen(item.datos, item.nombre, item.grupo);
                   const ref = textoReferencia(dx, null);
                   const fuente = typeof item.datos?.fuente === "string" && item.datos.fuente ? <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">Fuente: {item.datos.fuente}</p> : null;
                   return dx.tipo === "informe" ? <><p className="mt-0.5 text-xs text-muted-foreground">Normal / Alterado</p>{fuente}</>
