@@ -1,6 +1,6 @@
 // Service worker de zamorApp: permite instalarla como app y muestra un aviso si no hay conexión.
 // Los datos siempre se leen en línea; solo se guardan en caché los archivos estáticos de la app.
-const CACHE = "zamorapp-v2";
+const CACHE = "zamorapp-v3";
 const SIN_CONEXION = "/sin-conexion.html";
 
 self.addEventListener("install", (e) => {
