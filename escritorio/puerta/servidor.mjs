@@ -753,6 +753,14 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
         return responder(res, 200, await bandeja.lista({ uid: quien.uid, rol: quien.u.rol }));
       }
+      // Diagnóstico de la bandeja (solo lectura, solo el administrador): conteos por tabla y estado, sin datos
+      if (ruta === "/zamorapp/bandeja/resumen" && req.method === "GET") {
+        const quien = usuarioDe(req);
+        if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");
+        if (quien.u.rol !== "administrador") return responder(res, 403, { message: "Solo el administrador ve el resumen de la bandeja" });
+        if (!bandeja) return responder(res, 200, { tablas: [], constancias: [], adjuntos: [], ultimoError: null });
+        return responder(res, 200, await bandeja.diagnostico());
+      }
       if (ruta === "/zamorapp/bandeja/resolver" && req.method === "POST") {
         const quien = usuarioDe(req);
         if (!quien) return errorAuth(res, 401, "Sesión no válida", "bad_jwt");

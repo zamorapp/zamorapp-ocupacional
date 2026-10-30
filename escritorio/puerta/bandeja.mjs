@@ -102,6 +102,10 @@ export class Bandeja {
     const c = new pg.Client({ connectionString: this.motor.url() });
     let subio = false;
     const sinSesion = [];
+    // Lo que pasó en esta pasada, por tabla, para puerta.log. Sin datos ni motivos: el motivo de la nube puede
+    // traer valores de la fila (cédula, nombre); queda en la base local y se ve en Conflictos
+    const cuenta = { subidos: {}, conflictos: {}, rechazados: {}, sinRespuesta: {} };
+    const sumar = (tipo, tabla) => { cuenta[tipo][tabla] = (cuenta[tipo][tabla] || 0) + 1; };
     try {
       await c.connect();
       // El orden se respeta dentro de cada autor; un autor sin sesión en la nube (o sin su código) no detiene
@@ -133,11 +137,13 @@ export class Bandeja {
             for (const f of lote) {
               const x = resultados.get(f.id);
               if (!x) { // la nube no respondió por este cambio: se reintenta unas veces y luego queda anotado, nunca se reintenta para siempre
+                sumar("sinRespuesta", f.tabla);
                 await c.query("update local.bandeja set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = case when intentos + 1 >= $2 then 'La nube no respondió por este cambio' else motivo end where id = $1", [f.id, REINTENTOS]);
                 continue;
               }
               // «duplicado» solo llega por el mismo cambio o por una fila igual con el mismo id: no hay nada que conservar
               if (x.estado === "aplicado" || x.estado === "duplicado") {
+                sumar("subidos", f.tabla);
                 // La versión que dejó este cambio es la base de los siguientes de esta PC en la misma fila (la copia
                 // aún no la bajó). Solo si es justo la siguiente de su base: así nadie más la tocó en medio y no se
                 // salta un conflicto de verdad. Si otro la cambió en medio, la base no avanza y la nube decide.
@@ -170,7 +176,8 @@ export class Bandeja {
                 }
               } else {
                 await c.query("update local.bandeja set estado = $2, motivo = $3 where id = $1", [f.id, x.estado === "conflicto" ? "conflicto" : "rechazado", x.motivo || null]);
-                this.registro(`[bandeja] ${x.estado} en ${f.tabla} ${f.fila_id}: ${x.motivo || "sin motivo"}`);
+                sumar(x.estado === "conflicto" ? "conflictos" : "rechazados", f.tabla);
+                this.registro(`[bandeja] ${x.estado === "conflicto" ? "conflicto" : "rechazado"} en ${f.tabla} ${f.fila_id} (el motivo queda en Conflictos)`);
                 reponer.push(f);
               }
             }
@@ -186,6 +193,9 @@ export class Bandeja {
         }
       }
       await this.#subirConstancias(c);
+      const texto = (o) => Object.entries(o).map(([t, n]) => `${t} ${n}`).join(", ");
+      const partes = Object.entries(cuenta).filter(([, o]) => Object.keys(o).length).map(([k, o]) => `${k}: ${texto(o)}`);
+      if (partes.length) this.registro(`[bandeja] ${partes.join(" · ")}`);
       this.ultimoError = sinSesion.length
         ? `${sinSesion.reduce((a, x) => a + x.n, 0)} cambios esperan: quien los guardó no tiene sesión en la nube (o le falta el código); que entre con internet`
         : null;
@@ -224,6 +234,21 @@ export class Bandeja {
         }
       });
       return { pendientes: p.n, revisar };
+    } finally { await c.end().catch(() => {}); }
+  }
+
+  // Diagnóstico para el administrador (solo lectura): cuántos cambios hay por tabla y estado, sin datos ni motivos
+  async diagnostico() {
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rows: tablas } = await c.query(`select tabla, estado, count(*)::int as n, min(creado) as mas_antiguo, max(intentos)::int as intentos,
+          count(*) filter (where autor is null)::int as sin_autor
+        from local.bandeja group by tabla, estado order by tabla, estado`);
+      const { rows: constancias } = await c.query("select rpc, estado, count(*)::int as n, min(creado) as mas_antiguo from local.constancias group by rpc, estado order by rpc, estado");
+      const { rows: [{ hay }] } = await c.query("select to_regclass('local.adjuntos_cola') is not null as hay");
+      const adjuntos = hay ? (await c.query("select estado, count(*)::int as n from local.adjuntos_cola group by estado order by estado")).rows : [];
+      return { tablas, constancias, adjuntos, ultimoError: this.ultimoError ?? null };
     } finally { await c.end().catch(() => {}); }
   }
 
