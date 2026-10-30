@@ -54,6 +54,8 @@ returns trigger language plpgsql security definer set search_path = public as $$
 begin
   select t.org_id, t.empresa_id into new.org_id, new.empresa_id from public.trabajadores t where t.id = new.trabajador_id;
   if new.org_id is null then raise exception 'Trabajador no encontrado' using errcode = '23503'; end if;
+  -- Autor: quien sube el cambio (en la PC sin sesión en la nube queda el que traía la fila)
+  if tg_op = 'INSERT' then new.creado_por := coalesce(auth.uid(), new.creado_por); end if;
   return new;
 end $$;
 revoke execute on function public.vacaciones_de_su_empresa() from public, anon, authenticated;
