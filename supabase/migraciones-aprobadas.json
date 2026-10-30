@@ -1,21 +1,16 @@
 {
-  "etiqueta": "migraciones-20261030-9",
-  "aprobado": "sí de Cesar 19:36 (invitaciones), 19:52 (unir cargos), 19:53 (celular sin internet)",
+  "etiqueta": "migraciones-20261030-10",
+  "aprobado": "si (Cesar 20:28, #178)",
   "migraciones": [
     {
-      "archivo": "20261030630000_unir_cargos.sql",
-      "sha256": "551c86010dd07ee8f9a1e11f772608fff01a8ececcff0e822c919e2cdc92d08e",
-      "descripcion": "Unir cargos repetidos y quitar cargos"
+      "archivo": "20261030660000_avisos_campana_celular.sql",
+      "sha256": "9b2cec33ac5e3bcd9dee41ffbe443b4e9a22ed7a63647b1d8f58f5192185e8f8",
+      "descripcion": "Avisos de la campana al celular"
     },
     {
-      "archivo": "20261030640000_purgar_invitaciones.sql",
-      "sha256": "ed2ec795ea3c5e114bef2df5afa74b1ac8a041836a1e80a9520fda2890da27fa",
-      "descripcion": "Limpieza automática de invitaciones vencidas"
-    },
-    {
-      "archivo": "20261030650000_equipo_desactivado.sql",
-      "sha256": "2fd011c2e91147ba8d5bdd7fe10765b6e608fba1a2b8ea1be43b5d93b04faa15",
-      "descripcion": "Equipo desactivado (celular sin internet)"
+      "archivo": "20261030670000_vacaciones_post_vacacional.sql",
+      "sha256": "2456bb2d915e186a7c00bbbc8a5c70c4fea5a0beca3f45fe1597f68241a03ac6",
+      "descripcion": "Evaluación post vacacional"
     }
   ]
 }
