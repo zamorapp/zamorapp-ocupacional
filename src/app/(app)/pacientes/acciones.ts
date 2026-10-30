@@ -6,6 +6,7 @@ import { invalidarEmpresas } from "@/lib/empresas";
 import { olvidar } from "@/lib/memo";
 import { claveCargo } from "@/lib/cargos";
 import { hoyCaracas } from "@/lib/fecha";
+import { lateralidadValida, normalizarLateralidad } from "@/lib/lateralidad";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
@@ -231,7 +232,24 @@ const CAMPOS_FICHA = ["sexo", "fecha_nacimiento", "estado_civil", "lugar_nacimie
   "direccion", "fecha_ingreso", "fecha_ingreso_cargo", "turno", "lateralidad", "tipo_paciente_id", "ficha"] as const;
 export type FichaTrabajador = Record<(typeof CAMPOS_FICHA)[number] | "cargo" | "dependencia", string>;
 
-export async function actualizarDatosTrabajador(trabajadorId: string, consultaId: string | null, datos: FormData): Promise<Resultado> {
+// Nombre del campo de la ficha para cada regla de la base (check «trabajadores_<campo>_check»)
+const ETIQUETA_CAMPO: Record<string, string> = {
+  lateralidad: "Lateralidad", sexo: "Sexo", estado_civil: "Estado civil", nivel_educativo: "Nivel educativo", turno: "Turno",
+  fecha_nacimiento: "Fecha de nacimiento", fecha_ingreso: "Ingreso a la empresa", fecha_ingreso_cargo: "Ingreso al cargo", correo: "Correo",
+};
+// Un rechazo de la base nunca llega en inglés técnico: dice qué campo y que NO se guardó nada (30-oct: Cesar creyó que sí)
+// mensaje empieza con FICHA_NO_GUARDADA (la pantalla lo pone en negrita) y campo marca en rojo el que falló
+const FICHA_NO_GUARDADA = "No se guardó la ficha.";
+function fichaRechazada(e: { code?: string; message: string }): ResultadoFicha {
+  const campo = /trabajadores_([a-z_]+?)_check/.exec(e.message)?.[1] ?? /column "([a-z_]+)"/.exec(e.message)?.[1];
+  const nombre = campo ? ETIQUETA_CAMPO[campo] ?? campo : null;
+  if (e.code === "23514" || e.code === "22P02" || e.code === "23502")
+    return { ok: false, campo, mensaje: `${FICHA_NO_GUARDADA} El valor de «${nombre ?? "un campo"}» no es válido. Corrígelo y vuelve a guardar; lo que escribiste sigue en pantalla.` };
+  return { ok: false, mensaje: `${FICHA_NO_GUARDADA} ${e.message}. Lo que escribiste sigue en pantalla: vuelve a guardar.` };
+}
+export type ResultadoFicha = Resultado & { campo?: string };
+
+export async function actualizarDatosTrabajador(trabajadorId: string, consultaId: string | null, datos: FormData): Promise<ResultadoFicha> {
   const sesion = await obtenerSesion();
   if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
   if (!sesion.orgId) return { ok: false, mensaje: "Tu usuario no tiene organización asignada." };
@@ -250,13 +268,15 @@ export async function actualizarDatosTrabajador(trabajadorId: string, consultaId
     const cat = await resolverCatalogos(supabase, sesion.orgId, t.empresa_id, dependencia ? [dependencia] : [], cargo ? [cargo] : []);
     const ubicacion = { puesto_id: cat.puesto(cargo), dependencia_id: cat.dependencia(dependencia) };
     const ficha = Object.fromEntries(CAMPOS_FICHA.map((k) => [k, texto(datos, k)])) as Record<(typeof CAMPOS_FICHA)[number], string | null>;
+    ficha.lateralidad = normalizarLateralidad(ficha.lateralidad);
+    if (!lateralidadValida(ficha.lateralidad)) return fichaRechazada({ code: "23514", message: "trabajadores_lateralidad_check" });
     // Cargo nuevo sin cambiar la fecha de ingreso al cargo: empieza hoy (en el escritorio el disparador corre en la nube)
     if (t.puesto_id && ubicacion.puesto_id !== t.puesto_id && ficha.fecha_ingreso_cargo === t.fecha_ingreso_cargo) ficha.fecha_ingreso_cargo = hoy;
     const { error } = await supabase
       .from("trabajadores")
       .update({ ...ficha, ...ubicacion, sexo: ficha.sexo as "F" | "M" | null })
       .eq("id", trabajadorId);
-    if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+    if (error) return fichaRechazada(error);
     if (consultaId) {
       // Solo la consulta en curso de este trabajador; una firmada no cambia (la base también lo impide)
       await supabase.from("consultas").update(ubicacion).eq("id", consultaId).eq("trabajador_id", trabajadorId).neq("estado", "firmada");
@@ -277,6 +297,8 @@ export type OpcionesFicha = {
   historial: { cargo: string; desde: string | null; hasta: string }[];
   // «Hoy» del servidor (Caracas): la edad y la antigüedad no dependen de la fecha de Windows
   hoy: string;
+  // Quién mira: el borrador sin guardar se guarda con su usuario
+  uid: string;
 };
 
 // Ficha actual, cargos y dependencias de su empresa (para sugerir) y las listas editables, en una sola ida
@@ -311,5 +333,6 @@ export async function fichaDeTrabajador(trabajadorId: string): Promise<OpcionesF
     listas,
     historial: h ?? [],
     hoy: hoyCaracas(),
+    uid: sesion.usuarioId,
   };
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { textoLateralidad } from "@/lib/lateralidad";
 import { obtenerConsulta, listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ORIGEN, resumenAntecedentes } from "@/lib/consultas-tipos";
 import { obtenerDocumento } from "@/lib/documentos";
@@ -59,7 +60,7 @@ export default async function HistoriaClinica({ params }: { params: Promise<{ id
           <div className="grid grid-cols-3 gap-x-5 gap-y-1">
             <div><span className="text-doc-tenue">Nacimiento:</span> {fechaCorta(t.fechaNacimiento)}</div>
             <div><span className="text-doc-tenue">Grupo sanguíneo:</span> {t.grupoSanguineo ?? "—"}</div>
-            <div><span className="text-doc-tenue">Lateralidad:</span> {t.lateralidad ?? "—"}</div>
+            <div><span className="text-doc-tenue">Lateralidad:</span> {textoLateralidad(t.lateralidad) ?? "—"}</div>
             <div><span className="text-doc-tenue">Teléfono:</span> {t.telefono ?? "—"}</div>
             <div className="col-span-2"><span className="text-doc-tenue">Aptitud vigente:</span> {t.aptitud ? `${ETIQUETA_APTITUD[t.aptitud]} desde ${fechaCorta(t.aptitudFecha)}` : "Sin evaluar"}</div>
           </div>
