@@ -84,6 +84,7 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
           {/* Avisos por empresa: con las que se trabaja poco se apagan; los reportes y la ficha siguen mostrando todo */}
           <fieldset className="space-y-2 rounded-lg border px-3 py-2.5 sm:col-span-2">
             <legend className="px-1 text-sm font-medium">Avisos de esta empresa</legend>
+            <input type="hidden" name="avisos_en_formulario" value="1" />
             {AVISOS_EMPRESA.map((a) => (
               <label key={a.clave} className="flex items-start gap-2.5 text-sm">
                 <input type="checkbox" name={`aviso_${a.clave}`} defaultChecked={!e?.avisosApagados.includes(a.clave)} className="mt-0.5 size-4 accent-[var(--primary)]" />
