@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261030-8",
-  "aprobado": "si (Cesar 14:47, avisos al celular)",
+  "etiqueta": "migraciones-20261030-9",
+  "aprobado": "sí a las tres (Cesar 19:36)",
   "migraciones": [
     {
-      "archivo": "20261030620000_avisos_push.sql",
-      "sha256": "c1bba1df64de8075573a38920c362a4e2f8cbf5a07ef11829da64bcbde4a3c7a",
-      "descripcion": "Avisos push al celular del servicio"
+      "archivo": "20261030640000_purgar_invitaciones.sql",
+      "sha256": "ed2ec795ea3c5e114bef2df5afa74b1ac8a041836a1e80a9520fda2890da27fa",
+      "descripcion": "Limpieza automática de invitaciones vencidas"
     }
   ]
 }
