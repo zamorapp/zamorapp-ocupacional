@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
+import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -49,6 +49,8 @@ import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPerfilNormal, aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
+import { AlertasDejadas, FranjaAlertas, NuevaAlerta } from "./alertas";
+import type { AlertaClinica } from "@/lib/alertas-tipos";
 import { BotonPerfilNormal, FranjaAplicada, OfertaCopia, evaluacionNormal, evaluacionParaCopiar } from "./perfil-normal";
 import { sumarDias } from "@/lib/fecha";
 import { FechaEvaluacion, diasEntre } from "./fecha-evaluacion";
@@ -85,6 +87,8 @@ type Props = {
   registrada: string; // día real en que se registró la consulta
   puedeCambiarFecha: boolean; // médico, gerente médico o administrador (como guardar_consulta)
   diasAvisoFecha?: number;
+  alertas?: AlertaClinica[];
+  puedeRevisarAlertas?: boolean; // médico, gerente médico o administrador (lo exige la base)
 };
 
 const CONFIRMAR_FIRMA = {
@@ -196,7 +200,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -234,6 +238,11 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const [ignorarPendientes, setIgnorarPendientes] = useState(false);
   const [ignorarPerfil, setIgnorarPerfil] = useState(false);
   const [accidente, setAccidente] = useState(false);
+  // Alertas para la próxima evaluación: las pendientes del trabajador y las dejadas o revisadas en esta consulta
+  const [alertas, setAlertas] = useState(alertasIniciales);
+  const [nuevaAlerta, setNuevaAlerta] = useState(false);
+  const cambiarAlerta = (a: AlertaClinica) => setAlertas((x) => x.some((y) => y.id === a.id) ? x.map((y) => (y.id === a.id ? a : y)) : [...x, a]);
+  const alertaAmbar = alertas.some((a) => a.estado === "pendiente" && a.consultaId !== inicial.id);
   // Avisos que el médico decidió ignorar en esta consulta (no bloquean nada)
   const [ignorados, setIgnorados] = useState<string[]>([]);
   // Última plantilla aplicada, con la consulta como estaba antes para poder deshacer
@@ -713,9 +722,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               )}
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setNuevaAlerta(true)}><BellRing /> Alerta para la próxima evaluación</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <NuevaAlerta abierta={nuevaAlerta} onCerrar={() => setNuevaAlerta(false)} consultaId={d.id} paraclinicos={listas.paraclinico ?? []} hoy={hoy}
+          onCreada={cambiarAlerta} />
         <RegistrarAccidente
           abierto={accidente}
           onAbierto={setAccidente}
@@ -798,9 +810,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}
-        {/* Falta resultado: solo avisa, no impide cerrar ni firmar */}
+        {/* Lo que se dejó para revisar hoy: ámbar y siempre primero */}
+        <FranjaAlertas alertas={alertas} consultaId={d.id} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
+          conResultado={new Set(d.paraclinicos.filter((p) => p.resultado?.trim() || p.estado).map((p) => p.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()))} />
+        <AlertasDejadas alertas={alertas} consultaId={d.id} />
+        {/* Falta resultado: solo avisa, no impide cerrar ni firmar (nunca dos franjas ámbar juntas) */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-aviso/15 px-3 py-2 text-sm">
+          <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm", alertaAmbar ? "bg-muted" : "bg-aviso/15")}>
             <FlaskConical className="size-4 shrink-0 text-aviso-texto" />
             <span className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>

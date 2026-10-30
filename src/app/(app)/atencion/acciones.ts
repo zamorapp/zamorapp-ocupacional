@@ -6,6 +6,7 @@ import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { DatosConsulta } from "@/lib/consultas-tipos";
+import type { ParaclinicoPedido } from "@/lib/alertas-tipos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -22,6 +23,37 @@ export async function buscarDiagnosticos(texto: string): Promise<DiagnosticoEnco
   const supabase = await crearClienteServidor();
   const { data } = await supabase.rpc("buscar_diagnosticos", { p_texto: texto, p_limite: 15 });
   return (data ?? []) as DiagnosticoEncontrado[];
+}
+
+// «Alerta para la próxima evaluación»: la deja cualquiera del personal clínico; la base pone autor, hora y empresa
+export async function crearAlerta(consultaId: string, texto: string, paraclinicos: ParaclinicoPedido[], revisarAntes: string | null): Promise<Resultado & { id?: string }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para dejar alertas." };
+  const limpio = texto.trim().slice(0, 500);
+  const pedidos = paraclinicos.filter((p) => p?.nombre?.trim()).slice(0, 30).map((p) => ({ id: String(p.id), nombre: p.nombre.trim().slice(0, 200) }));
+  if (!limpio && !pedidos.length) return { ok: false, mensaje: "Escribe qué revisar o elige un paraclínico." };
+  if (revisarAntes && !/^\d{4}-\d{2}-\d{2}$/.test(revisarAntes)) return { ok: false, mensaje: "Fecha no válida." };
+  const supabase = await crearClienteServidor();
+  const { data: c } = await supabase.from("consultas").select("org_id, trabajador_id").eq("id", consultaId).maybeSingle();
+  if (!c) return { ok: false, mensaje: "Consulta no encontrada." };
+  const { data, error } = await supabase.from("alertas_clinicas")
+    .insert({ org_id: c.org_id, trabajador_id: c.trabajador_id, consulta_id: consultaId, texto: limpio, paraclinicos: pedidos, revisar_antes: revisarAntes || null })
+    .select("id").single();
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el personal de salud deja alertas." : "No se pudo guardar la alerta." };
+  return { ok: true, mensaje: "Alerta guardada para la próxima evaluación.", id: data.id };
+}
+
+// «Revisado» (con lo que se hizo) o «Descartar»: solo médico, gerente médico o administrador (lo exige la base)
+export async function revisarAlerta(alertaId: string, consultaId: string, respuesta: string, descartar = false): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("alertas_clinicas")
+    .update({ estado: descartar ? "descartada" : "revisada", respuesta: respuesta.trim().slice(0, 500) || null, revisada_en_consulta: consultaId })
+    .eq("id", alertaId).select("estado").maybeSingle();
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "La alerta la marca revisada el médico." : "No se pudo guardar." };
+  if (!data) return { ok: false, mensaje: "Alerta no encontrada." };
+  return { ok: true, mensaje: descartar ? "Alerta descartada." : "Alerta revisada." };
 }
 
 export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string };
