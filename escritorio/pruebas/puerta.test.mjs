@@ -1039,6 +1039,49 @@ test("Windows Hello y dos pasos: con internet y la nube en aal1 se pide el códi
   }
 });
 
+// 29-oct (0.1.218, código 4245370133): la ventana tenía una sesión local aal2, una entrada con clave dejó la sesión
+// de la nube en aal1 y cada pedido volvía con 403 «dos_pasos»: «No se pudo cargar esta pantalla» sin pedir el código.
+// Ahora, con internet, una sesión aal2 con la nube en aal1 no vale: la app vuelve a entrar y pide el código.
+test("dos pasos: una sesión local aal2 con la nube en aal1 no deja la pantalla caída; se vuelve a pedir el código", { skip: omitir }, async () => {
+  const aal = (t) => JSON.parse(Buffer.from(t.split(".")[1], "base64url")).aal;
+  const admin = () => estado.d.usuarios["00000000-0000-0000-0000-0000000000a1"];
+  nube.estado.conAal = true;
+  nube.usuarios["admin@x"].factor = "f-admin";
+  let nubeAal2;
+  try {
+    admin().segundoPasoEn = 0;
+    const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } });
+    const nubeAal1 = admin().nube.access_token;
+    const ok = await pedir("/auth/v1/factors/f-admin/verify", { metodo: "POST", token: r.json.access_token, cuerpo: { challenge_id: "reto-1", code: "123456" } });
+    const t2 = ok.json.access_token;
+    assert.equal(aal(t2), "aal2");
+    assert.equal((await pedir("/auth/v1/user", { token: t2 })).status, 200, "coherente: la sesión sirve");
+    nubeAal2 = admin().nube.access_token;
+    admin().nube.access_token = nubeAal1; // la nube quedó en aal1 (otra entrada con clave, fuera del plazo)
+
+    const u = await pedir("/auth/v1/user", { token: t2 });
+    assert.equal(u.status, 401, "la app ve la sesión vencida y manda a entrar (no a una pantalla caída)");
+    const datos = await pedir("/rest/v1/empresas?select=id", { token: t2 });
+    assert.equal(datos.status, 401);
+    assert.notEqual(datos.json.code, "dos_pasos");
+    const nueva = await pedir("/auth/v1/token?grant_type=refresh_token", { metodo: "POST", cuerpo: { refresh_token: ok.json.refresh_token } });
+    assert.equal(nueva.status, 200);
+    assert.equal(aal(nueva.json.access_token), "aal1", "al renovar baja a aal1: la app pide el código");
+
+    // Sin internet la sesión aal2 sigue valiendo (no se puede verificar en la nube)
+    nube.estado.caida = true;
+    await nubeObj.comprobar();
+    assert.equal((await pedir("/auth/v1/user", { token: t2 })).status, 200);
+  } finally {
+    if (nubeAal2) admin().nube.access_token = nubeAal2;
+    nube.estado.caida = false;
+    await nubeObj.comprobar();
+    admin().segundoPasoEn = 0;
+    nube.estado.conAal = false;
+    delete nube.usuarios["admin@x"].factor;
+  }
+});
+
 // 29-oct: Cesar desconectó internet a propósito y el escritorio le pidió el código del teléfono, que sin internet no
 // se puede verificar. Ahora: sin internet vale el plazo de confianza de esta PC (desde el último código escrito
 // aquí); fuera del plazo, Windows Hello. Con internet, dentro del plazo, la clave basta (no pide el código cada vez).
