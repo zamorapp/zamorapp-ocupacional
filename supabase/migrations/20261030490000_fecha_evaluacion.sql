@@ -5,7 +5,8 @@
 --    hora_cierre y firmada_en solo los escriben guardar_consulta, firmar_consulta y reabrir_consulta.
 -- 2) Cada cambio de fecha queda en la bitácora (FECHA_EVALUACION: antes, después, quién y hora del servidor).
 --    Solo en la nube: la bitácora no sube desde la PC, y la fila de la PC dispara esto al llegar.
--- 3) guardar_consulta acepta p_consulta.fecha y cuenta la vigencia por defecto de la aptitud desde esa fecha.
+-- 3) guardar_consulta acepta p_consulta.fecha (médico, gerente médico o administrador; enfermería no) y cuenta la
+--    vigencia por defecto de la aptitud desde esa fecha (RLOPCYMAT art. 27: la periodicidad cuenta desde el examen).
 -- Base: guardar_consulta de 20261030320000_consulta_bandeja.sql.
 
 create or replace function public.guardar_consulta(p_id uuid, p_consulta jsonb, p_diagnosticos jsonb, p_aptitud jsonb, p_reposo jsonb, p_cerrar boolean)
@@ -26,8 +27,14 @@ begin
 
   -- Fecha de la evaluación: la elige el médico (pasado o futuro). Las horas reales de registro y firma no se tocan.
   v_fecha := coalesce(nullif(p_consulta ->> 'fecha', '')::date, c.fecha);
-  if v_fecha < date '2000-01-01' or v_fecha > v_hoy + 366 then
-    raise exception 'La fecha de la evaluación % no es válida (entre el 01/01/2000 y un año desde hoy).', to_char(v_fecha, 'DD/MM/YYYY');
+  -- Sin tope que bloquee hacia el futuro (los avisos nunca bloquean: la pantalla avisa pasados N días, Configuración);
+  -- solo se descarta lo imposible
+  if v_fecha < date '2000-01-01' or v_fecha > date '2099-12-31' then
+    raise exception 'La fecha de la evaluación % no es válida.', to_char(v_fecha, 'DD/MM/YYYY');
+  end if;
+  -- La cambian el médico, el gerente médico y el administrador; enfermería guarda signos pero no cambia la fecha
+  if v_fecha is distinct from c.fecha and public.mi_rol(c.org_id)::text not in ('medico', 'gerente_medico', 'administrador') then
+    raise exception 'Solo el médico, el gerente médico o el administrador cambian la fecha de la evaluación.';
   end if;
 
   -- Diagnósticos: se comparan con lo guardado. Los iguales se quedan (misma fila, misma versión);

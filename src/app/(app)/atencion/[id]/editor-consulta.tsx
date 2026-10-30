@@ -28,7 +28,7 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
+import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
@@ -82,6 +82,8 @@ type Props = {
   siguiente?: SiguienteCita | null;
   hoy: string; // día de hoy en Caracas según el servidor (no el de Windows)
   registrada: string; // día real en que se registró la consulta
+  puedeCambiarFecha: boolean; // médico, gerente médico o administrador (como guardar_consulta)
+  diasAvisoFecha?: number;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -193,7 +195,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -243,7 +245,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
   // Cambiar la fecha de la evaluación corre con ella la vigencia de la aptitud y los valores por defecto del reposo
   // y la reubicación que aún no se usan (todo cuenta desde la evaluación)
-  const cambiarFecha = (fecha: string) => setD((x) => {
+  const [avisoVigilancia, setAvisoVigilancia] = useState<string | null>(null);
+  const cambiarFecha = (fecha: string) => {
+    moverFecha(fecha);
+    setAvisoVigilancia(null);
+    avisoVigilanciaEntregada(trabajador.empresaId, inicial.fecha, fecha).then(setAvisoVigilancia, () => setAvisoVigilancia(null));
+  };
+  const moverFecha = (fecha: string) => setD((x) => {
     const n = diasEntre(x.fecha, fecha);
     return { ...x, fecha,
       aptitud: x.aptitud.vigenteHasta ? { ...x.aptitud, vigenteHasta: sumarDias(x.aptitud.vigenteHasta, n) } : x.aptitud,
@@ -620,7 +628,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </div>
           <div className="w-full text-xs text-muted-foreground sm:w-auto sm:text-right">
             <FechaEvaluacion antes={`${ETIQUETA_ESTADO_CONSULTA[d.estado]} ·`} fecha={d.fecha} hoy={hoy} registrada={registrada} onCambiar={cambiarFecha}
-              modo={d.estado === "firmada" ? "firmada" : bloqueado ? "cerrada" : "editable"} />
+              diasAviso={diasAvisoFecha} avisoVigilancia={avisoVigilancia}
+              modo={d.estado === "firmada" ? "firmada" : bloqueado ? "cerrada" : puedeCambiarFecha ? "editable" : "sin-permiso"} />
             {medico && <div>{medico}</div>}
           </div>
           {d.estado === "firmada" ? (

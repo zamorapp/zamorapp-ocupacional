@@ -19,14 +19,23 @@ select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', '{"tipo":
 select 'guardar sin fecha la conserva (debe 1): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and fecha = public.hoy_caracas() + 10;
 do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', '{"fecha":"20260-01-01","tipo":"primera"}', '[]', null, null, false);
  raise notice 'fecha absurda aceptada: FALLA'; exception when others then raise notice 'fecha absurda rechazada (ok)'; end $$;
-do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera"}', public.hoy_caracas() + 400)::jsonb, '[]', null, null, false);
- raise notice 'fecha a más de un año aceptada: FALLA'; exception when others then raise notice 'fecha a más de un año rechazada (ok)'; end $$;
+-- Sin tope que bloquee al futuro (la pantalla avisa pasados N días)
+select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera"}', public.hoy_caracas() + 400)::jsonb, '[]', null, null, false) \g /dev/null
+select 'fecha a más de un año se acepta (debe 1): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and fecha = public.hoy_caracas() + 400;
+select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera"}', public.hoy_caracas() + 10)::jsonb, '[]', null, null, false) \g /dev/null
+-- Enfermería guarda la consulta pero no cambia la fecha
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', '{"fecha":"2026-01-02","tipo":"primera"}', '[]', null, null, false);
+ raise notice 'enfermería cambia la fecha: FALLA'; exception when others then raise notice 'enfermería no cambia la fecha (ok)'; end $$;
+select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera","signos_vitales":{"ta":"120/80"}}', public.hoy_caracas() + 10)::jsonb, '[]', null, null, false) \g /dev/null
+select 'enfermería guarda sin cambiar la fecha (debe 1): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and signos_vitales ->> 'ta' = '120/80';
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
 -- Las horas reales de registro no las cambia el usuario
 update clinico.consultas set creado_en = '2020-01-01 10:00+00', hora_inicio = '2020-01-01 10:00+00' where id = '15300000-0000-0000-0000-0000000000c1';
 select 'el usuario no cambia la hora real de registro (debe 1): ' || count(*) from clinico.consultas
  where id = '15300000-0000-0000-0000-0000000000c1' and creado_en = timestamptz '2026-10-30 14:00+00' and hora_inicio = timestamptz '2026-10-30 14:00+00';
 reset role;
-select 'cada cambio de fecha queda en la bitácora con quién y la fecha anterior (debe 2): ' || count(*) from public.bitacora
+select 'cada cambio de fecha queda en la bitácora con quién y la fecha anterior (debe 4): ' || count(*) from public.bitacora
  where registro_id = '15300000-0000-0000-0000-0000000000c1' and accion = 'FECHA_EVALUACION' and usuario_id = '00000000-0000-0000-0000-0000000000a4'
    and antes ? 'fecha' and despues ? 'registrada_en';
 select 'la bitácora guarda la fecha anterior y la nueva (debe 1): ' || count(*) from public.bitacora

@@ -2,24 +2,27 @@
 
 import { useRef, useState } from "react";
 import { AlertTriangle, CalendarDays, Lock, Pencil } from "lucide-react";
-import { sumarDias } from "@/lib/fecha";
 
 const corta = (iso: string) => iso.split("-").reverse().join("/");
 
 // Fecha de la evaluación: la que sale en los impresos. Se puede poner en el pasado o en el futuro (pedido de Cesar);
 // la hora real de registro y firma queda aparte en la base y en Auditoría. «hoy» llega del servidor (o de la hora
 // anclada en el escritorio), nunca de new Date(): Cesar cambia la fecha de Windows para abrir el SAME.
-export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar }: {
+export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar, diasAviso = 90, avisoVigilancia = null }: {
   antes: string; // el estado de la consulta, en la misma línea
   fecha: string;
   hoy: string;
   registrada: string;
-  modo: "editable" | "cerrada" | "firmada";
+  modo: "editable" | "cerrada" | "firmada" | "sin-permiso";
   onCambiar: (fecha: string) => void;
+  diasAviso?: number; // Configuración › Organización: más allá de estos días hacia adelante, el aviso lo dice
+  avisoVigilancia?: string | null; // el trimestre ya entregado a la empresa (avisoVigilanciaEntregada)
 }) {
   const selector = useRef<HTMLInputElement>(null);
   const [ignorada, setIgnorada] = useState<string | null>(null);
+  const [vigilanciaIgnorada, setVigilanciaIgnorada] = useState<string | null>(null);
   const futura = fecha > hoy;
+  const lejana = futura && diasEntre(hoy, fecha) > diasAviso;
 
   if (modo !== "editable") {
     return (
@@ -30,6 +33,7 @@ export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar
           <span className="sr-only">Fecha de la evaluación:</span> {corta(fecha)}
         </span>
         {modo === "firmada" && <span>· Se cambia con Corregir</span>}
+        {modo === "sin-permiso" && <span>· La cambia el médico</span>}
       </div>
     );
   }
@@ -49,7 +53,7 @@ export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar
           <CalendarDays className="size-3.5" aria-hidden /> {corta(fecha)} <Pencil className="size-3 opacity-60" aria-hidden />
         </button>
         <input ref={selector} type="date" tabIndex={-1} aria-hidden className="sr-only" value={fecha}
-          min="2000-01-01" max={sumarDias(hoy, 366)} onChange={(e) => e.target.value && onCambiar(e.target.value)} />
+          min="2000-01-01" max="2099-12-31" onChange={(e) => e.target.value && onCambiar(e.target.value)} />
         {fecha !== hoy && (
           <button type="button" onClick={() => onCambiar(hoy)} className="text-xs text-primary underline-offset-2 hover:underline">Volver a hoy</button>
         )}
@@ -57,8 +61,15 @@ export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar
       {futura && ignorada !== fecha && (
         <span role="status" className="inline-flex items-center gap-2 rounded-md bg-aviso/10 px-2 py-1 text-xs text-aviso-texto">
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
-          <span>Fecha futura: los impresos saldrán con el {corta(fecha)}.</span>
+          <span>{lejana ? `Fecha a más de ${diasAviso} días: ` : "Fecha futura: "}los impresos saldrán con el {corta(fecha)}.</span>
           <button type="button" onClick={() => setIgnorada(fecha)} className="font-medium underline-offset-2 hover:underline">Ignorar</button>
+        </span>
+      )}
+      {avisoVigilancia && vigilanciaIgnorada !== avisoVigilancia && (
+        <span role="status" className="inline-flex max-w-md items-start gap-2 rounded-md bg-aviso/10 px-2 py-1 text-left text-xs text-aviso-texto">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{avisoVigilancia}</span>
+          <button type="button" onClick={() => setVigilanciaIgnorada(avisoVigilancia)} className="font-medium underline-offset-2 hover:underline">Ignorar</button>
         </span>
       )}
       {!futura && fecha !== registrada && <span className="text-xs text-muted-foreground">Registrada el {corta(registrada)}</span>}

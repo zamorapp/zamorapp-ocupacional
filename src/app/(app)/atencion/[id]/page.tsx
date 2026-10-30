@@ -59,7 +59,8 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
+        puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90} />
     </div>
   );
 }
