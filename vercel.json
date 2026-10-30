@@ -9,6 +9,5 @@
       "*": false,
       "**": false
     }
-  },
-  "ignoreCommand": "bash scripts/vercel-ignorar.sh"
+  }
 }
