@@ -31,7 +31,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   en_consulta: { texto: "En consulta", clase: "bg-primary text-primary-foreground" },
   atendido: { texto: "Atendido", clase: "bg-ok/15 text-ok-texto" },
   no_asistio: { texto: "No asistió", clase: "bg-alerta/15 text-alerta-texto" },
-  cancelada: { texto: "Cancelada", clase: "bg-muted text-muted-foreground" },
+  cancelada: { texto: "Cancelada", clase: "bg-alerta/15 text-alerta-texto" },
 };
 
 export default async function Portal() {
