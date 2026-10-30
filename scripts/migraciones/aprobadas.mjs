@@ -42,6 +42,21 @@ export function pendientes(manifiesto, versionesAplicadas) {
   return manifiesto.migraciones.filter((x) => !ya.has(x.archivo.slice(0, 14)));
 }
 
+// Una pendiente más vieja que la última aplicada quiere decir que la base y el repo se desfasaron: no se adivina
+export function revisarOrden(lista, versionesAplicadas) {
+  const mayor = [...versionesAplicadas].sort().at(-1);
+  const viejas = mayor ? lista.filter((x) => x.archivo.slice(0, 14) < mayor) : [];
+  if (viejas.length) throw new Error(`${viejas.map((x) => x.archivo).join(", ")} es anterior a la última aplicada (${mayor}): la base y el repo no van en orden; avisa antes de seguir (no se aplicó nada)`);
+}
+
+// Del listado de git/matching-refs/tags/migraciones-: nombre y objeto (commit, o etiqueta anotada que hay que resolver)
+export function refsDeEtiquetas(refs) {
+  return refs.map((r) => ({ nombre: r.ref.replace(/^refs\/tags\//, ""), tipo: r.object.type, sha: r.object.sha })).filter((r) => ETIQUETA.test(r.nombre));
+}
+
+// compare/<commit>...main: «ahead» (main lo contiene y tiene más) o «identical» quieren decir que está en main
+export const estaEnMain = (comparacion) => ["ahead", "identical"].includes(comparacion?.status);
+
 export function verificar(migracion, contenido) {
   const s = sha256(contenido);
   if (s !== migracion.sha256) throw new Error(`${migracion.archivo}: el archivo bajado no coincide con el aprobado (SHA-256 ${s.slice(0, 12)}… ≠ ${migracion.sha256.slice(0, 12)}…)`);

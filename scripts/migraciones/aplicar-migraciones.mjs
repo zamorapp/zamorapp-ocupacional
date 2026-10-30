@@ -6,7 +6,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { MANIFIESTO, leerManifiesto, pendientes, resumen, respuestaSi, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
+import { MANIFIESTO, estaEnMain, leerManifiesto, pendientes, refsDeEtiquetas, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
 
 const REPO_GITHUB = "zamorapp/zamorapp-ocupacional";
 const repo = process.cwd();
@@ -20,11 +20,21 @@ async function bajar(url, tipo = "text") {
   return tipo === "json" ? r.json() : r.text();
 }
 
-// La etiqueta se resuelve a su commit y todo se baja de ese commit: no cambia entre un archivo y otro
-const etiquetas = await bajar(`https://api.github.com/repos/${REPO_GITHUB}/tags?per_page=100`, "json");
-const etiqueta = ultimaEtiqueta(etiquetas.map((t) => t.name));
+// Cualquier error antes de conectar (red, etiqueta, manifiesto) sale con un mensaje claro: no se cambió nada
+const fallar = (e) => { console.error(`${hora()} ERROR (no se cambió nada): ${e.message}`); process.exit(1); };
+process.on("uncaughtException", fallar);
+process.on("unhandledRejection", fallar);
+
+// La etiqueta se resuelve a su commit y todo se baja de ese commit: no cambia entre un archivo y otro.
+// Ese commit tiene que estar en main (revisado y unido): una etiqueta sobre una rama suelta no vale.
+const API = `https://api.github.com/repos/${REPO_GITHUB}`;
+const refs = refsDeEtiquetas(await bajar(`${API}/git/matching-refs/tags/migraciones-`, "json"));
+const etiqueta = ultimaEtiqueta(refs.map((r) => r.nombre));
 if (!etiqueta) throw new Error("no hay ninguna etiqueta de migraciones aprobadas en el repo");
-const commit = etiquetas.find((t) => t.name === etiqueta).commit.sha;
+const ref = refs.find((r) => r.nombre === etiqueta);
+const commit = ref.tipo === "tag" ? (await bajar(`${API}/git/tags/${ref.sha}`, "json")).object.sha : ref.sha;
+if (!/^[0-9a-f]{40}$/.test(commit ?? "")) throw new Error(`la etiqueta ${etiqueta} no apunta a un commit`);
+if (!estaEnMain(await bajar(`${API}/compare/${commit}...main`, "json"))) throw new Error(`la etiqueta ${etiqueta} (${commit.slice(0, 7)}) no está en main: no se aplica nada que no esté revisado y unido`);
 const crudo = (ruta) => `https://raw.githubusercontent.com/${REPO_GITHUB}/${commit}/${ruta}`;
 const manifiesto = leerManifiesto(await bajar(crudo(MANIFIESTO)), etiqueta);
 console.log(`${hora()} fuente aprobada: ${etiqueta} (${commit.slice(0, 7)}), ${manifiesto.migraciones.length} migraciones en el manifiesto`);
@@ -36,6 +46,7 @@ try {
   if (!t.hay) throw new Error("la base no tiene supabase_migrations.schema_migrations: no se puede saber qué falta (no se aplicó nada)");
   const { rows: ya } = await c.query("select version from supabase_migrations.schema_migrations");
   const lista = pendientes(manifiesto, ya.map((r) => r.version));
+  revisarOrden(lista, ya.map((r) => r.version));
   console.log(`\n${resumen(lista)}\n`);
   if (lista.length === 0) { console.log(`${hora()} OK (nada que hacer)`); process.exit(0); }
 

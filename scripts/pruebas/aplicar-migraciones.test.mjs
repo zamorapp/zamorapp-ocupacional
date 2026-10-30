@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
+import { estaEnMain, refsDeEtiquetas, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
 
 const sql = "select 1;";
 const m = (extra = {}) => JSON.stringify({ etiqueta: "migraciones-20261030-1", aprobado: "Cesar", migraciones: [
@@ -44,4 +44,22 @@ test("el manifiesto del repo coincide con sus archivos", () => {
   const texto = fs.readFileSync(MANIFIESTO, "utf8");
   const x = leerManifiesto(texto, JSON.parse(texto).etiqueta);
   for (const y of x.migraciones) verificar(y, fs.readFileSync(`supabase/migrations/${y.archivo}`, "utf8"));
+});
+
+test("solo etiquetas migraciones-* (también anotadas) y solo si el commit está en main", () => {
+  const r = refsDeEtiquetas([
+    { ref: "refs/tags/migraciones-20261030-1", object: { type: "commit", sha: "a" } },
+    { ref: "refs/tags/migraciones-20261030-2", object: { type: "tag", sha: "b" } },
+    { ref: "refs/tags/migraciones-x", object: { type: "commit", sha: "c" } },
+  ]);
+  assert.deepEqual(r, [{ nombre: "migraciones-20261030-1", tipo: "commit", sha: "a" }, { nombre: "migraciones-20261030-2", tipo: "tag", sha: "b" }]);
+  assert.ok(estaEnMain({ status: "ahead" }) && estaEnMain({ status: "identical" }));
+  for (const st of ["behind", "diverged", undefined]) assert.ok(!estaEnMain({ status: st }), String(st));
+});
+
+test("una pendiente anterior a la última aplicada aborta", () => {
+  const l = [{ archivo: "20261030405000_x.sql" }];
+  assert.throws(() => revisarOrden(l, ["20261030410000", "20261030400000"]), /anterior a la última aplicada \(20261030410000\)/);
+  revisarOrden([{ archivo: "20261030420000_x.sql" }], ["20261030410000"]);
+  revisarOrden(l, []);
 });
