@@ -18,7 +18,7 @@ static VENTANAS: AtomicU32 = AtomicU32::new(1);
 #[derive(Default)]
 pub struct Guardados(Mutex<Vec<PathBuf>>);
 
-fn es_de_la_app(url: &Url) -> bool {
+pub(crate) fn es_de_la_app(url: &Url) -> bool {
     url.scheme() == "http"
         && matches!(url.host_str(), Some("127.0.0.1") | Some("localhost"))
         && matches!(url.port(), Some(p) if p == PUERTO_APP || p == PUERTO_PUERTA)
@@ -56,7 +56,8 @@ pub fn ventana_nueva<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWind
         }
         return NewWindowResponse::Deny;
     }
-    if matches!(url.scheme(), "https" | "http" | "mailto" | "tel" | "whatsapp") {
+    // Única página de Configuración de Windows que la app puede abrir: Privacidad › Micrófono (ayuda del dictado)
+    if matches!(url.scheme(), "https" | "http" | "mailto" | "tel" | "whatsapp") || url.as_str() == "ms-settings:privacy-microphone" {
         anotar(&format!("enlace externo al navegador de Windows: {}", url.scheme()));
         abrir_con_windows(url.as_str());
     } else {

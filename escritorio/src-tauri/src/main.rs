@@ -16,6 +16,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
 mod hello;
+mod microfono;
 mod procesos;
 
 #[cfg(windows)]
@@ -777,6 +778,8 @@ fn main() {
                 .title(format!("zamorApp Escritorio v{version}"))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
                 .on_download(move |_, evento| descarga(&para_descargas, evento))
+                // Micrófono del dictado: concedido solo a las páginas de la app (ver microfono.rs)
+                .on_permission_request(|webview, tipo| microfono::responder(&webview, tipo))
                 // "Entrar con Windows Hello": la página pide la huella navegando a una dirección de la puerta que se
                 // intercepta aquí (la página no cambia). Ver hello.rs.
                 .on_navigation({
@@ -794,7 +797,8 @@ fn main() {
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
-            constructor.build()?;
+            let principal = constructor.build()?;
+            microfono::quitar_rechazo_guardado(&principal);
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
