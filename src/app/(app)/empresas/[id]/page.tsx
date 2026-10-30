@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, Building2, Printer, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, Link2, Printer, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,11 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
+        {esAdmin && (
+          <Button variant="outline" asChild>
+            <Link href={`/configuracion/usuarios?empresa=${id}#invitar`}><Link2 /> Invitar a RR. HH.</Link>
+          </Button>
+        )}
         {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
       </div>
 

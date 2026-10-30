@@ -37,6 +37,7 @@ import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-rie
 import { cn } from "@/lib/utils";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { alertasDeTrabajador } from "@/lib/alertas";
+import { AlertasPaciente } from "./alertas-paciente";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -152,18 +153,7 @@ export default async function FichaPaciente({ params }: Props) {
       )}
 
       {alertas.length > 0 && (
-        <section aria-label="Alertas para la próxima evaluación" className="space-y-1.5 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
-          {alertas.map((a) => (
-            <p key={a.id} className="flex items-start gap-2">
-              <BellRing className="mt-0.5 size-4 shrink-0 text-aviso-texto" aria-hidden />
-              <span className="min-w-0">
-                <span className="font-medium text-aviso-texto">Para la próxima evaluación · nota del {fecha(a.creadaEl)}{a.autor && ` · ${a.autor}`}:</span>{" "}
-                {[a.texto, a.paraclinicos.length ? `pedir ${a.paraclinicos.map((x) => x.nombre).join(", ")}` : ""].filter(Boolean).join(" · ")}
-                {a.revisarAntes && <span className="text-muted-foreground"> · antes del {fecha(a.revisarAntes)}</span>}
-              </span>
-            </p>
-          ))}
-        </section>
+        <AlertasPaciente alertas={alertas} puedeDescartar={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
       )}
 
       <Tabs defaultValue="resumen">

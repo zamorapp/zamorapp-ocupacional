@@ -298,7 +298,9 @@ export class Bandeja {
         // que el disparador local sube en cada guardado
         const { rows: [n] } = await c.query("select version from local.version_nube where tabla = $1 and fila_id = $2", [f.tabla, f.fila_id]);
         const { rows: [v] } = n ? { rows: [n] } : await c.query(`select version from ${TABLA.test(f.tabla) ? f.tabla : "local.bandeja"} where id = $1`, [f.fila_id]).catch(() => ({ rows: [] }));
-        await c.query("update local.bandeja set estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
+        // Con un id nuevo: la nube ya anotó este id (en sync.aplicados, con su conflicto) y un reenvío con el mismo
+        // volvería como «duplicado»; la bandeja lo tomaría por subido y lo borraría (hilo del celular, 30-oct-2026)
+        await c.query("update local.bandeja set id = gen_random_uuid(), estado = 'pendiente', motivo = null, intentos = 0, version_base = coalesce($2, version_base) where id = $1", [id, v?.version ?? null]);
         return { hecho: "pendiente" };
       }
       return { error: "Acción desconocida" };
