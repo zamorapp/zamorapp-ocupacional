@@ -10,23 +10,16 @@ import { EntradaCargo } from "@/components/app/entrada-cargo";
 import { claveCargo } from "@/lib/cargos";
 import { antiguedad } from "@/lib/fecha";
 import { LATERALIDADES, normalizarLateralidad } from "@/lib/lateralidad";
+import { escribirBorradorFicha, leerBorradorFicha } from "@/lib/borrador-ficha";
+import { confirmar } from "@/components/app/confirmar";
 import { cn } from "@/lib/utils";
-import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha } from "../../pacientes/acciones";
+import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha, type ResultadoFicha } from "../../pacientes/acciones";
 
-type Resultado = { ok: boolean; mensaje: string };
+type Resultado = ResultadoFicha;
 // guardarPendiente: la consulta lo llama al guardar, cerrar, firmar o imprimir para que la ficha no quede sin guardar
 type Props = { trabajadorId: string; consultaId: string; bloqueado: boolean; guardarPendiente?: React.RefObject<(() => Promise<Resultado | null>) | null>; onPendiente?: (hay: boolean) => void };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
-// Lo escrito y no guardado se conserva en esta ventana (sessionStorage): si el guardado falla y la pantalla se recarga
-// o se cambia de consulta, vuelve a aparecer marcado «sin guardar». Se borra al guardar bien o al cerrar la ventana.
-const claveBorrador = (id: string) => `zamorapp:ficha-sin-guardar:${id}`;
-const leerBorrador = (id: string): Record<string, string> | null => {
-  try { const x = sessionStorage.getItem(claveBorrador(id)); return x ? (JSON.parse(x) as Record<string, string>) : null; } catch { return null; }
-};
-const escribirBorrador = (id: string, f: Record<string, string> | null) => {
-  try { if (f) sessionStorage.setItem(claveBorrador(id), JSON.stringify(f)); else sessionStorage.removeItem(claveBorrador(id)); } catch { /* sin almacenamiento: queda solo en pantalla */ }
-};
 const fechaCorta = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
 // La edad, solo en años («41 años»)
 const anios = (nacimiento: string, hoy: string) => {
@@ -69,7 +62,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const [cargando, setCargando] = useState(true);
   const [f, setF] = useState<Record<string, string>>({});
   const [abierto, setAbierto] = useState(false);
-  const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  const [resultado, setResultado] = useState<Resultado | null>(null);
   const [cambiado, setCambiado] = useState(false);
   const [guardando, iniciar] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -83,9 +76,9 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
         setOp(r);
         // Lo que se escribió y no llegó a guardarse vuelve a la pantalla (nunca se pierde en silencio)
         const ficha: Record<string, string> = r?.ficha ?? {};
-        const borrador = r && !bloqueado ? leerBorrador(trabajadorId) : null;
+        const borrador = r && !bloqueado ? leerBorradorFicha(r.uid, trabajadorId) : null;
         const pendiente = Boolean(borrador) && Object.keys(borrador!).some((k) => (borrador![k] ?? "") !== (ficha[k] ?? ""));
-        if (borrador && !pendiente) escribirBorrador(trabajadorId, null);
+        if (r && borrador && !pendiente) escribirBorradorFicha(r.uid, trabajadorId, null);
         setF(pendiente ? { ...ficha, ...borrador } : ficha);
         if (pendiente) { setCambiado(true); setRecuperado(true); }
         // Se abre solo si falta algún dato clave o si hay cambios sin guardar
@@ -101,10 +94,14 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
     if (!r.ok) {
       // El rechazo se ve: el recuadro se abre y el aviso rojo queda a la vista (30-oct: un rechazo pasó en silencio)
       setAbierto(true);
-      requestAnimationFrame(() => detallesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      requestAnimationFrame(() => {
+        const campo = r.campo ? formRef.current?.querySelector<HTMLElement>(`[name="${r.campo}"]`) : null;
+        if (campo) { campo.scrollIntoView({ behavior: "smooth", block: "center" }); campo.focus({ preventScroll: true }); }
+        else detallesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
     if (r.ok) {
-      escribirBorrador(trabajadorId, null);
+      if (op) escribirBorradorFicha(op.uid, trabajadorId, null);
       setRecuperado(false);
       setCambiado(false);
       const nueva = await fichaDeTrabajador(trabajadorId);
@@ -112,7 +109,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
       router.refresh(); // el encabezado (edad, cargo) y los riesgos del puesto toman lo nuevo
     }
     return r;
-  }, [trabajadorId, consultaId, router]);
+  }, [trabajadorId, consultaId, router, op]);
 
   // Guardar la consulta también guarda la ficha si quedó con cambios (antes había que tocar su propio botón)
   useEffect(() => onPendiente?.(cambiado && !bloqueado), [onPendiente, cambiado, bloqueado]);
@@ -124,7 +121,17 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
     return () => { guardarPendiente.current = null; };
   }, [guardarPendiente, cambiado, bloqueado, guardarFicha]);
 
-  useEffect(() => { if (cambiado && !bloqueado) escribirBorrador(trabajadorId, f); }, [cambiado, bloqueado, f, trabajadorId]);
+  useEffect(() => { if (op && cambiado && !bloqueado) escribirBorradorFicha(op.uid, trabajadorId, f); }, [op, cambiado, bloqueado, f, trabajadorId]);
+
+  // Salida del aviso «Recuperamos…»: vuelve a lo guardado
+  const descartar = async () => {
+    if (!op || !(await confirmar({ titulo: "¿Descartar los cambios de la ficha?", texto: "Se borra lo que escribiste y no se guardó, y vuelve la ficha guardada.", accion: "Descartar", peligro: true }))) return;
+    escribirBorradorFicha(op.uid, trabajadorId, null);
+    setF(op.ficha);
+    setCambiado(false);
+    setRecuperado(false);
+    setResultado(null);
+  };
 
   // Cerrar o recargar con cambios sin guardar pregunta antes (el navegador muestra su aviso)
   useEffect(() => {
@@ -141,9 +148,12 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const v = (k: string) => f[k] ?? "";
   const faltan = (Object.keys(CLAVE) as (keyof typeof CLAVE)[]).filter((k) => !v(k));
   const falta = (k: string) => !bloqueado && faltan.includes(k as keyof typeof CLAVE);
-  const borde = (k: string) => cn("h-10", falta(k) && colorFalta(k));
-  // Lector de pantalla: el campo que falta dice por qué (no solo el color)
-  const marca = (k: string) => (falta(k) ? { "aria-invalid": true, "aria-describedby": "dt-faltan" } : {});
+  // Campo que la base rechazó: rojo, como «falta», hasta que se cambie (poner() limpia el resultado)
+  const malo = (k: string) => resultado?.ok === false && resultado.campo === k;
+  const rojo = (k: string, base: string) => cn(base, malo(k) ? colorFalta("cargo") : falta(k) && colorFalta(k));
+  const borde = (k: string) => rojo(k, "h-10");
+  // Lector de pantalla: el campo que falta o que se rechazó dice por qué (no solo el color)
+  const marca = (k: string) => (malo(k) ? { "aria-invalid": true, "aria-describedby": "dt-error" } : falta(k) ? { "aria-invalid": true, "aria-describedby": "dt-faltan" } : {});
   const poner = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setF((x) => ({ ...x, [k]: e.target.value }));
     setCambiado(true);
@@ -184,14 +194,19 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
 
       <form ref={formRef} action={guardar} className="mt-4 space-y-5">
         {resultado && !resultado.ok && (
-          <div role="alert" className="flex items-start gap-2 rounded-md border border-alerta/50 bg-alerta/10 px-3 py-2 text-sm font-medium text-alerta-texto">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /> <span className="min-w-0">{resultado.mensaje}</span>
+          <div id="dt-error" role="alert" className="flex items-start gap-2 rounded-md border border-alerta/50 bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span className="min-w-0">
+              <b className="block">No se guardó la ficha.</b>
+              {resultado.mensaje.replace(/^No se guardó la ficha\.\s*/, "")}
+            </span>
           </div>
         )}
         {recuperado && !resultado && (
-          <p role="status" className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
-            Recuperamos lo que escribiste en la ficha y todavía no está guardado. Revísalo y pulsa «Guardar datos del trabajador».
-          </p>
+          <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
+            <span className="min-w-0 flex-1 basis-60">Recuperamos lo que escribiste en la ficha y todavía no está guardado. Revísalo y pulsa «Guardar datos del trabajador».</span>
+            <Button type="button" variant="link" size="sm" className="h-auto p-0 text-aviso-texto underline" onClick={descartar}>Descartar cambios</Button>
+          </div>
         )}
         {faltan.length > 0 && !bloqueado && (
           <p id="dt-faltan" className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
@@ -214,22 +229,22 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
               <datalist id="dt-dependencias">{op.dependencias.map((c) => <option key={c} value={c} />)}</datalist>
             </Campo>
             <Campo id="dt-ingreso" etiqueta="Ingreso a la empresa" nota={antiguedad(v("fecha_ingreso"), hoy) && `Antigüedad en la empresa: ${antiguedad(v("fecha_ingreso"), hoy)}`}>
-              <Input id="dt-ingreso" name="fecha_ingreso" type="date" max={hoy} value={v("fecha_ingreso")} onChange={poner("fecha_ingreso")} className="h-10" />
+              <Input id="dt-ingreso" name="fecha_ingreso" type="date" max={hoy} value={v("fecha_ingreso")} onChange={poner("fecha_ingreso")} className={borde("fecha_ingreso")} {...marca("fecha_ingreso")} />
             </Campo>
             <Campo id="dt-turno" etiqueta="Turno">
-              <select id="dt-turno" name="turno" value={v("turno")} onChange={poner("turno")} className={SELECT}>{lista("turno")}</select>
+              <select id="dt-turno" name="turno" value={v("turno")} onChange={poner("turno")} className={rojo("turno", SELECT)} {...marca("turno")}>{lista("turno")}</select>
             </Campo>
             <Campo id="dt-tipo" etiqueta="Tipo de paciente">
-              <select id="dt-tipo" name="tipo_paciente_id" value={v("tipo_paciente_id")} onChange={poner("tipo_paciente_id")} className={SELECT}>{lista("tipo_paciente", true)}</select>
+              <select id="dt-tipo" name="tipo_paciente_id" value={v("tipo_paciente_id")} onChange={poner("tipo_paciente_id")} className={rojo("tipo_paciente_id", SELECT)} {...marca("tipo_paciente_id")}>{lista("tipo_paciente", true)}</select>
             </Campo>
             <Campo id="dt-ficha" etiqueta="N.º de ficha o código">
-              <Input id="dt-ficha" name="ficha" value={v("ficha")} onChange={poner("ficha")} className="h-10" />
+              <Input id="dt-ficha" name="ficha" value={v("ficha")} onChange={poner("ficha")} className={borde("ficha")} {...marca("ficha")} />
             </Campo>
           </Grupo>
 
           <Grupo titulo="Personales">
             <Campo id="dt-sexo" etiqueta="Sexo">
-              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={cn(SELECT, falta("sexo") && colorFalta("sexo"))} {...marca("sexo")}>
+              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={rojo("sexo", SELECT)} {...marca("sexo")}>
                 <option value="">Sin definir</option>
                 <option value="F">Femenino</option>
                 <option value="M">Masculino</option>
@@ -239,23 +254,23 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
               <Input id="dt-nacimiento" name="fecha_nacimiento" type="date" max={hoy} value={v("fecha_nacimiento")} onChange={poner("fecha_nacimiento")} className={borde("fecha_nacimiento")} {...marca("fecha_nacimiento")} />
             </Campo>
             <Campo id="dt-lugar" etiqueta="Lugar de nacimiento">
-              <Input id="dt-lugar" name="lugar_nacimiento" value={v("lugar_nacimiento")} onChange={poner("lugar_nacimiento")} className="h-10" />
+              <Input id="dt-lugar" name="lugar_nacimiento" value={v("lugar_nacimiento")} onChange={poner("lugar_nacimiento")} className={borde("lugar_nacimiento")} {...marca("lugar_nacimiento")} />
             </Campo>
             <Campo id="dt-civil" etiqueta="Estado civil">
-              <select id="dt-civil" name="estado_civil" value={v("estado_civil")} onChange={poner("estado_civil")} className={SELECT}>{lista("estado_civil")}</select>
+              <select id="dt-civil" name="estado_civil" value={v("estado_civil")} onChange={poner("estado_civil")} className={rojo("estado_civil", SELECT)} {...marca("estado_civil")}>{lista("estado_civil")}</select>
             </Campo>
             <Campo id="dt-lateralidad" etiqueta="Lateralidad">
-              <select id="dt-lateralidad" name="lateralidad" value={v("lateralidad")} onChange={poner("lateralidad")} className={SELECT}>
+              <select id="dt-lateralidad" name="lateralidad" value={v("lateralidad")} onChange={poner("lateralidad")} className={rojo("lateralidad", SELECT)} {...marca("lateralidad")}>
                 <option value="">Sin definir</option>
                 {LATERALIDADES.map((x) => <option key={x.valor} value={x.valor}>{x.nombre}</option>)}
                 {v("lateralidad") && !LATERALIDADES.some((x) => x.valor === v("lateralidad")) && <option value={v("lateralidad")}>{v("lateralidad")}</option>}
               </select>
             </Campo>
             <Campo id="dt-profesion" etiqueta="Profesión u oficio">
-              <Input id="dt-profesion" name="profesion" value={v("profesion")} onChange={poner("profesion")} className="h-10" />
+              <Input id="dt-profesion" name="profesion" value={v("profesion")} onChange={poner("profesion")} className={borde("profesion")} {...marca("profesion")} />
             </Campo>
             <Campo id="dt-nivel" etiqueta="Nivel educativo">
-              <select id="dt-nivel" name="nivel_educativo" value={v("nivel_educativo")} onChange={poner("nivel_educativo")} className={SELECT}>{lista("nivel_educativo")}</select>
+              <select id="dt-nivel" name="nivel_educativo" value={v("nivel_educativo")} onChange={poner("nivel_educativo")} className={rojo("nivel_educativo", SELECT)} {...marca("nivel_educativo")}>{lista("nivel_educativo")}</select>
             </Campo>
           </Grupo>
 
@@ -267,13 +282,13 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
             </summary>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Campo id="dt-telefono" etiqueta="Teléfono">
-                <Input id="dt-telefono" name="telefono" type="tel" value={v("telefono")} onChange={poner("telefono")} className="h-10" />
+                <Input id="dt-telefono" name="telefono" type="tel" value={v("telefono")} onChange={poner("telefono")} className={borde("telefono")} {...marca("telefono")} />
               </Campo>
               <Campo id="dt-correo" etiqueta="Correo">
-                <Input id="dt-correo" name="correo" type="email" value={v("correo")} onChange={poner("correo")} className="h-10" />
+                <Input id="dt-correo" name="correo" type="email" value={v("correo")} onChange={poner("correo")} className={borde("correo")} {...marca("correo")} />
               </Campo>
               <Campo id="dt-direccion" etiqueta="Dirección de habitación" ancho>
-                <Input id="dt-direccion" name="direccion" value={v("direccion")} onChange={poner("direccion")} className="h-10" />
+                <Input id="dt-direccion" name="direccion" value={v("direccion")} onChange={poner("direccion")} className={borde("direccion")} {...marca("direccion")} />
               </Campo>
             </div>
           </details>

@@ -23,6 +23,7 @@ import { IndicadorSincronia } from "./indicador-sincronia";
 import { Notificaciones } from "./notificaciones";
 import { HuellaCuenta } from "./huella";
 import { elegirEmpresa, salir } from "./acciones";
+import { borrarBorradoresFicha } from "@/lib/borrador-ficha";
 
 const ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
 
@@ -132,7 +133,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
               <Fingerprint /> {ESCRITORIO ? "Entrar con Windows Hello" : "Entrar con huella"}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => salir()}>
+          <DropdownMenuItem onSelect={() => { borrarBorradoresFicha(); void salir(); }}>
             <LogOut /> Salir
           </DropdownMenuItem>
         </DropdownMenuContent>
