@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
 import type { Periodo } from "@/lib/periodos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Series } from "@/lib/vigilancia-analisis";
@@ -179,6 +180,8 @@ export type InformeVigilancia = {
   id: string | null;
   resumen: string;
   conclusiones: string;
+  vision_medico: string;
+  recomendaciones_medicas: string;
   recomendaciones: string;
   factores_riesgo: string;
   medidas_control: string;
@@ -188,14 +191,28 @@ export type InformeVigilancia = {
   variante: number;
   actualizado_en: string | null;
 };
-export type Persona = { nombre: string; cedula: string };
-export type Firmantes = { medico?: Persona; sst?: Persona; delegados?: Persona[]; empleador?: Persona };
+export type { Firmantes, Persona } from "@/lib/firmantes";
+
+// Firmantes y datos de portada del último informe guardado de esa empresa: los delegados y representantes
+// cambian poco, así que el informe nuevo arranca con ellos (sin la fecha de emisión). Si el período ya
+// tiene su informe, lo guardado en él manda (editor e impreso lo ponen encima)
+export async function firmantesAnteriores(empresaId: string | null): Promise<Firmantes | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  let q = supabase.from("informes_vigilancia").select("firmantes").order("actualizado_en", { ascending: false }).limit(1);
+  q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
+  const { data } = await q.maybeSingle();
+  if (!data?.firmantes) return null;
+  const f = limpiarFirmantes(data.firmantes);
+  delete f.fecha_emision;
+  return f;
+}
 
 // Textos guardados del informe para esa empresa (o el consolidado) y ese período exacto
 export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
-  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
+  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, vision_medico, recomendaciones_medicas, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
   q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
   const { data } = await q.maybeSingle();
   if (!data) return null;
@@ -203,6 +220,8 @@ export async function obtenerInforme(empresaId: string | null, p: Periodo): Prom
     id: data.id,
     resumen: data.resumen ?? "",
     conclusiones: data.conclusiones ?? "",
+    vision_medico: data.vision_medico ?? "",
+    recomendaciones_medicas: data.recomendaciones_medicas ?? "",
     recomendaciones: data.recomendaciones ?? "",
     factores_riesgo: data.factores_riesgo ?? "",
     medidas_control: data.medidas_control ?? "",

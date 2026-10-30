@@ -33,7 +33,7 @@ export type DatosTexto = {
   aptitudes: Record<string, string>;   // código → nombre de la clasificación de aptitud
 };
 
-export type TextosInforme = { resumen: string; conclusiones: string; recomendaciones: string; factores_riesgo: string; medidas_control: string };
+export type TextosInforme = { resumen: string; conclusiones: string; vision_medico: string; recomendaciones_medicas: string; recomendaciones: string; factores_riesgo: string; medidas_control: string };
 
 const num = (n: number) => n.toLocaleString("es-VE");
 const pct = (n: number, total: number) => (total ? `${num(Math.round((n * 1000) / total) / 10)} %` : "0 %");
@@ -80,34 +80,50 @@ export function conclusionesSugeridas({ r, pct: a, accidentes, conTiempoPerdido,
   return p.join("\n");
 }
 
-// Recomendación de seguridad laboral según el aparato o sistema afectado (palabra clave sin tildes)
-const POR_SISTEMA: [RegExp, string][] = [
-  [/osteo|muscul|locomot|columna/, "Programa de prevención de trastornos musculoesqueléticos: evaluación ergonómica de los puestos, capacitación en levantamiento y manejo de cargas, pausas activas y ajuste del mobiliario."],
-  [/respirat/, "Control de agentes respiratorios: ventilación y control de polvos y vapores en la fuente, protección respiratoria certificada y vacunación (influenza)."],
-  [/auditiv|orl|oido/, "Programa de conservación auditiva: medición de ruido, protección auditiva obligatoria en áreas > 85 dB(A) y audiometría anual."],
-  [/oftalm|visual|ojo/, "Protección visual: lentes de seguridad según el riesgo, iluminación adecuada y pausas visuales en trabajo con pantallas."],
-  [/dermat|piel/, "Prevención de dermatosis: guantes adecuados al producto, hojas de seguridad (HDS) disponibles y cremas barrera."],
-  [/cardio|circulat|metabol|endocr/, "Programa de riesgo cardiometabólico: control de tensión arterial, glicemia y peso; alimentación saludable y actividad física."],
-  [/gastro|digest/, "Higiene de alimentos y agua: inspección del comedor, agua potable y lavado de manos."],
-  [/mental|psiq|neurol|sueno/, "Evaluación de riesgos psicosociales: organización del trabajo, turnos, manejo del estrés y apoyo psicológico."],
-  [/infecc|hemat|inmun/, "Prevención de enfermedades infecciosas: esquema de vacunación, saneamiento ambiental y control de vectores."],
-  [/genitour|excret|renal/, "Hidratación y acceso a sanitarios durante la jornada, sobre todo en trabajo con calor."],
+// Según el aparato o sistema afectado (palabra clave sin tildes): [médico-ocupacional, seguridad y salud en el trabajo]
+const POR_SISTEMA: [RegExp, string, string][] = [
+  [/osteo|muscul|locomot|columna/, "Vigilancia médica musculoesquelética: evaluación osteomuscular dirigida en los periódicos, seguimiento de lumbalgias y cervicalgias recurrentes y referencia oportuna a fisiatría.", "Evaluación ergonómica de los puestos, ayudas mecánicas para cargas, ajuste del mobiliario, pausas activas y capacitación en levantamiento y manejo de cargas."],
+  [/respirat/, "Vigilancia respiratoria: espirometría en los expuestos a polvos o vapores, control de infecciones respiratorias recurrentes y vacunación contra la influenza.", "Control de agentes respiratorios en la fuente (ventilación y extracción) y protección respiratoria certificada según el agente."],
+  [/auditiv|orl|oido/, "Programa de conservación auditiva: audiometría de base y anual a los expuestos, con referencia a otorrinolaringología ante cambios del umbral.", "Medición de ruido, aislamiento de las fuentes y protección auditiva obligatoria en áreas sobre 85 dB(A)."],
+  [/oftalm|visual|ojo/, "Evaluación de agudeza visual en los periódicos y referencia a oftalmología de los casos alterados.", "Lentes de seguridad según el riesgo, iluminación adecuada y pausas visuales en trabajo con pantallas."],
+  [/dermat|piel/, "Seguimiento de dermatosis y pruebas de contacto en los casos recurrentes vinculados a productos del trabajo.", "Guantes adecuados al producto, hojas de seguridad (HDS) disponibles y cremas barrera."],
+  [/cardio|circulat|metabol|endocr/, "Programa de riesgo cardiometabólico: control de tensión arterial, glicemia, lípidos y peso; consejería en alimentación y actividad física.", "Menú saludable en el comedor y facilidades para la actividad física; atención a la carga de turnos nocturnos."],
+  [/gastro|digest/, "Seguimiento de enfermedades digestivas y educación en higiene de alimentos.", "Inspección del comedor, agua potable garantizada y facilidades para el lavado de manos."],
+  [/mental|psiq|neurol|sueno/, "Tamizaje de estrés y trastornos del sueño en los periódicos y apoyo psicológico a quien lo requiera.", "Evaluación de riesgos psicosociales: organización del trabajo, turnos, cargas y canales de comunicación."],
+  [/infecc|hemat|inmun/, "Esquema de vacunación al día (tétanos, hepatitis B, influenza) y control de enfermedades infecciosas.", "Saneamiento ambiental, manejo de desechos y control de vectores."],
+  [/genitour|excret|renal/, "Control de infecciones urinarias recurrentes y examen de orina en los periódicos.", "Hidratación y acceso a sanitarios durante la jornada, sobre todo en trabajo con calor."],
 ];
-
-export function recomendacionesSugeridas({ r, pct: a, accidentes, enfermedades }: DatosTexto) {
-  const lista: string[] = [];
+const porSistema = (r: Reporte, i: 1 | 2) => {
+  const l: string[] = [];
   for (const s of r.morbilidad.por_sistema.slice(0, 4)) {
     const hit = POR_SISTEMA.find(([re]) => re.test(sinTildes(s.nombre)));
-    if (hit && !lista.includes(hit[1])) lista.push(hit[1]);
+    if (hit && !l.includes(hit[i])) l.push(hit[i]);
   }
-  if ((r.morbilidad.por_origen.ocupacional ?? 0) > 0 || enfermedades) lista.push("Investigar los casos de presunto origen ocupacional, declararlos ante el INPSASEL en los plazos de la NT-02-2008 y mantenerlos en vigilancia médica.");
-  if (accidentes) lista.push("Investigar cada accidente (causas inmediatas y básicas), declararlo en 24 horas y cerrar las acciones correctivas con su responsable y fecha.");
-  if (a >= 2.5) lista.push("Plan de control del ausentismo: seguimiento de reposos prolongados, conformación de reposos externos y evaluación postreposo antes del reintegro.");
-  if ((r.aptitud.elegible_con_restricciones ?? 0) > 0) lista.push("Cumplir las restricciones médicas emitidas y evaluar la adecuación o reubicación de los puestos.");
+  return l;
+};
+const numerada = (l: string[]) => l.map((x, i) => `${i + 1}. ${x}`).join("\n");
+
+// Lo que hace el servicio médico: vigilancia, evaluaciones, casos, reintegros
+export function recomendacionesMedicasSugeridas({ r, pct: a, enfermedades }: DatosTexto) {
+  const lista = porSistema(r, 1);
+  if ((r.morbilidad.por_origen.ocupacional ?? 0) > 0 || enfermedades) lista.push("Estudiar los casos de presunto origen ocupacional, declararlos ante el INPSASEL en los plazos de la NT-02-2008 y mantenerlos en vigilancia médica.");
   if (r.consultas.pacientes < r.poblacion.total) lista.push(`Completar las evaluaciones periódicas pendientes (${r.poblacion.total - r.consultas.pacientes} trabajadores sin evaluar en el período).`);
+  if (a >= 2.5) lista.push("Seguimiento médico del ausentismo: control de reposos prolongados, conformación de reposos externos y evaluación postreposo antes del reintegro.");
+  if ((r.aptitud.elegible_con_restricciones ?? 0) > 0) lista.push("Vigilar el cumplimiento de las restricciones médicas emitidas y reevaluar a los trabajadores con restricción temporal al vencer su plazo.");
+  if (r.consultas.no_preventivas > r.consultas.preventivas) lista.push("Reforzar la actividad preventiva: predominó la consulta asistencial sobre las evaluaciones y controles.");
+  lista.push("Mantener la educación para la salud según las primeras causas de morbilidad del período.");
+  return numerada(lista);
+}
+
+// Lo que hace la empresa con su Servicio de SST y el Comité: controles, EPP, investigación, seguimiento
+export function recomendacionesSugeridas({ r, pct: a, accidentes }: DatosTexto) {
+  const lista = porSistema(r, 2);
+  if (accidentes) lista.push("Investigar cada accidente (causas inmediatas y básicas), declararlo en 24 horas y cerrar las acciones correctivas con su responsable y fecha.");
+  if (a >= 2.5) lista.push("Plan de control del ausentismo con RR. HH.: identificar las áreas con más días perdidos y sus condiciones de trabajo.");
+  if ((r.aptitud.elegible_con_restricciones ?? 0) > 0) lista.push("Adecuar los puestos o reubicar a los trabajadores con restricciones médicas.");
   lista.push("Mantener la dotación y el uso supervisado de los equipos de protección personal según el riesgo de cada puesto.");
   lista.push("Presentar este informe al Comité de Seguridad y Salud Laboral y hacer seguimiento a las recomendaciones en el próximo trimestre.");
-  return lista.map((x, i) => `${i + 1}. ${x}`).join("\n");
+  return numerada(lista);
 }
 
 const EFECTOS: Record<GrupoRiesgo, string> = {
@@ -149,6 +165,9 @@ export function textosSugeridos(d: DatosTexto): TextosInforme {
   return {
     resumen: resumenSugerido(d),
     conclusiones: conclusionesSugeridas(d),
+    // Propia del médico: sin sugerencia
+    vision_medico: "",
+    recomendaciones_medicas: recomendacionesMedicasSugeridas(d),
     recomendaciones: recomendacionesSugeridas(d),
     factores_riesgo: factoresSugeridos(d),
     medidas_control: medidasSugeridas(d),

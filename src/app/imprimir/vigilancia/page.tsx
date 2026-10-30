@@ -5,7 +5,7 @@ import { BarrasH, Columnas, Dona, EjeMeses, Meta, nombreMes, Pareto, Piramide } 
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { datosLegalesFaltantes } from "@/lib/empresas";
 import { fechaCorta as corta, parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
-import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa, type Persona } from "@/lib/reportes";
+import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cargarVigilancia } from "@/lib/vigilancia";
@@ -14,6 +14,7 @@ import { CORTES, ETIQUETA_CLAVE } from "@/lib/vigilancia-textos";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Hoja, Membrete } from "../componentes";
 import { textoCausa, textoDiagnostico } from "@/lib/diagnostico-texto";
+import { Portada } from "./portada";
 
 export const metadata: Metadata = { title: "Informe de vigilancia epidemiológica" };
 export const dynamic = "force-dynamic";
@@ -199,19 +200,24 @@ export default async function Vigilancia({ searchParams }: Props) {
   const cortesConDatos = CORTES.filter(([g]) => Object.keys(cortes[g] ?? {}).length);
   const detalleReposo = (["accidente_comun", "accidente_laboral", "enfermedad_comun", "enfermedad_ocupacional"] as const).filter((c) => (r.ausentismo.detalle ?? []).some((d) => d.causa === c));
 
-  const filaFirma = (rol: string, p: Persona | undefined, k: string) => (
-    <div key={k} className="break-inside-avoid">
-      <div className="h-14 border-b border-[#15201e]" />
-      <div className="mt-1 text-[11px] font-semibold">{p?.nombre || " "}</div>
-      <div className="text-[10px] text-doc-tenue">{rol}{p?.cedula ? ` · C.I. ${p.cedula}` : ""}</div>
-    </div>
-  );
-
   return (
     <div className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
       <BarraImpresion volver={volver} titulo={`Vigilancia epidemiológica · ${empresa?.razonSocial ?? "Todas las empresas"} · ${periodo.etiqueta}`} envio={empresa && !paraEmpresa && (sesion.clinico || sesion.rol === "administrador") ? { documento: "vigilancia", empresaId: empresa.id, empresa: empresa.razonSocial, bloqueo: !v.informe?.id ? "Guarda el informe antes de enviarlo (Reportes › Vigilancia › Guardar)." : nombraDiscapacidad ? "El análisis menciona discapacidad: edítalo antes de enviar." : null } : null} />
 
-      {/* Portada ejecutiva */}
+      <Portada
+        logoEmpresa={logoEmpresa}
+        orgLogo={org?.logo ?? null}
+        empresa={empresa}
+        firmantes={firmantes}
+        guardadoEn={v.informe?.actualizado_en ?? null}
+        titulo={titulo}
+        subtitulo={subtitulo}
+        periodo={periodo}
+        poblacion={r.poblacion}
+        org={org?.nombre ?? null}
+      />
+
+      {/* Resumen ejecutivo */}
       <Hoja>
         <Membrete d={membrete} />
         <div className="mt-5 overflow-hidden rounded-[14px] bg-doc-acento text-white">
@@ -317,6 +323,7 @@ export default async function Vigilancia({ searchParams }: Props) {
             <Panel titulo="Consultas por motivo" className="col-span-2"><BarrasH filas={g(r.consultas.por_motivo)} max={10} /></Panel>
           </div>
           <Analisis texto={a.uso} />
+          <Analisis texto={a.evaluaciones} />
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel titulo="Por tipo de paciente"><T columnas={["Tipo de paciente", "Casos"]} filas={(r.consultas.por_tipo_paciente ?? []).map((x) => [x.nombre, x.n])} /></Panel>
             <Panel titulo="Por sexo y grupo etario">
@@ -328,6 +335,7 @@ export default async function Vigilancia({ searchParams }: Props) {
           <Panel titulo="Frecuencia de uso del servicio médico por dependencia">
             <T columnas={["Dependencia", "Personal efectivo", "Consultas"]} porcentaje={false} filas={(r.consultas.por_dependencia ?? []).map((d) => [d.nombre, d.personal, d.n])} />
           </Panel>
+          <Analisis texto={a.dependencias} />
         </Seccion>
 
         <Seccion n="3" titulo="Morbilidad">
@@ -346,6 +354,7 @@ export default async function Vigilancia({ searchParams }: Props) {
                 filas={(["primera", "sucesiva", "derivada"] as const).map((k) => { const x = r.morbilidad.por_tipo_consulta?.[k]; return [ETIQUETA_CLAVE[k], x?.pacientes ?? 0, porc(x?.pacientes ?? 0, pob), x?.n ?? 0]; })} />
             </Panel>
           </div>
+          <Analisis texto={a.causas} />
           {cortesConDatos.length > 0 && <p className="text-[9.5px] italic text-doc-tenue">Las diez primeras causas por tipo de consulta, origen, sexo, edad, actividad, sistema, motivo y dependencia van en el anexo estadístico.</p>}
         </Seccion>
 
@@ -378,6 +387,7 @@ export default async function Vigilancia({ searchParams }: Props) {
           <Panel titulo="Diez primeras causas de reposo">
             <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [textoCausa(c.cie10, c.descripcion), c.dias, c.n])} />
           </Panel>
+          <Analisis texto={a.reposos} />
         </Seccion>
 
         <Seccion n="5" titulo="Accidentes y enfermedades ocupacionales">
@@ -433,17 +443,18 @@ export default async function Vigilancia({ searchParams }: Props) {
           <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em]">10 · Conclusión médico-ocupacional</h2>
           <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.conclusiones}</div>
         </section>
-        <Seccion n="11" titulo="Recomendaciones de seguridad y salud laboral"><Texto>{t.recomendaciones}</Texto></Seccion>
+        {t.vision_medico?.trim() && (
+          // Si cruza de página, el borde y el fondo se repiten en cada trozo
+          <section className="mb-5 rounded-r-[10px] border-l-4 border-doc-acento bg-doc-suave/60 px-5 py-3.5 [-webkit-box-decoration-break:clone] [box-decoration-break:clone]">
+            <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em] text-doc-acento break-after-avoid">Visión del médico ocupacional</h2>
+            <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.vision_medico}</div>
+            {firmantes.medico?.nombre && <div className="mt-2 text-right text-[10px] text-doc-tenue">— {firmantes.medico.nombre}, médico ocupacional</div>}
+          </section>
+        )}
+        <Seccion n="11" titulo="Recomendaciones médico-ocupacionales"><Texto>{t.recomendaciones_medicas}</Texto></Seccion>
+        <Seccion n="12" titulo="Recomendaciones de seguridad y salud en el trabajo"><Texto>{t.recomendaciones}</Texto></Seccion>
 
-        <section className="mt-6 break-inside-avoid">
-          <h2 className="mb-1 border-b border-doc-linea pb-1.5 text-[13px] font-extrabold uppercase tracking-[.08em]">Firmantes</h2>
-          <div className="grid grid-cols-2 gap-x-10 gap-y-3">
-            {filaFirma("Médico ocupacional", firmantes.medico, "m")}
-            {filaFirma("Servicio de Seguridad y Salud en el Trabajo", firmantes.sst, "s")}
-            {(firmantes.delegados?.filter((d) => d.nombre).length ? firmantes.delegados.filter((d) => d.nombre) : [undefined]).map((d, i) => filaFirma("Delegado de prevención", d, `d${i}`))}
-            {filaFirma("Representante del empleador", firmantes.empleador, "e")}
-          </div>
-        </section>
+        <p className="mt-6 text-[10px] italic text-doc-tenue">Las firmas de elaboración y aprobación están en la portada.</p>
       </Hoja>
 
       {(cortesConDatos.length > 0 || detalleReposo.length > 0 || (r.ausentismo.por_dependencia ?? []).length > 0) && (
