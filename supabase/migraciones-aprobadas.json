@@ -1,11 +1,16 @@
 {
   "etiqueta": "migraciones-20261030-13",
-  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC",
+  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC (700000) y 23:13 UTC (710000)",
   "migraciones": [
     {
       "archivo": "20261030700000_lateralidad_minuscula.sql",
       "sha256": "8cac3a9a24d6aa3fd41a7e2e65af602c33ca52c8553864f3fa0b3e43c2f1873c",
       "descripcion": "Guardado rechazado por la lateralidad: se acepta en minúscula"
+    },
+    {
+      "archivo": "20261030710000_cambios_desde_por_tabla.sql",
+      "sha256": "0f36571d54e522fe031a04b32a11710794afd915d454d04d86c4741298d113da",
+      "descripcion": "Sincronía: la bajada arma el lote por tabla y ya no se corta por tiempo"
     }
   ]
 }
