@@ -393,26 +393,35 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     }
   }
 
-  // antes(status): se espera antes de responder (si falla, la ventana recibe el error y no un «hecho» falso)
-  // Para la campana sin internet: la hora de la base local (no la de Windows en la puerta) y los avisos creados desde ella
-  async function relojDeLaCopia() {
-    const c = new pg.Client({ connectionString: motor.url() });
-    try { await c.connect(); return (await c.query("select clock_timestamp() as t")).rows[0].t; } finally { await c.end().catch(() => {}); }
-  }
-  async function avisosDeResultadosDesde(uid, desde) {
+  // Para la campana sin internet: qué avisos de resultados y qué recordatorios tiene el usuario en la copia. Comparando
+  // antes y después de la llamada salen los avisos que hizo ella. Sin horas: en la copia los avisos llevan la hora
+  // anclada (ahora()) y los recordatorios la del PostgreSQL local, que con la fecha de Windows cambiada no coinciden
+  async function fotoDeLaCampana(uid) {
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
-      // Solo los que hizo esta llamada: mismo enlace y misma hora de transacción que su recordatorio local (Analizar: un
-      // aviso de la nube que baje justo en ese momento tiene otra hora y no se toca)
-      const { rows } = await c.query(`select n.id from public.notificaciones n
-        join public.recordatorios_resultados r on r.usuario_id = n.usuario_id and r.ultimo_aviso = n.creado_en
-         and n.enlace = '/atencion/' || r.consulta_id || '?paso=paraclinicos'
-        where n.usuario_id = $1 and n.titulo = 'Resultados por recibir' and r.ultimo_aviso >= $2`, [uid, desde]);
-      return rows.map((f) => f.id);
+      const { rows: [f] } = await c.query(`select
+          coalesce((select array_agg(id::text) from public.notificaciones where usuario_id = $1 and titulo = 'Resultados por recibir'), '{}') as avisos,
+          coalesce((select jsonb_object_agg(consulta_id, ultimo_aviso) from public.recordatorios_resultados where usuario_id = $1), '{}') as recordatorios`, [uid]);
+      return f;
+    } finally { await c.end().catch(() => {}); }
+  }
+  // Los avisos nuevos de las consultas cuyo recordatorio cambió en esta llamada (un aviso de la nube que baje justo
+  // entonces es de otra consulta, o de una que esta llamada no tocó)
+  function avisosDeLaLlamada(antes, despues, enlaces) {
+    const tocadas = Object.keys(despues.recordatorios).filter((k) => despues.recordatorios[k] !== antes.recordatorios[k]);
+    const ya = new Set(antes.avisos);
+    return despues.avisos.filter((id) => !ya.has(id) && tocadas.some((k) => enlaces.get(id) === `/atencion/${k}?paso=paraclinicos`));
+  }
+  async function enlacesDe(ids) {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      return new Map((await c.query("select id::text, enlace from public.notificaciones where id = any($1::uuid[])", [ids])).rows.map((f) => [f.id, f.enlace]));
     } finally { await c.end().catch(() => {}); }
   }
 
+  // antes(status): se espera antes de responder (si falla, la ventana recibe el error y no un «hecho» falso)
   async function aLaCopia(req, res, cuerpo, antes = null) {
     // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
     // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
@@ -864,11 +873,12 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (constancia && RPC_CONSTANCIA.has(constancia) && bandeja && d().copiaCompleta) {
           if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
           // La campana: se anotan los avisos que la copia acaba de crear, para borrarlos cuando la nube cree los suyos
-          const desde = constancia === "recordar_resultados" ? await relojDeLaCopia() : null;
+          const antes = constancia === "recordar_resultados" ? await fotoDeLaCampana(quien.uid) : null;
           return await aLaCopia(req, res, crudo, async (status) => {
             if (status >= 300) return;
-            if (!desde) return await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {});
-            const locales = await avisosDeResultadosDesde(quien.uid, desde);
+            if (!antes) return await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {});
+            const despues = await fotoDeLaCampana(quien.uid);
+            const locales = avisosDeLaLlamada(antes, despues, await enlacesDe(despues.avisos.filter((id) => !antes.avisos.includes(id))));
             if (locales.length) await bandeja.anotarCampana(quien.uid, locales);
           });
         }

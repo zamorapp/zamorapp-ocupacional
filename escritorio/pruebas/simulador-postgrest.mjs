@@ -20,6 +20,9 @@ http.createServer(async (req, res) => {
   try {
     await c.query("begin");
     await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(datos)]);
+    // Como el PostgREST real: las cabeceras del pedido en request.headers (así llega la hora anclada, X-Zamorapp-Ahora,
+    // y ahora() de la base local la usa; sin esto el banco de Linux no veía la diferencia con now())
+    await c.query("select set_config('request.headers', $1, true)", [JSON.stringify(req.headers)]);
     await c.query(`set local role ${datos.role === "authenticated" ? "authenticated" : "anon"}`);
     let filas;
     if (url.pathname.startsWith("/rpc/")) {

@@ -795,7 +795,8 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
     await pc.query("begin");
     await pc.query("select set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true)",
       [JSON.stringify({ sub: "00000000-0000-0000-0000-0000000000a1", role: "authenticated" }), "00000000-0000-0000-0000-0000000000a1"]);
-    await pc.query("update public.trabajadores set telefono = '0414-0000014' where id = '30000000-0000-0000-0000-00000000000a'");
+    // Un valor propio: con PostgREST real la prueba de la hora anclada ya subió «…014» y repetirlo no cambiaría nada
+    await pc.query("update public.trabajadores set telefono = '0414-0000015' where id = '30000000-0000-0000-0000-00000000000a'");
     await pc.query("commit");
   } finally { await pc.end(); }
   const [pend] = await enLocal("select count(*)::int n from local.bandeja where fila_id = '30000000-0000-0000-0000-00000000000a' and estado = 'pendiente'");
@@ -812,12 +813,12 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
   const c = new pg.Client({ connectionString: motor.url() });
   await c.connect();
   const fila = async () => (await c.query("select nombres, telefono from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'")).rows[0];
-  assert.equal((await fila()).telefono, "0414-0000014", "lo guardado en la PC sigue a la vista hasta que sube");
+  assert.equal((await fila()).telefono, "0414-0000015", "lo guardado en la PC sigue a la vista hasta que sube");
   await bandejaObj.subir();
   const f = await fila();
   await c.end();
   assert.equal(f.nombres, nombre, "el cambio de la nube llega a la PC");
-  assert.equal(f.telefono, "0414-0000014", "y el de la PC no se pierde");
+  assert.equal(f.telefono, "0414-0000015", "y el de la PC no se pierde");
 });
 
 test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
