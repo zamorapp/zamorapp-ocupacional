@@ -164,14 +164,17 @@ try {
     await pagina.fill("#clave", CLAVE);
     await pagina.click("button[type=submit]");
     const limite = Date.now() + 90_000;
+    let ofertaTocada = false;
     for (;;) {
       const url = pagina.url();
       if (/\/panel/.test(url)) break;
-      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no"
+      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no".
+      // Se toca UNA vez y solo con el botón habilitado: mientras activa queda deshabilitado y luego la app navega al
+      // panel; un segundo clic esperaba a un botón que ya no existe (apertura 1, corrida 41022470125, «detached»).
       const oferta = pagina.getByRole("button", { name: HELLO ? "Activar Windows Hello" : "Ahora no" });
-      if (await oferta.isVisible().catch(() => false)) {
+      if (!ofertaTocada && await oferta.isVisible().catch(() => false) && await oferta.isEnabled().catch(() => false)) {
         anotar(`   la app ofrece Windows Hello: "${HELLO ? "Activar" : "Ahora no"}"`);
-        await oferta.click();
+        ofertaTocada = await oferta.click({ timeout: 5_000 }).then(() => true, (e) => { anotar(`   clic en la oferta no se dio: ${e.message.split("\n")[0]}`); return false; });
       }
       if (/[?&]correo=/.test(url)) throw new Error("El formulario se envió sin JavaScript (GET /login?correo=...): la pantalla no estaba hidratada");
       const error = await pagina.evaluate(() => document.querySelector("[role=alert], .text-destructive")?.textContent || "").catch(() => "");
