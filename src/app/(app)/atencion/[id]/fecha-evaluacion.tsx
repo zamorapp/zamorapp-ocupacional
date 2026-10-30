@@ -29,7 +29,7 @@ export function FechaEvaluacion({ antes, fecha, hoy, registrada, modo, onCambiar
           {modo === "firmada" ? <Lock className="size-3.5" aria-hidden /> : <CalendarDays className="size-3.5" aria-hidden />}
           <span className="sr-only">Fecha de la evaluación:</span> {corta(fecha)}
         </span>
-        {modo === "firmada" && <span>Se cambia con Corregir</span>}
+        {modo === "firmada" && <span>· Se cambia con Corregir</span>}
       </div>
     );
   }
