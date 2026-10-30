@@ -33,8 +33,10 @@ export function BotonEntrarHuella({ alEntrar }: { alEntrar: () => void }) {
     setError(null);
     setCargando(true);
     const r = await entrarConHuella(crearClienteNavegador());
+    // Tras entrar el botón queda desactivado mientras la app navega: otro toque abriría una segunda sesión
+    if (r.ok) { alEntrar(); return; }
     setCargando(false);
-    if (r.ok) alEntrar(); else setError(r.mensaje);
+    setError(r.mensaje);
   };
 
   // Escritorio con Windows Hello activo: al abrir el programa se pide la huella o el PIN sin tocar nada (pedido de

@@ -103,8 +103,17 @@ export async function activarHuella(supabase: SupabaseClient): Promise<Resultado
   return { ok: true };
 }
 
+// Un solo ingreso con Windows Hello a la vez: el automático al abrir /login y el botón se pisaban (dos sesiones en
+// 133 ms y la app se quedaba en /login, prueba de humo del 30-oct). El segundo pedido recibe el resultado del primero.
+let huellaEnCurso: Promise<Resultado> | null = null;
+
 /** Entra con la huella. Deja la sesión abierta en el cliente de Supabase. */
-export async function entrarConHuella(supabase: SupabaseClient): Promise<Resultado> {
+export function entrarConHuella(supabase: SupabaseClient): Promise<Resultado> {
+  huellaEnCurso ??= entrarConHuellaUnaVez(supabase).finally(() => { huellaEnCurso = null; });
+  return huellaEnCurso;
+}
+
+async function entrarConHuellaUnaVez(supabase: SupabaseClient): Promise<Resultado> {
   if (ES_ESCRITORIO) {
     const v = await pedirAVentana("entrar");
     if (!v.ok) return v;
