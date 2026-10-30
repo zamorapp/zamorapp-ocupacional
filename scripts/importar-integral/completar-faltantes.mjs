@@ -1,9 +1,10 @@
 // Cargador puntual: completa en zamorApp los datos del SAME que la carga del 26/10 no pasó. No repite cargar.mjs.
 // - Potencial discapacidad (consulta.discapacitado = 'S', 14 consultas): marca la consulta importada, solo si no lo está.
+// - Observación del reposo (obsreposo, 45): en clinico.reposos.observacion (migración 20261030420000), solo si está vacía.
 // - Notas de antecedentes por tipo (pacientetipant con texto, 66): se agregan a los antecedentes de la última consulta del
 //   paciente, que es la que copia la consulta nueva. Solo si esa consulta es importada del SAME: una consulta hecha en
 //   zamorApp no se toca (el informe dice cuántas quedan para pasar a mano).
-// El SAME solo se LEE: 2 consultas pequeñas (bcp), una a la vez, con NOLOCK y solo con 1 GB libre.
+// El SAME solo se LEE: 3 consultas pequeñas (bcp), una a la vez, con NOLOCK y solo con 1 GB libre.
 // Por defecto es un ENSAYO (todo se deshace al final). Para guardar: --guardar, con el sí de Cesar.
 // Uso en la PC de Cesar: powershell -File scripts\importar-integral\completar-faltantes.ps1 [-Guardar]
 // Informe (solo cifras y números de historia): %USERPROFILE%\.zamorapp\completar-faltantes.md
@@ -34,6 +35,8 @@ const discapacidad = leer("discapacidad", ["codigo"], "Integral.consulta with (n
 const notas = leer("notas_antecedentes", ["p.cod_paciente", "t.nombre tipo", "cast(p.observacion as nvarchar(4000)) observacion"],
   "Integral.pacientetipant p with (nolock) join Integral.tipoantecedente t with (nolock) on t.codigo = p.cod_tipoantecedente",
   "where len(ltrim(rtrim(p.observacion))) > 0");
+const obsReposo = leer("observacion_reposo", ["codigo", "cast(obsreposo as nvarchar(4000)) observacion"], "Integral.consulta with (nolock)",
+  "where reposo = '1' and datalength(obsreposo) > 0");
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // ─── Escritura en zamorApp ──────────────────────────────────
@@ -90,6 +93,19 @@ try {
     `- Agregadas ahora: ${agregadas}, en ${consultas} consultas. Ya estaban: ${yaEstaban}.`,
     `- Pacientes cuya última consulta ya se hizo en zamorApp (no se toca; pasar la nota a mano): ${enZamorapp.length}${enZamorapp.length ? ` (historias ${enZamorapp.join(", ")})` : ""}.`,
     `- Pacientes sin consultas en zamorApp: ${sinConsulta.length}${sinConsulta.length ? ` (historias ${sinConsulta.join(", ")})` : ""}.`, "");
+
+  // 3) Observación del reposo (columna de la migración 20261030420000): solo en reposos importados que no la tengan
+  const conTexto = obsReposo.filter((r) => r.observacion.trim());
+  const { rowCount: observaciones } = await q(
+    `update clinico.reposos r set observacion = x.observacion
+       from jsonb_to_recordset($2::jsonb) as x(codigo_origen text, observacion text)
+      where r.org_id = $1 and r.origen = 'integral' and r.codigo_origen = x.codigo_origen and coalesce(r.observacion, '') = ''`,
+    [org.id, JSON.stringify(conTexto.map((r) => ({ codigo_origen: `rep:${r.codigo}`, observacion: r.observacion.trim() })))]);
+  const { rows: [{ n: conObservacion }] } = await q(
+    "select count(*)::int n from clinico.reposos where org_id = $1 and origen = 'integral' and codigo_origen = any($2::text[]) and coalesce(observacion, '') <> ''",
+    [org.id, conTexto.map((r) => `rep:${r.codigo}`)]);
+  informe.push("## Observación del reposo", "", `- En el SAME: ${conTexto.length} reposos con observación.`,
+    `- Agregadas ahora: ${observaciones}. Con observación en total: ${conObservacion}.`, `- Sin reposo en zamorApp: ${conTexto.length - conObservacion}.`, "");
 
   await q(GUARDAR ? "commit" : "rollback");
 } catch (e) {

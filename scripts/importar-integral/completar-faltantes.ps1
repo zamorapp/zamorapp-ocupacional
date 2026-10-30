@@ -1,4 +1,4 @@
-# Completa en zamorApp los datos del SAME que faltaron (potencial discapacidad y notas de antecedentes). Usa la clave guardada del respaldo.
+# Completa en zamorApp los datos del SAME que faltaron (potencial discapacidad, notas de antecedentes y observación del reposo). Usa la clave guardada del respaldo.
 # Uso:  powershell -File scripts\importar-integral\completar-faltantes.ps1 [-Guardar]
 # Sin -Guardar es un ensayo: no guarda nada. El informe queda en %USERPROFILE%\.zamorapp\completar-faltantes.md.
 param([switch]$Guardar)
