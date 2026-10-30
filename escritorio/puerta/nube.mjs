@@ -137,7 +137,7 @@ export class Nube {
       this.anotarIncompatibilidad(r.status, json, `rpc ${funcion}`);
       // El detalle y la pista de PostgREST dicen dónde falló (p. ej. qué disparador): van en el mensaje del registro
       const detalle = [json?.details, json?.hint].filter(Boolean).join(" · ");
-      throw Object.assign(new Error((json?.message || `rpc ${funcion}: ${r.status}`) + (detalle ? ` (${detalle})` : "")), { status: r.status });
+      throw Object.assign(new Error((json?.message || `rpc ${funcion}: ${r.status}`) + (detalle ? ` (${detalle})` : "")), { status: r.status, code: json?.code });
     }
     return json;
   }

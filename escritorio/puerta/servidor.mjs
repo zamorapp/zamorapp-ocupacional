@@ -685,7 +685,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         const buscar = pedidaActualizacion && conControl();
         if (buscar) pedidaActualizacion = false;
         return responder(res, 200, { enLinea: nube.enLinea, equipo: d().equipo ? { nombre: d().equipo.nombre } : null,
-          ultimaSincronia: replica.ultima, error: replica.error, copiaCompleta: d().copiaCompleta, copia: replica.progreso ?? null, lecturaLocal: copiaAlDia(),
+          ultimaSincronia: replica.ultima, error: replica.error, motivo: replica.motivo, apartadas: replica.apartadas(), copiaCompleta: d().copiaCompleta, copia: replica.progreso ?? null, lecturaLocal: copiaAlDia(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null,
           hora: nube.reloj.iso(), horaSinAncla: !nube.reloj.verificada, arranquesSinNube: nube.reloj.arranquesSinNube(),
           numerosLibres: bloques ? await bloques.libres() : null,
@@ -724,7 +724,8 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // Orden: comprobar → bandeja.subir() → replica.ciclo() → adjuntos (subir y bajarPendientes) → cola.barrer() → bloques
         if (cola) await cola.barrer();
         if (bloques) await bloques.reponer();
-        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, adjuntos: await adjuntos.contar(),
+        return responder(res, 200, { enLinea: nube.enLinea, ultimaSincronia: replica.ultima, error: replica.error, motivo: replica.motivo,
+          apartadas: replica.apartadas(), adjuntos: await adjuntos.contar(),
           bandeja: bandeja ? { ...(await bandeja.resumen()), error: bandeja.ultimoError } : null });
       }
       // Fase C: «Respaldar ahora» (sincroniza y guarda la copia), estado del respaldo, configuración y restauración

@@ -15,6 +15,7 @@ const VACIO = () => ({
   cursor: null, // último seq de sync.registro aplicado
   copiaCompleta: null, // fecha de la última instantánea completa
   firmasPermisos: {}, // uid → huella de su fila en miembros (si cambia, se repite la instantánea)
+  apartadas: {}, // "tabla|id" → { tabla, id, clase, veces }: filas que bajaron y la copia no aceptó (se reintentan)
 });
 
 export class Estado {

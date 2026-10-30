@@ -21,10 +21,11 @@ const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
 let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, respaldoObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
 const lineasBandeja = []; // lo que anota la bandeja
+const lineasReplica = []; // lo que anota la réplica (también va a puerta.log)
 // En el CI de Windows (o con DIAGNOSTICO=1) todo lo que anotan la puerta, la nube, la réplica y la bandeja sale también
 // por la consola, con el reloj de cada prueba: el registro en memoria se pierde al fallar
 const diag = !!(process.env.GITHUB_ACTIONS || process.env.DIAGNOSTICO);
-const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (origen === "bandeja") lineasBandeja.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
+const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (origen === "bandeja") lineasBandeja.push(l); if (origen === "réplica") lineasReplica.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo, cabeceras = {} } = {}) {
@@ -936,6 +937,82 @@ test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir
   await c.end();
   assert.equal(f.nombres, nombre, "el cambio de la nube llega a la PC");
   assert.equal(f.telefono, "0414-0000015", "y el de la PC no se pierde");
+});
+
+test("bajada trancada por la nube lenta: el lote se achica solo y avanza; si ni así pasa, el botón dice por qué", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  const nubeDb = new pg.Client({ connectionString: NUBE_DB });
+  await nubeDb.connect();
+  const nombre = `Ana lenta ${Date.now()}`;
+  try {
+    await nubeDb.query("update public.trabajadores set nombres = $1 where id = '30000000-0000-0000-0000-00000000000a'", [nombre]);
+    // La nube corta todo pedido de más de 100 cambios (antes la PC pedía siempre 1.000 y nunca avanzaba)
+    nube.estado.cambiosTopeLote = 100;
+    nube.estado.cortesPorTiempo = 0;
+    await replicaObj.ciclo();
+    assert.equal(replicaObj.error, null, "la bajada termina con lotes más pequeños");
+    assert.ok(nube.estado.cortesPorTiempo > 0 && replicaObj.lote <= 100, "achicó el lote tras el corte");
+    assert.ok(lineasReplica.some((l) => /se piden \d+ cambios por vez/.test(l)), "lo anota en puerta.log");
+    const [f] = await enLocal("select nombres from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a'");
+    assert.equal(f.nombres, nombre, "el cambio de la nube llegó");
+    // Ni con el lote mínimo pasa: falla, pero dice por qué en palabras (sin el texto técnico) y no pierde el cursor
+    nube.estado.cambiosTopeLote = 10;
+    await nubeDb.query("update public.trabajadores set nombres = $1 where id = '30000000-0000-0000-0000-00000000000a'", [`${nombre} 2`]);
+    const cursor = estado.d.cursor;
+    await replicaObj.ciclo();
+    assert.ok(replicaObj.error);
+    assert.match(replicaObj.motivo, /tardó demasiado/);
+    assert.equal(estado.d.cursor, cursor);
+    const est = await pedir("/zamorapp/estado", { cabeceras: { "X-Zamorapp-Control": CONTROL } });
+    assert.match(est.json.motivo, /tardó demasiado/);
+    assert.ok(!lineasReplica.some((l) => /canceling statement/.test(l)), "puerta.log anota la clase, no el texto de la nube");
+    nube.estado.cambiosTopeLote = 0;
+    await replicaObj.ciclo();
+    assert.equal(replicaObj.error, null);
+    assert.equal(replicaObj.motivo, null);
+  } finally {
+    nube.estado.cambiosTopeLote = 0;
+    await nubeDb.query("update public.trabajadores set nombres = 'Ana' where id = '30000000-0000-0000-0000-00000000000a'");
+    await nubeDb.end();
+    await replicaObj.ciclo();
+  }
+});
+
+test("un registro que la copia no acepta no frena a los demás: se aparta, se avisa y entra al corregirse", { skip: omitir }, async () => {
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  const MALA = "30000000-0000-0000-0000-000000000175", BUENA = "30000000-0000-0000-0000-000000000176";
+  // Como «Diestro» con mayúscula (30-oct-2026): la copia tiene una regla que la nube no tiene
+  await enLocal("alter table public.trabajadores add constraint prueba_apartada check (nombres <> 'Rechazada') not valid");
+  const nubeDb = new pg.Client({ connectionString: NUBE_DB });
+  await nubeDb.connect();
+  try {
+    await nubeDb.query(`insert into public.trabajadores (id, org_id, empresa_id, cedula, nombres, apellidos) values
+      ($1, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'V-apartada-1', 'Rechazada', 'X'),
+      ($2, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'V-apartada-2', 'Buena', 'X')`, [MALA, BUENA]);
+    const cursor = estado.d.cursor;
+    await replicaObj.ciclo();
+    assert.equal(replicaObj.error, null, "la bajada no se tranca");
+    assert.ok(estado.d.cursor > cursor, "el cursor avanzó");
+    assert.equal((await enLocal("select count(*)::int n from public.trabajadores where id = $1", [BUENA]))[0].n, 1, "la buena entró");
+    assert.equal((await enLocal("select count(*)::int n from public.trabajadores where id = $1", [MALA]))[0].n, 0);
+    assert.equal(replicaObj.apartadas(), 1);
+    const est = await pedir("/zamorapp/estado", { cabeceras: { "X-Zamorapp-Control": CONTROL } });
+    assert.equal(est.json.apartadas, 1, "el botón sabe cuántas quedaron apartadas");
+    assert.ok(lineasReplica.some((l) => l.includes(MALA) && /apartada/.test(l)), "se anota cuál quedó apartada");
+    assert.ok(!lineasReplica.some((l) => /Rechazada|prueba_apartada/.test(l)), "puerta.log no lleva el dato ni el texto del error");
+    // Se corrige la causa (una versión nueva del programa): en el ciclo siguiente entra sola
+    await enLocal("alter table public.trabajadores drop constraint prueba_apartada");
+    await replicaObj.ciclo();
+    assert.equal(replicaObj.apartadas(), 0);
+    assert.equal((await enLocal("select count(*)::int n from public.trabajadores where id = $1", [MALA]))[0].n, 1, "la apartada entró");
+  } finally {
+    await enLocal("alter table public.trabajadores drop constraint if exists prueba_apartada");
+    await nubeDb.query("delete from public.trabajadores where id = any($1::uuid[])", [[MALA, BUENA]]);
+    await nubeDb.end();
+    await replicaObj.ciclo();
+  }
 });
 
 test("sin sesión no se lee nada, y el estado en disco está cifrado", { skip: omitir }, async () => {
