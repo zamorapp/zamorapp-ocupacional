@@ -177,10 +177,11 @@ end $$;
 create or replace function public.avisar_al_celular_al_instante()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
+  -- Una sola llamada por instrucción (el centinela avisa a varios miembros a la vez): la ruta junta todo lo nuevo
   if public.es_base_local() or to_regnamespace('net') is null
      or current_setting('zamorapp.latido_avisos', true) = 'on'
-     or new.titulo in ('Nueva solicitud de cita', 'RR. HH. aceptó la invitación', 'Nueva solicitud de la empresa')
-     or not exists (select 1 from public.suscripciones_push s where s.usuario_id = new.usuario_id and s.org_id = new.org_id) then
+     or not exists (select 1 from nuevas n join public.suscripciones_push s on s.usuario_id = n.usuario_id and s.org_id = n.org_id
+                     where n.titulo not in ('Nueva solicitud de cita', 'RR. HH. aceptó la invitación', 'Nueva solicitud de la empresa')) then
     return null;
   end if;
   begin
@@ -192,4 +193,4 @@ end $$;
 revoke execute on function public.avisar_al_celular_al_instante() from public, anon, authenticated;
 drop trigger if exists avisar_al_celular_al_instante on public.notificaciones;
 create trigger avisar_al_celular_al_instante after insert on public.notificaciones
-  for each row execute function public.avisar_al_celular_al_instante();
+  referencing new table as nuevas for each statement execute function public.avisar_al_celular_al_instante();
