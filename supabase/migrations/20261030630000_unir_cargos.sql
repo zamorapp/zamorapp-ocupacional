@@ -22,7 +22,8 @@ returns text language sql immutable parallel safe set search_path = '' as $$
            '\m(de|del|la|las|el|los|y|e|en|para|al)\M', ' ', 'g'), '\m([a-z]{4,})s\M', '\1', 'g'), '\s+', ' ', 'g')), ''), base)
     from n
 $$;
-grant execute on function public.clave_cargo(text) to anon, authenticated;
+revoke execute on function public.clave_cargo(text) from public, anon;
+grant execute on function public.clave_cargo(text) to authenticated;
 
 create index if not exists puestos_clave on public.puestos (empresa_id, public.clave_cargo(nombre)) where activo;
 
@@ -138,6 +139,16 @@ begin
        where id = v_dest.id;
     end loop;
 
+    -- Bitácora ANTES de mover: qué trabajadores y consultas abiertas tenía cada variante, para poder deshacer un error
+    insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+    values (v_org, 'public.puestos', v_dest.id, 'UNIR CARGOS',
+            jsonb_build_object('nombre', v_dest.nombre, 'unidos', (
+              select jsonb_agg(jsonb_build_object('id', p.id, 'nombre', p.nombre,
+                       'trabajadores', (select jsonb_agg(t.id) from public.trabajadores t where t.puesto_id = p.id),
+                       'consultas', (select jsonb_agg(c.id) from clinico.consultas c where c.puesto_id = p.id and c.estado <> 'firmada')))
+                from public.puestos p where p.id = any (v_origenes))),
+            jsonb_build_object('nombre', v_nombre));
+
     update public.trabajadores set puesto_id = v_dest.id where puesto_id = any (v_origenes);
     get diagnostics n = row_count; n_trab := n_trab + n;
     update clinico.consultas set puesto_id = v_dest.id where puesto_id = any (v_origenes) and estado <> 'firmada';
@@ -148,10 +159,6 @@ begin
     get diagnostics n = row_count; n_alias := n_alias + n;
     update public.puestos set nombre = v_nombre, riesgos = v_riesgos where id = v_dest.id;
 
-    insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
-    values (v_org, 'public.puestos', v_dest.id, 'UNIR CARGOS',
-            jsonb_build_object('nombre', v_dest.nombre, 'unidos', (select jsonb_agg(jsonb_build_object('id', id, 'nombre', nombre)) from public.puestos where id = any (v_origenes))),
-            jsonb_build_object('nombre', v_nombre));
   end loop;
 
   perform set_config('zamorapp.uniendo_cargos', '', true);
@@ -179,15 +186,19 @@ begin
     raise exception 'Solo el administrador quita cargos' using errcode = '42501';
   end if;
   perform set_config('zamorapp.uniendo_cargos', 'si', true);
+  -- Bitácora ANTES de quitar: qué trabajadores y consultas abiertas tenía cada cargo, para poder deshacer un error
+  insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+  select v_org, 'public.puestos', p.id, 'QUITAR CARGO',
+         jsonb_build_object('nombre', p.nombre,
+           'trabajadores', (select jsonb_agg(t.id) from public.trabajadores t where t.puesto_id = p.id),
+           'consultas', (select jsonb_agg(c.id) from clinico.consultas c where c.puesto_id = p.id and c.estado <> 'firmada')), null
+    from public.puestos p where p.id = any (p_puestos);
   update public.trabajadores set puesto_id = null where puesto_id = any (p_puestos);
   get diagnostics n_trab = row_count;
   update clinico.consultas set puesto_id = null where puesto_id = any (p_puestos) and estado <> 'firmada';
   get diagnostics n_cons = row_count;
   update public.puestos set activo = false where id = any (p_puestos);
   get diagnostics n_cargos = row_count;
-  insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
-  select v_org, 'public.puestos', id, 'QUITAR CARGO', jsonb_build_object('nombre', nombre), null
-    from public.puestos where id = any (p_puestos);
   perform set_config('zamorapp.uniendo_cargos', '', true);
   return jsonb_build_object('cargos', n_cargos, 'trabajadores', n_trab, 'consultas', n_cons);
 end $$;

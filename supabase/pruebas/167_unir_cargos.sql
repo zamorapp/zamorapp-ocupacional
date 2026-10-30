@@ -81,6 +81,9 @@ select 'unir no es cambio de cargo: sin historial (debe 0): ' || count(*) from p
 select 'la consulta abierta pasa al cargo que queda (debe 1): ' || count(*) from clinico.consultas where id = '16700000-0000-0000-0000-0000000000c1' and puesto_id = '16700000-0000-0000-0000-00000000000b';
 select 'la firmada no cambia (debe 1): ' || count(*) from clinico.consultas where id = '16700000-0000-0000-0000-0000000000c2' and puesto_id = '16700000-0000-0000-0000-00000000000a';
 select 'queda en la bitácora (debe 2): ' || count(*) from public.bitacora where accion = 'UNIR CARGOS' and registro_id::text like '16700000%';
+select 'la bitácora guarda el trabajador y la consulta abierta de la variante unida, para deshacer (debe 1): ' || count(*) from public.bitacora
+ where accion = 'UNIR CARGOS' and registro_id = '16700000-0000-0000-0000-00000000000b'
+   and antes -> 'unidos' @> '[{"id":"16700000-0000-0000-0000-00000000000a","trabajadores":["16700000-0000-0000-0000-0000000000a3"],"consultas":["16700000-0000-0000-0000-0000000000c1"]}]';
 
 -- Quitar un cargo que no es cargo
 insert into public.puestos (id,org_id,empresa_id,nombre) values ('16700000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','16/08/2023');
@@ -100,3 +103,5 @@ select 'el trabajador queda sin cargo y sin historial falso (debe 1): ' || count
  where t.id = '16700000-0000-0000-0000-0000000000a9' and t.puesto_id is null
    and not exists (select 1 from public.cargos_historial h where h.trabajador_id = t.id);
 select 'el cargo queda inactivo con su nombre (debe 1): ' || count(*) from public.puestos where id = '16700000-0000-0000-0000-0000000000d1' and not activo and nombre = '16/08/2023';
+select 'la bitácora guarda los trabajadores del cargo quitado (debe 1): ' || count(*) from public.bitacora
+ where accion = 'QUITAR CARGO' and registro_id = '16700000-0000-0000-0000-0000000000d1' and antes -> 'trabajadores' @> '["16700000-0000-0000-0000-0000000000a9"]';

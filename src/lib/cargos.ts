@@ -93,6 +93,22 @@ export function cargoParecido(texto: string, cargos: string[]): { nombre: string
   return mejor && mejor.nombre.trim() !== texto.trim() ? mejor : null;
 }
 
+// Nombre sugerido al unir: mayúscula solo al inicio, «de/del/la…» en minúscula, siglas conocidas (IT, RRHH, SIHO) en mayúscula
+// y las tildes de las palabras de cargo más comunes. El médico lo puede cambiar antes de unir.
+const TILDES: Record<string, string> = Object.fromEntries(("atención administración carnicería charcutería pescadería técnico mecánico eléctrico " +
+  "electromecánico hidráulico refrigeración información gestión producción recepción sección operación logística químico médico " +
+  "análisis almacén construcción supervisión educación prevención protección tecnología línea vehículo panadería tráfico " +
+  "mecánica jardinería eléctrica dirección coordinación planificación ingeniería auditoría económico").split(" ").map((w) => [w.normalize("NFD").replace(/[\u0300-\u036f]/g, ""), w]));
+const MAYUSCULAS = new Set(["it", "ti", "rrhh", "siho", "siaho", "sihoa", "sst", "hse", "atc", "sap", "cnc"]);
+export function nombreSugerido(n: string): string {
+  const palabras = n.trim().replace(/\s+/g, " ").split(" ");
+  return palabras.map((p, i) => {
+    if (MAYUSCULAS.has(p.toLowerCase())) return p.toUpperCase();
+    const con = p.toLowerCase().split("-").map((b) => TILDES[b] ?? b).join("-");
+    return i === 0 ? con.charAt(0).toUpperCase() + con.slice(1) : con;
+  }).join(" ");
+}
+
 export type CargoOrg = { id: string; empresaId: string; empresa: string; nombre: string; trabajadores: number };
 export type Variante = CargoOrg & { tipo: Parecido };
 export type GrupoCargos = { clave: string; propuesto: string; variantes: Variante[]; trabajadores: number; empresas: number };
@@ -132,7 +148,7 @@ export function agruparRepetidos(cargos: CargoOrg[]): GrupoCargos[] {
     const kp = claveCargo(propuesto);
     grupos.push({
       clave: kp,
-      propuesto,
+      propuesto: nombreSugerido(propuesto),
       variantes: todos.map((c) => ({ ...c, tipo: parecido(kp, claveCargo(c.nombre)) ?? "parecido" }))
         .sort((a, b) => b.trabajadores - a.trabajadores || a.empresa.localeCompare(b.empresa)),
       trabajadores: todos.reduce((s, c) => s + c.trabajadores, 0),

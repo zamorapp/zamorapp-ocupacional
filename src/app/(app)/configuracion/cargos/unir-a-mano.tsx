@@ -2,11 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Hand, Loader2, Merge, Search } from "lucide-react";
+import { Ban, Hand, Loader2, Merge, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { confirmar } from "@/components/app/confirmar";
-import { claveCargo, type CargoOrg } from "@/lib/cargos";
+import { claveCargo, nombreSugerido, type CargoOrg } from "@/lib/cargos";
 import { cn } from "@/lib/utils";
 import { quitarCargos, unirCargos } from "./acciones";
 
@@ -35,7 +35,7 @@ export function UnirAMano({ cargos }: { cargos: CargoOrg[] }) {
     const m = new Map(marcados);
     if (m.has(c.id)) m.delete(c.id); else m.set(c.id, c);
     setMarcados(m);
-    if (!nombre && m.size) setNombre([...m.values()].sort((a, b) => b.trabajadores - a.trabajadores)[0].nombre);
+    if (!nombre && m.size) setNombre(nombreSugerido([...m.values()].sort((a, b) => b.trabajadores - a.trabajadores)[0].nombre));
   };
   const terminar = (r: { ok: boolean; mensaje: string }) => {
     setAviso(r);
@@ -46,7 +46,7 @@ export function UnirAMano({ cargos }: { cargos: CargoOrg[] }) {
     iniciar(async () => terminar(await unirCargos(nombre, sel.map((c) => c.id))));
   };
   const quitar = async () => {
-    if (!(await confirmar({ titulo: `¿Quitar ${sel.length === 1 ? `«${sel[0].nombre}»` : plural(sel.length, "cargo", "cargos")}?`, texto: `${plural(trab, "trabajador queda", "trabajadores quedan")} sin cargo; se completa en la próxima consulta. No se puede deshacer desde aquí.`, accion: "Quitar", peligro: true }))) return;
+    if (!(await confirmar({ titulo: `¿Quitar ${sel.length === 1 ? `«${sel[0].nombre}»` : plural(sel.length, "cargo", "cargos")}?`, texto: `${trab === 1 ? "El trabajador queda" : `Los ${trab} trabajadores quedan`} sin cargo; sus historias no cambian. El cargo se completa en la próxima consulta. No se puede deshacer desde aquí.`, accion: `Quitar ${sel.length}`, peligro: true }))) return;
     iniciar(async () => terminar(await quitarCargos(sel.map((c) => c.id))));
   };
 
@@ -54,7 +54,7 @@ export function UnirAMano({ cargos }: { cargos: CargoOrg[] }) {
     <section className="space-y-3 rounded-xl border bg-card p-4">
       <div>
         <h2 className="flex items-center gap-2 font-medium"><Hand className="size-4 text-primary" /> Unir o quitar a mano</h2>
-        <p className="text-sm text-muted-foreground">Para lo que no aparece arriba, o para nombres que no son cargos (una fecha, «Na»).</p>
+        <p className="text-sm text-muted-foreground">Para lo que no aparece arriba, o para quitar nombres que no son cargos, como una fecha o «Na».</p>
       </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -68,6 +68,13 @@ export function UnirAMano({ cargos }: { cargos: CargoOrg[] }) {
                 <input type="checkbox" className="size-4 accent-primary" checked={marcados.has(c.id)} onChange={() => alternar(c)} />
                 <span className="min-w-0 flex-1">
                   <span className="font-medium">{c.nombre}</span>
+                  {marcados.has(c.id) && (
+                    <button type="button" onClick={(e) => { e.preventDefault(); setNombre(nombreSugerido(c.nombre)); }}
+                      title="Usar este nombre" aria-label={`Usar «${c.nombre}» como nombre que queda`}
+                      className="ml-1.5 inline-grid size-6 place-items-center rounded align-middle text-muted-foreground hover:bg-muted hover:text-foreground">
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
                   <span className="block truncate text-xs text-muted-foreground">{c.empresa}</span>
                 </span>
                 <span className="w-20 text-right tabular-nums text-muted-foreground">{c.trabajadores} trab.</span>
@@ -87,8 +94,8 @@ export function UnirAMano({ cargos }: { cargos: CargoOrg[] }) {
           <Button onClick={unir} disabled={ocupado || sel.length < 2 || !nombre.trim()} title={sel.length < 2 ? "Marca al menos 2 para unir" : undefined} className="flex-1 sm:flex-none">
             {ocupado ? <Loader2 className="animate-spin" /> : <Merge />} Unir {sel.length}
           </Button>
-          <Button variant="outline" onClick={quitar} disabled={ocupado} className="flex-1 text-destructive sm:flex-none">
-            <Ban /> Quitar cargo
+          <Button variant="outline" onClick={quitar} disabled={ocupado} className="basis-full text-destructive sm:ml-auto sm:basis-auto">
+            <Ban /> Quitar {sel.length}
           </Button>
         </div>
       )}
