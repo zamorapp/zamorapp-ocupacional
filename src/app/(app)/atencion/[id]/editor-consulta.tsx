@@ -87,6 +87,10 @@ type Props = {
   diasAvisoFecha?: number;
 };
 
+// Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
+const ATAJOS_REPOSO: [string, number][] = [["24 h", 1], ["48 h", 2], ["72 h", 3], ["5 días", 5], ["7 días", 7], ["10 días", 10], ["15 días", 15], ["21 días", 21]];
+const diasDeReposo = (desde: string, hasta: string) => Math.round((Date.parse(hasta + "T12:00:00Z") - Date.parse(desde + "T12:00:00Z")) / 864e5) + 1;
+
 const CONFIRMAR_FIRMA = {
   titulo: "¿Firmar la consulta?",
   texto: "Al firmarla queda bloqueada y no se borra. Si después encuentras un error, podrás corregirla indicando el motivo: la versión firmada queda guardada en el historial.",
@@ -1218,18 +1222,48 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                         {listas.ente_emisor_reposo.map((c) => <option key={c.id} value={c.codigo ?? c.nombre}>{c.nombre}</option>)}
                       </select>
                     </div>
+                    {/* Fechas libres (pasadas o futuras). Los días se calculan solos; escribir los días o un atajo mueve «Hasta» */}
                     <div>
-                      <Label className="mb-1.5">Desde</Label>
-                      <Input type="date" value={d.reposo.desde} onChange={(e) => set("reposo", { ...d.reposo, desde: e.target.value })} />
+                      <Label className="mb-1.5" htmlFor="reposo-desde">Desde</Label>
+                      <Input id="reposo-desde" type="date" max="2099-12-31" value={d.reposo.desde}
+                        onChange={(e) => {
+                          const desde = e.target.value;
+                          if (!desde) return;
+                          // Cambiar el inicio conserva la duración: el reposo se corre completo
+                          const n = diasDeReposo(d.reposo.desde, d.reposo.hasta);
+                          set("reposo", { ...d.reposo, desde, hasta: n > 0 ? sumarDias(desde, n - 1) : desde });
+                        }} />
                     </div>
                     <div>
-                      <Label className="mb-1.5">Hasta</Label>
-                      <Input type="date" value={d.reposo.hasta} onChange={(e) => set("reposo", { ...d.reposo, hasta: e.target.value })} />
+                      <Label className="mb-1.5" htmlFor="reposo-hasta">Hasta</Label>
+                      <Input id="reposo-hasta" type="date" max="2099-12-31" value={d.reposo.hasta} onChange={(e) => e.target.value && set("reposo", { ...d.reposo, hasta: e.target.value })} />
                     </div>
-                    <div className="flex items-end pb-2 text-sm text-muted-foreground sm:col-span-2">
+                    <div>
+                      <Label className="mb-1.5" htmlFor="reposo-dias">Días</Label>
+                      <Input id="reposo-dias" type="number" inputMode="numeric" min={1} max={540} className="tabular-nums"
+                        value={d.reposo.hasta >= d.reposo.desde ? diasDeReposo(d.reposo.desde, d.reposo.hasta) : ""}
+                        onChange={(e) => {
+                          const n = Math.min(540, Math.max(1, Math.trunc(Number(e.target.value)) || 1));
+                          set("reposo", { ...d.reposo, hasta: sumarDias(d.reposo.desde, n - 1) });
+                        }} />
+                    </div>
+                    <div className="flex items-end pb-2 text-sm sm:col-span-1">
                       {d.reposo.hasta >= d.reposo.desde
-                        ? `${Math.round((Date.parse(d.reposo.hasta) - Date.parse(d.reposo.desde)) / 864e5) + 1} días · reintegro el día siguiente`
-                        : "La fecha final es anterior a la inicial"}
+                        ? <span className="text-muted-foreground">Reintegro el {sumarDias(d.reposo.hasta, 1).split("-").reverse().join("/")}</span>
+                        : <span className="font-medium text-alerta-texto">La fecha final es anterior a la inicial</span>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:col-span-4" role="group" aria-label="Duración rápida">
+                      <span className="text-xs text-muted-foreground">Rápido:</span>
+                      {ATAJOS_REPOSO.map(([etiqueta, n]) => {
+                        const activo = d.reposo.hasta >= d.reposo.desde && diasDeReposo(d.reposo.desde, d.reposo.hasta) === n;
+                        return (
+                          <Button key={etiqueta} type="button" size="sm" variant={activo ? "default" : "outline"} className="h-7 px-2.5" aria-pressed={activo}
+                            title={`${n} ${n === 1 ? "día" : "días"} desde el ${d.reposo.desde.split("-").reverse().join("/")}`}
+                            onClick={() => set("reposo", { ...d.reposo, hasta: sumarDias(d.reposo.desde, n - 1) })}>
+                            {etiqueta}
+                          </Button>
+                        );
+                      })}
                     </div>
                     {avisoSolape && (
                       <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-md border border-aviso/50 bg-aviso/10 px-3 py-2 text-sm text-aviso-texto sm:col-span-4">
