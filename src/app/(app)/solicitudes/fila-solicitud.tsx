@@ -118,8 +118,12 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
                 <span>Solo para el personal de salud <span className="block text-xs text-muted-foreground">Márcalo si la respuesta o el archivo lleva diagnósticos. RR. HH. solo verá «Respondida».</span></span>
               </label>
             )}
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <input type="checkbox" name="enviar_correo" value="1" defaultChecked className="mt-0.5 size-4 accent-primary" />
+              <span>Enviar el documento por correo al responder <span className="block text-xs text-muted-foreground">Las constancias van a los contactos de la empresa; lo que lleva diagnósticos, solo a su personal de salud. Queda en Envíos › Bitácora.</span></span>
+            </label>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-              <Button type="submit" disabled={guardando || subiendo === "Subiendo…"}>{guardando ? "Guardando…" : "Guardar y avisar"}</Button>
+              <Button type="submit" disabled={guardando || subiendo === "Subiendo…"}>{guardando ? "Guardando…" : "Responder y enviar"}</Button>
               {subiendo ? <span className="text-sm text-muted-foreground">{subiendo}</span> : <Aviso resultado={estado} />}
             </div>
           </form>

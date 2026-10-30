@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { enviarRespuestaSolicitud } from "@/lib/envios";
 import { pdfDeRutas } from "@/lib/pdf-servidor";
 import { obtenerSesion } from "@/lib/sesion";
 import type { EstadoSolicitud } from "@/lib/solicitudes-tipos";
@@ -108,6 +109,13 @@ export async function atenderSolicitud(_: Resultado | null, d: FormData): Promis
   }
   // El documento anterior se reemplaza
   if (documentoRuta && previa?.documento_ruta) await supabase.storage.from("solicitudes").remove([previa.documento_ruta]);
+  // «Responder y enviar»: el documento sale por correo en el mismo paso (constancias a la empresa; lo médico, solo
+  // al personal de salud de la empresa). Si el correo falla, la respuesta queda guardada igual y se avisa.
+  let envio = "";
+  if (estado === "respondida" && d.get("enviar_correo") === "1" && (documentoRuta || previa?.documento_ruta)) {
+    const r = await enviarRespuestaSolicitud(id);
+    envio = r.ok ? ` Correo: ${r.mensaje}` : ` El correo no salió: ${r.mensaje}`;
+  }
   refrescar();
-  return { ok: true, mensaje: estado === "respondida" ? "Respondida: la empresa ya recibió el aviso." : "Guardado." };
+  return { ok: true, mensaje: (estado === "respondida" ? "Respondida: la empresa ya recibió el aviso." : "Guardado.") + envio };
 }

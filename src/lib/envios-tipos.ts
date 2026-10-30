@@ -67,6 +67,7 @@ export const NOMBRE_DOCUMENTO: Record<string, string> = {
   puesto: "Evaluación del puesto de trabajo",
   vigilancia: "Vigilancia epidemiológica",
   atendidos: "Pacientes atendidos",
+  solicitud: "Respuesta a una solicitud",
 };
 const CORTO: Record<string, string> = { constancia: "constancias", consulta: "consulta médica", atencion: "constancias de atención", referencia: "referencias", recipe: "récipes" };
 // «3 evaluaciones del 28/10 · constancias y consulta médica» o, si es un informe, su nombre
