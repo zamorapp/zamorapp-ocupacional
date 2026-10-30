@@ -128,6 +128,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
   const { error } = await supabase.rpc("guardar_consulta", {
     p_id: d.id,
     p_consulta: {
+      fecha: d.fecha,
       tipo: d.tipo,
       motivo_id: d.motivoId,
       motivo_texto: d.motivoTexto || null,

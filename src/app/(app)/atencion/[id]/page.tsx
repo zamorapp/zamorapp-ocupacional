@@ -8,6 +8,7 @@ import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { datosOrganizacion } from "@/lib/organizacion";
+import { hoyCaracas } from "@/lib/fecha";
 import { PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
@@ -58,7 +59,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} />
+      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada} />
     </div>
   );
 }

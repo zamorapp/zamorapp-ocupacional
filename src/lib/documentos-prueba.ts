@@ -56,6 +56,7 @@ export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
     },
     medico: "Dr. Médico de Prueba",
     medicoId: "00000000-0000-4000-8000-000000000004",
+    registrada: "2026-10-28",
     nueva: false,
     org: {
       nombre: "OcupaVida Salud Ocupacional", rif: "J-00000000-0", direccion: texto("Av. Principal, Maturín, estado Monagas.", largo ? 2 : 1),
