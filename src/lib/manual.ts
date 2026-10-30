@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Tratamiento: en un control o paciente crónico, «Repetir el tratamiento del…» copia en un clic las medicinas e indicaciones de su última consulta con tratamiento; luego se ajusta lo que cambie", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Escritorio: los correos a las empresas ya salen desde el programa. Quedan «en cola» con su PDF y los envía la web; sin internet salen solos al volver. En la Bitácora se ven como «En cola»", tema: "rrhh-whatsapp" },
@@ -155,7 +156,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
       "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Sexo, cargo y demás datos se completan después.",
-      "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar.",
+      "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar. Más atajos de teclado: Alt + 1 a 9 va al paso con ese número, Alt + AvPág y Alt + RePág pasan al siguiente o al anterior, y Ctrl + Enter es «Cerrar, firmar e imprimir» (pide confirmación).",
       "Día de muchos pacientes: al cerrar o firmar, arriba aparece «Siguiente: nombre» (también en la hoja de impresión). Abre la consulta del primero que espera hoy en Atención, sin volver a la cola; el número dice cuántos esperan.",
       "Tratamiento: si el paciente ya tuvo medicinas, el paso «Tratamiento y reposo» ofrece «Repetir el tratamiento del…» con las medicinas de su última consulta. Un clic las copia (y las indicaciones, si no escribiste otras); después cambias dosis o quitas lo que no siga.",
       "Motivo: elige el tipo de evaluación. En pre-empleo y otros preventivos el «detalle del motivo» se desactiva solo.",

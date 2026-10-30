@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff } from "lucide-react";
@@ -397,12 +397,26 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     />
   );
 
-  // Ctrl+S guarda; avisa antes de salir con cambios sin guardar
+  // Atajos: Ctrl+S guarda; Alt+1…9 va al paso N y Alt+AvPág / Alt+RePág al siguiente o al anterior; Ctrl+Enter
+  // cierra, firma e imprime (con su confirmación). Avisa antes de salir con cambios sin guardar.
+  const atajos = useRef({ irA, total: pasos.length, indice: indicePaso, firmar: firmarEImprimir, puede: puedeFirmar && !guardando && d.estado !== "firmada" });
+  atajos.current = { irA, total: pasos.length, indice: indicePaso, firmar: firmarEImprimir, puede: puedeFirmar && !guardando && d.estado !== "firmada" };
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="alertdialog"], [role="dialog"]')) return; // con un diálogo abierto, las teclas son suyas
+      const a = atajos.current;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (!bloqueado) guardar(false);
+      } else if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-9]$/.test(e.code)) {
+        const i = Number(e.code.slice(5)) - 1;
+        if (i < a.total) { e.preventDefault(); a.irA(i); }
+      } else if (e.altKey && (e.key === "PageDown" || e.key === "PageUp")) {
+        const i = a.indice + (e.key === "PageDown" ? 1 : -1);
+        if (i >= 0 && i < a.total) { e.preventDefault(); a.irA(i); }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && a.puede) {
+        e.preventDefault();
+        void a.firmar();
       }
     };
     const salir = (e: BeforeUnloadEvent) => {
@@ -730,6 +744,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <TabsTrigger
               key={p.id}
               value={p.id}
+              title={i < 9 ? `Alt + ${i + 1}` : undefined}
               className="group mb-2 h-9 flex-none gap-2 rounded-lg border-0 px-3 text-muted-foreground shadow-none hover:bg-muted data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
             >
               <span className={cn(
