@@ -63,6 +63,8 @@ let copiados = 0;
 const guardados = [carpetas[0]];
 for (const carpeta of carpetas.slice(1)) {
   try {
+    // Aunque todavía no haya archivos que copiar: el índice va igual (sin esto, ENOENT en Drive desde el 29-oct)
+    fs.mkdirSync(carpeta, { recursive: true });
     for (const relativa of recorrer(carpetas[0])) {
       const origen = path.join(carpetas[0], relativa);
       const destino = path.join(carpeta, relativa);

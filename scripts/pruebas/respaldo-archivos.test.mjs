@@ -112,6 +112,25 @@ test("baja solo lo nuevo, lo copia a Drive, nunca sale de la carpeta y no reutil
   }
 });
 
+test("con la nube sin archivos, la carpeta de Drive se crea y el respaldo queda ok", { skip: !BASE && "falta RESPALDO_PRUEBA_DB" }, async () => {
+  for (const col of ["created_at", "updated_at"]) await sql(`alter table storage.objects add column if not exists ${col} timestamptz default now()`);
+  await sql("alter table storage.objects add column if not exists metadata jsonb");
+  await sql("delete from storage.objects where name like 'prueba/%'");
+  const pc = fs.mkdtempSync(path.join(os.tmpdir(), "archivos-pc-"));
+  const drive = fs.mkdtempSync(path.join(os.tmpdir(), "archivos-drive-"));
+  const f = await funcionFalsa();
+  try {
+    const r = await correr(f.url, [pc, drive]);
+    assert.equal(r.codigo, 0, r.salida);
+    assert.match(r.salida, /Archivos \(ok\): 0 nuevos o cambiados, 0 en total/);
+    assert.ok(fs.existsSync(path.join(drive, "archivos", "indice.json")));
+  } finally {
+    f.servidor.close();
+    fs.rmSync(pc, { recursive: true, force: true });
+    fs.rmSync(drive, { recursive: true, force: true });
+  }
+});
+
 test("sin función disponible anota el fallo y termina con error", { skip: !BASE && "falta RESPALDO_PRUEBA_DB" }, async () => {
   const pc = fs.mkdtempSync(path.join(os.tmpdir(), "archivos-pc-"));
   const r = await correr("http://127.0.0.1:9/", [pc]);
