@@ -20,10 +20,11 @@ const omitir = !NUBE_DB || !process.env.PG_BIN ? "Faltan NUBE_DB o PG_BIN" : fal
 const datos = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-"));
 let nube, puerta, motor, estado, replicaObj, nubeObj, bandejaObj, bloquesObj, respaldoObj, urlPuerta, CONFIG;
 const lineas = []; // lo que la puerta anota en puerta.log
+const lineasBandeja = []; // lo que anota la bandeja
 // En el CI de Windows (o con DIAGNOSTICO=1) todo lo que anotan la puerta, la nube, la réplica y la bandeja sale también
 // por la consola, con el reloj de cada prueba: el registro en memoria se pierde al fallar
 const diag = !!(process.env.GITHUB_ACTIONS || process.env.DIAGNOSTICO);
-const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
+const anotar = (origen) => (l) => { if (origen === "puerta") lineas.push(l); if (origen === "bandeja") lineasBandeja.push(l); if (diag) console.log(`[diag ${origen} ${(performance.now() / 1000).toFixed(1)}] ${l}`); };
 const CONTROL = crypto.randomBytes(24).toString("hex"); // la clave de control que el programa da a la puerta
 
 async function pedir(ruta, { metodo = "GET", token, cuerpo } = {}) {
@@ -276,6 +277,9 @@ test("guardar en la PC: la base local responde al instante, queda en la bandeja 
   await bandejaObj.subir();
   const e = await pedir("/zamorapp/estado");
   assert.deepEqual({ p: e.json.bandeja.pendientes, c: e.json.bandeja.conflictos }, { p: 0, c: 0 }, JSON.stringify(e.json.bandeja));
+  // puerta.log dice qué subió, por tabla, sin los datos
+  assert.ok(lineasBandeja.some((l) => /^\[bandeja\] subidos: .*public\.trabajadores \d/.test(l)), lineasBandeja.join("\n"));
+  assert.ok(!lineasBandeja.some((l) => l.includes("0414-0000001")), "sin datos en el registro");
   const [nubeFila] = await enNube("select telefono, version from public.trabajadores where id = $1", [TRAB]);
   assert.equal(nubeFila.telefono, "0414-0000001", "llegó a la nube");
   const [ap] = await enNube("select autor, equipo_id from sync.aplicados order by en desc limit 1");
@@ -673,6 +677,25 @@ test("una conexión cortada por la base no tumba la puerta", { skip: omitir }, a
   assert.equal((await pedir("/zamorapp/estado")).status, 200);
 });
 
+// 30/10/2026: ver la bandeja de la PC de Cesar sin abrir la base cifrada. Solo conteos, solo el administrador.
+test("resumen de la bandeja: el administrador ve cuántos cambios hay por tabla y estado, sin datos; los demás no", { skip: omitir }, async () => {
+  const [p] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos, autor) values ('public.trabajadores', gen_random_uuid(), 'U', '{\"telefono\": \"0414-9999999\"}', gen_random_uuid()) returning id");
+  const [k] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos, autor, estado, motivo) values ('public.trabajadores', gen_random_uuid(), 'U', '{}', gen_random_uuid(), 'conflicto', 'cédula V-1 ya existe') returning id");
+  try {
+    assert.equal((await pedir("/zamorapp/bandeja/resumen")).status, 401);
+    assert.equal((await pedir("/zamorapp/bandeja/resumen", { token: tokenMed })).status, 403);
+    const r = await pedir("/zamorapp/bandeja/resumen", { token: tokenAdmin });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const fila = (estado) => r.json.tablas.find((t) => t.tabla === "public.trabajadores" && t.estado === estado);
+    assert.ok(fila("pendiente")?.n >= 1 && fila("conflicto")?.n >= 1, JSON.stringify(r.json.tablas));
+    assert.ok(Array.isArray(r.json.constancias) && Array.isArray(r.json.adjuntos));
+    const texto = JSON.stringify(r.json);
+    assert.ok(!texto.includes("0414-9999999") && !texto.includes("V-1") && !texto.includes(p.id), "sin datos, motivos ni ids");
+  } finally {
+    await enLocal("delete from local.bandeja where id = any($1)", [[p.id, k.id]]);
+  }
+});
+
 test("sin internet: abrir la historia queda como constancia y sube después con la hora de la PC", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
   const enLaNube = async () => (await enNube("select count(*)::int n from public.accesos where trabajador_id = $1 and usuario_id = $2 and equipo_id = $3", [T, MED, estado.d.equipo.id]))[0].n;
@@ -689,6 +712,35 @@ test("sin internet: abrir la historia queda como constancia y sube después con 
     assert.equal((await enLocal("select count(*)::int n from local.constancias"))[0].n, 0, "y salió de la PC");
   } finally {
     nube.estado.caida = true; await nubeObj.comprobar(); // las pruebas siguientes siguen sin internet
+  }
+});
+
+// Analizar (30-oct): el texto de un error de la nube puede traer valores («Key (cedula)=(…)»); ni puerta.log ni el
+// resumen lo repiten. Queda solo en local.constancias.
+test("una constancia rechazada por la nube no deja la cédula del motivo en puerta.log ni en el resumen", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", CEDULA = "V-87654321";
+  const [k] = await enLocal("insert into local.constancias (rpc, args, autor, hora) values ('registrar_acceso', '{}', $1, now()) returning id", [MED]);
+  const rpc = nubeObj.rpc;
+  nubeObj.rpc = async (uid, f, args) => {
+    if (f === "constancia_diferida") throw Object.assign(new Error(`duplicate key value: Key (cedula)=(${CEDULA}) already exists`), { status: 409 });
+    return rpc.call(nubeObj, uid, f, args);
+  };
+  const desde = lineasBandeja.length;
+  try {
+    nube.estado.caida = false; await nubeObj.comprobar();
+    await bandejaObj.subir();
+    const [m] = await enLocal("select motivo, intentos from local.constancias where id = $1", [k.id]);
+    assert.ok(m.motivo.includes(CEDULA) && m.intentos === 1, "el motivo queda en la PC");
+    const nuevas = lineasBandeja.slice(desde).join("\n");
+    assert.match(nuevas, /constancia registrar_acceso no aceptada por la nube \(HTTP 409/);
+    assert.ok(!nuevas.includes(CEDULA), nuevas);
+    const r = await pedir("/zamorapp/bandeja/resumen", { token: tokenAdmin });
+    assert.equal(r.status, 200);
+    assert.ok(!JSON.stringify(r.json).includes(CEDULA), JSON.stringify(r.json));
+  } finally {
+    nubeObj.rpc = rpc;
+    await enLocal("delete from local.constancias where id = $1", [k.id]);
+    nube.estado.caida = true; await nubeObj.comprobar();
   }
 });
 
