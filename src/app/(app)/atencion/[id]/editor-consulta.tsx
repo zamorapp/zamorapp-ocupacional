@@ -37,8 +37,8 @@ import { contarResultados } from "@/lib/paraclinicos";
 import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
-import { aplicarPerfilExamen, aplicarPerfilParaclinicos, etiquetaMedicina, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
-import { BuscadorDiagnostico } from "./buscador-diagnostico";
+import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
+import { BuscadorDiagnostico, BuscadorMedicina } from "./buscador-diagnostico";
 import { AvisoDeclaracion } from "./aviso-declaracion";
 import { VistaRapida } from "./vista-rapida";
 import type { DeclaracionConsulta } from "../../accidentes/acciones";
@@ -332,6 +332,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const anterior = historial.tratamientoAnterior ?? null;
   // Lo que había antes de «Repetir el tratamiento», para «Deshacer»
   const [repetido, setRepetido] = useState<{ fecha: string; tratamiento: DatosConsulta["tratamiento"]; indicaciones: string } | null>(null);
+  // Medicinas agregadas en esta consulta («Agregar "…" a mis medicinas»): se suman a la lista sin recargar
+  const [medicinasPropias, setMedicinasPropias] = useState<Item[]>([]);
+  const medicinas = useMemo(() => [...medicinasPropias, ...listas.medicina], [medicinasPropias, listas.medicina]);
   const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
@@ -1196,7 +1199,6 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 titulo="Tratamiento"
                 accion={<Button type="button" size="sm" variant="outline" onClick={() => set("tratamiento", [...d.tratamiento, { medicina: "", concentracion: "", presentacion: "", dosis: "", frecuencia: "", duracion: "", via: "", observacion: "" }])}><Plus /> Medicina</Button>}
               >
-                <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
                 {/* Control o paciente crónico: el tratamiento de la última consulta en un clic (se puede ajustar o deshacer) */}
                 {!bloqueado && repetido && (
@@ -1230,16 +1232,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 )}
                 {d.tratamiento.map((m, i) => (
                   <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
-                    <Input
-                      list="medicinas"
-                      value={m.medicina}
-                      placeholder="Principio activo (DCI)"
-                      className="h-9"
-                      onChange={(e) => {
-                        const v = e.target.value;
+                    <BuscadorMedicina
+                      valor={m.medicina}
+                      medicinas={medicinas}
+                      onAgregada={(it) => setMedicinasPropias((x) => [...x, it])}
+                      onEscribir={(v) => actualizarMed(i, { medicina: v })}
+                      onElegir={(it) => {
                         // Si elige del vademécum, se llenan los parámetros preestablecidos (editables)
-                        const it = listas.medicina.find((x) => etiquetaMedicina(x.nombre, x.texto) === v);
-                        if (!it) return actualizarMed(i, { medicina: v });
                         const pre = indicacionPreestablecida(it.texto);
                         actualizarMed(i, {
                           medicina: it.nombre,

@@ -11,6 +11,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
 import { Bloque, DatosPaciente, fechaCorta, Firmas, FirmaTrabajador, Hoja, Membrete, Pie, Titulo } from "../../componentes";
+import { textoDiagnostico } from "@/lib/diagnostico-texto";
 
 export const metadata: Metadata = { title: "Historia clínica" };
 export const dynamic = "force-dynamic";
@@ -93,7 +94,7 @@ export default async function HistoriaClinica({ params }: { params: Promise<{ id
                   {(x.motivoTexto || x.enfermedadActual) && <div>{[x.motivoTexto, x.enfermedadActual].filter(Boolean).join(". ")}</div>}
                   <div>
                     <span className="text-doc-tenue">Diagnóstico: </span>
-                    {x.sano ? "Sano" : x.diagnosticos.map((dx) => `${dx.cie10} ${dx.descripcion} (${ETIQUETA_ORIGEN[dx.origen].toLowerCase()})`).join("; ") || "—"}
+                    {x.sano ? "Sano" : x.diagnosticos.map((dx) => `${textoDiagnostico(dx.cie10, dx.descripcion)} (${ETIQUETA_ORIGEN[dx.origen].toLowerCase()})`).join("; ") || "—"}
                   </div>
                   {x.aptitud.clasificacion && <div><span className="text-doc-tenue">Aptitud: </span>{ETIQUETA_APTITUD[x.aptitud.clasificacion]}</div>}
                   {x.reposo.activo && <div><span className="text-doc-tenue">Reposo: </span>del {fechaCorta(x.reposo.desde)} al {fechaCorta(x.reposo.hasta)}</div>}

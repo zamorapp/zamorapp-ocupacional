@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { History, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { buscarDiagnosticos, type DiagnosticoEncontrado } from "../acciones";
+import { useCallback } from "react";
+import type { Item } from "@/lib/listas";
+import { agregarAlCatalogo, buscarDiagnosticos } from "../acciones";
+import { BuscadorCatalogo, coincide, palabrasDe, type Opcion } from "./buscador-catalogo";
+import { indicacionPreestablecida } from "./perfiles";
 
 type Props = {
   cie10: string;
@@ -13,98 +14,83 @@ type Props = {
   autoFocus?: boolean;
 };
 
-// Escribe parte del nombre o del código ("sindrome tunel", "M54") y elige de la lista.
-// Primero salen los diagnósticos que el servicio ya usó, luego el catálogo CIE-10.
+const GRUPOS_DX = ["Mis diagnósticos", "Más usados", "CIE-10"];
+
+// Escribe parte del nombre o del código ("hernia", "sindrome viral", "M54"), sin acentos, y elige de la lista.
+// Primero tu lista, luego lo que el servicio ya usó, luego el catálogo CIE-10. Si no está: «Agregar "…"».
 export function BuscadorDiagnostico({ cie10, descripcion, onElegir, onEscribir, autoFocus }: Props) {
-  const [abierto, setAbierto] = useState(false);
-  const [resultados, setResultados] = useState<DiagnosticoEncontrado[]>([]);
-  const [buscando, setBuscando] = useState(false);
-  const [activo, setActivo] = useState(0);
-  const caja = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!abierto || descripcion.trim().length < 2) {
-      setResultados([]);
-      return;
-    }
-    let vigente = true;
-    setBuscando(true);
-    const t = setTimeout(async () => {
-      const r = await buscarDiagnosticos(descripcion);
-      if (vigente) {
-        setResultados(r);
-        setActivo(0);
-        setBuscando(false);
-      }
-    }, 200);
-    return () => {
-      vigente = false;
-      clearTimeout(t);
-    };
-  }, [descripcion, abierto]);
-
-  useEffect(() => {
-    const fuera = (e: MouseEvent) => {
-      if (caja.current && !caja.current.contains(e.target as Node)) setAbierto(false);
-    };
-    document.addEventListener("mousedown", fuera);
-    return () => document.removeEventListener("mousedown", fuera);
-  }, []);
-
-  const elegir = (r: DiagnosticoEncontrado) => {
-    onElegir({ cie10: r.cie10, descripcion: r.descripcion });
-    setAbierto(false);
-  };
+  const buscar = useCallback(async (texto: string): Promise<Opcion[]> =>
+    (await buscarDiagnosticos(texto)).map((r, i) => ({
+      clave: `${i}-${r.cie10}-${r.descripcion}`,
+      codigo: r.cie10,
+      nombre: r.descripcion,
+      usos: r.usos,
+      grupo: r.usos >= 900000 ? GRUPOS_DX[0] : r.usos > 0 ? GRUPOS_DX[1] : GRUPOS_DX[2],
+    })), []);
 
   return (
-    <div ref={caja} className="relative">
-      <div className="flex h-9 items-center rounded-md border bg-transparent focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-        <span className={cn("w-20 shrink-0 border-r px-2 font-mono text-sm", cie10 ? "text-foreground" : "text-muted-foreground")}>{cie10 || "CIE-10"}</span>
-        <input
-          value={descripcion}
-          autoFocus={autoFocus}
-          placeholder="Escribe el diagnóstico o el código…"
-          onFocus={() => setAbierto(true)}
-          onChange={(e) => {
-            onEscribir(e.target.value);
-            setAbierto(true);
-          }}
-          onKeyDown={(e) => {
-            if (!resultados.length) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); setActivo((a) => Math.min(a + 1, resultados.length - 1)); }
-            if (e.key === "ArrowUp") { e.preventDefault(); setActivo((a) => Math.max(a - 1, 0)); }
-            if (e.key === "Enter") { e.preventDefault(); elegir(resultados[activo]); }
-            if (e.key === "Escape") setAbierto(false);
-          }}
-          className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm outline-none"
-        />
-        {buscando && <Loader2 className="mr-2 size-4 animate-spin text-muted-foreground" />}
-      </div>
-      {abierto && resultados.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover py-1 shadow-lg">
-          {resultados.map((r, i) => (
-            <li key={r.cie10 + r.descripcion}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => elegir(r)}
-                onMouseEnter={() => setActivo(i)}
-                className={cn("flex w-full items-start gap-3 px-3 py-1.5 text-left text-sm", i === activo && "bg-primary/10")}
-              >
-                <span className="w-16 shrink-0 font-mono text-xs leading-5 text-muted-foreground">{r.cie10}</span>
-                <span className="flex-1">{r.descripcion}</span>
-                {r.usos >= 900000 ? (
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 text-xs text-primary" title="De tu lista «Mis diagnósticos»">Mío</span>
-                ) : r.usos > 0 && (
-                  <span className="flex shrink-0 items-center gap-1 text-xs text-primary" title="Usado antes en el servicio">
-                    <History className="size-3" /> {r.usos}
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <BuscadorCatalogo
+      valor={descripcion}
+      codigo={cie10}
+      conCodigo
+      autoFocus={autoFocus}
+      placeholder="Escribe el diagnóstico o el código…"
+      grupos={GRUPOS_DX}
+      buscar={buscar}
+      onEscribir={onEscribir}
+      onElegir={(o) => onElegir({ cie10: o.codigo, descripcion: o.nombre })}
+      agregarA="mis diagnósticos"
+      proponerCodigo
+      onAgregar={async (nombre, codigo) => {
+        const r = await agregarAlCatalogo("diagnostico", nombre, codigo);
+        if (!r.ok || !r.item) return r.mensaje;
+        onElegir({ cie10: r.item.codigo ?? "", descripcion: r.item.nombre });
+        return null;
+      }}
+    />
+  );
+}
+
+const GRUPOS_MED = ["Mis medicinas", "Vademécum"];
+
+// Medicinas: filtra en memoria la lista ya cargada (rápido en una PC modesta y sin internet)
+export function BuscadorMedicina({ valor, medicinas, onElegir, onEscribir, onAgregada }: {
+  valor: string;
+  medicinas: Item[];
+  onElegir: (it: Item) => void;
+  onEscribir: (texto: string) => void;
+  onAgregada: (it: Item) => void;
+}) {
+  const buscar = useCallback((texto: string): Opcion[] => {
+    const palabras = palabrasDe(texto);
+    return medicinas.flatMap((m) => {
+      const pre = indicacionPreestablecida(m.texto);
+      const detalle = [pre.presentacion, pre.concentracion].filter(Boolean).join(" ");
+      if (!coincide(`${m.nombre} ${detalle}`, palabras)) return [];
+      return [{ clave: m.id, codigo: "", nombre: m.nombre, detalle, grupo: m.datos?.propio === true ? GRUPOS_MED[0] : GRUPOS_MED[1] }];
+    }).slice(0, 40);
+  }, [medicinas]);
+
+  return (
+    <BuscadorCatalogo
+      valor={valor}
+      placeholder="Principio activo (DCI)"
+      grupos={GRUPOS_MED}
+      buscar={buscar}
+      onEscribir={onEscribir}
+      onElegir={(o) => {
+        const it = medicinas.find((m) => m.id === o.clave);
+        if (it) onElegir(it);
+      }}
+      agregarA="mis medicinas"
+      onAgregar={async (nombre) => {
+        const r = await agregarAlCatalogo("medicina", nombre);
+        if (!r.ok || !r.item) return r.mensaje;
+        const it: Item = { id: r.item.id, codigo: r.item.codigo, nombre: r.item.nombre, grupo: null, texto: r.item.texto, orden: 0, activo: true, datos: { propio: true } };
+        onAgregada(it);
+        onElegir(it);
+        return null;
+      }}
+    />
   );
 }

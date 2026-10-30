@@ -21,7 +21,7 @@ export type DiagnosticoEncontrado = { cie10: string; descripcion: string; usos: 
 export async function buscarDiagnosticos(texto: string): Promise<DiagnosticoEncontrado[]> {
   if (texto.trim().length < 2) return [];
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.rpc("buscar_diagnosticos", { p_texto: texto, p_limite: 15 });
+  const { data } = await supabase.rpc("buscar_diagnosticos", { p_texto: texto, p_limite: 40 });
   return (data ?? []) as DiagnosticoEncontrado[];
 }
 
@@ -54,6 +54,35 @@ export async function revisarAlerta(alertaId: string, consultaId: string, respue
   if (error) return { ok: false, mensaje: error.code === "42501" ? "La alerta la marca revisada el médico." : "No se pudo guardar." };
   if (!data) return { ok: false, mensaje: "Alerta no encontrada." };
   return { ok: true, mensaje: descartar ? "Alerta descartada." : "Alerta revisada." };
+}
+
+// «Agregar "…" a mis diagnósticos / mis medicinas» desde la consulta. Si ya existe con ese nombre (sin importar
+// mayúsculas), se usa la que está: nunca dos iguales. La base fija el resto (migración 20261030530000).
+export async function agregarAlCatalogo(lista: "diagnostico" | "medicina", nombre: string, codigo = ""): Promise<
+  Resultado & { item?: { id: string; nombre: string; codigo: string | null; texto: string | null } }
+> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para agregar a tu lista." };
+  if (lista !== "diagnostico" && lista !== "medicina") return { ok: false, mensaje: "Lista no válida." };
+  const limpio = nombre.replace(/\s+/g, " ").trim();
+  const cod = lista === "diagnostico" ? codigo.trim().toUpperCase() : "";
+  if (!limpio || limpio.length > 200 || cod.length > 20) return { ok: false, mensaje: "Escribe un nombre de hasta 200 letras." };
+  const supabase = await crearClienteServidor();
+  const existente = () => supabase.from("lista_items").select("id, nombre, codigo, texto")
+    .eq("org_id", sesion.orgId!).eq("lista", lista).eq("activo", true)
+    .ilike("nombre", limpio.replace(/[\\%_]/g, (c) => "\\" + c)).limit(1).maybeSingle();
+  const { data: ya } = await existente();
+  if (ya) return { ok: true, mensaje: "Ya estaba en tu lista.", item: ya };
+  const { data, error } = await supabase.from("lista_items")
+    .insert({ org_id: sesion.orgId, lista, nombre: limpio, codigo: cod || null, datos: { propio: true } })
+    .select("id, nombre, codigo, texto").single();
+  if (error) {
+    // Otra persona lo agregó al mismo tiempo: se usa ese
+    const { data: otro } = await existente();
+    if (otro) return { ok: true, mensaje: "Ya estaba en tu lista.", item: otro };
+    return { ok: false, mensaje: error.code === "42501" ? "Solo el médico agrega a la lista." : "No se pudo agregar. Intenta de nuevo." };
+  }
+  return { ok: true, mensaje: "Agregado.", item: data };
 }
 
 export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string };
