@@ -16,7 +16,7 @@ type Props = {
   alRegistrar?: (p: { id: string; nombre: string; cedula: string; empresa: string }) => void;
 };
 
-// Ficha mínima desde el buscador: cédula, nombre y empresa. El resto se completa en la consulta o en la ficha.
+// Ficha mínima desde el buscador: cédula, nombre y empresa (nacimiento y profesión, opcionales). El resto se completa en la consulta o en la ficha.
 export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alListo = () => {}, alRegistrar }: Props) {
   const digitos = texto.replace(/\D/g, "");
   const esCedula = digitos.length >= 5;
@@ -69,10 +69,19 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
         </select>
         <input name="nombres" aria-label="Nombres" placeholder="Nombres" value={valor("nombres")} onChange={escribir("nombres")} required className={campo} />
         <input name="apellidos" aria-label="Apellidos" placeholder="Apellidos" value={valor("apellidos")} onChange={escribir("apellidos")} required className={campo} />
+        {/* Opcionales: si se dejan vacíos, «Generales» de la consulta los pide */}
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Fecha de nacimiento (opcional)
+          <input type="date" name="fecha_nacimiento" min="1920-01-01" className={campo} />
+        </label>
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Profesión u oficio (opcional)
+          <input name="profesion" placeholder="Ej.: Técnico electricista" className={campo} />
+        </label>
       </div>
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Cargo, dependencia, sexo y nacimiento se completan en «Generales» de la consulta.</span>
+        <span className="text-xs text-muted-foreground">Cargo, dependencia y sexo se completan en «Generales» de la consulta.</span>
         <Button type="submit" size="sm" disabled={ocupado}>
           {ocupado ? <Loader2 className="animate-spin" /> : clinico && !alRegistrar ? <Stethoscope /> : <UserPlus />}
           {clinico && !alRegistrar ? "Registrar y atender" : "Registrar"}

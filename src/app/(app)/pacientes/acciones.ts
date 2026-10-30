@@ -89,6 +89,8 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
   if (!empresaId) return { ok: false, mensaje: "Elige la empresa." };
   if (!cedula) return { ok: false, mensaje: "Cédula inválida. Ejemplo: V-12345678" };
   if (!nombres || !apellidos) return { ok: false, mensaje: "Escribe nombres y apellidos." };
+  const nacimiento = texto(datos, "fecha_nacimiento");
+  if (nacimiento && nacimiento > hoyCaracas()) return { ok: false, mensaje: "La fecha de nacimiento no puede ser futura." };
 
   const supabase = await crearClienteServidor();
   try {
@@ -110,7 +112,8 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
         nombres,
         apellidos,
         sexo: texto(datos, "sexo"),
-        fecha_nacimiento: texto(datos, "fecha_nacimiento"),
+        fecha_nacimiento: nacimiento,
+        profesion: texto(datos, "profesion"),
         fecha_ingreso: texto(datos, "fecha_ingreso"),
         tipo_paciente_id: texto(datos, "tipo_paciente_id"),
         turno: texto(datos, "turno"),
