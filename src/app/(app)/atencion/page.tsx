@@ -23,7 +23,7 @@ import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes } from "./solicitudes";
-import { RefrescarAlVolver } from "./refrescar-al-volver";
+import { RefrescarAlVolver } from "@/components/app/refrescar-al-volver";
 
 export const metadata: Metadata = { title: "Atención médica" };
 export const dynamic = "force-dynamic";

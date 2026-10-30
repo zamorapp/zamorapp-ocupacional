@@ -28,10 +28,12 @@ import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
+import { FrescoAlVolver } from "@/components/app/fresco-al-volver";
+import Cargando from "../../loading";
 import { NotificacionesRiesgo } from "@/components/app/notificacion-riesgos";
 import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
-import { hoyCaracas } from "@/lib/fecha";
+import { ahora, hoyCaracas } from "@/lib/fecha";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -75,6 +77,8 @@ export default async function FichaPaciente({ params }: Props) {
       <Link href="/pacientes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Pacientes
       </Link>
+      {/* Con la caché de 30 s, volver a la ficha nunca muestra resultados o consultas de antes */}
+      <FrescoAlVolver generada={`${t.id}-${ahora()}`} cargando={<Cargando />}>
 
       {/* Encabezado fijo de la ficha: identidad y aptitud vigente */}
       <Card className="py-5">
@@ -241,6 +245,7 @@ export default async function FichaPaciente({ params }: Props) {
           </TabsContent>
         )}
       </Tabs>
+      </FrescoAlVolver>
     </div>
   );
 }

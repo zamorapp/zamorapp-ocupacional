@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
   // middleware recibe y devuelve la dirección tal cual llegó.
   skipMiddlewareUrlNormalize: true,
   poweredByHeader: false,
+  // Volver a una pantalla vista hace menos de 30 s es instantáneo: el navegador reutiliza lo que ya recibió en vez de
+  // pedirlo otra vez a Vercel y a Supabase. Guardar con una acción (revalidatePath) o router.refresh() lo descarta.
+  experimental: { staleTimes: { dynamic: 30 } },
   // PDF en el servidor (envíos a empresas): Chromium sin ventana. En Vercel su binario se incluye en las rutas que lo usan.
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
