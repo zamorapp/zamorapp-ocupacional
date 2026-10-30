@@ -13,6 +13,7 @@ export type Resultado = { ok: boolean; mensaje: string };
 export type TextosGuardar = {
   resumen: string;
   conclusiones: string;
+  recomendaciones_medicas: string;
   recomendaciones: string;
   factores_riesgo: string;
   medidas_control: string;
@@ -37,6 +38,7 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
   const campos = {
     resumen: limpio(t.resumen),
     conclusiones: limpio(t.conclusiones),
+    recomendaciones_medicas: limpio(t.recomendaciones_medicas),
     recomendaciones: limpio(t.recomendaciones),
     factores_riesgo: limpio(t.factores_riesgo),
     medidas_control: limpio(t.medidas_control),

@@ -202,7 +202,7 @@ export default async function Reportes({ searchParams }: Props) {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Redacción del informe</CardTitle>
-                <CardDescription>Resumen, conclusiones médico-ocupacionales y recomendaciones de seguridad para {periodo.etiqueta}.</CardDescription>
+                <CardDescription>Resumen, conclusiones y recomendaciones médico-ocupacionales y de seguridad y salud en el trabajo para {periodo.etiqueta}.</CardDescription>
               </CardHeader>
               <CardContent>
                 <EditorInforme

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Loader2, Plus, Printer, RotateCcw, Save, Shuffle, Sparkles, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,7 @@ import type { InformeVigilancia } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
 import { generarAnalisis, SECCIONES_ANALISIS, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { abrirEnVentana } from "@/lib/escritorio";
+import { leerRespuestaIA, pedidoIA, TITULOS_IA, type ClaveIA } from "@/lib/vigilancia-ia";
 import { guardarInformeVigilancia } from "./acciones";
 
 type Clave = keyof TextosInforme;
@@ -18,10 +19,53 @@ type Clave = keyof TextosInforme;
 const SECCIONES: [Clave, string, string][] = [
   ["resumen", "Resumen ejecutivo", "Hallazgos clave del período en pocas líneas."],
   ["conclusiones", "Análisis y conclusiones médico-ocupacionales", "Interpretación médica de los indicadores."],
-  ["recomendaciones", "Recomendaciones de seguridad y salud laboral", "Acciones para la empresa, el Comité y los trabajadores."],
+  ["recomendaciones_medicas", "Recomendaciones médico-ocupacionales", "Lo que hace el servicio médico: vigilancia, evaluaciones, seguimiento de casos y reintegros."],
+  ["recomendaciones", "Recomendaciones de seguridad y salud en el trabajo", "Lo que hacen la empresa, su Servicio de SST y el Comité: controles, EPP, investigación."],
   ["factores_riesgo", "Factores de riesgo, procesos peligrosos y efectos en la salud", "Se sugieren desde los puestos de la empresa."],
   ["medidas_control", "Medidas de control en la fuente, el ambiente y los trabajadores", ""],
 ];
+
+// Opcional y gratis: copia un pedido con cifras agregadas (sin nombres) para Claude o ChatGPT y lee la respuesta pegada
+function MejorarConIA({ datos, riesgos, aplicar }: { datos: DatosAnalisis; riesgos: string; aplicar: (t: Partial<Record<ClaveIA, string>>) => void }) {
+  const [respuesta, setRespuesta] = useState("");
+  const [nota, setNota] = useState<string | null>(null);
+  const pedido = () => pedidoIA(datos, riesgos);
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(pedido());
+      setNota("Pedido copiado. Pégalo en Claude o ChatGPT y trae aquí la respuesta.");
+    } catch {
+      setNota("No se pudo copiar solo: selecciona el texto de abajo y cópialo.");
+    }
+  };
+  const usar = () => {
+    const t = leerRespuestaIA(respuesta);
+    const n = Object.keys(t).length;
+    if (!n) return setNota(`No encontré los títulos (${Object.values(TITULOS_IA).join(", ")}). Pega la respuesta completa.`);
+    aplicar(t);
+    setRespuesta("");
+    setNota(n < 3 ? `Puse ${n} de 3 apartados; los otros quedan como estaban.` : null);
+  };
+  return (
+    <details className="group rounded-lg border border-dashed p-3">
+      <summary className="cursor-pointer text-sm font-medium"><Sparkles className="mr-1 inline size-4 text-primary" />Mejorar con IA <span className="font-normal text-muted-foreground">· opcional y gratis: conclusión y recomendaciones</span></summary>
+      <div className="mt-3 space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">Solo van cifras del trimestre, sin el nombre de la empresa, sin nombres de trabajadores y con los grupos de 1 o 2 casos como «&lt;3». Sin internet, el analizador de zamorApp sigue redactando todo.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={copiar}><Copy /> 1. Copiar pedido</Button>
+          <Button asChild type="button" variant="ghost" size="sm"><a href="https://claude.ai/new" target="_blank" rel="noreferrer"><ExternalLink /> Abrir Claude</a></Button>
+          <Button asChild type="button" variant="ghost" size="sm"><a href="https://chatgpt.com/" target="_blank" rel="noreferrer"><ExternalLink /> Abrir ChatGPT</a></Button>
+        </div>
+        {nota?.startsWith("No se pudo copiar") && <Textarea readOnly value={pedido()} className="min-h-32 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />}
+        <Textarea placeholder="2. Pega aquí la respuesta completa de la IA" value={respuesta} onChange={(e) => setRespuesta(e.target.value)} className="min-h-24 text-sm" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" disabled={!respuesta.trim()} onClick={usar}><Wand2 /> 3. Usar en el informe</Button>
+          {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 function Campo({ etiqueta, valor, cambiar, disabled, placeholder, tipo = "text" }: { etiqueta: string; valor?: string; cambiar: (v: string) => void; disabled: boolean; placeholder?: string; tipo?: string }) {
   return (
@@ -83,6 +127,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
   const [textos, setTextos] = useState<TextosInforme>(() => ({
     resumen: inicial?.resumen || sugeridos.resumen,
     conclusiones: inicial?.conclusiones || sugeridos.conclusiones,
+    recomendaciones_medicas: inicial?.recomendaciones_medicas || sugeridos.recomendaciones_medicas,
     recomendaciones: inicial?.recomendaciones || sugeridos.recomendaciones,
     factores_riesgo: inicial?.factores_riesgo || sugeridos.factores_riesgo,
     medidas_control: inicial?.medidas_control || sugeridos.medidas_control,
@@ -138,6 +183,8 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
           <Textarea value={textos[k]} disabled={!editable} onChange={(e) => cambiar(k, e.target.value)} className="min-h-28 text-sm" />
         </div>
       ))}
+
+      {datos && editable && <MejorarConIA datos={datos} riesgos={textos.factores_riesgo} aplicar={(t) => { setTextos({ ...textos, ...t }); setAviso({ ok: true, mensaje: "Texto de la IA puesto en la conclusión y las recomendaciones: revísalo antes de guardar." }); }} />}
 
       {generado && (
         <details className="group rounded-lg border p-3">

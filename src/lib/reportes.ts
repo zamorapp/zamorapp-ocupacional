@@ -180,6 +180,7 @@ export type InformeVigilancia = {
   id: string | null;
   resumen: string;
   conclusiones: string;
+  recomendaciones_medicas: string;
   recomendaciones: string;
   factores_riesgo: string;
   medidas_control: string;
@@ -210,7 +211,7 @@ export async function firmantesAnteriores(empresaId: string | null): Promise<Fir
 export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
-  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
+  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones_medicas, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
   q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
   const { data } = await q.maybeSingle();
   if (!data) return null;
@@ -218,6 +219,7 @@ export async function obtenerInforme(empresaId: string | null, p: Periodo): Prom
     id: data.id,
     resumen: data.resumen ?? "",
     conclusiones: data.conclusiones ?? "",
+    recomendaciones_medicas: data.recomendaciones_medicas ?? "",
     recomendaciones: data.recomendaciones ?? "",
     factores_riesgo: data.factores_riesgo ?? "",
     medidas_control: data.medidas_control ?? "",

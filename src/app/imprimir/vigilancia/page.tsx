@@ -438,7 +438,8 @@ export default async function Vigilancia({ searchParams }: Props) {
           <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em]">10 · Conclusión médico-ocupacional</h2>
           <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.conclusiones}</div>
         </section>
-        <Seccion n="11" titulo="Recomendaciones de seguridad y salud laboral"><Texto>{t.recomendaciones}</Texto></Seccion>
+        <Seccion n="11" titulo="Recomendaciones médico-ocupacionales"><Texto>{t.recomendaciones_medicas}</Texto></Seccion>
+        <Seccion n="12" titulo="Recomendaciones de seguridad y salud en el trabajo"><Texto>{t.recomendaciones}</Texto></Seccion>
 
         <p className="mt-6 text-[10px] italic text-doc-tenue">Las firmas de elaboración y aprobación están en la portada.</p>
       </Hoja>
