@@ -11,6 +11,7 @@ create or replace function sync.filas_visibles(p_tabla text, p_ids uuid[])
 returns jsonb language plpgsql stable security invoker set search_path = public as $$
 declare v_cols text; v jsonb;
 begin
+  perform p_tabla::regclass; -- solo una tabla que existe, nunca texto libre en el format de abajo (Analizar)
   if has_table_privilege(p_tabla, 'SELECT') then -- lo común: la tabla entera es legible
     execute format('select jsonb_object_agg(t.id, to_jsonb(t)) from %s t where t.id = any($1)', p_tabla) into v using p_ids;
     return coalesce(v, '{}');
