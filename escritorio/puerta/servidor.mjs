@@ -144,6 +144,12 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     return Boolean(en) && dias > 0 && Math.abs(Date.now() - en) <= dias * 864e5;
   };
 
+  // Con internet, una sesión local aal2 solo vale si la sesión de la nube también pasó el segundo paso. Si no, la nube
+  // rechaza cada pedido con 403 «dos_pasos» y la app, que ve aal2, no pide el código: «No se pudo cargar esta
+  // pantalla» (29-oct, 0.1.218: una entrada con clave cambió la sesión de la nube a aal1 y la ventana seguía en aal2).
+  // Lo mismo al volver internet tras Windows Hello o el plazo de confianza sin conexión. La nube decide.
+  const segundoPasoSinNube = (u, aal) => aal === "aal2" && exigeDosPasos(u) && nube.enLinea && aalDe(u?.nube?.access_token) === "aal1";
+
   const usuarioDe = (req) => {
     const datos = verificar(tokenDeCabecera(req.headers.authorization), d().jwtSecreto, nube.reloj.ahora());
     const u = datos && d().usuarios[datos.sub];
@@ -327,7 +333,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       return errorAuth(res, 400, `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet para entrar.`, "session_expired");
     }
     delete d().refrescos[token];
-    const sesion = sesionLocal(r.uid, r.segundoPaso, r.sid);
+    const bajar = r.segundoPaso && segundoPasoSinNube(u, "aal2");
+    if (bajar) registro("[auth] renovar: la nube está en aal1; la sesión vuelve a aal1 y la app pide el código");
+    const sesion = sesionLocal(r.uid, r.segundoPaso && !bajar, r.sid);
     for (const [t, x] of recienUsados) if (x.hasta < performance.now()) recienUsados.delete(t);
     recienUsados.set(token, { uid: r.uid, sesion, hasta: performance.now() + CONFIG.reusoRefrescoMs });
     registro("[auth] renovar: ok");
@@ -732,6 +740,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       }
       if (ruta === "/auth/v1/user" && req.method === "GET") {
         const quien = usuarioDe(req);
+        if (quien && segundoPasoSinNube(quien.u, quien.aal)) {
+          registro("[auth] sesión aal2 con la nube en aal1: se pide entrar de nuevo (clave y código)");
+          return errorAuth(res, 401, "La verificación en dos pasos venció en la nube. Vuelve a entrar.", "session_expired");
+        }
         return quien ? responder(res, 200, quien.u.user) : errorAuth(res, 401, "Sesión no válida", "bad_jwt");
       }
       const factores = /^\/auth\/v1\/factors(?:\/([\w-]+)(?:\/(challenge|verify))?)?$/.exec(ruta);
@@ -782,6 +794,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
       if (ruta.startsWith("/rest/v1/") || ruta.startsWith("/storage/v1/")) {
         const quien = usuarioDe(req);
         if (!quien) return responder(res, 401, { code: "PGRST301", message: "Sesión vencida o no válida" });
+        if (segundoPasoSinNube(quien.u, quien.aal)) return responder(res, 401, { code: "PGRST301", message: "La verificación en dos pasos venció en la nube. Vuelve a entrar.", details: null, hint: null });
         const lectura = ruta.startsWith("/rest/v1/") && await soloLectura(req);
         if (ruta.startsWith("/storage/v1/") && !faltaSegundoPaso(quien) && await adjuntos.atender(req, res, ruta, crudo, quien, responder)) return;
         // Guardar en la PC: la base local responde al instante (con o sin internet) y la bandeja sube el cambio
