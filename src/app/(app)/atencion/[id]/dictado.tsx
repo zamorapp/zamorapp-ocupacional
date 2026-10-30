@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { confirmar } from "@/components/app/confirmar";
 import { puntuar } from "@/lib/escriba";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
+import { dictadoWindows, enEscritorio } from "@/lib/escritorio";
+import { useSinInternet } from "@/components/app/sin-internet";
 
 // Dictado por voz con el reconocimiento del navegador (Chrome y Edge; sin costo). Solo escribe en el campo:
 // nunca guarda. Un solo campo graba a la vez y el texto se inserta donde está el cursor.
@@ -50,8 +52,25 @@ async function aceptoPrivacidad() {
 // Sin permiso del micrófono: en el escritorio lo decide Windows (zamorApp ya lo concede por dentro); en el navegador,
 // el candado junto a la dirección
 const SIN_PERMISO = ESCRITORIO
-  ? "Windows no deja usar el micrófono. Activa «Acceso al micrófono» y «Permitir que las aplicaciones de escritorio accedan al micrófono», y vuelve a abrir zamorApp."
+  ? "Windows bloquea el micrófono. Toca el botón de abajo, activa los dos interruptores y vuelve a abrir zamorApp."
   : "Permite el micrófono: toca el candado junto a la dirección › Micrófono › Permitir.";
+
+// El reconocimiento de voz solo dice «not-allowed», venga de donde venga. Se abre el micrófono un instante para
+// saber la causa real: Windows lo bloquea, no hay micrófono, otro programa lo tiene o falla el servicio de voz.
+// En el escritorio zamorApp ya concede el micrófono por dentro (microfono.rs), así que un rechazo aquí es de Windows.
+async function causaMicrofono(): Promise<string> {
+  if (!navigator.mediaDevices?.getUserMedia) return SIN_PERMISO;
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+    return "El micrófono funciona, pero el servicio de voz de Microsoft no respondió. Usa Win + H (dictado de Windows) o la web en Chrome.";
+  } catch (e) {
+    const nombre = (e as DOMException).name;
+    if (nombre === "NotFoundError" || nombre === "OverconstrainedError") return "No encuentro ningún micrófono: revisa que esté conectado (o el de la cámara web) y vuelve a intentar.";
+    if (nombre === "NotReadableError") return "Otro programa está usando el micrófono (Zoom, Meet, WhatsApp…): ciérralo y vuelve a intentar.";
+    return SIN_PERMISO;
+  }
+}
 
 // Botón a Configuración › Privacidad › Micrófono de Windows (el escritorio abre solo esa página de Configuración)
 export function AyudaMicrofono({ error }: { error: string }) {
@@ -63,10 +82,16 @@ export function AyudaMicrofono({ error }: { error: string }) {
   );
 }
 
-export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false) {
-  const soportado = useSyncExternalStore(() => () => {}, () => Boolean(constructor()), () => false);
+// En el escritorio el reconocimiento del navegador interno no funciona (falla sin abrir el micrófono): se usa el
+// dictado por voz de Windows, que escribe en el campo con el cursor (campo: id del textarea; por omisión, id)
+export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false, campo = id) {
+  const windows = useSyncExternalStore(() => () => {}, enEscritorio, () => false);
+  const soportado = useSyncExternalStore(() => () => {}, () => enEscritorio() || Boolean(constructor()), () => false);
   const grabando = useSyncExternalStore(suscribir, () => activo?.id === id, () => false);
   const [error, setError] = useState("");
+  // Aviso neutro del dictado de Windows (la app no ve si Windows está escuchando: se dice dónde mirar)
+  const [aviso, setAviso] = useState("");
+  const sinInternet = useSinInternet();
   const rec = useRef<Reconocedor | null>(null);
   const callback = useRef(alTexto);
   useEffect(() => { callback.current = alTexto; }, [alTexto]);
@@ -77,7 +102,24 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
     if (activo?.id === id) { activo = null; avisar(); }
   };
 
+  const conWindows = async () => {
+    setError("");
+    if (sinInternet) return setAviso("El dictado necesita internet. Escribe a mano o vuelve a intentar al volver la señal.");
+    if (!(await aceptoPrivacidad())) return;
+    activo?.detener();
+    document.getElementById(campo)?.focus();
+    try {
+      await dictadoWindows();
+      setAviso("Windows te escucha: mira la barrita arriba de la pantalla.");
+      setTimeout(() => setAviso(""), 6000);
+    } catch (e) {
+      setAviso("");
+      setError(e instanceof Error ? e.message : "Pulsa Win + H con el cursor en el campo.");
+    }
+  };
+
   const iniciar = async () => {
+    if (windows) return conWindows();
     const C = constructor();
     if (!C) return;
     if (!(await aceptoPrivacidad())) return;
@@ -94,8 +136,7 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
       if (e.error === "no-speech" || e.error === "aborted") return;
       // Un error real no se reintenta: onend apaga el micrófono
       rec.current = null;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") setError(SIN_PERMISO);
-      else if (e.error === "audio-capture") setError("No encuentro el micrófono: revisa que esté conectado y vuelve a intentar.");
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") void causaMicrofono().then(setError);
       else if (e.error === "network") setError("El dictado necesita internet. En Windows también puedes usar Win + H.");
       else setError("No se pudo dictar. En Windows puedes usar Win + H.");
     };
@@ -111,7 +152,7 @@ export function useDictado(id: string, alTexto: (texto: string) => void, sinFin 
 
   useEffect(() => () => { if (activo?.id === id) { rec.current?.stop(); activo = null; avisar(); } }, [id]);
 
-  return { soportado, grabando, error, alternar: () => (grabando ? detener() : void iniciar()) };
+  return { soportado, grabando, error, aviso, windows, alternar: () => (grabando ? detener() : void iniciar()) };
 }
 
 // Textarea con botón de micrófono dentro (abajo a la derecha)
@@ -123,7 +164,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
   const cursor = useRef<number | null>(null);
   useEffect(() => { valorRef.current = valor; }, [valor]);
 
-  const { soportado, grabando, error, alternar } = useDictado(id, (texto) => {
+  const { soportado, grabando, error, aviso, windows, alternar } = useDictado(id, (texto) => {
     const v = valorRef.current;
     const pos = Math.min(cursor.current ?? v.length, v.length);
     const insertado = puntuar(texto, v.slice(0, pos));
@@ -152,7 +193,7 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
             type="button"
             onClick={alternar}
             aria-label={grabando ? "Detener dictado" : "Dictar"}
-            title={grabando ? "Detener dictado" : "Dictar (el audio lo procesa Google o Microsoft). Di «punto», «coma», «punto y aparte»"}
+            title={windows ? "Dictar con Windows (Win + H)" : grabando ? "Detener dictado" : "Dictar (el audio lo procesa Google o Microsoft). Di «punto», «coma», «punto y aparte»"}
             className={cn(
               "absolute bottom-2 right-2 grid size-8 place-items-center rounded-full transition",
               grabando ? "animate-pulse bg-alerta text-white motion-reduce:animate-none" : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -162,8 +203,8 @@ export function TextoDictado({ id, etiqueta, valor, onChange, filas = 3, placeho
           </button>
         )}
       </div>
-      <p aria-live="polite" className={cn("text-xs", (grabando || error) && "mt-1", error ? "text-destructive" : "text-alerta-texto")}>
-        {grabando ? "Escuchando… toca para detener" : error}
+      <p aria-live="polite" className={cn("flex items-center gap-1 text-xs", (grabando || error || aviso) && "mt-1", error || grabando ? "text-alerta-texto" : "text-muted-foreground")}>
+        {grabando ? "Escuchando… toca para detener" : error || (aviso && <><Mic aria-hidden className="size-3.5 shrink-0" /> {aviso}</>)}
       </p>
       <AyudaMicrofono error={error} />
     </div>

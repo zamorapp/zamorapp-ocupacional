@@ -60,3 +60,13 @@ export async function mostrarPdf(ruta: string, abrir: boolean): Promise<void> {
     throw new Error(mensaje(e));
   }
 }
+
+// Solo escritorio: abre el dictado por voz de Windows (Win + H) sobre el campo que tiene el cursor. El reconocimiento
+// de voz del navegador interno no funciona (ver escritorio/src-tauri/src/voz.rs).
+export async function dictadoWindows(): Promise<void> {
+  try {
+    await puente()?.invoke("dictado_windows");
+  } catch (e) {
+    throw new Error(mensaje(e));
+  }
+}
