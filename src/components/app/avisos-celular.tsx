@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BellRing, Loader2, Smartphone, X } from "lucide-react";
+import { BellRing, Loader2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VAPID_PUBLICA } from "@/lib/push-publica";
@@ -25,10 +25,11 @@ async function registro() {
   return (await navigator.serviceWorker.getRegistration()) ?? navigator.serviceWorker.register("/sw.js");
 }
 
-function useAvisos() {
+function useAvisos(escritorio = false) {
   const [estado, setEstado] = useState<Estado>("cargando");
   const [endpoint, setEndpoint] = useState<string | null>(null);
   useEffect(() => {
+    if (escritorio) return;
     (async () => {
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
         // iPhone: solo recibe avisos con la app agregada a la pantalla de inicio
@@ -40,7 +41,7 @@ function useAvisos() {
       setEndpoint(sub?.endpoint ?? null);
       setEstado(sub && Notification.permission === "granted" ? "activo" : "apagado");
     })();
-  }, []);
+  }, [escritorio]);
   return { estado, setEstado, endpoint, setEndpoint };
 }
 
@@ -54,10 +55,12 @@ async function suscribir() {
   return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: llave(VAPID_PUBLICA) });
 }
 
-/** Tarjeta de Mi perfil: activar, probar o quitar los avisos en este celular. */
-export function AvisosCelular() {
-  const { estado, setEstado, endpoint, setEndpoint } = useAvisos();
+/** Tarjeta de Mi perfil: activar, probar o quitar los avisos en este celular (en el escritorio solo dice dónde se activan). */
+export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) {
+  const { estado, setEstado, endpoint, setEndpoint } = useAvisos(escritorio);
   const [trabajando, setTrabajando] = useState(false);
+  const [equipo, setEquipo] = useState("celular");
+  useEffect(() => setEquipo(window.matchMedia("(pointer: coarse)").matches ? "celular" : "equipo"), []);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const correr = async (paso: () => Promise<{ ok: boolean; mensaje: string } | null>) => {
@@ -97,9 +100,12 @@ export function AvisosCelular() {
         <CardTitle className="flex items-center gap-2 text-base"><BellRing className="size-4" /> Avisos en el celular</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {escritorio ? (
+          <p className="text-muted-foreground">Los avisos se activan desde tu celular: abre zamorApp en el celular &gt; Mi perfil.</p>
+        ) : (<>
         <p className="text-muted-foreground">
           Te llega una notificación cuando RR. HH. de una empresa se registra con su enlace, pide una cita, registra un
-          trabajador nuevo o hace una solicitud. Llega aunque la laptop esté apagada. Actívalo en cada celular donde lo quieras.
+          trabajador nuevo o hace una solicitud. Llega aunque la laptop esté apagada. Actívalo en cada {equipo} donde lo quieras.
         </p>
         {estado === "cargando" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {estado === "no-soporta" && <p>Este navegador no recibe avisos. En Android usa Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
@@ -109,19 +115,20 @@ export function AvisosCelular() {
         )}
         {estado === "apagado" && (
           <Button onClick={activar} disabled={trabajando} size="lg" className="w-full sm:w-auto">
-            {trabajando ? <Loader2 className="animate-spin" /> : <Smartphone />} Activar avisos en este celular
+            {trabajando ? <Loader2 className="animate-spin" /> : <Smartphone />} Activar avisos en este {equipo}
           </Button>
         )}
         {estado === "activo" && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-ok/15 px-3 py-1 font-medium text-ok-texto">Activos en este celular</span>
+            <span className="rounded-full bg-ok/15 px-3 py-1 font-medium text-ok-texto">Activos en este {equipo}</span>
             <Button variant="outline" size="sm" disabled={trabajando || !endpoint} onClick={() => correr(() => probarAviso(endpoint ?? ""))}>
               {trabajando && <Loader2 className="animate-spin" />} Enviar uno de prueba
             </Button>
             <Button variant="ghost" size="sm" disabled={trabajando} onClick={quitar}>Desactivar</Button>
           </div>
         )}
-        {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-destructive"}>{mensaje.texto}</p>}
+        {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-alerta-texto"}>{mensaje.texto}</p>}
+        </>)}
       </CardContent>
     </Card>
   );
@@ -146,7 +153,7 @@ export function OfertaAvisosCelular() {
       <BellRing className="size-5 shrink-0 text-primary" />
       <p className="flex-1">Recibe en este celular los registros, citas y solicitudes de RR. HH.</p>
       <Button size="sm" asChild><a href="/configuracion/perfil#avisos-celular">Activar</a></Button>
-      <Button size="icon" variant="ghost" aria-label="Ignorar" title="Ignorar" onClick={ignorar}><X /></Button>
+      <Button size="sm" variant="ghost" onClick={ignorar}>Ignorar</Button>
     </div>
   );
 }

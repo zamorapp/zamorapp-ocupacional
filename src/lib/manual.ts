@@ -14,7 +14,6 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
-  { fecha: "2026-10-30", texto: "Avisos en el celular: Mi perfil › «Activar avisos en este celular». Te llega una notificación cuando RR. HH. se registra con su enlace, pide una cita, registra un trabajador nuevo o hace una solicitud, aunque la laptop esté apagada", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
@@ -514,7 +513,6 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Configuración › Usuarios › «Invitar a RR. HH. por enlace» (administrador): elige la empresa, toca un contacto o escribe nombre y WhatsApp, y «Crear enlace». Luego «Enviar por WhatsApp»: se abre tu WhatsApp con el mensaje y el enlace ya escritos.",
       "RR. HH. abre el enlace, crea su cuenta ahí mismo y entra directo al portal de su empresa. Solo ve esa empresa. El enlace vale 7 días y un solo uso; si no lo usó, puedes anularlo y crear otro. Te llega un aviso cuando entra.",
-      "Avisos en el celular: abre zamorApp en tu celular (Chrome en Android), toca tu inicial › Mi perfil › «Activar avisos en este celular» y acepta «Permitir». Desde ese momento te llega una notificación cuando RR. HH. se registra, pide una cita, registra un trabajador nuevo o hace una solicitud, aunque la laptop esté apagada. Al tocarla se abre la pantalla de ese pedido. «Enviar uno de prueba» confirma que funciona. En iPhone, primero agrega zamorApp a la pantalla de inicio.",
       "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
       "Envíos › «Por enviar»: cada constancia que firmas aparece sola aquí, agrupada por empresa y día. Toca «WhatsApp · (nombre)» y se abre tu WhatsApp con el mensaje y el enlace seguro a las constancias; solo te falta tocar enviar.",
       "Si la empresa no tiene teléfono guardado, escríbelo en «Otro teléfono». Para mandar por correo o elegir otras opciones, «Correo y más».",

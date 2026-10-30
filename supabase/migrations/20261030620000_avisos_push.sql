@@ -36,8 +36,8 @@ create table if not exists public.avisos_push_clave (
 alter table public.avisos_push_clave enable row level security;
 revoke all on public.avisos_push_clave from anon, authenticated;
 
--- Activar avisos en este celular: solo el personal del servicio. La primera activación anota la clave del servidor;
--- cambiarla después (si se renuevan las llaves VAPID) solo lo hace el administrador o el gerente médico.
+-- Activar avisos en este celular: solo el personal del servicio. La clave del servidor la anota (la primera vez o si se
+-- renuevan las llaves VAPID) solo el administrador o el gerente médico; los demás activan después.
 create or replace function public.guardar_suscripcion_push(p_org uuid, p_endpoint text, p_p256dh text, p_auth text, p_equipo text, p_clave text)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -49,13 +49,13 @@ begin
   end if;
   if length(coalesce(p_clave, '')) < 32 then raise exception 'Falta la clave de avisos del servidor'; end if;
   select clave_hash into v_actual from public.avisos_push_clave where org_id = p_org;
-  if v_actual is null then
-    insert into public.avisos_push_clave (org_id, clave_hash) values (p_org, v_hash);
-  elsif v_actual <> v_hash then
+  if v_actual is distinct from v_hash then
+    -- Anotar la clave (la primera vez o tras renovar las llaves) solo lo hacen el administrador o el gerente médico
     if public.mi_rol(p_org) not in ('administrador', 'gerente_medico') then
-      raise exception 'Las llaves de avisos cambiaron: que el administrador active los avisos primero' using errcode = '42501';
+      raise exception 'Que el administrador active los avisos primero' using errcode = '42501';
     end if;
-    update public.avisos_push_clave set clave_hash = v_hash where org_id = p_org;
+    insert into public.avisos_push_clave (org_id, clave_hash) values (p_org, v_hash)
+    on conflict (org_id) do update set clave_hash = excluded.clave_hash;
   end if;
   insert into public.suscripciones_push (org_id, usuario_id, endpoint, p256dh, auth, equipo)
   values (p_org, auth.uid(), p_endpoint, p_p256dh, p_auth, nullif(btrim(p_equipo), ''))

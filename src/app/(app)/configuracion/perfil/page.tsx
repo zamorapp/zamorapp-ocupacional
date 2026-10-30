@@ -40,8 +40,8 @@ export default async function Perfil() {
       <FormPerfil perfil={perfil} editable={!sesion.demo} />
       {!sesion.demo && <FirmaSello firma={perfil?.firma_url ?? null} sello={perfil?.sello_url ?? null} mostrarFirma={perfil?.mostrar_firma ?? true} mostrarSello={perfil?.mostrar_sello ?? true} />}
       {!sesion.demo && <HuellaCuenta />}
-      {/* Avisos al celular: solo el personal del servicio y en la web (el celular se suscribe a la nube) */}
-      {!sesion.demo && !esRolEmpresa(sesion.rol) && process.env.NEXT_PUBLIC_ESCRITORIO !== "1" && <AvisosCelular />}
+      {/* Avisos al celular: solo el personal del servicio; en el escritorio solo indica que se activan desde el celular */}
+      {!sesion.demo && !esRolEmpresa(sesion.rol) && <AvisosCelular escritorio={process.env.NEXT_PUBLIC_ESCRITORIO === "1"} />}
       {/* En el escritorio la sesión es de la puerta local: la verificación se activa en la web */}
       {!sesion.demo && process.env.NEXT_PUBLIC_ESCRITORIO !== "1" && (
         <DosPasosCuenta obligatoria={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
