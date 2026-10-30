@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, History, Loader2, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { antiguedad } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha } from "../../pacientes/acciones";
 
-type Props = { trabajadorId: string; consultaId: string; bloqueado: boolean };
+type Resultado = { ok: boolean; mensaje: string };
+// guardarPendiente: la consulta lo llama al guardar, cerrar, firmar o imprimir para que la ficha no quede sin guardar
+type Props = { trabajadorId: string; consultaId: string; bloqueado: boolean; guardarPendiente?: React.RefObject<(() => Promise<Resultado | null>) | null>; onPendiente?: (hay: boolean) => void };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const LATERALIDAD = ["Diestro", "Zurdo", "Ambidiestro"];
@@ -22,8 +24,12 @@ const anios = (nacimiento: string, hoy: string) => {
   const n = /^(\d+) año/.exec(a)?.[1] ?? "0";
   return `${n} ${n === "1" ? "año" : "años"}`;
 };
-// Datos clave: si falta uno, el recuadro se abre solo y lo nombra
+// Datos clave: si falta uno, el recuadro se abre solo y lo nombra. Importantes (rojo): salen en la constancia y
+// deciden los valores normales por edad y sexo; los demás, en ámbar. El campo vacío toma el color de su aviso.
 const CLAVE = { cargo: "cargo", fecha_ingreso_cargo: "fecha de ingreso al cargo", dependencia: "dependencia", sexo: "sexo", fecha_nacimiento: "fecha de nacimiento" } as const;
+const IMPORTANTE: ReadonlySet<string> = new Set(["cargo", "sexo", "fecha_nacimiento"]);
+const colorFalta = (k: string) => (IMPORTANTE.has(k) ? "border-alerta bg-alerta/10 ring-1 ring-alerta/40" : "border-aviso bg-aviso/10 ring-1 ring-aviso/40");
+const chipFalta = (k: string) => (IMPORTANTE.has(k) ? "bg-alerta/15 text-alerta-texto" : "bg-aviso/15 text-aviso-texto");
 
 function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -46,7 +52,7 @@ function Campo({ id, etiqueta, nota, children, ancho }: { id: string; etiqueta: 
 
 // La ficha del trabajador (como la historia del SAME), plegada con su resumen y completada durante la consulta.
 // Se guarda aparte de la consulta: cargo y dependencia nuevos se crean en la empresa del trabajador.
-export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) {
+export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPendiente, onPendiente }: Props) {
   const router = useRouter();
   const [op, setOp] = useState<OpcionesFicha | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -55,6 +61,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [cambiado, setCambiado] = useState(false);
   const [guardando, iniciar] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     fichaDeTrabajador(trabajadorId)
@@ -67,6 +74,28 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
       .catch(() => setOp(null))
       .finally(() => setCargando(false));
   }, [trabajadorId, bloqueado]);
+
+  const guardarFicha = useCallback(async (datos: FormData): Promise<Resultado> => {
+    const r = await actualizarDatosTrabajador(trabajadorId, consultaId, datos);
+    setResultado(r);
+    if (r.ok) {
+      setCambiado(false);
+      const nueva = await fichaDeTrabajador(trabajadorId);
+      if (nueva) { setOp(nueva); setF(nueva.ficha); }
+      router.refresh(); // el encabezado (edad, cargo) y los riesgos del puesto toman lo nuevo
+    }
+    return r;
+  }, [trabajadorId, consultaId, router]);
+
+  // Guardar la consulta también guarda la ficha si quedó con cambios (antes había que tocar su propio botón)
+  useEffect(() => onPendiente?.(cambiado && !bloqueado), [onPendiente, cambiado, bloqueado]);
+  useEffect(() => {
+    if (!guardarPendiente) return;
+    guardarPendiente.current = cambiado && !bloqueado
+      ? async () => (formRef.current ? guardarFicha(new FormData(formRef.current)) : null)
+      : null;
+    return () => { guardarPendiente.current = null; };
+  }, [guardarPendiente, cambiado, bloqueado, guardarFicha]);
 
   // Cerrar o recargar con cambios sin guardar pregunta antes (el navegador muestra su aviso)
   useEffect(() => {
@@ -83,28 +112,19 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
   const v = (k: string) => f[k] ?? "";
   const faltan = (Object.keys(CLAVE) as (keyof typeof CLAVE)[]).filter((k) => !v(k));
   const falta = (k: string) => !bloqueado && faltan.includes(k as keyof typeof CLAVE);
-  const borde = (k: string) => cn("h-10", falta(k) && "border-aviso");
+  const borde = (k: string) => cn("h-10", falta(k) && colorFalta(k));
   const poner = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setF((x) => ({ ...x, [k]: e.target.value }));
     setCambiado(true);
     setResultado(null);
   };
   const cambioDeCargo = Boolean(op.ficha.cargo) && v("cargo").trim().toLowerCase() !== op.ficha.cargo.trim().toLowerCase();
-  const enCargo = antiguedad(op.ficha.fecha_ingreso_cargo, hoy);
-  const edad = anios(op.ficha.fecha_nacimiento, hoy);
-  const resumen = [op.ficha.cargo, op.ficha.dependencia, enCargo && `${enCargo} en el cargo`, edad, op.ficha.lateralidad].filter(Boolean) as string[];
+  // El resumen y los avisos usan lo que está en pantalla (antes usaban lo guardado: la edad recién puesta seguía «falta»)
+  const enCargo = antiguedad(v("fecha_ingreso_cargo"), hoy);
+  const edad = anios(v("fecha_nacimiento"), hoy);
+  const resumen = [v("cargo"), v("dependencia"), enCargo && `${enCargo} en el cargo`, edad, v("lateralidad")].filter(Boolean) as string[];
 
-  const guardar = (datos: FormData) =>
-    iniciar(async () => {
-      const r = await actualizarDatosTrabajador(trabajadorId, consultaId, datos);
-      setResultado(r);
-      if (r.ok) {
-        setCambiado(false);
-        const nueva = await fichaDeTrabajador(trabajadorId);
-        if (nueva) { setOp(nueva); setF(nueva.ficha); }
-        router.refresh(); // el encabezado (edad, cargo) y los riesgos del puesto toman lo nuevo
-      }
-    });
+  const guardar = (datos: FormData) => iniciar(async () => void (await guardarFicha(datos)));
 
   const lista = (k: keyof OpcionesFicha["listas"], valorEsId = false) => (
     <>
@@ -121,7 +141,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
       <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
           {resumen.map((x) => <span key={x} className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5">{x}</span>)}
-          {!edad && !bloqueado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Edad: falta</span>}
+          {!bloqueado && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
           {!resumen.length && bloqueado && <span className="text-muted-foreground">Sin datos de la ficha</span>}
           {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
         </div>
@@ -131,9 +151,9 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
         </span>
       </summary>
 
-      <form action={guardar} className="mt-4 space-y-5">
+      <form ref={formRef} action={guardar} className="mt-4 space-y-5">
         {faltan.length > 0 && !bloqueado && (
-          <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
+          <p className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
             Falta: {faltan.map((k) => CLAVE[k]).join(", ")}. Salen en los informes, la constancia y la vigilancia.
           </p>
         )}
@@ -168,7 +188,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado }: Props) 
 
           <Grupo titulo="Personales">
             <Campo id="dt-sexo" etiqueta="Sexo">
-              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={cn(SELECT, falta("sexo") && "border-aviso")}>
+              <select id="dt-sexo" name="sexo" value={v("sexo")} onChange={poner("sexo")} className={cn(SELECT, falta("sexo") && colorFalta("sexo"))}>
                 <option value="">Sin definir</option>
                 <option value="F">Femenino</option>
                 <option value="M">Masculino</option>
