@@ -258,6 +258,8 @@ export type OpcionesFicha = {
   dependencias: string[];
   listas: Record<"estado_civil" | "nivel_educativo" | "turno" | "tipo_paciente", { id: string; nombre: string }[]>;
   historial: { cargo: string; desde: string | null; hasta: string }[];
+  // «Hoy» del servidor (Caracas): la edad y la antigüedad no dependen de la fecha de Windows
+  hoy: string;
 };
 
 // Ficha actual, cargos y dependencias de su empresa (para sugerir) y las listas editables, en una sola ida
@@ -291,5 +293,6 @@ export async function fichaDeTrabajador(trabajadorId: string): Promise<OpcionesF
     dependencias: [...new Set((d ?? []).map((x) => x.nombre))],
     listas,
     historial: h ?? [],
+    hoy: hoyCaracas(),
   };
 }

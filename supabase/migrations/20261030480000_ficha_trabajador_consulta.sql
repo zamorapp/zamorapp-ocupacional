@@ -49,20 +49,27 @@ drop trigger if exists historial_cargos on public.trabajadores;
 create trigger historial_cargos before update of puesto_id on public.trabajadores
   for each row execute function public.historial_cargos();
 
-insert into public.listas (codigo, nombre, descripcion) values
-  ('estado_civil', 'Estados civiles', 'Ficha del trabajador'),
-  ('nivel_educativo', 'Niveles educativos', 'Ficha del trabajador')
-on conflict (codigo) do nothing;
+-- Listas: solo en la nube. En la base local de la PC (es_base_local) llegan por la réplica con los ids de la nube;
+-- crearlas aquí duplicaría el desplegable y la bandeja las subiría sin autor.
+do $$
+begin
+  if public.es_base_local() then return; end if;
 
-insert into public.lista_items (lista, codigo, nombre, orden)
-select v.lista, v.codigo, v.nombre, v.orden
-from (values
-  ('estado_civil', 'S', 'Soltero(a)', 1), ('estado_civil', 'C', 'Casado(a)', 2), ('estado_civil', 'U', 'Unión estable / concubinato', 3),
-  ('estado_civil', 'D', 'Divorciado(a)', 4), ('estado_civil', 'V', 'Viudo(a)', 5),
-  ('nivel_educativo', 'SIN', 'Sin instrucción', 1), ('nivel_educativo', 'PRI', 'Primaria', 2), ('nivel_educativo', 'BAC', 'Bachiller', 3),
-  ('nivel_educativo', 'TSU', 'Técnico superior (TSU)', 4), ('nivel_educativo', 'UNI', 'Universitario', 5), ('nivel_educativo', 'POS', 'Postgrado', 6)
-) v (lista, codigo, nombre, orden)
-where not exists (select 1 from public.lista_items b where b.org_id is null and b.lista = v.lista and b.codigo = v.codigo);
+  insert into public.listas (codigo, nombre, descripcion) values
+    ('estado_civil', 'Estados civiles', 'Ficha del trabajador'),
+    ('nivel_educativo', 'Niveles educativos', 'Ficha del trabajador')
+  on conflict (codigo) do nothing;
 
--- Cada organización recibe su copia editable (Configuración › Listas)
-select public.copiar_listas_base(id) from public.organizaciones;
+  insert into public.lista_items (lista, codigo, nombre, orden)
+  select v.lista, v.codigo, v.nombre, v.orden
+  from (values
+    ('estado_civil', 'S', 'Soltero(a)', 1), ('estado_civil', 'C', 'Casado(a)', 2), ('estado_civil', 'U', 'Unión estable / concubinato', 3),
+    ('estado_civil', 'D', 'Divorciado(a)', 4), ('estado_civil', 'V', 'Viudo(a)', 5),
+    ('nivel_educativo', 'SIN', 'Sin instrucción', 1), ('nivel_educativo', 'PRI', 'Primaria', 2), ('nivel_educativo', 'BAC', 'Bachiller', 3),
+    ('nivel_educativo', 'TSU', 'Técnico superior (TSU)', 4), ('nivel_educativo', 'UNI', 'Universitario', 5), ('nivel_educativo', 'POS', 'Postgrado', 6)
+  ) v (lista, codigo, nombre, orden)
+  where not exists (select 1 from public.lista_items b where b.org_id is null and b.lista = v.lista and b.codigo = v.codigo);
+
+  -- Cada organización recibe su copia editable (Configuración › Listas)
+  perform public.copiar_listas_base(id) from public.organizaciones;
+end $$;

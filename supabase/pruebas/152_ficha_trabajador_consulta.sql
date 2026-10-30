@@ -3,6 +3,15 @@
 reset role;
 select 'listas de ficha copiadas a la organización (debe 11): ' || count(*) from public.lista_items
  where org_id = '10000000-0000-0000-0000-000000000001' and lista in ('estado_civil', 'nivel_educativo');
+-- En la base local de la PC la migración no crea listas (llegan por la réplica con los ids de la nube)
+delete from public.lista_items where lista in ('estado_civil', 'nivel_educativo');
+select set_config('zamorapp.local', 'on', false) \g /dev/null
+\i supabase/migrations/20261030480000_ficha_trabajador_consulta.sql
+select 'base local: la migración no crea ítems de lista (debe 0): ' || count(*) from public.lista_items where lista in ('estado_civil', 'nivel_educativo');
+select set_config('zamorapp.local', '', false) \g /dev/null
+\i supabase/migrations/20261030480000_ficha_trabajador_consulta.sql
+select 'nube: la migración repuesta crea la base y la copia de la organización (debe 22): ' || count(*) from public.lista_items
+ where lista in ('estado_civil', 'nivel_educativo') and (org_id is null or org_id = '10000000-0000-0000-0000-000000000001');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 update public.trabajadores set estado_civil = 'Casado(a)', sexo = 'F', fecha_nacimiento = '1990-05-01', telefono = '0414', direccion = 'Maturín'
