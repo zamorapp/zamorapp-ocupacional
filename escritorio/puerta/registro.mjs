@@ -35,7 +35,14 @@ export function abrirRegistro(ruta, tope = TOPE_REGISTRO) {
       }
       bytes += fs.writeSync(fd, linea);
     } catch {
-      // Un registro que no se puede escribir nunca frena la puerta
+      // Un registro que no se puede escribir nunca frena la puerta. Si falló al rotar (un antivirus con el archivo
+      // tomado, p. ej.), se intenta reabrir para que las líneas siguientes no se pierdan hasta reiniciar.
+      try {
+        fd = fs.openSync(ruta, "a");
+        bytes = fs.fstatSync(fd).size;
+      } catch {
+        // se reintenta en la próxima línea
+      }
     }
   };
   return { write };
