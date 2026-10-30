@@ -31,6 +31,8 @@ $$;
 
 -- Sin security definer a propósito: current_user es quien escribe (authenticated en la app; el dueño dentro de
 -- aplicar_cambios). Las horas que trae un usuario se descartan.
+-- OJO: toda función security definer que actualice citas o solicitudes cuenta como «sincronía» y conserva las horas
+-- que traiga; si no viene de la sincronía del escritorio, que no las mande (o que este disparador la distinga).
 create or replace function public.horas_cita()
 returns trigger language plpgsql set search_path = public as $$
 declare
@@ -64,6 +66,7 @@ end $$;
 drop trigger if exists horas_cita on public.citas;
 create trigger horas_cita before insert or update on public.citas for each row execute function public.horas_cita();
 
+-- Mismo criterio que horas_cita (ver el aviso sobre las funciones security definer)
 create or replace function public.horas_solicitud()
 returns trigger language plpgsql set search_path = public as $$
 declare
