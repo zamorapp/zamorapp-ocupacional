@@ -1612,6 +1612,69 @@ test("adjuntos: la sincronía baja de a poco los archivos que la PC aún no tien
   assert.deepEqual(await puerta.adjuntos.bajarPendientes(null), { bajados: 0, faltan: 0 });
 });
 
+// 30/10/2026 (pedido de Cesar): los resultados de laboratorio se trabajan igual sin internet. Con la nube apagada: abrir la
+// consulta con sus valores, el catálogo con sus rangos (semáforo), el PDF del laboratorio, registrar la lectura y la
+// campana de «resultados por recibir». Al volver la conexión todo sube y la campana no queda repetida.
+test("sin internet: resultados de laboratorio completos (consulta, rangos, PDF, lectura y campana) y suben al volver", { skip: omitir, timeout: 60_000 }, async () => {
+  const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
+  const CONS = "4f000000-0000-0000-0000-0000000000a1", ITEM = "4f000000-0000-0000-0000-0000000000b1";
+  const RUTA_LAB = `${ORG}/${T}/laboratorio-santa-ana.pdf`;
+  const ENLACE = `/atencion/${CONS}?paso=paraclinicos`;
+  nube.estado.caida = false; await nubeObj.comprobar();
+  tokenMed = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } })).json.access_token;
+  await enLaNubeDB(`insert into public.lista_items (id, lista, org_id, nombre, grupo, datos) values ($1, 'paraclinico', $2, 'Glicemia 30-oct', 'Química',
+    '{"tipo":"numero","unidad":"mg/dL","rango_min":70,"rango_max":99,"fuente":"ADA 2025"}') on conflict (id) do nothing`, [ITEM, ORG]);
+  await enLaNubeDB(`insert into clinico.consultas (id, org_id, empresa_id, trabajador_id, estado, fecha, medico_id, paraclinicos)
+    values ($1, $2, '20000000-0000-0000-0000-00000000000a', $3, 'cerrada', public.hoy_caracas() - 5, $4, $5) on conflict (id) do nothing`,
+    [CONS, ORG, T, MED, JSON.stringify([{ id: ITEM, nombre: "Glicemia 30-oct", resultado: "120" }, { id: "hb", nombre: "Hemoglobina", resultado: "" }])]);
+  await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, consulta_id, nombre, ruta, tipo_mime, tamano) values ($1, $2, $3, 'lab.pdf', $4, 'application/pdf', $5) on conflict (ruta) do nothing`,
+    [ORG, T, CONS, RUTA_LAB, Buffer.byteLength(PDF)]);
+  nube.estado.archivos.set(`adjuntos/${RUTA_LAB}`, { cuerpo: PDF, tipo: "application/pdf" });
+  await replicaObj.enCurso;
+  await replicaObj.ciclo();
+  await puerta.adjuntos.bajarPendientes("00000000-0000-0000-0000-0000000000a1", { maxArchivos: 50, maxDia: 1e9 }); // la sincronía baja el PDF
+  const avisosEnNube = async () => (await enLaNubeDB("select count(*)::int n from public.notificaciones where usuario_id = $1 and enlace = $2", [MED, ENLACE])).rows[0].n;
+  const avisosEnPc = async () => (await enLaCopiaDB("select count(*)::int n from public.notificaciones where usuario_id = $1 and enlace = $2", [MED, ENLACE])).rows[0].n;
+  try {
+    nube.estado.caida = true; await nubeObj.comprobar();
+    assert.equal(nubeObj.enLinea, false);
+    // La consulta con sus valores y el catálogo con su rango: el semáforo se pinta igual
+    const c = await pedir(`/rest/v1/consultas?select=id,paraclinicos&id=eq.${CONS}`, { token: tokenMed });
+    conEstado(c, 200);
+    assert.equal(c.json[0].paraclinicos[0].resultado, "120");
+    const li = await pedir(`/rest/v1/lista_items?select=id,datos&id=eq.${ITEM}`, { token: tokenMed });
+    conEstado(li, 200);
+    assert.deepEqual([li.json[0].datos.rango_min, li.json[0].datos.rango_max, li.json[0].datos.fuente], [70, 99, "ADA 2025"]);
+    // El PDF del laboratorio se abre desde la PC
+    const f = await pedir(`/storage/v1/object/sign/adjuntos/${RUTA_LAB}`, { metodo: "POST", token: tokenMed, cuerpo: { expiresIn: 600 } });
+    conEstado(f, 200);
+    assert.equal(await (await fetch(encodeURI(`${urlPuerta}/storage/v1${f.json.signedURL}`))).text(), PDF);
+    // Registrar la lectura: se valida en la copia y queda para subir
+    const lec = await pedir("/rest/v1/rpc/registrar_lectura_laboratorio", { metodo: "POST", token: tokenMed, cuerpo: {
+      p_consulta: CONS, p_adjunto: null, p_cedula_leida: "V-1", p_cedula_coincide: true, p_cedula_ignorada: false, p_examenes: 2 } });
+    assert.ok([200, 204].includes(lec.status), JSON.stringify(lec.json));
+    // La campana: el aviso sale en la PC al momento; abrir Inicio otra vez no lo repite ni anota otra constancia
+    for (let i = 0; i < 2; i++) {
+      const rr = await pedir("/rest/v1/rpc/recordar_resultados", { metodo: "POST", token: tokenMed, cuerpo: {} });
+      assert.equal(rr.status, 200, JSON.stringify(rr.json));
+    }
+    assert.equal(await avisosEnPc(), 1, "el aviso está en la campana de la PC");
+    const ks = await enLocal("select rpc, autor, args from local.constancias order by creado");
+    assert.deepEqual(ks.map((k) => k.rpc), ["registrar_lectura_laboratorio", "recordar_resultados"]);
+    assert.equal(ks[1].autor, MED);
+    assert.equal(ks[1].args.locales.length, 1);
+  } finally {
+    nube.estado.caida = false; await nubeObj.comprobar();
+  }
+  // Vuelve internet: suben la lectura y la campana; la nube hace su aviso y el de la PC se borra (no queda repetido)
+  await bandejaObj.subir();
+  assert.equal((await enLocal("select count(*)::int n from local.constancias"))[0].n, 0, "subieron las dos");
+  assert.equal((await enLaNubeDB("select count(*)::int n from public.bitacora where registro_id = $1 and tabla = 'clinico.lectura_laboratorio' and (despues ->> 'registrada_sin_internet')::boolean", [CONS])).rows[0].n, 1);
+  assert.equal(await avisosEnNube(), 1, "la nube hizo su aviso");
+  await replicaObj.ciclo();
+  assert.equal(await avisosEnPc(), 1, "en la PC queda uno solo: el de la nube");
+});
+
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
   const marca = path.join(datos, "caer-postgrest");
   if (!postgrestReal) fs.writeFileSync(marca, "2"); // los dos próximos arranques del simulador se caen con código 3

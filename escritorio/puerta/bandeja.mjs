@@ -37,6 +37,19 @@ export class Bandeja {
     } finally { await c.end().catch(() => {}); }
   }
 
+  // La campana de resultados sin internet: una sola constancia pendiente por usuario (abrir Inicio diez veces no sube
+  // diez); junta los avisos que la copia creó, para borrarlos cuando la nube haga los suyos
+  async anotarCampana(autor, locales) {
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    try {
+      await c.connect();
+      const { rowCount } = await c.query(`update local.constancias set args = jsonb_build_object('locales', coalesce(args -> 'locales', '[]') || to_jsonb($2::uuid[]))
+        where rpc = 'recordar_resultados' and autor = $1 and estado = 'pendiente'`, [autor, locales]);
+      if (!rowCount) await c.query("insert into local.constancias (rpc, args, autor, hora, hora_verificada) values ('recordar_resultados', $1, $2, $3, $4)",
+        [JSON.stringify({ locales }), autor, this.nube.reloj.iso(), this.nube.reloj.verificada]);
+    } finally { await c.end().catch(() => {}); }
+  }
+
   // Después de las filas (la consulta y el adjunto ya están en la nube): cada constancia con la sesión de su autor.
   // Un rechazo de la nube queda anotado (nunca se reintenta para siempre); sin sesión o sin red, espera.
   async #subirConstancias(c) {
@@ -46,7 +59,13 @@ export class Bandeja {
       if (!(await this.nube.token(k.autor).catch(() => null))) continue;
       try {
         await this.nube.rpc(k.autor, "constancia_diferida", { p_equipo: eq.id, p_secreto: eq.secreto, p_id: k.id, p_rpc: k.rpc, p_args: k.args, p_hora: new Date(k.hora).toISOString(), p_hora_verificada: k.hora_verificada });
-        await c.query("delete from local.constancias where id = $1", [k.id]);
+        // returning: los args al borrar (si llegó otro aviso mientras subía, también se borra con esta pasada)
+        const { rows: [hecha] } = await c.query("delete from local.constancias where id = $1 returning args", [k.id]);
+        // La nube ya hizo sus avisos (bajan con la sincronía): fuera los que la PC había creado sin internet
+        const locales = k.rpc === "recordar_resultados" ? hecha?.args?.locales : null;
+        if (Array.isArray(locales) && locales.length) {
+          await c.query("delete from public.notificaciones where usuario_id = $1 and id = any($2::uuid[])", [k.autor, locales]);
+        }
       } catch (e) {
         if (!e.status || e.status >= 500) throw e; // sin red o la nube caída: otra pasada
         await c.query("update local.constancias set intentos = intentos + 1, estado = case when intentos + 1 >= $2 then 'rechazado' else estado end, motivo = $3 where id = $1", [k.id, REINTENTOS, e.message]);

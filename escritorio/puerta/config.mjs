@@ -41,7 +41,9 @@ export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta
 // Constancias: funciones que solo dejan rastro (bitácora de la lectura de laboratorio, quién abrió la historia). Sin
 // internet se validan en la copia local con las reglas de la base y quedan en local.constancias; la bandeja las sube
 // después por constancia_diferida() con la hora de la PC (si estaba verificada). Así leer resultados no se frena.
-export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso"]);
+// recordar_resultados (la campana de resultados pendientes) también: sus avisos salen en la PC al momento y, al subir,
+// la nube la vuelve a calcular y la PC borra los suyos (bandeja.mjs).
+export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados"]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([

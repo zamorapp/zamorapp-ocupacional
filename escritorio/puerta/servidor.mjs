@@ -394,6 +394,20 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   }
 
   // antes(status): se espera antes de responder (si falla, la ventana recibe el error y no un «hecho» falso)
+  // Para la campana sin internet: la hora de la base local (no la de Windows en la puerta) y los avisos creados desde ella
+  async function relojDeLaCopia() {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try { await c.connect(); return (await c.query("select clock_timestamp() as t")).rows[0].t; } finally { await c.end().catch(() => {}); }
+  }
+  async function avisosDeResultadosDesde(uid, desde) {
+    const c = new pg.Client({ connectionString: motor.url() });
+    try {
+      await c.connect();
+      const { rows } = await c.query("select id from public.notificaciones where usuario_id = $1 and titulo = 'Resultados por recibir' and creado_en >= $2", [uid, desde]);
+      return rows.map((f) => f.id);
+    } finally { await c.end().catch(() => {}); }
+  }
+
   async function aLaCopia(req, res, cuerpo, antes = null) {
     // Solo pasan las cabeceras de PASAR: una X-Zamorapp-Ahora que mande el navegador se descarta y va la de la puerta
     // X-Zamorapp-Ahora va SOLO con hora anclada a la nube; sin ancla (PC reiniciada sin internet) no va, y la base
@@ -844,7 +858,14 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         const constancia = req.method === "POST" ? /^\/rest\/v1\/rpc\/([a-z_]+)$/.exec(ruta)?.[1] : null;
         if (constancia && RPC_CONSTANCIA.has(constancia) && bandeja && d().copiaCompleta) {
           if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
-          return await aLaCopia(req, res, crudo, async (status) => { if (status < 300) await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {}); });
+          // La campana: se anotan los avisos que la copia acaba de crear, para borrarlos cuando la nube cree los suyos
+          const desde = constancia === "recordar_resultados" ? await relojDeLaCopia() : null;
+          return await aLaCopia(req, res, crudo, async (status) => {
+            if (status >= 300) return;
+            if (!desde) return await bandeja.anotarConstancia(quien.uid, constancia, json() ?? {});
+            const locales = await avisosDeResultadosDesde(quien.uid, desde);
+            if (locales.length) await bandeja.anotarCampana(quien.uid, locales);
+          });
         }
         if (!await soloLectura(req)) {
           registro(`[puerta] sin conexión: no se guarda ${req.method} ${ruta}`);
