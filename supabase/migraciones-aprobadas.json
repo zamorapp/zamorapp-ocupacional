@@ -1,21 +1,36 @@
 {
-  "etiqueta": "migraciones-20261030-2",
-  "aprobado": "Cesar: «SI» 30-oct 07:15 UTC (480000, 490000 y 500000)",
+  "etiqueta": "migraciones-20261030-3",
+  "aprobado": "Cesar: «sí a todo» 30-oct 08:07 UTC (510000 a 560000)",
   "migraciones": [
     {
-      "archivo": "20261030480000_ficha_trabajador_consulta.sql",
-      "sha256": "b12815b5bae1811732949a8a19d4d1f1b913346444ba2d7b7e3798e8bf731e73",
-      "descripcion": "Datos del trabajador: estado civil, fecha de ingreso al cargo e historial de cargos"
+      "archivo": "20261030510000_perfil_normal.sql",
+      "sha256": "9d40669b304a80fbbba3d133af14dd1cfe5c77e771358bc05c05c65e3bc1df26",
+      "descripcion": "Perfil normal por motivo y copiar la evaluación anterior"
     },
     {
-      "archivo": "20261030490000_fecha_evaluacion.sql",
-      "sha256": "e5ef1d1eddbd65544166726abf745ab251786af22cd189f6c6fc34c3bf03175f",
-      "descripcion": "Fecha de la evaluación editable (pasado o futuro), con bitácora y horas reales protegidas"
+      "archivo": "20261030520000_alerta_proxima.sql",
+      "sha256": "7ef2c203e39faf0401285f17a329652999a6eea0724f049d101e8414131a4412",
+      "descripcion": "Alerta para la próxima evaluación con paraclínicos a pedir"
     },
     {
-      "archivo": "20261030500000_horas_de_firma.sql",
-      "sha256": "1be5e62bce69e616cac55dcb080ccf18c40be32f0cd2ab8201a54869b22a9b68",
-      "descripcion": "Las horas de cierre y firma no se cambian con una edición directa"
+      "archivo": "20261030530000_buscador_diagnosticos.sql",
+      "sha256": "14fe063dc856a63723705c1034144fea3b1b0b29192b92e1d5d460846429dc13",
+      "descripcion": "Buscador de diagnósticos y medicinas como el SAME"
+    },
+    {
+      "archivo": "20261030540000_horas_de_cada_paso.sql",
+      "sha256": "b878dd3af9a9b7d1a589bfeda4197fcae3c46cfa5762c3b1efeacb053a77e588",
+      "descripcion": "Portal de RR. HH.: hora de cada paso"
+    },
+    {
+      "archivo": "20261030550000_solicitudes_solo_salud.sql",
+      "sha256": "06514313e234c980c8ffd1c0adc7e70b8479402a04f3626107c44c147583ca68",
+      "descripcion": "Respuestas médicas de solicitudes solo para salud (cierra la fuga de diagnósticos a RR. HH.)"
+    },
+    {
+      "archivo": "20261030560000_recomendaciones_medicas.sql",
+      "sha256": "2bf0474e340bfbe7bcc03e04fefc79ab7582afe8fea2440e48de271cd58ed12f",
+      "descripcion": "Recomendaciones médicas separadas en la vigilancia"
     }
   ]
 }
