@@ -14,8 +14,9 @@ const LOTE_MAX = 1000;
 const LOTE_MIN = 50;
 const esDemora = (e) => e?.code === "57014" || e?.name === "TimeoutError" || /statement timeout/i.test(e?.message || "");
 // Error de la base local (SQLSTATE de 5 letras): un dato que la copia no acepta. Otro error (conexión cortada) no es
-// culpa de una fila y no se aparta nada.
-const esDeLaBase = (e) => /^[0-9A-Z]{5}$/.test(e?.code || "");
+// culpa de una fila y no se aparta nada; tampoco los pasajeros de clase 40 (bloqueo mutuo con la bandeja) ni 57 (la
+// base cortó la conexión en un respaldo o restauración): esos se reintentan en el ciclo siguiente (Arquitecto).
+const esDeLaBase = (e) => /^[0-9A-Z]{5}$/.test(e?.code || "") && !/^(40|57)/.test(e.code);
 const APARTADAS_POR_CICLO = 50;
 
 // Lo que ve la persona en el botón «Sincronizar ahora»: qué falló, en palabras simples (sin el texto técnico, que
