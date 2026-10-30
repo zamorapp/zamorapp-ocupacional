@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { confirmar } from "@/components/app/confirmar";
+import { puntuar } from "@/lib/escriba";
 
 // Dictado por voz con el reconocimiento del navegador (Chrome y Edge; sin costo). Solo escribe en el campo:
 // nunca guarda. Un solo campo graba a la vez y el texto se inserta donde está el cursor.
@@ -29,21 +30,6 @@ const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 const suscribir = (f: () => void) => (oyentes.add(f), () => void oyentes.delete(f));
 
-// "hola mundo" + "punto y aparte" → signos; primera letra en mayúscula tras punto o al inicio
-function puntuar(texto: string, previo: string) {
-  let t = ` ${texto.trim()} `
-    .replace(/\s+punto y aparte\s+/gi, ".\n")
-    .replace(/\s+nueva línea\s+/gi, "\n")
-    .replace(/\s+punto y seguido\s+/gi, ". ")
-    .replace(/\s+punto\s+/gi, ". ")
-    .replace(/\s+coma\s+/gi, ", ")
-    .replace(/\s+dos puntos\s+/gi, ": ")
-    .trim();
-  if (!previo.trim() || /[.\n]\s*$/.test(previo)) t = t.charAt(0).toUpperCase() + t.slice(1);
-  const espacio = previo && !/[\s\n]$/.test(previo) ? " " : "";
-  return espacio + t;
-}
-
 // El reconocimiento del navegador envía el audio a Google (Chrome) o Microsoft (Edge): se avisa y se pide
 // aceptarlo una vez en cada equipo antes de dictar
 const CLAVE_PRIVACIDAD = "zamorapp.dictado.aceptado";
@@ -58,7 +44,9 @@ async function aceptoPrivacidad() {
   return si;
 }
 
-export function useDictado(id: string, alTexto: (texto: string) => void) {
+// sinFin: el navegador corta el reconocimiento tras un silencio o un minuto; para dictar una consulta entera se
+// vuelve a encender solo hasta que el médico lo detiene
+export function useDictado(id: string, alTexto: (texto: string) => void, sinFin = false) {
   const soportado = useSyncExternalStore(() => () => {}, () => Boolean(constructor()), () => false);
   const grabando = useSyncExternalStore(suscribir, () => activo?.id === id, () => false);
   const [error, setError] = useState("");
@@ -86,11 +74,17 @@ export function useDictado(id: string, alTexto: (texto: string) => void) {
       for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) callback.current(e.results[i][0].transcript);
     };
     r.onerror = (e) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      // Un error real no se reintenta: onend apaga el micrófono
+      rec.current = null;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") setError("Permite el micrófono para dictar.");
       else if (e.error === "network") setError("El dictado necesita internet. En Windows también puedes usar Win + H.");
-      else if (e.error !== "no-speech" && e.error !== "aborted") setError("No se pudo dictar. En Windows puedes usar Win + H.");
+      else setError("No se pudo dictar. En Windows puedes usar Win + H.");
     };
-    r.onend = () => { if (activo?.id === id) { activo = null; avisar(); } };
+    r.onend = () => {
+      if (sinFin && rec.current === r && activo?.id === id) { try { r.start(); return; } catch {} }
+      if (activo?.id === id) { activo = null; avisar(); }
+    };
     rec.current = r;
     activo = { id, detener };
     avisar();
