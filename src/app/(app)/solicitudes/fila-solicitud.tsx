@@ -5,6 +5,7 @@ import { ChevronDown, Download, Paperclip } from "lucide-react";
 import { Aviso, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Pasos, pasosSolicitud } from "@/components/app/pasos";
 import { ETIQUETA_SOLICITUD, type Solicitud } from "@/lib/solicitudes-tipos";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,8 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
   const [origen, setOrigen] = useState<"archivo" | "consulta">(consultas.length && clinico ? "consulta" : "archivo");
   const [estado, accion, guardando] = useActionState(atenderSolicitud, null);
   const [subiendo, setSubiendo] = useState<string | null>(null);
+  // Un archivo propio queda solo para el personal de salud salvo que se desmarque (puede llevar diagnósticos)
+  const [soloSalud, setSoloSalud] = useState(s.soloSalud);
   const e = ETIQUETA_SOLICITUD[s.estado];
 
   // El archivo va directo del navegador a Storage (sin pasar por el servidor, que tiene límite de tamaño)
@@ -59,6 +62,7 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
           <span className="block font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</span>
           <span className="block text-xs text-muted-foreground">{s.empresa} · {fechaHora(s.creadoEn)}</span>
           <span className="mt-1 line-clamp-2 block text-sm">{s.detalle}</span>
+          {s.estado !== "pendiente" && <Pasos pasos={pasosSolicitud(s)} className="mt-1" />}
         </span>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", e.clase)}>{e.texto}</span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", abrir && "rotate-180")} />
@@ -66,6 +70,7 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
       {abrir && (
         <div className="space-y-4 border-t px-4 py-4">
           <p className="whitespace-pre-line text-sm">{s.detalle}</p>
+          {s.soloSalud && !s.documento && <p className="text-sm text-muted-foreground">Respuesta con datos médicos: solo la ve el personal de salud.</p>}
           {s.documento && (
             <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> {s.documento}</a></Button>
           )}
@@ -100,11 +105,19 @@ export function FilaSolicitud({ s, orgId, consultas, clinico }: { s: Solicitud; 
               ) : (
                 <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
                   <Paperclip className="size-4" />
-                  <input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png" className="min-w-0 flex-1 text-sm file:hidden" />
+                  <input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png" onChange={(e) => { if (e.target.files?.length) setSoloSalud(true); }} className="min-w-0 flex-1 text-sm file:hidden" />
                 </label>
               )}
             </div>
             <CampoTexto id={`respuesta-${s.id}`} name="respuesta" etiqueta="Respuesta para la empresa" rows={3} defaultValue={s.respuesta ?? ""} className="sm:col-span-2" placeholder="Opcional. La ve la empresa en su portal." />
+            {origen === "consulta" && clinico && consultas.length > 0 ? (
+              <p className="text-xs text-muted-foreground sm:col-span-2">Las constancias de aptitud y de atención las ve RR. HH. Los demás documentos llevan diagnósticos: RR. HH. solo verá «Respondida» y la respuesta queda para el personal de salud.</p>
+            ) : (
+              <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                <input type="checkbox" name="solo_salud" value="1" checked={soloSalud} onChange={(e) => setSoloSalud(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
+                <span>Solo para el personal de salud <span className="block text-xs text-muted-foreground">Márcalo si la respuesta o el archivo lleva diagnósticos. RR. HH. solo verá «Respondida».</span></span>
+              </label>
+            )}
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
               <Button type="submit" disabled={guardando || subiendo === "Subiendo…"}>{guardando ? "Guardando…" : "Guardar y avisar"}</Button>
               {subiendo ? <span className="text-sm text-muted-foreground">{subiendo}</span> : <Aviso resultado={estado} />}

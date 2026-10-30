@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
+import { Pasos, pasosCita, pasosSolicitud } from "@/components/app/pasos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarCitas } from "@/lib/citas";
@@ -30,7 +31,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   en_consulta: { texto: "En consulta", clase: "bg-primary text-primary-foreground" },
   atendido: { texto: "Atendido", clase: "bg-ok/15 text-ok-texto" },
   no_asistio: { texto: "No asistió", clase: "bg-alerta/15 text-alerta-texto" },
-  cancelada: { texto: "Cancelada", clase: "bg-muted text-muted-foreground" },
+  cancelada: { texto: "Cancelada", clase: "bg-alerta/15 text-alerta-texto" },
 };
 
 export default async function Portal() {
@@ -99,7 +100,7 @@ export default async function Portal() {
                 {deHoy.map((c) => (
                   <li key={c.id} className="flex items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-12 font-mono text-muted-foreground">{c.hora ?? "—"}</span>
-                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div></div>
+                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
                   </li>
                 ))}
@@ -117,7 +118,7 @@ export default async function Portal() {
                 {proximas.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-24 font-mono text-muted-foreground">{fecha(c.fecha)}{c.hora && ` ${c.hora}`}</span>
-                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div></div>
+                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
                     {gestiona && c.estado === "solicitada" && <CancelarSolicitud id={c.id} />}
                   </li>
@@ -160,9 +161,10 @@ export default async function Portal() {
                   <span className="w-24 font-mono text-muted-foreground">{fecha(s.creadoEn.slice(0, 10))}</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</div>
-                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.soloSalud ? "Respuesta con datos médicos: la recibe el personal de salud de la empresa." : s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                    <Pasos pasos={pasosSolicitud(s)} className="mt-0.5" />
                   </div>
-                  {s.documento && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  {s.documento && !s.soloSalud && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
                   <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
                 </li>
               ))}

@@ -21,22 +21,37 @@ export type Cita = {
   motivo: string | null;
   consultaId: string | null;
   observacion: string | null;
+  // Hora de cada paso (las pone la base al cambiar el estado); creadoEn = cuándo se pidió o se agendó
+  creadoEn: string | null;
+  confirmadaEn: string | null;
+  enConsultaEn: string | null;
+  atendidaEn: string | null;
+  cerradaEn: string | null;
 };
 
 type Fila = {
   id: string; fecha: string; hora: string | null; estado: EstadoCita; llegada: string | null; trabajador_id: string;
   motivo_id: string | null; consulta_id: string | null; observacion: string | null;
+  creado_en?: string | null; confirmada_en?: string | null; en_consulta_en?: string | null; atendida_en?: string | null; cerrada_en?: string | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null } | null;
   empresas: { razon_social: string } | null;
   motivo: { nombre: string } | null;
 };
+
+const horas = (c: Fila) => ({
+  creadoEn: c.creado_en ?? null,
+  confirmadaEn: c.confirmada_en ?? null,
+  enConsultaEn: c.en_consulta_en ?? null,
+  atendidaEn: c.atendida_en ?? null,
+  cerradaEn: c.cerrada_en ?? null,
+});
 
 export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("citas")
-    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
+    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, creado_en, confirmada_en, en_consulta_en, atendida_en, cerrada_en, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha")
@@ -46,7 +61,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
   if (empresa) q = q.eq("empresa_id", empresa);
   const { data, error } = await q;
   if (error) throw error;
-  return ((data ?? []) as unknown as Fila[]).map((c) => ({
+  return ((data ?? []) as unknown as Fila[]).map((c) => ({ ...horas(c),
     id: c.id,
     fecha: c.fecha,
     hora: c.hora?.slice(0, 5) ?? null,
@@ -76,7 +91,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
     .order("fecha")
     .order("hora", { nullsFirst: false })
     .limit(200);
-  return ((data ?? []) as unknown as (Fila & { nota_empresa: string | null })[]).map((c) => ({
+  return ((data ?? []) as unknown as (Fila & { nota_empresa: string | null })[]).map((c) => ({ ...horas(c),
     id: c.id,
     fecha: c.fecha,
     hora: c.hora?.slice(0, 5) ?? null,
