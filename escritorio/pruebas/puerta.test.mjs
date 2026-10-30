@@ -365,6 +365,28 @@ test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
 });
 
+// 30/10/2026 (hilo del celular): «reintentar» con el mismo id volvía de la nube como «duplicado» y la bandeja lo
+// borraba como si hubiera subido: lo que el médico quiso conservar se perdía sin aviso.
+test("reintentar un conflicto sube lo escrito en la PC sobre la versión de la nube; no se pierde", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  await replicaObj.ciclo();
+  nube.estado.caida = true; await nubeObj.comprobar();
+  const r = await pedir(`/rest/v1/consultas?id=eq.${CONSULTA_MED}`, { metodo: "PATCH", token: tokenMed, cuerpo: { motivo_texto: "reintento desde la PC" } });
+  assert.ok([200, 204].includes(r.status), JSON.stringify(r.json));
+  await enNube("update clinico.consultas set motivo_texto = 'otro cambio en la nube' where id = $1", [CONSULTA_MED]);
+  nube.estado.caida = false; await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const item = (await pedir("/zamorapp/bandeja", { token: tokenMed })).json.revisar.find((x) => x.fila_id === CONSULTA_MED);
+  assert.equal(item?.estado, "conflicto", JSON.stringify(item));
+  const ok = await pedir("/zamorapp/bandeja/resolver", { metodo: "POST", token: tokenMed, cuerpo: { id: item.id, accion: "reintentar" } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  await bandejaObj.enCurso;
+  await bandejaObj.subir();
+  const [n] = await enNube("select motivo_texto from clinico.consultas where id = $1", [CONSULTA_MED]);
+  assert.equal(n.motivo_texto, "reintento desde la PC", "lo reintentado llegó a la nube");
+  const b = (await pedir("/zamorapp/estado")).json.bandeja;
+  assert.deepEqual({ p: b.pendientes, c: b.conflictos }, { p: 0, c: 0 }, JSON.stringify(b));
+});
+
 test("el informe de vigilancia hecho sin internet y también en la web se funde en uno: la PC pasa al id de la nube", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   const EMP = "20000000-0000-0000-0000-00000000000a", ENPC = crypto.randomUUID(), WEB = crypto.randomUUID();
   const clave = { org_id: "10000000-0000-0000-0000-000000000001", empresa_id: EMP, desde: "2031-01-01", hasta: "2031-03-31" };
