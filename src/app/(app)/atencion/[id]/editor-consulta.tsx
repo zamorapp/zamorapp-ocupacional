@@ -811,14 +811,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}
         {/* Lo que se dejó para revisar hoy: ámbar y siempre primero */}
-        <FranjaAlertas alertas={alertas} consultaId={d.id} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
+        <FranjaAlertas alertas={alertas} consultaId={d.id} hoy={hoy} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
           conResultado={new Set(d.paraclinicos.filter((p) => p.resultado?.trim() || p.estado).map((p) => p.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()))} />
         <AlertasDejadas alertas={alertas} consultaId={d.id} />
         {/* Falta resultado: solo avisa, no impide cerrar ni firmar (nunca dos franjas ámbar juntas) */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
           <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm", alertaAmbar ? "bg-muted" : "bg-aviso/15")}>
             <FlaskConical className="size-4 shrink-0 text-aviso-texto" />
-            <span className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">Faltan {pendientesResultado} resultado{pendientesResultado === 1 ? "" : "s"} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
+            <span className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">{pendientesResultado === 1 ? "Falta 1 resultado" : `Faltan ${pendientesResultado} resultados`} de paraclínicos. Puedes cerrar y firmar igual; escríbelos cuando lleguen.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPaso("paraclinicos")}>Ver exámenes</Button>
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setIgnorarPendientes(true)}>Ignorar</Button>
             <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" title="No volver a avisar en la campana por esta consulta"

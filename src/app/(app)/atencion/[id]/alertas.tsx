@@ -15,9 +15,10 @@ const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
 const plano = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
 // Franja ámbar arriba de los pasos: lo que se dejó para revisar en esta evaluación. Siempre la primera franja.
-export function FranjaAlertas({ alertas, consultaId, puedeRevisar, conResultado, onCambio }: {
+export function FranjaAlertas({ alertas, consultaId, hoy, puedeRevisar, conResultado, onCambio }: {
   alertas: AlertaClinica[];
   consultaId: string;
+  hoy: string; // del servidor (Caracas), nunca el de Windows
   puedeRevisar: boolean;
   // Paraclínicos con resultado en esta consulta (nombre sin acentos): se marcan con ✓
   conResultado: Set<string>;
@@ -30,7 +31,7 @@ export function FranjaAlertas({ alertas, consultaId, puedeRevisar, conResultado,
     <div className="mt-2 space-y-1.5">
       {pendientes.length > 0 && (
         <section aria-label="Alertas para esta evaluación" className="space-y-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
-          {pendientes.map((a) => <Alerta key={a.id} a={a} consultaId={consultaId} puedeRevisar={puedeRevisar} conResultado={conResultado} onCambio={onCambio} />)}
+          {pendientes.map((a) => <Alerta key={a.id} a={a} consultaId={consultaId} hoy={hoy} puedeRevisar={puedeRevisar} conResultado={conResultado} onCambio={onCambio} />)}
         </section>
       )}
       {revisadasHoy.map((a) => (
@@ -46,8 +47,8 @@ export function FranjaAlertas({ alertas, consultaId, puedeRevisar, conResultado,
   );
 }
 
-function Alerta({ a, consultaId, puedeRevisar, conResultado, onCambio }: {
-  a: AlertaClinica; consultaId: string; puedeRevisar: boolean; conResultado: Set<string>; onCambio: (a: AlertaClinica) => void;
+function Alerta({ a, consultaId, hoy, puedeRevisar, conResultado, onCambio }: {
+  a: AlertaClinica; consultaId: string; hoy: string; puedeRevisar: boolean; conResultado: Set<string>; onCambio: (a: AlertaClinica) => void;
 }) {
   const [verTodo, setVerTodo] = useState(false);
   const [abierta, setAbierta] = useState(false);
@@ -92,7 +93,11 @@ function Alerta({ a, consultaId, puedeRevisar, conResultado, onCambio }: {
             })}
           </p>
         )}
-        {a.revisarAntes && <p className="text-xs text-muted-foreground">Revisar antes del {fechaCorta(a.revisarAntes)}</p>}
+        {a.revisarAntes && (
+          <p className={cn("text-xs", a.revisarAntes <= hoy ? "font-medium text-alerta-texto" : "text-muted-foreground")}>
+            {a.revisarAntes < hoy ? `Vencida: revisar antes del ${fechaCorta(a.revisarAntes)}` : a.revisarAntes === hoy ? "Vence hoy" : `Revisar antes del ${fechaCorta(a.revisarAntes)}`}
+          </p>
+        )}
         {abierta && (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Input autoFocus value={respuesta} maxLength={500} onChange={(e) => setRespuesta(e.target.value)} placeholder="Qué se hizo (opcional)"
@@ -171,7 +176,7 @@ export function NuevaAlerta({ abierta, onCerrar, consultaId, paraclinicos, hoy, 
   return (
     <Dialog open={abierta} onOpenChange={(v) => !v && onCerrar()}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+        <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2"><BellRing className="size-5 text-aviso-texto" aria-hidden /> Alerta para la próxima evaluación</DialogTitle>
           <DialogDescription>Sale arriba de la próxima consulta de este trabajador hasta que el médico la marque revisada. Solo la ve el personal de salud.</DialogDescription>
         </DialogHeader>
