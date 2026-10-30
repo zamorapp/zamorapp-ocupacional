@@ -411,7 +411,12 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
-      const { rows } = await c.query("select id from public.notificaciones where usuario_id = $1 and titulo = 'Resultados por recibir' and creado_en >= $2", [uid, desde]);
+      // Solo los que hizo esta llamada: mismo enlace y misma hora de transacción que su recordatorio local (Analizar: un
+      // aviso de la nube que baje justo en ese momento tiene otra hora y no se toca)
+      const { rows } = await c.query(`select n.id from public.notificaciones n
+        join public.recordatorios_resultados r on r.usuario_id = n.usuario_id and r.ultimo_aviso = n.creado_en
+         and n.enlace = '/atencion/' || r.consulta_id || '?paso=paraclinicos'
+        where n.usuario_id = $1 and n.titulo = 'Resultados por recibir' and r.ultimo_aviso >= $2`, [uid, desde]);
       return rows.map((f) => f.id);
     } finally { await c.end().catch(() => {}); }
   }
