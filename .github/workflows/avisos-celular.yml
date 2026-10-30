@@ -1,0 +1,24 @@
+# Avisos de la campana al celular (plazos de accidentes, resultados, alertas, exámenes por vencer): cada 15 minutos,
+# todos los días, llama a /api/avisos/campana en Vercel, que envía las notificaciones push nuevas. Así llegan aunque
+# nadie abra zamorApp ni la laptop esté encendida. Repo público: minutos sin límite. Sin secretos: la clave vive en Vercel.
+name: Avisos al celular
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: avisos-celular
+  cancel-in-progress: false
+
+jobs:
+  avisos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Enviar avisos nuevos
+        run: |
+          curl -sS --max-time 60 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/avisos/campana"
