@@ -54,10 +54,18 @@ export type FilaAptitud = (typeof APTITUD_DEMO)[number];
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
+// Empresas con el aviso de vencimientos apagado (Configuración de la empresa) no avisan en Inicio; los reportes y
+// el tablero de vencimientos siguen mostrándolas
+async function vencimientosConAviso(venc: VencimientoEmpresa[]): Promise<VencimientoEmpresa[]> {
+  const apagadas = new Set((await listarEmpresas()).filter((e) => e.avisosApagados.includes("vencimientos")).map((e) => e.id));
+  return apagadas.size ? venc.filter((v) => !apagadas.has(v.id)) : venc;
+}
+
 // Pendientes del rol (con los exámenes por programar de RR. HH., SST y administración)
 export async function tareasInicio(sesion: Sesion): Promise<Enfoque> {
   const c = await conteosInicio();
-  const suma = (k: "vencidos" | "por_vencer") => (c?.vencimientos ?? []).reduce((s, v) => s + v[k], 0);
+  const venc = await vencimientosConAviso(c?.vencimientos ?? []);
+  const suma = (k: "vencidos" | "por_vencer") => venc.reduce((s, v) => s + v[k], 0);
   return conVencimientos(enfoqueDelRol(sesion, c?.tareas ?? null), sesion.rol, sesion.clinico, suma("vencidos"), suma("por_vencer"));
 }
 
@@ -77,7 +85,7 @@ export async function indicadoresInicio(): Promise<Indicador[]> {
 export async function alertasInicio(): Promise<Alerta[]> {
   if (!supabaseConfigurado) return ALERTAS_DEMO;
   const [c, empresas, eventos] = await Promise.all([conteosInicio(), listarEmpresas(), listarEventos({ abiertos: true })]);
-  const venc = c?.vencimientos ?? [];
+  const venc = await vencimientosConAviso(c?.vencimientos ?? []);
   const solicitudes = c?.tareas.solicitadas ?? 0;
   const alertas: Alerta[] = [];
   if (solicitudes) {

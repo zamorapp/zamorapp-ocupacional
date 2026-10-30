@@ -853,7 +853,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         {/* Lo que se dejó para revisar hoy: ámbar y siempre primero */}
         <FranjaAlertas alertas={alertas} consultaId={d.id} hoy={hoy} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
           conResultado={new Set(d.paraclinicos.filter((p) => p.resultado?.trim() || p.estado).map((p) => p.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()))} />
-        <AlertasDejadas alertas={alertas} consultaId={d.id} />
+        <AlertasDejadas alertas={alertas} consultaId={d.id} puedeDescartar={puedeRevisarAlertas} onCambio={cambiarAlerta} />
         {/* Falta resultado: solo avisa, no impide cerrar ni firmar (nunca dos franjas ámbar juntas) */}
         {pendientesResultado > 0 && d.estado !== "firmada" && !ignorarPendientes && paso !== "paraclinicos" && (
           <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm", alertaAmbar ? "bg-muted" : "bg-aviso/15")}>
