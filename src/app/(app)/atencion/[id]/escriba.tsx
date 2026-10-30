@@ -54,7 +54,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const [ayuda, setAyuda] = useState(true);
 
   // En el escritorio dicta Windows (Win + H) escribiendo en «Lo que escuché», que entonces queda siempre a la vista
-  const { soportado, grabando, error, windows, alternar } = useDictado("escriba-consulta", (t) => {
+  const { soportado, grabando, error, aviso, windows, alternar } = useDictado("escriba-consulta", (t) => {
     const nuevo = textoRef.current ? `${textoRef.current.trimEnd()} ${t.trim()}` : t.trim();
     textoRef.current = nuevo;
     setTexto(nuevo);
@@ -169,11 +169,11 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
               </button>
               <div className="min-w-0 flex-1 text-sm">
                 <p className="font-medium">
-                  {windows ? "Toca y habla: Windows escribe abajo. Para pausar, pulsa Win + H"
+                  {windows ? "Toca el micrófono y habla. Windows escribe abajo. Para parar: Win + H"
                     : grabando ? "Escuchando… toca para pausar" : texto ? "En pausa. Toca para seguir dictando" : "Toca para empezar"}
                 </p>
-                <p className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
-                  {error || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
+                <p aria-live="polite" className={cn("flex items-center gap-1 text-xs", error ? "text-alerta-texto" : "text-muted-foreground")}>
+                  {error || (aviso && <><Mic aria-hidden className="size-3.5 shrink-0" /> {aviso}</>) || (texto ? `${texto.split(/\s+/).length} palabras` : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
                 </p>
                 <AyudaMicrofono error={error} />
               </div>
