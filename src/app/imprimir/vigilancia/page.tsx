@@ -443,9 +443,11 @@ export default async function Vigilancia({ searchParams }: Props) {
           <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.conclusiones}</div>
         </section>
         {t.vision_medico?.trim() && (
-          <section className="mb-5 break-inside-avoid rounded-r-[10px] border-l-4 border-doc-acento bg-doc-suave/60 px-5 py-3.5">
-            <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Visión del médico ocupacional</h2>
-            <div className="whitespace-pre-line text-[12px] italic leading-relaxed">{t.vision_medico}</div>
+          // Si cruza de página, el borde y el fondo se repiten en cada trozo
+          <section className="mb-5 rounded-r-[10px] border-l-4 border-doc-acento bg-doc-suave/60 px-5 py-3.5 [-webkit-box-decoration-break:clone] [box-decoration-break:clone]">
+            <h2 className="mb-1.5 text-[12px] font-extrabold uppercase tracking-[.12em] text-doc-acento break-after-avoid">Visión del médico ocupacional</h2>
+            <div className="whitespace-pre-line text-[12px] leading-relaxed">{t.vision_medico}</div>
+            {firmantes.medico?.nombre && <div className="mt-2 text-right text-[10px] text-doc-tenue">— {firmantes.medico.nombre}, médico ocupacional</div>}
           </section>
         )}
         <Seccion n="11" titulo="Recomendaciones médico-ocupacionales"><Texto>{t.recomendaciones_medicas}</Texto></Seccion>
