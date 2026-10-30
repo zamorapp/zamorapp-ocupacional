@@ -3,7 +3,7 @@
 // registró. Se llama al guardar (/zamorapp/enviar-cola) y tras cada sincronía mientras la copia tenga correos en cola.
 // Las esperas usan performance.now(): Cesar cambia la fecha de Windows para abrir el SAME.
 import { performance } from "node:perf_hooks";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 
 const ESPERA_MS = 2 * 60 * 1000; // entre barridos del mismo usuario, si lo anterior no avanzó
 export const URL_WEB = "https://zamorapp-ocupacional.vercel.app";

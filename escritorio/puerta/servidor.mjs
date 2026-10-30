@@ -4,7 +4,7 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
-import pg from "pg";
+import pg from "./pg-local.mjs";
 import { CATALOGOS, CONFIG, RPC_CONSTANCIA, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";

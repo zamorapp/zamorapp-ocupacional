@@ -645,6 +645,25 @@ test("al arrancar se descartan los cambios pendientes sin autor; los de una pers
   }
 });
 
+// Plan §9.5: si PostgreSQL corta una conexión quieta (respaldo, restauración), la puerta no se cae.
+test("una conexión cortada por la base no tumba la puerta", { skip: omitir }, async () => {
+  const pg = (await import("../puerta/pg-local.mjs")).default;
+  const c = new pg.Client({ connectionString: motor.url() });
+  await c.connect();
+  const [{ pid }] = (await c.query("select pg_backend_pid() as pid")).rows;
+  const errores = [];
+  const antes = console.error;
+  console.error = (m) => errores.push(String(m));
+  try {
+    await enLocal("select pg_terminate_backend($1)", [pid]);
+    for (let i = 0; i < 50 && !errores.length; i++) await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    console.error = antes;
+  }
+  assert.match(errores.join("\n"), /\[base\] conexión cortada/);
+  assert.equal((await pedir("/zamorapp/estado")).status, 200);
+});
+
 test("sin internet: abrir la historia queda como constancia y sube después con la hora de la PC", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
   const enLaNube = async () => (await enNube("select count(*)::int n from public.accesos where trabajador_id = $1 and usuario_id = $2 and equipo_id = $3", [T, MED, estado.d.equipo.id]))[0].n;

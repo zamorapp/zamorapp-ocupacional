@@ -2,7 +2,7 @@
 // aplicar_cambios(), con la sesión del usuario que lo guardó (la nube vuelve a aplicar sus reglas de acceso).
 // Lo aplicado se borra de la bandeja; un conflicto o rechazo queda anotado y nunca se pierde (la nube lo guarda
 // en sync.conflictos y la PC conserva el cambio con su motivo).
-import pg from "pg";
+import pg from "./pg-local.mjs";
 
 const LOTE = 200;
 const REINTENTOS = 5;
