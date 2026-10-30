@@ -6,6 +6,7 @@ import { normalizarCedula } from "@/lib/importar";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
+import { avisarAlServicio } from "@/lib/aviso-servicio";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -66,6 +67,18 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   invalidarEmpresas();
   revalidatePath("/portal");
   const n = validos.length;
+  const { data: emp } = await supabase.from("empresas").select("razon_social").in("id", [...new Set(validos.map((t) => t.empresa_id))]);
+  const nombres = (emp ?? []).map((e) => e.razon_social).join(", ");
+  avisarAlServicio({
+    rol: sesion.rol,
+    asunto: `${n === 1 ? "Nueva cita pedida" : `${n} citas pedidas`} · ${nombres}`,
+    lineas: [
+      `${sesion.nombre} (RR. HH. de ${nombres}) pidió ${n === 1 ? "una cita" : `${n} citas`} para el ${fecha.split("-").reverse().join("/")}${texto(datos, "hora") ? ` a las ${texto(datos, "hora")}` : ""}.`,
+      ...(nuevos.length ? [`Registró ${nuevos.length === 1 ? "un trabajador nuevo" : `${nuevos.length} trabajadores nuevos`}: ${nuevos.map((x) => `${x.nombres} ${x.apellidos} (${x.cedula})`).join(", ")}.`] : []),
+      "Confírmala o propón otra hora en Atención médica.",
+    ],
+    ruta: "/atencion",
+  });
   return {
     ok: true,
     mensaje: `${n === 1 ? "Solicitud enviada" : `${n} solicitudes enviadas`} al servicio médico.${rechazados ? ` ${rechazados} no se enviaron: no pertenecen a tus empresas.` : ""}`,

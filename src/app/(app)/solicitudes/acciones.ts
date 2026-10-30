@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { avisarAlServicio } from "@/lib/aviso-servicio";
 import { enviarRespuestaSolicitud } from "@/lib/envios";
 import { pdfDeRutas } from "@/lib/pdf-servidor";
 import { obtenerSesion } from "@/lib/sesion";
@@ -56,6 +57,13 @@ export async function crearSolicitud(_: Resultado | null, d: FormData): Promise<
   });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede hacer solicitudes para esta empresa." : error.message };
   refrescar();
+  const { data: emp } = await supabase.from("empresas").select("razon_social").eq("id", empresaId).maybeSingle();
+  avisarAlServicio({
+    rol: sesion.rol,
+    asunto: `Nueva solicitud · ${emp?.razon_social ?? "empresa"}`,
+    lineas: [`${sesion.nombre} (RR. HH. de ${emp?.razon_social ?? "una empresa"}) hizo una solicitud:`, detalle.slice(0, 300)],
+    ruta: "/solicitudes",
+  });
   return { ok: true, mensaje: "Solicitud enviada. Te avisamos cuando haya respuesta." };
 }
 
