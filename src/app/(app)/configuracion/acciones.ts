@@ -289,7 +289,17 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
     revalidatePath("/configuracion/usuarios");
     const enlace = `${URL_PUBLICA}/invitacion/${token}`;
     const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "su empresa";
-    const mensajeWa = `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le invito al portal de salud ocupacional de ${sesion.organizacion} para ${nombreEmpresa}. Desde ahí puede pedir evaluaciones con fecha y hora y ver los resultados. Cree su cuenta con este enlace (vale 7 días y un solo uso): ${enlace}`;
+    const mensajeWa = [
+      `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
+      "",
+      "Son 3 pasos:",
+      "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 6 letras o números):",
+      enlace,
+      "2. Abra su correo y toque el botón de confirmación que le llegó (si no lo ve, busque en Spam).",
+      "3. Se abre de nuevo la página del portal: toque el botón verde «Aceptar y entrar al portal». ¡Listo!",
+      "",
+      "El enlace vale 7 días y sirve una sola vez. Cualquier duda, responda este mensaje.",
+    ].join("\n");
     const numero = telefono ? telefonoWhatsApp(telefono) : "";
     return {
       ok: true,

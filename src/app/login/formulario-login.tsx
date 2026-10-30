@@ -151,7 +151,9 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         <p className="text-sm text-muted-foreground">
           {modo === "recuperar"
             ? <>Si <b className="text-foreground">{confirmar}</b> tiene cuenta, le llegará un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.</>
-            : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
+            : siguiente.startsWith("/invitacion/")
+              ? <><b className="text-foreground">Paso 2:</b> abre el correo que enviamos a <b className="text-foreground">{confirmar}</b> y toca el botón de confirmación. Se abrirá de nuevo esta página para el paso 3. Si no lo ves en unos minutos, busca en Spam.</>
+              : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
         </p>
         <Button variant="outline" onClick={() => { setConfirmar(null); setModo("ingresar"); }}>Volver al ingreso</Button>
       </div>
