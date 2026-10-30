@@ -200,11 +200,12 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           name="clave"
           type="password"
           autoComplete={registro ? "new-password" : "current-password"}
+          aria-describedby={registro ? "clave-ayuda" : undefined}
           minLength={registro ? 8 : undefined}
           required={!modoDemo}
           className="h-11"
         />
-        {registro && <p className="text-xs text-muted-foreground">Mínimo 8 letras o números. Anótala: la usarás cada vez que entres.</p>}
+        {registro && <p id="clave-ayuda" className="text-xs text-muted-foreground">Mínimo 8 letras o números. Anótala: la usarás cada vez que entres.</p>}
       </div>}
       {error && (
         <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
