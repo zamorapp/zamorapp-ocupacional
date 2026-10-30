@@ -48,6 +48,7 @@ import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
+import { DatosTrabajador } from "./datos-trabajador";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
 import type { SiguienteCita } from "@/lib/citas";
@@ -806,6 +807,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
+            <Seccion titulo="Datos del trabajador">
+              <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} />
+            </Seccion>
+
             <Seccion titulo="Motivo">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>

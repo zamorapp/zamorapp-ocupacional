@@ -55,7 +55,7 @@ export async function obtenerDocumento(consultaId: string) {
     c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("empresas").select("razon_social, rif, logo").eq("id", c.empresa_id).single(),
     c.dependencia_id ? supabase.from("dependencias").select("nombre").eq("id", c.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
+    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, fecha_ingreso_cargo, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
     obtenerSesion(),
   ]);
 
@@ -71,7 +71,7 @@ export async function obtenerDocumento(consultaId: string) {
     empresa: empresa as { razon_social: string; rif: string; logo: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
     extra: trab as unknown as {
-      fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number;
+      fecha_nacimiento: string | null; fecha_ingreso: string | null; fecha_ingreso_cargo: string | null; turno: string | null; numero_historia: number;
       ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
     },
     // Pie de página: quién imprime y cuándo (hora de Venezuela)

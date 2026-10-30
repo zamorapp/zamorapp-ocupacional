@@ -72,7 +72,7 @@ export function RegistroRapido({ texto, empresas, empresaActiva, clinico, alList
       </div>
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Sexo, cargo y demás datos se completan después.</span>
+        <span className="text-xs text-muted-foreground">Cargo, dependencia, sexo y nacimiento se completan en «Generales» de la consulta.</span>
         <Button type="submit" size="sm" disabled={ocupado}>
           {ocupado ? <Loader2 className="animate-spin" /> : clinico && !alRegistrar ? <Stethoscope /> : <UserPlus />}
           {clinico && !alRegistrar ? "Registrar y atender" : "Registrar"}

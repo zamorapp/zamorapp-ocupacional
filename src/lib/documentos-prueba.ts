@@ -68,7 +68,7 @@ export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
     motivo: { nombre: "Periódico", codigo: "PER", grupo: "preventivo" },
     empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8") },
     dependencia: largo ? "Gerencia de Producción y Mantenimiento Industrial" : "Producción",
-    extra: { fecha_nacimiento: "1988-03-15", fecha_ingreso: "2015-06-01", turno: "Diurno", numero_historia: 1234, ficha: "F-0042", tipo_contrato: "indeterminado", tipo: { nombre: "Trabajador" } },
+    extra: { fecha_nacimiento: "1988-03-15", fecha_ingreso: "2015-06-01", fecha_ingreso_cargo: "2019-09-16", turno: "Diurno", numero_historia: 1234, ficha: "F-0042", tipo_contrato: "indeterminado", tipo: { nombre: "Trabajador" } },
     impreso: { por: "Usuario de prueba", revision: largo ? 2 : 1, el: "28/10/26, 9:30 a. m." },
     hora: "2026-10-28T13:30:00+00:00",
     cierre: "2026-10-28T14:05:00+00:00",
