@@ -12,7 +12,7 @@ import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
 
 const alterada = (f: FilaExamen) => f.valor.trim() !== f.normal.trim();
 
-function Hallazgos({ titulo, filas, onEditar }: { titulo: string; filas: FilaExamen[]; onEditar: () => void }) {
+function Hallazgos({ titulo, filas, onEditar, onNormal }: { titulo: string; filas: FilaExamen[]; onEditar: () => void; onNormal?: () => void }) {
   const llenas = filas.filter((f) => f.valor.trim());
   const alteradas = filas.filter(alterada);
   return (
@@ -22,7 +22,14 @@ function Hallazgos({ titulo, filas, onEditar }: { titulo: string; filas: FilaExa
         <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={onEditar}>Editar <ArrowRight /></Button>
       </div>
       {llenas.length === 0 ? (
-        <p className="text-sm text-aviso-texto">Sin llenar: ábrelo para marcar lo normal.</p>
+        onNormal ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-aviso-texto">Sin llenar.</p>
+            <Button type="button" size="sm" variant="outline" className="h-7 border-ok/50 px-2 text-ok-texto hover:bg-ok/10 hover:text-ok-texto" onClick={onNormal}>
+              <CheckCircle2 /> Marcar normal
+            </Button>
+          </div>
+        ) : <p className="text-sm text-aviso-texto">Sin llenar: ábrelo para marcar lo normal.</p>
       ) : alteradas.length === 0 ? (
         <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4" /> Normal ({llenas.length} {llenas.length === 1 ? "fila" : "filas"})</p>
       ) : (
@@ -36,7 +43,7 @@ function Hallazgos({ titulo, filas, onEditar }: { titulo: string; filas: FilaExa
 
 const lineas = (t: string) => t.split("\n").filter((l) => l.trim()).length;
 
-export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, onIr }: {
+export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, onIr, onNormal }: {
   d: DatosConsulta;
   signos: React.ReactNode;
   paraclinicos: React.ReactNode;
@@ -44,6 +51,8 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
   aptitud: React.ReactNode;
   acciones: React.ReactNode; // Guardar / Cerrar, firmar e imprimir
   onIr: (paso: string) => void;
+  // Llena el examen con lo normal sin salir de la pantalla (un clic en vez de abrir el paso Examen)
+  onNormal?: { funcional?: () => void; fisico?: () => void };
 }) {
   // Lo mínimo para cerrar una evaluación preventiva; solo orienta, nunca impide cerrar
   const faltan = [
@@ -64,8 +73,8 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Examen</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Hallazgos titulo="Funcional" filas={d.examenFuncional} onEditar={() => onIr("examen")} />
-          <Hallazgos titulo="Físico" filas={d.examenFisico} onEditar={() => onIr("examen")} />
+          <Hallazgos titulo="Funcional" filas={d.examenFuncional} onEditar={() => onIr("examen")} onNormal={onNormal?.funcional} />
+          <Hallazgos titulo="Físico" filas={d.examenFisico} onEditar={() => onIr("examen")} onNormal={onNormal?.fisico} />
         </div>
       </section>
       {d.paraclinicos.length > 0 ? paraclinicos : (

@@ -179,6 +179,14 @@ function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, 
   return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
 }
 
+// «Marcar normal» de la evaluación rápida: el perfil «normal» de la lista; si no hay, el normal de cada fila vacía
+function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen[]) => void): (() => void) | undefined {
+  const texto = perfiles.find((p) => p.codigo === "normal")?.texto;
+  if (texto) return () => aplicar(aplicarPerfilExamen(filas, texto, true));
+  if (!filas.some((f) => f.normal.trim() && !f.valor.trim())) return undefined;
+  return () => aplicar(filas.map((f) => (f.valor.trim() ? f : { ...f, valor: f.normal })));
+}
+
 export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
@@ -744,6 +752,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 sano={tarjetaSano}
                 aptitud={seccionAptitud}
                 onIr={(p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                onNormal={bloqueado ? undefined : {
+                  funcional: normalDe(listas.perfil_examen_funcional, d.examenFuncional, (f) => set("examenFuncional", f)),
+                  fisico: normalDe(listas.perfil_examen_fisico, d.examenFisico, (f) => set("examenFisico", f)),
+                }}
                 acciones={<>
                   <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                     {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
