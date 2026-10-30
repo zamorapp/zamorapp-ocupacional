@@ -24,6 +24,8 @@ import { Notificaciones } from "./notificaciones";
 import { HuellaCuenta } from "./huella";
 import { elegirEmpresa, salir } from "./acciones";
 
+const ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
+
 type Props = {
   usuario: { nombre: string; rol: string; demo: boolean };
   empresas: { id: string; nombre: string; trabajadores: number }[];
@@ -120,11 +122,11 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/configuracion"><UserRound /> Mi perfil y firma</Link>
+            <Link href="/configuracion/perfil"><UserRound /> Mi perfil y firma</Link>
           </DropdownMenuItem>
           {!usuario.demo && (
             <DropdownMenuItem onSelect={() => setHuellaAbierta(true)}>
-              <Fingerprint /> Entrar con huella
+              <Fingerprint /> {ESCRITORIO ? "Entrar con Windows Hello" : "Entrar con huella"}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onSelect={() => salir()}>
@@ -135,7 +137,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
 
       <Dialog open={huellaAbierta} onOpenChange={setHuellaAbierta}>
         <DialogContent className="p-0 sm:max-w-md">
-          <DialogTitle className="sr-only">Entrar con huella</DialogTitle>
+          <DialogTitle className="sr-only">{ESCRITORIO ? "Entrar con Windows Hello" : "Entrar con huella"}</DialogTitle>
           {huellaAbierta && <HuellaCuenta />}
         </DialogContent>
       </Dialog>
