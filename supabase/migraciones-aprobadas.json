@@ -1,17 +1,21 @@
 {
-  "etiqueta": "migraciones-20261030-1",
-  "aprobado": "Cesar Enrique, sí del 2026-10-30 06:16 UTC (mensaje cmsg_01STXKdDPgC2LLWU7qtkUtxxRKA7yVQgwuAep8JqqRF4uC)",
-  "linea_base_hasta": "20261030450000",
+  "etiqueta": "migraciones-20261030-2",
+  "aprobado": "Cesar: «SI» 30-oct 07:15 UTC (480000, 490000 y 500000)",
   "migraciones": [
     {
-      "archivo": "20261030460000_codigos_respaldo_sin_public.sql",
-      "sha256": "93ee2ad20e2d678c11af160878d398aee649860b6987625067d17d3da585e0a5",
-      "descripcion": "Seguridad: las funciones de los códigos de respaldo solo las usan usuarios con sesión"
+      "archivo": "20261030480000_ficha_trabajador_consulta.sql",
+      "sha256": "b12815b5bae1811732949a8a19d4d1f1b913346444ba2d7b7e3798e8bf731e73",
+      "descripcion": "Datos del trabajador: estado civil, fecha de ingreso al cargo e historial de cargos"
     },
     {
-      "archivo": "20261030470000_motivos_same.sql",
-      "sha256": "9f0680ac7a0472c24cb7a79761e59180701c5f064988180ebc4e262e29dde7ab",
-      "descripcion": "Motivos de consulta del SAME para la marcha en paralelo; Adecuación de puesto pasa a no preventiva"
+      "archivo": "20261030490000_fecha_evaluacion.sql",
+      "sha256": "e5ef1d1eddbd65544166726abf745ab251786af22cd189f6c6fc34c3bf03175f",
+      "descripcion": "Fecha de la evaluación editable (pasado o futuro), con bitácora y horas reales protegidas"
+    },
+    {
+      "archivo": "20261030500000_horas_de_firma.sql",
+      "sha256": "1be5e62bce69e616cac55dcb080ccf18c40be32f0cd2ab8201a54869b22a9b68",
+      "descripcion": "Las horas de cierre y firma no se cambian con una edición directa"
     }
   ]
 }
