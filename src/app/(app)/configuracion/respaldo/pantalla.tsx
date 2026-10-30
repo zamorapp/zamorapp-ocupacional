@@ -329,6 +329,13 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
   const corta = clave.length > 0 && clave.length < minimo;
   const distinta = repetida.length > 0 && repetida !== clave;
   const lista = clave.length >= minimo && repetida === clave && anotada;
+  // Por qué «Guardar clave» sigue apagado, en el orden en que se llena (Cesar, 30-oct: probó varias claves sin saberlo)
+  const falta = !clave ? `Escribe la clave: mínimo ${minimo} caracteres.`
+    : clave.length < minimo ? `Faltan ${minimo - clave.length} caracteres en la clave.`
+    : !repetida ? "Repite la clave en el segundo campo."
+    : repetida !== clave ? "Las dos claves no coinciden."
+    : !anotada ? "Marca la casilla «La anoté en un lugar seguro»."
+    : null;
 
   async function guardar() {
     setGuardando(true);
@@ -355,7 +362,13 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
       ) : (
         <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); if (lista) void guardar(); }}>
           <div className="space-y-1.5">
-            <Label htmlFor="clave">Clave de respaldo</Label>
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="clave">Clave de respaldo</Label>
+              <span aria-live="polite" className={cn("flex items-center gap-1 text-xs tabular-nums", clave.length >= minimo ? "text-ok-texto" : "text-muted-foreground")}>
+                {clave.length >= minimo && <Check className="size-3.5" aria-hidden />}
+                {clave.length}/{minimo}<span className="sr-only"> caracteres</span>
+              </span>
+            </div>
             <div className="relative">
               <Input id="clave" type={ver ? "text" : "password"} autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} aria-invalid={corta} aria-describedby="clave-ayuda" className="pr-10" />
               <button type="button" onClick={() => setVer((v) => !v)} aria-label={ver ? "Ocultar la clave" : "Ver la clave"} className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
@@ -369,7 +382,8 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
           <div className="space-y-1.5">
             <Label htmlFor="repetida">Repítela</Label>
             <Input id="repetida" type={ver ? "text" : "password"} autoComplete="new-password" value={repetida} onChange={(e) => setRepetida(e.target.value)} aria-invalid={distinta} />
-            {distinta && <p className="text-xs text-alerta-texto">No coincide con la primera.</p>}
+            {distinta && <p className="text-xs text-alerta-texto">No coincide con la primera. Revisa mayúsculas, tildes y espacios; con el ojo puedes verlas.</p>}
+            {!distinta && repetida.length > 0 && clave.length >= minimo && <p className="flex items-center gap-1 text-xs text-ok-texto"><Check className="size-3.5" aria-hidden /> Las dos coinciden.</p>}
           </div>
           <div className="flex gap-2 rounded-lg border border-alerta/60 bg-alerta/10 p-3 text-sm">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-alerta-texto" />
@@ -385,9 +399,10 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
           </label>
           {res && !res.ok && <Fallo r={res} />}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!lista || guardando}>{guardando && <Loader2 className="size-4 animate-spin" />} {guardando ? "Guardando…" : "Guardar clave"}</Button>
+            <Button type="submit" disabled={!lista || guardando} aria-describedby={falta ? "clave-falta" : undefined}>{guardando && <Loader2 className="size-4 animate-spin" />} {guardando ? "Guardando…" : "Guardar clave"}</Button>
             {estado.cifrado && <Button type="button" variant="ghost" onClick={() => { setAbierto(false); setClave(""); setRepetida(""); setAnotada(false); }}>Cancelar</Button>}
           </div>
+          {falta && !guardando && <p id="clave-falta" className="text-xs text-muted-foreground">Para guardar: {falta}</p>}
         </form>
       )}
     </section>
