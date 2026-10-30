@@ -43,7 +43,7 @@ function Hallazgos({ titulo, filas, onEditar, onNormal }: { titulo: string; fila
 
 const lineas = (t: string) => t.split("\n").filter((l) => l.trim()).length;
 
-export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, onIr, onNormal }: {
+export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, onIr, onNormal, perfilNormal }: {
   d: DatosConsulta;
   signos: React.ReactNode;
   paraclinicos: React.ReactNode;
@@ -53,6 +53,7 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
   onIr: (paso: string) => void;
   // Llena el examen con lo normal sin salir de la pantalla (un clic en vez de abrir el paso Examen)
   onNormal?: { funcional?: () => void; fisico?: () => void };
+  perfilNormal?: React.ReactNode; // «Perfil normal» del motivo: examen, aptitud y recomendaciones en un clic
 }) {
   // Lo mínimo para cerrar una evaluación preventiva; solo orienta, nunca impide cerrar
   const faltan = [
@@ -71,7 +72,10 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
       </p>
       {signos}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Examen</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">Examen</h3>
+          {perfilNormal}
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Hallazgos titulo="Funcional" filas={d.examenFuncional} onEditar={() => onIr("examen")} onNormal={onNormal?.funcional} />
           <Hallazgos titulo="Físico" filas={d.examenFisico} onEditar={() => onIr("examen")} onNormal={onNormal?.fisico} />

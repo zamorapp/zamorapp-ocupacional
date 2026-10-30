@@ -48,7 +48,8 @@ import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
-import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
+import { aplicarPerfilNormal, aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
+import { BotonPerfilNormal, FranjaAplicada, OfertaCopia, evaluacionNormal, evaluacionParaCopiar } from "./perfil-normal";
 import { sumarDias } from "@/lib/fecha";
 import { FechaEvaluacion, diasEntre } from "./fecha-evaluacion";
 import type { SiguienteCita } from "@/lib/citas";
@@ -287,6 +288,36 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     else { setD(base); if (intacta) setDeshacer(null); }
   };
   const preventivo = motivo?.grupo === "preventivo";
+  // «Perfil normal» y «Copiar igual»: lo aplicado, con la consulta como estaba para «Deshacer»
+  const [aplicado, setAplicado] = useState<{ tipo: "copia" | "perfil"; texto: string; antes: DatosConsulta; despues: DatosConsulta } | null>(null);
+  const [sinOferta, setSinOferta] = useState(false);
+  const usarPerfilNormal = () => {
+    if (!plantilla) return;
+    const despues = aplicarPerfilNormal(d, plantilla.datos, listas);
+    setAplicado({ tipo: "perfil", texto: `Perfil normal de ${plantilla.nombre} aplicado: revisa los signos vitales y firma.`, antes: d, despues });
+    setD(despues);
+  };
+  const evOfrecida = nueva && d.estado === "borrador" && preventivo && puedeCambiarFecha && !sinOferta && !aplicado
+    ? evaluacionParaCopiar(historial.evaluaciones ?? [], motivo?.codigo) : null;
+  const copiarEvaluacion = () => {
+    if (!evOfrecida) return;
+    // Solo antecedentes, hábitos y examen; aptitud y recomendaciones salen del perfil del motivo actual (Analizar, 30-oct)
+    const copia = { ...d, copiadaDe: evOfrecida.id, antecedentes: evOfrecida.antecedentes, habitos: evOfrecida.habitos,
+      examenFuncional: evOfrecida.examenFuncional, examenFisico: evOfrecida.examenFisico };
+    const despues = evaluacionNormal(evOfrecida) && plantilla ? aplicarPerfilNormal(copia, plantilla.datos, listas) : copia;
+    setAplicado({ tipo: "copia", texto: `Copiado del ${evOfrecida.motivoNombre.toLowerCase()} del ${evOfrecida.fecha.split("-").reverse().join("/")}: revisa cada sección y toma los signos vitales.`, antes: d, despues });
+    setD(despues);
+  };
+  const deshacerAplicado = async () => {
+    if (!aplicado) return;
+    if (aplicado.despues !== d && !(await confirmar({
+      titulo: aplicado.tipo === "copia" ? "¿Deshacer la copia?" : "¿Deshacer el perfil normal?",
+      texto: "La consulta vuelve a como estaba antes: también se pierde lo que escribiste después.",
+      accion: "Deshacer",
+    }))) return;
+    setD(aplicado.antes);
+    setAplicado(null);
+  };
   const anterior = historial.tratamientoAnterior ?? null;
   // Lo que había antes de «Repetir el tratamiento», para «Deshacer»
   const [repetido, setRepetido] = useState<{ fecha: string; tratamiento: DatosConsulta["tratamiento"]; indicaciones: string } | null>(null);
@@ -617,7 +648,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           <div className="grid size-10 shrink-0 sm:size-11 place-items-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
             {trabajador.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-48">
             <Link href={`/pacientes/${trabajador.id}`} className="text-lg font-semibold hover:text-primary">{trabajador.nombre}</Link>
             <p className="truncate text-sm text-muted-foreground">
               {d.aptitud.clasificacion && (
@@ -778,6 +809,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               onClick={async () => { setIgnorarPendientes(true); setAviso(await noRecordarResultados(d.id)); }}>No recordar más</Button>
           </div>
         )}
+        {!bloqueado && (aplicado && (aplicado.tipo === "perfil" || cambios) ? (
+          <FranjaAplicada tipo={aplicado.tipo} texto={aplicado.texto} onDeshacer={deshacerAplicado}
+            onListo={aplicado.tipo === "perfil" ? () => setAplicado(null) : undefined} />
+        ) : evOfrecida && motivo ? (
+          <OfertaCopia ev={evOfrecida} motivo={motivo.nombre} clasificacion={etiquetaAptitud(evOfrecida.clasificacion as Aptitud)}
+            conPerfil={evaluacionNormal(evOfrecida) && !!plantilla} onCopiar={copiarEvaluacion} onDescartar={() => setSinOferta(true)} />
+        ) : null)}
         <TabsList className="-mb-px mt-3 flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none [scrollbar-width:none] bg-transparent p-0">
           {pasos.map((p, i) => (
             <TabsTrigger
@@ -810,6 +848,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 sano={tarjetaSano}
                 aptitud={seccionAptitud}
                 onIr={(p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                perfilNormal={plantilla && puedeCambiarFecha ? <BotonPerfilNormal motivo={plantilla.nombre} onClick={usarPerfilNormal} /> : null}
                 onNormal={bloqueado ? undefined : {
                   funcional: normalDe(listas.perfil_examen_funcional, d.examenFuncional, (f) => set("examenFuncional", f)),
                   fisico: normalDe(listas.perfil_examen_fisico, d.examenFisico, (f) => set("examenFisico", f)),
@@ -875,9 +914,12 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setDeshacer(null)}>Listo</Button>
                 </div>
               ) : !bloqueado && plantilla && (
-                <Button type="button" size="sm" variant="outline" onClick={() => usarPlantilla(plantilla, d)} title={resumenPlantilla(plantilla.datos)}>
-                  <Wand2 /> Aplicar plantilla de {plantilla.nombre}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => usarPlantilla(plantilla, d)} title={resumenPlantilla(plantilla.datos)}>
+                    <Wand2 /> Aplicar plantilla de {plantilla.nombre}
+                  </Button>
+                  {puedeCambiarFecha && <BotonPerfilNormal motivo={plantilla.nombre} onClick={usarPerfilNormal} />}
+                </div>
               )}
               {preventivo ? (
                 <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">

@@ -131,6 +131,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
     p_id: d.id,
     p_consulta: {
       fecha: d.fecha,
+      copiada_de: d.copiadaDe ?? null,
       tipo: d.tipo,
       motivo_id: d.motivoId,
       motivo_texto: d.motivoTexto || null,
