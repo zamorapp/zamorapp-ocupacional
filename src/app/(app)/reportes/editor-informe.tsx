@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, Sparkles, Trash2, Undo2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,41 +26,45 @@ const SECCIONES: [Clave, string, string][] = [
 ];
 
 // Opcional y gratis: copia un pedido con cifras agregadas (sin nombres) para Claude o ChatGPT y lee la respuesta pegada
-function MejorarConIA({ datos, riesgos, aplicar }: { datos: DatosAnalisis; riesgos: string; aplicar: (t: Partial<Record<ClaveIA, string>>) => void }) {
+function MejorarConIA({ datos, riesgos, quitar, aplicar }: { datos: DatosAnalisis; riesgos: string; quitar: string[]; aplicar: (t: Partial<Record<ClaveIA, string>>) => void }) {
   const [respuesta, setRespuesta] = useState("");
-  const [nota, setNota] = useState<string | null>(null);
-  const pedido = () => pedidoIA(datos, riesgos);
+  const [nota, setNota] = useState<{ error: boolean; texto: string } | null>(null);
+  const pedido = pedidoIA(datos, riesgos, quitar);
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(pedido());
-      setNota("Pedido copiado. Pégalo en Claude o ChatGPT y trae aquí la respuesta.");
+      await navigator.clipboard.writeText(pedido);
+      setNota({ error: false, texto: "Pedido copiado. Pégalo en Claude o ChatGPT y trae aquí la respuesta." });
     } catch {
-      setNota("No se pudo copiar solo: selecciona el texto de abajo y cópialo.");
+      setNota({ error: true, texto: "No se pudo copiar solo: abre «Ver lo que se copia», selecciona el texto y cópialo." });
     }
   };
   const usar = () => {
     const t = leerRespuestaIA(respuesta);
     const n = Object.keys(t).length;
-    if (!n) return setNota(`No encontré los títulos (${Object.values(TITULOS_IA).join(", ")}). Pega la respuesta completa.`);
+    if (!n) return setNota({ error: true, texto: `No encontré los títulos (${Object.values(TITULOS_IA).join(", ")}). Pega la respuesta completa.` });
     aplicar(t);
     setRespuesta("");
-    setNota(n < 3 ? `Puse ${n} de 3 apartados; los otros quedan como estaban.` : null);
+    setNota(n < 3 ? { error: false, texto: `Puse ${n} de 3 apartados; los otros quedan como estaban.` } : null);
   };
   return (
     <details className="group rounded-lg border border-dashed p-3">
       <summary className="cursor-pointer text-sm font-medium"><Sparkles className="mr-1 inline size-4 text-primary" />Mejorar con IA <span className="font-normal text-muted-foreground">· opcional y gratis: conclusión y recomendaciones</span></summary>
       <div className="mt-3 space-y-3 text-sm">
-        <p className="text-xs text-muted-foreground">Solo van cifras del trimestre, sin el nombre de la empresa, sin nombres de trabajadores y con los grupos de 1 o 2 casos como «&lt;3». Sin internet, el analizador de zamorApp sigue redactando todo.</p>
+        <p className="text-xs text-muted-foreground">Solo van cifras del trimestre: sin el nombre ni el RIF de la empresa, sin nombres de trabajadores, sin diagnósticos confidenciales y sin grupos de 1 o 2 casos. Sin internet, el analizador de zamorApp sigue redactando todo.</p>
+        <p className="text-xs font-medium text-aviso-texto">Revisa el pedido antes de copiarlo: no debe tener nombres.</p>
+        <details className="rounded-md bg-muted/50 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium">Ver lo que se copia</summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs">{pedido}</pre>
+        </details>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={copiar}><Copy /> 1. Copiar pedido</Button>
+          <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={copiar}><Copy /> 1. Copiar pedido</Button>
           <Button asChild type="button" variant="ghost" size="sm"><a href="https://claude.ai/new" target="_blank" rel="noreferrer"><ExternalLink /> Abrir Claude</a></Button>
           <Button asChild type="button" variant="ghost" size="sm"><a href="https://chatgpt.com/" target="_blank" rel="noreferrer"><ExternalLink /> Abrir ChatGPT</a></Button>
         </div>
-        {nota?.startsWith("No se pudo copiar") && <Textarea readOnly value={pedido()} className="min-h-32 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />}
         <Textarea placeholder="2. Pega aquí la respuesta completa de la IA" value={respuesta} onChange={(e) => setRespuesta(e.target.value)} className="min-h-24 text-sm" />
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" disabled={!respuesta.trim()} onClick={usar}><Wand2 /> 3. Usar en el informe</Button>
-          {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
+          {nota && <span className={`text-xs ${nota.error ? "text-alerta-texto" : "text-muted-foreground"}`}>{nota.texto}</span>}
         </div>
       </div>
     </details>
@@ -134,6 +138,8 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
   }));
   const [firmantes, setFirmantes] = useState<Firmantes>(() => ({ ...firmantesBase, ...inicial?.firmantes }));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  // Textos de antes de «Usar en el informe» (IA): «Deshacer» los devuelve
+  const [antesIA, setAntesIA] = useState<TextosInforme | null>(null);
   const [guardado, setGuardado] = useState(Boolean(inicial?.id));
   const [ocupado, iniciar] = useTransition();
 
@@ -184,7 +190,14 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         </div>
       ))}
 
-      {datos && editable && <MejorarConIA datos={datos} riesgos={textos.factores_riesgo} aplicar={(t) => { setTextos({ ...textos, ...t }); setAviso({ ok: true, mensaje: "Texto de la IA puesto en la conclusión y las recomendaciones: revísalo antes de guardar." }); }} />}
+      {datos && editable && (
+        <MejorarConIA
+          datos={datos}
+          riesgos={textos.factores_riesgo}
+          quitar={(empresa?.datos ?? []).filter(([k]) => k === "RIF" || k === "Razón social").map(([, v]) => v ?? "")}
+          aplicar={(t) => { setAntesIA(textos); setTextos({ ...textos, ...t }); setAviso({ ok: true, mensaje: "Texto de la IA puesto en la conclusión y las recomendaciones: revísalo antes de guardar." }); }}
+        />
+      )}
 
       {generado && (
         <details className="group rounded-lg border p-3">
@@ -243,6 +256,9 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         )}
         {!editable && <Button asChild variant="outline"><Link href={enlaceImprimir} target="_blank"><Printer /> Imprimir</Link></Button>}
         {aviso && <span className={aviso.ok ? "text-sm text-ok-texto" : "text-sm text-destructive"}>{aviso.mensaje}</span>}
+        {antesIA && aviso?.mensaje.startsWith("Texto de la IA") && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => { setTextos(antesIA); setAntesIA(null); setAviso(null); }}><Undo2 /> Deshacer</Button>
+        )}
       </div>
     </div>
   );
