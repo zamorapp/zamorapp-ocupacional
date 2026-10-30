@@ -71,6 +71,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   const nombres = (emp ?? []).map((e) => e.razon_social).join(", ");
   avisarAlServicio({
     rol: sesion.rol,
+    empresaId: String(validos[0].empresa_id),
     asunto: `${n === 1 ? "Nueva cita pedida" : `${n} citas pedidas`} · ${nombres}`,
     lineas: [
       `${sesion.nombre} (RR. HH. de ${nombres}) pidió ${n === 1 ? "una cita" : `${n} citas`} para el ${fecha.split("-").reverse().join("/")}${texto(datos, "hora") ? ` a las ${texto(datos, "hora")}` : ""}.`,

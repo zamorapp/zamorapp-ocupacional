@@ -60,6 +60,7 @@ export async function crearSolicitud(_: Resultado | null, d: FormData): Promise<
   const { data: emp } = await supabase.from("empresas").select("razon_social").eq("id", empresaId).maybeSingle();
   avisarAlServicio({
     rol: sesion.rol,
+    empresaId,
     asunto: `Nueva solicitud · ${emp?.razon_social ?? "empresa"}`,
     lineas: [`${sesion.nombre} (RR. HH. de ${emp?.razon_social ?? "una empresa"}) hizo una solicitud:`, detalle.slice(0, 300)],
     ruta: "/solicitudes",

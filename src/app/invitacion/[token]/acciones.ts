@@ -24,6 +24,7 @@ export async function aceptar(token: string): Promise<{ ok: false; mensaje: stri
   ]);
   avisarAlServicio({
     rol: "gerente_empresa",
+    empresaId: String(empresaId),
     asunto: `RR. HH. se registró · ${emp?.razon_social ?? "empresa"}`,
     lineas: [`${perfil?.nombre_completo || claims?.claims?.email || "Una persona"} aceptó la invitación y ya entra al portal de ${emp?.razon_social ?? "su empresa"}.`],
     ruta: "/configuracion/usuarios#invitar",
