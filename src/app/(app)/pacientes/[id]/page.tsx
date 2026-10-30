@@ -23,6 +23,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
+import { EnviarEstudio } from "@/components/app/enviar-estudio";
 import { itemsDeLista, type Item } from "@/lib/listas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
@@ -61,6 +62,10 @@ export default async function FichaPaciente({ params }: Props) {
         crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
     : [[], [] as EmpleoAnterior[], [] as Item[]];
+  // RR. HH.: solo nombre y clase de cada estudio del catálogo (para elegir qué envía)
+  const estudiosRrhh = sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId
+    ? (await itemsDeLista(sesion.orgId, "paraclinico", true)).map((i) => ({ id: i.id, nombre: i.nombre, grupo: i.grupo, datos: typeof i.datos?.clase === "string" ? { clase: i.datos.clase } : null }))
+    : [];
   // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
   const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
@@ -106,6 +111,10 @@ export default async function FichaPaciente({ params }: Props) {
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
           <div className="flex w-full gap-2 xl:w-auto">
+            {/* RR. HH. envía estudios al expediente; solo los ve el personal de salud (entregar_estudio) */}
+            {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (
+              <EnviarEstudio orgId={sesion.orgId} trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} catalogo={estudiosRrhh} />
+            )}
             {!esRolEmpresa(sesion.rol) && (
               <>
                 <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
