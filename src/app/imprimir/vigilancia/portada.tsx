@@ -70,6 +70,8 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, guardadoEn, 
         <div className="text-right">
           <div className="text-[9px] font-bold uppercase tracking-[.16em] text-doc-tenue">Fecha de emisión</div>
           <div className="text-[13px] font-semibold first-letter:uppercase">{fechaEmision ?? <Falta />}</div>
+          {/* Es dato de salud: va en toda copia, también la que recibe la empresa */}
+          <div className="mt-0.5 text-[9px] text-doc-tenue">Documento confidencial de salud ocupacional</div>
         </div>
       </header>
 
