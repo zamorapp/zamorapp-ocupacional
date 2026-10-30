@@ -3,6 +3,7 @@ import { agruparRepetidos, type CargoOrg } from "@/lib/cargos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Volver } from "../volver";
+import { UnirAMano } from "./unir-a-mano";
 import { UnirCargos } from "./unir-cargos";
 
 export const metadata: Metadata = { title: "Unir cargos" };
@@ -36,7 +37,10 @@ export default async function Cargos() {
       ) : error ? (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">No se pudieron leer los cargos: {error}</p>
       ) : (
-        <UnirCargos grupos={grupos} total={cargos.length} />
+        <>
+          <UnirCargos grupos={grupos} total={cargos.length} />
+          <UnirAMano cargos={cargos} />
+        </>
       )}
     </div>
   );

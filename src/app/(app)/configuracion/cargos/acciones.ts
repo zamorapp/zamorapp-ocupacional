@@ -30,3 +30,22 @@ export async function unirCargos(nombre: string, puestos: string[]): Promise<Res
     mensaje: `Listo: «${nombre.trim()}» en ${r.empresas} ${r.empresas === 1 ? "empresa" : "empresas"}; ${r.trabajadores} ${r.trabajadores === 1 ? "trabajador cambió" : "trabajadores cambiaron"} de variante.`,
   };
 }
+
+// Nombres que no son cargos («16/08/2023», «Na»): los trabajadores quedan sin cargo y se completa en la próxima consulta
+export async function quitarCargos(puestos: string[]): Promise<ResultadoUnir> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (sesion.rol !== "administrador") return { ok: false, mensaje: "Solo el administrador quita cargos." };
+  if (!puestos.length) return { ok: false, mensaje: "Elige los cargos a quitar." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("quitar_cargos", { p_puestos: puestos });
+  if (error) {
+    const sinRed = error.code === "OFFLINE" || error.code === "0A000" || /sin conexi|internet/i.test(error.message);
+    return { ok: false, mensaje: sinRed ? "Quitar cargos necesita internet. Vuelve a intentarlo con conexión." : error.message };
+  }
+  const r = data as { cargos: number; trabajadores: number };
+  revalidatePath("/", "layout");
+  invalidarEmpresas();
+  olvidar("");
+  return { ok: true, mensaje: `Listo: ${r.trabajadores} ${r.trabajadores === 1 ? "trabajador quedó" : "trabajadores quedaron"} sin cargo; se completa en la próxima consulta.` };
+}

@@ -81,3 +81,22 @@ select 'unir no es cambio de cargo: sin historial (debe 0): ' || count(*) from p
 select 'la consulta abierta pasa al cargo que queda (debe 1): ' || count(*) from clinico.consultas where id = '16700000-0000-0000-0000-0000000000c1' and puesto_id = '16700000-0000-0000-0000-00000000000b';
 select 'la firmada no cambia (debe 1): ' || count(*) from clinico.consultas where id = '16700000-0000-0000-0000-0000000000c2' and puesto_id = '16700000-0000-0000-0000-00000000000a';
 select 'queda en la bitácora (debe 2): ' || count(*) from public.bitacora where accion = 'UNIR CARGOS' and registro_id::text like '16700000%';
+
+-- Quitar un cargo que no es cargo
+insert into public.puestos (id,org_id,empresa_id,nombre) values ('16700000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','16/08/2023');
+insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos,puesto_id) values
+ ('16700000-0000-0000-0000-0000000000a9','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','1670009','Nueve','N','16700000-0000-0000-0000-0000000000d1');
+set role authenticated;
+select set_config('request.jwt.claim.sub','16700000-0000-0000-0000-0000000000f2',false) \g /dev/null
+do $$ begin
+  perform public.quitar_cargos(array['16700000-0000-0000-0000-0000000000d1']::uuid[]);
+  raise notice 'FALLA: el gerente médico quitó un cargo';
+exception when insufficient_privilege then raise notice 'el gerente médico no quita cargos (debe 1): 1';
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'el administrador quita el cargo a 1 trabajador (debe 1): ' || (public.quitar_cargos(array['16700000-0000-0000-0000-0000000000d1']::uuid[]) ->> 'trabajadores');
+reset role;
+select 'el trabajador queda sin cargo y sin historial falso (debe 1): ' || count(*) from public.trabajadores t
+ where t.id = '16700000-0000-0000-0000-0000000000a9' and t.puesto_id is null
+   and not exists (select 1 from public.cargos_historial h where h.trabajador_id = t.id);
+select 'el cargo queda inactivo con su nombre (debe 1): ' || count(*) from public.puestos where id = '16700000-0000-0000-0000-0000000000d1' and not activo and nombre = '16/08/2023';

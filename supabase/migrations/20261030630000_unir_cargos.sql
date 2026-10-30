@@ -160,4 +160,38 @@ end $$;
 revoke execute on function public.unir_cargos(text, uuid[]) from public, anon;
 grant execute on function public.unir_cargos(text, uuid[]) to authenticated;
 
+-- ─── Quitar un cargo que no es cargo («16/08/2023», «Na»): los trabajadores quedan sin cargo ───
+-- Se completa en la próxima consulta («Generales» lo pide en amarillo). El cargo queda inactivo con su nombre; las
+-- consultas firmadas lo conservan. No es un cambio de cargo: no va al historial.
+create or replace function public.quitar_cargos(p_puestos uuid[])
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_org uuid;
+  n_trab int; n_cons int; n_cargos int;
+begin
+  if public.es_base_local() then raise exception 'Quitar cargos se hace con internet' using errcode = '0A000'; end if;
+  if coalesce(array_length(p_puestos, 1), 0) = 0 then raise exception 'Elige los cargos' using errcode = '22023'; end if;
+  select min(org_id::text)::uuid into v_org from public.puestos where id = any (p_puestos);
+  if v_org is null or exists (select 1 from public.puestos where id = any (p_puestos) and (org_id <> v_org or not activo)) then
+    raise exception 'Algún cargo ya no existe o ya fue unido. Recarga la página.' using errcode = '22023';
+  end if;
+  if public.mi_rol(v_org) is distinct from 'administrador' then
+    raise exception 'Solo el administrador quita cargos' using errcode = '42501';
+  end if;
+  perform set_config('zamorapp.uniendo_cargos', 'si', true);
+  update public.trabajadores set puesto_id = null where puesto_id = any (p_puestos);
+  get diagnostics n_trab = row_count;
+  update clinico.consultas set puesto_id = null where puesto_id = any (p_puestos) and estado <> 'firmada';
+  get diagnostics n_cons = row_count;
+  update public.puestos set activo = false where id = any (p_puestos);
+  get diagnostics n_cargos = row_count;
+  insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+  select v_org, 'public.puestos', id, 'QUITAR CARGO', jsonb_build_object('nombre', nombre), null
+    from public.puestos where id = any (p_puestos);
+  perform set_config('zamorapp.uniendo_cargos', '', true);
+  return jsonb_build_object('cargos', n_cargos, 'trabajadores', n_trab, 'consultas', n_cons);
+end $$;
+revoke execute on function public.quitar_cargos(uuid[]) from public, anon;
+grant execute on function public.quitar_cargos(uuid[]) to authenticated;
+
 select public.vistas_al_dia();
