@@ -52,6 +52,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/e/")) return conTiempo(respuesta);
   // Latido del workflow «Calentar» (C4): sin sesión, responde como anónimo; no se manda a /login
   if (request.nextUrl.pathname === "/api/salud") return conTiempo(respuesta);
+  // Latido de los avisos de la campana al celular: sin sesión; la base exige la clave del servidor
+  if (request.nextUrl.pathname === "/api/avisos/campana") return conTiempo(respuesta);
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
   // Cola de envíos del escritorio: la llama la puerta local con la sesión de nube (Bearer), sin cookies; valida ella misma

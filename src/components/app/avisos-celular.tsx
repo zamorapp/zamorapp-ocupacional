@@ -105,7 +105,9 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
         ) : (<>
         <p className="text-muted-foreground">
           Te llega una notificación cuando RR. HH. de una empresa se registra con su enlace, pide una cita, registra un
-          trabajador nuevo o hace una solicitud. Llega aunque la laptop esté apagada. Actívalo en cada {equipo} donde lo quieras.
+          trabajador nuevo o hace una solicitud, y con los avisos de la campana: plazos de accidentes, resultados por
+          recibir, alertas para la próxima evaluación y, cada mañana, los exámenes por vencer. Llega aunque la laptop esté
+          apagada. Actívalo en cada {equipo} donde lo quieras.
         </p>
         {estado === "cargando" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {estado === "no-soporta" && <p>Este navegador no recibe avisos. En Android usa Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
@@ -151,7 +153,7 @@ export function OfertaAvisosCelular() {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
       <BellRing className="size-5 shrink-0 text-primary" />
-      <p className="flex-1">Recibe en este celular los registros, citas y solicitudes de RR. HH.</p>
+      <p className="flex-1">Recibe en este celular los avisos de zamorApp: RR. HH., accidentes, resultados y vencimientos.</p>
       <Button size="sm" asChild><a href="/configuracion/perfil#avisos-celular">Activar</a></Button>
       <Button size="sm" variant="ghost" onClick={ignorar}>Ignorar</Button>
     </div>
