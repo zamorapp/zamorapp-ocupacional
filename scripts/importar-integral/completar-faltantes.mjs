@@ -44,7 +44,10 @@ const informe = [`# Completar faltantes del SAME (${GUARDAR ? "GUARDADO" : "ensa
 
 try {
   await q("begin");
-  const { rows: [org] } = await q("select o.id from public.organizaciones o join public.miembros m on m.org_id = o.id and m.rol = 'administrador' order by m.creado_en limit 1");
+  // Una sola organización: si hubiera más, no se adivina a cuál pertenecen los datos del SAME
+  const { rows: orgs } = await q("select distinct org_id id from clinico.consultas where origen = 'integral'");
+  if (orgs.length !== 1) throw new Error(`Hay ${orgs.length} organizaciones con datos del SAME: hace falta una sola. No se hizo nada.`);
+  const [org] = orgs;
 
   // 1) Potencial discapacidad
   const { rowCount: marcadas } = await q(
@@ -79,7 +82,8 @@ try {
       grupo: /familiar/i.test(n.tipo) ? "familiar" : "personal", observacion: n.observacion })).filter((n) => !ids.has(n.id));
     yaEstaban += ns.length - nuevas.length;
     if (!nuevas.length) continue;
-    await q("update clinico.consultas set antecedentes = $2::jsonb where id = $1", [u.id, JSON.stringify([...actuales, ...nuevas])]);
+    // Solo se agregan las nuevas al final: si alguien editó la consulta mientras tanto, no se pisa
+    await q("update clinico.consultas set antecedentes = coalesce(antecedentes, '[]'::jsonb) || $2::jsonb where id = $1", [u.id, JSON.stringify(nuevas)]);
     agregadas += nuevas.length; consultas++;
   }
   informe.push("## Notas de antecedentes", "", `- En el SAME: ${notas.length} notas con texto, de ${porPaciente.size} pacientes.`,
