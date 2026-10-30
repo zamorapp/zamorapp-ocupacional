@@ -9,6 +9,8 @@
 --   2. Junta las notificaciones nuevas sin leer de la campana que aún no salieron al celular (avisos_push_enviadas,
 --      por id: nunca casar filas por hora) y arma UN aviso por usuario.
 --   3. Una vez al día, desde las 7:00 de Caracas, el resumen de exámenes vencidos y por vencer de sus empresas.
+-- Respeta «Avisos de esta empresa» (610000): resultados, próxima evaluación y vencimientos apagados no suenan; los
+-- plazos legales de accidentes no se apagan (igual que en la campana).
 -- Lo que RR. HH. hace en el portal ya sale al instante (lib/aviso-servicio.ts): esos títulos no se repiten aquí.
 -- Sin la clave correcta no hace nada. Llamarla de más no repite avisos.
 
@@ -27,6 +29,14 @@ create table if not exists public.avisos_push_resumen (
 alter table public.avisos_push_resumen enable row level security;
 revoke all on public.avisos_push_resumen from anon, authenticated;
 
+-- Freno: una sola corrida por minuto (aunque alguien llame la ruta en bucle). Una fila.
+create table if not exists public.avisos_push_latido (
+  unica boolean primary key default true check (unica),
+  ultima timestamptz not null
+);
+alter table public.avisos_push_latido enable row level security;
+revoke all on public.avisos_push_latido from anon, authenticated;
+
 create or replace function public.avisos_campana_para_celular(p_clave text)
 returns table (endpoint text, p256dh text, auth text, titulo text, cuerpo text, ruta text)
 language plpgsql security definer set search_path = public as $$
@@ -44,6 +54,12 @@ declare
   v_por_vencer int;
 begin
   if length(coalesce(p_clave, '')) < 32 then return; end if;
+  if not exists (select 1 from public.avisos_push_clave k where k.clave_hash = v_hash) then return; end if;
+  -- Freno (solo con la clave correcta, para que una llamada ajena no pueda frenar los avisos)
+  insert into public.avisos_push_latido as l (unica, ultima) values (true, public.ahora())
+  on conflict (unica) do update set ultima = excluded.ultima where l.ultima <= public.ahora() - interval '60 seconds';
+  get diagnostics v_n = row_count;
+  if v_n = 0 then return; end if;
   for u in
     select distinct s.usuario_id, s.org_id
       from public.suscripciones_push s
@@ -53,9 +69,9 @@ begin
   loop
     -- Los generadores de la campana, como si este usuario hubiera abierto el Inicio (solo dentro de esta función)
     perform set_config('request.jwt.claim.sub', u.usuario_id::text, true);
-    begin perform public.centinela_legal(); exception when others then null; end;
-    begin perform public.recordar_resultados(); exception when others then null; end;
-    begin perform public.recordar_alertas(); exception when others then null; end;
+    begin perform public.centinela_legal(); exception when others then raise warning 'avisos_campana_para_celular: centinela_legal falló: %', sqlerrm; end;
+    begin perform public.recordar_resultados(); exception when others then raise warning 'avisos_campana_para_celular: recordar_resultados falló: %', sqlerrm; end;
+    begin perform public.recordar_alertas(); exception when others then raise warning 'avisos_campana_para_celular: recordar_alertas falló: %', sqlerrm; end;
     perform set_config('request.jwt.claim.sub', '', true);
 
     -- Notificaciones nuevas de la campana que todavía no salieron al celular
@@ -66,6 +82,10 @@ begin
          and n.creado_en >= public.ahora() - interval '2 days'
          and n.titulo not in ('Nueva solicitud de cita', 'RR. HH. aceptó la invitación', 'Nueva solicitud de la empresa')
          and not exists (select 1 from public.avisos_push_enviadas e where e.notificacion_id = n.id)
+         -- «Avisos de esta empresa» (610000): un tipo apagado en la empresa no suena en el celular
+         and not exists (select 1 from public.empresas x where x.id = n.empresa_id and (
+               (n.titulo = 'Resultados por recibir' and 'resultados' = any (x.avisos_apagados))
+            or (n.titulo = 'Alerta para la próxima evaluación' and 'proxima_evaluacion' = any (x.avisos_apagados))))
     ), marcadas as (
       insert into public.avisos_push_enviadas (notificacion_id, usuario_id)
       select id, u.usuario_id from nuevas on conflict do nothing
