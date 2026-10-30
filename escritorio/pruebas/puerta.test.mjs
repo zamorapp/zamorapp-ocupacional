@@ -787,6 +787,19 @@ test("Windows adelantado o atrasado: el plazo de 7 días no se salta y un token 
 test("al volver internet, los cambios de la nube llegan a la PC", { skip: omitir }, async () => {
   nube.estado.caida = false;
   await nubeObj.comprobar();
+  // El teléfono por subir lo deja aquí mismo (antes lo dejaba la prueba de la hora anclada, que en Linux se omite: esta
+  // fallaba solo en el banco). Como lo guarda la app: en la base local con la sesión del administrador, a la bandeja
+  const pc = new pg.Client({ connectionString: motor.url() });
+  await pc.connect();
+  try {
+    await pc.query("begin");
+    await pc.query("select set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true)",
+      [JSON.stringify({ sub: "00000000-0000-0000-0000-0000000000a1", role: "authenticated" }), "00000000-0000-0000-0000-0000000000a1"]);
+    await pc.query("update public.trabajadores set telefono = '0414-0000014' where id = '30000000-0000-0000-0000-00000000000a'");
+    await pc.query("commit");
+  } finally { await pc.end(); }
+  const [pend] = await enLocal("select count(*)::int n from local.bandeja where fila_id = '30000000-0000-0000-0000-00000000000a' and estado = 'pendiente'");
+  assert.ok(pend.n >= 1, "el teléfono quedó por subir");
   const nubeDb = new pg.Client({ connectionString: NUBE_DB });
   await nubeDb.connect();
   const nombre = `Ana ${Date.now()}`;
@@ -1630,6 +1643,9 @@ test("sin internet: resultados de laboratorio completos (consulta, rangos, PDF, 
   await enLaNubeDB(`insert into clinico.adjuntos (org_id, trabajador_id, consulta_id, nombre, ruta, tipo_mime, tamano) values ($1, $2, $3, 'lab.pdf', $4, 'application/pdf', $5) on conflict (ruta) do nothing`,
     [ORG, T, CONS, RUTA_LAB, Buffer.byteLength(PDF)]);
   nube.estado.archivos.set(`adjuntos/${RUTA_LAB}`, { cuerpo: PDF, tipo: "application/pdf" });
+  // Un aviso de la nube con el mismo título (de otra consulta), ya en la PC: no se toca al borrar los de la PC
+  await enLaNubeDB(`insert into public.notificaciones (id, org_id, usuario_id, titulo, texto, enlace) values ('4f000000-0000-0000-0000-0000000000e1', $1, $2,
+    'Resultados por recibir', 'de la nube', '/atencion/otra?paso=paraclinicos') on conflict (id) do nothing`, [ORG, MED]);
   await replicaObj.enCurso;
   await replicaObj.ciclo();
   await puerta.adjuntos.bajarPendientes("00000000-0000-0000-0000-0000000000a1", { maxArchivos: 50, maxDia: 1e9 }); // la sincronía baja el PDF
@@ -1673,6 +1689,7 @@ test("sin internet: resultados de laboratorio completos (consulta, rangos, PDF, 
   assert.equal(await avisosEnNube(), 1, "la nube hizo su aviso");
   await replicaObj.ciclo();
   assert.equal(await avisosEnPc(), 1, "en la PC queda uno solo: el de la nube");
+  assert.equal((await enLaCopiaDB("select count(*)::int n from public.notificaciones where id = '4f000000-0000-0000-0000-0000000000e1'")).rows[0].n, 1, "el aviso que bajó de la nube sigue");
 });
 
 test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)", { skip: omitir }, async () => {
