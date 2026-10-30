@@ -9,6 +9,7 @@ import { Constancia, ConstanciaAtencion, Informe, Recipe, Referencia } from "../
 export const metadata: Metadata = { title: "Documentos por lote" };
 export const dynamic = "force-dynamic";
 
+const BLOQUE = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOCS = ["constancia", "atencion", "consulta", "referencia", "recipe"] as const;
 type Doc = (typeof DOCS)[number];
@@ -40,7 +41,12 @@ export default async function Lote({ searchParams }: { searchParams: Promise<{ i
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.clinico) notFound();
   const lista = [...new Set(ids.split(",").filter((x) => UUID.test(x)))].slice(0, MAX_LOTE);
-  const datos = (await Promise.all(lista.map(async (id) => ({ id, d: await obtenerDocumento(id) })))).flatMap(({ id, d }) => (d ? [{ ...d, clave: id }] : []));
+  // En bloques de 20: pedir los 150 a la vez abría cientos de conexiones simultáneas a la base (plan gratis)
+  const leidos: { id: string; d: Awaited<ReturnType<typeof obtenerDocumento>> }[] = [];
+  for (let i = 0; i < lista.length; i += BLOQUE) {
+    leidos.push(...(await Promise.all(lista.slice(i, i + BLOQUE).map(async (id) => ({ id, d: await obtenerDocumento(id) })))));
+  }
+  const datos = leidos.flatMap(({ id, d }) => (d ? [{ ...d, clave: id }] : []));
   const hojas = docs.flatMap((x) => datos.filter(tiene[x]).map((d) => hoja(x, d)));
   const titulo = docs.map((x) => NOMBRE_DOCUMENTO[x]).join(" y ");
 

@@ -4,17 +4,22 @@
   <meta charset="utf-8">
   <title>zamorApp Escritorio</title>
   <style>
-    :root { --bg: #f5f7f7; --fg: #17262b; --muted: #56686e; --accent: #0d6e74; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #0f1719; --fg: #e3ecee; --muted: #93a7ac; --accent: #4fbcc2; } }
+    :root { --bg: #f5f7f7; --fg: #17262b; --muted: #56686e; --accent: #0d6e74; --line: #d5dfe1; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0f1719; --fg: #e3ecee; --muted: #93a7ac; --accent: #4fbcc2; --line: #2a3b40; } }
     body { margin: 0; height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg);
            font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
-    .c { text-align: center; }
+    .c { text-align: center; width: min(360px, 88vw); }
     .anillo { width: 42px; height: 42px; margin: 0 auto 16px; border-radius: 50%;
               border: 4px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent);
               animation: g 0.9s linear infinite; }
     @keyframes g { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) { .anillo { animation: none; } }
     p { color: var(--muted); margin: 4px 0 0; }
+    .barra { height: 8px; margin: 18px 0 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .barra > i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .4s ease; }
+    .paso { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+    .paso b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+    [hidden] { display: none !important; }
+    @media (prefers-reduced-motion: reduce) { .anillo { animation: none; } .barra > i { transition: none; } }
   </style>
 </head>
 <body>
@@ -22,6 +27,25 @@
     <div class="anillo" aria-hidden="true"></div>
     <strong>Abriendo zamorApp…</strong>
     <p>Preparando la base de datos de esta PC. La primera vez puede tardar unos minutos.</p>
+    <!-- Avance (C13): el programa llama window.avance(pct, texto) con cada paso que anuncia la puerta.
+         Si la versión del programa no lo manda, la pantalla queda como antes, con el anillo. -->
+    <div id="avance" hidden>
+      <div class="barra" role="progressbar" aria-label="Preparando esta PC" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+      <div class="paso" aria-live="polite"><span id="texto"></span><b id="pct">0 %</b></div>
+    </div>
   </div>
+  <script>
+    // Nunca retrocede: si llegan dos avances fuera de orden, queda el mayor
+    let actual = 0;
+    window.avance = (pct, texto) => {
+      const n = Math.max(actual, Math.min(100, Math.round(Number(pct) || 0)));
+      actual = n;
+      document.getElementById("avance").hidden = false;
+      document.querySelector(".barra > i").style.width = n + "%";
+      document.querySelector(".barra").setAttribute("aria-valuenow", String(n));
+      document.getElementById("pct").textContent = n + " %";
+      if (texto) document.getElementById("texto").textContent = texto;
+    };
+  </script>
 </body>
 </html>

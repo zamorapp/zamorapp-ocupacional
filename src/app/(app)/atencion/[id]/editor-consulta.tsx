@@ -28,7 +28,7 @@ import {
 import type { Item } from "@/lib/listas";
 import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
-import { corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
+import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
@@ -48,8 +48,10 @@ import { confirmar } from "@/components/app/confirmar";
 import { TextoDictado } from "./dictado";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
+import { DatosTrabajador } from "./datos-trabajador";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+import { FechaEvaluacion, diasEntre } from "./fecha-evaluacion";
 import type { SiguienteCita } from "@/lib/citas";
 import { SiguientePaciente } from "../siguiente-paciente";
 import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
@@ -79,6 +81,10 @@ type Props = {
   pasoInicial?: string;
   declaraciones: DeclaracionConsulta[];
   siguiente?: SiguienteCita | null;
+  hoy: string; // día de hoy en Caracas según el servidor (no el de Windows)
+  registrada: string; // día real en que se registró la consulta
+  puedeCambiarFecha: boolean; // médico, gerente médico o administrador (como guardar_consulta)
+  diasAvisoFecha?: number;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -190,7 +196,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -238,6 +244,21 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
   const bloqueado = d.estado !== "borrador";
   const cambios = JSON.stringify(d) !== guardado;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
+  // Cambiar la fecha de la evaluación corre con ella la vigencia de la aptitud y los valores por defecto del reposo
+  // y la reubicación que aún no se usan (todo cuenta desde la evaluación)
+  const [avisoVigilancia, setAvisoVigilancia] = useState<string | null>(null);
+  const cambiarFecha = (fecha: string) => {
+    moverFecha(fecha);
+    setAvisoVigilancia(null);
+    avisoVigilanciaEntregada(trabajador.empresaId, inicial.fecha, fecha).then(setAvisoVigilancia, () => setAvisoVigilancia(null));
+  };
+  const moverFecha = (fecha: string) => setD((x) => {
+    const n = diasEntre(x.fecha, fecha);
+    return { ...x, fecha,
+      aptitud: x.aptitud.vigenteHasta ? { ...x.aptitud, vigenteHasta: sumarDias(x.aptitud.vigenteHasta, n) } : x.aptitud,
+      reposo: x.reposo.activo ? x.reposo : { ...x.reposo, desde: fecha, hasta: fecha },
+      reubicacion: x.reubicacion.activa ? x.reubicacion : { ...x.reubicacion, desde: fecha } };
+  });
 
   const motivo = listas.motivo_consulta.find((m) => m.id === d.motivoId);
   const plantilla = plantillaPara(plantillas, listas, d.motivoId);
@@ -606,8 +627,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               {trabajador.cedula}{trabajador.edad !== null && ` · ${trabajador.edad} años`}{trabajador.sexo && ` · ${trabajador.sexo}`} · {[trabajador.cargo, trabajador.empresa].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <div className="text-right text-xs text-muted-foreground">
-            <div>{ETIQUETA_ESTADO_CONSULTA[d.estado]} · {d.fecha.split("-").reverse().join("/")}</div>
+          <div className="w-full text-xs text-muted-foreground sm:w-auto sm:text-right">
+            <FechaEvaluacion antes={`${ETIQUETA_ESTADO_CONSULTA[d.estado]} ·`} fecha={d.fecha} hoy={hoy} registrada={registrada} onCambiar={cambiarFecha}
+              diasAviso={diasAvisoFecha} avisoVigilancia={avisoVigilancia}
+              modo={d.estado === "firmada" ? "firmada" : bloqueado ? "cerrada" : puedeCambiarFecha ? "editable" : "sin-permiso"} />
             {medico && <div>{medico}</div>}
           </div>
           {d.estado === "firmada" ? (
@@ -806,6 +829,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
 
           {/* ── Generales ── */}
           <TabsContent value="generales" className="mt-4 space-y-4">
+            <Seccion titulo="Datos del trabajador">
+              <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} />
+            </Seccion>
+
             <Seccion titulo="Motivo">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>

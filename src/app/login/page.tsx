@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ShieldCheck, Stethoscope, Timer } from "lucide-react";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
+import { connection } from "next/server";
 import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -11,7 +12,19 @@ const PUNTOS = [
   { icono: ShieldCheck, texto: "La historia clínica solo la ve el personal de salud" },
 ];
 
-export default function PaginaLogin() {
+// Escritorio: el servidor de la app pregunta a la puerta local si hay Windows Hello activo en esta PC, así el botón
+// sale aunque la consulta desde la página falle. La página deja de ser estática solo en el escritorio.
+async function helloActivoEnPC(): Promise<boolean> {
+  if (process.env.NEXT_PUBLIC_ESCRITORIO !== "1") return false;
+  await connection();
+  try {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/zamorapp/huella/estado?desde=login-servidor`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    return r.ok && ((await r.json())?.usuarios ?? 0) > 0;
+  } catch { return false; }
+}
+
+export default async function PaginaLogin() {
+  const helloActivo = await helloActivoEnPC();
   return (
     <main className="grid grid-cols-1 min-h-dvh lg:grid-cols-[1.1fr_1fr]">
       <section className="relative hidden overflow-hidden bg-gradient-to-br from-teal-700 via-teal-800 to-cyan-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -45,7 +58,7 @@ export default function PaginaLogin() {
             <h2 className="text-2xl font-semibold tracking-tight">Bienvenido</h2>
             <p className="text-muted-foreground">Ingresa con tu usuario o tu correo.</p>
           </div>
-          <FormularioLogin modoDemo={!supabaseConfigurado} />
+          <FormularioLogin modoDemo={!supabaseConfigurado} helloActivo={helloActivo} />
         </div>
       </section>
     </main>

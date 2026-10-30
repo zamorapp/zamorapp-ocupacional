@@ -26,6 +26,7 @@ type Ajustes = {
   firma_sello_separados?: boolean;
   reposo_pie_original?: string | null;
   meses_examen_periodico?: number;
+  dias_aviso_fecha_futura?: number;
   recordatorio_resultados_dias?: number;
   centinela_correo?: boolean;
   dias_equipo_confianza?: number;
@@ -91,6 +92,7 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             />
             <div className="space-y-3">
               <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
+              <Campo id="dias_aviso_fecha_futura" etiqueta="Avisar si la fecha de la evaluación va más de estos días adelante" ayuda="Solo avisa, no impide guardar." type="number" min={1} max={3650} defaultValue={a.dias_aviso_fecha_futura ?? 90} />
               <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días; 0 = no recordar)" type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
               <Campo id="dias_equipo_confianza" etiqueta="Pedir el código de dos pasos cada (días)" ayuda="En un equipo de confianza. 0 = en cada entrada." type="number" min={0} max={90} defaultValue={a.dias_equipo_confianza ?? 30} />
               <Campo id="celda_minima_empresa" etiqueta="En la vigilancia que se envía a la empresa, ocultar cifras menores de" ayuda="Protege la identidad en empresas pequeñas: se ve «<3». 0 = mostrar todas." type="number" min={0} max={10} defaultValue={a.celda_minima_empresa ?? 3} />

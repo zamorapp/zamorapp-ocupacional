@@ -8,12 +8,16 @@ import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { datosOrganizacion } from "@/lib/organizacion";
+import { hoyCaracas } from "@/lib/fecha";
 import { PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
 import { declaracionesDeConsulta } from "../../accidentes/acciones";
 import { siguienteEnEspera } from "@/lib/citas";
+import { ahora } from "@/lib/fecha";
+import { FrescoAlVolver } from "@/components/app/fresco-al-volver";
+import Cargando from "../../loading";
 
 export const metadata: Metadata = { title: "Consulta" };
 export const dynamic = "force-dynamic";
@@ -58,7 +62,11 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} />
+      {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
+      <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
+        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
+          puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90} />
+      </FrescoAlVolver>
     </div>
   );
 }

@@ -14,11 +14,13 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Tratamiento: en un control o paciente crónico, «Repetir el tratamiento del…» copia en un clic las medicinas e indicaciones de su última consulta con tratamiento; luego se ajusta lo que cambie", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Nueva sección del manual: «Trabajar sin internet en el escritorio». Explica qué hace la PC sin conexión, la hora verificada, «Requiere internet» y cómo revisar los cambios que la nube no aceptó", tema: "sin-internet" },
   { fecha: "2026-10-30", texto: "Ingreso: zamorApp recuerda tu último usuario y, en el escritorio con Windows Hello, pide la huella o el PIN al abrir, sin escribir nada. Si escribes mal la contraseña, la siguiente entrada vuelve a pedir el segundo paso", tema: "ingreso" },
+  { fecha: "2026-10-30", texto: "La fecha de la evaluación se cambia en la consulta (hacia atrás o hacia adelante) y es la que sale en los impresos. La fecha y hora reales de registro y de firma quedan aparte, sin poder cambiarse, y cada cambio de fecha queda en Auditoría", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Escritorio: «Corregir» una consulta firmada ya funciona sin internet, como en el SAME. La versión firmada queda en el historial y la corrección sube sola al volver la conexión. Si otra PC o la web la tocaron en medio, aparece en «por revisar» y no se pierde nada", tema: "firmar" },
   { fecha: "2026-10-30", texto: "Escritorio: los correos a las empresas ya salen desde el programa. Quedan «en cola» con su PDF y los envía la web; sin internet salen solos al volver. En la Bitácora se ven como «En cola». El enlace de WhatsApp y las invitaciones de RR. HH. sí requieren internet: sin conexión el programa lo avisa antes de intentarlo", tema: "rrhh-whatsapp" },
   { fecha: "2026-10-30", texto: "Envíos: además de constancias y consulta, salen la constancia de atención, referencias y récipes (estos solo al personal de salud), y los informes de puesto, vigilancia y pacientes atendidos con «Enviar a la empresa». La vigilancia que sale a la empresa no lleva discapacidad y oculta cifras menores de 3 (se cambia en Configuración › Organización); hay que guardarla antes de enviarla", tema: "rrhh-whatsapp" },
@@ -63,7 +65,11 @@ export const MANUAL: TemaManual[] = [
       "¿No existe? Si la cédula no aparece, el mismo buscador ofrece «Registrar y atender»: cédula, nombres, apellidos y empresa, y se abre la consulta. Sexo, cargo y demás datos se completan después. Recepción ve «Registrar» y llega a la ficha.",
       "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
     ],
-    consejos: ["En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar."],
+    consejos: [
+      "En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar.",
+      "Al tocar una opción del menú, su ícono gira hasta que llega la pantalla: el clic ya entró, no hace falta tocar otra vez. Volver a una pantalla que viste hace menos de 30 segundos es instantáneo.",
+      "Los botones que guardan o buscan se bloquean y dicen «Guardando…» o «Buscando…» mientras esperan la respuesta: así un doble clic nunca guarda dos veces.",
+    ],
   },
   {
     id: "ingreso",
@@ -84,7 +90,7 @@ export const MANUAL: TemaManual[] = [
       "En el programa de escritorio, después de escribir el código del teléfono en esa PC, la clave basta durante el plazo de confianza (30 días si no se cambió), con o sin internet. Sin internet nunca se pide el código del teléfono: dentro del plazo entra con la clave, y fuera de él con Windows Hello (PIN de Windows, huella o rostro), que cuenta como segundo paso. En la pantalla del código también aparece «Confirmar con Windows Hello».",
       "En el programa de escritorio puedes atender sin internet (ver «Trabajar sin internet en el escritorio»).",
       "Si escribes mal la contraseña, la siguiente entrada vuelve a pedir el segundo paso (el código del teléfono o, sin internet, Windows Hello), aunque el equipo sea de confianza.",
-      "Entrar directo: zamorApp recuerda tu último usuario (no la contraseña). En el escritorio con Windows Hello activo, al abrir el programa se pide la huella o el PIN sin tocar nada.",
+      "Entrar directo: zamorApp recuerda tu último usuario (no la contraseña). En el escritorio con Windows Hello activo, al abrir el programa se pide la huella o el PIN sin tocar nada. Ojo: la huella de Chrome (web) y Windows Hello del escritorio son distintas; si en el escritorio aún no la activaste, el panel muestra arriba «Activar Windows Hello» (también en Configuración → Ingreso y seguridad, o en tu inicial → «Entrar con Windows Hello»).",
       "Para cambiar de teléfono: Configuración → Mi perfil → «Verificación en dos pasos» → «Cambiar de teléfono». Si perdiste el teléfono, pide a soporte de zamorApp que reinicie tu verificación.",
       "Para salir, toca tu inicial arriba a la derecha → «Salir».",
     ],
@@ -181,7 +187,8 @@ export const MANUAL: TemaManual[] = [
     resumen: "El editor de la consulta: pasos numerados, dictado por voz, evolución de signos, duplicar, accidentes y avisos que nunca bloquean.",
     pasos: [
       "«Nueva consulta» abre el editor, organizado en pasos numerados (Generales, Antecedentes, Examen…). Un ✓ verde marca los pasos que ya tienen información; muévete con las pestañas o con los botones Anterior / Siguiente de abajo.",
-      "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Sexo, cargo y demás datos se completan después.",
+      "¿Paciente nuevo? En «Nueva consulta» (o en «Agendar») escribe su cédula o nombre; si no aparece, llena nombres, apellidos y empresa en el recuadro de abajo y toca «Registrar y atender»: queda registrado y se abre su consulta. Cargo, dependencia, sexo y fecha de nacimiento se completan en «Generales» de la consulta, en el recuadro «Datos del trabajador» (toca «Guardar datos del trabajador»; un cargo o dependencia nuevos se crean solos). Cerrado, el recuadro muestra el resumen (cargo, dependencia, antigüedad en el cargo, edad); se abre solo si falta un dato clave y lo marca en ámbar. Al cambiar de cargo, el anterior pasa a «Cargos anteriores»; si el cambio se hizo sin internet en el escritorio, la fecha de cierre del cargo anterior es la del día en que se sincroniza.",
+      "¿Te piden la evaluación con otra fecha? Toca la fecha junto al estado, arriba a la derecha, y elige el día: puede ser pasado o futuro (si es futuro sale un aviso que puedes ignorar; a partir de cuántos días se ajusta en Configuración › Organización). Si la fecha cae en un trimestre cuyo informe de vigilancia ya se envió a la empresa, también te avisa. «Volver a hoy» la regresa. Esa es la fecha de los impresos; la fecha real en que la registraste queda guardada aparte y cada cambio queda en Auditoría con quién lo hizo. En una consulta firmada se cambia con «Corregir». La cambian el médico, el gerente médico y el administrador; enfermería no.",
       "Guarda con el botón «Guardar» o con Ctrl + S; arriba ves si hay cambios sin guardar. Más atajos de teclado: Alt + 1 a 9 va al paso con ese número, Alt + AvPág y Alt + RePág pasan al siguiente o al anterior, y Ctrl + Enter es «Cerrar, firmar e imprimir» (pide confirmación).",
       "Día de muchos pacientes: al cerrar o firmar, arriba aparece «Siguiente: nombre» (también en la hoja de impresión). Abre la consulta del primero que espera hoy en Atención, sin volver a la cola; el número dice cuántos esperan.",
       "Tratamiento: si el paciente ya tuvo medicinas, el paso «Tratamiento y reposo» ofrece «Repetir el tratamiento del…» con las medicinas de su última consulta. Un clic las copia (y las indicaciones, si no escribiste otras); después cambias dosis o quitas lo que no siga.",

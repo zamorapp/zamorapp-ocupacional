@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { obtenerConsulta } from "@/lib/consultas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerSesion } from "@/lib/sesion";
@@ -8,6 +9,7 @@ import { ahora } from "@/lib/fecha";
 export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
 export type AjustesDocumentos = {
+  dias_aviso_fecha_futura?: number; // consulta: avisar si la fecha de la evaluación pasa de N días hacia adelante
   palabra_aptitud?: string;
   titulo_constancia?: string;
   observacion_idoneidad?: string | null;
@@ -30,6 +32,26 @@ export type AjustesDocumentos = {
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;
 
+// Datos que se repiten entre documentos (centro, médico, empresa…): con cache() se piden una sola vez por petición,
+// así un lote de 150 constancias no repite 150 veces el logo del centro ni la firma del mismo médico
+const datosOrg = cache(async (id: string) =>
+  (await crearClienteServidor()).from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", id).single());
+const datosHistorico = cache(async (id: string) =>
+  (await crearClienteServidor()).from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", id).maybeSingle()
+    .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null })));
+const datosMedico = cache(async (id: string) => {
+  const supabase = await crearClienteServidor();
+  const [{ data: p }, { data: img }] = await Promise.all([
+    supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", id).maybeSingle(),
+    // Firma y sello: privados, solo para personal clínico (firma_sello)
+    supabase.rpc("firma_sello", { p_usuario: id }).maybeSingle(),
+  ]);
+  return { data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null };
+});
+const datosMotivo = cache(async (id: string) => (await crearClienteServidor()).from("lista_items").select("nombre, codigo, grupo").eq("id", id).maybeSingle());
+const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo").eq("id", id).single());
+const datosDependencia = cache(async (id: string) => (await crearClienteServidor()).from("dependencias").select("nombre").eq("id", id).maybeSingle());
+
 // Reúne todo lo que necesita cualquier documento de una consulta
 export async function obtenerDocumento(consultaId: string) {
   const consulta = await obtenerConsulta(consultaId);
@@ -40,22 +62,13 @@ export async function obtenerDocumento(consultaId: string) {
   if (!c) return null;
 
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", c.org_id).single(),
+    datosOrg(c.org_id),
     // Consulta importada del SAME atendida por un médico sin cuenta: se muestra su nombre, nunca firma ni sello
-    c.origen && c.medico_historico_id
-      ? supabase.from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", c.medico_historico_id).maybeSingle()
-          .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null }))
-      : c.medico_id
-      ? Promise.all([
-          supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
-          // Firma y sello: privados, solo para personal clínico (firma_sello)
-          supabase.rpc("firma_sello", { p_usuario: c.medico_id }).maybeSingle(),
-        ]).then(([{ data: p }, { data: img }]) => ({ data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null }))
-      : Promise.resolve({ data: null }),
-    c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("empresas").select("razon_social, rif, logo").eq("id", c.empresa_id).single(),
-    c.dependencia_id ? supabase.from("dependencias").select("nombre").eq("id", c.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
+    c.origen && c.medico_historico_id ? datosHistorico(c.medico_historico_id) : c.medico_id ? datosMedico(c.medico_id) : Promise.resolve({ data: null }),
+    c.motivo_id ? datosMotivo(c.motivo_id) : Promise.resolve({ data: null }),
+    datosEmpresa(c.empresa_id),
+    c.dependencia_id ? datosDependencia(c.dependencia_id) : Promise.resolve({ data: null }),
+    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, fecha_ingreso_cargo, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
     obtenerSesion(),
   ]);
 
@@ -71,7 +84,7 @@ export async function obtenerDocumento(consultaId: string) {
     empresa: empresa as { razon_social: string; rif: string; logo: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
     extra: trab as unknown as {
-      fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number;
+      fecha_nacimiento: string | null; fecha_ingreso: string | null; fecha_ingreso_cargo: string | null; turno: string | null; numero_historia: number;
       ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
     },
     // Pie de página: quién imprime y cuándo (hora de Venezuela)

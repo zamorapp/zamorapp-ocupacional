@@ -27,8 +27,8 @@ function escribir(clave: string, valor: string | null) {
 }
 
 /** ¿Este equipo puede usar huella / Windows Hello? En escritorio, además, la puerta debe conocer la función. */
-export async function huellaDisponible(): Promise<boolean> {
-  if (ES_ESCRITORIO) return (await estadoEscritorio()) !== null;
+export async function huellaDisponible(desde = ""): Promise<boolean> {
+  if (ES_ESCRITORIO) return (await estadoEscritorio(desde)) !== null;
   try {
     return typeof window !== "undefined" && "PublicKeyCredential" in window
       && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -69,8 +69,8 @@ export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), JSON
  * ¿Se le puede ofrecer la huella ahora? No mientras falte el código de dos pasos: con la sesión sin ese paso
  * la nube rechaza registrar una llave (y el aviso confundía). Se ofrece después, en la pantalla del código.
  */
-export async function puedeOfrecerHuella(supabase: SupabaseClient): Promise<boolean> {
-  if (!(await ofrecerHuella()) || !(await huellaDisponible()) || (await huellaActivaAqui())) return false;
+export async function puedeOfrecerHuella(supabase: SupabaseClient, desde = "oferta"): Promise<boolean> {
+  if (!(await ofrecerHuella()) || !(await huellaDisponible(desde)) || (await huellaActivaAqui())) return false;
   const { data } = await supabase.auth.getClaims();
   if (data?.claims?.aal === "aal1") {
     const { data: requiere } = await supabase.rpc("falta_segundo_paso");
@@ -165,9 +165,15 @@ export async function huellaActivaEscritorio(supabase: SupabaseClient): Promise<
   return Boolean(r?.ok && (await r.json().catch(() => null))?.activa);
 }
 
-async function estadoEscritorio(): Promise<{ usuarios: number; instalacion?: string } | null> {
-  const r = await fetch(`${PUERTA}/zamorapp/huella/estado`).catch(() => null);
-  return r?.ok ? await r.json().catch(() => null) : null;
+// «desde» solo sirve para leer puerta.log: dice qué pantalla consultó. Si la puerta no responde (p. ej. aún
+// arrancando) se reintenta dos veces antes de dar la huella por no disponible.
+async function estadoEscritorio(desde = ""): Promise<{ usuarios: number; instalacion?: string } | null> {
+  for (let intento = 0; intento < 3; intento++) {
+    const r = await fetch(`${PUERTA}/zamorapp/huella/estado${desde ? `?desde=${desde}` : ""}`, { cache: "no-store" }).catch(() => null);
+    if (r?.ok) return await r.json().catch(() => null);
+    await new Promise((listo) => setTimeout(listo, 1000));
+  }
+  return null;
 }
 
 type RespuestaVentana = { ok: true; codigo?: string } | { ok: false; mensaje: string };

@@ -15,7 +15,7 @@ import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
 export type Modo = "ingresar" | "registro" | "recuperar";
 
 // «siguiente»: a dónde volver después de entrar (p. ej. la invitación de RR. HH.); por defecto el panel
-export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar" }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo }) {
+export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean }) {
   const router = useRouter();
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [cargando, setCargando] = useState(false);
@@ -163,7 +163,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
 
   return (
     <form onSubmit={enviar} className="space-y-5">
-      {modo === "ingresar" && !modoDemo && <BotonEntrarHuella alEntrar={alPanel} />}
+      {modo === "ingresar" && !modoDemo && <BotonEntrarHuella alEntrar={alPanel} activaEnPC={helloActivo} />}
       {registro && (
         <div className="space-y-2">
           <Label htmlFor="nombre">Nombre completo</Label>
