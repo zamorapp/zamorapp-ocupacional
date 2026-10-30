@@ -50,7 +50,7 @@ const eslintConfig = [
           message: "new Date().getX() depende de la zona del servidor: usa anioCaracas() / mesCaracas() / hoyCaracas() de @/lib/fecha.",
         },
         // Escritorio: la fecha de Windows no es la hora real (Cesar la cambia para abrir el SAME). Fechas y horas de
-        // negocio con ahora() / hoyCaracas() de @/lib/fecha; una duración o una caché, con su eslint-disable explicado.
+        // negocio con ahora() / hoyCaracas() de @/lib/fecha; duraciones y cachés con performance.now() (no se mueve con la fecha). Sin excepciones.
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
           message: "Date.now() es la fecha de Windows en el escritorio: usa ahora() de @/lib/fecha (o performance.now() para medir duraciones).",

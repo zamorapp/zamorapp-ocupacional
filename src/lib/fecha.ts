@@ -11,6 +11,8 @@ export const ZONA = "America/Caracas";
 // ESLint prohíbe Date.now() y new Date() sin argumentos fuera de este archivo (las duraciones llevan su excepción).
 type ConDesfase = typeof globalThis & { __zamorappDesfase?: number };
 export const ahora = () => Date.now() + ((globalThis as ConDesfase).__zamorappDesfase ?? 0);
+// La fecha de Windows tal cual: solo para medir el desfase (hora-escritorio)
+export const fechaDeWindows = () => Date.now();
 export const fijarDesfase = (ms: number) => {
   if (Number.isFinite(ms)) (globalThis as ConDesfase).__zamorappDesfase = Math.round(ms);
 };

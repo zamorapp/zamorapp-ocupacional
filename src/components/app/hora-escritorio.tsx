@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { fijarDesfase } from "@/lib/fecha";
+import { fechaDeWindows, fijarDesfase } from "@/lib/fecha";
 
 // Escritorio: la ventana usa la fecha de Windows (Cesar la cambia para abrir el SAME). El desfase con la hora anclada
 // llega del servidor antes de pintar (script en <head>) y se vuelve a pedir a la puerta al volver a la ventana, por si
@@ -10,12 +10,10 @@ export function HoraEscritorio() {
   useEffect(() => {
     const revisar = async () => {
       try {
-        // eslint-disable-next-line no-restricted-syntax -- la fecha de Windows es justo lo que se compara
-        const antes = Date.now();
+        const antes = fechaDeWindows();
         const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/zamorapp/estado`, { cache: "no-store" });
         const hora = Date.parse((await r.json())?.hora ?? "");
-        // eslint-disable-next-line no-restricted-syntax -- ídem
-        if (Number.isFinite(hora)) fijarDesfase(hora - (antes + Date.now()) / 2);
+        if (Number.isFinite(hora)) fijarDesfase(hora - (antes + fechaDeWindows()) / 2);
       } catch {
         // sin puerta: queda el último desfase
       }
