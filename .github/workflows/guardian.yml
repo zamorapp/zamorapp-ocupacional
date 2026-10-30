@@ -1,0 +1,70 @@
+# Guardián de seguridad (A10): en cada PR revisa lo que agrega (claves, fechas en UTC, migraciones viejas o
+# repetidas, select *, localhost en el manual) y arma una base con todas las migraciones para revisar el catálogo
+# (funciones sin search_path, tablas sin RLS, funciones nuevas abiertas a anon, políticas lentas por fila).
+# También frena un PR cuya migración o prueba ya usa otro PR abierto (el más viejo conserva el número).
+# Corre en Linux (repo público: minutos sin costo). La línea base se actualiza solo con el visto bueno de Analizar.
+name: Guardián de seguridad
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: guardian-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cambios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Lo que agrega el PR
+        run: node scripts/guardian-seguridad.mjs cambios "origin/${{ github.base_ref || 'main' }}"
+
+  cruces:
+    # Números de migración o de prueba que ya usa otro PR abierto: frena al PR más nuevo
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Choques de numeración con otros PRs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMERO: ${{ github.event.pull_request.number }}
+        run: node scripts/guardian-seguridad.mjs cruces "origin/${{ github.base_ref }}"
+
+  catalogo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: PostgreSQL del runner
+        run: |
+          sudo systemctl start postgresql
+          sudo -u postgres psql -c "alter user postgres password 'postgres'"
+      - name: Catálogo de la base con todas las migraciones
+        run: node scripts/guardian-seguridad.mjs catalogo
