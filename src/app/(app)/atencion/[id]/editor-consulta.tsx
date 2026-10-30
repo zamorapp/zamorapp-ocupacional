@@ -585,7 +585,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             {medico && <div>{medico}</div>}
           </div>
           {d.estado === "firmada" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
               {puedeFirmar && !corrigiendo && (
