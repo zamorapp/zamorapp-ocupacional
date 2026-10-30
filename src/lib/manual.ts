@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
   { fecha: "2026-10-30", texto: "Tratamiento: en un control o paciente crónico, «Repetir el tratamiento del…» copia en un clic las medicinas e indicaciones de su última consulta con tratamiento; luego se ajusta lo que cambie", tema: "consulta" },
@@ -63,7 +64,11 @@ export const MANUAL: TemaManual[] = [
       "¿No existe? Si la cédula no aparece, el mismo buscador ofrece «Registrar y atender»: cédula, nombres, apellidos y empresa, y se abre la consulta. Sexo, cargo y demás datos se completan después. Recepción ve «Registrar» y llega a la ficha.",
       "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
     ],
-    consejos: ["En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar."],
+    consejos: [
+      "En el celular y la tablet, la barra de abajo tiene Inicio, Pacientes, Atención y Buscar al alcance del pulgar.",
+      "Al tocar una opción del menú, su ícono gira hasta que llega la pantalla: el clic ya entró, no hace falta tocar otra vez. Volver a una pantalla que viste hace menos de 30 segundos es instantáneo.",
+      "Los botones que guardan o buscan se bloquean y dicen «Guardando…» o «Buscando…» mientras esperan la respuesta: así un doble clic nunca guarda dos veces.",
+    ],
   },
   {
     id: "ingreso",
