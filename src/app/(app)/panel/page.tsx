@@ -15,9 +15,13 @@ import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
 import { ahora } from "@/lib/fecha";
+import { resumenAlDia } from "@/lib/al-dia";
+import { PonerAlDia } from "@/components/app/poner-al-dia";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
+// «Poner todo al día» arma los PDF de las constancias en el servidor
+export const maxDuration = 60;
 
 const ZONA = "America/Caracas";
 
@@ -61,6 +65,8 @@ export default async function Panel() {
       </Suspense>
 
       <Suspense fallback={<Esqueleto filas={1} alto="h-[4.5rem]" columnas="sm:grid-cols-3" titulo />}><Tareas sesion={sesion} /></Suspense>
+
+      {sesion.clinico && <Suspense fallback={null}><AlDia /></Suspense>}
 
       <Suspense fallback={null}><PrimerosPasos /></Suspense>
 
@@ -154,6 +160,11 @@ async function Respaldo({ sesion }: { sesion: Sesion }) {
           </span>
         </Link>
   );
+}
+
+async function AlDia() {
+  const r = await resumenAlDia();
+  return r ? <PonerAlDia r={r} /> : null;
 }
 
 async function Tareas({ sesion }: { sesion: Sesion }) {

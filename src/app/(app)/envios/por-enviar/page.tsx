@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { contarPendientes, listarPlantillas, porEnviar } from "@/lib/envios";
 import { obtenerSesion } from "@/lib/sesion";
+import { resumenAlDia } from "@/lib/al-dia";
+import { PonerAlDia } from "@/components/app/poner-al-dia";
 import { PestanasEnvios } from "../pestanas";
 import { Bandeja } from "./bandeja";
 
@@ -13,7 +15,7 @@ export const maxDuration = 60;
 export default async function PorEnviar() {
   const sesion = await obtenerSesion();
   if (!sesion.clinico) notFound();
-  const [grupos, plantillas, pendientes] = await Promise.all([porEnviar(), listarPlantillas(), contarPendientes()]);
+  const [grupos, plantillas, pendientes, alDia] = await Promise.all([porEnviar(), listarPlantillas(), contarPendientes(), resumenAlDia()]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -22,6 +24,7 @@ export default async function PorEnviar() {
         <p className="text-muted-foreground">Constancias firmadas que aún no le llegan a la empresa. Un toque y sale por WhatsApp desde tu teléfono.</p>
       </div>
       <PestanasEnvios pendientes={pendientes} porEnviar={grupos.reduce((n, g) => n + g.consultas.length, 0)} />
+      {alDia && <PonerAlDia r={alDia} />}
       <Bandeja grupos={grupos} plantillas={plantillas} />
     </div>
   );

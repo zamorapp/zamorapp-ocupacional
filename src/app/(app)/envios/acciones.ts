@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ponerAlDia, type ResultadoAlDia } from "@/lib/al-dia";
 import { enviarLote, reintentarEnvios, revocarEnlace } from "@/lib/envios";
 import type { EntradaEnvio, ResultadoEnvio } from "@/lib/envios-tipos";
 import { CORREO_VALIDO } from "@/lib/envios-tipos";
@@ -12,6 +13,13 @@ export type Resultado = { ok: boolean; mensaje: string };
 export async function enviar(entrada: EntradaEnvio): Promise<ResultadoEnvio> {
   const r = await enviarLote(entrada);
   revalidatePath("/envios");
+  return r;
+}
+
+// «Poner todo al día»: confirma citas del portal y manda constancias y solicitudes pendientes
+export async function alDia(): Promise<ResultadoAlDia> {
+  const r = await ponerAlDia();
+  revalidatePath("/", "layout");
   return r;
 }
 
