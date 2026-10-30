@@ -152,8 +152,10 @@ with x as (
   insert into public.solicitudes (org_id,empresa_id,tipo_id,trabajador_id,detalle,estado,respuesta)
   select '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a', id,'30000000-0000-0000-0000-00000000000a','Informe para el seguro','respondida','auto'
   from public.lista_items where lista = 'tipo_solicitud' and codigo = 'INF' and org_id is null
-  returning estado, respuesta, tipo)
-select 'RR. HH. crea la solicitud, queda pendiente y sin respuesta (debe 1): ' || count(*) from x where estado = 'pendiente' and respuesta is null and tipo = 'Informe médico';
+  returning id, estado, tipo)
+select 'RR. HH. crea la solicitud, queda pendiente y sin respuesta (debe 1): ' || count(*) from x
+ where estado = 'pendiente' and tipo = 'Informe médico'
+   and not exists (select 1 from public.solicitudes_respuesta r where r.id = x.id and r.respuesta is not null);
 do $$ begin
   insert into public.solicitudes (org_id,empresa_id,tipo,detalle) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b','Otra','para B');
   raise notice 'FALLA: RR. HH. de A pidió para B';
@@ -189,9 +191,10 @@ end $$;
 reset role;
 select 'la empresa recibió el aviso de respuesta (debe 1): ' || (count(*) > 0)::int from public.notificaciones where titulo = 'Solicitud respondida';
 
--- Documento de respuesta en Storage
+-- Documento de respuesta en Storage (una constancia: RR. HH. la puede bajar; los documentos médicos, en la prueba 159)
 insert into storage.objects (bucket_id,name)
 select 'solicitudes', org_id || '/' || empresa_id || '/' || id || '/informe.pdf' from public.solicitudes;
+update public.solicitudes set documento_ruta = org_id || '/' || empresa_id || '/' || id || '/informe.pdf', solo_salud = false;
 insert into storage.objects (bucket_id,name) values ('solicitudes','10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-00000000000b/00000000-0000-0000-0000-000000000000/x.pdf');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null

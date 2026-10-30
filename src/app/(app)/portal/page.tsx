@@ -161,10 +161,10 @@ export default async function Portal() {
                   <span className="w-24 font-mono text-muted-foreground">{fecha(s.creadoEn.slice(0, 10))}</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</div>
-                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.soloSalud ? "Respuesta con datos médicos: la recibe el personal de salud de la empresa." : s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
                     <Pasos pasos={pasosSolicitud(s)} className="mt-0.5" />
                   </div>
-                  {s.documento && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  {s.documento && !s.soloSalud && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
                   <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
                 </li>
               ))}

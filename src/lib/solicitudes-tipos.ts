@@ -13,6 +13,7 @@ export type Solicitud = {
   estado: EstadoSolicitud;
   respuesta: string | null;
   documento: string | null; // nombre del archivo de respuesta
+  soloSalud: boolean; // respuesta con datos médicos: RR. HH. ve solo el estado, nunca el texto ni el documento
   creadoEn: string;
   actualizadoEn: string | null;
   enProcesoEn: string | null;
