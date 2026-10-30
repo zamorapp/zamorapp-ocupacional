@@ -1,12 +1,14 @@
 "use client";
 
-// zamorApp Escritorio: estado de la conexión y de los cambios por subir, en el encabezado. En la web no aparece,
-// y con internet y todo al día tampoco: solo se ve cuando hay algo que saber.
-import { AlertTriangle, CloudOff, CloudUpload, Loader2, RefreshCw } from "lucide-react";
+// zamorApp Escritorio: estado de la conexión y de los cambios por subir, en el encabezado. En la web no aparece.
+// Con internet y todo al día queda discreto («Al día · 08:30») para que «Sincronizar ahora» esté siempre a mano
+// (Cesar, 30-oct-2026).
+import { AlertTriangle, CheckCircle2, CloudOff, CloudUpload, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
+import { horaLocalCaracas } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 
 export function IndicadorSincronia() {
@@ -14,11 +16,13 @@ export function IndicadorSincronia() {
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState("");
   const problemas = e.conflictos + e.rechazados;
-  if (!e.conocido || (e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla)) return null;
+  if (!e.conocido) return null;
 
+  const alDia = e.enLinea && !e.pendientes && !problemas && !e.horaSinAncla;
+  const hora = e.ultimaSincronia ? horaLocalCaracas(e.ultimaSincronia).slice(11, 16) : null;
   // Sin internet manda el ícono de la nube tachada aunque la hora esté sin verificar: la píldora dice «Sin internet»
-  const Icono = problemas ? AlertTriangle : !e.enLinea ? CloudOff : e.horaSinAncla ? AlertTriangle : CloudUpload;
-  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : "Hora sin verificar";
+  const Icono = problemas ? AlertTriangle : !e.enLinea ? CloudOff : e.horaSinAncla ? AlertTriangle : alDia ? CheckCircle2 : CloudUpload;
+  const texto = problemas ? `${problemas} por revisar` : !e.enLinea ? (e.pendientes ? `Sin internet · ${e.pendientes}` : "Sin internet") : e.pendientes ? `Subiendo ${e.pendientes}` : e.horaSinAncla ? "Hora sin verificar" : hora ? `Al día · ${hora}` : "Al día";
 
   return (
     <DropdownMenu onOpenChange={(abierto) => abierto && setAviso("")}>
@@ -27,7 +31,7 @@ export function IndicadorSincronia() {
           aria-label={`Estado de la sincronía: ${texto}`}
           className={cn(
             "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-            problemas ? "bg-alerta/15 text-alerta-texto" : e.horaSinAncla || !e.enLinea ? "bg-aviso/20 text-aviso-texto" : "bg-primary/10 text-primary",
+            problemas ? "bg-alerta/15 text-alerta-texto" : e.horaSinAncla || !e.enLinea ? "bg-aviso/20 text-aviso-texto" : alDia ? "text-muted-foreground hover:bg-muted" : "bg-primary/10 text-primary",
           )}
         >
           <Icono className="size-4" aria-hidden />
@@ -41,6 +45,9 @@ export function IndicadorSincronia() {
           {e.pendientes
             ? `${e.pendientes} cambio${e.pendientes === 1 ? "" : "s"} guardado${e.pendientes === 1 ? "" : "s"} en esta PC ${e.enLinea ? "subiendo a la nube." : "por subir. Suben solos cuando vuelva internet."}`
             : "Todo lo de esta PC ya está en la nube."}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {hora ? `Última sincronía: ${hora}. ` : ""}Con internet se sincroniza sola cada 30 segundos.
         </p>
         {problemas > 0 && (
           <p className="text-alerta-texto">
