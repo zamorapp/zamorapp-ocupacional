@@ -8,10 +8,11 @@ import { sumarDias } from "@/lib/fecha";
 import { guardarVacaciones, quitarVacaciones, type Vacacion } from "./vacaciones-acciones";
 
 const corta = (iso: string) => iso.split("-").reverse().join("/");
+const CHIP = { alerta: "bg-alerta/15 text-alerta-texto", aviso: "bg-aviso/20 text-aviso-texto", ok: "bg-ok/15 text-ok-texto", neutro: "bg-muted text-muted-foreground" };
 
 // Vacaciones del trabajador y su post vacacional: al anotar el regreso, zamorApp avisa 2 días antes y marca el plazo
 // para la evaluación (días de la empresa). El aviso se apaga solo con una consulta «Post vacacional» desde el regreso.
-export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable }: { trabajadorId: string; iniciales: Vacacion[]; diasPost: number; hoy: string; editable: boolean }) {
+export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, fechasPosv = [] }: { trabajadorId: string; iniciales: Vacacion[]; diasPost: number; hoy: string; editable: boolean; fechasPosv?: string[] }) {
   const [desde, setDesde] = useState("");
   const [regreso, setRegreso] = useState("");
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -36,14 +37,16 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable }:
       <ul className="space-y-1.5">
         {iniciales.map((v) => {
           const limite = sumarDias(v.regreso, diasPost);
-          const estado = v.regreso > hoy ? "De vacaciones o por salir" : limite < hoy ? "Plazo vencido" : "Post vacacional pendiente";
+          const [estado, tono]: [string, keyof typeof CHIP] = fechasPosv.some((f) => f >= v.regreso) ? ["Post vacacional hecho", "ok"]
+            : v.regreso > hoy ? ["De vacaciones", "neutro"] : limite < hoy ? ["Plazo vencido", "alerta"] : ["Post vacacional pendiente", "aviso"];
           return (
             <li key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Palmtree className="size-4 text-muted-foreground" aria-hidden />
               <span>Del {corta(v.desde)} · regresa el {corta(v.regreso)}</span>
-              <span className="text-muted-foreground">Post vacacional antes del {corta(limite)} · {estado}</span>
+              <span className="text-muted-foreground">Post vacacional antes del {corta(limite)}</span>
+              <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${CHIP[tono]}`}>{estado}</span>
               {editable && (
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={ocupado} onClick={() => quitar(v)} aria-label="Quitar vacaciones">
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={ocupado} onClick={() => quitar(v)} aria-label="Quitar vacaciones" title="Quitar vacaciones">
                   <Trash2 />
                 </Button>
               )}

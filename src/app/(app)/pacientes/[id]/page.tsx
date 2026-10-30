@@ -230,7 +230,7 @@ export default async function FichaPaciente({ params }: Props) {
             <Card className="lg:col-span-2">
               <CardHeader><CardTitle className="text-base">Vacaciones y post vacacional</CardTitle></CardHeader>
               <CardContent>
-                <Vacaciones trabajadorId={t.id} iniciales={vacaciones} diasPost={puestoActual?.empresas?.dias_post_vacacional ?? 5} hoy={hoyCaracas()} editable={anotaVacaciones} />
+                <Vacaciones trabajadorId={t.id} iniciales={vacaciones} diasPost={puestoActual?.empresas?.dias_post_vacacional ?? 5} hoy={hoyCaracas()} editable={anotaVacaciones} fechasPosv={consultas.filter((c) => /post\s*-?\s*vacacional/i.test(c.motivo)).map((c) => c.fecha.slice(0, 10))} />
               </CardContent>
             </Card>
           )}

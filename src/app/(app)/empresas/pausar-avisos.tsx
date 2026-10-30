@@ -18,7 +18,7 @@ export function PausarAvisos({ empresaId, apagados, editable }: { empresaId: str
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       {apagados.length > 0 && (
-        <span className="inline-flex items-center gap-1 text-muted-foreground" title={AVISOS_EMPRESA.filter((x) => apagados.includes(x.clave)).map((x) => x.nombre).join(" · ")}>
+        <span className={`inline-flex items-center gap-1 ${todos ? "text-aviso-texto" : "text-muted-foreground"}`} title={AVISOS_EMPRESA.filter((x) => apagados.includes(x.clave)).map((x) => x.nombre).join(" · ")}>
           <BellOff className="size-3" aria-hidden /> {todos ? "Avisos en pausa" : `${apagados.length} ${apagados.length === 1 ? "aviso apagado" : "avisos apagados"}`}
         </span>
       )}

@@ -1,11 +1,13 @@
 -- zamorApp · Vacaciones y alerta de post vacacional (Cesar, 30-oct): «tener en cuenta cuando se van de vacaciones,
 -- cuánto tiempo les corresponde la revaloración para el post vacacional». Y avisos configurables por empresa.
--- 1. public.vacaciones: desde y regreso de cada trabajador. Las anota el servicio o RR. HH. de esa empresa (guardar_vacaciones).
+-- 1. public.vacaciones: desde y regreso de cada trabajador. Las anota el servicio o RR. HH. de esa empresa.
 -- 2. empresas.dias_post_vacacional: días que tiene el servicio, desde el regreso, para la evaluación post vacacional.
 -- 3. Nuevo tipo de aviso por empresa «post_vacacional» (se apaga en «Avisos de esta empresa», como los otros).
 -- 4. recordar_post_vacacional(): campana del personal clínico 2 días antes del regreso y otra vez si se vence el plazo.
 --    Se apaga sola al registrar una consulta con motivo «Post vacacional» (POSV) desde el regreso.
--- Las vacaciones bajan a la copia del escritorio (sync.tablas); se escriben en línea.
+-- Local primero (Analizar, 30-oct): la tabla es «subible». En el escritorio se anota sin internet en la base local y
+-- sube por la bandeja (aplicar_cambios) con las mismas reglas que en la web: políticas por rol y empresa, y la empresa
+-- se toma siempre del trabajador (trigger), nunca de lo que mande la pantalla.
 
 create table if not exists public.vacaciones (
   id uuid primary key default gen_random_uuid(),
@@ -23,14 +25,44 @@ create index if not exists vacaciones_regreso on public.vacaciones (org_id, regr
 
 alter table public.vacaciones enable row level security;
 revoke all on public.vacaciones from anon;
-revoke insert, update, delete on public.vacaciones from authenticated;
-drop policy if exists vacaciones_leer on public.vacaciones;
+grant select, insert, update, delete on public.vacaciones to authenticated;
 -- Quien ve la empresa (servicio sin límite, o con esa empresa entre las permitidas, como RR. HH.); forma rápida (C14)
+drop policy if exists vacaciones_leer on public.vacaciones;
 create policy vacaciones_leer on public.vacaciones for select to authenticated using (
   org_id = any ((select public.orgs_con(p_sin_limite => true))::uuid[])
   or (org_id::text || empresa_id::text) = any ((select public.pares_limitados())::text[]));
+-- Anotan, corrigen y quitan: servicio (administrador, gerente médico, médico, enfermería, recepción) y RR. HH., en su empresa
+drop policy if exists vacaciones_anotar on public.vacaciones;
+create policy vacaciones_anotar on public.vacaciones for insert to authenticated with check (
+  org_id = any ((select public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}', p_sin_limite => true))::uuid[])
+  or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}'))::text[]));
+drop policy if exists vacaciones_corregir on public.vacaciones;
+create policy vacaciones_corregir on public.vacaciones for update to authenticated using (
+  org_id = any ((select public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}', p_sin_limite => true))::uuid[])
+  or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}'))::text[]))
+  with check (
+  org_id = any ((select public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}', p_sin_limite => true))::uuid[])
+  or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}'))::text[]));
+drop policy if exists vacaciones_quitar on public.vacaciones;
+create policy vacaciones_quitar on public.vacaciones for delete to authenticated using (
+  org_id = any ((select public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}', p_sin_limite => true))::uuid[])
+  or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion,gerente_empresa}'))::text[]));
 
-insert into sync.tablas (nombre, clinica, subible) values ('public.vacaciones', false, false) on conflict (nombre) do nothing;
+-- La organización y la empresa salen del trabajador (no se puede anotar en una empresa ajena ni mover la fila a otra)
+create or replace function public.vacaciones_de_su_empresa()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  select t.org_id, t.empresa_id into new.org_id, new.empresa_id from public.trabajadores t where t.id = new.trabajador_id;
+  if new.org_id is null then raise exception 'Trabajador no encontrado' using errcode = '23503'; end if;
+  return new;
+end $$;
+revoke execute on function public.vacaciones_de_su_empresa() from public, anon, authenticated;
+drop trigger if exists vacaciones_de_su_empresa on public.vacaciones;
+create trigger vacaciones_de_su_empresa before insert or update of trabajador_id, org_id, empresa_id on public.vacaciones
+  for each row execute function public.vacaciones_de_su_empresa();
+
+insert into sync.tablas (nombre, clinica, subible) values ('public.vacaciones', false, true)
+  on conflict (nombre) do update set subible = true;
 alter table public.vacaciones add column if not exists version bigint not null default 1;
 drop trigger if exists sync_version on public.vacaciones;
 create trigger sync_version before insert or update on public.vacaciones for each row execute function sync.versionar();
@@ -43,33 +75,6 @@ alter table public.empresas add constraint empresas_dias_post_vacacional check (
 alter table public.empresas drop constraint if exists empresas_avisos_apagados_validos;
 alter table public.empresas add constraint empresas_avisos_apagados_validos
   check (avisos_apagados <@ array['vencimientos', 'proxima_evaluacion', 'resultados', 'post_vacacional']::text[]);
-
--- Anotar (o corregir, con p_id) las vacaciones: el servicio o RR. HH. de la empresa del trabajador
-create or replace function public.guardar_vacaciones(p_trabajador uuid, p_desde date, p_regreso date, p_id uuid default null)
-returns uuid language plpgsql security definer set search_path = public as $$
-declare
-  v_org uuid; v_empresa uuid; v_id uuid := coalesce(p_id, gen_random_uuid());
-begin
-  select t.org_id, t.empresa_id into v_org, v_empresa from public.trabajadores t where t.id = p_trabajador;
-  if v_org is null or auth.uid() is null or not public.puede_ver_empresa(v_org, v_empresa)
-     or coalesce(public.mi_rol(v_org)::text, '') not in ('administrador', 'gerente_medico', 'medico', 'enfermeria', 'recepcion', 'gerente_empresa') then
-    raise exception 'No puedes anotar vacaciones de este trabajador' using errcode = '42501';
-  end if;
-  if p_desde is null or p_regreso is null or p_regreso <= p_desde then raise exception 'El regreso debe ser después del inicio'; end if;
-  insert into public.vacaciones (id, org_id, empresa_id, trabajador_id, desde, regreso)
-  values (v_id, v_org, v_empresa, p_trabajador, p_desde, p_regreso)
-  on conflict (id) do update set desde = excluded.desde, regreso = excluded.regreso
-    where vacaciones.trabajador_id = p_trabajador;
-  return v_id;
-end $$;
-
-create or replace function public.quitar_vacaciones(p_id uuid)
-returns void language plpgsql security definer set search_path = public as $$
-begin
-  delete from public.vacaciones v
-   where v.id = p_id and auth.uid() is not null and public.puede_ver_empresa(v.org_id, v.empresa_id)
-     and coalesce(public.mi_rol(v.org_id)::text, '') in ('administrador', 'gerente_medico', 'medico', 'enfermeria', 'recepcion', 'gerente_empresa');
-end $$;
 
 -- Avisos ya dados por cada vacación y usuario (etapa: 'aviso' al acercarse el regreso, 'vencido' si pasa el plazo)
 create table if not exists public.recordatorios_vacaciones (
@@ -121,11 +126,7 @@ begin
   return v_total;
 end $$;
 
-revoke execute on function public.guardar_vacaciones(uuid, date, date, uuid) from public, anon;
-revoke execute on function public.quitar_vacaciones(uuid) from public, anon;
 revoke execute on function public.recordar_post_vacacional() from public, anon;
-grant execute on function public.guardar_vacaciones(uuid, date, date, uuid) to authenticated;
-grant execute on function public.quitar_vacaciones(uuid) to authenticated;
 grant execute on function public.recordar_post_vacacional() to authenticated;
 
 -- Pausar o reactivar todos los avisos de una empresa de un toque (empresas con las que no se trabaja por un tiempo)
@@ -134,7 +135,8 @@ returns void language plpgsql security definer set search_path = public as $$
 declare v_org uuid;
 begin
   select org_id into v_org from public.empresas where id = p_empresa;
-  if v_org is null or coalesce(public.mi_rol(v_org)::text, '') not in ('administrador', 'gerente_medico') then
+  if v_org is null or coalesce(public.mi_rol(v_org)::text, '') not in ('administrador', 'gerente_medico')
+     or not public.puede_ver_empresa(v_org, p_empresa) then
     raise exception 'Solo el administrador o el gerente médico pausan avisos' using errcode = '42501';
   end if;
   update public.empresas
