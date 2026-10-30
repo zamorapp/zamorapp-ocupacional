@@ -6,6 +6,7 @@ import net from "node:net";
 import path from "node:path";
 import pg from "./pg-local.mjs";
 import { CONFIG } from "./config.mjs";
+import { rotarSiPasa } from "./registro.mjs";
 import { desempaquetar } from "./tar.mjs";
 
 const MARCA_ESCRITURA_LOCAL = "marca_escritura_local_1";
@@ -80,6 +81,7 @@ export class Motor {
     // Junto a su carpeta de datos (en la PC real es CONFIG.datos/base.log). Dos bases no comparten registro: en Windows
     // la segunda base no arrancó con el registro de la primera abierto (la «PC nueva» de las pruebas).
     const log = path.join(path.dirname(this.carpetaBase), "base.log");
+    rotarSiPasa(log); // con la base apagada: PostgreSQL lo tiene abierto mientras corre
     const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
       "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(this.carpetaBase)}`}`],

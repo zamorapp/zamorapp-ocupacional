@@ -9,6 +9,7 @@ import { ColaEnvios, webDeCola } from "./cola-envios.mjs";
 import { Replica } from "./replica.mjs";
 import { Bandeja } from "./bandeja.mjs";
 import { Bloques } from "./bloques.mjs";
+import { abrirRegistro } from "./registro.mjs";
 import { Respaldo } from "./respaldo.mjs";
 import { crearPuerta } from "./servidor.mjs";
 
@@ -28,7 +29,8 @@ function abrirEstado() {
   }
 }
 const estado = abrirEstado();
-const bitacora = fs.createWriteStream(path.join(CONFIG.datos, "puerta.log"), { flags: "a" });
+// Con tope de 5 MB (más la copia anterior): antes crecía sin límite
+const bitacora = abrirRegistro(path.join(CONFIG.datos, "puerta.log"));
 // hora de Windows: solo para leer el registro (ningún plazo se mide con ella)
 const registro = (m) => bitacora.write(`${new Date().toISOString()} ${String(m).trimEnd()}\n`);
 const motor = new Motor(estado);
