@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const MINIMO_CLAVE = 12; // si la puerta no manda claveMinima
+const faltan = (n: number) => (n === 1 ? "Falta 1 carácter" : `Faltan ${n} caracteres`);
 const IGNORADA = "zamorapp.respaldo.fallida-ignorada";
 const VENCE_HORAS = 25; // se respalda solo una vez al día: con un poco de holgura
 
@@ -331,7 +332,7 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
   const lista = clave.length >= minimo && repetida === clave && anotada;
   // Por qué «Guardar clave» sigue apagado, en el orden en que se llena (Cesar, 30-oct: probó varias claves sin saberlo)
   const falta = !clave ? `Escribe la clave: mínimo ${minimo} caracteres.`
-    : clave.length < minimo ? `Faltan ${minimo - clave.length} caracteres en la clave.`
+    : clave.length < minimo ? `${faltan(minimo - clave.length)} en la clave.`
     : !repetida ? "Repite la clave en el segundo campo."
     : repetida !== clave ? "Las dos claves no coinciden."
     : !anotada ? "Marca la casilla «La anoté en un lugar seguro»."
@@ -364,7 +365,7 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
           <div className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="clave">Clave de respaldo</Label>
-              <span aria-live="polite" className={cn("flex items-center gap-1 text-xs tabular-nums", clave.length >= minimo ? "text-ok-texto" : "text-muted-foreground")}>
+              <span className={cn("flex items-center gap-1 text-xs tabular-nums", clave.length >= minimo ? "text-ok-texto" : "text-muted-foreground")}>
                 {clave.length >= minimo && <Check className="size-3.5" aria-hidden />}
                 {clave.length}/{minimo}<span className="sr-only"> caracteres</span>
               </span>
@@ -376,7 +377,7 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
               </button>
             </div>
             <p id="clave-ayuda" className={cn("text-xs", corta ? "text-alerta-texto" : "text-muted-foreground")}>
-              {corta ? `Faltan ${minimo - clave.length} caracteres (mínimo ${minimo}).` : <>Usa una frase larga que solo tú conozcas; no copies una que hayas visto escrita.</>}
+              {corta ? `${faltan(minimo - clave.length)} (mínimo ${minimo}).` : <>Usa una frase larga que solo tú conozcas; no copies una que hayas visto escrita.</>}
             </p>
           </div>
           <div className="space-y-1.5">
@@ -402,7 +403,8 @@ function Clave({ estado, puede, demo, alGuardar }: { estado: EstadoPuerta; puede
             <Button type="submit" disabled={!lista || guardando} aria-describedby={falta ? "clave-falta" : undefined}>{guardando && <Loader2 className="size-4 animate-spin" />} {guardando ? "Guardando…" : "Guardar clave"}</Button>
             {estado.cifrado && <Button type="button" variant="ghost" onClick={() => { setAbierto(false); setClave(""); setRepetida(""); setAnotada(false); }}>Cancelar</Button>}
           </div>
-          {falta && !guardando && <p id="clave-falta" className="text-xs text-muted-foreground">Para guardar: {falta}</p>}
+          {/* Siempre montado: aria-live solo anuncia cambios de un nodo que ya estaba */}
+          <p id="clave-falta" aria-live="polite" className="text-xs text-muted-foreground">{falta && !guardando ? `Para guardar: ${falta}` : ""}</p>
         </form>
       )}
     </section>
