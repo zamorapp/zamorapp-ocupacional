@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Accessibility, AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
@@ -50,6 +50,8 @@ import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
 import { aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { sumarDias } from "@/lib/fecha";
+import type { SiguienteCita } from "@/lib/citas";
+import { SiguientePaciente } from "../siguiente-paciente";
 import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
@@ -76,6 +78,7 @@ type Props = {
   nueva: boolean;
   pasoInicial?: string;
   declaraciones: DeclaracionConsulta[];
+  siguiente?: SiguienteCita | null;
 };
 
 const CONFIRMAR_FIRMA = {
@@ -176,7 +179,18 @@ function plantillaPara(plantillas: Plantilla[], listas: Record<string, Item[]>, 
   return codigo ? plantillas.find((p) => p.motivo === codigo && p.activo) ?? null : null;
 }
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones }: Props) {
+// «Marcar normal» de la evaluación rápida: el perfil «normal» de la lista; si no hay, el normal de cada fila vacía
+function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen[]) => void): (() => void) | undefined {
+  const texto = perfiles.find((p) => p.codigo === "normal")?.texto;
+  if (texto) return () => aplicar(aplicarPerfilExamen(filas, texto, true));
+  if (!filas.some((f) => f.normal.trim() && !f.valor.trim())) return undefined;
+  return () => aplicar(filas.map((f) => (f.valor.trim() ? f : { ...f, valor: f.normal })));
+}
+
+// Atajo visible solo en pantallas grandes (en el celular no hay teclado)
+const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
+
+export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -253,6 +267,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     else { setD(base); if (intacta) setDeshacer(null); }
   };
   const preventivo = motivo?.grupo === "preventivo";
+  const anterior = historial.tratamientoAnterior ?? null;
+  // Lo que había antes de «Repetir el tratamiento», para «Deshacer»
+  const [repetido, setRepetido] = useState<{ fecha: string; tratamiento: DatosConsulta["tratamiento"]; indicaciones: string } | null>(null);
+  const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
@@ -386,12 +404,27 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     />
   );
 
-  // Ctrl+S guarda; avisa antes de salir con cambios sin guardar
+  // Atajos: Ctrl+S guarda; Alt+1…9 va al paso N y Alt+AvPág / Alt+RePág al siguiente o al anterior; Ctrl+Enter
+  // cierra, firma e imprime (con su confirmación). Avisa antes de salir con cambios sin guardar.
+  const atajos = useRef({ irA, total: pasos.length, indice: indicePaso, firmar: firmarEImprimir, puede: puedeFirmar && !guardando && d.estado !== "firmada" });
+  atajos.current = { irA, total: pasos.length, indice: indicePaso, firmar: firmarEImprimir, puede: puedeFirmar && !guardando && d.estado !== "firmada" };
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="alertdialog"], [role="dialog"]')) return; // con un diálogo abierto, las teclas son suyas
+      const a = atajos.current;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (!bloqueado) guardar(false);
+      } else if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-9]$/.test(e.code)) {
+        const i = Number(e.code.slice(5)) - 1;
+        if (i < a.total) { e.preventDefault(); a.irA(i); }
+      } else if (e.altKey && (e.key === "PageDown" || e.key === "PageUp")) {
+        const i = a.indice + (e.key === "PageDown" ? 1 : -1);
+        if (i >= 0 && i < a.total) { e.preventDefault(); a.irA(i); }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && a.puede && !(e.target instanceof HTMLTextAreaElement)) {
+        // En un texto largo (evolución, indicaciones) Ctrl+Enter sigue escribiendo; fuera de él, cierra y firma
+        e.preventDefault();
+        void a.firmar();
       }
     };
     const salir = (e: BeforeUnloadEvent) => {
@@ -578,12 +611,13 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             {medico && <div>{medico}</div>}
           </div>
           {d.estado === "firmada" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
               {puedeFirmar && !corrigiendo && (
                 <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
               )}
+              {!corrigiendo && <SiguientePaciente siguiente={siguiente} variante="default" />}
             </div>
           ) : bloqueado ? (
             <div className="flex flex-wrap gap-2">
@@ -599,6 +633,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                   <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Firmar e imprimir</Button>
                 </>
               )}
+              <SiguientePaciente siguiente={siguiente} />
             </div>
           ) : (
             <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
@@ -608,7 +643,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
               </Button>
               <Button variant={puedeFirmar ? "outline" : "default"} onClick={() => guardar(true)} disabled={guardando} className={cn(puedeFirmar ? "hidden sm:inline-flex" : "flex-1 sm:flex-none")}><CheckCircle2 /> Cerrar consulta</Button>
-              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir</Button>}
+              {puedeFirmar && <Button onClick={firmarEImprimir} disabled={guardando} className="flex-1 sm:flex-none"><Printer /> Cerrar, firmar e imprimir{ATAJO_FIRMAR}</Button>}
             </div>
           )}
           <DropdownMenu>
@@ -726,6 +761,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             <TabsTrigger
               key={p.id}
               value={p.id}
+              title={i < 9 ? `Alt + ${i + 1}` : undefined}
               className="group mb-2 h-9 flex-none gap-2 rounded-lg border-0 px-3 text-muted-foreground shadow-none hover:bg-muted data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
             >
               <span className={cn(
@@ -752,12 +788,16 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 sano={tarjetaSano}
                 aptitud={seccionAptitud}
                 onIr={(p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                onNormal={bloqueado ? undefined : {
+                  funcional: normalDe(listas.perfil_examen_funcional, d.examenFuncional, (f) => set("examenFuncional", f)),
+                  fisico: normalDe(listas.perfil_examen_fisico, d.examenFisico, (f) => set("examenFisico", f)),
+                }}
                 acciones={<>
                   <Button variant="outline" onClick={() => guardar(false)} disabled={guardando || !cambios}>
                     {guardando ? <Loader2 className="animate-spin" /> : <Save />} {cambios ? "Guardar" : "Guardado"}
                   </Button>
                   {puedeFirmar
-                    ? <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir</Button>
+                    ? <Button onClick={firmarEImprimir} disabled={guardando}><Printer /> Cerrar, firmar e imprimir{ATAJO_FIRMAR}</Button>
                     : <Button onClick={() => guardar(true)} disabled={guardando}><CheckCircle2 /> Cerrar consulta</Button>}
                 </>}
               />
@@ -1061,6 +1101,36 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               >
                 <datalist id="medicinas">{listas.medicina.map((m) => <option key={m.id} value={etiquetaMedicina(m.nombre, m.texto)} />)}</datalist>
                 {d.tratamiento.length === 0 && <p className="text-sm text-muted-foreground">Sin medicinas indicadas.</p>}
+                {/* Control o paciente crónico: el tratamiento de la última consulta en un clic (se puede ajustar o deshacer) */}
+                {!bloqueado && repetido && (
+                  <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                    <RotateCcw className="size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="min-w-0 flex-1 basis-56">Tratamiento del <b>{repetido.fecha.split("-").reverse().join("/")}</b> copiado: ajusta dosis o quita lo que no siga.</span>
+                    <Button type="button" size="sm" variant="ghost" className="h-7"
+                      onClick={() => { setD((x) => ({ ...x, tratamiento: repetido.tratamiento, indicaciones: repetido.indicaciones })); setRepetido(null); }}>
+                      <RotateCcw /> Deshacer
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => setRepetido(null)}>Listo</Button>
+                  </div>
+                )}
+                {!bloqueado && anterior && !repetido && !d.tratamiento.some((m) => m.medicina.trim()) && (
+                  <button type="button" data-accion="repetir-tratamiento"
+                    onClick={() => {
+                      setRepetido({ fecha: anterior.fecha, tratamiento: d.tratamiento, indicaciones: d.indicaciones });
+                      setD((x) => ({
+                        ...x,
+                        tratamiento: anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => ({ ...m, notaFarmacia: undefined })),
+                        indicaciones: x.indicaciones.trim() ? x.indicaciones : anterior.indicaciones,
+                      }));
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg border border-dashed px-4 py-3 text-left text-sm outline-none hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40">
+                    <RotateCcw className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="font-medium text-primary">Repetir el tratamiento del {anterior.fecha.split("-").reverse().join("/")}</span>
+                      <span className="line-clamp-2 text-muted-foreground">{nombresAnterior}</span>
+                    </span>
+                  </button>
+                )}
                 {d.tratamiento.map((m, i) => (
                   <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
                     <Input
@@ -1285,7 +1355,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
         <Button type="button" variant="ghost" disabled={indicePaso === 0} onClick={() => irA(indicePaso - 1)}>
           <ChevronLeft /> <span className="max-sm:hidden">{indicePaso > 0 ? pasos[indicePaso - 1].titulo : "Anterior"}</span><span className="sm:hidden">Anterior</span>
         </Button>
-        <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos</span>
+        <span className="text-xs text-muted-foreground">Paso {indicePaso + 1} de {pasos.length} · {pasos.filter((p) => p.hecho).length} completos<span className="hidden lg:inline"> · Alt + AvPág / RePág</span></span>
         {indicePaso < pasos.length - 1 ? (
           <Button type="button" variant="outline" onClick={() => irA(indicePaso + 1)}>
             <span className="max-sm:hidden">{pasos[indicePaso + 1].titulo}</span><span className="sm:hidden">Siguiente</span> <ChevronRight />

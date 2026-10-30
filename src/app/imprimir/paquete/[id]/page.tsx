@@ -7,6 +7,8 @@ import { OpcionesImpresion } from "../../opciones";
 import { Anexos } from "../../anexos";
 import { BarraImpresion } from "../../barra";
 import { Constancia, Orden, Recipe, Referencia, Reposo, Reubicacion } from "../../documentos";
+import { siguienteEnEspera } from "@/lib/citas";
+import { SiguientePaciente } from "@/app/(app)/atencion/siguiente-paciente";
 
 export const metadata: Metadata = { title: "Documentos de la consulta" };
 
@@ -29,12 +31,12 @@ export default async function Paquete({ params, searchParams }: { params: Promis
     d.datos.interconsultas.some((x) => x.especialidad.trim()) && { clave: "referencia", Componente: Referencia },
     d.datos.reubicacion.activa && { clave: "reubicacion", Componente: Reubicacion },
   ].filter(Boolean) as { clave: string; Componente: typeof Constancia }[];
-  const anexos = await obtenerAnexos(d);
+  const [anexos, siguiente] = await Promise.all([obtenerAnexos(d), siguienteEnEspera()]);
   const total = docs.length + (anexos.length ? 1 : 0);
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} />
+      <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} siguiente={siguiente ? <SiguientePaciente siguiente={siguiente} /> : undefined} />
       {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} copia={d.datos.aptitud.clasificacion ? d.copia : undefined} />}
       {faltan.length > 0 && (
         <div className="mx-auto mb-6 max-w-2xl rounded-lg border border-aviso/40 bg-white p-4 text-sm print:hidden">
