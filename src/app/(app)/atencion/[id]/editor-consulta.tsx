@@ -1156,8 +1156,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                     </label>
                     {d.reposo.observacion && (
                       <div className="sm:col-span-2">
-                        <Label className="mb-1.5">Observación del reposo (SAME)</Label>
-                        <p className="whitespace-pre-wrap rounded-md border bg-muted/40 px-3 py-2 text-sm">{d.reposo.observacion}</p>
+                        <p className="mb-1.5 text-sm font-medium">Observación del reposo <span className="text-xs font-normal text-muted-foreground">· del SAME</span></p>
+                        <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/40 px-3 py-2 text-sm">{d.reposo.observacion}</p>
                       </div>
                     )}
                   </div>
