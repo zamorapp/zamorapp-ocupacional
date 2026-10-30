@@ -95,7 +95,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
 }
 
 // El primero que llegó y espera hoy (para «Siguiente paciente» al terminar una consulta) y cuántos esperan
-export type SiguienteCita = { citaId: string; trabajadorId: string; motivoId: string | null; paciente: string; enEspera: number };
+export type SiguienteCita = { citaId: string; trabajadorId: string; motivoId: string | null; paciente: string; corto: string; enEspera: number };
 
 export async function siguienteEnEspera(): Promise<SiguienteCita | null> {
   if (!supabaseConfigurado) return null;
@@ -118,6 +118,8 @@ export async function siguienteEnEspera(): Promise<SiguienteCita | null> {
     trabajadorId: c.trabajador_id,
     motivoId: c.motivo_id,
     paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
+    // Primer nombre y primer apellido («María González»), para el botón
+    corto: c.trabajadores ? [c.trabajadores.nombres.trim().split(/\s+/)[0], c.trabajadores.apellidos.trim().split(/\s+/)[0]].filter(Boolean).join(" ") : "",
     enEspera: count ?? 1,
   };
 }

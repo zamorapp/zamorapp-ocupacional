@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
 import { ANEXOS_LISTOS } from "./anexos";
 import { EnviarInforme, type EnvioInforme } from "./enviar-informe";
@@ -51,7 +52,6 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio
         <Button variant="ghost" asChild><Link href={volver}><ArrowLeft /> Volver</Link></Button>
         <span className="min-w-0 flex-1 truncate font-medium">{titulo}</span>
         {envio && <EnviarInforme {...envio} />}
-        {siguiente}
         {escritorio ? (
           <div className="flex gap-2">
             <Button variant="outline" disabled={inactivo} onClick={() => hacer("pdf")} data-accion="guardar-pdf">
@@ -63,12 +63,13 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio
           </div>
         ) : (
           <>
-            <span className="hidden text-xs text-muted-foreground lg:inline">Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».</span>
+            <span className={cn("hidden text-xs text-muted-foreground", siguiente ? "xl:inline" : "lg:inline")}>Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».</span>
             <Button disabled={inactivo} onClick={() => hacer("imprimir")}>
               {preparando ? <Loader2 className="animate-spin" /> : <Printer />} {preparando ? "Preparando anexos…" : "Imprimir o guardar PDF"}
             </Button>
           </>
         )}
+        {siguiente}
       </div>
       {guardado && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-ok/10 px-3 py-1.5 text-sm" role="status" data-estado="pdf-guardado">

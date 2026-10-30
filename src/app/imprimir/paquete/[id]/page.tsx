@@ -36,7 +36,7 @@ export default async function Paquete({ params, searchParams }: { params: Promis
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} siguiente={<SiguientePaciente siguiente={siguiente} />} />
+      <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} siguiente={siguiente ? <SiguientePaciente siguiente={siguiente} /> : undefined} />
       {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} copia={d.datos.aptitud.clasificacion ? d.copia : undefined} />}
       {faltan.length > 0 && (
         <div className="mx-auto mb-6 max-w-2xl rounded-lg border border-aviso/40 bg-white p-4 text-sm print:hidden">
