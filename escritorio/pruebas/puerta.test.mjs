@@ -631,6 +631,20 @@ test("sin internet: las funciones de lectura (stable) responden desde la copia; 
   assert.equal(escribir.json.code, "OFFLINE");
 });
 
+// 30/10/2026 (Analizar): un cambio sin autor (de una migración o un ajuste local) nadie puede subirlo; al
+// reaplicar los ajustes locales en el arranque se descarta. Los de una persona se quedan.
+test("al arrancar se descartan los cambios pendientes sin autor; los de una persona esperan", { skip: omitir }, async () => {
+  const [sin] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos) values ('clinico.consultas', gen_random_uuid(), 'U', '{}') returning id");
+  const [con] = await enLocal("insert into local.bandeja (tabla, fila_id, op, datos, autor) values ('clinico.consultas', gen_random_uuid(), 'U', '{}', gen_random_uuid()) returning id");
+  try {
+    await enLocal(fs.readFileSync(path.join(aqui, "../base/20_bandeja.sql"), "utf8"));
+    assert.equal((await enLocal("select 1 from local.bandeja where id = $1", [sin.id])).length, 0);
+    assert.equal((await enLocal("select 1 from local.bandeja where id = $1", [con.id])).length, 1);
+  } finally {
+    await enLocal("delete from local.bandeja where id = any($1)", [[sin.id, con.id]]);
+  }
+});
+
 test("sin internet: abrir la historia queda como constancia y sube después con la hora de la PC", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   const MED = "00000000-0000-0000-0000-0000000000a2", T = "30000000-0000-0000-0000-00000000000a";
   const enLaNube = async () => (await enNube("select count(*)::int n from public.accesos where trabajador_id = $1 and usuario_id = $2 and equipo_id = $3", [T, MED, estado.d.equipo.id]))[0].n;

@@ -164,3 +164,8 @@ create table if not exists local.constancias (
   creado timestamptz not null default clock_timestamp()
 );
 revoke all on local.constancias from public, authenticated;
+
+-- Un cambio sin autor solo puede venir de una migración o un ajuste local (la puerta siempre escribe con
+-- la sesión de alguien): nadie puede subirlo y quedaría pendiente para siempre, frenando la réplica de esa
+-- fila. Se descarta en cada arranque (Analizar, 30-oct-2026).
+delete from local.bandeja where autor is null and estado = 'pendiente';
