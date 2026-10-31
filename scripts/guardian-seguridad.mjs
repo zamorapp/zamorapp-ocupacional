@@ -182,7 +182,7 @@ async function revisarCruces(base) {
   const mios = numeros(propios.map((f) => ({ nombre: f, blob: git("rev-parse", `HEAD:${f}`).trim() })));
   if (!mios.length) return;
   const yo = Number(process.env.PR_NUMERO || 0);
-  const otros = await prsAbiertos(yo);
+  const otros = await prsAbiertos(yo, base);
   for (const pr of otros) {
     const suyos = numeros(pr.archivos);
     const choca = (m) => suyos.some((s) => s.clave === m.clave && !(s.archivo === m.archivo && s.blob && s.blob === m.blob));
@@ -194,7 +194,7 @@ async function revisarCruces(base) {
   }
 }
 
-async function prsAbiertos(yo) {
+async function prsAbiertos(yo, base = "origin/main") {
   // Para probar sin red: GUARDIAN_PRS=archivo.json con [{ numero, rama, archivos: [...] }]
   if (process.env.GUARDIAN_PRS) return JSON.parse(fs.readFileSync(process.env.GUARDIAN_PRS, "utf8")).filter((p) => p.numero !== yo);
   const repo = process.env.GITHUB_REPOSITORY;
@@ -202,16 +202,29 @@ async function prsAbiertos(yo) {
   if (!repo || !token) { aviso("supabase/migrations", 1, "Sin GITHUB_TOKEN no se revisaron los números de los otros PRs abiertos"); return []; }
   const api = async (ruta) => {
     const r = await fetch(`https://api.github.com/repos/${repo}${ruta}`, { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" } });
-    if (!r.ok) throw new Error(`GitHub ${ruta}: ${r.status}`);
+    if (!r.ok) throw Object.assign(new Error(`GitHub ${ruta}: ${r.status}`), { status: r.status });
     return r.json();
+  };
+  // 31-oct: /pulls/211/files respondía 500 siempre (GitHub no armaba esa lista) y tumbaba «cruces» en todos los PRs.
+  // Si la API falla con 5xx, los archivos nuevos del PR salen de git, con el mismo blob que daría la API.
+  const porGit = (numero) => {
+    git("fetch", "-q", "origin", `pull/${numero}/head`);
+    const desde = git("merge-base", base, "FETCH_HEAD").trim();
+    return git("diff", "--name-only", "--diff-filter=AR", desde, "FETCH_HEAD").split("\n").filter(Boolean)
+      .map((nombre) => ({ nombre, blob: git("rev-parse", `FETCH_HEAD:${nombre}`).trim() }));
   };
   const salida = [];
   for (const pr of (await api("/pulls?state=open&per_page=100")).filter((p) => p.number !== yo)) {
-    const archivos = [];
-    for (let pagina = 1; pagina <= 10; pagina++) {
-      const lote = await api(`/pulls/${pr.number}/files?per_page=100&page=${pagina}`);
-      archivos.push(...lote.filter((f) => f.status === "added" || f.status === "renamed").map((f) => ({ nombre: f.filename, blob: f.sha })));
-      if (lote.length < 100) break;
+    let archivos = [];
+    try {
+      for (let pagina = 1; pagina <= 10; pagina++) {
+        const lote = await api(`/pulls/${pr.number}/files?per_page=100&page=${pagina}`);
+        archivos.push(...lote.filter((f) => f.status === "added" || f.status === "renamed").map((f) => ({ nombre: f.filename, blob: f.sha })));
+        if (lote.length < 100) break;
+      }
+    } catch (e) {
+      if (!(e.status >= 500)) throw e;
+      archivos = porGit(pr.number);
     }
     salida.push({ numero: pr.number, rama: pr.head.ref, archivos });
   }
