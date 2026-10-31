@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { barrerConstancias } from "@/lib/constancias-listas";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
@@ -41,7 +42,7 @@ function saludo() {
 export default async function Panel() {
   const sesion = await obtenerSesion();
   // El recordatorio y el centinela no esperan a la base: corren con after(), cuando la página ya salió
-  await Promise.all([recordarResultados(sesion), vigilarPlazos(sesion)]);
+  await Promise.all([recordarResultados(sesion), vigilarPlazos(sesion), barrerConstancias()]);
   const hoy = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA }).format(new Date(ahora()));
   const acciones = accionesDelRol(sesion);
 

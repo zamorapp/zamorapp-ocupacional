@@ -47,24 +47,32 @@ export async function crearSolicitud(_: Resultado | null, d: FormData): Promise<
     empresaId = t.empresa_id;
   }
   if (!empresaId) return { ok: false, mensaje: "Elige la empresa." };
-  const { error } = await supabase.from("solicitudes").insert({
+  const { data: creada, error } = await supabase.from("solicitudes").insert({
     org_id: sesion.orgId,
     empresa_id: empresaId,
     tipo_id: tipoId,
     tipo: "",
     trabajador_id: trabajadorId,
     detalle,
-  });
+  }).select("respondida_auto").maybeSingle();
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede hacer solicitudes para esta empresa." : error.message };
   refrescar();
   const { data: emp } = await supabase.from("empresas").select("razon_social").eq("id", empresaId).maybeSingle();
+  // Copia de constancia ya firmada: la base la respondió en el mismo paso con el PDF (validar_solicitud_auto)
+  const auto = Boolean(creada?.respondida_auto);
   avisarAlServicio({
     rol: sesion.rol,
     empresaId,
-    asunto: `Nueva solicitud · ${emp?.razon_social ?? "empresa"}`,
-    lineas: [`${sesion.nombre} (RR. HH. de ${emp?.razon_social ?? "una empresa"}) hizo una solicitud:`, detalle.slice(0, 300)],
+    asunto: `${auto ? "Respondida automáticamente" : "Nueva solicitud"} · ${emp?.razon_social ?? "empresa"}`,
+    lineas: [
+      auto
+        ? `${sesion.nombre} (RR. HH. de ${emp?.razon_social ?? "una empresa"}) pidió una copia de constancia de aptitud y zamorApp se la entregó sola (ya estaba firmada):`
+        : `${sesion.nombre} (RR. HH. de ${emp?.razon_social ?? "una empresa"}) hizo una solicitud:`,
+      detalle.slice(0, 300),
+    ],
     ruta: "/solicitudes",
   });
+  if (auto) return { ok: true, mensaje: "Lista: la constancia ya estaba firmada. Descárgala en «Documento», en tus solicitudes." };
   return { ok: true, mensaje: "Solicitud enviada. Te avisamos cuando haya respuesta." };
 }
 

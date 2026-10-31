@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prepararConstanciasLuego } from "@/lib/constancias-listas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
@@ -395,6 +396,7 @@ export async function firmarConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("firmar_consulta", { p_id: id });
   if (error) return { ok: false, mensaje: error.message };
+  await prepararConstanciasLuego([id]); // constancia lista para RR. HH. si alguien la espera (después de responder)
   revalidatePath("/atencion");
   olvidar("");
   return { ok: true, mensaje: "Consulta firmada. Si encuentras un error, usa «Corregir» e indica el motivo." };
