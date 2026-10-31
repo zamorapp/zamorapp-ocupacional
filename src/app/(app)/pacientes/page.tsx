@@ -4,10 +4,10 @@ import { listarEmpresas } from "@/lib/empresas";
 import { cargosPorEmpresa } from "@/lib/puestos";
 import { listarTiposPaciente, listarTrabajadores } from "@/lib/pacientes-datos";
 import { obtenerSesion } from "@/lib/sesion";
-import { empresaSoloLectura, esRolEmpresa } from "@/lib/sesion-roles";
+import { empresaSoloLectura } from "@/lib/sesion-roles";
 import { ListaPacientes } from "./lista-pacientes";
 import { NuevoPaciente } from "./nuevo-paciente";
-import { DepurarNomina } from "./depurar-nomina";
+import { DepurarTrabajadores } from "./depurar-trabajadores";
 
 export const metadata: Metadata = { title: "Pacientes" };
 
@@ -26,7 +26,7 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
       trabajadores={trabajadores}
       busquedaInicial={q ?? ""}
       clinico={sesion.clinico}
-      depurar={!sesion.demo && !esRolEmpresa(sesion.rol) ? <DepurarNomina empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={empresas.find((e) => e.id === activa)?.id ?? ""} /> : null}
+      depurar={!sesion.demo && (sesion.clinico || sesion.rol === "administrador") ? <DepurarTrabajadores empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={empresas.find((e) => e.id === activa)?.id ?? ""} /> : null}
       importar={!empresaSoloLectura(sesion.rol)}
       nuevo={empresaSoloLectura(sesion.rol) ? null : (
         <NuevoPaciente
