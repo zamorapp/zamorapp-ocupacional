@@ -9,6 +9,7 @@ import type { DatosConsulta } from "@/lib/consultas-tipos";
 import type { ParaclinicoPedido } from "@/lib/alertas-tipos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteEnEspera } from "@/lib/citas";
 import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
@@ -105,38 +106,78 @@ export async function agregarAlCatalogo(lista: "diagnostico" | "medicina", nombr
   return { ok: true, mensaje: "Agregado.", item: data };
 }
 
-export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string };
+// inactiva: el trabajador es de una empresa que ya no se atiende. Se sigue encontrando (puede volver como candidato
+// a otra empresa) pero sale al final y marcado; para atenderlo hay que pasarlo antes a una empresa activa.
+export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string; inactiva?: boolean };
 
 export async function buscarPacientes(texto: string): Promise<PacienteEncontrado[]> {
   const q = texto.trim().replace(/[%,()]/g, "");
   if (q.length < 2 || (await obtenerSesion()).demo) return [];
   const supabase = await crearClienteServidor();
   const soloNumeros = q.replace(/\D/g, "");
-  let consulta = supabase.from("trabajadores").select("id, nombres, apellidos, cedula, empresas(razon_social)").limit(12);
+  let consulta = supabase.from("trabajadores").select("id, nombres, apellidos, cedula, empresas(razon_social, activa)").limit(12);
   consulta = soloNumeros.length >= 4
     ? consulta.ilike("cedula", `%${soloNumeros}%`)
     : consulta.or(`nombres.ilike.%${q}%,apellidos.ilike.%${q}%`);
   const { data } = await consulta.order("apellidos");
-  return (data ?? []).map((t) => ({
-    id: t.id,
-    nombre: `${t.nombres} ${t.apellidos}`,
-    cedula: t.cedula,
-    empresa: (t.empresas as unknown as { razon_social: string } | null)?.razon_social ?? "",
-  }));
+  const filas = (data ?? []).map((t) => {
+    const e = t.empresas as unknown as { razon_social: string; activa: boolean } | null;
+    return { id: t.id, nombre: `${t.nombres} ${t.apellidos}`, cedula: t.cedula, empresa: e?.razon_social ?? "", inactiva: e?.activa === false };
+  });
+  // Primero los de empresas activas; los de inactivas al final (sort estable: conserva el orden por apellido)
+  return filas.sort((a, b) => Number(a.inactiva) - Number(b.inactiva));
+}
+
+// Candidato que viene de una empresa inactiva: pasa a la empresa activa a la que aspira, como aspirante y sin cargo
+// ni dependencia (eran de la otra empresa; el cargo anterior queda en su historial). Sus consultas, reposos y
+// documentos anteriores NO se tocan: siguen a nombre de la empresa de entonces, para los reportes y la ley.
+export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!empresaId) return { ok: false, mensaje: "Elige la empresa a la que pasa." };
+  const supabase = await crearClienteServidor();
+  const [{ data: destino }, { data: t }] = await Promise.all([
+    supabase.from("empresas").select("razon_social, activa").eq("id", empresaId).maybeSingle(),
+    supabase.from("trabajadores").select("empresa_id, nombres, apellidos").eq("id", trabajadorId).maybeSingle(),
+  ]);
+  if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
+  if (!destino?.activa) return { ok: false, mensaje: "Esa empresa no está activa. Elige una empresa activa." };
+  if (t.empresa_id === empresaId) return { ok: true, mensaje: `${t.nombres} ${t.apellidos} ya es de ${destino.razon_social}.` };
+  // Sin pedir la fila de vuelta (columnas de salud ocultas, #41): basta el conteo para saber si la RLS lo dejó
+  const { count, error } = await supabase
+    .from("trabajadores")
+    .update({ empresa_id: empresaId, puesto_id: null, dependencia_id: null, sede_id: null, estado: "aspirante", fecha_ingreso: null, fecha_egreso: null }, { count: "exact" })
+    .eq("id", trabajadorId);
+  if (error) return { ok: false, mensaje: "No se pudo pasar a la otra empresa: " + error.message };
+  if (!count) return { ok: false, mensaje: "Tu usuario no puede cambiar la empresa de este trabajador." };
+  invalidarEmpresas();
+  olvidar("");
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: `${t.nombres} ${t.apellidos} pasó a ${destino.razon_social} como aspirante. Su historia anterior queda completa.` };
 }
 
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta
-export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado> {
+export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
   const supabase = await crearClienteServidor();
 
   const [{ data: t }, { data: previa }, listas] = await Promise.all([
-    supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id").eq("id", trabajadorId).single(),
+    supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id, empresas(razon_social, activa)").eq("id", trabajadorId).single(),
     supabase.from("consultas").select("antecedentes, habitos").eq("trabajador_id", trabajadorId).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     opciones(sesion.orgId, ["examen_funcional", "examen_fisico", "habito"]),
   ]);
   if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
+  // Empresa inactiva: no se abre una consulta a nombre de una empresa que ya no se atiende. Si viene como candidato,
+  // primero se pasa a la empresa a la que aspira (pasarAEmpresa); su historia anterior queda intacta.
+  const suEmpresa = t.empresas as unknown as { razon_social: string; activa: boolean } | null;
+  if (suEmpresa?.activa === false) {
+    return {
+      ok: false,
+      empresaInactiva: suEmpresa.razon_social,
+      mensaje: `Es de ${suEmpresa.razon_social}, empresa inactiva. Si viene como candidato, pásalo antes a la empresa a la que aspira (botón «Pasar a otra empresa» en su ficha o en el buscador).`,
+    };
+  }
 
   const plantilla = (lista: "examen_funcional" | "examen_fisico") =>
     listas[lista].map((i) => ({ clave: i.codigo ?? i.id, nombre: i.nombre, valor: i.texto ?? "", normal: i.texto ?? "" }));

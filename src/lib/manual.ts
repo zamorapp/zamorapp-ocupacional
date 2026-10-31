@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-10-30";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-10-31", texto: "Empresas: «Inactivar» una empresa con la que ya no trabajas (p. ej. Forum). Ella y sus trabajadores salen del selector, Pacientes, Inicio y avisos, sin borrar nada. «Ver inactivas» las muestra y «Reactivar» la devuelve. Si uno de sus trabajadores vuelve como candidato, búscalo por cédula y «Pasar a otra empresa»: su historia va con él", tema: "empresas" },
   { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
@@ -151,6 +152,9 @@ export const MANUAL: TemaManual[] = [
       "«Informe» (ícono de impresora) en cada puesto imprime la evaluación del puesto de trabajo: descripción y tareas, resumen por nivel, mapa de calor probabilidad × severidad, matriz con medidas de control, EPP, recomendaciones, trabajadores expuestos y firmas del evaluador, la empresa y el delegado de prevención. Si no escribiste recomendaciones, propone las de los riesgos altos y críticos.",
       "En «Horas trabajadas» cargas las horas-hombre por mes; con ellas se calculan los índices de accidentalidad.",
       "Al editar la empresa defines «Examen periódico cada (meses)» y «Avisar antes del vencimiento (días)». Si la constancia de aptitud no trae «Vigente hasta», el próximo examen se calcula con esa periodicidad desde el último examen.",
+      "¿Ya no le prestas servicio? «Inactivar» (solo el administrador) la saca, con sus dependencias y trabajadores, del selector, Pacientes, Inicio, avisos y formularios. No se borra nada: consultas, reposos y documentos quedan guardados por razones legales y la bitácora registra quién la inactivó.",
+      "«Ver inactivas» muestra las que ya no atiendes. «Abrir sus datos» la elige arriba para ver sus trabajadores y reportes sin reactivarla; «Reactivar» la devuelve a la lista normal.",
+      "Candidato que viene de una empresa inactiva: búscalo por cédula (Ctrl+K). Sale marcado «empresa inactiva»; al atenderlo, elige la empresa a la que aspira y «Pasar y atender». Queda como aspirante en la nueva empresa y su historia anterior sigue completa, a nombre de la empresa de entonces.",
     ],
   },
   {

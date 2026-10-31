@@ -14,7 +14,7 @@ export type Miembro = { id: string; usuario_id: string; correo: string; nombre: 
 
 export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
   const { empresa: empresaInicial } = await searchParams;
-  const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas()]);
+  const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas(true)]);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
   let miembros: Miembro[] = [];
   let invitaciones: Invitacion[] = [];

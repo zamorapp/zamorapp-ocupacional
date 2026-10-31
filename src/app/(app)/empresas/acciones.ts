@@ -1,6 +1,8 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { COOKIE_EMPRESA } from "@/lib/empresa-activa";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { AVISOS_EMPRESA } from "@/lib/empresas-avisos";
 import { obtenerSesion } from "@/lib/sesion";
@@ -110,6 +112,26 @@ export async function pausarAvisos(id: string, pausar: boolean): Promise<Resulta
   invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
+}
+
+// Inactivar (o reactivar) una empresa con la que ya no se trabaja. NO borra nada: la empresa, sus dependencias,
+// cargos, trabajadores, consultas y documentos quedan intactos (respaldo legal) y la bitácora guarda quién y cuándo.
+// Inactiva = fuera del selector, los listados, el Inicio, los avisos y los formularios; sus trabajadores se siguen
+// encontrando por cédula en el buscador para pasarlos a otra empresa si vuelven como candidatos.
+export async function cambiarEstadoEmpresa(id: string, activa: boolean): Promise<Resultado> {
+  const c = await soloAdministrador();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("empresas").update({ activa }).eq("id", id).select("razon_social");
+  if (error) return { ok: false, mensaje: "No se pudo cambiar: " + error.message };
+  if (!data?.length) return { ok: false, mensaje: "No se encontró la empresa." };
+  // Si era la elegida en el encabezado, se vuelve a «Todas las empresas»
+  const almacen = await cookies();
+  if (!activa && almacen.get(COOKIE_EMPRESA)?.value === id) almacen.delete(COOKIE_EMPRESA);
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  const nombre = data[0].razon_social;
+  return { ok: true, mensaje: activa ? `${nombre} está activa otra vez.` : `${nombre} quedó inactiva. Sus datos siguen guardados; puedes reactivarla cuando quieras.` };
 }
 
 const LOGO_VALIDO = /^data:image\/(png|jpeg|webp);base64,/;

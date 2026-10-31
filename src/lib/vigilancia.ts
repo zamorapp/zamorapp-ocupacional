@@ -21,7 +21,7 @@ const clave = (sesion: Sesion, que: string, empresaId: string | null, p: Pick<Pe
 // Todo lo que necesitan la pantalla de Reportes y el informe impreso, calculado una sola vez
 // paraEmpresa: los textos sugeridos y el análisis se arman sin la discapacidad (versión que se envía a RR. HH.)
 export async function cargarVigilancia(sesion: Sesion, empresaId: string | null, q: ConsultaPeriodo, { paraEmpresa = false } = {}) {
-  const empresas = await listarEmpresas();
+  const empresas = await listarEmpresas(true);
   const empresa = empresas.find((e) => e.id === empresaId) ?? null;
   const periodo = periodoDeConsulta(q, empresa?.mesInicioGestion ?? 1);
   const anterior = periodoAnterior(periodo);

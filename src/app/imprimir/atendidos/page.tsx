@@ -21,7 +21,7 @@ export default async function Atendidos({ searchParams }: Props) {
   const desde = q.desde ?? hoy.slice(0, 8) + "01";
   const hasta = q.hasta ?? hoy;
   const sesion = await obtenerSesion();
-  const [atenciones, empresas] = await Promise.all([listarAtenciones(q.empresa ?? null, desde, hasta), listarEmpresas()]);
+  const [atenciones, empresas] = await Promise.all([listarAtenciones(q.empresa ?? null, desde, hasta), listarEmpresas(true)]);
   const empresa = empresas.find((e) => e.id === q.empresa);
   const supabase = await crearClienteServidor();
   const { data: org } = sesion.orgId ? await supabase.from("organizaciones").select("nombre, rif, logo").eq("id", sesion.orgId).single() : { data: null };
