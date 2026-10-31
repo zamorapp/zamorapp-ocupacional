@@ -75,9 +75,9 @@ function Proponer({ g, alEnviar, alCerrar }: { g: Grupo; alEnviar: () => void; a
         <Button type="button" variant="ghost" size="icon" className="ml-auto size-7" aria-label="Cerrar" onClick={alCerrar}><X /></Button>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs text-muted-foreground">Día<Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-0.5 h-9 w-40" /></label>
-        <label className="text-xs text-muted-foreground">{modo === "rango" ? "Desde" : modo === "desde" ? "A partir de" : "Hora"}<Input type="time" value={desde} onChange={(e) => setDesde(e.target.value)} className="mt-0.5 h-9 w-32" /></label>
-        {modo === "rango" && <label className="text-xs text-muted-foreground">Hasta<Input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)} className="mt-0.5 h-9 w-32" /></label>}
+        <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Día<Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-9 w-40" /></label>
+        <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">{modo === "rango" ? "Desde" : modo === "desde" ? "A partir de" : "Hora"}<Input type="time" value={desde} onChange={(e) => setDesde(e.target.value)} className="h-9 w-32" /></label>
+        {modo === "rango" && <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Hasta<Input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)} className="h-9 w-32" /></label>}
       </div>
       {agenda?.configurado && (
         <div className="space-y-1">
@@ -136,7 +136,7 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
         </div>
         {!p && (<>
           <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} aria-label="Día" className="h-8 w-36" />
-          <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora" className="h-8 w-32" />
+          <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora" className="h-8 w-32 min-w-[7.5rem] whitespace-nowrap" />
           <Button size="sm" disabled={ocupado} onClick={() => correr(() => confirmarSolicitudes(ids, fecha, hora || null))}>
             {ocupado ? <Loader2 className="animate-spin" /> : <Check />} {cambiada ? "Reprogramar" : "Confirmar"}
           </Button>
@@ -152,9 +152,9 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
       )}
 
       {p && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-          <CalendarClock className="size-4 text-primary" />
-          <span className="min-w-0 flex-1 basis-56"><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span></span>
+        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 sm:flex-row sm:items-center">
+          <span className="flex min-w-0 flex-1 gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" /><span><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span></span></span>
+          <span className="flex flex-wrap gap-2">
           {textoWa && (
             <Button size="sm" variant="outline" asChild>
               <a href={enlaceWhatsApp(contacto?.telefono, textoWa)} target="_blank" rel="noreferrer"><MessageCircle /> WhatsApp{contacto ? ` a ${contacto.nombre.split(" ")[0]}` : ""}</a>
@@ -163,6 +163,7 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
           <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => correr(async () => { for (const id of ids) { const r = await anularPropuesta(id); if (!r.ok) return r; } return { ok: true, mensaje: "" }; })}>
             <Undo2 /> Anular
           </Button>
+          </span>
         </div>
       )}
 

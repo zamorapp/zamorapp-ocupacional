@@ -67,7 +67,7 @@ export function ElegirHora({ empresaId, min, etiqueta, personas = 1, inicial, al
             <div role="radiogroup" aria-label="Horas disponibles" className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
               {horas.map((h) => (
                 <button key={h.hora} type="button" role="radio" aria-checked={hora === h.hora} disabled={h.libres < 1} onClick={() => setHora(h.hora)}
-                  className={cn("rounded-lg border px-2 py-1.5 text-sm transition",
+                  className={cn("whitespace-nowrap rounded-lg border px-1 py-1.5 text-sm transition",
                     hora === h.hora ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/60 hover:bg-primary/5",
                     h.libres < 1 && "cursor-not-allowed text-muted-foreground line-through opacity-50 hover:border-border hover:bg-transparent")}>
                   {hora12(h.hora)}

@@ -117,13 +117,13 @@ function Bloqueos({ bloqueos, edita, hoy }: { bloqueos: Bloqueo[]; edita: boolea
         <p className="text-sm text-muted-foreground">Evaluaciones en otra empresa, charlas, diligencias o feriados. RR. HH. solo deja de ver esas horas; el motivo lo ve únicamente el servicio.</p>
         {edita && (
           <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
-            <label className="text-xs text-muted-foreground">Día<Input type="date" min={hoy} value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-0.5 h-9 w-40" /></label>
-            <label className="flex h-9 items-center gap-2 text-sm"><input type="checkbox" checked={todo} onChange={(e) => setTodo(e.target.checked)} className="size-4 accent-primary" /> Todo el día</label>
+            <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Día<Input type="date" min={hoy} value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-9 w-40" /></label>
+            <label className="flex h-9 items-center gap-2 self-end text-sm"><input type="checkbox" checked={todo} onChange={(e) => setTodo(e.target.checked)} className="size-4 accent-primary" /> Todo el día</label>
             {!todo && (<>
-              <label className="text-xs text-muted-foreground">Desde<Input type="time" value={desde} onChange={(e) => setDesde(e.target.value)} className="mt-0.5 h-9 w-28" /></label>
-              <label className="text-xs text-muted-foreground">Hasta<Input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)} className="mt-0.5 h-9 w-28" /></label>
+              <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Desde<Input type="time" value={desde} onChange={(e) => setDesde(e.target.value)} className="h-9 w-28" /></label>
+              <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Hasta<Input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)} className="h-9 w-28" /></label>
             </>)}
-            <label className="min-w-48 flex-1 text-xs text-muted-foreground">Motivo (solo lo ve el servicio)<Input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Evaluaciones en otra empresa" className="mt-0.5 h-9" /></label>
+            <label className="flex min-w-48 flex-1 flex-col gap-0.5 text-xs text-muted-foreground">Motivo (solo lo ve el servicio)<Input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Evaluaciones en otra empresa" className="h-9" /></label>
             <Button onClick={bloquear} disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" /> : <CalendarOff />} Bloquear</Button>
           </div>
         )}
