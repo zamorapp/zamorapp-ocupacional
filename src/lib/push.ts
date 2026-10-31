@@ -38,7 +38,10 @@ export async function enviarPush(subs: Suscripcion[], aviso: Aviso): Promise<{ e
       enviados++;
     } catch (e) {
       const codigo = (e as { statusCode?: number }).statusCode;
-      if (codigo === 404 || codigo === 410) vencidos.push(s.endpoint);
+      if (codigo === 404 || codigo === 410) {
+        vencidos.push(s.endpoint);
+        fallo = `${codigo}: dio la suscripción por vencida`;
+      }
       else {
         fallo = String(codigo ?? (e instanceof Error ? e.message : e));
         console.error("enviarPush:", fallo);

@@ -20,7 +20,11 @@ const nextConfig: NextConfig = {
   // Programa de escritorio: servidor autónomo que se empaca en el instalador de Windows
   output: process.env.ZAMORAPP_ESCRITORIO ? "standalone" : undefined,
   // La app sabe en el navegador si corre dentro del programa de escritorio (sin service worker, p. ej.)
-  env: { NEXT_PUBLIC_ESCRITORIO: process.env.ZAMORAPP_ESCRITORIO ? "1" : "" },
+  // y qué versión de la web es (commit del despliegue): el celular la compara con /api/hora para ofrecer «Actualizar»
+  env: {
+    NEXT_PUBLIC_ESCRITORIO: process.env.ZAMORAPP_ESCRITORIO ? "1" : "",
+    NEXT_PUBLIC_VERSION_WEB: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7),
+  },
   // Next reescribe "127.0.0.1" como "localhost" en las redirecciones del middleware (NextURL). En el programa de
   // escritorio eso cambiaba el origen de la ventana y la puerta local rechazaba el ingreso; con esto el
   // middleware recibe y devuelve la dirección tal cual llegó.

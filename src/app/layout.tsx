@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Confirmador } from "@/components/app/confirmar";
 import { RegistroSW } from "@/components/app/registro-sw";
+import { AvisoVersionNueva } from "@/components/app/actualizar-app";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_NOMBRE } from "@/lib/config";
 import { SCRIPT_TEMA } from "@/lib/tema";
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <TooltipProvider>{children}</TooltipProvider>
         <Confirmador />
         <RegistroSW />
+        <AvisoVersionNueva />
         {desfase !== null ? <HoraEscritorio /> : null}
         {/* Speed Insights (gratis en Vercel): tiempos reales de cada pantalla desde el navegador de Cesar. Solo en la web publicada. */}
         {process.env.VERCEL ? <SpeedInsights /> : null}

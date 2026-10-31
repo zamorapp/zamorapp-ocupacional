@@ -9,6 +9,7 @@ import { HuellaCuenta } from "@/components/app/huella";
 import { DosPasosCuenta } from "@/components/app/dos-pasos-cuenta";
 import { AvisosCelular } from "@/components/app/avisos-celular";
 import { esRolEmpresa } from "@/lib/sesion-roles";
+import { VersionApp } from "@/components/app/actualizar-app";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
@@ -46,6 +47,7 @@ export default async function Perfil() {
       {!sesion.demo && process.env.NEXT_PUBLIC_ESCRITORIO !== "1" && (
         <DosPasosCuenta obligatoria={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
       )}
+      <VersionApp />
     </div>
   );
 }
