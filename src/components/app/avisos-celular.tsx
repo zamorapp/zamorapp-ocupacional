@@ -78,7 +78,7 @@ async function probarDePuntaAPunta(enviar: (prueba: string) => Promise<Respuesta
   alEsperar();
   const v = await recibo;
   if (v?.mostrado) return { tono: "ok", texto: "Listo: el aviso llegó a este celular.", pasos: PASOS_NOTIFICACIONES, plegados: true };
-  if (v) return { tono: "alerta", texto: "El teléfono no deja mostrar los avisos.", pasos: PASOS_NOTIFICACIONES, detalle: v.error };
+  if (v) return { tono: "alerta", texto: "El aviso llegó, pero el teléfono no deja mostrarlo.", pasos: PASOS_NOTIFICACIONES, detalle: v.error };
   return { tono: "alerta", texto: "El aviso no llegó a este celular. Casi siempre es el ahorro de batería.", pasos: PASOS_BATERIA };
 }
 
@@ -93,6 +93,7 @@ function Resultado({ m }: { m: Mensaje }) {
           <> <button type="button" onClick={() => setAbiertos(true)} className="text-xs text-muted-foreground underline underline-offset-2">¿No lo viste?</button></>
         )}
       </p>
+      {m.plegados && abiertos && <p className="text-muted-foreground">Si no lo viste arriba:</p>}
       {m.pasos && abiertos && (
         <ol className="list-decimal space-y-0.5 pl-5 text-muted-foreground">{m.pasos.map((p) => <li key={p}>{p}</li>)}</ol>
       )}
@@ -149,7 +150,7 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
     // Guardada en la base: queda activa aunque la prueba no llegue (el mensaje dice qué ajustar en el teléfono)
     if (guardada) {
       setEndpoint(sub.endpoint); setEstado("activo");
-      return r.tono === "ok" ? r : { ...r, tono: "aviso", texto: `Avisos activados, pero ${r.texto.charAt(0).toLowerCase()}${r.texto.slice(1)}` };
+      return r.tono === "ok" ? r : { ...r, tono: "aviso", texto: /\bpero\b/.test(r.texto) ? `Avisos activados. ${r.texto}` : `Avisos activados, pero ${r.texto.charAt(0).toLowerCase()}${r.texto.slice(1)}` };
     }
     else await sub.unsubscribe().catch(() => {});
     return r;
