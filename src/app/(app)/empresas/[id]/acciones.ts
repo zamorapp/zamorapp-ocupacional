@@ -111,7 +111,7 @@ export async function guardarEnvioAuto(empresaId: string, activo: boolean, hora:
   let aviso = "";
   if (activo && pushConfigurado()) {
     const { data: lista } = await supabase.rpc("anotar_clave_servidor", { p_org: sesion.orgId, p_clave: claveAvisos() });
-    if (!lista) aviso = " Falta un paso: que el administrador lo active una vez desde la web para que el correo pueda salir.";
+    if (!lista) aviso = " Falta que el administrador active el correo: que abra zamorApp en la web y toque «Activar correo».";
   }
   revalidatePath(`/empresas/${empresaId}`);
   return {

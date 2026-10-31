@@ -83,7 +83,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
             <Card className="h-fit">
               <CardHeader><CardTitle className="text-base">Constancias automáticas a RR. HH.</CardTitle></CardHeader>
               <CardContent>
-                <EnvioAutoConstancias empresaId={id} inicial={envioAuto} editable={ROLES_ENVIO_AUTO.includes(sesion.rol ?? "")}
+                <EnvioAutoConstancias empresaId={id} inicial={envioAuto} editable={ROLES_ENVIO_AUTO.includes(sesion.rol ?? "")} anotaClave={["administrador", "gerente_medico"].includes(sesion.rol ?? "")}
                   correos={[...new Set(contactos.map((c) => c.correo?.toLowerCase()).filter((c): c is string => Boolean(c)))]} />
               </CardContent>
             </Card>
