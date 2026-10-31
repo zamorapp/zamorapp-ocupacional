@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { estaEnMain, lineaBase, refsDeEtiquetas, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
+import { estaEnMain, lineaBase, refsDeEtiquetas, refsDeLsRemote, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
 
 const sql = "select 1;";
 const m = (extra = {}) => JSON.stringify({ etiqueta: "migraciones-20261030-1", aprobado: "Cesar", migraciones: [
@@ -55,6 +55,14 @@ test("solo etiquetas migraciones-* (también anotadas) y solo si el commit está
   assert.deepEqual(r, [{ nombre: "migraciones-20261030-1", tipo: "commit", sha: "a" }, { nombre: "migraciones-20261030-2", tipo: "tag", sha: "b" }]);
   assert.ok(estaEnMain({ status: "ahead" }) && estaEnMain({ status: "identical" }));
   for (const st of ["behind", "diverged", undefined]) assert.ok(!estaEnMain({ status: st }), String(st));
+});
+
+test("ls-remote: etiquetas migraciones-* y, si es anotada, el commit de la línea ^{}", () => {
+  const c = (x) => x.repeat(40);
+  const texto = [`${c("a")}\trefs/tags/migraciones-20261030-1`, `${c("b")}\trefs/tags/migraciones-20261030-2`,
+    `${c("d")}\trefs/tags/migraciones-20261030-2^{}`, `${c("e")}\trefs/tags/migraciones-x`, "basura"].join("\r\n");
+  assert.deepEqual(refsDeLsRemote(texto), [{ nombre: "migraciones-20261030-1", tipo: "commit", sha: c("a") }, { nombre: "migraciones-20261030-2", tipo: "commit", sha: c("d") }]);
+  assert.deepEqual(refsDeLsRemote(""), []);
 });
 
 test("una pendiente anterior a la última aplicada aborta", () => {

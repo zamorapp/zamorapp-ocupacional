@@ -71,6 +71,19 @@ export function refsDeEtiquetas(refs) {
   return refs.map((r) => ({ nombre: r.ref.replace(/^refs\/tags\//, ""), tipo: r.object.type, sha: r.object.sha })).filter((r) => ETIQUETA.test(r.nombre));
 }
 
+// De «git ls-remote --tags <repo> refs/tags/migraciones-*»: nombre y commit, sin la API de GitHub (no gasta el límite de
+// 60 consultas por hora sin cuenta, que se agota desde la IP compartida del VPN). Una etiqueta anotada trae además la
+// línea «^{}» con el commit al que apunta, que es el que vale.
+export function refsDeLsRemote(texto) {
+  const porNombre = new Map();
+  for (const linea of String(texto ?? "").split(/\r?\n/)) {
+    const m = /^([0-9a-f]{40})\s+refs\/tags\/(\S+?)(\^\{\})?$/.exec(linea.trim());
+    if (!m || !ETIQUETA.test(m[2])) continue;
+    if (m[3] || !porNombre.has(m[2])) porNombre.set(m[2], { nombre: m[2], tipo: "commit", sha: m[1] });
+  }
+  return [...porNombre.values()];
+}
+
 // compare/<commit>...main: «ahead» (main lo contiene y tiene más) o «identical» quieren decir que está en main
 export const estaEnMain = (comparacion) => ["ahead", "identical"].includes(comparacion?.status);
 

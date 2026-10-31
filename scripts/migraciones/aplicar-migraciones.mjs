@@ -6,7 +6,8 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { MANIFIESTO, estaEnMain, leerManifiesto, lineaBase, pendientes, refsDeEtiquetas, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
+import { execFileSync } from "node:child_process";
+import { MANIFIESTO, leerManifiesto, lineaBase, pendientes, refsDeLsRemote, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
 
 const REPO_GITHUB = "zamorapp/zamorapp-ocupacional";
 const repo = process.cwd();
@@ -14,10 +15,33 @@ const pg = createRequire(path.join(repo, "package.json"))("pg");
 const { configuracion } = await import(pathToFileURL(path.join(repo, "scripts", "conexion-segura.mjs")).href);
 const hora = () => new Date().toISOString();
 
+// git del sistema (el aplicador corre en Documents\zamorapp-ocupacional): la etiqueta y «está en main» salen de git, no
+// de la API de GitHub, que sin cuenta permite 60 consultas por hora por IP y con ProtonVPN se agota (403 del 31-oct)
+const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 120000 });
+const URL_REPO = `https://github.com/${REPO_GITHUB}.git`;
+
+// Con token (GITHUB_TOKEN o la sesión de gh) el límite sube a 5000/h; si no hay, va sin cuenta
+let token = process.env.GITHUB_TOKEN || "";
+if (!token) try { token = execFileSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 15000 }).trim(); } catch { /* sin gh */ }
+
 async function bajar(url, tipo = "text") {
-  const r = await fetch(url, { headers: { "User-Agent": "zamorapp-aplicar-migraciones" } });
-  if (!r.ok) throw new Error(`no se pudo bajar ${url} (HTTP ${r.status})`);
-  return tipo === "json" ? r.json() : r.text();
+  for (let intento = 1; ; intento++) {
+    const cabeceras = { "User-Agent": "zamorapp-aplicar-migraciones" };
+    if (token && url.startsWith("https://api.github.com/")) cabeceras.Authorization = `Bearer ${token}`;
+    const r = await fetch(url, { headers: cabeceras });
+    if (r.ok) return tipo === "json" ? r.json() : r.text();
+    // Límite de GitHub: espera lo que pide (hasta 1 minuto) y reintenta 3 veces; si no, dice a qué hora volver
+    if ((r.status === 403 || r.status === 429) && intento <= 3) {
+      const reset = Number(r.headers.get("x-ratelimit-reset")) * 1000;
+      const espera = Math.min(60000, Number(r.headers.get("retry-after")) * 1000 || (reset ? Math.max(5000, reset - Date.now()) : 15000));
+      console.log(`${hora()} GitHub limitó las consultas (HTTP ${r.status}); reintento en ${Math.round(espera / 1000)} s…`);
+      await new Promise((ok) => setTimeout(ok, espera));
+      continue;
+    }
+    const reset = Number(r.headers.get("x-ratelimit-reset"));
+    const cuando = reset ? `; intenta otra vez después de las ${new Date(reset * 1000).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}` : "";
+    throw new Error(`no se pudo bajar ${url} (HTTP ${r.status}${r.status === 403 || r.status === 429 ? ", GitHub limitó las consultas" + cuando : ""})`);
+  }
 }
 
 // Cualquier error antes de conectar (red, etiqueta, manifiesto) sale con un mensaje claro: no se cambió nada
@@ -28,13 +52,16 @@ process.on("unhandledRejection", fallar);
 // La etiqueta se resuelve a su commit y todo se baja de ese commit: no cambia entre un archivo y otro.
 // Ese commit tiene que estar en main (revisado y unido): una etiqueta sobre una rama suelta no vale.
 const API = `https://api.github.com/repos/${REPO_GITHUB}`;
-const refs = refsDeEtiquetas(await bajar(`${API}/git/matching-refs/tags/migraciones-`, "json"));
+const refs = refsDeLsRemote(git("ls-remote", "--tags", URL_REPO, "refs/tags/migraciones-*"));
 const etiqueta = ultimaEtiqueta(refs.map((r) => r.nombre));
 if (!etiqueta) throw new Error("no hay ninguna etiqueta de migraciones aprobadas en el repo");
-const ref = refs.find((r) => r.nombre === etiqueta);
-const commit = ref.tipo === "tag" ? (await bajar(`${API}/git/tags/${ref.sha}`, "json")).object.sha : ref.sha;
+const commit = refs.find((r) => r.nombre === etiqueta).sha;
 if (!/^[0-9a-f]{40}$/.test(commit ?? "")) throw new Error(`la etiqueta ${etiqueta} no apunta a un commit`);
-if (!estaEnMain(await bajar(`${API}/compare/${commit}...main`, "json"))) throw new Error(`la etiqueta ${etiqueta} (${commit.slice(0, 7)}) no está en main: no se aplica nada que no esté revisado y unido`);
+// main de GitHub (no la copia local) tiene que contener ese commit; se baja a FETCH_HEAD sin tocar las ramas de la PC
+git("fetch", "--quiet", "--no-tags", URL_REPO, "main");
+let enMain = false;
+try { git("merge-base", "--is-ancestor", commit, "FETCH_HEAD"); enMain = true; } catch { /* no es ancestro o no está */ }
+if (!enMain) throw new Error(`la etiqueta ${etiqueta} (${commit.slice(0, 7)}) no está en main: no se aplica nada que no esté revisado y unido`);
 const crudo = (ruta) => `https://raw.githubusercontent.com/${REPO_GITHUB}/${commit}/${ruta}`;
 const manifiesto = leerManifiesto(await bajar(crudo(MANIFIESTO)), etiqueta);
 console.log(`${hora()} fuente aprobada: ${etiqueta} (${commit.slice(0, 7)}), ${manifiesto.migraciones.length} migraciones en el manifiesto`);
