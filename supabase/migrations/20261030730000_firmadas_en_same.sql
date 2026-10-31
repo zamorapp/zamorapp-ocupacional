@@ -37,14 +37,18 @@ revoke execute on function public.proteger_origen_importacion() from public, aut
 
 select public.vistas_al_dia();
 
--- Deshacer (solo servicio): las que siguen firmadas en el SAME vuelven a «cerrada», sin hora de firma.
+-- Deshacer (solo servicio): solo las que marcó marcar_firmadas_same (ids de sus renglones FIRMADAS_EN_SAME, no las
+-- que el cargador importe después) y que siguen firmadas en el SAME vuelven a «cerrada», sin hora de firma.
+-- Ojo: salir de «firmada» dispara revocar_enlaces_consulta, así que los enlaces ya enviados de esas consultas se revocan.
 create or replace function public.revertir_firmadas_same(p_org uuid)
 returns int language plpgsql security definer set search_path = public as $$
 declare v_n int;
 begin
   alter table clinico.consultas disable trigger bit_consultas;
   update clinico.consultas set estado = 'cerrada', firma_origen = null, firmada_en = null
-   where org_id = p_org and firma_origen = 'same' and estado = 'firmada';
+   where org_id = p_org and firma_origen = 'same' and estado = 'firmada'
+     and id in (select (x #>> '{}')::uuid from public.bitacora bt, jsonb_array_elements(bt.despues -> 'ids') x
+                 where bt.org_id = p_org and bt.accion = 'FIRMADAS_EN_SAME');
   get diagnostics v_n = row_count;
   alter table clinico.consultas enable trigger bit_consultas;
   insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
