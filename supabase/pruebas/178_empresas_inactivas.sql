@@ -41,3 +41,17 @@ reset role;
 delete from clinico.consultas where id = '40000000-0000-0000-0000-000000000178';
 delete from public.trabajadores where id = '30000000-0000-0000-0000-000000000178';
 delete from public.empresas where id = '20000000-0000-0000-0000-000000000178';
+
+-- Deshacer: la pregunta «¿ya lo atendieron en la empresa nueva?» responde también a quien no lee consultas
+reset role;
+insert into public.trabajadores (id, org_id, empresa_id, cedula, nombres, apellidos) values ('30000000-0000-0000-0000-000000000179', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'V-179179', 'Dora', 'Prueba');
+insert into clinico.consultas (id, org_id, empresa_id, trabajador_id, estado, fecha) values ('40000000-0000-0000-0000-000000000179', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-000000000179', 'borrador', '2026-10-31');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'tiene consultas en la empresa nueva (debe 1): ' || public.tiene_consultas_en('30000000-0000-0000-0000-000000000179', '20000000-0000-0000-0000-00000000000a')::int;
+select 'en otra empresa no (debe 0): ' || public.tiene_consultas_en('30000000-0000-0000-0000-000000000179', '20000000-0000-0000-0000-00000000000b')::int;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+select 'RR. HH. de A lo ve (solo sí/no) (debe 1): ' || public.tiene_consultas_en('30000000-0000-0000-0000-000000000179', '20000000-0000-0000-0000-00000000000a')::int;
+reset role;
+delete from clinico.consultas where id = '40000000-0000-0000-0000-000000000179';
+delete from public.trabajadores where id = '30000000-0000-0000-0000-000000000179';

@@ -125,3 +125,16 @@ begin
   end loop;
   return v_total;
 end $$;
+
+-- «Deshacer» de Pasar a otra empresa: solo si aún no lo atendieron en la empresa nueva. Recepción no lee consultas
+-- (RLS clínica), así que la pregunta va por aquí y devuelve solo sí/no, y solo a quien puede ver al trabajador.
+create or replace function public.tiene_consultas_en(p_trabajador uuid, p_empresa uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.trabajadores t
+    where t.id = p_trabajador and public.puede_ver_empresa(t.org_id, t.empresa_id)
+      and exists (select 1 from clinico.consultas c where c.trabajador_id = t.id and c.empresa_id = p_empresa)
+  )
+$$;
+revoke all on function public.tiene_consultas_en(uuid, uuid) from public, anon;
+grant execute on function public.tiene_consultas_en(uuid, uuid) to authenticated;

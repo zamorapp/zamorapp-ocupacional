@@ -163,15 +163,40 @@ export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Pr
 }
 
 // «Deshacer» del paso anterior: solo si sigue en la empresa a la que se pasó (nadie lo movió ni lo atendió allá)
+const ESTADOS_TRABAJADOR = ["aspirante", "activo", "reposo", "egresado", "inactivo"] as const;
+
 export async function deshacerPaso(trabajadorId: string, destinoId: string, antes: AntesDePasar): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  // «antes» viene del navegador: solo se aceptan estos 7 campos, el estado de la lista y una empresa de vuelta INACTIVA
+  // (así Deshacer no sirve para mover a nadie entre empresas activas), con cargo, dependencia y sede de esa misma empresa
+  const estado = ESTADOS_TRABAJADOR.find((e) => e === antes.estado);
+  if (!estado) return { ok: false, mensaje: "No se pudo deshacer: datos no válidos." };
   const supabase = await crearClienteServidor();
-  const { count: consultas } = await supabase.from("consultas").select("id", { count: "exact", head: true }).eq("trabajador_id", trabajadorId).eq("empresa_id", destinoId);
-  if (consultas) return { ok: false, mensaje: "Ya tiene una consulta en la nueva empresa: no se puede deshacer." };
+  const [{ data: origen }, { data: puesto }, { data: dependencia }, { data: sede }, { data: atendido }] = await Promise.all([
+    supabase.from("empresas").select("activa").eq("id", antes.empresa_id).maybeSingle(),
+    antes.puesto_id ? supabase.from("puestos").select("empresa_id").eq("id", antes.puesto_id).maybeSingle() : Promise.resolve({ data: null }),
+    antes.dependencia_id ? supabase.from("dependencias").select("empresa_id").eq("id", antes.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
+    antes.sede_id ? supabase.from("sedes").select("empresa_id").eq("id", antes.sede_id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.rpc("tiene_consultas_en", { p_trabajador: trabajadorId, p_empresa: destinoId }),
+  ]);
+  if (!origen || origen.activa) return { ok: false, mensaje: "Deshacer solo lo devuelve a una empresa inactiva." };
+  if ((antes.puesto_id && puesto?.empresa_id !== antes.empresa_id) || (antes.dependencia_id && dependencia?.empresa_id !== antes.empresa_id)
+    || (antes.sede_id && sede?.empresa_id !== antes.empresa_id))
+    return { ok: false, mensaje: "No se pudo deshacer: datos no válidos." };
+  if (atendido) return { ok: false, mensaje: "Ya tiene una consulta en la nueva empresa: no se puede deshacer." };
+  const fecha = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const { count, error } = await supabase
     .from("trabajadores")
-    .update({ ...antes, estado: antes.estado as "aspirante" }, { count: "exact" })
+    .update({
+      empresa_id: antes.empresa_id,
+      puesto_id: antes.puesto_id || null,
+      dependencia_id: antes.dependencia_id || null,
+      sede_id: antes.sede_id || null,
+      estado,
+      fecha_ingreso: fecha(antes.fecha_ingreso),
+      fecha_egreso: fecha(antes.fecha_egreso),
+    }, { count: "exact" })
     .eq("id", trabajadorId)
     .eq("empresa_id", destinoId);
   if (error) return { ok: false, mensaje: "No se pudo deshacer: " + error.message };
