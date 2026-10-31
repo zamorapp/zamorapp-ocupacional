@@ -77,3 +77,21 @@ export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
     copia: false,
   };
 }
+
+// Historia clínica de ejemplo: tres consultas con elegibilidad, diagnósticos y signos que cambian.
+// La última es la del documento base; las anteriores son variantes de ella.
+export function historiaDePrueba(caso: "normal" | "largo") {
+  const d = documentoDePrueba(caso);
+  const c = d.datos;
+  const consultas = [
+    { datos: { ...c, id: "00000000-0000-4000-8000-0000000000a1", fecha: "2024-02-12", tipo: "primera" as const, diagnosticos: [], sano: true, reposo: { ...c.reposo, activo: false },
+      aptitud: { ...c.aptitud, clasificacion: "elegible" as const, limitaciones: [], vigenteHasta: "2025-02-12" }, signos: { ...c.signos, ta: "115/75", peso: "70" }, interconsultas: [], tratamiento: [] },
+      motivo: "Pre-empleo", medico: "Dra. Ana Pérez (histórico)" },
+    { datos: { ...c, id: "00000000-0000-4000-8000-0000000000a2", fecha: "2025-03-04", tipo: "sucesiva" as const, diagnosticos: c.diagnosticos.slice(0, 1),
+      reposo: { ...c.reposo, desde: "2025-03-04", hasta: "2025-03-10" }, potencialDiscapacidad: true, discapacidadNota: "Lumbalgia recurrente en estudio",
+      aptitud: { ...c.aptitud, clasificacion: "diferido" as const, limitaciones: [], vigenteHasta: "" }, signos: { ...c.signos, ta: "130/85", peso: "76" } },
+      motivo: "Consulta por enfermedad", medico: "Dr. Médico de Prueba" },
+    { datos: c, motivo: d.motivo?.nombre ?? null, medico: d.medico },
+  ];
+  return { d, consultas, ficha: { fechaNacimiento: "1988-03-15", grupoSanguineo: "O+", lateralidad: "diestro", telefono: "0414-0000000", riesgos: d.trabajador.riesgos } };
+}

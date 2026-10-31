@@ -1,8 +1,8 @@
 import { Fragment } from "react";
-import type { DatosDocumento } from "@/lib/documentos";
+import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
 import { faltantesRecipe } from "@/lib/documentos";
-import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type FilaExamen } from "@/lib/consultas-tipos";
+import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
@@ -12,7 +12,7 @@ import {
 } from "./componentes";
 
 // "Elegible" / "Apto" / "Recomendable" según Configuración › Organización
-function etiquetasAptitud(palabra = "Elegible"): Record<Aptitud, string> {
+export function etiquetasAptitud(palabra = "Elegible"): Record<Aptitud, string> {
   const neg = palabra === "Elegible" ? "No elegible" : `No ${palabra.toLowerCase()}`;
   return {
     elegible: `${palabra} para el cargo propuesto`,
@@ -25,11 +25,11 @@ function etiquetasAptitud(palabra = "Elegible"): Record<Aptitud, string> {
 const TONO_APTITUD: Record<Aptitud, "ok" | "aviso" | "alerta" | "neutro"> = {
   elegible: "ok", elegible_con_restricciones: "aviso", no_elegible: "alerta", espera_resultados: "neutro", diferido: "neutro",
 };
-const COLOR_APTITUD: Record<Aptitud, string> = {
+export const COLOR_APTITUD: Record<Aptitud, string> = {
   elegible: "text-[#1d7a46]", elegible_con_restricciones: "text-[#7a5300]", no_elegible: "text-[#b42318]", espera_resultados: "text-doc-acento", diferido: "text-doc-acento",
 };
 
-const alteradosDe = (d: DatosDocumento) => [...d.datos.examenFuncional, ...d.datos.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
+const alteradosDe = (c: DatosConsulta) => [...c.examenFuncional, ...c.examenFisico].filter((x) => x.valor.trim() && x.valor.trim() !== x.normal.trim());
 
 // Una sola hoja por defecto. La copia para el servicio médico (como en el Integral) se agrega al imprimir o queda fija en Configuración.
 // soloOriginal: lo que se envía a la empresa por correo (la copia queda en el servicio).
@@ -181,27 +181,45 @@ function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[
 
 export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
   const laboral = variante === "completo";
-  const c = d.datos;
-  const sv = c.signos;
-  const valImc = imc(sv.peso, sv.talla);
-  const alterados = alteradosDe(d);
-  const ant = resumenAntecedentes(c.antecedentes);
-  const habitos = c.habitos.filter((h) => h.valor.trim());
-  const etiquetas = etiquetasAptitud(d.org.ajustes.palabra_aptitud);
-  const clase = c.aptitud.clasificacion || null;
   const certificacion = laboral ? d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR : null;
   const [prefijo, titulo] = TITULO_INFORME[variante];
+  // Flujo normal al imprimir: el informe suele ocupar dos hojas y así no deja huecos al pasar de página
+  return (
+    <Hoja className="print:block">
+      <Membrete d={d} />
+      <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
+      <DatosPaciente d={d} completo={variante !== "trabajador"} />
+      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} />
+      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
+      <Firmas>
+        {certificacion ? <FirmaTrabajador d={d} /> : <span />}
+        <FirmaMedico d={d} />
+      </Firmas>
+      <Pie d={d} />
+    </Hoja>
+  );
+}
+
+// Contenido clínico de una consulta, igual en el informe y en cada consulta de la historia clínica.
+// antecedentes=false: la historia los omite cuando no cambiaron desde la consulta anterior.
+export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", antecedentes = true }: {
+  c: DatosConsulta; sin: OpcionImpresion[]; ajustes: AjustesDocumentos; variante?: VarianteInforme; antecedentes?: boolean;
+}) {
+  const laboral = variante === "completo";
+  const sv = c.signos;
+  const valImc = imc(sv.peso, sv.talla);
+  const alterados = alteradosDe(c);
+  const ant = resumenAntecedentes(c.antecedentes);
+  const habitos = c.habitos.filter((h) => h.valor.trim());
+  const etiquetas = etiquetasAptitud(ajustes.palabra_aptitud);
+  const clase = c.aptitud.clasificacion || null;
   const signos = [
     ["TA", sv.ta, "mmHg"], ["FC", sv.fc, "lpm"], ["FR", sv.fr, "rpm"], ["Temp.", sv.temp, "°C"], ["SatO₂", sv.sat, "%"],
     ["Peso · Talla", sv.peso || sv.talla ? `${sv.peso ?? "—"} kg · ${sv.talla ?? "—"} cm` : "", ""],
     ["IMC", valImc !== null ? String(valImc).replace(".", ",") : "", clasificarImc(valImc)?.texto.toLowerCase() ?? ""],
   ].filter(([, v]) => v) as [string, string, string][];
-  // Flujo normal al imprimir: el informe suele ocupar dos hojas y así no deja huecos al pasar de página
   return (
-    <Hoja className="print:block">
-      <Membrete d={d} />
-      <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, c.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
-      <DatosPaciente d={d} completo={variante !== "trabajador"} />
+    <>
       {(c.motivoTexto || c.enfermedadActual) && (
         <Bloque titulo="Motivo y enfermedad actual">{[c.motivoTexto, c.enfermedadActual].filter(Boolean).join("\n")}</Bloque>
       )}
@@ -217,14 +235,16 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
           </div>
         </Bloque>
       )}
-      <Bloque titulo="Antecedentes">
+      {antecedentes && (
+        <Bloque titulo="Antecedentes">
         <div className="grid grid-cols-3 gap-x-5 gap-y-1">
           <div><div className="text-[10.5px] text-doc-tenue">Personales</div><b className="font-semibold">{ant.personales}</b></div>
           <div><div className="text-[10.5px] text-doc-tenue">Familiares</div><b className="font-semibold">{ant.familiares}</b></div>
           {habitos.length > 0 && <div><div className="text-[10.5px] text-doc-tenue">Hábitos</div><b className="font-semibold">{habitos.map((h) => `${h.nombre}: ${h.valor}`).join(" · ")}</b></div>}
         </div>
-      </Bloque>
-      {d.sin.includes("examen") ? (
+        </Bloque>
+      )}
+      {sin.includes("examen") ? (
         <Bloque titulo="Examen físico y funcional">
           {alterados.length ? <>Dentro de límites normales, excepto:{"\n"}{alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n")}</> : "Dentro de límites normales."}
         </Bloque>
@@ -264,7 +284,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
         <Bloque titulo="Aptitud">
           <b className={COLOR_APTITUD[clase]}>{etiquetas[clase]}.</b>
           {c.aptitud.vigenteHasta && ` Vigente hasta el ${fechaCorta(c.aptitud.vigenteHasta)}.`}
-          {c.aptitud.limitaciones.length > 0 && !d.sin.includes("limitaciones") && ` Restricciones: ${c.aptitud.limitaciones.join(", ")}.`}
+          {c.aptitud.limitaciones.length > 0 && !sin.includes("limitaciones") && ` Restricciones: ${c.aptitud.limitaciones.join(", ")}.`}
         </Bloque>
       )}
       {c.tratamiento.some((m) => m.medicina) && (
@@ -275,16 +295,10 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       )}
       {c.reposo.activo && <Bloque titulo="Reposo">Del {fechaCorta(c.reposo.desde)} al {fechaCorta(c.reposo.hasta)}.</Bloque>}
       {c.interconsultas.length > 0 && <Bloque titulo="Referencias">{c.interconsultas.map((x) => `${x.especialidad}: ${x.motivo}`).join("\n")}</Bloque>}
-      {c.conclusiones && !d.sin.includes("conclusiones") && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
+      {c.conclusiones && !sin.includes("conclusiones") && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
       {(c.recomendacionesTrabajador || c.aptitud.observacion) && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={c.recomendacionesTrabajador || c.aptitud.observacion} /></Bloque>}
       {laboral && c.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={c.recomendacionesEmpresa} /></Bloque>}
-      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
-      <Firmas>
-        {certificacion ? <FirmaTrabajador d={d} /> : <span />}
-        <FirmaMedico d={d} />
-      </Firmas>
-      <Pie d={d} />
-    </Hoja>
+    </>
   );
 }
 
@@ -395,7 +409,7 @@ export function Orden({ d }: { d: DatosDocumento }) {
 export function Certificado({ d }: { d: DatosDocumento }) {
   const c = d.datos;
   const a = d.org.ajustes;
-  const alterados = alteradosDe(d);
+  const alterados = alteradosDe(d.datos);
   const clase = c.aptitud.clasificacion || null;
   return (
     <Hoja>

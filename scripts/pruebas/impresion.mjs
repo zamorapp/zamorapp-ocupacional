@@ -24,6 +24,8 @@ const DOCUMENTOS = {
   // El informe completo fluye en varias hojas a propósito (Hoja print:block): solo se revisa que no rompa nada
   informe: { fluye: true }, "informe-trabajador": { fluye: true }, preoperatoria: { fluye: true },
   reubicacion: { fijo: false }, libre: { fijo: false },
+  // Historia clínica: todas las consultas completas y el resumen al final, en las hojas que hagan falta
+  historia: { fluye: true },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 
