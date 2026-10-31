@@ -44,6 +44,8 @@ export function filasArt34(r: Reporte, accidentes: number | undefined, causas: R
 }
 
 const sumar = <T,>(l: T[], f: (x: T) => number) => l.reduce((a, x) => a + f(x), 0);
+// Cifra de un dato de salud: 1 o 2 salen como «menos de tres»
+const cuenta = (n: number) => (n > 0 && n < 3 ? "menos de tres" : n0(n));
 
 // ---------- Cuadros del cuerpo del informe que no tenían lectura
 export function analisisCuadros(d: DatosAnalisis, h: Herramientas) {
@@ -181,7 +183,8 @@ export function analisisCuadros(d: DatosAnalisis, h: Herramientas) {
       if (!incidentes) f.push("No se registraron incidentes sin lesión: por cada accidente suelen ocurrir muchos casi accidentes, y reportarlos es la forma más barata de prevenir.");
     }
     if (eo?.casos && a.hht) f.push(`La tasa de incidencia de enfermedad ocupacional fue de ${n2((eo.casos * 1_000_000) / a.hht)} casos por millón de horas hombre.`);
-    if (eo?.dias_anteriores) f.push(`Los casos de enfermedad ocupacional de años anteriores siguen generando ${plural(eo.dias_anteriores, "día", "días")} de reposo, costo que se arrastra si no se logra su reintegro.`);
+    // Con 1 o 2 casos anteriores, sus días son los de esas personas: no se dan
+    if (eo?.dias_anteriores && eo.casos_anteriores >= 3) f.push(`Los casos de enfermedad ocupacional de años anteriores siguen generando ${plural(eo.dias_anteriores, "día", "días")} de reposo, costo que se arrastra si no se logra su reintegro.`);
     return f.length ? junta(f) : sin;
   })();
 
@@ -220,8 +223,8 @@ export function analisisCuadros(d: DatosAnalisis, h: Herramientas) {
     const ceros = filas.filter(([, n]) => !n).map(([k]) => minus(k));
     const mayor = [...filas].sort((a, b) => b[1] - a[1])[0];
     const f = [elige([
-      `En el resumen del artículo 34 destaca «${mayor[0].toLowerCase()}» con ${n0(mayor[1])}.`,
-      `El concepto con más eventos del artículo 34 es «${mayor[0].toLowerCase()}» (${n0(mayor[1])}).`,
+      `En el resumen del artículo 34 destaca «${mayor[0].toLowerCase()}» con ${cuenta(mayor[1])}.`,
+      `El concepto con más eventos del artículo 34 es «${mayor[0].toLowerCase()}» (${cuenta(mayor[1])}).`,
     ])];
     if (ceros.length) f.push(`Sin registros en: ${unir(ceros)}.`);
     const laborales = (filas[1][1] ?? 0) + (filas[3][1] ?? 0);
@@ -288,6 +291,9 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     for (const x of l) porEnte.set(x.ente, (porEnte.get(x.ente) ?? 0) + x.dias);
     const ente = [...porEnte.entries()].sort((a, b) => b[1] - a[1])[0];
     const causa = minus(causasNombre[c] ?? humano(c));
+    const laboral = c === "accidente_laboral" || c === "enfermedad_ocupacional";
+    // 1 o 2 casos: sus días y su diagnóstico serían los de esas personas
+    if (casos < 3) return `Los reposos por ${causa} son menos de tres casos; para proteger la confidencialidad no se detallan sus días.${laboral ? " Por su origen laboral, cada caso debe tener investigación, declaración y seguimiento hasta el reintegro." : ""}`;
     const f = [elige([
       `Los reposos por ${causa} suman ${plural(dias, "día", "días")} en ${plural(casos, "caso", "casos")} (${n1(dias / Math.max(casos, 1))} días por caso).`,
       `Por ${causa} se perdieron ${plural(dias, "día", "días")}, con un promedio de ${n1(dias / Math.max(casos, 1))} días por reposo.`,
@@ -295,7 +301,7 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     if (ente && porEnte.size > 1) f.push(`La mayoría de esos días los emitió ${minus(entes[ente[0]] ?? humano(ente[0]))} (${pc(ente[1], dias)}).`);
     const top = [...l].map((x) => ({ cie10: x.cie10 ?? "", descripcion: x.descripcion, n: x.n, dias: x.dias })).filter((x) => x.cie10).sort((a, b) => b.dias - a.dias).find(nombrable);
     if (top) f.push(`El diagnóstico con más días es ${dx(top)}.`);
-    if (c === "accidente_laboral" || c === "enfermedad_ocupacional") f.push("Por su origen laboral, cada caso debe tener investigación, declaración y seguimiento hasta el reintegro.");
+    if (laboral) f.push("Por su origen laboral, cada caso debe tener investigación, declaración y seguimiento hasta el reintegro.");
     return f.join(" ");
   };
 
@@ -399,7 +405,7 @@ export function analisisIntegral(d: DatosAnalisis, h: Herramientas, t: Totales, 
   else if (acc?.accidentes) prioridades.push({ nivel: 2, texto: `${plural(acc.accidentes, "accidente sin tiempo perdido", "accidentes sin tiempo perdido")}`, accion: "Investigar también los accidentes leves: repiten las mismas causas que los graves." });
   const eo = r.enfermedad_ocupacional?.casos ?? 0;
   semaforo.push({ nombre: "enfermedad ocupacional", estado: eo ? 2 : 0 });
-  if (eo) prioridades.push({ nivel: 1, texto: `${plural(eo, "enfermedad ocupacional", "enfermedades ocupacionales")} en el período`, accion: "Corregir en la fuente la exposición que originó cada enfermedad ocupacional y verificar que ningún otro trabajador del mismo puesto presente signos tempranos." });
+  if (eo) prioridades.push({ nivel: 1, texto: eo < 3 ? "casos de enfermedad ocupacional diagnosticados en el período" : `${n0(eo)} enfermedades ocupacionales en el período`, accion: "Corregir en la fuente la exposición que originó cada enfermedad ocupacional y verificar que ningún otro trabajador del mismo puesto presente signos tempranos." });
   // Cruces entre cuadros
   const cruces: string[] = [];
   const trauma = capitulos.find((c) => /traumat/i.test(c.nombre))?.n ?? 0;
@@ -408,9 +414,9 @@ export function analisisIntegral(d: DatosAnalisis, h: Herramientas, t: Totales, 
     cruces.push(`la consulta registra ${plural(trauma, "lesión traumática", "lesiones traumáticas")} y no hay accidentes de trabajo registrados: conviene verificar que ninguna haya ocurrido en el trabajo sin notificarse`);
     prioridades.push({ nivel: 2, texto: "lesiones traumáticas sin accidentes registrados (posible subregistro)", accion: "Cruzar las lesiones traumáticas atendidas con el registro de accidentes e incidentes para descartar eventos laborales no notificados." });
   }
-  if (origenLaboral > (acc?.accidentes ?? 0)) cruces.push(`hay más diagnósticos por accidente laboral (${n0(origenLaboral)}) que accidentes registrados (${n0(acc?.accidentes ?? 0)}), diferencia que debe conciliarse con el Servicio de SST`);
+  if (origenLaboral > (acc?.accidentes ?? 0)) cruces.push(`hay más diagnósticos por accidente laboral (${cuenta(origenLaboral)}) que accidentes registrados (${cuenta(acc?.accidentes ?? 0)}), diferencia que debe conciliarse con el Servicio de SST`);
   const ocup = r.morbilidad.por_origen.ocupacional ?? 0;
-  if (ocup > eo) cruces.push(`${plural(ocup, "diagnóstico de posible origen ocupacional espera", "diagnósticos de posible origen ocupacional esperan")} su calificación, que definirá si se declaran`);
+  if (ocup > eo) cruces.push(`${personas(ocup, "diagnóstico de posible origen ocupacional espera", "diagnósticos de posible origen ocupacional esperan")} su calificación, que definirá si se declaran`);
   const top = capitulos[0];
   const totalDx = r.morbilidad.total;
   if (top && totalDx && p(top.n, totalDx) >= 35) {
@@ -457,8 +463,9 @@ export function analisisIntegral(d: DatosAnalisis, h: Herramientas, t: Totales, 
       `Al integrar todos los cuadros y gráficos, el balance es de ${n0(verdes)} ${verdes === 1 ? "indicador favorable" : "indicadores favorables"}, ${n0(amarillos)} en vigilancia y ${n0(rojos)} ${rojos === 1 ? "crítico" : "críticos"}.`,
     ])];
     if (pob && r.consultas.total) f.push(`La demanda fue de ${n1((r.consultas.total * 100) / pob)} consultas por cada 100 trabajadores${r.morbilidad.pacientes ? `, con ${pc(r.morbilidad.pacientes, pob)} de la plantilla con algún diagnóstico` : ""}${r.consultas.pacientes && r.consultas.sanos ? ` y ${pc(r.consultas.sanos, r.consultas.pacientes)} de los atendidos sanos` : ""}.`);
-    if (cruces.length) f.push(`Al cruzar los cuadros se observa que ${unir(cruces.slice(0, 5))}.`);
-    else f.push("Los cuadros no muestran relaciones de alerta entre sí: morbilidad, ausentismo y accidentalidad se comportan de forma independiente y dentro de lo esperado.");
+    // Un hallazgo por línea: se lee mejor que una sola oración larga
+    if (cruces.length) return `${f.join(" ")}\nAl cruzar los cuadros se observa:\n${cruces.slice(0, 6).map((c) => `• ${mayus(c)}.`).join("\n")}`;
+    f.push("Los cuadros no muestran relaciones de alerta entre sí: morbilidad, ausentismo y accidentalidad se comportan de forma independiente y dentro de lo esperado.");
     return f.join(" ");
   })();
 

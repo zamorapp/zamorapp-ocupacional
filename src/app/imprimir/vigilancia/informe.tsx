@@ -26,9 +26,11 @@ const porc = (n: number, total: number) => (total ? num(Math.round((n * 1000) / 
 
 // Cuadro compacto: total y % sobre la última columna numérica; sin filas, una sola línea
 // minimo: en lo que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo» (sin su % ni el total que las delata)
-function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0 }: {
-  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number;
+// texto: columnas (además de la primera) que llevan palabras: a la izquierda y en letra normal
+function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [] }: {
+  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[];
 }) {
+  const cifra = (j: number) => j > 0 && !texto.includes(j);
   if (!filas.length) return <p className="text-[10.5px] italic text-doc-tenue">{vacio}</p>;
   const oculta = (v: Celda) => minimo > 0 && typeof v === "number" && v > 0 && v < minimo;
   const conOcultas = filas.some((f) => f.some(oculta));
@@ -39,14 +41,14 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
     <table className="w-full border-collapse text-[10.5px]">
       <thead>
         <tr className="bg-doc-suave text-left text-[9.5px] uppercase tracking-wide text-doc-acento">
-          {columnas.map((c, i) => <th key={c} className={`${th} ${i > 0 ? "text-right" : ""}`}>{c}</th>)}
+          {columnas.map((c, i) => <th key={c} className={`${th} ${cifra(i) ? "text-right" : ""}`}>{c}</th>)}
           {porcentaje && <th className={`${th} w-12 text-right`}>%</th>}
         </tr>
       </thead>
       <tbody>
         {filas.map((f, i) => (
           <tr key={i}>
-            {f.map((v, j) => <td key={j} className={`${td} ${j > 0 ? "text-right font-cifra tabular-nums" : ""}`}>{oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
+            {f.map((v, j) => <td key={j} className={`${td} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""}`}>{oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
             {porcentaje && <td className={`${td} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
           </tr>
         ))}
@@ -220,6 +222,12 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
         poblacion={r.poblacion}
         org={org?.nombre ?? null}
       />
+
+      {/* Índice justo después de la portada: las páginas se calculan al abrir */}
+      <Hoja>
+        <h2 className="mb-3 border-b border-doc-linea pb-1.5 text-[13px] font-extrabold uppercase tracking-[.08em] text-[#15201e]">Índice</h2>
+        <IndiceInforme />
+      </Hoja>
 
       {/* Resumen ejecutivo */}
       <Hoja>
@@ -445,7 +453,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
         </Seccion>
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">
-          <Tabla columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} />
+          <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} />
           <Analisis texto={a.art34} />
           <p className="text-[9.5px] italic text-doc-tenue">La versión para cartelera de este cuadro va en la última hoja del informe.</p>
         </Seccion>
@@ -494,7 +502,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           {CAUSAS_REPOSO.map((c) => (
             <div key={c} className="space-y-2">
               <Panel ancla={`i-anexo-reposo-${c}`} titulo={`Causas de reposo por ${(causas[c] ?? c.replace("_", " ")).toLowerCase()}`}>
-                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, textoDiagnostico(d.cie10, d.descripcion), d.dias, d.n])} />
+                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} texto={[1]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, textoDiagnostico(d.cie10, d.descripcion), d.dias, d.n])} />
               </Panel>
               <Analisis texto={a[`anexo_reposo_${c}` as SeccionAnalisis]} />
             </div>
@@ -519,11 +527,6 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
         </Seccion>
       </Hoja>
 
-      <Hoja>
-        <Seccion n="C" titulo="Índice de indicadores">
-          <IndiceInforme />
-        </Seccion>
-      </Hoja>
 
       {/* Hoja para cartelera: el resumen del art. 34 se publica a la vista de los trabajadores */}
       <Hoja>
@@ -538,7 +541,8 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           hasta={corta(periodo.hasta)}
           poblacion={pob}
           org={org?.nombre ?? null}
-          logo={logoEmpresa ?? org?.logo ?? null}
+          logo={org?.logo ?? null}
+          minimo={minimo}
         />
       </Hoja>
     </div>

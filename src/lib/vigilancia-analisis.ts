@@ -4,7 +4,7 @@
 
 import type { Reporte } from "@/lib/reportes";
 import { analisisAnexo, analisisCuadros, analisisIntegral, type Historico } from "@/lib/vigilancia-integral";
-import { contraer, dx, etq, humano, mayus, mesLargo, minus, n0, n1, n2, nombrable, p, pc, plural, sinRegistros, sinTildes, unir } from "@/lib/vigilancia-redaccion";
+import { contraer, personas, dx, etq, humano, mayus, mesLargo, minus, n0, n1, n2, nombrable, p, pc, plural, sinRegistros, sinTildes, unir } from "@/lib/vigilancia-redaccion";
 
 export type Series = {
   por_mes: { mes: string; consultas: number; preventivas: number; diagnosticos: number; dias_reposo: number }[];
@@ -326,8 +326,8 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     ]));
     const ocup = m.por_origen.ocupacional ?? 0;
     if (ocup) frases.push(elige([
-      `${mayus(plural(ocup, "diagnóstico fue calificado", "diagnósticos fueron calificados"))} como de origen ocupacional (${pc(ocup, m.total)}), lo que obliga a su investigación y declaración.`,
-      `Hay ${plural(ocup, "diagnóstico", "diagnósticos")} de posible origen ocupacional que requieren investigación y, si se confirman, declaración ante el INPSASEL.`,
+      `${mayus(personas(ocup, "diagnóstico fue calificado", "diagnósticos fueron calificados"))} como de origen ocupacional, lo que obliga a su investigación y declaración.`,
+      `Hay ${personas(ocup, "diagnóstico", "diagnósticos")} de posible origen ocupacional que requieren investigación y, si se confirman, declaración ante el INPSASEL.`,
     ]));
     const cmp = cambio(t.diagnosticos, ant?.diagnosticos, ant ? `el ${etq(ant.etiqueta)}` : "", "el número de diagnósticos");
     if (cmp && azar() > 0.3) frases.push(cmp);
@@ -400,7 +400,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       else if (a.aTiempo !== null) frases.push(`El ${n0(a.aTiempo)} % de los eventos se declaró dentro del plazo legal.`);
     }
     frases.push(eo
-      ? elige([`Se diagnosticó ${plural(eo, "caso", "casos")} de enfermedad ocupacional, que requiere${eo === 1 ? "" : "n"} investigación, declaración y reubicación si corresponde.`, `En el período se calificaron ${plural(eo, "enfermedad ocupacional", "enfermedades ocupacionales")}.`])
+      ? elige([`Se diagnosticaron ${personas(eo, "caso", "casos")} de enfermedad ocupacional, que requieren investigación, declaración y reubicación si corresponde.`, `En el período se calificaron ${eo < 3 ? "casos de enfermedad ocupacional" : plural(eo, "enfermedad ocupacional", "enfermedades ocupacionales")}.`])
       : elige(["No se calificaron enfermedades ocupacionales en el período.", "Sin nuevos casos de enfermedad ocupacional."]));
     return frases.join(" ");
   })();

@@ -90,7 +90,7 @@ test("análisis integral: tendencia, prioridades, recomendaciones y conclusión 
   assert.match(a.recomendaciones_empresa, /^1\. /);
   assert.match(a.recomendaciones_empresa, /Medir en el próximo informe/);
   assert.match(a.conclusion_final, /indicadores? en rango favorable/);
-  assert.match(a.integral, /Proyección tiene a la vez/);
+  assert.match(a.integral, /^• Proyección tiene a la vez/m);
 });
 
 test("anexo: con menos de 3 de un sexo no se comparan causas por sexo", () => {
@@ -104,4 +104,17 @@ test("anexo: con menos de 3 de un sexo no se comparan causas por sexo", () => {
 
 test("siglas no se escriben en minúscula (IVSS, no iVSS)", () => {
   for (let v = 0; v < 6; v++) assert.doesNotMatch(JSON.stringify(generarAnalisis(datos, v)), /iVSS/);
+});
+
+test("RR. HH.: 1 enfermedad ocupacional y 1 reposo por accidente laboral no se cuentan con su cifra", () => {
+  const d = structuredClone(datos);
+  d.r.enfermedad_ocupacional = { casos: 1, dias: 12, casos_anteriores: 1, dias_anteriores: 20 };
+  d.r.morbilidad.por_origen = { comun: 7, ocupacional: 2, accidente_laboral: 1 };
+  d.r.ausentismo.detalle = [{ causa: "accidente_laboral", ente: "ivss", cie10: "S93.4", descripcion: "Esguince", n: 1, dias: 9 }];
+  d.acc = { accidentes: 0, conTiempoPerdido: 0, diasPerdidos: 0, ifn: 0, is: 0, aTiempo: null, porDeclarar: 0, ifb: 0, hht: 30000 };
+  for (let v = 0; v < 6; v++) {
+    const todo = JSON.stringify(generarAnalisis(d, v).secciones);
+    assert.doesNotMatch(todo, /\b1 caso\b|\b1 enfermedad|(?<![\d,.])[12] (caso|enfermedad|diagn|reposo|día|trabajador)/, `variante ${v}`);
+    assert.doesNotMatch(todo, /Esguince|20 días/);
+  }
 });
