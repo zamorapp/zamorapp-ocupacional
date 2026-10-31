@@ -8,7 +8,7 @@ import { claveAvisos, pushConfigurado } from "@/lib/push";
 
 // Correo diario de constancias a RR. HH. (envío automático por empresa, Cesar 31-oct). Lo llama el workflow «Avisos al
 // celular» cada 15 minutos; la base decide a qué empresa ya le toca (pasó su hora y no se le envió hoy) y entrega sus
-// constancias listas solo con la clave del servidor. Nunca service_role. No devuelve datos: solo cuántas salieron.
+// constancias listas solo con la clave del servidor. Sin la llave de servicio. No devuelve datos: solo cuántas salieron.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -30,8 +30,11 @@ export async function GET() {
   for (let i = 0; i < POR_LLAMADA; i++) {
     const { data, error } = await supabase.rpc("constancias_del_dia", { p_clave: clave });
     if (error) return NextResponse.json({ ok: false }, { status: 500 });
-    const filas = (data ?? []) as Fila[];
-    if (!filas.length) break;
+    const todas = (data ?? []) as Fila[];
+    if (!todas.length) break;
+    // Gmail acepta hasta 25 MB por correo: lo que no quepa en 20 MB queda reservado y sale en el siguiente latido
+    let peso = 0;
+    const filas = todas.filter((f, i) => (peso += (f.contenido_base64.length * 3) / 4) <= 20 * 1024 * 1024 || i === 0);
     const { empresa_id: empresaId, empresa, destinatarios } = filas[0];
     // Si el correo de esta empresa falló en esta vuelta, no se reintenta hasta el siguiente latido
     if (vistas.has(empresaId)) break;

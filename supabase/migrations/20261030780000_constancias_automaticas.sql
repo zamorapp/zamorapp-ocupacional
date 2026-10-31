@@ -45,14 +45,19 @@ alter table public.empresa_envio_auto enable row level security;
 drop policy if exists envio_auto_leer on public.empresa_envio_auto;
 drop policy if exists envio_auto_crear on public.empresa_envio_auto;
 drop policy if exists envio_auto_cambiar on public.empresa_envio_auto;
+-- Patrón rápido (C14): el alcance se calcula una vez por consulta, no por fila
 create policy envio_auto_leer on public.empresa_envio_auto for select
-  using (public.es_servicio(org_id) and public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,enfermeria,recepcion}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,enfermeria,recepcion}'))::text[]));
 -- Lo activa quien manda documentos a la empresa con criterio médico: administrador, gerente médico o médico
 create policy envio_auto_crear on public.empresa_envio_auto for insert
-  with check (public.mi_rol(org_id) in ('administrador', 'gerente_medico', 'medico') and public.puede_ver_empresa(org_id, empresa_id));
+  with check (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico}', p_sin_limite => true))::uuid[])
+              or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico}'))::text[]));
 create policy envio_auto_cambiar on public.empresa_envio_auto for update
-  using (public.mi_rol(org_id) in ('administrador', 'gerente_medico', 'medico') and public.puede_ver_empresa(org_id, empresa_id))
-  with check (public.mi_rol(org_id) in ('administrador', 'gerente_medico', 'medico') and public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico}'))::text[]))
+  with check (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico}', p_sin_limite => true))::uuid[])
+              or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico}'))::text[]));
 revoke all on public.empresa_envio_auto from public, anon;
 revoke delete, truncate on public.empresa_envio_auto from authenticated;
 grant select, insert, update on public.empresa_envio_auto to authenticated;
@@ -95,17 +100,18 @@ $$;
 revoke execute on function public.es_solicitud_constancia(uuid) from public, anon;
 grant execute on function public.es_solicitud_constancia(uuid) to authenticated;
 
--- Última evaluación con aptitud del trabajador (firmada o no): la constancia que pide RR. HH. es la de esa consulta
-create or replace function public.ultima_evaluacion(p_trabajador uuid)
+-- Última evaluación con aptitud del trabajador EN ESA EMPRESA (firmada o no): la constancia que pide RR. HH. es la de esa
+-- consulta. Si el trabajador cambió de empresa, la evaluación de la anterior nunca responde a la nueva (Analizar, #215).
+create or replace function public.ultima_evaluacion(p_trabajador uuid, p_empresa uuid)
 returns table (consulta_id uuid, estado text, fecha date)
 language sql stable security definer set search_path = public as $$
   select c.id, c.estado, c.fecha
     from clinico.consultas c join clinico.aptitudes a on a.consulta_id = c.id
-   where c.trabajador_id = p_trabajador and true
+   where c.trabajador_id = p_trabajador and c.empresa_id = p_empresa
    order by c.fecha desc, c.hora_inicio desc
    limit 1
 $$;
-revoke execute on function public.ultima_evaluacion(uuid) from public, anon, authenticated;
+revoke execute on function public.ultima_evaluacion(uuid, uuid) from public, anon, authenticated;
 
 -- Responde con la constancia lista una solicitud. Escribe las horas a mano: una función security definer cuenta como
 -- «sincronía» para horas_solicitud (ver 20261030540000) y conservaría las que trae.
@@ -124,22 +130,22 @@ revoke execute on function public.responder_con_constancia(uuid, uuid) from publ
 
 -- Constancia lista de la última evaluación del trabajador (null si esa evaluación no está firmada o aún no tiene PDF).
 -- Solo para quien ve la empresa del trabajador; no dice nada clínico: id y fecha de la consulta.
-create or replace function public.constancia_lista_de(p_trabajador uuid)
+create or replace function public.constancia_lista_de(p_trabajador uuid, p_empresa uuid)
 returns table (consulta_id uuid, fecha date)
 language plpgsql stable security definer set search_path = public as $$
-declare v_ult record; v_t record;
+declare v_ult record; v_org uuid;
 begin
-  select t.org_id, t.empresa_id into v_t from public.trabajadores t where t.id = p_trabajador;
-  if v_t.org_id is null or not public.puede_ver_empresa(v_t.org_id, v_t.empresa_id) then return; end if;
-  select * into v_ult from public.ultima_evaluacion(p_trabajador);
+  select e.org_id into v_org from public.empresas e where e.id = p_empresa;
+  if v_org is null or not public.puede_ver_empresa(v_org, p_empresa) then return; end if;
+  select * into v_ult from public.ultima_evaluacion(p_trabajador, p_empresa);
   if v_ult.consulta_id is null or v_ult.estado <> 'firmada'
      or not exists (select 1 from public.constancias_listas l where l.consulta_id = v_ult.consulta_id) then
     return;
   end if;
   return query select v_ult.consulta_id, v_ult.fecha;
 end $$;
-revoke execute on function public.constancia_lista_de(uuid) from public, anon;
-grant execute on function public.constancia_lista_de(uuid) to authenticated;
+revoke execute on function public.constancia_lista_de(uuid, uuid) from public, anon;
+grant execute on function public.constancia_lista_de(uuid, uuid) to authenticated;
 
 -- Al registrar la solicitud: si la constancia de la última evaluación ya está lista, sale en el mismo paso.
 -- Se llama validar_solicitud_auto para correr DESPUÉS de validar_solicitud (mismo momento: orden alfabético), que deja
@@ -153,7 +159,7 @@ begin
   new.respondida_auto := false;
   new.constancia_consulta_id := null;
   if new.estado <> 'pendiente' or new.trabajador_id is null or not public.es_solicitud_constancia(new.tipo_id) then return new; end if;
-  select * into v_lista from public.constancia_lista_de(new.trabajador_id);
+  select * into v_lista from public.constancia_lista_de(new.trabajador_id, new.empresa_id);
   if v_lista.consulta_id is null then return new; end if;
   new.estado := 'respondida';
   new.respondida_auto := true;
@@ -245,9 +251,9 @@ language sql stable security definer set search_path = public as $$
      and not exists (select 1 from public.constancias_listas l where l.consulta_id = c.id)
      and (
        exists (select 1 from public.solicitudes s
-                where s.trabajador_id = c.trabajador_id and s.estado in ('pendiente', 'en_proceso')
+                where s.trabajador_id = c.trabajador_id and s.empresa_id = c.empresa_id and s.estado in ('pendiente', 'en_proceso')
                   and public.es_solicitud_constancia(s.tipo_id)
-                  and (select u.consulta_id from public.ultima_evaluacion(c.trabajador_id) u) = c.id)
+                  and (select u.consulta_id from public.ultima_evaluacion(c.trabajador_id, c.empresa_id) u) = c.id)
        or exists (select 1 from public.solicitudes s where s.constancia_consulta_id = c.id)
        or exists (select 1 from public.empresa_envio_auto e
                    where e.empresa_id = c.empresa_id and e.activo and coalesce(c.firmada_en, c.hora_cierre, c.hora_inicio) >= e.desde)
@@ -291,9 +297,9 @@ begin
     generada_por = auth.uid(), generada_en = public.ahora();
 
   -- Solicitudes abiertas de constancia de este trabajador, si esta es su última evaluación
-  if (select u.consulta_id from public.ultima_evaluacion(v_c.trabajador_id) u) = v_c.id then
+  if (select u.consulta_id from public.ultima_evaluacion(v_c.trabajador_id, v_c.empresa_id) u) = v_c.id then
     for v_s in select s.id from public.solicitudes s
-                where s.trabajador_id = v_c.trabajador_id and s.estado in ('pendiente', 'en_proceso')
+                where s.trabajador_id = v_c.trabajador_id and s.empresa_id = v_c.empresa_id and s.estado in ('pendiente', 'en_proceso')
                   and public.es_solicitud_constancia(s.tipo_id) loop
       perform public.responder_con_constancia(v_s.id, v_c.id);
       v_n := v_n + 1;

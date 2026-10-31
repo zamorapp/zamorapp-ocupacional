@@ -82,6 +82,33 @@ do $$ begin
 exception when others then raise notice 'RR. HH. no activa el envío (debe 1): 1';
 end $$;
 
+-- Trabajador que cambió de empresa (Analizar, #215): la constancia de la A nunca responde la solicitud de la B
+reset role;
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos,creado_en) values
+ ('31820000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','182002','Rosa','Mudanza','2020-01-01');
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha) values
+ ('41820000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','31820000-0000-0000-0000-000000000002','borrador',public.hoy_caracas() - 5);
+insert into clinico.aptitudes (org_id,consulta_id,trabajador_id,clasificacion) values
+ ('10000000-0000-0000-0000-000000000001','41820000-0000-0000-0000-000000000003','31820000-0000-0000-0000-000000000002','elegible');
+update clinico.consultas set estado='firmada', firmada_en=now() - interval '5 days' where id='41820000-0000-0000-0000-000000000003';
+insert into public.constancias_listas (consulta_id,org_id,empresa_id,trabajador_id,nombre,contenido) values
+ ('41820000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','31820000-0000-0000-0000-000000000002','Constancia 182002.pdf', decode((select b from pdf182),'base64'));
+update public.trabajadores set empresa_id='20000000-0000-0000-0000-00000000000b' where id='31820000-0000-0000-0000-000000000002';
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000001b2','rrhhB182@x') on conflict do nothing;
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
+ ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000001b2','gerente_empresa','{20000000-0000-0000-0000-00000000000b}');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000001b2',false) \g /dev/null
+insert into public.solicitudes (id,org_id,empresa_id,tipo_id,tipo,trabajador_id,detalle)
+ select 'c1820000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b',i.id,'',
+        '31820000-0000-0000-0000-000000000002','Copia en la nueva empresa'
+   from public.lista_items i where i.lista='tipo_solicitud' and i.codigo='APT' and i.org_id is null;
+select 'otra empresa: queda pendiente para el servicio (debe 1): ' || count(*) from public.solicitudes
+ where id='c1820000-0000-0000-0000-000000000004' and estado='pendiente' and not respondida_auto;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+select 'volver a guardar la de A no responde la de B (debe 0): ' || public.guardar_constancia_lista('41820000-0000-0000-0000-000000000003', (select b from pdf182));
+
 -- Recepción de otra empresa (limitada a la B) no la baja
 reset role;
 insert into auth.users (id,email) values ('00000000-0000-0000-0000-000000000182','recep182@x') on conflict do nothing;
@@ -122,11 +149,11 @@ reset role;
 delete from public.notificaciones where texto like '%Luis Ciento%' or texto like '%rrhh182%' or titulo = 'Constancias sin enviar';
 delete from public.solicitudes where id::text like 'c1820000-%';
 delete from public.empresa_envio_auto where empresa_id='20000000-0000-0000-0000-00000000000a';
-delete from public.constancias_listas where trabajador_id='31820000-0000-0000-0000-000000000001';
+delete from public.constancias_listas where trabajador_id::text like '31820000-%';
 delete from clinico.aptitudes where consulta_id::text like '41820000-%';
 delete from clinico.consultas where id::text like '41820000-%';
-delete from public.trabajadores where id='31820000-0000-0000-0000-000000000001';
+delete from public.trabajadores where id::text like '31820000-%';
 delete from public.empresa_contactos where id::text like 'c1820000-%';
 delete from public.avisos_push_clave where org_id='10000000-0000-0000-0000-000000000001';
-delete from public.miembros where usuario_id='00000000-0000-0000-0000-000000000182';
+delete from public.miembros where usuario_id in ('00000000-0000-0000-0000-000000000182','00000000-0000-0000-0000-0000000001b2');
 drop table pdf182;
