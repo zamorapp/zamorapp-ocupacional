@@ -310,11 +310,12 @@ try {
         reubPorCons.has(c.codigo) ? (() => { const r = reubPorCons.get(c.codigo); return [`Reubicación laboral: ${r.reubicado === "S" ? "sí" : "no"}.`, r.resultado && `Resultado: ${oracion(r.resultado)}.`, r.observacion, r.obs_resultado].filter(Boolean).join(" "); })() : null),
       interconsultas: (refPorCons.get(c.codigo) ?? []).map((r) => ({ especialidad: r.especialidad ? titulo(r.especialidad) : "", motivo: r.cuerpo ?? "" })),
       recomendaciones_empresa: nulo(c.recomendaemp), recomendaciones_trabajador: nulo(c.recomendapac), observacion_privada: nulo(c.obsprivada),
-      sano: c.adultosano === "S", estado: "cerrada" };
+      // Ya firmada y emitida en el SAME (31-oct): llega «Firmada en el SAME», sin firma de zamorApp
+      sano: c.adultosano === "S", estado: "firmada", firma_origen: "same", firmada_en: marca(c.horacierre) ?? marca(c.horainicio) ?? marca(c.fecha) };
   }), { ...T, empresa_id: "uuid", trabajador_id: "uuid", medico_id: "uuid", fecha: "date", hora_inicio: "timestamptz", hora_cierre: "timestamptz", tipo: "text",
     motivo_id: "uuid", dependencia_id: "uuid", puesto_id: "uuid", motivo_texto: "text", enfermedad_actual: "text", habitos: "jsonb", antecedentes: "jsonb",
     examen_funcional: "jsonb", examen_fisico: "jsonb", paraclinicos: "jsonb", signos_vitales: "jsonb", tratamiento: "jsonb", interconsultas: "jsonb", indicaciones: "text", conclusiones: "text",
-    recomendaciones_empresa: "text", recomendaciones_trabajador: "text", observacion_privada: "text", sano: "boolean", estado: "text" }, { modo: "si_no_editado" });
+    recomendaciones_empresa: "text", recomendaciones_trabajador: "text", observacion_privada: "text", sano: "boolean", estado: "text", firma_origen: "text", firmada_en: "timestamptz" }, { modo: "si_no_editado" });
 
   // Diagnósticos: se reemplazan los importados de cada consulta
   const escrita = (codigo) => consEscritas.has(`cons:${codigo}`);

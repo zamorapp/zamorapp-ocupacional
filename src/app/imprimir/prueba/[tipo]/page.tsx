@@ -40,5 +40,5 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   }
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
-  return <t.Componente d={documentoDePrueba(largo)} />;
+  return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
 }
