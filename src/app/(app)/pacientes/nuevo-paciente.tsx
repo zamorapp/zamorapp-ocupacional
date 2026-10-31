@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, RotateCcw, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -97,7 +97,14 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, car
           <Campo id="correo" etiqueta="Correo" type="email" />
 
           {estado && !estado.ok && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">{estado.mensaje}</p>
+            <div className="space-y-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">
+              <p>{estado.mensaje}</p>
+              {estado.existente && (
+                <Button type="button" size="sm" variant="outline" onClick={() => { setAbierto(false); router.push(`/pacientes/${estado.existente}`); }}>
+                  <RotateCcw /> Abrir su ficha para reingresarlo
+                </Button>
+              )}
+            </div>
           )}
           <div className="flex justify-end gap-2 sm:col-span-2">
             <Button type="button" variant="ghost" onClick={() => setAbierto(false)}>Cancelar</Button>

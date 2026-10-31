@@ -11,7 +11,8 @@ import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
 
-export type Resultado = { ok: boolean; mensaje: string; id?: string };
+// existente: la cédula ya es de un trabajador inactivo o egresado (la pantalla ofrece abrir su ficha para reingresarlo)
+export type Resultado = { ok: boolean; mensaje: string; id?: string; existente?: string };
 
 type Supabase = Awaited<ReturnType<typeof crearClienteServidor>>;
 
@@ -142,9 +143,12 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
       if (error.code !== "23505") return { ok: false, mensaje: "No se pudo guardar: " + error.message };
       // Cédula ya registrada: se dice en qué empresa está. Si es de una inactiva (candidato que vuelve), se pasa
       // desde su ficha o el buscador conservando su historia, en vez de crearlo de nuevo.
-      const { data: previo } = await supabase.from("trabajadores").select("nombres, apellidos, empresas(razon_social, activa)").eq("cedula", cedula).maybeSingle();
+      const { data: previo } = await supabase.from("trabajadores").select("id, nombres, apellidos, estado, empresas(razon_social, activa)").eq("cedula", cedula).maybeSingle();
       const e = previo?.empresas as unknown as { razon_social: string; activa: boolean } | null;
       if (!previo || !e) return { ok: false, mensaje: "Ya existe un paciente con esa cédula." };
+      // Inactivo o egresado que vuelve: se abre su ficha para «Reingresar» con sus datos (empieza de cero)
+      if (previo.estado === "inactivo" || previo.estado === "egresado")
+        return { ok: false, existente: previo.id, mensaje: `${previo.nombres} ${previo.apellidos} ya está registrado (${previo.estado === "inactivo" ? "inactivo" : "egresado"}, último en ${e.razon_social}). Abre su ficha y toca «Reingresar»: sus datos se conservan y empieza un período nuevo.` };
       return {
         ok: false,
         mensaje: e.activa
@@ -218,21 +222,123 @@ export async function importarPacientes(empresaId: string, filas: FilaImportada[
   }
 }
 
-// Depurar nómina: cuenta (aplicar = false) o marca como egresados a quienes no tienen consulta desde "desde"
-export async function depurarNomina(empresaId: string | null, desde: string, aplicar: boolean): Promise<Resultado & { cantidad?: number }> {
+// ─── Inactivos (Cesar, 31-oct): ya no están en la empresa pero nunca tuvieron egreso (p. ej. los del SAME) ───
+// No es un egreso: salen de conteos, estadísticas y alertas; sus datos y su historia quedan. Si vuelven, se reingresan.
+export type Candidato = { id: string; cedula: string; nombres: string; apellidos: string; empresa: string; cargo: string | null; fechaIngreso: string | null; ultimaConsulta: string | null };
+export type Inactivados = { items: { id: string; estado: string }[]; fecha: string };
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+function refrescarTrabajadores() {
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  olvidar("");
+}
+
+// Trabajadores activos, en reposo o aspirantes sin ninguna consulta desde «desde» (solo datos laborales)
+export async function candidatosInactivar(empresaId: string | null, desde: string): Promise<Resultado & { candidatos?: Candidato[] }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para usar esta función." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde)) return { ok: false, mensaje: "Elige una fecha válida." };
+  if (!FECHA.test(desde)) return { ok: false, mensaje: "Elige una fecha válida." };
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("depurar_nomina", { p_empresa: empresaId || null, p_desde: desde, p_aplicar: aplicar });
-  if (error) return { ok: false, mensaje: error.message.includes("permiso") ? "Solo el administrador o el personal de salud pueden depurar la nómina." : error.message };
-  if (aplicar) {
-    invalidarEmpresas();
-    revalidatePath("/", "layout");
-    olvidar("");
-  }
+  const { data, error } = await supabase.rpc("candidatos_inactivar", { p_empresa: empresaId || null, p_desde: desde });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el personal de salud pueden depurar trabajadores." : "No se pudo armar la lista: " + error.message };
+  const filas = (data ?? []) as { id: string; cedula: string; nombres: string; apellidos: string; empresa: string; cargo: string | null; fecha_ingreso: string | null; ultima_consulta: string | null }[];
+  return {
+    ok: true,
+    mensaje: `${filas.length} trabajadores sin consulta desde esa fecha.`,
+    candidatos: filas.map((f) => ({ id: f.id, cedula: f.cedula, nombres: f.nombres, apellidos: f.apellidos, empresa: f.empresa, cargo: f.cargo, fechaIngreso: f.fecha_ingreso, ultimaConsulta: f.ultima_consulta })),
+  };
+}
+
+// Inactiva uno (desde la ficha) o muchos (Depurar). Devuelve el estado anterior de cada uno para «Deshacer».
+export async function inactivarTrabajadores(ids: string[], fecha: string, motivo: string): Promise<Resultado & { hecho?: Inactivados }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  const validos = [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+  if (!validos.length) return { ok: false, mensaje: "No elegiste a ningún trabajador." };
+  if (!FECHA.test(fecha)) return { ok: false, mensaje: "Elige una fecha válida." };
+  if (fecha > hoyCaracas()) return { ok: false, mensaje: "La fecha no puede ser futura." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("inactivar_trabajadores", { p_ids: validos, p_fecha: fecha, p_motivo: motivo.trim().slice(0, 200) || null });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el personal de salud pueden inactivar trabajadores." : "No se pudo inactivar: " + error.message };
+  const items = (data ?? []) as Inactivados["items"];
+  refrescarTrabajadores();
+  if (!items.length) return { ok: false, mensaje: "Nadie cambió: ya estaban inactivos o egresados, o tu usuario no puede modificarlos." };
+  const faltan = validos.length - items.length;
+  return {
+    ok: true,
+    hecho: { items, fecha },
+    mensaje: `${items.length === 1 ? "1 trabajador quedó inactivo" : `${items.length} trabajadores quedaron inactivos`}. Sus datos y su historia se conservan.`
+      + (faltan > 0 ? ` ${faltan} no cambiaron (ya estaban inactivos o egresados).` : ""),
+  };
+}
+
+export async function deshacerInactivar(hecho: Inactivados): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!FECHA.test(hecho.fecha)) return { ok: false, mensaje: "No se pudo deshacer: datos no válidos." };
+  // La base solo acepta estos estados y solo toca a quien sigue inactivo con esa misma fecha
+  const items = hecho.items.filter((i) => /^[0-9a-f-]{36}$/i.test(i.id) && ["activo", "reposo", "aspirante"].includes(i.estado));
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("deshacer_inactivar", { p_items: items, p_fecha: hecho.fecha });
+  if (error) return { ok: false, mensaje: "No se pudo deshacer: " + error.message };
+  refrescarTrabajadores();
   const n = Number(data ?? 0);
-  return { ok: true, cantidad: n, mensaje: aplicar ? `${n} trabajadores marcados como egresados.` : `${n} trabajadores sin consulta desde esa fecha.` };
+  return { ok: true, mensaje: n === items.length ? "Listo, quedaron como estaban." : `Se devolvieron ${n} de ${items.length} (los demás ya habían cambiado).` };
+}
+
+// Reingreso (misma u otra empresa): conserva los datos personales y empieza un período NUEVO desde la fecha de ingreso.
+// La aptitud, los vencimientos y las alertas del período anterior no cuentan (orden de Cesar, 31-oct); las consultas
+// viejas siguen en su historia. El período anterior queda en el historial de empresas (lo anota la base).
+export async function reingresarTrabajador(trabajadorId: string, empresaId: string, fechaIngreso: string, cargo: string): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!empresaId) return { ok: false, mensaje: "Elige la empresa a la que reingresa." };
+  if (!FECHA.test(fechaIngreso)) return { ok: false, mensaje: "Elige la fecha de ingreso." };
+  if (fechaIngreso > hoyCaracas()) return { ok: false, mensaje: "La fecha de ingreso no puede ser futura." };
+  const supabase = await crearClienteServidor();
+  const [{ data: destino }, { data: t }] = await Promise.all([
+    supabase.from("empresas").select("razon_social, activa").eq("id", empresaId).maybeSingle(),
+    supabase.from("trabajadores").select("estado, periodo_desde, fecha_inactivo, fecha_egreso, nombres, apellidos").eq("id", trabajadorId).maybeSingle(),
+  ]);
+  if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
+  if (!destino?.activa) return { ok: false, mensaje: "Esa empresa no está activa. Elige una empresa activa." };
+  if (t.estado !== "inactivo" && t.estado !== "egresado") return { ok: false, mensaje: `${t.nombres} ${t.apellidos} no está inactivo ni egresado.` };
+  if (t.periodo_desde && fechaIngreso <= t.periodo_desde)
+    return { ok: false, mensaje: `La fecha de ingreso debe ser posterior al inicio de su período anterior (${t.periodo_desde.split("-").reverse().join("/")}).` };
+  const salida = t.estado === "inactivo" ? t.fecha_inactivo : t.fecha_egreso;
+  if (salida && fechaIngreso < salida)
+    return { ok: false, mensaje: `La fecha de ingreso no puede ser anterior a su salida (${salida.split("-").reverse().join("/")}).` };
+  try {
+    const cat = await resolverCatalogos(supabase, sesion.orgId, empresaId, [], cargo.trim() ? [cargo] : []);
+    // Sin pedir la fila de vuelta (columnas de salud ocultas, #41): basta el conteo para saber si la RLS lo dejó
+    const { count, error } = await supabase
+      .from("trabajadores")
+      .update({
+        empresa_id: empresaId, estado: "activo", fecha_ingreso: fechaIngreso, periodo_desde: fechaIngreso, fecha_egreso: null,
+        puesto_id: cat.puesto(cargo.trim() || null), fecha_ingreso_cargo: cargo.trim() ? fechaIngreso : null, dependencia_id: null, sede_id: null,
+      }, { count: "exact" })
+      .eq("id", trabajadorId);
+    if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el servicio de salud puede reingresar a un trabajador." : "No se pudo reingresar: " + error.message };
+    if (!count) return { ok: false, mensaje: "Tu usuario no puede modificar a este trabajador." };
+    refrescarTrabajadores();
+    return { ok: true, mensaje: `${t.nombres} ${t.apellidos} reingresó a ${destino.razon_social}. Empieza sin evaluar: su aptitud cuenta desde la nueva evaluación de ingreso.` };
+  } catch (e) {
+    return { ok: false, mensaje: (e as Error).message };
+  }
+}
+
+export type PeriodoAnterior = { empresa: string; cargo: string | null; desde: string | null; hasta: string; cierre: "inactivo" | "egresado" | "traslado"; motivo: string | null };
+export async function periodosDeTrabajador(trabajadorId: string): Promise<PeriodoAnterior[]> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("trabajador_periodos").select("cargo, desde, hasta, cierre, motivo, empresas(razon_social)")
+    .eq("trabajador_id", trabajadorId).order("hasta", { ascending: false }).limit(20);
+  return (data ?? []).map((p) => ({
+    empresa: (p.empresas as unknown as { razon_social: string } | null)?.razon_social ?? "Empresa",
+    cargo: p.cargo, desde: p.desde, hasta: p.hasta, cierre: p.cierre as PeriodoAnterior["cierre"], motivo: p.motivo,
+  }));
 }
 
 // Ficha del trabajador desde la consulta («Generales» › Datos del trabajador). El cargo o la dependencia nuevos se
