@@ -87,6 +87,8 @@ export type ConsultaCompleta = {
   trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
+  // Firmada y emitida en el SAME (importada): hora de esa firma. null = sin firma o firmada en zamorApp
+  firmadaEnSame: string | null;
   registrada: string; // día (Caracas) en que se registró de verdad; la fecha de la evaluación puede ser otra
   // Recién creada y nunca guardada: la plantilla del motivo se aplica sola al abrirla
   nueva: boolean;
@@ -122,6 +124,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
   return {
     medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,
     medicoId: c.medico_id ?? null,
+    firmadaEnSame: c.estado === "firmada" && c.firma_origen === "same" ? (c.firmada_en ?? null) : null,
     registrada: hoyCaracas(c.creado_en),
     nueva: c.estado === "borrador" && c.actualizado_en === c.creado_en,
     trabajador: {

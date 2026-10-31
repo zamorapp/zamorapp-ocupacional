@@ -77,6 +77,8 @@ type Props = {
   inicial: DatosConsulta;
   trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
   medico: string | null;
+  // Firmada y emitida en el SAME (consulta importada): hora de esa firma; null = firmada aquí o sin firmar
+  firmadaEnSame?: string | null;
   listas: Record<string, Item[]>;
   adjuntos: { orgId: string; lista: Adjunto[] } | null;
   envio: { servicio: string; plantilla: string; telefono: string | null; correo: string | null };
@@ -276,7 +278,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -327,6 +329,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
     () => (plantillaInicial ? { nombre: plantillaInicial.nombre, antes: inicial, despues: precarga } : null));
 
   const bloqueado = d.estado !== "borrador";
+  // Al corregirla sube la revisión: la nueva firma ya es de zamorApp
+  const enSame = d.estado === "firmada" && firmadaEnSame && d.revision === inicial.revision ? firmadaEnSame : null;
   const [fichaCambiada, setFichaCambiada] = useState(false); // Generales › Datos del trabajador con cambios sin guardar
   const cambios = JSON.stringify(d) !== guardado || fichaCambiada;
   const set = <K extends keyof DatosConsulta>(k: K, v: DatosConsulta[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -763,7 +767,10 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           </div>
           {d.estado === "firmada" ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"
+                title={enSame ? `Firmada y emitida en el SAME el ${fechaHora(enSame)}. Se imprime con esa leyenda; «Corregir» la reabre y al volver a firmarla queda firmada en zamorApp.` : undefined}>
+                <Lock className="size-4" /> {enSame ? "Firmada en el SAME" : "Firmada"}
+              </span>
               {menuImprimir("default")}
               {puedeFirmar && !corrigiendo && (
                 <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
@@ -842,6 +849,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <b>Corregir la consulta firmada.</b> La versión firmada se guarda tal cual en el historial (no se pierde ni se edita)
               y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
+              {enSame && <> Esta vino firmada del SAME: al firmarla de nuevo queda firmada en zamorApp, con tu firma.</>}
             </p>
             {sinInternet && (corregirEspera ? (
               <div role="status" className="flex flex-wrap items-start gap-2 rounded-md bg-background/60 px-3 py-2 text-sm font-medium text-aviso-texto">

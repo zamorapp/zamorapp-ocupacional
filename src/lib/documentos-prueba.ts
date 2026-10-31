@@ -8,7 +8,8 @@ const logo = (texto: string, color: string) =>
 
 const repetir = (frase: string, n: number) => Array.from({ length: n }, () => frase).join(" ");
 
-export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
+// «same»: consulta importada del SAME, firmada y emitida allá (leyenda junto a la firma)
+export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocumento {
   const largo = caso === "largo";
   const texto = (corto: string, n: number) => (largo ? repetir(corto, n) : corto);
   return {
@@ -56,6 +57,7 @@ export function documentoDePrueba(caso: "normal" | "largo"): DatosDocumento {
     },
     medico: "Dr. Médico de Prueba",
     medicoId: "00000000-0000-4000-8000-000000000004",
+    firmadaEnSame: caso === "same" ? "2024-03-12T14:30:00-04:00" : null,
     registrada: "2026-10-28",
     nueva: false,
     org: {

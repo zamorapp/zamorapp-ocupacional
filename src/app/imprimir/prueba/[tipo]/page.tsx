@@ -14,5 +14,5 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   const [{ tipo }, { caso }] = await Promise.all([params, searchParams]);
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
-  return <t.Componente d={documentoDePrueba(caso === "largo" ? "largo" : "normal")} />;
+  return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
 }
