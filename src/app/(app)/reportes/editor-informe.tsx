@@ -238,7 +238,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
       <details className="group rounded-lg border p-3" open={!guardado || faltan.length > 0}>
         <summary className="cursor-pointer text-sm font-medium">
           Portada y firmantes <span className="font-normal text-muted-foreground">· se recuerdan del último informe de la empresa</span>
-          {faltan.length > 0 && <span className="ml-1.5 font-normal text-alerta-texto">· falta: {faltan.join(", ")}</span>}
+          {faltan.length > 0 && <span className="ml-1.5 font-normal"><span className="text-alerta-texto">· falta: {faltan.join(", ")}</span> <span className="text-muted-foreground">(puedes guardar igual)</span></span>}
         </summary>
         <div className="mt-3 space-y-4">
           {empresa && (
@@ -266,7 +266,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
 
       <div className="flex flex-wrap items-end gap-2">
         {/* Junto a los botones, siempre a la vista: sale en la portada del informe */}
-        <label className="flex flex-col gap-1 text-xs">
+        <label className="flex w-full flex-col gap-1 text-xs sm:w-auto">
           <span className="font-medium">Fecha de emisión</span>
           <Input
             type="date"
@@ -275,7 +275,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
             disabled={!editable}
             onChange={(e) => fijar({ fecha_emision: e.target.value })}
             onBlur={(e) => { if (!e.target.value) fijar({ fecha_emision: hoy }); }}
-            className="h-9 w-40 text-sm"
+            className="h-9 w-full text-sm sm:w-40"
           />
         </label>
         {editable && (
