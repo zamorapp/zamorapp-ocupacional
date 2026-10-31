@@ -60,7 +60,8 @@ export default function ErrorApp({ error: lanzado }: { error: Error & { digest?:
           <>
             <h1 className="text-lg font-semibold">No se pudo cargar esta pantalla</h1>
             <p className="text-sm text-muted-foreground">
-              Algo falló al preparar los datos. No se perdió nada de lo ya guardado. Revisa la conexión y vuelve a intentarlo.
+              No se perdió nada de lo ya guardado. Toca <strong>Reintentar</strong>;{" "}
+              {ESCRITORIO ? "si vuelve a salir, cierra y abre zamorApp." : <>si vuelve a salir, <strong>Actualizar la app</strong> trae la versión más reciente.</>}
             </p>
             {/* La causa a la vista: soporte sabe qué pasó sin pedir capturas de la consola */}
             <p className="break-words text-[11px] text-muted-foreground opacity-70">

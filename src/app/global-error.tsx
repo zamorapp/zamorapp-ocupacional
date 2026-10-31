@@ -30,6 +30,8 @@ export default function ErrorGlobal({ error: lanzado }: { error: Error & { diges
     <html lang="es-VE" suppressHydrationWarning>
       <head>
         <title>zamorApp</title>
+        {/* Sin destello blanco en modo oscuro antes de que corra el tema (mismos colores que sin-conexion.html) */}
+        <style>{`@media (prefers-color-scheme: dark){html:not(.dark) body{background:#0f1716;color:#e6efee}}`}</style>
       </head>
       <body className="antialiased">
         <main className="flex min-h-dvh items-center justify-center bg-background p-6 text-foreground">

@@ -59,13 +59,19 @@ function useVersionNueva() {
 export function AvisoVersionNueva() {
   const nueva = useVersionNueva();
   const [trabajando, setTrabajando] = useState(false);
-  if (!nueva) return null;
+  // Los avisos nunca bloquean: «Ignorar» la quita hasta la próxima revisión (al volver la app al frente)
+  const [ignorada, setIgnorada] = useState(false);
+  useEffect(() => { if (!nueva) setIgnorada(false); }, [nueva]);
+  if (!nueva || ignorada) return null;
   return (
     <div role="status" className="fixed inset-x-3 bottom-20 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-lg sm:bottom-4">
       <span className="text-sm font-medium">Hay una versión nueva de zamorApp</span>
-      <Button size="sm" disabled={trabajando} onClick={() => { setTrabajando(true); actualizarApp(); }}>
-        <RefreshCw className={trabajando ? "animate-spin" : undefined} /> Actualizar
-      </Button>
+      <div className="flex shrink-0 gap-1">
+        <Button size="sm" variant="ghost" disabled={trabajando} onClick={() => setIgnorada(true)}>Ignorar</Button>
+        <Button size="sm" disabled={trabajando} onClick={() => { setTrabajando(true); actualizarApp(); }}>
+          <RefreshCw className={trabajando ? "animate-spin" : undefined} /> Actualizar
+        </Button>
+      </div>
     </div>
   );
 }
