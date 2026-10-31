@@ -10,6 +10,7 @@
   img { width: 64px; height: 64px; }
   h1 { font-size: 1.4rem; margin: 1rem 0 .5rem; }
   p { color: #4b5d5b; line-height: 1.5; }
+  @media (prefers-color-scheme: dark) { body { background: #0f1716; color: #e6efee; } p { color: #9fb3b1; } a { color: #5eead4; } }
   button { margin-top: 1rem; border: 0; border-radius: 8px; background: #0f766e; color: #fff; padding: .7rem 1.4rem; font-size: 1rem; cursor: pointer; }
 </style>
 </head>
@@ -20,7 +21,7 @@
   <p>Revisa que tengas internet y vuelve a intentar; no se perdió nada de lo ya guardado.</p>
   <p>Si abriste la versión de esta PC (localhost), arráncala primero con el ícono «zamorApp Ocupacional» del escritorio, o usa la versión web: <a href="https://zamorapp-ocupacional.vercel.app">zamorapp-ocupacional.vercel.app</a>.</p>
   <button onclick="location.reload()">Reintentar</button>
-  <p id="auto" style="font-size:.9rem"></p>
+  <p id="auto" role="status" style="font-size:.9rem">Reintentando sola en 10 s…</p>
   <p style="margin-top:1.5rem">En el celular: abre una vez <a href="/movil">zamorApp sin internet</a> con señal y prepáralo; después funciona sin conexión.</p>
 </main>
 <script>

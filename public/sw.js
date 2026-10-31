@@ -45,6 +45,8 @@ async function guardarMovil(respuesta) {
 
 const esperar = (ms) => new Promise((listo) => setTimeout(listo, ms));
 async function conReintentos(request) {
+  // Solo GET (el manejador ya descarta el resto): un envío con cuerpo no se repite, se duplicaría
+  if (request.method !== "GET") return fetch(request);
   for (const pausa of [0, 1500, 3000]) {
     if (pausa) await esperar(pausa);
     try { return await fetch(request); } catch (e) { if (pausa === 3000) throw e; }

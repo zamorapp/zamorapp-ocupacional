@@ -86,7 +86,7 @@ export function BotonEntrarHuella({ alEntrar, activaEnPC = false }: { alEntrar: 
  * Código de 6 dígitos para registrar la huella cuando la sesión entró sin él (equipo de confianza): la nube no
  * registra llaves sin ese paso. Se escribe aquí mismo y se reintenta, sin mandar a otra pantalla.
  */
-function CodigoParaHuella({ mensaje, ocupado, alConfirmar }: { mensaje: string; ocupado: boolean; alConfirmar: (codigo: string) => void }) {
+function CodigoParaHuella({ mensaje, ocupado, alConfirmar, alCancelar }: { mensaje: string; ocupado: boolean; alConfirmar: (codigo: string) => void; alCancelar?: () => void }) {
   const [codigo, setCodigo] = useState("");
   const limpio = codigo.replace(/\D/g, "");
   return (
@@ -94,11 +94,14 @@ function CodigoParaHuella({ mensaje, ocupado, alConfirmar }: { mensaje: string; 
       <label htmlFor="codigo-huella" className="block text-sm font-medium">{mensaje}</label>
       <div className="flex gap-2">
         <Input id="codigo-huella" autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="123456"
-          className="h-11 text-center font-mono text-lg tracking-widest" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-        <Button type="submit" className="h-11" disabled={ocupado || limpio.length !== 6}>
+          aria-describedby="codigo-huella-ayuda"
+          className="h-11 min-w-0 flex-1 text-center font-mono text-lg tracking-widest" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+        <Button type="submit" className="h-11 whitespace-nowrap" disabled={ocupado || limpio.length !== 6}>
           {ocupado ? <Loader2 className="animate-spin" /> : <Fingerprint />} Seguir
         </Button>
+        {alCancelar && <Button type="button" variant="ghost" className="h-11 whitespace-nowrap" onClick={alCancelar} disabled={ocupado}>Cancelar</Button>}
       </div>
+      <p id="codigo-huella-ayuda" className="text-xs text-muted-foreground">El que muestra ahora Google Authenticator o Microsoft Authenticator en tu teléfono.</p>
     </form>
   );
 }
@@ -135,7 +138,7 @@ export function OfrecerHuella({ alTerminar }: { alTerminar: () => void }) {
             : "Usa la huella o el rostro de este equipo en vez de la contraseña. Tu huella no sale del equipo."}
         </p>
       </div>
-      {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
       <div className="flex flex-col gap-2">
         {pideCodigo ? (
           <CodigoParaHuella mensaje={pideCodigo} ocupado={cargando} alConfirmar={(c) => void activar(c)} />
@@ -227,8 +230,8 @@ export function HuellaCuenta() {
             ))}
           </ul>
         )}
-        {aviso && <p className={aviso.ok ? "rounded-md bg-primary/10 px-3 py-2 text-primary" : "rounded-md bg-destructive/10 px-3 py-2 text-destructive"}>{aviso.texto}</p>}
-        {disponible && pideCodigo && !yaActiva && <CodigoParaHuella mensaje={pideCodigo} ocupado={ocupado} alConfirmar={(c) => void activarAqui(c)} />}
+        {aviso && <p className={aviso.ok ? "rounded-md bg-primary/10 px-3 py-2 text-primary" : "rounded-md bg-alerta/10 px-3 py-2 text-alerta-texto"}>{aviso.texto}</p>}
+        {disponible && pideCodigo && !yaActiva && <CodigoParaHuella mensaje={pideCodigo} ocupado={ocupado} alConfirmar={(c) => void activarAqui(c)} alCancelar={() => { setPideCodigo(null); setAviso(null); }} />}
         {disponible && !pideCodigo && (
           <div className="flex flex-wrap gap-2">
             {yaActiva ? (

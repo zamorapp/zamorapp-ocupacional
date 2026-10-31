@@ -83,9 +83,10 @@ export default function ErrorApp({ error, reset }: { error: Error & { digest?: s
               Algo falló al preparar los datos. No se perdió nada de lo ya guardado. Revisa la conexión y vuelve a intentarlo.
             </p>
             {/* La causa a la vista: soporte sabe qué pasó sin pedir capturas de la consola */}
-            <p className="break-words text-xs text-muted-foreground">
+            <p className="break-words text-[11px] text-muted-foreground opacity-70">
               {error.digest ? `Código: ${error.digest} · ` : ""}Detalle: {`${error.name}: ${error.message}`.slice(0, 140)}
             </p>
+            {reintentando && <p role="status" className="text-sm text-muted-foreground">Reintentando…</p>}
             <div className="flex gap-2">
               <Button onClick={reintentar} disabled={reintentando}>{reintentando && <Loader2 className="animate-spin" aria-hidden />} Reintentar</Button>
               <Button variant="outline" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
