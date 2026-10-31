@@ -51,6 +51,32 @@ function useAvisos(escritorio = false) {
   return { estado, setEstado, endpoint, setEndpoint };
 }
 
+// Aviso de prueba de punta a punta: el servidor lo envía y el service worker cuenta si llegó y si Android lo mostró.
+// Así se sabe dónde se pierde (servicio de avisos, ahorro de batería o notificaciones silenciadas) sin adivinar.
+const RESPUESTA_CELULAR = 12000;
+function esperarRecibo(prueba: string) {
+  return new Promise<{ mostrado: boolean; error?: string } | null>((listo) => {
+    const alRecibir = (e: MessageEvent) => {
+      if (e.data?.tipo !== "aviso-recibido" || e.data.prueba !== prueba) return;
+      navigator.serviceWorker.removeEventListener("message", alRecibir);
+      clearTimeout(t);
+      listo({ mostrado: Boolean(e.data.mostrado), error: e.data.error });
+    };
+    const t = setTimeout(() => { navigator.serviceWorker.removeEventListener("message", alRecibir); listo(null); }, RESPUESTA_CELULAR);
+    navigator.serviceWorker.addEventListener("message", alRecibir);
+  });
+}
+async function probarDePuntaAPunta<R extends { ok: boolean; mensaje: string }>(enviar: (prueba: string) => Promise<R>): Promise<R | { ok: boolean; mensaje: string }> {
+  const prueba = crypto.randomUUID();
+  const recibo = esperarRecibo(prueba);
+  const r = await enviar(prueba);
+  if (!r.ok) return r;
+  const v = await recibo;
+  if (v?.mostrado) return { ok: true, mensaje: "Listo: el aviso llegó a este celular. Si no lo viste arriba, las notificaciones de Chrome están silenciadas: Ajustes del teléfono › Apps › Chrome › Notificaciones › activar todas." };
+  if (v) return { ok: false, mensaje: "El aviso llegó al celular pero Android no lo dejó mostrar. Ajustes del teléfono › Apps › Chrome › Notificaciones › Permitir." };
+  return { ok: false, mensaje: "El servidor envió el aviso pero no llegó a este celular. Casi siempre es el ahorro de batería: Ajustes del teléfono › Apps › Chrome › Batería › Sin restricciones. Luego toca otra vez «Enviar uno de prueba»." };
+}
+
 async function suscribir() {
   if ((await Notification.requestPermission()) !== "granted") return null;
   const publica = await llaveAvisos();
@@ -87,8 +113,14 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
     const sub = await suscribir();
     if (!sub) { setEstado("bloqueado"); return null; }
     const j = sub.toJSON();
-    const r = await activarAvisos({ endpoint: sub.endpoint, p256dh: j.keys?.p256dh ?? "", auth: j.keys?.auth ?? "", equipo: nombreEquipo() });
-    if (r.ok) { setEndpoint(sub.endpoint); setEstado("activo"); }
+    let guardada = false;
+    const r = await probarDePuntaAPunta(async (prueba) => {
+      const a = await activarAvisos({ endpoint: sub.endpoint, p256dh: j.keys?.p256dh ?? "", auth: j.keys?.auth ?? "", equipo: nombreEquipo(), prueba });
+      guardada = Boolean(a.guardada);
+      return a;
+    });
+    // Guardada en la base: queda activa aunque la prueba no llegue (el mensaje dice qué ajustar en el teléfono)
+    if (guardada) { setEndpoint(sub.endpoint); setEstado("activo"); return r; }
     else await sub.unsubscribe().catch(() => {});
     return r;
   });
@@ -136,7 +168,7 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
         {estado === "activo" && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-ok/15 px-3 py-1 font-medium text-ok-texto">Activos en este {equipo}</span>
-            <Button variant="outline" size="sm" disabled={trabajando || !endpoint} onClick={() => correr(() => probarAviso(endpoint ?? ""))}>
+            <Button variant="outline" size="sm" disabled={trabajando || !endpoint} onClick={() => correr(() => probarDePuntaAPunta((prueba) => probarAviso(endpoint ?? "", prueba)))}>
               {trabajando && <Loader2 className="animate-spin" />} Enviar uno de prueba
             </Button>
             <Button variant="ghost" size="sm" disabled={trabajando} onClick={quitar}>Desactivar</Button>
