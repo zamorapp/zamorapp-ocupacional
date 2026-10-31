@@ -195,6 +195,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, guardarPendiente, on
       </summary>
 
       <form ref={formRef} action={guardar} className="mt-4 space-y-5">
+        {!enCurso && <p className="text-sm text-muted-foreground">Aquí cambias solo la ficha del trabajador; la consulta firmada no cambia.</p>}
         {resultado && !resultado.ok && (
           <div id="dt-error" role="alert" className="flex items-start gap-2 rounded-md border border-alerta/50 bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />

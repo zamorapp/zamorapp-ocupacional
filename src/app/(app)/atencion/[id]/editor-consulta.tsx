@@ -766,7 +766,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
               {puedeFirmar && !corrigiendo && (
-                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir (reabrir)</Button>
+                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando} title="Reabre la consulta firmada para corregir cualquier pestaña"><RotateCcw /> Corregir</Button>
               )}
               {!puedeFirmar && <span className="text-xs text-muted-foreground">La corrige quien la firmó o el gerente médico.</span>}
               {!corrigiendo && <SiguientePaciente siguiente={siguiente} variante="default" />}
@@ -841,9 +841,8 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           <div className="mt-4 space-y-3 rounded-lg border border-aviso/40 bg-aviso/10 p-4">
             <p className="text-sm">
               <b>Corregir la consulta firmada.</b> La versión firmada se guarda tal cual en el historial (no se pierde ni se edita)
-              y la consulta entera vuelve a borrador: puedes cambiar <b>cualquier pestaña</b> (generales, examen, paraclínicos,
-              diagnóstico, aptitud, tratamiento, conclusiones), y luego la cierras y la firmas de nuevo. Los datos personales del
-              trabajador no necesitan esto: se editan siempre en Generales › Datos del trabajador. Los impresos nuevos dirán
+              y la consulta vuelve a borrador: corriges <b>cualquier pestaña</b> y la firmas de nuevo. Los datos personales del
+              trabajador se editan siempre en Generales, sin reabrir. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
             </p>
             {sinInternet && (corregirEspera ? (
