@@ -767,7 +767,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
           </div>
           {d.estado === "firmada" ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"
                 title={enSame ? `Firmada y emitida en el SAME el ${fechaHora(enSame)}. Se imprime con esa leyenda; «Corregir» la reabre y al volver a firmarla queda firmada en zamorApp.` : undefined}>
                 <Lock className="size-4" /> {enSame ? "Firmada en el SAME" : "Firmada"}
               </span>

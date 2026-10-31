@@ -222,7 +222,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
         {!compacto && m?.correo && <div className="text-doc-tenue">{m.correo}</div>}
         {/* Importada del SAME: la firma y la emisión ocurrieron allá; esta hoja es una copia desde zamorApp */}
         {d.firmadaEnSame && (
-          <div data-prueba="firmada-same" className="mt-1 font-semibold text-[#15201e]">
+          <div data-prueba="firmada-same" className="mt-1 font-medium text-doc-tenue">
             Firmada y emitida en el SAME el {new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Caracas" }).format(new Date(d.firmadaEnSame))}
           </div>
         )}
