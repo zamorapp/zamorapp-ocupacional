@@ -58,3 +58,50 @@ test("otra variante cambia la redacción, no las cifras", () => {
   assert.ok(textos.size >= 3, `solo ${textos.size} redacciones distintas`);
   for (const t of textos) assert.match(t, /11 evaluaciones|11 evaluaciones ocupacionales/);
 });
+
+// Pedido de Cesar (31-oct): todo cuadro tiene análisis, y sin datos lo dice con la misma frase
+const { SECCIONES_ANALISIS } = await jiti.import("../../src/lib/vigilancia-analisis.ts");
+const SIN = /Para este indicador no se encontraron registros en este trimestre\./;
+const vacio = {
+  ...datos, s: { por_mes: [], piramide: [], capitulos: [] }, acc: null, historial: [],
+  r: {
+    poblacion: { total: 10, femenino: 4, masculino: 6, por_tipo: [] },
+    consultas: { total: 0, pacientes: 0, preventivas: 0, no_preventivas: 0, sanos: 0, por_tipo: {}, por_sexo: { F: 0, M: 0 }, por_edad: [], por_motivo: [] },
+    morbilidad: { total: 0, por_sistema: [], por_origen: {}, primeras_causas: [] },
+    ausentismo: { reposos: 0, dias_perdidos: 0, dias_periodo: 92, dias_computables: 0, por_causa: [], por_ente: [] },
+    aptitud: {},
+  },
+};
+
+test("cada sección tiene texto, y sin datos dice «no se encontraron registros»", () => {
+  for (const d of [datos, vacio]) {
+    const a = generarAnalisis(d, 0).secciones;
+    for (const [k] of SECCIONES_ANALISIS) assert.ok(a[k]?.trim(), `sección vacía: ${k}`);
+  }
+  const a = generarAnalisis(vacio, 0).secciones;
+  for (const k of ["uso", "evaluaciones", "dependencias", "morbilidad", "causas", "ausentismo", "reposos", "referencias", "aptitud", "externas", "reubicaciones", "anexo_tipo", "anexo_sexo", "anexo_reposo_dependencia", "integral"]) assert.match(a[k], SIN, k);
+});
+
+test("análisis integral: tendencia, prioridades, recomendaciones y conclusión final", () => {
+  const d = { ...datos, historial: [{ etiqueta: "I trimestre 2026", consultas: 12, preventivas: 4, diagnosticos: 3, dias: 2, poblacion: 20 }, { etiqueta: "II trimestre 2026", consultas: 15, preventivas: 6, diagnosticos: 6, dias: 5, poblacion: 22 }] };
+  const a = generarAnalisis(d, 0).secciones;
+  assert.match(a.tendencias, /segundo período consecutivo/);
+  assert.match(a.prioridades, /^Prioridad (alta|media)/m);
+  assert.match(a.recomendaciones_empresa, /^1\. /);
+  assert.match(a.recomendaciones_empresa, /Medir en el próximo informe/);
+  assert.match(a.conclusion_final, /indicadores? en rango favorable/);
+  assert.match(a.integral, /Proyección tiene a la vez/);
+});
+
+test("anexo: con menos de 3 de un sexo no se comparan causas por sexo", () => {
+  const d = structuredClone(datos);
+  d.r.poblacion.femenino = 2;
+  d.r.morbilidad.cortes = { sexo: { F: [{ cie10: "M54.5", descripcion: "Lumbago", n: 3, pacientes: 2 }], M: [{ cie10: "J00", descripcion: "Rinofaringitis", n: 4, pacientes: 4 }] } };
+  const a = generarAnalisis(d, 0).secciones;
+  assert.match(a.anexo_sexo, /menos de tres/);
+  assert.doesNotMatch(a.anexo_sexo, /Lumbago|Rinofaringitis/);
+});
+
+test("siglas no se escriben en minúscula (IVSS, no iVSS)", () => {
+  for (let v = 0; v < 6; v++) assert.doesNotMatch(JSON.stringify(generarAnalisis(datos, v)), /iVSS/);
+});

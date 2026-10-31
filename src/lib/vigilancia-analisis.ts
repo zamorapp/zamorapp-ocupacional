@@ -3,8 +3,8 @@
 // Puro: corre en el servidor (informe impreso) y en el navegador (botón «Otra redacción» del editor).
 
 import type { Reporte } from "@/lib/reportes";
-import { MESES } from "@/lib/periodos";
-import { confidencial } from "@/lib/vigilancia-ia";
+import { analisisAnexo, analisisCuadros, analisisIntegral, type Historico } from "@/lib/vigilancia-integral";
+import { contraer, dx, etq, humano, mayus, mesLargo, minus, n0, n1, n2, nombrable, p, pc, plural, sinRegistros, sinTildes, unir } from "@/lib/vigilancia-redaccion";
 
 export type Series = {
   por_mes: { mes: string; consultas: number; preventivas: number; diagnosticos: number; dias_reposo: number }[];
@@ -25,11 +25,13 @@ export type DatosAnalisis = {
   anioAnterior: Comparacion;
   pct: number;
   pad: number;
-  acc: { accidentes: number; conTiempoPerdido: number; diasPerdidos: number; ifn: number | null; is: number | null; aTiempo: number | null; porDeclarar: number } | null;
+  acc: { accidentes: number; conTiempoPerdido: number; diasPerdidos: number; ifn: number | null; is: number | null; aTiempo: number | null; porDeclarar: number; ifb?: number | null; hht?: number } | null;
   causas: Record<string, string>;
   aptitudes: Record<string, string>;
   /** Código → nombre del ente emisor de reposos */
   entes?: Record<string, string>;
+  /** Totales de los períodos anteriores, del más viejo al más reciente (tendencia) */
+  historial?: Historico[];
 };
 
 export const SECCIONES_ANALISIS = [
@@ -44,7 +46,35 @@ export const SECCIONES_ANALISIS = [
   ["accidentes", "Accidentes y enfermedades ocupacionales"],
   ["referencias", "Referencias"],
   ["aptitud", "Aptitud"],
+  ["vigilancia_clinica", "Vigilancia clínica"],
+  ["demografia", "Consultas por tipo de paciente, sexo y edad"],
+  ["indices_ausentismo", "Índices de ausentismo"],
+  ["causas_reposo", "Diez primeras causas de reposo"],
+  ["indices_accidentes", "Índices de accidentalidad y enfermedad ocupacional"],
+  ["externas", "Especialidades por consulta externa"],
+  ["reubicaciones", "Reubicaciones"],
+  ["art34", "Resumen del artículo 34"],
+  ["anexo_tipo", "Anexo · causas por tipo de consulta"],
+  ["anexo_origen", "Anexo · causas por origen"],
+  ["anexo_sexo", "Anexo · causas por sexo"],
+  ["anexo_edad", "Anexo · causas por grupo etario"],
+  ["anexo_actividad", "Anexo · causas por actividad"],
+  ["anexo_sistema", "Anexo · causas por aparato o sistema"],
+  ["anexo_motivo", "Anexo · causas por motivo de consulta"],
+  ["anexo_dependencia", "Anexo · causas por dependencia"],
+  ["anexo_reposo_accidente_comun", "Anexo · reposos por accidente común"],
+  ["anexo_reposo_accidente_laboral", "Anexo · reposos por accidente laboral"],
+  ["anexo_reposo_enfermedad_comun", "Anexo · reposos por enfermedad común"],
+  ["anexo_reposo_enfermedad_ocupacional", "Anexo · reposos por enfermedad ocupacional"],
+  ["anexo_reposo_dependencia", "Anexo · reposos por dependencia"],
+  ["tendencias", "Tendencia frente a períodos anteriores"],
+  ["integral", "Comportamiento de conjunto"],
+  ["prioridades", "Alertas y prioridades"],
+  ["recomendaciones_empresa", "Recomendaciones para la empresa"],
+  ["conclusion_final", "Conclusión final"],
 ] as const;
+// Las del análisis integral van juntas al final del informe (y en su propio bloque del editor)
+export const SECCIONES_INTEGRAL: readonly string[] = ["tendencias", "integral", "prioridades", "recomendaciones_empresa", "conclusion_final"];
 export type SeccionAnalisis = (typeof SECCIONES_ANALISIS)[number][0];
 
 export type Analisis = { secciones: Record<SeccionAnalisis, string>; hallazgos: string[]; resumen: string; conclusion: string };
@@ -65,31 +95,8 @@ function generador(seed: number) {
   };
 }
 
-// ---------- formato
-const n0 = (n: number) => n.toLocaleString("es-VE", { maximumFractionDigits: 0 });
-const n1 = (n: number) => n.toLocaleString("es-VE", { maximumFractionDigits: 1 });
-const n2 = (n: number) => n.toLocaleString("es-VE", { maximumFractionDigits: 2 });
-const p = (parte: number, total: number) => (total ? (parte * 100) / total : 0);
-const pc = (parte: number, total: number) => `${n1(p(parte, total))} %`;
-const plural = (n: number, uno: string, varios: string) => `${n0(n)} ${n === 1 ? uno : varios}`;
-const minus = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-const mayus = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const unir = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`);
-// Etiqueta del período dentro de una frase: «el I trimestre 2026», «el trimestre febrero – abril 2026», «el período del 01/01/2026 al…»
-const etq = (e: string) => {
-  const corta = e.replace(/ \(.*\)$/, "");
-  return corta.startsWith("Del ") ? `período ${minus(corta)}` : /^(Trimestre|Año|Período)\b/.test(corta) ? minus(corta) : corta;
-};
-// «a el» → «al», «de el» → «del» (las etiquetas de período se insertan con artículo)
-const contraer = (t: string) => t.replace(/\b([Aa]) el /g, "$1l ").replace(/\b([Dd]e) el /g, "$1l ");
-const humano = (codigo: string) => codigo.replace(/_/g, " ");
+// ---------- formato (compartido con el análisis integral)
 const TIPO_CONSULTA: Record<string, string> = { primera: "las primeras consultas", sucesiva: "las consultas sucesivas", derivada: "las consultas derivadas" };
-const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-// Diagnóstico para el texto: «Lumbago (M54.5)», o solo el código si no hay descripción
-// RR. HH. lee el análisis: un diagnóstico se nombra solo con 3 casos o más y si no es confidencial (VIH, salud mental, embarazo)
-const nombrable = (c: { cie10: string; n: number; pacientes?: number } | undefined) => Boolean(c && Math.min(c.n, c.pacientes ?? c.n) >= 3 && !confidencial(c.cie10));
-const dx = (c: { cie10: string; descripcion: string | null }) => (c.descripcion && c.descripcion !== c.cie10 ? `${c.descripcion} (${c.cie10})` : c.cie10);
-const mesLargo = (aaaamm: string) => MESES[Number(aaaamm.slice(5, 7)) - 1] ?? aaaamm;
 
 export function totales(s: Series) {
   return {
@@ -179,6 +186,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   const ant = d.anterior ? { etiqueta: d.anterior.etiqueta, ...totales(d.anterior.s) } : null;
   const anioAnt = d.anioAnterior ? { etiqueta: d.anioAnterior.etiqueta, ...totales(d.anioAnterior.s) } : null;
   const pob = r.poblacion.total;
+  const sin = sinRegistros(d.etiqueta);
   const quien = d.empresa ? elige(["la empresa", "la entidad de trabajo", "la organización"]) : elige(["las empresas atendidas", "el conjunto de empresas"]);
 
   // Variación contra otro período, en palabras; null si no hay base para comparar
@@ -210,7 +218,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
 
   // ---------- Población
   const poblacion = (() => {
-    if (!pob) return "No hay trabajadores efectivos registrados en el período; sin población no se calculan tasas ni prevalencias.";
+    if (!pob) return `${sin} Sin población efectiva registrada no se calculan tasas ni prevalencias.`;
     const masc = r.poblacion.masculino, fem = r.poblacion.femenino;
     const predomina = masc === fem ? "con igual número de hombres y mujeres" : masc > fem ? `con predominio masculino (${pc(masc, pob)})` : `con predominio femenino (${pc(fem, pob)})`;
     const grupos = [...s.piramide].filter((g) => g.grupo !== "Sin dato").sort((a, b) => b.n - a.n);
@@ -243,7 +251,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   // ---------- Uso del servicio
   const uso = (() => {
     const c = r.consultas;
-    if (!c.total) return elige(["No se registraron consultas en el período.", "En el período no hubo atenciones en el servicio médico."]);
+    if (!c.total) return `${sin} ${elige(["Sin consultas registradas no hay demanda que analizar; conviene confirmar que las atenciones se estén cargando en el sistema.", "El servicio médico no tiene atenciones registradas en el lapso."])}`;
     const cobertura = pob ? p(c.pacientes, pob) : 0;
     const motivo = [...c.por_motivo].sort((a, b) => b.n - a.n)[0];
     const frases = [
@@ -285,7 +293,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   const capitulos = [...s.capitulos].sort((a, b) => b.n - a.n);
   const morbilidad = (() => {
     const m = r.morbilidad;
-    if (!m.total) return elige(["No se registraron diagnósticos en el período.", "En el período no hubo diagnósticos clínicos registrados."]);
+    if (!m.total) return `${sin} ${elige(["No hubo diagnósticos clínicos registrados.", "La población atendida no presentó diagnósticos clínicos."])}`;
     const prevalencia = pob ? p(m.pacientes ?? 0, pob) : 0;
     const frases = [
       elige([
@@ -329,10 +337,10 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   // ---------- Ausentismo
   const ausentismo = (() => {
     const a = r.ausentismo;
-    if (!a.dias_perdidos) return elige([
-      "No se registraron días de reposo médico en el período: el ausentismo por causa médica fue nulo.",
-      "Sin reposos médicos en el período; el indicador de ausentismo se mantiene en cero.",
-    ]);
+    if (!a.dias_perdidos) return `${sin} ${elige([
+      "El ausentismo por causa médica fue nulo.",
+      "El indicador de ausentismo se mantiene en cero.",
+    ])}`;
     const enMeta = d.pct < 2.5;
     const causa = [...a.por_causa].sort((x, y) => y.dias - x.dias)[0];
     const frases = [
@@ -371,11 +379,11 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     const a = d.acc;
     const eo = r.enfermedad_ocupacional?.casos ?? 0;
     const frases: string[] = [];
-    if (!a || !a.accidentes) frases.push(elige([
-      "No se registraron accidentes de trabajo en el período, resultado favorable que debe sostenerse con la inspección y la formación continua.",
+    if (!a || !a.accidentes) frases.push(`${eo ? "" : `${sin} `}${elige([
+      "No hubo accidentes de trabajo, resultado favorable que debe sostenerse con la inspección y la formación continua.",
       "El período cierra sin accidentes laborales registrados.",
       "No hubo accidentes de trabajo en el lapso evaluado.",
-    ]));
+    ])}`);
     else {
       frases.push(elige([
         `Se registraron ${plural(a.accidentes, "accidente de trabajo", "accidentes de trabajo")}, ${a.conTiempoPerdido ? `${n0(a.conTiempoPerdido)} con tiempo perdido` : "ninguno con tiempo perdido"}.`,
@@ -401,11 +409,11 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   const evaluaciones = (() => {
     const prev = r.consultas.por_motivo.filter((m) => m.grupo === "preventivo" && m.n > 0).sort((a, b) => b.n - a.n);
     const total = prev.reduce((a, m) => a + m.n, 0);
-    if (!total) return elige([
-      "No se registraron evaluaciones ocupacionales (preempleo, periódicas, vacacionales o de egreso) en el período: conviene revisar la programación de la vigilancia preventiva.",
-      "El período no tiene evaluaciones ocupacionales registradas; la vigilancia quedó limitada a la consulta asistencial.",
-      "Sin evaluaciones médico-ocupacionales en el lapso: la actividad preventiva debe retomarse según el programa anual.",
-    ]);
+    if (!total) return `${sin} ${elige([
+      "No hubo evaluaciones ocupacionales (preempleo, periódicas, vacacionales o de egreso): conviene revisar la programación de la vigilancia preventiva.",
+      "La vigilancia quedó limitada a la consulta asistencial, sin evaluaciones ocupacionales.",
+      "La actividad preventiva debe retomarse según el programa anual.",
+    ])}`;
     const tipo = (re: RegExp) => prev.filter((m) => re.test(sinTildes(m.nombre))).reduce((a, m) => a + m.n, 0);
     const ingreso = tipo(/pre.?empleo|ingreso/);
     const egreso = tipo(/egreso|retiro/);
@@ -455,7 +463,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   const dependencias = (() => {
     const deps = (r.consultas.por_dependencia ?? []).filter((x) => x.n > 0);
     const repo = (r.ausentismo.por_dependencia ?? []).filter((x) => x.dias > 0);
-    if (!deps.length && !repo.length) return "";
+    if (!deps.length && !repo.length) return sin;
     const frases: string[] = [];
     const tasa = deps.filter((x) => x.personal >= 3).map((x) => ({ ...x, tasa: x.n / x.personal })).sort((a, b) => b.tasa - a.tasa);
     const masUso = [...deps].sort((a, b) => b.n - a.n)[0];
@@ -480,7 +488,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   // ---------- Primeras causas de morbilidad (con prevalencia) y por tipo de consulta
   const causas = (() => {
     const pcs = r.morbilidad.primeras_causas;
-    if (!pcs.length || !r.morbilidad.total) return "";
+    if (!pcs.length || !r.morbilidad.total) return sin;
     const tres = pcs.slice(0, 3);
     const peso = tres.reduce((a, c) => a + c.n, 0);
     const frases = [elige([
@@ -509,7 +517,7 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
   // ---------- Reposos: duración, ente emisor y permisos
   const reposos = (() => {
     const a = r.ausentismo;
-    if (!a.reposos && !(a.permisos ?? []).length) return "";
+    if (!a.reposos && !(a.permisos ?? []).length) return sin;
     const frases: string[] = [];
     if (a.reposos) {
       const media = a.dias_perdidos / a.reposos;
@@ -537,32 +545,22 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
     return frases.join(" ");
   })();
 
-  // Consultas externas por especialidad y reubicaciones: complementan referencias
-  const extraReferencias = () => {
-    const f: string[] = [];
-    const ext = (r.especialidades_externas ?? []).filter((x) => x.n >= 3);
-    if (ext.length) f.push(elige([` En consulta externa predominan ${unir(ext.slice(0, 2).map((x) => x.nombre.toLowerCase()))}.`, ` La consulta especializada más frecuente fue ${ext[0].nombre.toLowerCase()}.`]));
-    const reu = r.reubicaciones;
-    if (reu?.total) f.push(elige([` Se gestionaron ${plural(reu.total, "reubicación", "reubicaciones")} por razones de salud${reu.por_resultado.length ? `, con resultado ${unir(reu.por_resultado.map((x) => `${humano(x.nombre)} ${n0(x.n)}`))}` : ""}.`, ` Hubo ${plural(reu.total, "reubicación", "reubicaciones")} de puesto, que deben revisarse en su eficacia.`]));
-    return f.join("");
-  };
-
   // ---------- Referencias
   const referencias = (() => {
     const ref = r.referencias;
-    if (!ref?.total) return elige(["No se emitieron referencias a especialistas en el período.", "Todas las atenciones se resolvieron en el servicio, sin referencias a especialistas."]);
+    if (!ref?.total) return `${sin} ${elige(["No se emitieron referencias a especialistas.", "Todas las atenciones se resolvieron en el servicio, sin referencias a especialistas."])}`;
     const top = [...ref.por_especialidad].sort((a, b) => b.n - a.n).slice(0, 2);
     return elige([
       `Se emitieron ${plural(ref.total, "referencia", "referencias")} a especialistas${top.length ? `, principalmente a ${unir(top.map((x) => x.nombre.toLowerCase()))}` : ""}.`,
       `${mayus(plural(ref.total, "paciente fue referido", "pacientes fueron referidos"))} a la red especializada${top.length ? `; ${top[0].nombre.toLowerCase()} fue la más solicitada` : ""}.`,
-    ]) + (r.consultas.total ? ` ${elige(["Equivale a", "Representa"])} ${pc(ref.total, r.consultas.total)} de las consultas.` : "") + extraReferencias();
+    ]) + (r.consultas.total ? ` ${elige(["Equivale a", "Representa"])} ${pc(ref.total, r.consultas.total)} de las consultas.` : "");
   })();
 
   // ---------- Aptitud
   const aptitud = (() => {
     const ap = Object.entries(r.aptitud).filter(([, n]) => n > 0);
     const total = ap.reduce((a, [, n]) => a + n, 0);
-    if (!total) return elige(["No se emitieron certificados de aptitud en el período.", "Sin evaluaciones con calificación de aptitud en el período."]);
+    if (!total) return `${sin} ${elige(["No se emitieron certificados de aptitud.", "Ninguna evaluación tuvo calificación de aptitud."])}`;
     const ord = ap.sort((a, b) => b[1] - a[1]);
     const nombre = (k: string) => (d.aptitudes[k] ?? k).toLowerCase();
     const restr = ap.filter(([k]) => /restric|condic|limit/i.test(k) || /restric|condic|limit/i.test(d.aptitudes[k] ?? "")).reduce((a, [, n]) => a + n, 0);
@@ -642,7 +640,13 @@ export function generarAnalisis(d: DatosAnalisis, variante = 0): Analisis {
       : `No hubo días perdidos por reposo médico${d.acc?.accidentes ? `, aunque ocurri${d.acc.accidentes === 1 ? "ó" : "eron"} ${plural(d.acc.accidentes, "accidente", "accidentes")} de trabajo` : " ni accidentes de trabajo"}.`,
   ].filter(Boolean).join(" ");
 
-  const secciones = { poblacion, uso, evaluaciones, dependencias, morbilidad, causas, ausentismo, reposos, accidentes, referencias, aptitud };
+  const h = { elige, baraja, azar };
+  const secciones = {
+    poblacion, uso, evaluaciones, dependencias, morbilidad, causas, ausentismo, reposos, accidentes, referencias, aptitud,
+    ...analisisCuadros(d, h),
+    ...analisisAnexo(d, h, d.causas, d.entes ?? {}),
+    ...analisisIntegral(d, h, t, capitulos),
+  };
   return {
     secciones: Object.fromEntries(Object.entries(secciones).map(([k, v]) => [k, contraer(v)])) as Analisis["secciones"],
     hallazgos: hallazgos.map(contraer),

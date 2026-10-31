@@ -3,6 +3,15 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* print: también dentro de .modo-impresion, la copia con la que el índice del informe de vigilancia mide sus páginas */
+@custom-variant print {
+  @media print {
+    @slot;
+  }
+  &:where(.modo-impresion, .modo-impresion *) {
+    @slot;
+  }
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -222,6 +231,19 @@
   .hoja:last-child {
     break-after: auto;
   }
+}
+/* Copia que mide páginas (índice de vigilancia): cada columna es una hoja impresa */
+.modo-impresion {
+  background: white;
+}
+.modo-impresion .hoja {
+  break-after: column;
+}
+.modo-impresion .hoja:last-child {
+  break-after: auto;
+}
+.modo-impresion .break-before-page {
+  break-before: column;
 }
 
 /* Gráficos de los reportes: serie 1 verde azulado, serie 2 ámbar (pareja validada para daltonismo en ambos temas).

@@ -6,11 +6,11 @@ import { opciones } from "@/lib/listas";
 import { recordar } from "@/lib/memo";
 import { mismoPeriodoAnioAnterior, periodoAnterior, periodoDeConsulta, type ConsultaPeriodo, type Periodo } from "@/lib/periodos";
 import {
-  completarHorasHombre, indicadoresAusentismo, type CriterioHoras, indicesCovenin, firmantesAnteriores, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
+  type Accidentalidad, completarHorasHombre, indicadoresAusentismo, type CriterioHoras, type InformeVigilancia, type Reporte, indicesCovenin, firmantesAnteriores, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
 } from "@/lib/reportes";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { generarAnalisis, sinDiscapacidad, type DatosAnalisis } from "@/lib/vigilancia-analisis";
+import { generarAnalisis, sinDiscapacidad, totales, type DatosAnalisis, type Series } from "@/lib/vigilancia-analisis";
 import { textosSugeridos } from "@/lib/vigilancia-textos";
 
 // Los cálculos del período se recuerdan 3 minutos por usuario: cambiar de trimestre y volver, o pasar de la
@@ -26,14 +26,19 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const periodo = periodoDeConsulta(q, empresa?.mesInicioGestion ?? 1);
   const anterior = periodoAnterior(periodo);
   const anioAnterior = mismoPeriodoAnioAnterior(periodo);
+  // Dos períodos más atrás para la tendencia del análisis integral (solo totales; memo de 3 min)
+  const anterior2 = periodoAnterior(anterior);
+  const anterior3 = periodoAnterior(anterior2);
   const listo = !sesion.demo && supabaseConfigurado;
   const memo = <T,>(que: string, p: Periodo, fn: () => Promise<T>) => recordar(clave(sesion, que, empresaId, p), TRES_MINUTOS, fn);
 
-  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil, criterioHoras, previos] = await Promise.all([
+  const [r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos] = await Promise.all([
     listo ? memo("reporte", periodo, () => obtenerReporte(empresaId, periodo)) : null,
     listo ? memo("series", periodo, () => obtenerSeries(empresaId, periodo)) : null,
     listo ? memo("series", anterior, () => obtenerSeries(empresaId, anterior)) : null,
     listo ? memo("series", anioAnterior, () => obtenerSeries(empresaId, anioAnterior)) : null,
+    listo ? memo("series", anterior2, () => obtenerSeries(empresaId, anterior2)) : null,
+    listo ? memo("series", anterior3, () => obtenerSeries(empresaId, anterior3)) : null,
     listo ? memo("accidentes", periodo, () => obtenerAccidentalidad(empresaId, periodo)) : null,
     opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud", "resultado_reubicacion"]),
     listo ? obtenerInforme(empresaId, periodo) : null,
@@ -50,6 +55,26 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
       : ("same" as CriterioHoras),
     listo ? firmantesAnteriores(empresaId) : null,
   ]);
+  return armarVigilancia({ empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos }, { paraEmpresa });
+}
+
+export type DatosBrutosVigilancia = {
+  empresas: Awaited<ReturnType<typeof listarEmpresas>>;
+  empresa: Awaited<ReturnType<typeof listarEmpresas>>[number] | null;
+  periodo: Periodo; anterior: Periodo; anioAnterior: Periodo; anterior2: Periodo; anterior3: Periodo;
+  r: Reporte | null; s: Series | null; sAnt: Series | null; sAnio: Series | null; sAnt2: Series | null; sAnt3: Series | null;
+  accBase: Accidentalidad | null;
+  listas: Awaited<ReturnType<typeof opciones>>;
+  informe: InformeVigilancia | null;
+  riesgos: Record<string, string[]>;
+  perfil: { nombre_completo: string | null; cedula: string | null; mpps: string | null; registro_inpsasel: string | null } | null;
+  criterioHoras: CriterioHoras;
+  previos: Firmantes | null;
+};
+
+// Cálculos e informe a partir de lo leído de la base (sin consultas: también lo usa la prueba de impresión con datos de ejemplo)
+export function armarVigilancia(b: DatosBrutosVigilancia, { paraEmpresa = false } = {}) {
+  const { empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos } = b;
   const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
   const entes = nombre("ente_emisor_reposo");
@@ -74,11 +99,14 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
         pct: ausentismo.pct,
         pad: ausentismo.pad,
         acc: acc && ix
-          ? { accidentes: acc.accidentes, conTiempoPerdido: acc.con_tiempo_perdido, diasPerdidos: acc.dias_perdidos, ifn: ix.ifn, is: ix.is, aTiempo: ix.aTiempo, porDeclarar: acc.por_declarar }
+          ? { accidentes: acc.accidentes, conTiempoPerdido: acc.con_tiempo_perdido, diasPerdidos: acc.dias_perdidos, ifn: ix.ifn, is: ix.is, aTiempo: ix.aTiempo, porDeclarar: acc.por_declarar, ifb: ix.ifb, hht: acc.hht }
           : null,
         causas,
         aptitudes,
         entes,
+        historial: ([[anterior3, sAnt3], [anterior2, sAnt2], [anterior, sAnt]] as [Periodo, Series | null][])
+          .filter(([, x]) => x)
+          .map(([per, x]) => ({ etiqueta: per.etiqueta, ...totales(x!) })),
       }
     : null;
   const variante = informe?.variante ?? 0;

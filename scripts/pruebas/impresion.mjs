@@ -24,6 +24,8 @@ const DOCUMENTOS = {
   // El informe completo fluye en varias hojas a propósito (Hoja print:block): solo se revisa que no rompa nada
   informe: { fluye: true }, "informe-trabajador": { fluye: true }, preoperatoria: { fluye: true },
   reubicacion: { fijo: false }, libre: { fijo: false },
+  // Vigilancia con datos de ejemplo: fluye en varias hojas; el índice calcula sus páginas al abrir
+  vigilancia: { fluye: true },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 
