@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SOLO_PARTES } from "@/lib/error-pantalla";
 
 const VERSION = process.env.NEXT_PUBLIC_VERSION_WEB ?? "";
 // Caché de la pantalla sin internet (/movil, public/sw.js): no se borra al actualizar
@@ -39,7 +40,17 @@ function useVersionNueva() {
     // Una app abierta en el celular puede quedar días en segundo plano: se revisa cada vez que vuelve al frente
     const alVolver = () => document.visibilityState === "visible" && revisar();
     document.addEventListener("visibilitychange", alVolver);
-    return () => document.removeEventListener("visibilitychange", alVolver);
+    // Una parte de la página que ya no existe (se publicó otra versión con la app abierta) y falló fuera de una
+    // pantalla de error, p. ej. al tocar un botón: se ofrece Actualizar sin recargar sola (borraría lo escrito)
+    const parteVieja = (e: PromiseRejectionEvent) => {
+      const r = e.reason as { name?: string; message?: string } | undefined;
+      if (SOLO_PARTES.test(`${r?.name ?? ""} ${r?.message ?? String(r)}`)) setNueva(true);
+    };
+    window.addEventListener("unhandledrejection", parteVieja);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("unhandledrejection", parteVieja);
+    };
   }, [revisar]);
   return nueva;
 }
