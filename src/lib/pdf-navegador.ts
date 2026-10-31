@@ -64,6 +64,8 @@ export async function pdfConNavegador(rutas: string[], sesion: { name: string; v
       if (!respuesta?.ok()) throw new Error(`No se pudo preparar el documento (${respuesta?.status() ?? "sin respuesta"}).`);
       if (new URL(pagina.url()).pathname.startsWith("/login")) throw new Error("La sesión venció: vuelve a entrar y repite el envío.");
       await pagina.evaluate(() => document.fonts.ready);
+      // El índice del informe de vigilancia calcula sus páginas al abrir: se espera a que termine (máx. 10 s)
+      await pagina.waitForFunction(() => document.documentElement.getAttribute("data-indice-paginas") !== "midiendo", { timeout: 10_000 }).catch(() => {});
       salida.push(Buffer.from(await pagina.pdf({ preferCSSPageSize: true, printBackground: true })));
     }
     return salida;

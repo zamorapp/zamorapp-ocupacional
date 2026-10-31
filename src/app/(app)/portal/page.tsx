@@ -41,7 +41,7 @@ export default async function Portal() {
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),
     listarTrabajadores(),
-    listarEmpresas(),
+    listarEmpresas(true),
     empresaActivaId(),
     obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
     listarSolicitudes({ limite: 20 }),

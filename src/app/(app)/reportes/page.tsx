@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
+import { hoyCaracas } from "@/lib/fecha";
 import { parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
 import { indicesCovenin, tasasEnfermedadOcupacional, textoMetodoHoras } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
@@ -216,6 +217,7 @@ export default async function Reportes({ searchParams }: Props) {
                   firmantesBase={v.firmantesBase}
                   editable={Boolean(sesion.rol && ROLES_REDACTAN.includes(sesion.rol))}
                   enlaceImprimir={enlaceImprimir}
+                  hoy={hoyCaracas()}
                   empresa={v.empresa && { id: v.empresa.id, datos: datosPortada(v.empresa, r.poblacion) }}
                 />
               </CardContent>

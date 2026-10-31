@@ -35,7 +35,7 @@ export default async function ImportarPacientes() {
         <Importador
           cedulasExistentes={cedulas}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))}
-          empresaInicial={activa ?? empresas[0].id}
+          empresaInicial={empresas.find((e) => e.id === activa)?.id ?? empresas[0].id}
         />
       )}
     </div>

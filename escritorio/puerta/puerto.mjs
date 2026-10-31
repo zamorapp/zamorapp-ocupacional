@@ -17,9 +17,21 @@ export function libre(puerto) {
   });
 }
 
-const correr = (programa, args) => new Promise((ok) => {
-  execFile(programa, args, { windowsHide: true, timeout: 15_000 }, (e, salida) => ok(e ? "" : String(salida)));
+// PowerShell en frío carga CIM y puede pasar de 15 s en una PC ocupada (31-oct: el CI de Windows lo vio): 45 s.
+const correr = (programa, args, timeout = 15_000) => new Promise((ok) => {
+  execFile(programa, args, { windowsHide: true, timeout }, (e, salida) => ok(e ? "" : String(salida)));
 });
+
+// Si PowerShell no responde: netstat y tasklist (nativos y rápidos) dan el pid y el nombre. Sin ruta no se sabe si es
+// una puerta de esta instalación, así que padreVivo queda en true y nunca se cierra por esta vía.
+async function duenoPorNetstat(p) {
+  const linea = (await correr("netstat", ["-ano", "-p", "TCP"])).split(/\r?\n/)
+    .find((l) => new RegExp(`^\\s*TCP\\s+\\S+:${p}\\s+\\S+\\s+LISTENING\\s+\\d+`, "i").test(l));
+  const pid = Number(linea?.trim().split(/\s+/).pop());
+  if (!pid) return null;
+  const fila = await correr("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"]);
+  return { pid, nombre: /^"([^"]+)"/.exec(fila.trim())?.[1] ?? null, ruta: null, padreVivo: true };
+}
 
 // Quién escucha en el puerto: { pid, nombre, ruta, padreVivo } o null si no se puede saber
 export async function duenoDelPuerto(puerto) {
@@ -29,8 +41,8 @@ export async function duenoDelPuerto(puerto) {
 if ($c) { $x = Get-CimInstance Win32_Process -Filter "ProcessId=$($c.OwningProcess)"
   $padre = if ($x) { Get-Process -Id $x.ParentProcessId -ErrorAction SilentlyContinue } else { $null }
   [pscustomobject]@{ pid = [int]$c.OwningProcess; nombre = $x.Name; ruta = $x.ExecutablePath; padreVivo = [bool]$padre } | ConvertTo-Json -Compress }`;
-    const salida = await correr("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]);
-    try { return JSON.parse(salida.trim()); } catch { return null; }
+    const salida = await correr("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], 45_000);
+    try { return JSON.parse(salida.trim()); } catch { return duenoPorNetstat(p); }
   }
   const linea = await correr("ss", ["-ltnpH", `sport = :${p}`]);
   const pid = Number(/pid=(\d+)/.exec(linea)?.[1]);

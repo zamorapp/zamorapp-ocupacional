@@ -26,13 +26,13 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
       trabajadores={trabajadores}
       busquedaInicial={q ?? ""}
       clinico={sesion.clinico}
-      depurar={!sesion.demo && !esRolEmpresa(sesion.rol) ? <DepurarNomina empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={activa ?? ""} /> : null}
+      depurar={!sesion.demo && !esRolEmpresa(sesion.rol) ? <DepurarNomina empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaInicial={empresas.find((e) => e.id === activa)?.id ?? ""} /> : null}
       importar={!empresaSoloLectura(sesion.rol)}
       nuevo={empresaSoloLectura(sesion.rol) ? null : (
         <NuevoPaciente
           habilitado={!sesion.demo && empresas.length > 0}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))}
-          empresaInicial={activa ?? empresas[0]?.id ?? ""}
+          empresaInicial={empresas.find((e) => e.id === activa)?.id ?? empresas[0]?.id ?? ""}
           tipos={tipos}
           cargos={cargos}
         />

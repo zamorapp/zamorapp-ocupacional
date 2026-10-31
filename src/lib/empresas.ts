@@ -42,8 +42,17 @@ export function invalidarEmpresas() {
   MEMORIA.clear();
 }
 
-// cache(): el layout y la página la piden en la misma carga; así va una sola consulta
-export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
+// cache(): el layout y la página la piden en la misma carga; así va una sola consulta.
+// Por omisión solo las ACTIVAS: una empresa inactiva (con la que ya no se trabaja) sale del selector, los listados,
+// el Inicio y los formularios, pero sus datos quedan intactos por razones legales. incluirInactivas = true para
+// lo que debe seguir viéndola: Empresas («Ver inactivas»), su ficha, reportes e impresos históricos, la bitácora,
+// los accidentes ya registrados y los permisos de usuarios.
+export const listarEmpresas = cache(async (incluirInactivas = false): Promise<Empresa[]> => {
+  const todas = await listarTodas();
+  return incluirInactivas ? todas : todas.filter((e) => e.activa);
+});
+
+const listarTodas = cache(async (): Promise<Empresa[]> => {
   if (!supabaseConfigurado) return empresasDemo();
   const supabase = await crearClienteServidor();
   // getClaims verifica el token localmente (sin ir al servidor)

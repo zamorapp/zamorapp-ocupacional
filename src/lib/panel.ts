@@ -149,5 +149,5 @@ export async function agendaInicio(): Promise<typeof AGENDA_DEMO> {
 
 // Sin empresas todavía: la guía de primeros pasos
 export async function panelVacio(): Promise<boolean> {
-  return supabaseConfigurado && (await listarEmpresas()).length === 0;
+  return supabaseConfigurado && (await listarEmpresas(true)).length === 0;
 }

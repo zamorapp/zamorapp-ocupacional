@@ -6,10 +6,10 @@ import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, S
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { personaVacia, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
+import { conNombre, fechaEmisionDe, personaVacia, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
 import type { InformeVigilancia } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
-import { generarAnalisis, SECCIONES_ANALISIS, type DatosAnalisis } from "@/lib/vigilancia-analisis";
+import { generarAnalisis, SECCIONES_ANALISIS, SECCIONES_INTEGRAL, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { leerRespuestaIA, pedidoIA, TITULOS_IA, type ClaveIA } from "@/lib/vigilancia-ia";
 import { guardarInformeVigilancia } from "./acciones";
@@ -111,7 +111,7 @@ function Grupo({ titulo, ayuda, personas, cambiar, disabled, registro, varios }:
 }
 
 // Redacción del informe: cada sección trae un borrador generado con los datos del período, editable.
-export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: base, datos, firmantesBase, editable, enlaceImprimir, empresa }: {
+export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: base, datos, firmantesBase, editable, enlaceImprimir, hoy, empresa }: {
   empresaId: string | null;
   desde: string;
   hasta: string;
@@ -121,6 +121,8 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
   firmantesBase: Firmantes;
   editable: boolean;
   enlaceImprimir: string;
+  /** AAAA-MM-DD de hoy en Caracas, calculado en el servidor (hora anclada, no la de Windows) */
+  hoy: string;
   /** Datos de la portada que salen de la ficha de la empresa (solo lectura aquí) */
   empresa?: { id: string; datos: [string, string | null][] } | null;
 }) {
@@ -138,32 +140,83 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
     factores_riesgo: inicial?.factores_riesgo || sugeridos.factores_riesgo,
     medidas_control: inicial?.medidas_control || sugeridos.medidas_control,
   }));
-  const [firmantes, setFirmantes] = useState<Firmantes>(() => ({ ...firmantesBase, ...inicial?.firmantes }));
-  const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
-  // Textos de antes de «Usar en el informe» (IA): «Deshacer» los devuelve
-  const [antesIA, setAntesIA] = useState<TextosInforme | null>(null);
+  // La fecha de emisión arranca llena (la guardada, la del día en que se guardó o hoy) y es editable
+  const [firmantes, setFirmantes] = useState<Firmantes>(() => {
+    const f = { ...firmantesBase, ...inicial?.firmantes };
+    return { ...f, fecha_emision: fechaEmisionDe(f, inicial?.actualizado_en, hoy) };
+  });
+  // deshacer: el aviso ofrece volver a los textos de antes (IA, «Otra redacción», «Regenerar todo»)
+  const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string; deshacer?: boolean } | null>(null);
+  const [antes, setAntes] = useState<{ textos: TextosInforme; analisis: Record<string, string>; variante: number } | null>(null);
+  // Bloques de análisis abiertos y textos recién cambiados (se resaltan unos segundos para que el cambio se vea)
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
+  const [resaltados, setResaltados] = useState<Set<string>>(new Set());
   const [guardado, setGuardado] = useState(Boolean(inicial?.id));
   const [ocupado, iniciar] = useTransition();
 
   const cambiar = (k: Clave, v: string) => { setTextos({ ...textos, [k]: v }); setAviso(null); };
+  // Aplica textos nuevos, guarda los de antes para «Deshacer», abre los bloques y resalta lo que cambió
+  const reemplazar = (nuevosTextos: TextosInforme, nuevoAnalisis: Record<string, string>, nuevaVariante: number, que: string) => {
+    const cambiados = [
+      ...(Object.keys(nuevosTextos) as Clave[]).filter((k) => nuevosTextos[k] !== textos[k]),
+      ...Object.keys(nuevoAnalisis).filter((k) => nuevoAnalisis[k] !== analisis[k]).map((k) => `a:${k}`),
+    ];
+    if (!cambiados.length) {
+      setAviso({ ok: true, mensaje: que === "regenerar" ? "Todo ya está igual a la sugerencia: no había nada que reponer. Para otras palabras usa «Otra redacción»." : "Esta redacción salió igual a la anterior: pulsa otra vez «Otra redacción»." });
+      return;
+    }
+    setAntes({ textos, analisis, variante });
+    setTextos(nuevosTextos);
+    setAnalisis(nuevoAnalisis);
+    setVariante(nuevaVariante);
+    const enAnalisis = cambiados.filter((k) => k.startsWith("a:")).length;
+    const enTextos = cambiados.length - enAnalisis;
+    setAbiertos({ cuadros: true, anexo: true, integral: true });
+    setResaltados(new Set(cambiados));
+    setAviso({
+      ok: true,
+      deshacer: true,
+      mensaje: `${que === "regenerar" ? "Repuse" : "Reescribí"} ${[enTextos && `${enTextos} ${enTextos === 1 ? "texto" : "textos"} de arriba`, enAnalisis && `${enAnalisis} análisis de los cuadros`].filter(Boolean).join(" y ")} (resaltados). Guarda para que salga en el informe.`,
+    });
+  };
   const otraRedaccion = () => {
     if (!datos) return;
     const g = generarAnalisis(datos, variante + 1);
-    setVariante(variante + 1);
-    setAnalisis(g.secciones);
-    setTextos({ ...textos, resumen: g.resumen, conclusiones: g.conclusion });
-    setAviso(null);
+    reemplazar({ ...textos, resumen: g.resumen, conclusiones: g.conclusion }, { ...g.secciones }, variante + 1, "otra");
   };
+  // Vuelve a la sugerencia, sin tocar la «Visión del médico» (es solo suya: no tiene sugerencia)
+  const regenerar = () => reemplazar({ ...sugeridos, vision_medico: textos.vision_medico }, { ...generado?.secciones }, variante, "regenerar");
+  const deshacer = () => {
+    if (!antes) return;
+    setTextos(antes.textos);
+    setAnalisis(antes.analisis);
+    setVariante(antes.variante);
+    setAntes(null);
+    setAviso(null);
+    setResaltados(new Set());
+  };
+  // Fondo suave además del borde (el borde solo se confunde con el foco); se quita al editar ese campo o al guardar
+  const resalte = (k: string) => (resaltados.has(k) ? "bg-ok/10 ring-2 ring-primary/60 transition-colors" : "transition-colors");
+  const quitarResalte = (k: string) => { if (resaltados.has(k)) setResaltados((x) => { const y = new Set(x); y.delete(k); return y; }); };
   const fijar = (c: Partial<Firmantes>) => { setFirmantes({ ...firmantes, ...c }); setAviso(null); };
+  // Lo que saldría como «Falta» o «Sin datos» en la portada: se nombra en el título y la sección se abre sola
+  const faltan = [
+    ...(empresa?.datos ?? []).filter(([, v]) => !v).map(([k]) => k),
+    ...(firmantes.medico?.nombre?.trim() ? [] : ["Elaborado por"]),
+    ...(firmantes.sst?.nombre?.trim() ? [] : ["Servicio de SST"]),
+    ...(conNombre(representantesDe(firmantes)).length ? [] : ["Representantes del patrono"]),
+    ...(conNombre(firmantes.delegados).length ? [] : ["Delegados de prevención"]),
+  ];
 
   const guardar = (imprimir = false) =>
     iniciar(async () => {
       const guardarTextos = async () => {
         // Del análisis solo se guarda lo editado a mano; lo demás lo vuelve a redactar la variante
         const editado = Object.fromEntries(Object.entries(analisis).filter(([k, v]) => v !== generado?.secciones[k as keyof typeof generado.secciones]));
-        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes, analisis: editado, variante });
+        // Si borraron la fecha, se guarda la de hoy: el informe nunca sale sin fecha de emisión
+        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes: { ...firmantes, fecha_emision: firmantes.fecha_emision || hoy }, analisis: editado, variante });
         setAviso(r);
-        if (r.ok) setGuardado(true);
+        if (r.ok) { setGuardado(true); setResaltados(new Set()); }
         return r.ok;
       };
       if (!imprimir) return void (await guardarTextos());
@@ -188,7 +241,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
               <Button type="button" variant="ghost" size="sm" onClick={() => cambiar(k, sugeridos[k])}><RotateCcw /> Usar sugerencia</Button>
             )}
           </div>
-          <Textarea value={textos[k]} disabled={!editable} onChange={(e) => cambiar(k, e.target.value)} className="min-h-28 text-sm" />
+          <Textarea value={textos[k]} disabled={!editable} onChange={(e) => { cambiar(k, e.target.value); quitarResalte(k); }} className={`min-h-28 text-sm ${resalte(k)}`} />
         </div>
       ))}
 
@@ -197,15 +250,19 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
           datos={datos}
           riesgos={textos.factores_riesgo}
           quitar={(empresa?.datos ?? []).filter(([k]) => k === "RIF" || k === "Razón social").map(([, v]) => v ?? "")}
-          aplicar={(t) => { setAntesIA(textos); setTextos({ ...textos, ...t }); setAviso({ ok: true, mensaje: "Texto de la IA puesto en la conclusión y las recomendaciones: revísalo antes de guardar." }); }}
+          aplicar={(t) => { setAntes({ textos, analisis, variante }); setTextos({ ...textos, ...t }); setAviso({ ok: true, deshacer: true, mensaje: "Texto de la IA puesto en la conclusión y las recomendaciones: revísalo antes de guardar." }); }}
         />
       )}
 
-      {generado && (
-        <details className="group rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">Análisis de cada cuadro <span className="font-normal text-muted-foreground">· sale debajo de cada gráfico del informe impreso</span></summary>
+      {generado && ([
+        ["cuadros", "Análisis de cada cuadro", "sale debajo de cada gráfico del informe impreso", SECCIONES_ANALISIS.filter(([k]) => !k.startsWith("anexo_") && !SECCIONES_INTEGRAL.includes(k))],
+        ["anexo", "Análisis del anexo estadístico", "uno por cuadro, también cuando no hay registros", SECCIONES_ANALISIS.filter(([k]) => k.startsWith("anexo_"))],
+        ["integral", "Análisis integral, recomendaciones para la empresa y conclusión final", "cierra el informe", SECCIONES_ANALISIS.filter(([k]) => SECCIONES_INTEGRAL.includes(k))],
+      ] as const).map(([bloque, nombre, ayuda, lista]) => (
+        <details key={bloque} className="group rounded-lg border p-3" open={Boolean(abiertos[bloque])} onToggle={(e) => { const open = e.currentTarget.open; setAbiertos((x) => (x[bloque] === open ? x : { ...x, [bloque]: open })); }}>
+          <summary className="cursor-pointer text-sm font-medium">{nombre} <span className="font-normal text-muted-foreground">· {ayuda}</span></summary>
           <div className="mt-3 space-y-3">
-            {SECCIONES_ANALISIS.map(([k, titulo]) => (
+            {lista.map(([k, titulo]) => (
               <div key={k} className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-muted-foreground">{titulo}</span>
@@ -213,15 +270,18 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
                     <Button type="button" variant="ghost" size="sm" onClick={() => setAnalisis({ ...analisis, [k]: generado.secciones[k] })}><RotateCcw /> Usar sugerencia</Button>
                   )}
                 </div>
-                <Textarea value={analisis[k] ?? ""} disabled={!editable} onChange={(e) => { setAnalisis({ ...analisis, [k]: e.target.value }); setAviso(null); }} className="min-h-20 text-sm" />
+                <Textarea value={analisis[k] ?? ""} disabled={!editable} onChange={(e) => { setAnalisis({ ...analisis, [k]: e.target.value }); setAviso(null); quitarResalte(`a:${k}`); }} className={`min-h-20 text-sm ${resalte(`a:${k}`)}`} />
               </div>
             ))}
           </div>
         </details>
-      )}
+      ))}
 
-      <details className="group rounded-lg border p-3" open={!guardado}>
-        <summary className="cursor-pointer text-sm font-medium">Portada y firmantes <span className="font-normal text-muted-foreground">· se recuerdan del último informe de la empresa</span></summary>
+      <details className="group rounded-lg border p-3" open={!guardado || faltan.length > 0}>
+        <summary className="cursor-pointer text-sm font-medium">
+          Portada y firmantes <span className="font-normal text-muted-foreground">· se recuerdan del último informe de la empresa</span>
+          {faltan.length > 0 && <span className="ml-1.5 font-normal"><span className="text-alerta-texto">· falta: {faltan.join(", ")}</span> <span className="text-muted-foreground">(puedes guardar igual)</span></span>}
+        </summary>
         <div className="mt-3 space-y-4">
           {empresa && (
             <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
@@ -237,8 +297,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Campo etiqueta="Autoridad" valor={firmantes.autoridad} cambiar={(v) => fijar({ autoridad: v })} disabled={!editable} />
             <Campo etiqueta="Custodio" valor={firmantes.custodio} cambiar={(v) => fijar({ custodio: v })} disabled={!editable} />
-            <Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Si se deja vacío, la dirección de la empresa" />
-            <Campo etiqueta="Fecha de emisión" tipo="date" valor={firmantes.fecha_emision} cambiar={(v) => fijar({ fecha_emision: v })} disabled={!editable} />
+            <div className="sm:col-span-2"><Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Si se deja vacío, la dirección de la empresa" /></div>
           </div>
           <Grupo titulo="Elaborado por" ayuda="Médico ocupacional" personas={[firmantes.medico ?? personaVacia]} cambiar={([p]) => fijar({ medico: p })} disabled={!editable} registro />
           <Grupo titulo="Servicio de Seguridad y Salud en el Trabajo" ayuda="Coordinador(a) y su registro del INPSASEL" personas={[firmantes.sst ?? personaVacia]} cambiar={([p]) => fijar({ sst: p })} disabled={!editable} registro />
@@ -247,19 +306,32 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         </div>
       </details>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        {/* Junto a los botones, siempre a la vista: sale en la portada del informe */}
+        <label className="flex w-full flex-col gap-1 text-xs sm:w-auto">
+          <span className="font-medium">Fecha de emisión</span>
+          <Input
+            type="date"
+            required
+            value={firmantes.fecha_emision ?? ""}
+            disabled={!editable}
+            onChange={(e) => fijar({ fecha_emision: e.target.value })}
+            onBlur={(e) => { if (!e.target.value) fijar({ fecha_emision: hoy }); }}
+            className="h-9 w-full text-sm sm:w-40"
+          />
+        </label>
         {editable && (
           <>
             <Button disabled={ocupado} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
             <Button variant="outline" disabled={ocupado} onClick={() => guardar(true)}><Printer /> Guardar e imprimir</Button>
             {datos && <Button variant="ghost" disabled={ocupado} onClick={otraRedaccion} title="Reescribe el resumen, la conclusión y el análisis de cada cuadro con otras palabras, con los mismos datos"><Shuffle /> Otra redacción</Button>}
-            <Button variant="ghost" disabled={ocupado} onClick={() => { setTextos(sugeridos); setAnalisis({ ...generado?.secciones }); setAviso(null); }}><Sparkles /> Regenerar todo</Button>
+            <Button variant="ghost" disabled={ocupado} onClick={regenerar} title="Vuelve a poner los textos sugeridos con los datos del período (tu Visión del médico no se toca)"><Sparkles /> Regenerar todo</Button>
           </>
         )}
         {!editable && <Button asChild variant="outline"><Link href={enlaceImprimir} target="_blank"><Printer /> Imprimir</Link></Button>}
-        {aviso && <span className={aviso.ok ? "text-sm text-ok-texto" : "text-sm text-destructive"}>{aviso.mensaje}</span>}
-        {antesIA && aviso?.mensaje.startsWith("Texto de la IA") && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => { setTextos(antesIA); setAntesIA(null); setAviso(null); }}><Undo2 /> Deshacer</Button>
+        {aviso && <span role="status" className={aviso.ok ? "text-sm text-ok-texto" : "text-sm text-destructive"}>{aviso.mensaje}</span>}
+        {antes && aviso?.deshacer && (
+          <Button type="button" variant="ghost" size="sm" onClick={deshacer}><Undo2 /> Deshacer</Button>
         )}
       </div>
     </div>

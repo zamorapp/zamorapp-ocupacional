@@ -8,11 +8,9 @@ const num = (n: number) => n.toLocaleString("es-VE");
 // Dato faltante: aviso en pantalla, raya en el papel
 const Falta = () => <><span className="font-semibold text-red-700 print:hidden">Falta</span><span className="hidden print:inline">—</span></>;
 
-// Fecha de emisión: la elegida en Reportes o el día (en Caracas) en que se guardó el informe
-const emision = (fecha?: string, guardado?: string | null) => {
-  const d = fecha ? new Date(`${fecha}T12:00:00-04:00`) : guardado ? new Date(guardado) : null;
-  return d ? d.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "numeric", month: "long", year: "numeric" }) : null;
-};
+// Fecha de emisión (AAAA-MM-DD, ya resuelta con fechaEmisionDe) en letras
+const emision = (fecha: string) =>
+  new Date(`${fecha}T12:00:00-04:00`).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "numeric", month: "long", year: "numeric" });
 
 // Una fila por persona en el cuadro de elaboración y aprobación; el rol ocupa todas las filas de su grupo
 function FilasFirma({ rol, personas }: { rol: string; personas: Persona[] }) {
@@ -44,19 +42,19 @@ function filasFicha(ficha: Dato[], centro: string | null): Dato[][] {
 }
 
 // Portada del informe de vigilancia: identificación de la empresa (de su ficha) y control del documento (de Reportes)
-export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, guardadoEn, titulo, subtitulo, periodo, poblacion, org }: {
+export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision, titulo, subtitulo, periodo, poblacion, org }: {
   logoEmpresa: string | null;
   orgLogo: string | null;
   empresa: FichaEmpresa | null;
   firmantes: Firmantes;
-  guardadoEn: string | null;
+  /** AAAA-MM-DD: nunca vacía (fechaEmisionDe) */
+  fechaEmision: string;
   titulo: string;
   subtitulo: string | null;
   periodo: Pick<Periodo, "desde" | "hasta">;
   poblacion: { total: number; femenino: number; masculino: number };
   org: string | null;
 }) {
-  const fechaEmision = emision(firmantes.fecha_emision, guardadoEn);
   const ficha = empresa ? datosPortada(empresa, poblacion) : null;
   const pob = poblacion.total;
   return (
@@ -69,7 +67,7 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, guardadoEn, 
         </div>
         <div className="text-right">
           <div className="text-[9px] font-bold uppercase tracking-[.16em] text-doc-tenue">Fecha de emisión</div>
-          <div className="text-[13px] font-semibold first-letter:uppercase">{fechaEmision ?? <Falta />}</div>
+          <div className="text-[13px] font-semibold first-letter:uppercase">{emision(fechaEmision)}</div>
           {/* Es dato de salud: va en toda copia, también la que recibe la empresa */}
           <div className="mt-0.5 text-[9px] text-doc-tenue">Documento confidencial de salud ocupacional</div>
         </div>
