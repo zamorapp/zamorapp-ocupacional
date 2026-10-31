@@ -49,7 +49,9 @@ async function accidentabilidad(empresa: string | null): Promise<Accidentabilida
 }
 
 export type Indicador = { titulo: string; valor: string; detalle: string; estado: Estado };
-export type Alerta = { texto: string; sujeto: string; plazo: string; estado: Estado; href?: string };
+// «empresa»: la alerta es de vencimientos de esa empresa y se puede ajustar ahí mismo (mostrar, días, periodicidad, inactivar)
+export type AjusteEmpresa = { id: string; nombre: string; diasAviso: number; periodicidad: number };
+export type Alerta = { texto: string; sujeto: string; plazo: string; estado: Estado; href?: string; empresa?: AjusteEmpresa };
 export type FilaAptitud = (typeof APTITUD_DEMO)[number];
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
@@ -102,16 +104,20 @@ export async function alertasInicio(): Promise<Alerta[]> {
   }
   // Vencimientos por empresa: cada aviso abre el reporte de esa empresa, listo para programar las citas
   const MAX_EMPRESAS = 5;
+  const ajuste = (v: VencimientoEmpresa): AjusteEmpresa => ({ id: v.id, nombre: v.empresa, diasAviso: v.dias_aviso, periodicidad: v.periodicidad_meses });
   const conVencidos = venc.filter((v) => v.vencidos > 0);
   const conPorVencer = venc.filter((v) => v.por_vencer > 0);
   for (const v of conVencidos.slice(0, MAX_EMPRESAS)) {
-    alertas.push({ texto: "Exámenes periódicos vencidos", sujeto: `${v.empresa}: ${plural(v.vencidos, "trabajador", "trabajadores")}`, plazo: "Programar citas", estado: "alerta", href: `/reportes/vencimientos?empresa=${v.id}` });
+    alertas.push({ texto: "Exámenes periódicos vencidos", sujeto: `${v.empresa}: ${plural(v.vencidos, "trabajador", "trabajadores")}`, plazo: "Programar citas", estado: "alerta", href: `/reportes/vencimientos?empresa=${v.id}`, empresa: ajuste(v) });
   }
   for (const v of conPorVencer.slice(0, MAX_EMPRESAS)) {
-    alertas.push({ texto: `Exámenes que vencen en ${v.dias_aviso} días`, sujeto: `${v.empresa}: ${plural(v.por_vencer, "trabajador", "trabajadores")}`, plazo: "Programar", estado: "aviso", href: `/reportes/vencimientos?empresa=${v.id}` });
+    alertas.push({ texto: `Exámenes que vencen en ${v.dias_aviso} días`, sujeto: `${v.empresa}: ${plural(v.por_vencer, "trabajador", "trabajadores")}`, plazo: "Programar", estado: "aviso", href: `/reportes/vencimientos?empresa=${v.id}`, empresa: ajuste(v) });
   }
   const resto = new Set([...conVencidos.slice(MAX_EMPRESAS), ...conPorVencer.slice(MAX_EMPRESAS)].map((v) => v.id)).size;
   if (resto) alertas.push({ texto: "Más empresas con exámenes vencidos o por vencer", sujeto: plural(resto, "empresa", "empresas"), plazo: "Ver todas", estado: "aviso", href: "/reportes/vencimientos" });
+  // Las silenciadas no desaparecen sin rastro: una línea dice cuántas hay y lleva a Empresas para volver a encenderlas
+  const silenciadas = (c?.vencimientos ?? []).filter((v) => (v.vencidos > 0 || v.por_vencer > 0) && !venc.includes(v)).length;
+  if (silenciadas) alertas.push({ texto: "Vencimientos silenciados", sujeto: `${plural(silenciadas, "empresa", "empresas")} con el aviso apagado`, plazo: "Ver en Empresas", estado: "ok", href: "/empresas" });
   const aspirantes = c?.resumen.aspirantes ?? 0;
   if (aspirantes) alertas.push({ texto: "Aspirantes esperando evaluación pre-empleo", sujeto: plural(aspirantes, "aspirante", "aspirantes"), plazo: "Pendiente", estado: "aviso", href: "/pacientes" });
   for (const e of empresas.filter((x) => !x.ignorarAlertaLegal)) {
