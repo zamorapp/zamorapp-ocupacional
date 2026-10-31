@@ -2,7 +2,7 @@
 // «sin internet» del celular (/movil) para abrirla sin señal. Los datos de esa pantalla viven cifrados en el teléfono
 // (IndexedDB, src/lib/movil); aquí solo se guardan archivos de la app, nunca datos de pacientes.
 // También muestra los avisos al celular (push) cuando RR. HH. se registra, pide citas o hace solicitudes (lib/push.ts).
-const CACHE = "zamorapp-v3";
+const CACHE = "zamorapp-v4";
 // Caché aparte y estable para /movil: una versión nueva de la app no puede borrar los archivos de la pantalla que
 // el teléfono necesita sin señal. Se renueva entera cada vez que /movil abre con internet.
 const MOVIL = "zamorapp-movil-v1";
@@ -43,6 +43,16 @@ async function guardarMovil(respuesta) {
   }
 }
 
+const esperar = (ms) => new Promise((listo) => setTimeout(listo, ms));
+async function conReintentos(request) {
+  // Solo GET (el manejador ya descarta el resto): un envío con cuerpo no se repite, se duplicaría
+  if (request.method !== "GET") return fetch(request);
+  for (const pausa of [0, 1500, 3000]) {
+    if (pausa) await esperar(pausa);
+    try { return await fetch(request); } catch (e) { if (pausa === 3000) throw e; }
+  }
+}
+
 async function abrirMovil(request) {
   try {
     const r = await conTiempo(fetch(request), ESPERA_RED);
@@ -61,8 +71,10 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== location.origin) return;
   if (request.mode === "navigate") {
     if (url.pathname === "/movil") { e.respondWith(abrirMovil(request)); return; }
-    // Cualquier otra pantalla sin señal: si el teléfono tiene la pantalla sin internet, se va a ella
-    e.respondWith(fetch(request).catch(async () =>
+    // Cualquier otra pantalla sin señal: si el teléfono tiene la pantalla sin internet, se va a ella.
+    // Al abrir la app desde el bolsillo la red del teléfono tarda en despertar y el primer pedido falla aunque haya
+    // señal (31-oct: «Reintentar» que al rato sí abría): se reintenta sola dos veces antes de rendirse.
+    e.respondWith(conReintentos(request).catch(async () =>
       (await caches.match("/movil", { cacheName: MOVIL })) ? Response.redirect("/movil", 302) : caches.match(SIN_CONEXION)));
     return;
   }
