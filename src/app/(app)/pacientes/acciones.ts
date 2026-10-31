@@ -148,7 +148,7 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
       if (!previo || !e) return { ok: false, mensaje: "Ya existe un paciente con esa cédula." };
       // Inactivo o egresado que vuelve: se abre su ficha para «Reingresar» con sus datos (empieza de cero)
       if (previo.estado === "inactivo" || previo.estado === "egresado")
-        return { ok: false, existente: previo.id, mensaje: `${previo.nombres} ${previo.apellidos} ya está registrado (${previo.estado === "inactivo" ? "inactivo" : "egresado"}, último en ${e.razon_social}). Abre su ficha y pulsa «Reingresar»: sus datos se conservan y empieza un período nuevo.` };
+        return { ok: false, existente: previo.id, mensaje: `${previo.nombres} ${previo.apellidos} ya está registrado (${previo.estado === "inactivo" ? "inactivo" : "egresado"}, último en ${e.razon_social}). Abre su ficha y toca «Reingresar»: sus datos se conservan y empieza un período nuevo.` };
       return {
         ok: false,
         mensaje: e.activa

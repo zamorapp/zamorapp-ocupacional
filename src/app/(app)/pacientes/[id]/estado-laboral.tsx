@@ -46,7 +46,7 @@ export function InactivarTrabajador({ trabajadorId, nombre, hoy }: { trabajadorI
           <DialogTitle>Inactivar a {nombre}</DialogTitle>
           <DialogDescription>
             Para quien ya no está en la empresa pero nunca tuvo egreso. No es un egreso: deja de contar en estadísticas, conteos y
-            alertas, y sus datos e historia se conservan. Si vuelve, pulsas «Reingresar».
+            alertas, y sus datos e historia se conservan. Si vuelve, tocas «Reingresar».
           </DialogDescription>
         </DialogHeader>
         {hecho ? (
@@ -70,7 +70,7 @@ export function InactivarTrabajador({ trabajadorId, nombre, hoy }: { trabajadorI
               <Input id="ina-motivo" maxLength={200} className="h-10" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Escribe o toca uno" />
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {MOTIVOS.map((m) => (
-                  <button key={m} type="button" onClick={() => setMotivo(m)}
+                  <button key={m} type="button" onClick={() => setMotivo(m)} aria-pressed={motivo === m}
                     className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition hover:border-primary hover:text-foreground">{m}</button>
                 ))}
               </div>

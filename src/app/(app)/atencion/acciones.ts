@@ -242,7 +242,7 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
 
   // Inactivo (ya no está en la empresa): se reingresa primero, para que la consulta abra su período nuevo
   if (t.estado === "inactivo") {
-    return { ok: false, inactivo: true, mensaje: "Está inactivo (ya no estaba en la empresa). Si vuelve, pulsa «Reingresar» en su ficha: sus datos se conservan y empieza un período nuevo." };
+    return { ok: false, inactivo: true, mensaje: "Está inactivo (ya no estaba en la empresa). Si vuelve, toca «Reingresar» en su ficha: sus datos se conservan y empieza un período nuevo." };
   }
 
   const plantilla = (lista: "examen_funcional" | "examen_fisico") =>

@@ -61,6 +61,8 @@ export function DepurarTrabajadores({ empresas, empresaInicial }: { empresas: { 
 
   const subirExcel = (f: File) => iniciar(async () => {
     setMensaje(null);
+    // Una nómina de miles de filas pesa menos de 1 MB: más de 5 MB no es el Excel de esta lista
+    if (f.size > 5 * 1024 * 1024) return setMensaje({ ok: false, texto: "Ese archivo pesa más de 5 MB. Sube el Excel que descargaste aquí, con las respuestas de RR. HH." });
     try {
       const filas: unknown[][] = await (await import("read-excel-file")).default(f);
       const enc = filas.findIndex((fila) => fila.some(esEncabezadoCedula) && fila.some(esEncabezadoSigue));
@@ -119,7 +121,8 @@ export function DepurarTrabajadores({ empresas, empresaInicial }: { empresas: { 
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Depurar trabajadores</DialogTitle>
-          <DialogDescription>
+          {/* La explicación solo en el primer paso; después, solo el título (Diseño, 31-oct) */}
+          <DialogDescription className={paso === "elegir" ? undefined : "sr-only"}>
             Para quienes ya no están en la empresa pero nunca tuvieron egreso (por ejemplo, los traídos del SAME). Quedan
             «Inactivos»: no cuentan en conteos, estadísticas ni alertas, y sus datos e historia se conservan para un reingreso.
           </DialogDescription>
@@ -185,7 +188,10 @@ export function DepurarTrabajadores({ empresas, empresaInicial }: { empresas: { 
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input value={filtro} onChange={(e) => { setFiltro(e.target.value); setMostrar(TANDA); }} placeholder="Buscar en la lista" className="h-10 pl-9" />
                   </label>
-                  <Button variant="ghost" size="sm" onClick={marcarVisibles}>{todosVisibles ? "Desmarcar" : "Marcar"} {filtro ? "los que se ven" : "todos"}</Button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Button variant="ghost" size="sm" className="-ml-2" onClick={marcarVisibles}>{todosVisibles ? "Desmarcar" : "Marcar"} {filtro ? "los que se ven" : "todos"}</Button>
+                  <span role="status" className="text-sm text-muted-foreground"><span className="font-medium text-foreground">{marcados.size}</span> de {lista.length} marcados</span>
                 </div>
                 <ul className="max-h-[40dvh] divide-y overflow-y-auto rounded-lg border">
                   {visibles.slice(0, mostrar).map((c) => (
@@ -215,12 +221,13 @@ export function DepurarTrabajadores({ empresas, empresaInicial }: { empresas: { 
               </>
             )}
             {mensaje && !mensaje.ok && <p role="alert" className="text-sm text-destructive">{mensaje.texto}</p>}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            {/* Pie fijo: «Inactivar» siempre a la vista aunque la lista sea larga (390 px) */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-col-reverse gap-2 border-t bg-background px-6 py-3 sm:flex-row">
               <Button variant="ghost" onClick={reiniciar} disabled={ocupado}>Cambiar empresa o fecha</Button>
               {lista.length > 0 && (
                 <Button className="flex-1" onClick={inactivar} disabled={ocupado || marcados.size === 0}>
                   {ocupado && <Loader2 className="animate-spin" />}
-                  {marcados.size === 0 ? "Marca a quienes ya no están" : `Inactivar ${marcados.size} ${marcados.size === 1 ? "trabajador" : "trabajadores"}`}
+                  {marcados.size === 0 ? "Marca a quienes ya no están" : `Inactivar ${marcados.size} ${marcados.size === 1 ? "marcado" : "marcados"}`}
                 </Button>
               )}
             </div>

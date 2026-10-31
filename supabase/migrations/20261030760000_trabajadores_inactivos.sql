@@ -63,6 +63,12 @@ begin
      and public.es_empresa(old.org_id) and not (public.es_admin(old.org_id) or public.es_clinico(old.org_id)) then
     raise exception 'RR. HH. no puede reingresar a un trabajador' using errcode = '42501';
   end if;
+  -- Volver de inactivo o egresado (reingreso o Deshacer) también es del servicio de salud: RR. HH. no lo reactiva
+  -- (Analizar #213: volvería con la aptitud y los vencimientos viejos y borraría su cierre del historial)
+  if v_vuelve and auth.uid() is not null
+     and public.es_empresa(old.org_id) and not (public.es_admin(old.org_id) or public.es_clinico(old.org_id)) then
+    raise exception 'El reingreso lo hace el servicio de salud' using errcode = '42501';
+  end if;
   if v_atras then
     -- Deshacer un reingreso o traslado: el cierre anterior sigue en el historial; solo se quita el del traslado
     if not (new.estado::text = any (v_fuera)) then
@@ -79,11 +85,15 @@ begin
             case when new.estado = 'inactivo' then new.fecha_inactivo else coalesce(new.fecha_egreso, public.hoy_caracas()) end,
             new.estado::text, case when new.estado = 'inactivo' then new.motivo_inactivo end, old.estado::text);
   elsif v_vuelve then
-    -- Vuelve: con período nuevo es un reingreso (empieza de cero); sin él es «Deshacer» del inactivo y se borra el cierre
+    -- Vuelve: con período nuevo es un reingreso (empieza de cero); sin él es «Deshacer» del inactivo y se borra el
+    -- cierre, solo si es el de esa misma salida y se anotó hoy (un Deshacer de verdad)
     if not v_nuevo then
       delete from public.trabajador_periodos
-       where id = (select x.id from public.trabajador_periodos x where x.trabajador_id = old.id and x.cierre = old.estado::text
-                   order by x.creado_en desc limit 1);
+       where id = (select x.id from public.trabajador_periodos x
+                    where x.trabajador_id = old.id and x.cierre = old.estado::text
+                      and x.hasta = coalesce(case when old.estado = 'inactivo' then old.fecha_inactivo else old.fecha_egreso end, x.hasta)
+                      and public.fecha_caracas(x.creado_en) = public.hoy_caracas()
+                    order by x.creado_en desc limit 1);
     end if;
     new.fecha_inactivo := null;
     new.motivo_inactivo := null;

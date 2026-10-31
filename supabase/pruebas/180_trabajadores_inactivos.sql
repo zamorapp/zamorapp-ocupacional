@@ -39,10 +39,14 @@ exception when insufficient_privilege then raise notice 'RR. HH. no ve candidato
 do $$ begin perform public.inactivar_trabajadores(array['30000000-0000-0000-0000-000000000181']::uuid[], public.hoy_caracas());
   raise notice 'RR. HH. inactiva en grupo: FALLA';
 exception when insufficient_privilege then raise notice 'RR. HH. no inactiva en grupo (ok)'; end $$;
+do $$ begin update public.trabajadores set estado = 'activo' where id = '30000000-0000-0000-0000-000000000181';
+  if found then raise notice 'RR. HH. reactiva a un inactivo: FALLA'; end if;
+exception when insufficient_privilege then raise notice 'RR. HH. no reactiva a un inactivo (ok)'; end $$;
 do $$ begin update public.trabajadores set periodo_desde = public.hoy_caracas() where id = '30000000-0000-0000-0000-000000000181';
   if found then raise notice 'RR. HH. cambia el inicio del período: FALLA'; end if;
 exception when insufficient_privilege then raise notice 'RR. HH. no cambia el inicio del período (ok)'; end $$;
 reset role;
+select 'RR. HH. no lo reactivó y el cierre sigue (debe 1): ' || count(*) from public.trabajador_periodos where trabajador_id = '30000000-0000-0000-0000-000000000181';
 select 'RR. HH. no cambió el período (debe 0): ' || count(*) from public.trabajadores where id = '30000000-0000-0000-0000-000000000181' and periodo_desde is not null;
 
 -- Deshacer: vuelven a su estado anterior y se borra el cierre
