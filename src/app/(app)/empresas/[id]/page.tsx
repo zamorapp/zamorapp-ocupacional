@@ -20,6 +20,9 @@ import { BotonNotificarPuesto } from "@/components/app/notificacion-riesgos";
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { guardarLogoEmpresa } from "../acciones";
+import { envioAutoEmpresa, ROLES_ENVIO_AUTO } from "@/lib/envio-auto";
+import { listarContactos } from "@/lib/envios";
+import { EnvioAutoConstancias } from "./envio-auto";
 
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
@@ -35,6 +38,9 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   const { dependencias, puestos } = estructura;
   const editaPuestos = !sesion.demo && ["administrador", "coordinador_sst", "gerente_medico"].includes(sesion.rol ?? "");
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  // Constancias automáticas a RR. HH.: la ve el personal del servicio; la cambia quien firma con criterio médico
+  const veEnvioAuto = !sesion.demo && Boolean(sesion.orgId) && ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
+  const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
 
   return (
@@ -73,6 +79,15 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
               />
             </CardContent>
           </Card>
+          {veEnvioAuto && (
+            <Card className="h-fit">
+              <CardHeader><CardTitle className="text-base">Constancias automáticas a RR. HH.</CardTitle></CardHeader>
+              <CardContent>
+                <EnvioAutoConstancias empresaId={id} inicial={envioAuto} editable={ROLES_ENVIO_AUTO.includes(sesion.rol ?? "")}
+                  correos={[...new Set(contactos.map((c) => c.correo?.toLowerCase()).filter((c): c is string => Boolean(c)))]} />
+              </CardContent>
+            </Card>
+          )}
           <Card className="h-fit">
             <CardHeader><CardTitle className="text-base">Dependencias o departamentos</CardTitle></CardHeader>
             <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
