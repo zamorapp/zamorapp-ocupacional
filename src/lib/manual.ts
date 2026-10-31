@@ -179,7 +179,9 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "En Atención médica ves la cola del día como tablero de cuatro columnas: Citados, En espera, En consulta y Atendidos. Arrastra a un citado a «En espera» cuando llega, y de ahí a «En consulta» para abrir su consulta (los botones «Llegó» y «Atender» hacen lo mismo). El tiempo de espera se pone amarillo a los 20 minutos y rojo a los 40.",
       "La cola está «En vivo»: si recepción marca una llegada en otro equipo, la ves al instante sin recargar. Las tarjetas avisan «Faltan N resultados» cuando hay paraclínicos pendientes.",
-      "Arriba también ves las solicitudes de cita que llegan del portal de empresas (las apruebas o rechazas).",
+      "Arriba también ves las solicitudes de cita que llegan del portal de empresas. Varios trabajadores de una misma solicitud salen juntos y se confirman de una vez. Si a esa hora ya hay otras citas, un bloqueo o queda fuera de tu horario, sale un aviso amarillo de choque (solo informa: puedes confirmar igual).",
+      "«Proponer otra hora»: eliges el día y una hora exacta, «Entre» dos horas o «A partir de» una hora, con una nota opcional. RR. HH. lo recibe en su campanita, su celular y su correo, y responde «Aceptar» (queda confirmada) o «Pedir otra». Su respuesta te llega a la campanita y al celular; si en 24 horas no responde, les llega un recordatorio a los dos. «WhatsApp» abre el mensaje listo para el contacto de la empresa.",
+      "«Disponibilidad» (o Configuración › Disponibilidad para citas): el horario semanal con la duración de cada turno y las personas por turno, y los días u horas bloqueadas (otra empresa, charlas, feriados) con un motivo que solo ve el servicio. Con horario cargado, RR. HH. solo puede pedir horas con cupo; sin horario, escribe la hora libremente. Funciona también sin internet en el escritorio.",
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
       "El botón verde de WhatsApp en cada cita abre tu WhatsApp con el recordatorio listo para enviar al trabajador.",
     ],
@@ -442,7 +444,9 @@ export const MANUAL: TemaManual[] = [
     resumen: "Para RR. HH. de las empresas clientes: pedir citas, ver la nómina con su aptitud y recibir avisos.",
     pasos: [
       "En Inicio tocas «Solicitar cita», buscas y agregas uno o varios trabajadores (con «Agregar los N» sumas todos los que coinciden), eliges el tipo de evaluación y la fecha deseada. Se envía una solicitud por trabajador, hasta 200 a la vez; si alguno no es de tu empresa, se te avisa cuántos quedaron fuera. ¿No está en la nómina? «Trabajador nuevo»: cédula, nombres y apellidos, y entra en la misma solicitud.",
-      "El servicio médico la aprueba o propone otra fecha; te llega un aviso en la campanita.",
+      "Si el servicio cargó su horario, al elegir el día ves las horas con cupo («quedan 2», «lleno») y los próximos días con cupo; tocas una. Si pides para varios trabajadores, se reparten desde esa hora en los turnos siguientes con cupo.",
+      "El servicio médico la confirma o le propone otra hora: la ve arriba en «El servicio médico le propone otra hora», con «Aceptar» (queda confirmada) o «Pedir otra» (elige otro día y hora y deja una nota). También le llega a la campanita, al correo y al celular si activó los avisos.",
+      "Al entrar la primera vez, la bienvenida le guía en dos pasos: «Instalar» zamorApp en el teléfono y «Activar avisos» (citas confirmadas o cambiadas, horas propuestas, solicitudes respondidas y constancias; nunca datos médicos). «Ahora no» la recoge en «Recibir avisos en este equipo».",
       "En Trabajadores ves la nómina y la aptitud vigente de cada uno (sin datos clínicos: tampoco el grupo sanguíneo ni la discapacidad, que solo ve el servicio médico).",
       "Cuando el médico cierra la consulta con su aptitud, recibes un aviso (una sola vez por consulta).",
     ],
