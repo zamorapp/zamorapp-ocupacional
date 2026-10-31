@@ -1,13 +1,14 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
+import { listarEmpresas } from "@/lib/empresas";
 import { type Aptitud, type Trabajador, TRABAJADORES_DEMO } from "@/lib/pacientes";
 import { todas } from "@/lib/paginar";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 const COLUMNAS = `id, numero_historia, cedula, nombres, apellidos, sexo, fecha_nacimiento, fecha_ingreso, turno,
-  lateralidad, telefono, correo, estado,
-  empresas(razon_social), dependencias(nombre), puestos(nombre, riesgos), tipo:lista_items(nombre)`;
+  lateralidad, telefono, correo, estado, empresa_id,
+  empresas(razon_social, activa), dependencias(nombre), puestos(nombre, riesgos), tipo:lista_items(nombre)`;
 
 type Fila = {
   id: string;
@@ -24,7 +25,8 @@ type Fila = {
   telefono: string | null;
   correo: string | null;
   estado: Trabajador["estado"];
-  empresas: { razon_social: string } | null;
+  empresa_id: string;
+  empresas: { razon_social: string; activa: boolean } | null;
   dependencias: { nombre: string } | null;
   puestos: { nombre: string; riesgos: Trabajador["riesgos"] } | null;
   tipo: { nombre: string } | null;
@@ -42,6 +44,8 @@ function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
     sexo: f.sexo,
     fechaNacimiento: f.fecha_nacimiento,
     empresa: f.empresas?.razon_social ?? "",
+    empresaId: f.empresa_id,
+    empresaInactiva: f.empresas?.activa === false,
     dependencia: f.dependencias?.nombre ?? null,
     cargo: f.puestos?.nombre ?? "",
     tipoPaciente: f.tipo?.nombre ?? null,
@@ -79,10 +83,14 @@ async function aptitudes(ids: string[], empresa?: string | null) {
 export async function listarTrabajadores(): Promise<Trabajador[]> {
   if (!supabaseConfigurado) return TRABAJADORES_DEMO;
   const supabase = await crearClienteServidor();
-  const empresa = await empresaActivaId();
+  const [empresa, empresas] = await Promise.all([empresaActivaId(), listarEmpresas(true)]);
+  // «Todas las empresas» = todas las ACTIVAS: los trabajadores de una empresa inactiva no salen en la lista (siguen
+  // en la base y se encuentran por cédula en el buscador). Si se abrió a propósito una inactiva, se ven los suyos.
+  const inactivas = empresas.filter((e) => !e.activa).map((e) => e.id);
   const filas = await todas<Fila>((d, h) => {
     let q = supabase.from("trabajadores").select(COLUMNAS, { count: "exact" }).order("apellidos").order("id").range(d, h);
     if (empresa) q = q.eq("empresa_id", empresa);
+    else if (inactivas.length) q = q.not("empresa_id", "in", `(${inactivas.join(",")})`);
     return q;
   });
   const apt = await aptitudes(filas.map((f) => f.id), empresa);

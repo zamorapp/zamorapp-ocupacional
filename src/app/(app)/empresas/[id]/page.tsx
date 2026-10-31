@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 export default async function EmpresaDetalle({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sesion = await obtenerSesion();
-  const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
+  const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(true), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
   const empresa = empresas.find((e) => e.id === id);
   if (!empresa) notFound();
   // El logo se lee aparte para no cargar imágenes en las listas de empresas

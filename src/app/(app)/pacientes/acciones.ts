@@ -139,7 +139,18 @@ export async function crearPaciente(_: Resultado | null, datos: FormData): Promi
         estado: (texto(datos, "estado") ?? "activo") as "activo",
       });
     if (error) {
-      return { ok: false, mensaje: error.code === "23505" ? "Ya existe un paciente con esa cédula." : "No se pudo guardar: " + error.message };
+      if (error.code !== "23505") return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+      // Cédula ya registrada: se dice en qué empresa está. Si es de una inactiva (candidato que vuelve), se pasa
+      // desde su ficha o el buscador conservando su historia, en vez de crearlo de nuevo.
+      const { data: previo } = await supabase.from("trabajadores").select("nombres, apellidos, empresas(razon_social, activa)").eq("cedula", cedula).maybeSingle();
+      const e = previo?.empresas as unknown as { razon_social: string; activa: boolean } | null;
+      if (!previo || !e) return { ok: false, mensaje: "Ya existe un paciente con esa cédula." };
+      return {
+        ok: false,
+        mensaje: e.activa
+          ? `Esa cédula ya es de ${previo.nombres} ${previo.apellidos} (${e.razon_social}). Búscalo con Ctrl+K.`
+          : `Esa cédula ya es de ${previo.nombres} ${previo.apellidos}, de ${e.razon_social} (empresa inactiva). Búscalo con Ctrl+K y pásalo a esta empresa: su historia va con él.`,
+      };
     }
     invalidarEmpresas();
     revalidatePath("/", "layout");

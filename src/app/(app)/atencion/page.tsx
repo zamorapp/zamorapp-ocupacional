@@ -68,8 +68,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
-          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={activa} />
-          <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={activa} />
+          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
+          <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
         </div>
       </div>
 

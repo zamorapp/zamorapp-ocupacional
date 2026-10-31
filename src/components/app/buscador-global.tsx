@@ -9,6 +9,7 @@ import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 import { buscarGlobal, type Encontrado } from "./acciones";
 import { RegistroRapido } from "./registro-rapido";
+import { PasarAEmpresa } from "./pasar-a-empresa";
 
 export const EVENTO_BUSCADOR = "zamorapp:buscar";
 export const abrirBuscador = () => window.dispatchEvent(new Event(EVENTO_BUSCADOR));
@@ -32,6 +33,8 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
   const [pacientes, setPacientes] = useState<Encontrado[]>([]);
   const [activo, setActivo] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Trabajador de una empresa inactiva al que se quiso atender: se ofrece pasarlo a una empresa activa
+  const [pasando, setPasando] = useState<Encontrado | null>(null);
   const [buscando, iniciarBusqueda] = useTransition();
   const [abriendo, iniciarApertura] = useTransition();
   const lista = useRef<HTMLUListElement>(null);
@@ -88,27 +91,32 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
     setAbierto(false);
     setTexto("");
     setError(null);
+    setPasando(null);
   }, [ruta]);
 
   const cerrar = () => {
     setAbierto(false);
     setTexto("");
     setError(null);
+    setPasando(null);
   };
   const ir = (href: string) => {
     cerrar();
     router.push(href);
   };
-  const atender = (id: string) =>
+  const atender = (p: Encontrado) =>
     iniciarApertura(async () => {
       setError(null);
-      const r = await iniciarConsulta(id);
-      if (r && !r.ok) setError(r.mensaje);
-      else cerrar();
+      setPasando(null);
+      const r = await iniciarConsulta(p.id);
+      if (r && !r.ok) {
+        if (r.empresaInactiva) setPasando(p);
+        else setError(r.mensaje);
+      } else cerrar();
     });
   const elegir = (o: Opcion, consulta = false) => {
     if (o.tipo === "ir") return ir(o.href);
-    if (consulta && clinico) return atender(o.p.id);
+    if (consulta && clinico) return atender(o.p);
     ir(`/pacientes/${o.p.id}`);
   };
 
@@ -142,6 +150,12 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
           <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground sm:block">Esc</kbd>
         </label>
         {error && <p className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>}
+        {pasando && (
+          <div className="border-b p-2">
+            <p className="px-1 pb-1.5 text-sm font-medium">{pasando.nombre} · <span className="font-mono text-xs">{pasando.cedula}</span></p>
+            <PasarAEmpresa trabajadorId={pasando.id} empresaActual={pasando.empresa} empresas={empresas} alPasar={() => atender({ ...pasando, inactiva: false })} />
+          </div>
+        )}
         <ul id="resultados-buscador" ref={lista} role="listbox" className="max-h-[60dvh] overflow-y-auto p-2">
           {opciones.map((o, i) => (
             <li key={o.tipo === "ir" ? o.href : o.p.id} id={`opcion-${i}`} data-indice={i} role="option" aria-selected={i === activo}>
@@ -158,14 +172,14 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{o.tipo === "paciente" ? o.p.nombre : o.titulo}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {o.tipo === "paciente" ? [o.p.cedula, o.p.empresa].filter(Boolean).join(" · ") : o.descripcion}
+                      {o.tipo === "paciente" ? [o.p.cedula, o.p.empresa, o.p.inactiva && "empresa inactiva"].filter(Boolean).join(" · ") : o.descripcion}
                     </span>
                   </span>
                 </button>
                 {o.tipo === "paciente" && clinico ? (
                   <button
                     type="button"
-                    onClick={() => atender(o.p.id)}
+                    onClick={() => atender(o.p)}
                     disabled={abriendo}
                     className="flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
                   >

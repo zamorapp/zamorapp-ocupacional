@@ -169,7 +169,7 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
 export async function cargarListado(clave: string, q: ConsultaReporte) {
   const def = reporte(clave);
   if (!def) return null;
-  const [sesion, empresas, cookieEmpresa] = await Promise.all([obtenerSesion(), listarEmpresas(), empresaActivaId()]);
+  const [sesion, empresas, cookieEmpresa] = await Promise.all([obtenerSesion(), listarEmpresas(true), empresaActivaId()]);
   const empresaId = q.empresa ?? cookieEmpresa;
   const empresa = empresas.find((e) => e.id === empresaId) ?? null;
   const periodo = periodoDeConsulta(q, empresa?.mesInicioGestion ?? 1);

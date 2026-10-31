@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Accidentes y enfermedades" };
 export const dynamic = "force-dynamic";
 
 export default async function Accidentes() {
-  const [sesion, eventos, empresas] = await Promise.all([obtenerSesion(), listarEventos(), listarEmpresas()]);
+  const [sesion, eventos, empresas] = await Promise.all([obtenerSesion(), listarEventos(), listarEmpresas(true)]);
   await vigilarPlazos(sesion);
   const pendientes = eventos.filter((e) => plazoDeclaracion(e)?.cumplido === false).length;
   const anio = anioCaracas();

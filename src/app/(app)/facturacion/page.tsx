@@ -37,7 +37,7 @@ const dias = (iso: string, hoy: string) => Math.round((Date.parse(hoy) - Date.pa
 type Props = { searchParams: Promise<{ vista?: string; p?: string; desde?: string; hasta?: string }> };
 
 export default async function Facturacion({ searchParams }: Props) {
-  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(), tasaVigente()]);
+  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasaVigente()]);
   const vista = VISTAS.some(([k]) => k === q.vista) ? q.vista! : "cobros";
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   const periodo = resolverPeriodo(q.p ?? "mes", q.desde, q.hasta);

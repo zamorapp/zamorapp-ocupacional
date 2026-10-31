@@ -30,6 +30,8 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
+import { PasarAEmpresa } from "@/components/app/pasar-a-empresa";
+import { listarEmpresas } from "@/lib/empresas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { FrescoAlVolver } from "@/components/app/fresco-al-volver";
 import Cargando from "../../loading";
@@ -90,6 +92,10 @@ export default async function FichaPaciente({ params }: Props) {
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
   // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
   const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
+  // Empresa inactiva: la ficha y toda su historia se ven; para atenderlo de nuevo se pasa a una empresa activa
+  const pasarA = t.empresaInactiva && conBase && !esRolEmpresa(sesion.rol)
+    ? (await listarEmpresas()).map((e) => ({ id: e.id, nombre: e.razonSocial }))
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -117,7 +123,10 @@ export default async function FichaPaciente({ params }: Props) {
             <p className="text-sm text-muted-foreground">
               <span className="font-mono">{t.cedula}</span> · Historia {t.historia}{edad(t.fechaNacimiento) !== null && ` · ${edad(t.fechaNacimiento)} años`}{t.sexo && ` · ${t.sexo === "F" ? "Femenino" : "Masculino"}`}
             </p>
-            <p className="mt-1 truncate text-sm">{[t.cargo, t.empresa].filter(Boolean).join(" · ")}</p>
+            <p className="mt-1 truncate text-sm">
+              {[t.cargo, t.empresa].filter(Boolean).join(" · ")}
+              {t.empresaInactiva && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Empresa inactiva</span>}
+            </p>
           </div>
           <div className="flex flex-col items-start gap-1 sm:items-end">
             <span className="text-xs text-muted-foreground">Aptitud vigente</span>
@@ -128,6 +137,11 @@ export default async function FichaPaciente({ params }: Props) {
             )}
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
+          {pasarA && (
+            <div className="w-full">
+              <PasarAEmpresa trabajadorId={t.id} empresaActual={t.empresa} empresas={pasarA} />
+            </div>
+          )}
           <div className="flex w-full gap-2 xl:w-auto">
             {/* RR. HH. envía estudios al expediente; solo los ve el personal de salud (entregar_estudio) */}
             {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (

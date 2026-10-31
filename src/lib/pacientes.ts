@@ -21,6 +21,8 @@ export type Trabajador = {
   sexo: "F" | "M" | null;
   fechaNacimiento: string | null; // aaaa-mm-dd
   empresa: string;
+  empresaId?: string;
+  empresaInactiva?: boolean; // su empresa ya no se atiende: se puede pasar a otra (candidato) conservando su historia
   dependencia: string | null;
   cargo: string;
   tipoPaciente: string | null;
