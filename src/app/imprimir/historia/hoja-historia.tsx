@@ -52,8 +52,8 @@ const Tabla = ({ cabecera, children }: { cabecera: React.ReactNode; children: Re
   </table>
 );
 
-// Historia clínica ocupacional: cada consulta completa, de la más antigua a la más reciente, y al final el resumen
-// (diagnósticos, condiciones de salud y evolución de la elegibilidad). Con una sola consulta es el informe.
+// Historia clínica ocupacional: primero el resumen (evolución de la elegibilidad, diagnósticos, condiciones de salud)
+// y después cada consulta completa, de la más antigua a la más reciente, seguidas sin saltar de hoja. Con una sola consulta es el informe.
 // d: documento de la consulta más reciente (membrete, datos del trabajador, folio). consultas: en orden cronológico.
 export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: {
   d: DatosDocumento; consultas: ConsultaHistoria[]; ficha: FichaHistoria; empleos: EmpleoAnterior[]; emite: string; total: number;
@@ -112,29 +112,7 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
         </Bloque>
       )}
 
-      {consultas.map((x, i) => {
-        const c = x.datos;
-        const clase = c.aptitud.clasificacion || null;
-        return (
-          <section key={c.id} className={i > 0 ? "break-before-page pt-1" : "mt-2"}>
-            <div className="mb-3 flex items-center justify-between gap-4 rounded-lg border-l-4 border-doc-acento bg-doc-suave px-3 py-2 break-after-avoid">
-              <div>
-                <div className="text-[9px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Consulta {i + 1} de {consultas.length}</div>
-                <div className="text-[14px] font-extrabold leading-tight">{x.motivo ?? "Consulta"} <span className="text-[11px] font-semibold text-doc-tenue">· {TIPO[c.tipo]}</span></div>
-                {clase && <div className={`text-[10.5px] font-bold ${COLOR_APTITUD[clase]}`}>{corta(clase)}</div>}
-              </div>
-              <div className="shrink-0 text-right font-cifra text-[10.5px] leading-relaxed text-doc-tenue">
-                <div>Fecha <b className="font-medium text-[#15201e]">{fechaCorta(c.fecha)}</b></div>
-                <div>Folio <b className="font-medium text-[#15201e]">{folio("CM", c.id)}</b></div>
-                {x.medico && <div className="font-doc">{x.medico}</div>}
-              </div>
-            </div>
-            <CuerpoConsulta c={c} sin={d.sin} ajustes={ajustes} antecedentes={i === 0 || huellaAntecedentes(c) !== huellaAntecedentes(consultas[i - 1].datos)} />
-          </section>
-        );
-      })}
-
-      <section className="break-before-page pt-1">
+      <section className="mt-2">
         <div className="mb-3 rounded-lg border-l-4 border-doc-acento bg-doc-suave px-3 py-2">
           <div className="text-[9px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Resumen de la historia</div>
           <div className="text-[14px] font-extrabold leading-tight">{d.trabajador.nombre}</div>
@@ -205,18 +183,40 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
             </Tabla>
           </Bloque>
         )}
-
-          {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
-          <Firmas>
-            {certificacion ? <FirmaTrabajador d={d} /> : <span />}
-            {/* Firma a mano de quien emite la copia: no se estampa la firma escaneada de otro médico */}
-            <div className="w-60 text-center text-[10.5px]">
-              <div className="mb-1 h-14 border-b border-[#15201e]" />
-              <div className="text-[11.5px] font-bold">{emite}</div>
-              <div className="text-doc-tenue">Emite la copia · Firma y sello</div>
-            </div>
-          </Firmas>
       </section>
+
+      {consultas.map((x, i) => {
+        const c = x.datos;
+        const clase = c.aptitud.clasificacion || null;
+        return (
+          <section key={c.id} className="mt-6">
+            <div className="mb-3 flex items-center justify-between gap-4 rounded-lg border-l-4 border-doc-acento bg-doc-suave px-3 py-2 break-inside-avoid break-after-avoid">
+              <div>
+                <div className="text-[9px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Consulta {i + 1} de {consultas.length}</div>
+                <div className="text-[14px] font-extrabold leading-tight">{x.motivo ?? "Consulta"} <span className="text-[11px] font-semibold text-doc-tenue">· {TIPO[c.tipo]}</span></div>
+                {clase && <div className={`text-[10.5px] font-bold ${COLOR_APTITUD[clase]}`}>{corta(clase)}</div>}
+              </div>
+              <div className="shrink-0 text-right font-cifra text-[10.5px] leading-relaxed text-doc-tenue">
+                <div>Fecha <b className="font-medium text-[#15201e]">{fechaCorta(c.fecha)}</b></div>
+                <div>Folio <b className="font-medium text-[#15201e]">{folio("CM", c.id)}</b></div>
+                {x.medico && <div className="font-doc">{x.medico}</div>}
+              </div>
+            </div>
+            <CuerpoConsulta c={c} sin={d.sin} ajustes={ajustes} antecedentes={i === 0 || huellaAntecedentes(c) !== huellaAntecedentes(consultas[i - 1].datos)} />
+          </section>
+        );
+      })}
+
+      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
+      <Firmas>
+        {certificacion ? <FirmaTrabajador d={d} /> : <span />}
+        {/* Firma a mano de quien emite la copia: no se estampa la firma escaneada de otro médico */}
+        <div className="w-60 text-center text-[10.5px]">
+          <div className="mb-1 h-14 border-b border-[#15201e]" />
+          <div className="text-[11.5px] font-bold">{emite}</div>
+          <div className="text-doc-tenue">Emite la copia · Firma y sello</div>
+        </div>
+      </Firmas>
       <Pie d={d} />
     </Hoja>
   );
