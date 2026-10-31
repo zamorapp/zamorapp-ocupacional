@@ -3,6 +3,9 @@ import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
+import type { ModoPropuesta, Propuesta } from "@/lib/propuesta";
+
+export type { ModoPropuesta, Propuesta } from "@/lib/propuesta";
 
 export type EstadoCita = "solicitada" | "citado" | "en_espera" | "en_consulta" | "atendido" | "no_asistio" | "cancelada";
 
@@ -27,16 +30,32 @@ export type Cita = {
   enConsultaEn: string | null;
   atendidaEn: string | null;
   cerradaEn: string | null;
+  // Otra hora propuesta por el servicio, pendiente de respuesta de RR. HH. (20261030790000)
+  empresaId: string;
+  propuesta: Propuesta | null;
+  respuestaEmpresa: "aceptada" | "pidio_otra" | null;
 };
+
 
 type Fila = {
   id: string; fecha: string; hora: string | null; estado: EstadoCita; llegada: string | null; trabajador_id: string;
   motivo_id: string | null; consulta_id: string | null; observacion: string | null;
+  empresa_id?: string; propuesta_fecha?: string | null; propuesta_desde?: string | null; propuesta_hasta?: string | null;
+  propuesta_modo?: ModoPropuesta | null; propuesta_nota?: string | null; propuesta_en?: string | null; respuesta_empresa?: Cita["respuestaEmpresa"];
   creado_en?: string | null; confirmada_en?: string | null; en_consulta_en?: string | null; atendida_en?: string | null; cerrada_en?: string | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null } | null;
   empresas: { razon_social: string } | null;
   motivo: { nombre: string } | null;
 };
+
+const PROPUESTA = "empresa_id, propuesta_fecha, propuesta_desde, propuesta_hasta, propuesta_modo, propuesta_nota, propuesta_en, respuesta_empresa";
+const propuesta = (c: Fila) => ({
+  empresaId: c.empresa_id ?? "",
+  respuestaEmpresa: c.respuesta_empresa ?? null,
+  propuesta: c.propuesta_fecha && c.propuesta_desde && c.propuesta_modo
+    ? { fecha: c.propuesta_fecha, desde: c.propuesta_desde.slice(0, 5), hasta: c.propuesta_hasta?.slice(0, 5) ?? null, modo: c.propuesta_modo, nota: c.propuesta_nota ?? null, en: c.propuesta_en ?? null }
+    : null,
+});
 
 const horas = (c: Fila) => ({
   creadoEn: c.creado_en ?? null,
@@ -51,7 +70,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("citas")
-    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, creado_en, confirmada_en, en_consulta_en, atendida_en, cerrada_en, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
+    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, creado_en, confirmada_en, en_consulta_en, atendida_en, cerrada_en, ${PROPUESTA}, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha")
@@ -61,7 +80,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
   if (empresa) q = q.eq("empresa_id", empresa);
   const { data, error } = await q;
   if (error) throw error;
-  return ((data ?? []) as unknown as Fila[]).map((c) => ({ ...horas(c),
+  return ((data ?? []) as unknown as Fila[]).map((c) => ({ ...horas(c), ...propuesta(c),
     id: c.id,
     fecha: c.fecha,
     hora: c.hora?.slice(0, 5) ?? null,
@@ -85,13 +104,13 @@ export async function listarSolicitudes(): Promise<Cita[]> {
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("citas")
-    .select("id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)")
+    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, ${PROPUESTA}, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
     .eq("estado", "solicitada")
     .gte("fecha", hoyCaracas())
     .order("fecha")
     .order("hora", { nullsFirst: false })
     .limit(200);
-  return ((data ?? []) as unknown as (Fila & { nota_empresa: string | null })[]).map((c) => ({ ...horas(c),
+  return ((data ?? []) as unknown as (Fila & { nota_empresa: string | null })[]).map((c) => ({ ...horas(c), ...propuesta(c),
     id: c.id,
     fecha: c.fecha,
     hora: c.hora?.slice(0, 5) ?? null,
