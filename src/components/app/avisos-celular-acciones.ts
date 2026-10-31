@@ -5,7 +5,7 @@ import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { claveAvisos, enviarPush, estadoVapid, vapidPublica, type Suscripcion } from "@/lib/push";
 
-type Resultado = { ok: boolean; mensaje: string };
+type Resultado = { ok: boolean; mensaje: string; detalle?: string };
 
 // Llave pública para suscribir este celular (sale de la privada de Vercel; null si falta o no sirve)
 export async function llaveAvisos(): Promise<string | null> {
@@ -34,7 +34,8 @@ export async function probarAviso(endpoint: string, prueba?: string, titulo = "A
   if (!data?.length) return { ok: false, mensaje: "Este celular no tiene avisos activos." };
   const { enviados, vencidos, fallo } = await enviarPush(data, { titulo, cuerpo, ruta: "/panel", prueba: prueba?.slice(0, 40) });
   if (vencidos.length) await supabase.from("suscripciones_push").delete().in("endpoint", vencidos);
-  return enviados ? { ok: true, mensaje: "El servidor envió el aviso de prueba." } : { ok: false, mensaje: `No se pudo enviar el aviso de prueba${fallo ? ` (el servicio de avisos respondió ${fallo.slice(0, 80)})` : ""}. Vuelve a activarlos.` };
+  return enviados ? { ok: true, mensaje: "Aviso de prueba enviado." }
+    : { ok: false, mensaje: "No se pudo enviar el aviso a este celular. Toca «Desactivar» y vuelve a activarlos.", detalle: fallo ? `el servicio de avisos respondió ${fallo.slice(0, 80)}` : undefined };
 }
 
 export async function quitarAvisos(endpoint: string): Promise<Resultado> {

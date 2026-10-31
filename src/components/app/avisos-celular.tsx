@@ -66,15 +66,39 @@ function esperarRecibo(prueba: string) {
     navigator.serviceWorker.addEventListener("message", alRecibir);
   });
 }
-async function probarDePuntaAPunta<R extends { ok: boolean; mensaje: string }>(enviar: (prueba: string) => Promise<R>): Promise<R | { ok: boolean; mensaje: string }> {
+type Mensaje = { tono: "ok" | "aviso" | "alerta"; texto: string; pasos?: string[]; plegados?: boolean; detalle?: string };
+type Respuesta = { ok: boolean; mensaje: string; detalle?: string };
+const PASOS_NOTIFICACIONES = ["Abre Ajustes del teléfono › Apps.", "Entra en zamorApp (si no aparece, Chrome) › Notificaciones.", "Activa «Permitir notificaciones» y todas las categorías."];
+const PASOS_BATERIA = ["Abre Ajustes del teléfono › Apps.", "Entra en zamorApp (si no aparece, Chrome) › Batería.", "Elige «Sin restricciones» o «No optimizar».", "Vuelve aquí y toca «Enviar uno de prueba»."];
+async function probarDePuntaAPunta(enviar: (prueba: string) => Promise<Respuesta>, alEsperar: () => void): Promise<Mensaje> {
   const prueba = crypto.randomUUID();
   const recibo = esperarRecibo(prueba);
   const r = await enviar(prueba);
-  if (!r.ok) return r;
+  if (!r.ok) return { tono: "alerta", texto: r.mensaje, detalle: r.detalle };
+  alEsperar();
   const v = await recibo;
-  if (v?.mostrado) return { ok: true, mensaje: "Listo: el aviso llegó a este celular. Si no lo viste arriba, las notificaciones de Chrome están silenciadas: Ajustes del teléfono › Apps › Chrome › Notificaciones › activar todas." };
-  if (v) return { ok: false, mensaje: "El aviso llegó al celular pero Android no lo dejó mostrar. Ajustes del teléfono › Apps › Chrome › Notificaciones › Permitir." };
-  return { ok: false, mensaje: "El servidor envió el aviso pero no llegó a este celular. Casi siempre es el ahorro de batería: Ajustes del teléfono › Apps › Chrome › Batería › Sin restricciones. Luego toca otra vez «Enviar uno de prueba»." };
+  if (v?.mostrado) return { tono: "ok", texto: "Listo: el aviso llegó a este celular.", pasos: PASOS_NOTIFICACIONES, plegados: true };
+  if (v) return { tono: "alerta", texto: "El teléfono no deja mostrar los avisos.", pasos: PASOS_NOTIFICACIONES, detalle: v.error };
+  return { tono: "alerta", texto: "El aviso no llegó a este celular. Casi siempre es el ahorro de batería.", pasos: PASOS_BATERIA };
+}
+
+function Resultado({ m }: { m: Mensaje }) {
+  const [abiertos, setAbiertos] = useState(!m.plegados);
+  const color = m.tono === "ok" ? "text-ok-texto" : m.tono === "aviso" ? "text-aviso-texto" : "text-alerta-texto";
+  return (
+    <div role="status" className="space-y-1.5">
+      <p className={color}>
+        {m.texto}
+        {m.plegados && m.pasos && !abiertos && (
+          <> <button type="button" onClick={() => setAbiertos(true)} className="text-xs text-muted-foreground underline underline-offset-2">¿No lo viste?</button></>
+        )}
+      </p>
+      {m.pasos && abiertos && (
+        <ol className="list-decimal space-y-0.5 pl-5 text-muted-foreground">{m.pasos.map((p) => <li key={p}>{p}</li>)}</ol>
+      )}
+      {m.detalle && <p className="text-xs text-muted-foreground">Detalle: {m.detalle}</p>}
+    </div>
+  );
 }
 
 async function suscribir() {
@@ -95,18 +119,21 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
   const [trabajando, setTrabajando] = useState(false);
   const [equipo, setEquipo] = useState("celular");
   useEffect(() => setEquipo(window.matchMedia("(pointer: coarse)").matches ? "celular" : "equipo"), []);
-  const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [mensaje, setMensaje] = useState<Mensaje | null>(null);
+  const [esperando, setEsperando] = useState(false);
+  const alEsperar = () => setEsperando(true);
 
-  const correr = async (paso: () => Promise<{ ok: boolean; mensaje: string } | null>) => {
+  const correr = async (paso: () => Promise<Mensaje | Respuesta | null>) => {
     setTrabajando(true);
     setMensaje(null);
     try {
       const r = await paso();
-      if (r) setMensaje({ ok: r.ok, texto: r.mensaje });
+      if (r) setMensaje("tono" in r ? r : { tono: r.ok ? "ok" : "alerta", texto: r.mensaje, detalle: r.detalle });
     } catch (e) {
-      setMensaje({ ok: false, texto: e instanceof Error ? e.message : "No se pudo." });
+      setMensaje({ tono: "alerta", texto: e instanceof Error ? e.message : "No se pudo." });
     }
     setTrabajando(false);
+    setEsperando(false);
   };
 
   const activar = () => correr(async () => {
@@ -118,9 +145,12 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
       const a = await activarAvisos({ endpoint: sub.endpoint, p256dh: j.keys?.p256dh ?? "", auth: j.keys?.auth ?? "", equipo: nombreEquipo(), prueba });
       guardada = Boolean(a.guardada);
       return a;
-    });
+    }, alEsperar);
     // Guardada en la base: queda activa aunque la prueba no llegue (el mensaje dice qué ajustar en el teléfono)
-    if (guardada) { setEndpoint(sub.endpoint); setEstado("activo"); return r; }
+    if (guardada) {
+      setEndpoint(sub.endpoint); setEstado("activo");
+      return r.tono === "ok" ? r : { ...r, tono: "aviso", texto: `Avisos activados, pero ${r.texto.charAt(0).toLowerCase()}${r.texto.slice(1)}` };
+    }
     else await sub.unsubscribe().catch(() => {});
     return r;
   });
@@ -168,13 +198,14 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
         {estado === "activo" && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-ok/15 px-3 py-1 font-medium text-ok-texto">Activos en este {equipo}</span>
-            <Button variant="outline" size="sm" disabled={trabajando || !endpoint} onClick={() => correr(() => probarDePuntaAPunta((prueba) => probarAviso(endpoint ?? "", prueba)))}>
+            <Button variant="outline" size="sm" disabled={trabajando || !endpoint} onClick={() => correr(() => probarDePuntaAPunta((prueba) => probarAviso(endpoint ?? "", prueba), alEsperar))}>
               {trabajando && <Loader2 className="animate-spin" />} Enviar uno de prueba
             </Button>
             <Button variant="ghost" size="sm" disabled={trabajando} onClick={quitar}>Desactivar</Button>
           </div>
         )}
-        {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-alerta-texto"}>{mensaje.texto}</p>}
+        {esperando && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Esperando el aviso en este celular…</p>}
+        {mensaje && <Resultado key={mensaje.texto} m={mensaje} />}
         </>)}
       </CardContent>
     </Card>
