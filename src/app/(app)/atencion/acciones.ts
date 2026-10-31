@@ -173,7 +173,7 @@ export async function deshacerPaso(trabajadorId: string, destinoId: string, ante
   const estado = ESTADOS_TRABAJADOR.find((e) => e === antes.estado);
   if (!estado) return { ok: false, mensaje: "No se pudo deshacer: datos no válidos." };
   const supabase = await crearClienteServidor();
-  const [{ data: origen }, { data: puesto }, { data: dependencia }, { data: sede }, { data: atendido }] = await Promise.all([
+  const [{ data: origen }, { data: puesto }, { data: dependencia }, { data: sede }, { data: atendido, error: errorAtendido }] = await Promise.all([
     supabase.from("empresas").select("activa").eq("id", antes.empresa_id).maybeSingle(),
     antes.puesto_id ? supabase.from("puestos").select("empresa_id").eq("id", antes.puesto_id).maybeSingle() : Promise.resolve({ data: null }),
     antes.dependencia_id ? supabase.from("dependencias").select("empresa_id").eq("id", antes.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -184,6 +184,7 @@ export async function deshacerPaso(trabajadorId: string, destinoId: string, ante
   if ((antes.puesto_id && puesto?.empresa_id !== antes.empresa_id) || (antes.dependencia_id && dependencia?.empresa_id !== antes.empresa_id)
     || (antes.sede_id && sede?.empresa_id !== antes.empresa_id))
     return { ok: false, mensaje: "No se pudo deshacer: datos no válidos." };
+  if (errorAtendido || atendido == null) return { ok: false, mensaje: "No se pudo verificar; intenta de nuevo." };
   if (atendido) return { ok: false, mensaje: "Ya tiene una consulta en la nueva empresa: no se puede deshacer." };
   const fecha = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const { count, error } = await supabase
