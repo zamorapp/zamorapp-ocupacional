@@ -81,6 +81,7 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
           <Aviso resultado={estado} />
         )}
 
+        {verAnteriores && <p className="text-xs text-muted-foreground">Anuladas y vencidas. Se borran solas a los 30 días.</p>}
         {visibles.length > 0 && (
           <ul className="divide-y rounded-md border">
             {visibles.map((i) => (
@@ -101,7 +102,7 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
         )}
         {anteriores > 0 && (
           <button type="button" onClick={() => setVerAnteriores(!verAnteriores)} aria-expanded={verAnteriores} className="text-xs text-muted-foreground underline-offset-4 hover:underline">
-            {verAnteriores ? "Ocultar anuladas y vencidas" : `Ver anteriores (${anteriores} anuladas o vencidas; se borran solas a los 30 días)`}
+            {verAnteriores ? "Ocultar anteriores" : `Ver anteriores (${anteriores})`}
           </button>
         )}
       </CardContent>

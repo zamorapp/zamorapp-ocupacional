@@ -104,7 +104,7 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
                   <p className="font-medium">Paso 1: llene sus datos y toque «Crear cuenta».</p>
                   <p className="text-muted-foreground">Use un correo que abra a diario. Después le llegará un correo para confirmar (paso 2). Si ya tiene cuenta, toque «Ingresar».</p>
                 </div>
-                <FormularioLogin modoDemo={false} siguiente={`/invitacion/${token}`} modoInicial="registro" nombreInicial={inv.nombre ?? undefined} />
+                <FormularioLogin modoDemo={false} siguiente={`/invitacion/${token}`} modoInicial="registro" nombreInicial={inv.nombre ?? undefined} trato="usted" />
               </div>
             )}
           </>
