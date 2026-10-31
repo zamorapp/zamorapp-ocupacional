@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { CONFIG } from "./config.mjs";
 import { Estado } from "./estado.mjs";
-import { Motor, puertoLibre } from "./motor.mjs";
+import { Motor } from "./motor.mjs";
+import { asegurarPuerto } from "./puerto.mjs";
 import { Nube } from "./nube.mjs";
 import { ColaEnvios, webDeCola } from "./cola-envios.mjs";
 import { Replica } from "./replica.mjs";
@@ -54,15 +55,20 @@ const sincronizar = async () => {
 const respaldo = new Respaldo({ estado, nube, motor, replica, registro, sincronizar });
 
 async function principal() {
+  // Primero el puerto: si lo retiene una puerta anterior, su base también sigue viva y hay que esperarla (o cerrarla)
+  // antes de arrancar la base de esta
+  await asegurarPuerto(CONFIG.puertoPuerta, { registro });
   await motor.iniciar();
   await nube.comprobar();
   nube.reloj.arranque(nube.enLinea); // arranques seguidos sin nube: parte del plazo sin conexión
-  // La app trae grabada la dirección de la puerta: este puerto es fijo (si está ocupado, se avisa).
+  // La app trae grabada la dirección de la puerta: este puerto es fijo (ver puerto.mjs)
   const puerto = CONFIG.puertoPuerta;
-  if ((await puertoLibre(puerto)) !== puerto) throw new Error(`El puerto ${puerto} está ocupado por otro programa`);
+  await asegurarPuerto(puerto, { espera: 10_000, registro });
   const origen = process.env.ZAMORAPP_ORIGEN || "http://127.0.0.1:54332";
   const puerta = crearPuerta({ estado, nube, motor, replica, bandeja, cola, bloques, respaldo, origen, control: process.env.ZAMORAPP_CONTROL || "", registro });
   adjuntos = puerta.adjuntos;
+  // Si otro lo tomó justo entre la revisión y aquí, se sale con el error claro (la ventana lo muestra)
+  puerta.once("error", (e) => { registro(`[puerta] no pudo escuchar en ${puerto}: ${e.code || e.message}`); process.stderr.write(`El puerto ${puerto} se ocupó al arrancar (${e.code || e.message}). Vuelve a abrir zamorApp.\n`); motor.detener(); process.exit(1); });
   puerta.listen(puerto, "127.0.0.1", () => {
     registro(`[puerta] lista en 127.0.0.1:${puerto} (base ${motor.puertoBase}, PostgREST ${motor.puertoPostgrest})`);
     // La ventana lee esta línea para saber el puerto final
