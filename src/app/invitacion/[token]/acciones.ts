@@ -14,7 +14,7 @@ export async function aceptar(token: string): Promise<{ ok: false; mensaje: stri
   const supabase = await crearClienteServidor();
   const { data: claims } = await supabase.auth.getClaims();
   const usuario = claims?.claims?.sub;
-  if (!usuario) return { ok: false, mensaje: "Ingresa con tu cuenta para aceptar." };
+  if (!usuario) return { ok: false, mensaje: "Ingrese con su cuenta para aceptar." };
   const { data: empresaId, error } = await supabase.rpc("aceptar_invitacion", { p_token: token });
   if (error) return { ok: false, mensaje: error.message };
   invalidarSesion(usuario);
