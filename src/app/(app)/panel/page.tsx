@@ -9,6 +9,7 @@ import { Semaforo } from "@/components/app/semaforo";
 import { accidentabilidadInicio, agendaInicio, alertasInicio, aptitudInicio, indicadoresInicio, panelVacio, tareasInicio, vencimientosInicio } from "@/lib/panel";
 import { accionesDelRol } from "@/lib/panel-rol";
 import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
+import { AjustarAlerta } from "./ajustar-alerta";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
@@ -256,17 +257,21 @@ async function Agenda() {
 }
 
 async function Alertas() {
-  const alertas = await alertasInicio();
+  const [alertas, sesion] = await Promise.all([alertasInicio(), obtenerSesion()]);
+  // El engranaje de cada empresa solo para el administrador (quien puede cambiar la empresa); las líneas informativas
+  // (estado «ok», p. ej. «Vencimientos silenciados») no cuentan como alerta
+  const ajusta = sesion.rol === "administrador" && !sesion.demo;
+  const pendientes = alertas.filter((a) => a.estado !== "ok").length;
   return (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="size-5 text-alerta-texto" /> Alertas
-              <Badge variant="secondary" className="ml-auto">{alertas.length}</Badge>
+              <Badge variant="secondary" className="ml-auto">{pendientes}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {alertas.length === 0 && (
+            {pendientes === 0 && (
               <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <CheckCircle2 className="size-4 text-ok-texto" /> Todo al día.
               </p>
@@ -282,6 +287,14 @@ async function Alertas() {
                   </div>
                 </>
               );
+              if (a.href && a.empresa && ajusta) {
+                return (
+                  <div key={a.texto + a.sujeto} className="flex items-start rounded-lg border transition hover:bg-muted/50">
+                    <Link href={a.href} className="flex min-w-0 flex-1 gap-3 p-3">{contenido}</Link>
+                    <div className="p-2"><AjustarAlerta empresa={a.empresa} /></div>
+                  </div>
+                );
+              }
               return a.href ? (
                 <Link key={a.texto + a.sujeto} href={a.href} className="flex gap-3 rounded-lg border p-3 transition hover:bg-muted/50">{contenido}</Link>
               ) : (

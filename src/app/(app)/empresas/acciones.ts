@@ -114,6 +114,31 @@ export async function pausarAvisos(id: string, pausar: boolean): Promise<Resulta
   return { ok: true, mensaje: "" };
 }
 
+// Ajuste rápido desde la alerta del Inicio: mostrar u ocultar los vencimientos de UNA empresa, con sus días de aviso
+// y su periodicidad. Solo toca la casilla «vencimientos»: los demás avisos de la empresa quedan como estaban.
+export async function ajustarAlertaVencimientos(id: string, ajuste: { mostrar: boolean; diasAviso: number; periodicidad: number }): Promise<Resultado> {
+  const c = await soloAdministrador();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const dias = Math.trunc(Number(ajuste.diasAviso));
+  const meses = Math.trunc(Number(ajuste.periodicidad));
+  if (!Number.isFinite(dias) || dias < 0 || dias > 180) return { ok: false, mensaje: "Los días de aviso van de 0 a 180." };
+  if (!Number.isFinite(meses) || meses < 1 || meses > 60) return { ok: false, mensaje: "La periodicidad va de 1 a 60 meses." };
+  const supabase = await crearClienteServidor();
+  const { data: actual, error: e1 } = await supabase.from("empresas").select("avisos_apagados").eq("id", id).maybeSingle();
+  if (e1) return { ok: false, mensaje: "No se pudo leer la empresa: " + e1.message };
+  if (!actual) return { ok: false, mensaje: "No se encontró la empresa." };
+  const otros = ((actual.avisos_apagados ?? []) as string[]).filter((k) => k !== "vencimientos");
+  const { data, error } = await supabase.from("empresas")
+    .update({ avisos_apagados: ajuste.mostrar ? otros : [...otros, "vencimientos"], dias_aviso_examen: dias, periodicidad_meses: meses })
+    .eq("id", id).select("id");
+  if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+  // Sin filas de vuelta = la base no dejó cambiarla (permisos): se dice, nunca «guardado» en falso
+  if (!data?.length) return { ok: false, mensaje: "No se guardó: tu usuario no tiene permiso para cambiar esta empresa." };
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: ajuste.mostrar ? "Ajuste guardado." : "Listo: esta empresa ya no avisa vencimientos en el Inicio." };
+}
+
 // Inactivar (o reactivar) una empresa con la que ya no se trabaja. NO borra nada: la empresa, sus dependencias,
 // cargos, trabajadores, consultas y documentos quedan intactos (respaldo legal) y la bitácora guarda quién y cuándo.
 // Inactiva = fuera del selector, los listados, el Inicio, los avisos y los formularios; sus trabajadores se siguen

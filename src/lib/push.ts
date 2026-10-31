@@ -19,12 +19,12 @@ export function claveAvisos() {
 }
 
 export type Suscripcion = { endpoint: string; p256dh: string; auth: string };
-export type Aviso = { titulo: string; cuerpo: string; ruta: string };
+export type Aviso = { titulo: string; cuerpo: string; ruta: string; prueba?: string };
 
 // Envía a cada celular; devuelve los endpoints que el servicio de push dio por muertos (410/404) para borrarlos.
 export async function enviarPush(subs: Suscripcion[], aviso: Aviso): Promise<{ enviados: number; vencidos: string[]; fallo?: string }> {
   if (!pushConfigurado() || !subs.length) return { enviados: 0, vencidos: [] };
-  const datos = JSON.stringify({ titulo: aviso.titulo, cuerpo: aviso.cuerpo.slice(0, 240), url: aviso.ruta });
+  const datos = JSON.stringify({ titulo: aviso.titulo, cuerpo: aviso.cuerpo.slice(0, 240), url: aviso.ruta, prueba: aviso.prueba });
   const opciones = {
     vapidDetails: { subject: URL_PUBLICA, publicKey: vapidPublica() ?? "", privateKey: vapidPrivada() },
     TTL: 60 * 60 * 24, // si el celular está apagado, el aviso espera hasta un día

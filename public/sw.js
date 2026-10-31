@@ -93,14 +93,20 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { cuerpo: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.titulo || "zamorApp", {
+  const mostrar = self.registration.showNotification(d.titulo || "zamorApp", {
     body: d.cuerpo || "",
     icon: "/icono-192.png",
     badge: "/insignia-aviso.png", // silueta blanca (rama diseno/icono-ocupavida)
     data: { url: typeof d.url === "string" && /^\/(?!\/)/.test(d.url) ? d.url : "/panel" }, // solo rutas propias, nunca «//sitio-ajeno»
     tag: d.url || "zamorapp",
     renotify: true,
-  }));
+  });
+  // Aviso de prueba (Mi perfil): le cuenta a la pantalla abierta si llegó al celular y si Android lo pudo mostrar
+  const contar = (mostrado, error) => typeof d.prueba === "string"
+    ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((l) => l.forEach((c) => c.postMessage({ tipo: "aviso-recibido", prueba: d.prueba, mostrado, error })))
+    : Promise.resolve();
+  e.waitUntil(mostrar.then(() => contar(true), (err) => contar(false, String(err && err.message || err)))
+    .then(() => Notification.permission === "granted" || contar(false, "permiso " + Notification.permission)));
 });
 
 // Al tocar el aviso: abre zamorApp en la pantalla del aviso (reusa una pestaña abierta si la hay)

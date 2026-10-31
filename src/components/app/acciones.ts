@@ -30,12 +30,18 @@ export type Notificacion = { id: string; titulo: string; texto: string | null; e
 export async function misNotificaciones(): Promise<Notificacion[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  const { data } = await supabase
-    .from("notificaciones")
-    .select("id, titulo, texto, enlace, leida, creado_en, nivel")
-    .order("creado_en", { ascending: false })
-    .limit(30);
-  return (data ?? []).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en, nivel: n.nivel ?? "info" }));
+  // Empresa inactiva = avisos en pausa también en la campana: lo que ya estaba guardado de ella no se muestra
+  // (no se borra; vuelve si se reactiva). Los plazos legales de accidentes siguen saliendo: la ley no se pausa.
+  const [{ data }, { data: inactivas }] = await Promise.all([
+    supabase.from("notificaciones")
+      .select("id, titulo, texto, enlace, leida, creado_en, nivel, empresa_id")
+      .order("creado_en", { ascending: false })
+      .limit(60),
+    supabase.from("empresas").select("id").eq("activa", false),
+  ]);
+  const pausadas = new Set((inactivas ?? []).map((e) => e.id as string));
+  const visibles = (data ?? []).filter((n) => !n.empresa_id || !pausadas.has(n.empresa_id) || (n.enlace ?? "").startsWith("/accidentes/"));
+  return visibles.slice(0, 30).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en, nivel: n.nivel ?? "info" }));
 }
 
 export async function marcarLeidas(ids: string[]) {
