@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prepararConstanciasLuego } from "@/lib/constancias-listas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
@@ -108,31 +109,35 @@ export async function agregarAlCatalogo(lista: "diagnostico" | "medicina", nombr
 
 // inactiva: el trabajador es de una empresa que ya no se atiende. Se sigue encontrando (puede volver como candidato
 // a otra empresa) pero sale al final y marcado; para atenderlo hay que pasarlo antes a una empresa activa.
-export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string; inactiva?: boolean };
+export type PacienteEncontrado = { id: string; nombre: string; cedula: string; empresa: string; inactiva?: boolean; inactivo?: boolean };
 
 export async function buscarPacientes(texto: string): Promise<PacienteEncontrado[]> {
   const q = texto.trim().replace(/[%,()]/g, "");
   if (q.length < 2 || (await obtenerSesion()).demo) return [];
   const supabase = await crearClienteServidor();
   const soloNumeros = q.replace(/\D/g, "");
-  let consulta = supabase.from("trabajadores").select("id, nombres, apellidos, cedula, empresas(razon_social, activa)").limit(12);
+  let consulta = supabase.from("trabajadores").select("id, nombres, apellidos, cedula, estado, empresas(razon_social, activa)").limit(12);
   consulta = soloNumeros.length >= 4
     ? consulta.ilike("cedula", `%${soloNumeros}%`)
     : consulta.or(`nombres.ilike.%${q}%,apellidos.ilike.%${q}%`);
   const { data } = await consulta.order("apellidos");
   const filas = (data ?? []).map((t) => {
     const e = t.empresas as unknown as { razon_social: string; activa: boolean } | null;
-    return { id: t.id, nombre: `${t.nombres} ${t.apellidos}`, cedula: t.cedula, empresa: e?.razon_social ?? "", inactiva: e?.activa === false };
+    return { id: t.id, nombre: `${t.nombres} ${t.apellidos}`, cedula: t.cedula, empresa: e?.razon_social ?? "", inactiva: e?.activa === false, inactivo: t.estado === "inactivo" };
   });
-  // Primero los de empresas activas; los de inactivas al final (sort estable: conserva el orden por apellido)
-  return filas.sort((a, b) => Number(a.inactiva) - Number(b.inactiva));
+  // Primero los activos de empresas activas; trabajadores inactivos y empresas inactivas al final (sort estable)
+  return filas.sort((a, b) => Number(a.inactiva || a.inactivo) - Number(b.inactiva || b.inactivo));
 }
 
 // Candidato que viene de una empresa inactiva: pasa a la empresa activa a la que aspira, como aspirante y sin cargo
 // ni dependencia (eran de la otra empresa; el cargo anterior queda en su historial). Sus consultas, reposos y
 // documentos anteriores NO se tocan: siguen a nombre de la empresa de entonces, para los reportes y la ley.
 // Lo que tenía antes de pasar: con esto «Deshacer» lo devuelve tal cual si se eligió mal la empresa
-export type AntesDePasar = { empresa_id: string; puesto_id: string | null; dependencia_id: string | null; sede_id: string | null; estado: string; fecha_ingreso: string | null; fecha_egreso: string | null };
+export type AntesDePasar = {
+  empresa_id: string; puesto_id: string | null; dependencia_id: string | null; sede_id: string | null; estado: string; fecha_ingreso: string | null; fecha_egreso: string | null;
+  // Período (31-oct): pasar a otra empresa empieza un período nuevo; Deshacer devuelve el anterior y su inactivo
+  periodo_desde?: string | null; fecha_inactivo?: string | null; motivo_inactivo?: string | null;
+};
 
 export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Promise<Resultado & { antes?: AntesDePasar }> {
   const sesion = await obtenerSesion();
@@ -141,7 +146,7 @@ export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Pr
   const supabase = await crearClienteServidor();
   const [{ data: destino }, { data: t }] = await Promise.all([
     supabase.from("empresas").select("razon_social, activa").eq("id", empresaId).maybeSingle(),
-    supabase.from("trabajadores").select("empresa_id, puesto_id, dependencia_id, sede_id, estado, fecha_ingreso, fecha_egreso, nombres, apellidos, empresas(activa)").eq("id", trabajadorId).maybeSingle(),
+    supabase.from("trabajadores").select("empresa_id, puesto_id, dependencia_id, sede_id, estado, fecha_ingreso, fecha_egreso, periodo_desde, fecha_inactivo, motivo_inactivo, nombres, apellidos, empresas(activa)").eq("id", trabajadorId).maybeSingle(),
   ]);
   if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
   if (!destino?.activa) return { ok: false, mensaje: "Esa empresa no está activa. Elige una empresa activa." };
@@ -151,14 +156,16 @@ export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Pr
   // Sin pedir la fila de vuelta (columnas de salud ocultas, #41): basta el conteo para saber si la RLS lo dejó
   const { count, error } = await supabase
     .from("trabajadores")
-    .update({ empresa_id: empresaId, puesto_id: null, dependencia_id: null, sede_id: null, estado: "aspirante", fecha_ingreso: null, fecha_egreso: null }, { count: "exact" })
+    // Empresa nueva = período nuevo (Cesar, 31-oct): la aptitud y los vencimientos cuentan desde la nueva evaluación
+    .update({ empresa_id: empresaId, puesto_id: null, dependencia_id: null, sede_id: null, estado: "aspirante", fecha_ingreso: null, fecha_egreso: null, periodo_desde: hoyCaracas() }, { count: "exact" })
     .eq("id", trabajadorId);
   if (error) return { ok: false, mensaje: "No se pudo pasar a la otra empresa: " + error.message };
   if (!count) return { ok: false, mensaje: "Tu usuario no puede cambiar la empresa de este trabajador." };
   invalidarEmpresas();
   olvidar("");
   revalidatePath("/", "layout");
-  const antes: AntesDePasar = { empresa_id: t.empresa_id, puesto_id: t.puesto_id, dependencia_id: t.dependencia_id, sede_id: t.sede_id, estado: t.estado, fecha_ingreso: t.fecha_ingreso, fecha_egreso: t.fecha_egreso };
+  const antes: AntesDePasar = { empresa_id: t.empresa_id, puesto_id: t.puesto_id, dependencia_id: t.dependencia_id, sede_id: t.sede_id, estado: t.estado, fecha_ingreso: t.fecha_ingreso, fecha_egreso: t.fecha_egreso,
+    periodo_desde: t.periodo_desde, fecha_inactivo: t.fecha_inactivo, motivo_inactivo: t.motivo_inactivo };
   return { ok: true, mensaje: `Pasado a ${destino.razon_social}. Su historia va con él.`, antes };
 }
 
@@ -197,6 +204,9 @@ export async function deshacerPaso(trabajadorId: string, destinoId: string, ante
       estado,
       fecha_ingreso: fecha(antes.fecha_ingreso),
       fecha_egreso: fecha(antes.fecha_egreso),
+      periodo_desde: fecha(antes.periodo_desde ?? null),
+      fecha_inactivo: estado === "inactivo" ? fecha(antes.fecha_inactivo ?? null) : null,
+      motivo_inactivo: estado === "inactivo" ? (antes.motivo_inactivo ?? "").slice(0, 200) || null : null,
     }, { count: "exact" })
     .eq("id", trabajadorId)
     .eq("empresa_id", destinoId);
@@ -209,13 +219,13 @@ export async function deshacerPaso(trabajadorId: string, destinoId: string, ante
 }
 
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta
-export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string }> {
+export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string; inactivo?: boolean }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
   const supabase = await crearClienteServidor();
 
   const [{ data: t }, { data: previa }, listas] = await Promise.all([
-    supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id, empresas(razon_social, activa)").eq("id", trabajadorId).single(),
+    supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id, estado, empresas(razon_social, activa)").eq("id", trabajadorId).single(),
     supabase.from("consultas").select("antecedentes, habitos").eq("trabajador_id", trabajadorId).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     opciones(sesion.orgId, ["examen_funcional", "examen_fisico", "habito"]),
   ]);
@@ -229,6 +239,11 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
       empresaInactiva: suEmpresa.razon_social,
       mensaje: `Es de ${suEmpresa.razon_social}, empresa inactiva. Si viene como candidato, pásalo antes a la empresa a la que aspira (botón «Pasar a otra empresa» en su ficha o en el buscador).`,
     };
+  }
+
+  // Inactivo (ya no está en la empresa): se reingresa primero, para que la consulta abra su período nuevo
+  if (t.estado === "inactivo") {
+    return { ok: false, inactivo: true, mensaje: "Está inactivo (ya no estaba en la empresa). Si vuelve, toca «Reingresar» en su ficha: sus datos se conservan y empieza un período nuevo." };
   }
 
   const plantilla = (lista: "examen_funcional" | "examen_fisico") =>
@@ -381,6 +396,7 @@ export async function firmarConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("firmar_consulta", { p_id: id });
   if (error) return { ok: false, mensaje: error.message };
+  await prepararConstanciasLuego([id]); // constancia lista para RR. HH. si alguien la espera (después de responder)
   revalidatePath("/atencion");
   olvidar("");
   return { ok: true, mensaje: "Consulta firmada. Si encuentras un error, usa «Corregir» e indica el motivo." };

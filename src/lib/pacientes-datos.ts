@@ -7,7 +7,7 @@ import { todas } from "@/lib/paginar";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 const COLUMNAS = `id, numero_historia, cedula, nombres, apellidos, sexo, fecha_nacimiento, fecha_ingreso, turno,
-  lateralidad, telefono, correo, estado, empresa_id,
+  lateralidad, telefono, correo, estado, empresa_id, fecha_egreso, fecha_inactivo, motivo_inactivo, periodo_desde,
   empresas(razon_social, activa), dependencias(nombre), puestos(nombre, riesgos), tipo:lista_items(nombre)`;
 
 type Fila = {
@@ -26,6 +26,10 @@ type Fila = {
   correo: string | null;
   estado: Trabajador["estado"];
   empresa_id: string;
+  fecha_egreso: string | null;
+  fecha_inactivo: string | null;
+  motivo_inactivo: string | null;
+  periodo_desde: string | null;
   empresas: { razon_social: string; activa: boolean } | null;
   dependencias: { nombre: string } | null;
   puestos: { nombre: string; riesgos: Trabajador["riesgos"] } | null;
@@ -56,6 +60,9 @@ function aTrabajador(f: Fila, apt?: AptitudFila): Trabajador {
     telefono: f.telefono,
     correo: f.correo,
     estado: f.estado,
+    fechaSalida: f.estado === "inactivo" ? f.fecha_inactivo : f.estado === "egresado" ? f.fecha_egreso : null,
+    motivoInactivo: f.motivo_inactivo,
+    periodoDesde: f.periodo_desde,
     aptitud: apt?.clasificacion ?? null,
     aptitudFecha: apt?.fecha ?? null,
     proximoExamen: apt?.proximo_examen ?? null, // vigencia de la constancia o periodicidad de la empresa

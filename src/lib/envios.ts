@@ -266,7 +266,7 @@ const gruposDe = (documentos: string[]) =>
   [documentos.filter((d) => PUBLICOS.includes(d)), documentos.filter((d) => DOCS_CLINICOS.includes(d))].filter((g) => g.length);
 
 // Escritorio: sube ya a la nube lo guardado en la PC (las `filas`). null = sin internet; si no, las que aún esperan.
-async function subirAhora(supabase: Cliente, filas: string[]): Promise<string[] | null> {
+export async function subirAhora(supabase: Cliente, filas: string[]): Promise<string[] | null> {
   const { data } = await supabase.auth.getSession();
   const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/zamorapp/subir-ahora`, {
     method: "POST",

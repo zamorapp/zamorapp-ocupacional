@@ -15,7 +15,9 @@ import { olvidarEquipoNavegador } from "@/lib/equipo-confianza";
 export type Modo = "ingresar" | "registro" | "recuperar";
 
 // «siguiente»: a dónde volver después de entrar (p. ej. la invitación de RR. HH.); por defecto el panel
-export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false, nombreInicial }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean; nombreInicial?: string }) {
+export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = "ingresar", helloActivo = false, nombreInicial, trato = "tu" }: { modoDemo: boolean; siguiente?: string; modoInicial?: Modo; helloActivo?: boolean; nombreInicial?: string; trato?: "tu" | "usted" }) {
+  // La invitación de RR. HH. habla de «usted» («Le invita el Dr. …»); el ingreso del servicio, de «tú»
+  const u = trato === "usted";
   const router = useRouter();
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [cargando, setCargando] = useState(false);
@@ -42,8 +44,8 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
 
   // Mensaje claro para cada caso: clave equivocada, demasiados intentos, sin internet o sin conexión con el servicio.
   function mensajeIngreso(error: { message: string; code?: string; status?: number; name?: string }) {
-    if (error.message.includes("not confirmed")) return "Confirma tu correo antes de ingresar.";
-    if (error.name === "AuthRetryableFetchError" || !error.status) return "No se pudo conectar con el servicio de zamorApp. Revisa la conexión y vuelve a intentar.";
+    if (error.message.includes("not confirmed")) return u ? "Confirme su correo antes de ingresar." : "Confirma tu correo antes de ingresar.";
+    if (error.name === "AuthRetryableFetchError" || !error.status) return u ? "No se pudo conectar con el servicio de zamorApp. Revise la conexión y vuelva a intentar." : "No se pudo conectar con el servicio de zamorApp. Revisa la conexión y vuelve a intentar.";
     // Avisos propios del programa de escritorio (ya vienen en español) y límites de intentos
     if (["over_request_rate_limit", "session_expired", "user_banned", "offline", "offline_first_login"].includes(error.code ?? "")) return error.message;
     if (error.status === 429) return "Demasiados intentos. Espera unos minutos y vuelve a probar.";
@@ -147,12 +149,14 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
     return (
       <div className="space-y-3 rounded-xl border bg-card p-6 text-center">
         <MailCheck className="mx-auto size-10 text-primary" />
-        <p className="font-medium">Revisa tu correo</p>
+        <p className="font-medium">{u ? "Revise su correo" : "Revisa tu correo"}</p>
         <p className="text-sm text-muted-foreground">
           {modo === "recuperar"
             ? <>Si <b className="text-foreground">{confirmar}</b> tiene cuenta, le llegará un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.</>
             : siguiente.startsWith("/invitacion/")
-              ? <><b className="text-foreground">Paso 2:</b> abre el correo que enviamos a <b className="text-foreground">{confirmar}</b> y toca el botón de confirmación. Se abrirá de nuevo esta página para el paso 3. Si no lo ves en unos minutos, busca en Spam.</>
+              ? u
+                ? <><b className="text-foreground">Paso 2:</b> abra el correo que enviamos a <b className="text-foreground">{confirmar}</b> y toque el botón de confirmación. Se abrirá de nuevo esta página para el paso 3. Si no lo ve en unos minutos, busque en Spam.</>
+                : <><b className="text-foreground">Paso 2:</b> abre el correo que enviamos a <b className="text-foreground">{confirmar}</b> y toca el botón de confirmación. Se abrirá de nuevo esta página para el paso 3. Si no lo ves en unos minutos, busca en Spam.</>
               : <>Enviamos un enlace de confirmación a <b className="text-foreground">{confirmar}</b>. Ábrelo y luego ingresa con tu contraseña.</>}
         </p>
         <Button variant="outline" onClick={() => { setConfirmar(null); setModo("ingresar"); }}>Volver al ingreso</Button>
@@ -183,16 +187,16 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           autoComplete={modo === "ingresar" ? "username" : "email"}
           autoCapitalize="none"
           spellCheck={false}
-          placeholder={modo === "ingresar" ? "usuario o correo@empresa.com" : siguiente.startsWith("/invitacion/") ? "tu@empresa.com" : "medico@empresa.com"}
+          placeholder={modo === "ingresar" ? "usuario o correo@empresa.com" : siguiente.startsWith("/invitacion/") ? (u ? "correo@empresa.com" : "tu@empresa.com") : "medico@empresa.com"}
           required={!modoDemo}
           className="h-11"
         />
       </div>
-      {recuperar && <p className="text-sm text-muted-foreground">Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva.</p>}
+      {recuperar && <p className="text-sm text-muted-foreground">{u ? "Escriba su correo y le enviaremos un enlace para crear una contraseña nueva." : "Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva."}</p>}
       {!recuperar && <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="clave">Contraseña</Label>
-          {!registro && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setError(null); setModo("recuperar"); }}>¿La olvidaste?</button>}
+          {!registro && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setError(null); setModo("recuperar"); }}>{u ? "¿La olvidó?" : "¿La olvidaste?"}</button>}
         </div>
         <Input
           ref={campoClave}
@@ -205,7 +209,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
           required={!modoDemo}
           className="h-11"
         />
-        {registro && <p id="clave-ayuda" className="text-xs text-muted-foreground">Mínimo 8 letras o números. Anótala: la usarás cada vez que entres.</p>}
+        {registro && <p id="clave-ayuda" className="text-xs text-muted-foreground">{u ? "Mínimo 8 letras o números. Anótela: la usará cada vez que entre." : "Mínimo 8 letras o números. Anótala: la usarás cada vez que entres."}</p>}
       </div>}
       {error && (
         <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -225,7 +229,7 @@ export function FormularioLogin({ modoDemo, siguiente = "/panel", modoInicial = 
         <p className="text-center text-sm text-muted-foreground">Supabase aún no está conectado: verás datos de ejemplo.</p>
       ) : (
         <p className="text-center text-sm text-muted-foreground">
-          {registro ? "¿Ya tienes cuenta? " : "¿No tienes cuenta? "}
+          {registro ? (u ? "¿Ya tiene cuenta? " : "¿Ya tienes cuenta? ") : (u ? "¿No tiene cuenta? " : "¿No tienes cuenta? ")}
           <button type="button" className="font-medium text-primary hover:underline" onClick={() => { setError(null); setModo(registro ? "ingresar" : "registro"); }}>
             {registro ? "Ingresar" : "Crear cuenta"}
           </button>

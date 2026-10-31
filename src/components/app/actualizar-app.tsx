@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SOLO_PARTES } from "@/lib/error-pantalla";
 
 const VERSION = process.env.NEXT_PUBLIC_VERSION_WEB ?? "";
 // Caché de la pantalla sin internet (/movil, public/sw.js): no se borra al actualizar
@@ -39,7 +40,17 @@ function useVersionNueva() {
     // Una app abierta en el celular puede quedar días en segundo plano: se revisa cada vez que vuelve al frente
     const alVolver = () => document.visibilityState === "visible" && revisar();
     document.addEventListener("visibilitychange", alVolver);
-    return () => document.removeEventListener("visibilitychange", alVolver);
+    // Una parte de la página que ya no existe (se publicó otra versión con la app abierta) y falló fuera de una
+    // pantalla de error, p. ej. al tocar un botón: se ofrece Actualizar sin recargar sola (borraría lo escrito)
+    const parteVieja = (e: PromiseRejectionEvent) => {
+      const r = e.reason as { name?: string; message?: string } | undefined;
+      if (SOLO_PARTES.test(`${r?.name ?? ""} ${r?.message ?? String(r)}`)) setNueva(true);
+    };
+    window.addEventListener("unhandledrejection", parteVieja);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("unhandledrejection", parteVieja);
+    };
   }, [revisar]);
   return nueva;
 }
@@ -48,13 +59,19 @@ function useVersionNueva() {
 export function AvisoVersionNueva() {
   const nueva = useVersionNueva();
   const [trabajando, setTrabajando] = useState(false);
-  if (!nueva) return null;
+  // Los avisos nunca bloquean: «Ignorar» la quita hasta la próxima revisión (al volver la app al frente)
+  const [ignorada, setIgnorada] = useState(false);
+  useEffect(() => { if (!nueva) setIgnorada(false); }, [nueva]);
+  if (!nueva || ignorada) return null;
   return (
     <div role="status" className="fixed inset-x-3 bottom-20 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-lg sm:bottom-4">
       <span className="text-sm font-medium">Hay una versión nueva de zamorApp</span>
-      <Button size="sm" disabled={trabajando} onClick={() => { setTrabajando(true); actualizarApp(); }}>
-        <RefreshCw className={trabajando ? "animate-spin" : undefined} /> Actualizar
-      </Button>
+      <div className="flex shrink-0 gap-1">
+        <Button size="sm" variant="ghost" disabled={trabajando} onClick={() => setIgnorada(true)}>Ignorar</Button>
+        <Button size="sm" disabled={trabajando} onClick={() => { setTrabajando(true); actualizarApp(); }}>
+          <RefreshCw className={trabajando ? "animate-spin" : undefined} /> Actualizar
+        </Button>
+      </div>
     </div>
   );
 }

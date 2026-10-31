@@ -9,9 +9,14 @@ export { urlInterna };
 // Se piden de a pocos para no pasar el límite de 4,5 MB por respuesta de Vercel.
 const POR_LLAMADA = 4;
 
-export async function pdfDeRutas(rutas: string[]): Promise<Buffer[]> {
+// cookieSesion: para trabajos que corren después de responder (after() en una página), donde cookies() ya no se puede leer
+export async function cookieDeSesion() {
+  return (await cookies()).getAll().map((c) => `${c.name}=${c.value}`).join("; ");
+}
+
+export async function pdfDeRutas(rutas: string[], cookieSesion?: string): Promise<Buffer[]> {
   if (rutas.some((r) => !r.startsWith("/imprimir/"))) throw new Error("Solo se convierten páginas de /imprimir");
-  const sesion = (await cookies()).getAll().map((c) => `${c.name}=${c.value}`).join("; ");
+  const sesion = cookieSesion ?? (await cookieDeSesion());
   const salida: Buffer[] = [];
   for (let i = 0; i < rutas.length; i += POR_LLAMADA) {
     const r = await fetch(`${urlInterna()}/api/pdf`, {

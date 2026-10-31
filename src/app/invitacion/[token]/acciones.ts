@@ -14,7 +14,7 @@ export async function aceptar(token: string): Promise<{ ok: false; mensaje: stri
   const supabase = await crearClienteServidor();
   const { data: claims } = await supabase.auth.getClaims();
   const usuario = claims?.claims?.sub;
-  if (!usuario) return { ok: false, mensaje: "Ingresa con tu cuenta para aceptar." };
+  if (!usuario) return { ok: false, mensaje: "Ingrese con su cuenta para aceptar." };
   const { data: empresaId, error } = await supabase.rpc("aceptar_invitacion", { p_token: token });
   if (error) return { ok: false, mensaje: error.message };
   invalidarSesion(usuario);
@@ -31,4 +31,12 @@ export async function aceptar(token: string): Promise<{ ok: false; mensaje: stri
   });
   (await cookies()).set(COOKIE_EMPRESA, String(empresaId), { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   redirect("/portal");
+}
+
+// Quien abrió el enlace con otra cuenta del servicio abierta: cierra solo esta sesión y vuelve al paso 1 del enlace
+export async function salirParaRegistrarse(token: string): Promise<void> {
+  if (!TOKEN_INVITACION.test(token)) redirect("/login");
+  const supabase = await crearClienteServidor();
+  await supabase.auth.signOut({ scope: "local" });
+  redirect(`/invitacion/${token}`);
 }
