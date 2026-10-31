@@ -173,7 +173,6 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
     const enTextos = cambiados.length - enAnalisis;
     setAbiertos({ cuadros: true, anexo: true, integral: true });
     setResaltados(new Set(cambiados));
-    setTimeout(() => setResaltados(new Set()), 4000);
     setAviso({
       ok: true,
       deshacer: true,
@@ -194,8 +193,11 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
     setVariante(antes.variante);
     setAntes(null);
     setAviso(null);
+    setResaltados(new Set());
   };
-  const resalte = (k: string) => (resaltados.has(k) ? "ring-2 ring-primary/60 transition-shadow" : "transition-shadow");
+  // Fondo suave además del borde (el borde solo se confunde con el foco); se quita al editar ese campo o al guardar
+  const resalte = (k: string) => (resaltados.has(k) ? "bg-ok/10 ring-2 ring-primary/60 transition-colors" : "transition-colors");
+  const quitarResalte = (k: string) => { if (resaltados.has(k)) setResaltados((x) => { const y = new Set(x); y.delete(k); return y; }); };
   const fijar = (c: Partial<Firmantes>) => { setFirmantes({ ...firmantes, ...c }); setAviso(null); };
   // Lo que saldría como «Falta» o «Sin datos» en la portada: se nombra en el título y la sección se abre sola
   const faltan = [
@@ -214,7 +216,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         // Si borraron la fecha, se guarda la de hoy: el informe nunca sale sin fecha de emisión
         const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes: { ...firmantes, fecha_emision: firmantes.fecha_emision || hoy }, analisis: editado, variante });
         setAviso(r);
-        if (r.ok) setGuardado(true);
+        if (r.ok) { setGuardado(true); setResaltados(new Set()); }
         return r.ok;
       };
       if (!imprimir) return void (await guardarTextos());
@@ -239,7 +241,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
               <Button type="button" variant="ghost" size="sm" onClick={() => cambiar(k, sugeridos[k])}><RotateCcw /> Usar sugerencia</Button>
             )}
           </div>
-          <Textarea value={textos[k]} disabled={!editable} onChange={(e) => cambiar(k, e.target.value)} className={`min-h-28 text-sm ${resalte(k)}`} />
+          <Textarea value={textos[k]} disabled={!editable} onChange={(e) => { cambiar(k, e.target.value); quitarResalte(k); }} className={`min-h-28 text-sm ${resalte(k)}`} />
         </div>
       ))}
 
@@ -268,7 +270,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
                     <Button type="button" variant="ghost" size="sm" onClick={() => setAnalisis({ ...analisis, [k]: generado.secciones[k] })}><RotateCcw /> Usar sugerencia</Button>
                   )}
                 </div>
-                <Textarea value={analisis[k] ?? ""} disabled={!editable} onChange={(e) => { setAnalisis({ ...analisis, [k]: e.target.value }); setAviso(null); }} className={`min-h-20 text-sm ${resalte(`a:${k}`)}`} />
+                <Textarea value={analisis[k] ?? ""} disabled={!editable} onChange={(e) => { setAnalisis({ ...analisis, [k]: e.target.value }); setAviso(null); quitarResalte(`a:${k}`); }} className={`min-h-20 text-sm ${resalte(`a:${k}`)}`} />
               </div>
             ))}
           </div>

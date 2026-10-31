@@ -70,7 +70,7 @@ export function Cartelera({ id, filas, empresa, rif, titulo, subtitulo, desde, h
           <div className="mt-0.5 text-[13px] font-semibold">Avisa de inmediato a tu supervisor y al servicio médico, aunque no tengas lesión.</div>
         </div>
         <div className="flex items-center justify-between gap-4 text-[12px]">
-          <span><b className="font-cifra text-[16px] tabular-nums">{poblacion.toLocaleString("es-VE")}</b> trabajadores en el período</span>
+          <span className="whitespace-nowrap"><b className="font-cifra text-[16px] tabular-nums">{poblacion.toLocaleString("es-VE")}</b> trabajadores en el período</span>
           <span className="text-right text-[10px] text-doc-tenue">Publicado por el Servicio de Seguridad y Salud en el Trabajo{org ? ` · ${org}` : ""}. Cifras del período, sin datos personales.</span>
         </div>
       </div>
