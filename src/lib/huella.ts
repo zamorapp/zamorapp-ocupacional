@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ahora } from "@/lib/fecha";
+import { confirmarCodigo } from "@/lib/dos-pasos";
 
 // Entrar con huella (o rostro / PIN del equipo) en vez de escribir la contraseña.
 // - Web, celular y tablet: llaves de acceso (passkeys) de Supabase Auth. La llave vive en el equipo y la
@@ -17,7 +18,9 @@ const NO_OFRECER = "zamorapp.huella.no-ofrecer";
 /** Marca para la pantalla de dos pasos: se llega desde Windows Hello con internet (la nube pide el código). */
 export const MOTIVO_HELLO = "zamorapp.dos-pasos.hello";
 
-export type Resultado = { ok: true } | { ok: false; mensaje: string };
+// «pideCodigo»: la nube solo deja registrar una huella con el código de dos pasos escrito en esta sesión (aal2).
+// En un equipo de confianza se entra sin el código (aal1), así que la pantalla lo pide ahí mismo y reintenta.
+export type Resultado = { ok: true } | { ok: false; mensaje: string; pideCodigo?: true };
 
 function leer(clave: string) {
   try { return localStorage.getItem(clave); } catch { return null; }
@@ -76,15 +79,17 @@ export async function puedeOfrecerHuella(supabase: SupabaseClient, desde = "ofer
     const { data: requiere } = await supabase.rpc("falta_segundo_paso");
     if (requiere === true) return false;
   }
-  if (ES_ESCRITORIO) return true;
-  // Web: si la cuenta ya tiene una llave registrada en el servidor, no se ofrece crear otra (cada intento deja una
-  // llave nueva en el gestor de Google o de Windows). Si la lista no se puede leer, tampoco se ofrece.
-  const llaves = await listarHuellas(supabase);
-  return Array.isArray(llaves) && llaves.length === 0;
+  // Web: se ofrece aunque la cuenta ya tenga llaves de otros equipos (o de este antes de reinstalar la app, 31-oct).
+  // No duplica llaves: la nube manda la lista de las ya registradas y, si este equipo tiene una, el navegador no
+  // crea otra y responde «ya registrada» (activarHuella lo da por bueno).
+  return true;
 }
 
-/** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */
-export async function activarHuella(supabase: SupabaseClient): Promise<Resultado> {
+/**
+ * Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. En la web, si la sesión aún no tiene
+ * el código de dos pasos (equipo de confianza o recién entrado), devuelve «pideCodigo» y se llama otra vez con él.
+ */
+export async function activarHuella(supabase: SupabaseClient, codigo?: string): Promise<Resultado> {
   if (ES_ESCRITORIO) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -95,11 +100,26 @@ export async function activarHuella(supabase: SupabaseClient): Promise<Resultado
     const v = await pedirAVentana("activar", cuerpo.codigo);
     return v.ok ? { ok: true } : v;
   }
-  // Sin el segundo paso no se registran llaves (la oferta ya sale después del código; esto cubre «Mi perfil»)
-  const { data: falta } = await supabase.rpc("falta_segundo_paso");
-  if (falta === true) return { ok: false, mensaje: "Primero escribe el código de verificación en dos pasos; después activa la huella." };
+  // Con la verificación en dos pasos activa, la nube exige el código en esta sesión para registrar llaves
+  // (insufficient_aal). Antes se mostraba «Primero escribe el código…» sin dónde escribirlo (31-oct, celular de
+  // Cesar tras reinstalar la app): ahora se pide aquí mismo.
+  const { data: claims } = await supabase.auth.getClaims();
+  if (claims?.claims?.aal !== "aal2") {
+    const { data: factores } = await supabase.auth.mfa.listFactors();
+    const totp = factores?.totp.find((f) => f.status === "verified");
+    if (totp) {
+      if (!codigo) return { ok: false, pideCodigo: true, mensaje: "Para registrar la huella en este equipo, escribe el código de 6 dígitos de tu app de códigos." };
+      const fallo = await confirmarCodigo(supabase, totp.id, codigo);
+      if (fallo) return { ok: false, pideCodigo: true, mensaje: fallo };
+    }
+  }
   const { error } = await supabase.auth.registerPasskey();
-  if (error) return { ok: false, mensaje: mensajeError(error) };
+  if (error) {
+    // Este equipo ya tenía la llave (p. ej. se reinstaló la app): está lista para entrar
+    if (error.code === "webauthn_credential_exists" || error.code === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") { escribir(MARCA, "1"); return { ok: true }; }
+    if (error.code === "insufficient_aal") return { ok: false, pideCodigo: true, mensaje: "Para registrar la huella en este equipo, escribe el código de 6 dígitos de tu app de códigos." };
+    return { ok: false, mensaje: mensajeError(error) };
+  }
   escribir(MARCA, "1");
   return { ok: true };
 }
@@ -205,16 +225,16 @@ function mensajeError(error: { code?: string; name?: string; message?: string },
   if (codigo === "passkey_disabled") return "La entrada con huella aún no está activada en zamorApp. Avísale al administrador.";
   if (codigo === "webauthn_credential_exists" || codigo === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") return "Este equipo ya tiene tu huella registrada.";
   if (codigo === "too_many_passkeys") return "Tu cuenta ya tiene el máximo de huellas. Quita una que no uses.";
-  if (codigo === "webauthn_credential_not_found") return "Esta huella ya no está asociada a ninguna cuenta. Entra con tu contraseña y actívala de nuevo.";
+  if (codigo === "webauthn_credential_not_found") return "Esta huella ya no está asociada a tu cuenta. Entra con tu contraseña: al entrar te ofrecemos registrarla de nuevo.";
   if (codigo.startsWith("webauthn_challenge")) return "Tardó demasiado. Intenta de nuevo.";
   if (codigo === "user_banned") return "Tu acceso fue desactivado. Habla con el administrador.";
-  if (codigo === "insufficient_aal") return "Primero escribe el código de verificación en dos pasos; después activa la huella.";
+  if (codigo === "insufficient_aal") return "Falta el código de 6 dígitos de tu app de códigos para registrar la huella.";
   // El navegador rechaza la llave si la dirección de zamorApp no coincide con la configurada en el servidor (RP ID)
   if (error.name === "SecurityError" || codigo === "webauthn_verification_failed")
     return `La huella no está configurada para esta dirección de zamorApp. Avísale al soporte (${codigo || error.name}).`;
   if (error.name === "NotAllowedError" || codigo === "ERROR_CEREMONY_ABORTED" || /cancel|not allowed/i.test(error.message ?? ""))
     return momento === "entrar-sin-llave"
-      ? "Este equipo aún no tiene tu llave de huella. Entra con tu contraseña y actívala: toca tu inicial → Entrar con huella."
+      ? "Este equipo aún no tiene tu huella (pasa al reinstalar la app). Entra con tu contraseña: al entrar te ofrecemos registrarla aquí."
       : momento === "entrar-con-llave"
         ? "No se usó la huella (se canceló o el equipo no encontró tu llave). Intenta de nuevo o usa tu contraseña."
         : "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
