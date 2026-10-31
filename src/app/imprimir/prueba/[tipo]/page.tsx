@@ -26,9 +26,11 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
     );
   }
   if (tipo === "vigilancia") {
-    const v = armarVigilancia(vigilanciaDePrueba(caso === "vacio" ? "vacio" : "normal"));
+    // ?caso=empresa: la versión que va a la empresa (cifras <3 tapadas, diagnósticos no nombrables agrupados)
+    const paraEmpresa = caso === "empresa";
+    const v = armarVigilancia(vigilanciaDePrueba(caso === "vacio" ? "vacio" : "normal"), { paraEmpresa });
     const org = { nombre: "Servicio de prueba", rif: "J-00000000-0", direccion: "Dirección de ejemplo", telefono: null, correo: null, logo: null, ajustes: {} };
-    return <InformeVigilancia v={v} org={org} logoEmpresa={null} paraEmpresa={false} puedeEnviar={false} />;
+    return <InformeVigilancia v={v} org={org} logoEmpresa={null} paraEmpresa={paraEmpresa} puedeEnviar={false} />;
   }
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();

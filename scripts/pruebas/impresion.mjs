@@ -70,6 +70,15 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
     await pagina.emulateMedia({ media: "screen" });
   }
 }
+// Lo que va a la empresa nunca nombra un diagnóstico con menos de 3 casos ni uno confidencial (los datos de
+// ejemplo traen un solo caso de F32.9 en las causas, un corte, el detalle de reposos y las causas de reposo)
+for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
+  await pagina.goto(`${base}/imprimir/prueba/vigilancia?caso=${caso}`, { waitUntil: "networkidle", timeout: 120_000 });
+  const html = await pagina.content();
+  const esta = /F32|Episodio depresivo/.test(html);
+  filas.push(`${"vigilancia F32".padEnd(20)} ${caso.padEnd(7)} ${esta ? "nombra F32" : "no nombra F32"}`);
+  if (esta !== debe) fallas.push(`vigilancia (${caso}): ${debe ? "el informe del médico debe mostrar F32.9" : "la versión para la empresa nombra F32.9 (1 caso, confidencial)"}`);
+}
 await navegador.close();
 console.log(filas.join("\n"));
 if (fallas.length) { console.error(`\nFALLAS (${fallas.length}):\n- ${fallas.join("\n- ")}`); process.exit(1); }

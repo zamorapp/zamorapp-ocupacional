@@ -9,6 +9,7 @@ import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa } from "@/lib/
 import type { cargarVigilancia } from "@/lib/vigilancia";
 import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
 import { CAUSAS_REPOSO, filasArt34 } from "@/lib/vigilancia-integral";
+import { nombrable } from "@/lib/vigilancia-redaccion";
 import { CORTES, ETIQUETA_CLAVE } from "@/lib/vigilancia-textos";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Hoja, Membrete } from "../componentes";
@@ -126,8 +127,31 @@ function Kpi({ titulo, valor, detalle, delta }: { titulo: string; valor: string;
 // Dato legal faltante: aviso en pantalla, raya en el papel
 const Falta = () => <><span className="font-semibold text-red-700 print:hidden">Falta</span><span className="hidden print:inline">—</span></>;
 const Texto = ({ children }: { children: string }) => <div className="whitespace-pre-line text-[12px] leading-relaxed">{children}</div>;
-const causasFilas = (c: Causa[], pob: number, minimo = 0): Celda[][] =>
-  c.map((x) => [textoCausa(x.cie10, x.descripcion), minimo && (x.pacientes ?? 0) < minimo ? "—" : porc(x.pacientes ?? 0, pob), x.n]);
+// Lo que va a la empresa nunca nombra un diagnóstico con menos de «minimo» casos ni uno confidencial (misma regla que
+// el texto, nombrable): esas filas se suman en «Otros diagnósticos»; si la suma tampoco llega a «minimo», no sale
+const OTROS_DX = (minimo: number) => `Otros diagnósticos (menos de ${minimo} casos o confidenciales)`;
+function apartar<F extends { cie10: string | null; n: number; pacientes?: number }>(filas: F[], minimo: number) {
+  if (!minimo) return { visibles: filas, otros: [] as F[], sale: false };
+  const ok = (f: F) => Boolean(f.cie10) && Math.min(f.n, f.pacientes ?? f.n) >= minimo && nombrable({ ...f, cie10: f.cie10 ?? "" });
+  const otros = filas.filter((f) => !ok(f));
+  return { visibles: filas.filter(ok), otros, sale: otros.reduce((s, f) => s + Math.min(f.n, f.pacientes ?? f.n), 0) >= minimo };
+}
+const causasFilas = (c: Causa[], pob: number, minimo = 0): Celda[][] => {
+  const { visibles, otros, sale } = apartar(c, minimo);
+  const filas: Celda[][] = visibles.map((x) => [textoCausa(x.cie10, x.descripcion), porc(x.pacientes ?? 0, pob), x.n]);
+  return sale ? [...filas, [OTROS_DX(minimo), "—", otros.reduce((s, x) => s + x.n, 0)]] : filas;
+};
+const reposoCausasFilas = (c: (Causa & { dias: number })[], minimo = 0): Celda[][] => {
+  const { visibles, otros, sale } = apartar(c, minimo);
+  const filas: Celda[][] = visibles.map((x) => [textoCausa(x.cie10, x.descripcion), x.dias, x.n]);
+  return sale ? [...filas, [OTROS_DX(minimo), otros.reduce((s, x) => s + x.dias, 0), otros.reduce((s, x) => s + x.n, 0)]] : filas;
+};
+type Detalle = { ente: string; cie10: string | null; descripcion: string | null; n: number; dias: number };
+const detalleFilas = (d: Detalle[], entes: Record<string, string>, minimo = 0): Celda[][] => {
+  const { visibles, otros, sale } = apartar(d, minimo);
+  const filas: Celda[][] = visibles.map((x) => [entes[x.ente] ?? x.ente, textoDiagnostico(x.cie10, x.descripcion), x.dias, x.n]);
+  return sale ? [...filas, ["Varios", OTROS_DX(minimo), otros.reduce((s, x) => s + x.dias, 0), otros.reduce((s, x) => s + x.n, 0)]] : filas;
+};
 // Gráficos de lo que va a la empresa: las categorías con menos de «minimo» casos se suman en «Otras»; si aun así no llegan, no salen
 function agrupar<F extends { nombre: string; n: number }>(filas: F[], minimo: number): { nombre: string; n: number }[] {
   if (!minimo) return filas;
@@ -400,7 +424,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             </Panel>
           </div>
           <Panel ancla="i-causas-reposo" titulo="Diez primeras causas de reposo">
-            <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={(r.ausentismo.primeras_causas ?? []).map((c) => [textoCausa(c.cie10, c.descripcion), c.dias, c.n])} />
+            <T columnas={["Diagnóstico (CIE-10)", "Días", "Casos"]} filas={reposoCausasFilas(r.ausentismo.primeras_causas ?? [], minimo)} />
           </Panel>
           <Analisis texto={a.causas_reposo} />
           <Analisis texto={a.reposos} titulo="Reposos por causa, ente emisor y permisos" />
@@ -502,7 +526,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           {CAUSAS_REPOSO.map((c) => (
             <div key={c} className="space-y-2">
               <Panel ancla={`i-anexo-reposo-${c}`} titulo={`Causas de reposo por ${(causas[c] ?? c.replace("_", " ")).toLowerCase()}`}>
-                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} texto={[1]} porcentaje={false} filas={(r.ausentismo.detalle ?? []).filter((d) => d.causa === c).map((d) => [entes[d.ente] ?? d.ente, textoDiagnostico(d.cie10, d.descripcion), d.dias, d.n])} />
+                <T columnas={["Ente emisor", "Diagnóstico", "Días", "Casos"]} texto={[1]} porcentaje={false} filas={detalleFilas((r.ausentismo.detalle ?? []).filter((d) => d.causa === c), entes, minimo)} />
               </Panel>
               <Analisis texto={a[`anexo_reposo_${c}` as SeccionAnalisis]} />
             </div>

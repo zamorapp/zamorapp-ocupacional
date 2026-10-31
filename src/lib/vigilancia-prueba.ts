@@ -47,11 +47,11 @@ const reporte: Reporte = {
     por_sistema: [{ nombre: "Osteomuscular", n: 38 }, { nombre: "Respiratorio", n: 22 }, { nombre: "Traumatismos", n: 9 }, { nombre: "Circulatorio", n: 8 }, { nombre: "Digestivo", n: 7 }],
     por_origen: { comun: 86, accidente_comun: 7, accidente_laboral: 4, ocupacional: 2 },
     por_tipo_consulta: { primera: { n: 70, pacientes: 60 }, sucesiva: { n: 25, pacientes: 18 }, derivada: { n: 4, pacientes: 4 } },
-    primeras_causas: [causa("M54.5", "Lumbago no especificado", 21, 16), causa("J00", "Rinofaringitis aguda", 14, 13), causa("M75.1", "Síndrome del manguito rotador", 8, 6), causa("I10", "Hipertensión esencial", 7, 7), causa("K29.7", "Gastritis", 6, 6), causa("S93.4", "Esguince de tobillo", 5, 5), causa("L23.9", "Dermatitis alérgica de contacto", 4, 4), causa("H10.9", "Conjuntivitis", 3, 3)],
+    primeras_causas: [causa("M54.5", "Lumbago no especificado", 21, 16), causa("J00", "Rinofaringitis aguda", 14, 13), causa("M75.1", "Síndrome del manguito rotador", 8, 6), causa("I10", "Hipertensión esencial", 7, 7), causa("K29.7", "Gastritis", 6, 6), causa("S93.4", "Esguince de tobillo", 5, 5), causa("L23.9", "Dermatitis alérgica de contacto", 4, 4), causa("H10.9", "Conjuntivitis", 3, 3), causa("F32.9", "Episodio depresivo", 1, 1)],
     cortes: {
       sexo: { F: [causa("J00", "Rinofaringitis aguda", 6, 6), causa("M54.5", "Lumbago no especificado", 4, 4)], M: [causa("M54.5", "Lumbago no especificado", 17, 12), causa("M75.1", "Síndrome del manguito rotador", 7, 5), causa("J00", "Rinofaringitis aguda", 8, 7)] },
       edad: { "25-34": [causa("M54.5", "Lumbago no especificado", 9, 7), causa("J00", "Rinofaringitis aguda", 6, 6)], "55-64": [causa("I10", "Hipertensión esencial", 5, 5), causa("M54.5", "Lumbago no especificado", 3, 3)] },
-      dependencia: { Producción: [causa("M54.5", "Lumbago no especificado", 12, 9), causa("M75.1", "Síndrome del manguito rotador", 6, 4)], Almacén: [causa("M54.5", "Lumbago no especificado", 6, 5), causa("S93.4", "Esguince de tobillo", 3, 3)] },
+      dependencia: { Producción: [causa("M54.5", "Lumbago no especificado", 12, 9), causa("M75.1", "Síndrome del manguito rotador", 6, 4)], Almacén: [causa("M54.5", "Lumbago no especificado", 6, 5), causa("S93.4", "Esguince de tobillo", 3, 3), causa("F32.9", "Episodio depresivo", 1, 1)] },
       origen: { comun: [causa("M54.5", "Lumbago no especificado", 18, 14), causa("J00", "Rinofaringitis aguda", 14, 13)], accidente_laboral: [causa("S93.4", "Esguince de tobillo", 3, 3)] },
       tipo: { primera: [causa("J00", "Rinofaringitis aguda", 12, 12), causa("M54.5", "Lumbago no especificado", 10, 10)], sucesiva: [causa("M54.5", "Lumbago no especificado", 9, 5), causa("I10", "Hipertensión esencial", 4, 4)] },
     },
@@ -62,11 +62,13 @@ const reporte: Reporte = {
     por_causa: [{ nombre: "enfermedad_comun", n: 17, dias: 96 }, { nombre: "accidente_comun", n: 4, dias: 26 }, { nombre: "accidente_laboral", n: 3, dias: 25 }],
     permisos: [{ nombre: "paternidad", n: 2, dias: 28 }],
     por_ente: [{ nombre: "ivss", n: 14, dias: 101 }, { nombre: "interno", n: 10, dias: 46 }],
-    primeras_causas: [{ ...causa("M54.5", "Lumbago no especificado", 7), dias: 52 }, { ...causa("S93.4", "Esguince de tobillo", 4), dias: 38 }, { ...causa("J00", "Rinofaringitis aguda", 6), dias: 14 }, { ...causa("M75.1", "Síndrome del manguito rotador", 3), dias: 30 }],
+    primeras_causas: [{ ...causa("M54.5", "Lumbago no especificado", 7), dias: 52 }, { ...causa("S93.4", "Esguince de tobillo", 4), dias: 38 }, { ...causa("J00", "Rinofaringitis aguda", 6), dias: 14 }, { ...causa("M75.1", "Síndrome del manguito rotador", 3), dias: 30 }, { ...causa("F32.9", "Episodio depresivo", 1), dias: 7 }],
     detalle: [
       { causa: "enfermedad_comun", ente: "ivss", cie10: "M54.5", descripcion: "Lumbago no especificado", n: 7, dias: 52 },
       { causa: "enfermedad_comun", ente: "interno", cie10: "J00", descripcion: "Rinofaringitis aguda", n: 6, dias: 14 },
       { causa: "accidente_laboral", ente: "ivss", cie10: "S93.4", descripcion: "Esguince de tobillo", n: 3, dias: 25 },
+      // Un solo caso y confidencial (F): en lo que va a la empresa no puede salir ni el código ni la descripción
+      { causa: "enfermedad_comun", ente: "interno", cie10: "F32.9", descripcion: "Episodio depresivo", n: 1, dias: 7 },
       { causa: "accidente_comun", ente: "interno", cie10: "S93.4", descripcion: "Esguince de tobillo", n: 1, dias: 13 },
     ],
     por_dependencia: [{ nombre: "Producción", n: 12, dias: 84 }, { nombre: "Almacén", n: 7, dias: 41 }, { nombre: "Mantenimiento", n: 3, dias: 15 }, { nombre: "Administración", n: 2, dias: 7 }],
