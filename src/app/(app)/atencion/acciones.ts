@@ -131,17 +131,22 @@ export async function buscarPacientes(texto: string): Promise<PacienteEncontrado
 // Candidato que viene de una empresa inactiva: pasa a la empresa activa a la que aspira, como aspirante y sin cargo
 // ni dependencia (eran de la otra empresa; el cargo anterior queda en su historial). Sus consultas, reposos y
 // documentos anteriores NO se tocan: siguen a nombre de la empresa de entonces, para los reportes y la ley.
-export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Promise<Resultado> {
+// Lo que tenía antes de pasar: con esto «Deshacer» lo devuelve tal cual si se eligió mal la empresa
+export type AntesDePasar = { empresa_id: string; puesto_id: string | null; dependencia_id: string | null; sede_id: string | null; estado: string; fecha_ingreso: string | null; fecha_egreso: string | null };
+
+export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Promise<Resultado & { antes?: AntesDePasar }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
   if (!empresaId) return { ok: false, mensaje: "Elige la empresa a la que pasa." };
   const supabase = await crearClienteServidor();
   const [{ data: destino }, { data: t }] = await Promise.all([
     supabase.from("empresas").select("razon_social, activa").eq("id", empresaId).maybeSingle(),
-    supabase.from("trabajadores").select("empresa_id, nombres, apellidos").eq("id", trabajadorId).maybeSingle(),
+    supabase.from("trabajadores").select("empresa_id, puesto_id, dependencia_id, sede_id, estado, fecha_ingreso, fecha_egreso, nombres, apellidos, empresas(activa)").eq("id", trabajadorId).maybeSingle(),
   ]);
   if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
   if (!destino?.activa) return { ok: false, mensaje: "Esa empresa no está activa. Elige una empresa activa." };
+  // Solo para quien viene de una empresa inactiva: entre empresas activas el cambio va por la ficha, con su cargo
+  if ((t.empresas as unknown as { activa: boolean } | null)?.activa !== false) return { ok: false, mensaje: "Solo se pasa así a quien viene de una empresa inactiva." };
   if (t.empresa_id === empresaId) return { ok: true, mensaje: `${t.nombres} ${t.apellidos} ya es de ${destino.razon_social}.` };
   // Sin pedir la fila de vuelta (columnas de salud ocultas, #41): basta el conteo para saber si la RLS lo dejó
   const { count, error } = await supabase
@@ -153,7 +158,28 @@ export async function pasarAEmpresa(trabajadorId: string, empresaId: string): Pr
   invalidarEmpresas();
   olvidar("");
   revalidatePath("/", "layout");
-  return { ok: true, mensaje: `${t.nombres} ${t.apellidos} pasó a ${destino.razon_social} como aspirante. Su historia anterior queda completa.` };
+  const antes: AntesDePasar = { empresa_id: t.empresa_id, puesto_id: t.puesto_id, dependencia_id: t.dependencia_id, sede_id: t.sede_id, estado: t.estado, fecha_ingreso: t.fecha_ingreso, fecha_egreso: t.fecha_egreso };
+  return { ok: true, mensaje: `Pasado a ${destino.razon_social}. Su historia va con él.`, antes };
+}
+
+// «Deshacer» del paso anterior: solo si sigue en la empresa a la que se pasó (nadie lo movió ni lo atendió allá)
+export async function deshacerPaso(trabajadorId: string, destinoId: string, antes: AntesDePasar): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  const supabase = await crearClienteServidor();
+  const { count: consultas } = await supabase.from("consultas").select("id", { count: "exact", head: true }).eq("trabajador_id", trabajadorId).eq("empresa_id", destinoId);
+  if (consultas) return { ok: false, mensaje: "Ya tiene una consulta en la nueva empresa: no se puede deshacer." };
+  const { count, error } = await supabase
+    .from("trabajadores")
+    .update({ ...antes, estado: antes.estado as "aspirante" }, { count: "exact" })
+    .eq("id", trabajadorId)
+    .eq("empresa_id", destinoId);
+  if (error) return { ok: false, mensaje: "No se pudo deshacer: " + error.message };
+  if (!count) return { ok: false, mensaje: "Ya no está en esa empresa: no hay nada que deshacer." };
+  invalidarEmpresas();
+  olvidar("");
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Deshecho: volvió a su empresa anterior, como estaba." };
 }
 
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta

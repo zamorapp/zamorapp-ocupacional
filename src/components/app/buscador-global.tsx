@@ -153,7 +153,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
         {pasando && (
           <div className="border-b p-2">
             <p className="px-1 pb-1.5 text-sm font-medium">{pasando.nombre} · <span className="font-mono text-xs">{pasando.cedula}</span></p>
-            <PasarAEmpresa trabajadorId={pasando.id} empresaActual={pasando.empresa} empresas={empresas} textoBoton="Pasar y atender" alPasar={() => atender({ ...pasando, inactiva: false })} />
+            <PasarAEmpresa trabajadorId={pasando.id} empresaActual={pasando.empresa} empresas={empresas} alPasar={() => atender({ ...pasando, inactiva: false })} />
           </div>
         )}
         <ul id="resultados-buscador" ref={lista} role="listbox" className="max-h-[60dvh] overflow-y-auto p-2">
