@@ -14,11 +14,11 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1'
 insert into public.horario_atencion (org_id, dia, desde, hasta, minutos, cupos)
   select '10000000-0000-0000-0000-000000000001', d, '08:00', '10:00', 30, 2 from generate_series(1, 7) d;
 insert into public.bloqueos_agenda (id, org_id, fecha, desde, hasta, motivo) values
- ('18100000-0000-0000-0000-0000000000b1', '10000000-0000-0000-0000-000000000001', public.hoy_caracas() + 7, '09:30', '10:00', 'Charla en empresa B'),
- ('18100000-0000-0000-0000-0000000000b2', '10000000-0000-0000-0000-000000000001', public.hoy_caracas() + 8, null, null, 'Feriado');
+ ('18300000-0000-0000-0000-0000000000b1', '10000000-0000-0000-0000-000000000001', public.hoy_caracas() + 7, '09:30', '10:00', 'Charla en empresa B'),
+ ('18300000-0000-0000-0000-0000000000b2', '10000000-0000-0000-0000-000000000001', public.hoy_caracas() + 8, null, null, 'Feriado');
 -- Una cita de la empresa B a las 8:00 ocupa un cupo
 insert into public.citas (id, org_id, empresa_id, trabajador_id, fecha, hora, estado) values
- ('18100000-0000-0000-0000-0000000000c0', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-00000000000b', public.hoy_caracas() + 7, '08:00', 'citado');
+ ('18300000-0000-0000-0000-0000000000c0', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-00000000000b', public.hoy_caracas() + 7, '08:00', 'citado');
 
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. no ve los bloqueos ni su motivo (debe 0): ' || count(*) from public.bloqueos_agenda;
@@ -32,8 +32,8 @@ select 'RR. HH. no ve la agenda de una empresa ajena (debe 1): ' || (public.agen
 
 -- RR. HH. pide: hora libre sí; bloqueada, fuera del horario o sin hora, no
 insert into public.citas (id, org_id, empresa_id, trabajador_id, fecha, hora, estado, origen, solicitada_por) values
- ('18100000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-00000000000a', public.hoy_caracas() + 7, '08:00', 'solicitada', 'portal', '00000000-0000-0000-0000-0000000000a3');
-select 'pide la última hora libre de las 8:00 (debe 1): ' || count(*) from public.citas where id = '18100000-0000-0000-0000-0000000000c1';
+ ('18300000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-00000000000a', public.hoy_caracas() + 7, '08:00', 'solicitada', 'portal', '00000000-0000-0000-0000-0000000000a3');
+select 'pide la última hora libre de las 8:00 (debe 1): ' || count(*) from public.citas where id = '18300000-0000-0000-0000-0000000000c1';
 do $$
 declare h time; f int;
 begin
@@ -63,18 +63,18 @@ begin
   end;
 end $$;
 do $$ begin
-  update public.citas set propuesta_fecha = public.hoy_caracas() + 9, propuesta_desde = '08:00', propuesta_modo = 'exacta' where id = '18100000-0000-0000-0000-0000000000c1';
+  update public.citas set propuesta_fecha = public.hoy_caracas() + 9, propuesta_desde = '08:00', propuesta_modo = 'exacta' where id = '18300000-0000-0000-0000-0000000000c1';
   raise notice 'FALLA: RR. HH. se puso una propuesta';
 exception when insufficient_privilege then null;
 end $$;
 
 -- El servicio propone «entre 8:00 y 9:00» con nota → RR. HH. recibe el aviso
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select 'choque informativo a las 8:00 (debe 1): ' || (array_length(public.choques_agenda(public.hoy_caracas() + 7, '08:00', '18100000-0000-0000-0000-0000000000c1'), 1) >= 1)::int;
+select 'choque informativo a las 8:00 (debe 1): ' || (array_length(public.choques_agenda(public.hoy_caracas() + 7, '08:00', '18300000-0000-0000-0000-0000000000c1'), 1) >= 1)::int;
 select 'choque por bloqueo con su motivo (debe 1): ' || (array_to_string(public.choques_agenda(public.hoy_caracas() + 7, '09:30', null), ' ') like '%Charla en empresa B%')::int;
 update public.citas set propuesta_fecha = public.hoy_caracas() + 9, propuesta_desde = '08:00', propuesta_hasta = '09:00', propuesta_modo = 'rango', propuesta_nota = 'Ese día tengo otra empresa'
- where id = '18100000-0000-0000-0000-0000000000c1';
-select 'la propuesta queda con su hora (debe 1): ' || count(*) from public.citas where id = '18100000-0000-0000-0000-0000000000c1' and propuesta_en is not null;
+ where id = '18300000-0000-0000-0000-0000000000c1';
+select 'la propuesta queda con su hora (debe 1): ' || count(*) from public.citas where id = '18300000-0000-0000-0000-0000000000c1' and propuesta_en is not null;
 reset role;
 select 'RR. HH. recibe «Nueva hora propuesta» con la nota (debe 1): ' || count(*) from public.notificaciones
  where usuario_id = '00000000-0000-0000-0000-0000000000a3' and titulo = 'Nueva hora propuesta' and texto like '%entre las%Ese día tengo otra empresa%';
@@ -92,13 +92,13 @@ reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 do $$ begin
-  perform public.responder_propuesta('18100000-0000-0000-0000-0000000000c1', true, '09:30');
+  perform public.responder_propuesta('18300000-0000-0000-0000-0000000000c1', true, '09:30');
   raise notice 'FALLA: aceptó fuera del rango';
 exception when check_violation then null;
 end $$;
-select public.responder_propuesta('18100000-0000-0000-0000-0000000000c1', true, '08:30') \g /dev/null
+select public.responder_propuesta('18300000-0000-0000-0000-0000000000c1', true, '08:30') \g /dev/null
 select 'aceptada: confirmada el día y hora propuestos (debe 1): ' || count(*) from public.citas
- where id = '18100000-0000-0000-0000-0000000000c1' and estado = 'citado' and fecha = public.hoy_caracas() + 9 and hora = '08:30'
+ where id = '18300000-0000-0000-0000-0000000000c1' and estado = 'citado' and fecha = public.hoy_caracas() + 9 and hora = '08:30'
    and propuesta_fecha is null and respuesta_empresa = 'aceptada' and confirmada_en is not null;
 reset role;
 select 'el servicio recibe «RR. HH. aceptó la hora» (debe 1): ' || count(*) from public.notificaciones
@@ -108,20 +108,20 @@ select 'el servicio recibe «RR. HH. aceptó la hora» (debe 1): ' || count(*) f
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 update public.citas set estado = 'solicitada', propuesta_fecha = public.hoy_caracas() + 10, propuesta_desde = '09:00', propuesta_modo = 'exacta', propuesta_nota = null
- where id = '18100000-0000-0000-0000-0000000000c1';
+ where id = '18300000-0000-0000-0000-0000000000c1';
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 do $$ begin
-  perform public.responder_propuesta('18100000-0000-0000-0000-0000000000c1', false, '09:30', public.hoy_caracas() + 7, null);
+  perform public.responder_propuesta('18300000-0000-0000-0000-0000000000c1', false, '09:30', public.hoy_caracas() + 7, null);
   raise notice 'FALLA: pidió otra hora bloqueada';
 exception when check_violation then null;
 end $$;
-select public.responder_propuesta('18100000-0000-0000-0000-0000000000c1', false, '09:00', public.hoy_caracas() + 11, 'Mejor el jueves') \g /dev/null
+select public.responder_propuesta('18300000-0000-0000-0000-0000000000c1', false, '09:00', public.hoy_caracas() + 11, 'Mejor el jueves') \g /dev/null
 select 'pidió otra: vuelve al servicio con su nueva hora y nota (debe 1): ' || count(*) from public.citas
- where id = '18100000-0000-0000-0000-0000000000c1' and estado = 'solicitada' and fecha = public.hoy_caracas() + 11 and hora = '09:00'
+ where id = '18300000-0000-0000-0000-0000000000c1' and estado = 'solicitada' and fecha = public.hoy_caracas() + 11 and hora = '09:00'
    and propuesta_fecha is null and respuesta_empresa = 'pidio_otra' and nota_empresa = 'Mejor el jueves';
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 do $$ begin
-  perform public.responder_propuesta('18100000-0000-0000-0000-0000000000c1', true);
+  perform public.responder_propuesta('18300000-0000-0000-0000-0000000000c1', true);
   raise notice 'FALLA: el médico respondió como RR. HH.';
 exception when insufficient_privilege then null;
 end $$;
@@ -130,8 +130,8 @@ select 'el servicio recibe «RR. HH. pidió otra hora» (debe 1): ' || count(*) 
  where usuario_id = '00000000-0000-0000-0000-0000000000a1' and titulo = 'RR. HH. pidió otra hora' and texto like '%Mejor el jueves%';
 
 -- Recordatorio a las 24 h, una sola vez
-update public.citas set propuesta_fecha = public.hoy_caracas() + 10, propuesta_desde = '09:00', propuesta_modo = 'exacta' where id = '18100000-0000-0000-0000-0000000000c1';
-update public.citas set propuesta_en = public.ahora() - interval '25 hours' where id = '18100000-0000-0000-0000-0000000000c1';
+update public.citas set propuesta_fecha = public.hoy_caracas() + 10, propuesta_desde = '09:00', propuesta_modo = 'exacta' where id = '18300000-0000-0000-0000-0000000000c1';
+update public.citas set propuesta_en = public.ahora() - interval '25 hours' where id = '18300000-0000-0000-0000-0000000000c1';
 select 'recordatorio de propuestas sin respuesta (debe 1): ' || public.recordar_propuestas();
 select 'no se repite (debe 0): ' || public.recordar_propuestas();
 
@@ -155,6 +155,6 @@ delete from public.suscripciones_push where endpoint = 'https://push.ejemplo/rrh
 delete from public.notificaciones where enlace in ('/portal#propuestas') or titulo in ('RR. HH. aceptó la hora', 'RR. HH. pidió otra hora', 'RR. HH. no ha respondido')
    or (empresa_id in ('20000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-00000000000b') and texto like '%' || to_char(public.hoy_caracas() + 7, 'DD/MM/YYYY') || '%');
 delete from public.citas where org_id = '10000000-0000-0000-0000-000000000001' and fecha between public.hoy_caracas() + 7 and public.hoy_caracas() + 11;
-delete from public.bloqueos_agenda where id in ('18100000-0000-0000-0000-0000000000b1', '18100000-0000-0000-0000-0000000000b2');
+delete from public.bloqueos_agenda where id in ('18300000-0000-0000-0000-0000000000b1', '18300000-0000-0000-0000-0000000000b2');
 delete from public.horario_atencion where org_id = '10000000-0000-0000-0000-000000000001';
 select set_config('request.jwt.claim.sub', '', false) \g /dev/null

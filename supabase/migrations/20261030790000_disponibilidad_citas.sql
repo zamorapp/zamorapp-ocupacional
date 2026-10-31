@@ -510,7 +510,7 @@ begin
   update public.avisos_push_latido set generado = public.ahora()
    where generado is null or generado <= public.ahora() - interval '10 minutes';
   v_generar := found;
-  -- Propuestas de hora sin respuesta en 24 h (20261030770000): una vez por latido, no por usuario
+  -- Propuestas de hora sin respuesta en 24 h (20261030790000): una vez por latido, no por usuario
   if v_generar then
     begin perform public.recordar_propuestas(); exception when others then raise warning 'avisos_campana_para_celular: recordar_propuestas falló: %', sqlerrm; end;
   end if;
@@ -522,7 +522,7 @@ begin
        and m.rol in ('administrador', 'gerente_medico', 'medico', 'enfermeria', 'recepcion', 'gerente_empresa')
   loop
     -- Los generadores de la campana, como si este usuario hubiera abierto el Inicio (solo dentro de esta función)
-    -- RR. HH. (20261030770000): solo recibe sus notificaciones (las de su empresa), sin generadores ni resumen
+    -- RR. HH. (20261030790000): solo recibe sus notificaciones (las de su empresa), sin generadores ni resumen
     if v_generar and u.rol <> 'gerente_empresa' then
     perform set_config('request.jwt.claim.sub', u.usuario_id::text, true);
     begin perform public.centinela_legal(); exception when others then raise warning 'avisos_campana_para_celular: centinela_legal falló: %', sqlerrm; end;

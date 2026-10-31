@@ -30,7 +30,7 @@ export type Cita = {
   enConsultaEn: string | null;
   atendidaEn: string | null;
   cerradaEn: string | null;
-  // Otra hora propuesta por el servicio, pendiente de respuesta de RR. HH. (20261030770000)
+  // Otra hora propuesta por el servicio, pendiente de respuesta de RR. HH. (20261030790000)
   empresaId: string;
   propuesta: Propuesta | null;
   respuestaEmpresa: "aceptada" | "pidio_otra" | null;

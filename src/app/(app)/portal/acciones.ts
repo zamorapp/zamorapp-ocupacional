@@ -31,7 +31,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   if (fecha < hoy) return { ok: false, mensaje: "La fecha ya pasó." };
 
   const supabase = await crearClienteServidor();
-  // Con horario del servicio (20261030770000): solo horas con cupo. Varios trabajadores se reparten desde la hora elegida
+  // Con horario del servicio (20261030790000): solo horas con cupo. Varios trabajadores se reparten desde la hora elegida
   // en los turnos siguientes con cupo. Se revisa ANTES de registrar trabajadores nuevos para no dejar nada a medias.
   const hora = texto(datos, "hora");
   let horas: (string | null)[] | null = null;

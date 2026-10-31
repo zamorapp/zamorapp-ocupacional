@@ -25,7 +25,7 @@ export async function GET() {
     enviados += r.enviados;
     for (const endpoint of r.vencidos) await supabase.rpc("quitar_suscripcion_vencida_clave", { p_endpoint: endpoint, p_clave: clave });
   }
-  // Correo a RR. HH. y a los contactos de la empresa por cada hora propuesta (20261030770000): sale una vez por propuesta
+  // Correo a RR. HH. y a los contactos de la empresa por cada hora propuesta (20261030790000): sale una vez por propuesta
   let correos = 0;
   if (correoConfigurado()) {
     const { data: porEnviar } = await supabase.rpc("correos_propuestas_por_enviar", { p_clave: clave });

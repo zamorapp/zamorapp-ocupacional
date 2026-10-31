@@ -18,7 +18,7 @@ export async function activarAvisos(s: Suscripcion & { equipo: string; prueba?: 
   if (vapid === "falta") return { ok: false, mensaje: "Falta un paso en Vercel (VAPID_PRIVADA). Pídele a Claude la guía." };
   if (vapid !== "ok") return { ok: false, mensaje: "La llave VAPID_PRIVADA de Vercel no es válida. Pídele a Claude que la renueve." };
   const sesion = await obtenerSesion();
-  // Servicio y RR. HH. (20261030770000: RR. HH. recibe solo lo de su empresa); la base lo vuelve a exigir
+  // Servicio y RR. HH. (20261030790000: RR. HH. recibe solo lo de su empresa); la base lo vuelve a exigir
   if (!sesion.orgId || (esRolEmpresa(sesion.rol) && sesion.rol !== "gerente_empresa")) return { ok: false, mensaje: "Su usuario no recibe avisos en el celular." };
   const empresa = esRolEmpresa(sesion.rol);
   const supabase = await crearClienteServidor();

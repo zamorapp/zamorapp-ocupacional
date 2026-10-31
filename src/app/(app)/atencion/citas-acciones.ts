@@ -90,7 +90,7 @@ export async function trabajadoresPorCedula(cedulas: string[]): Promise<Record<s
   return salida;
 }
 
-// ─── Disponibilidad (20261030770000) ───────────────────────
+// ─── Disponibilidad (20261030790000) ───────────────────────
 
 export type PropuestaNueva = { fecha: string; modo: ModoPropuesta; desde: string; hasta: string | null; nota: string | null };
 
