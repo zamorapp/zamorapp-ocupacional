@@ -66,26 +66,32 @@ export function revisarOrden(lista, versionesAplicadas) {
   if (viejas.length) throw new Error(`${viejas.map((x) => x.archivo).join(", ")} es anterior a la última aplicada (${mayor}): la base y el repo no van en orden; avisa antes de seguir (no se aplicó nada)`);
 }
 
-// Del listado de git/matching-refs/tags/migraciones-: nombre y objeto (commit, o etiqueta anotada que hay que resolver)
-export function refsDeEtiquetas(refs) {
-  return refs.map((r) => ({ nombre: r.ref.replace(/^refs\/tags\//, ""), tipo: r.object.type, sha: r.object.sha })).filter((r) => ETIQUETA.test(r.nombre));
-}
-
-// De «git ls-remote --tags <repo> refs/tags/migraciones-*»: nombre y commit, sin la API de GitHub (no gasta el límite de
-// 60 consultas por hora sin cuenta, que se agota desde la IP compartida del VPN). Una etiqueta anotada trae además la
-// línea «^{}» con el commit al que apunta, que es el que vale.
-export function refsDeLsRemote(texto) {
+// De «git ls-remote --tags <repo> refs/tags/migraciones-*»: nombre y commit. Una etiqueta anotada sale dos veces y
+// la línea «^{}» trae el commit al que apunta, que es el que vale. Así no se usa la API de GitHub (60 consultas por
+// hora sin token: el 31-oct dio 403 en la PC de Cesar con la VPN).
+export function etiquetasDeLsRemote(texto) {
   const porNombre = new Map();
-  for (const linea of String(texto ?? "").split(/\r?\n/)) {
-    const m = /^([0-9a-f]{40})\s+refs\/tags\/(\S+?)(\^\{\})?$/.exec(linea.trim());
+  for (const linea of String(texto).split(/\r?\n/)) {
+    const m = /^([0-9a-f]{40})\s+refs\/tags\/([^\s^]+)(\^\{\})?$/.exec(linea.trim());
     if (!m || !ETIQUETA.test(m[2])) continue;
-    if (m[3] || !porNombre.has(m[2])) porNombre.set(m[2], { nombre: m[2], tipo: "commit", sha: m[1] });
+    if (m[3] || !porNombre.has(m[2])) porNombre.set(m[2], m[1]);
   }
-  return [...porNombre.values()];
+  return [...porNombre].map(([nombre, commit]) => ({ nombre, commit }));
 }
 
-// compare/<commit>...main: «ahead» (main lo contiene y tiene más) o «identical» quieren decir que está en main
-export const estaEnMain = (comparacion) => ["ahead", "identical"].includes(comparacion?.status);
+// 403/429 por límite de GitHub: la hora para reintentar sale de las cabeceras de la respuesta (X-RateLimit-Reset, o
+// Retry-After contado desde la cabecera Date), nunca del reloj de la PC, que puede tener otra fecha.
+export function mensajeLimite(status, cabeceras) {
+  if (status !== 403 && status !== 429) return null;
+  const leer = (k) => (typeof cabeceras?.get === "function" ? cabeceras.get(k) : cabeceras?.[k]) ?? null;
+  const reset = Number(leer("x-ratelimit-reset"));
+  const espera = Number(leer("retry-after"));
+  const base = Date.parse(leer("date") ?? "");
+  const cuando = reset > 0 ? reset * 1000 : espera >= 0 && leer("retry-after") !== null && !Number.isNaN(base) ? base + espera * 1000 : null;
+  if (cuando === null) return "GitHub limitó las consultas; intenta de nuevo en unos minutos (si usas VPN, apágala un momento)";
+  const hhmm = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(cuando));
+  return `GitHub limitó las consultas, intenta a las ${hhmm} (si usas VPN, apágala un momento)`;
+}
 
 export function verificar(migracion, contenido) {
   const s = sha256(contenido);

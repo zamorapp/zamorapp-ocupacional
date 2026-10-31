@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { estaEnMain, lineaBase, refsDeEtiquetas, refsDeLsRemote, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
+import { etiquetasDeLsRemote, lineaBase, mensajeLimite, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
 
 const sql = "select 1;";
 const m = (extra = {}) => JSON.stringify({ etiqueta: "migraciones-20261030-1", aprobado: "Cesar", migraciones: [
@@ -46,23 +46,19 @@ test("el manifiesto del repo coincide con sus archivos", () => {
   for (const y of x.migraciones) verificar(y, fs.readFileSync(`supabase/migrations/${y.archivo}`, "utf8"));
 });
 
-test("solo etiquetas migraciones-* (también anotadas) y solo si el commit está en main", () => {
-  const r = refsDeEtiquetas([
-    { ref: "refs/tags/migraciones-20261030-1", object: { type: "commit", sha: "a" } },
-    { ref: "refs/tags/migraciones-20261030-2", object: { type: "tag", sha: "b" } },
-    { ref: "refs/tags/migraciones-x", object: { type: "commit", sha: "c" } },
-  ]);
-  assert.deepEqual(r, [{ nombre: "migraciones-20261030-1", tipo: "commit", sha: "a" }, { nombre: "migraciones-20261030-2", tipo: "tag", sha: "b" }]);
-  assert.ok(estaEnMain({ status: "ahead" }) && estaEnMain({ status: "identical" }));
-  for (const st of ["behind", "diverged", undefined]) assert.ok(!estaEnMain({ status: st }), String(st));
+test("etiquetas por git ls-remote: la anotada vale por su commit (^{}), las de otro nombre se ignoran", () => {
+  const a = "a".repeat(40), b = "b".repeat(40), c = "c".repeat(40), d = "d".repeat(40);
+  const r = etiquetasDeLsRemote(`${a}\trefs/tags/migraciones-20261030-1\r\n${b}\trefs/tags/migraciones-20261030-2\n${c}\trefs/tags/migraciones-20261030-2^{}\n${d}\trefs/tags/migraciones-x\n`);
+  assert.deepEqual(r, [{ nombre: "migraciones-20261030-1", commit: a }, { nombre: "migraciones-20261030-2", commit: c }]);
+  assert.deepEqual(etiquetasDeLsRemote(""), []);
 });
 
-test("ls-remote: etiquetas migraciones-* y, si es anotada, el commit de la línea ^{}", () => {
-  const c = (x) => x.repeat(40);
-  const texto = [`${c("a")}\trefs/tags/migraciones-20261030-1`, `${c("b")}\trefs/tags/migraciones-20261030-2`,
-    `${c("d")}\trefs/tags/migraciones-20261030-2^{}`, `${c("e")}\trefs/tags/migraciones-x`, "basura"].join("\r\n");
-  assert.deepEqual(refsDeLsRemote(texto), [{ nombre: "migraciones-20261030-1", tipo: "commit", sha: c("a") }, { nombre: "migraciones-20261030-2", tipo: "commit", sha: c("d") }]);
-  assert.deepEqual(refsDeLsRemote(""), []);
+test("límite de GitHub: la hora sale de las cabeceras (Caracas), nunca del reloj de la PC", () => {
+  const reset = Date.UTC(2026, 9, 31, 14, 5) / 1000; // 10:05 en Caracas
+  assert.match(mensajeLimite(403, { "x-ratelimit-reset": String(reset) }), /intenta a las 10:05/);
+  assert.match(mensajeLimite(429, new Headers({ "retry-after": "120", date: "Sat, 31 Oct 2026 14:00:00 GMT" })), /intenta a las 10:02/);
+  assert.match(mensajeLimite(403, {}), /en unos minutos/);
+  assert.equal(mensajeLimite(404, {}), null);
 });
 
 test("una pendiente anterior a la última aplicada aborta", () => {
