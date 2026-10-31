@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { documentoDePrueba } from "@/lib/documentos-prueba";
+import { documentoDePrueba, historiaDePrueba } from "@/lib/documentos-prueba";
 import { armarVigilancia } from "@/lib/vigilancia";
 import { vigilanciaDePrueba } from "@/lib/vigilancia-prueba";
 import { EditorInforme } from "@/app/(app)/reportes/editor-informe";
+import { HistoriaClinica } from "../../historia/hoja-historia";
 import { TIPOS } from "../../tipos";
 import { InformeVigilancia } from "../../vigilancia/informe";
 
@@ -32,7 +33,12 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
     const org = { nombre: "Servicio de prueba", rif: "J-00000000-0", direccion: "Dirección de ejemplo", telefono: null, correo: null, logo: null, ajustes: {} };
     return <InformeVigilancia v={v} org={org} logoEmpresa={null} paraEmpresa={paraEmpresa} puedeEnviar={false} />;
   }
+  const largo = caso === "largo" ? "largo" : "normal";
+  if (tipo === "historia") {
+    const h = historiaDePrueba(largo);
+    return <HistoriaClinica {...h} empleos={[]} emite="Usuario de prueba" total={h.consultas.length} />;
+  }
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
-  return <t.Componente d={documentoDePrueba(caso === "largo" ? "largo" : "normal")} />;
+  return <t.Componente d={documentoDePrueba(largo)} />;
 }

@@ -17,7 +17,8 @@ import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha, type 
 
 type Resultado = ResultadoFicha;
 // guardarPendiente: la consulta lo llama al guardar, cerrar, firmar o imprimir para que la ficha no quede sin guardar
-type Props = { trabajadorId: string; consultaId: string; bloqueado: boolean; guardarPendiente?: React.RefObject<(() => Promise<Resultado | null>) | null>; onPendiente?: (hay: boolean) => void };
+// consultaId: la consulta en curso (borrador); null si ya está cerrada o firmada: entonces solo cambia la ficha
+type Props = { trabajadorId: string; consultaId: string | null; guardarPendiente?: React.RefObject<(() => Promise<Resultado | null>) | null>; onPendiente?: (hay: boolean) => void };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-60";
 const fechaCorta = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
@@ -56,7 +57,9 @@ function Campo({ id, etiqueta, nota, children, ancho }: { id: string; etiqueta: 
 
 // La ficha del trabajador (como la historia del SAME), plegada con su resumen y completada durante la consulta.
 // Se guarda aparte de la consulta: cargo y dependencia nuevos se crean en la empresa del trabajador.
-export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPendiente, onPendiente }: Props) {
+// Se edita siempre: la ficha es del trabajador, no del acto médico firmado (Cesar, 31-oct).
+export function DatosTrabajador({ trabajadorId, consultaId, guardarPendiente, onPendiente }: Props) {
+  const enCurso = consultaId !== null;
   const router = useRouter();
   const [op, setOp] = useState<OpcionesFicha | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -76,17 +79,17 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
         setOp(r);
         // Lo que se escribió y no llegó a guardarse vuelve a la pantalla (nunca se pierde en silencio)
         const ficha: Record<string, string> = r?.ficha ?? {};
-        const borrador = r && !bloqueado ? leerBorradorFicha(r.uid, trabajadorId) : null;
+        const borrador = r ? leerBorradorFicha(r.uid, trabajadorId) : null;
         const pendiente = Boolean(borrador) && Object.keys(borrador!).some((k) => (borrador![k] ?? "") !== (ficha[k] ?? ""));
         if (r && borrador && !pendiente) escribirBorradorFicha(r.uid, trabajadorId, null);
         setF(pendiente ? { ...ficha, ...borrador } : ficha);
         if (pendiente) { setCambiado(true); setRecuperado(true); }
-        // Se abre solo si falta algún dato clave o si hay cambios sin guardar
-        if (r && !bloqueado) setAbierto(pendiente || Object.keys(CLAVE).some((k) => !r.ficha[k as keyof typeof CLAVE]));
+        // Se abre solo si hay cambios sin guardar o, en la consulta en curso, si falta algún dato clave
+        if (r) setAbierto(pendiente || (enCurso && Object.keys(CLAVE).some((k) => !r.ficha[k as keyof typeof CLAVE])));
       })
       .catch(() => setOp(null))
       .finally(() => setCargando(false));
-  }, [trabajadorId, bloqueado]);
+  }, [trabajadorId, enCurso]);
 
   const guardarFicha = useCallback(async (datos: FormData): Promise<Resultado> => {
     const r = await actualizarDatosTrabajador(trabajadorId, consultaId, datos);
@@ -112,16 +115,16 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   }, [trabajadorId, consultaId, router, op]);
 
   // Guardar la consulta también guarda la ficha si quedó con cambios (antes había que tocar su propio botón)
-  useEffect(() => onPendiente?.(cambiado && !bloqueado), [onPendiente, cambiado, bloqueado]);
+  useEffect(() => onPendiente?.(cambiado && enCurso), [onPendiente, cambiado, enCurso]);
   useEffect(() => {
     if (!guardarPendiente) return;
-    guardarPendiente.current = cambiado && !bloqueado
+    guardarPendiente.current = cambiado && enCurso
       ? async () => (formRef.current ? guardarFicha(new FormData(formRef.current)) : null)
       : null;
     return () => { guardarPendiente.current = null; };
-  }, [guardarPendiente, cambiado, bloqueado, guardarFicha]);
+  }, [guardarPendiente, cambiado, enCurso, guardarFicha]);
 
-  useEffect(() => { if (op && cambiado && !bloqueado) escribirBorradorFicha(op.uid, trabajadorId, f); }, [op, cambiado, bloqueado, f, trabajadorId]);
+  useEffect(() => { if (op && cambiado) escribirBorradorFicha(op.uid, trabajadorId, f); }, [op, cambiado, f, trabajadorId]);
 
   // Salida del aviso «Recuperamos…»: vuelve a lo guardado
   const descartar = async () => {
@@ -147,7 +150,7 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
   const hoy = op.hoy;
   const v = (k: string) => f[k] ?? "";
   const faltan = (Object.keys(CLAVE) as (keyof typeof CLAVE)[]).filter((k) => !v(k));
-  const falta = (k: string) => !bloqueado && faltan.includes(k as keyof typeof CLAVE);
+  const falta = (k: string) => faltan.includes(k as keyof typeof CLAVE);
   // Campo que la base rechazó: rojo, como «falta», hasta que se cambie (poner() limpia el resultado)
   const malo = (k: string) => resultado?.ok === false && resultado.campo === k;
   const rojo = (k: string, base: string) => cn(base, malo(k) ? colorFalta("cargo") : falta(k) && colorFalta(k));
@@ -182,17 +185,17 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
       <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
           {resumen.map((x) => <span key={x} className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5">{x}</span>)}
-          {!bloqueado && !abierto && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
-          {!resumen.length && bloqueado && <span className="text-muted-foreground">Sin datos de la ficha</span>}
-          {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
+          {!abierto && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
+                    {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
         </div>
         <span className="flex shrink-0 items-center gap-1 self-end text-sm font-medium text-primary sm:self-auto">
-          {!bloqueado && <Pencil className="size-3.5" />} {abierto ? "Cerrar" : bloqueado ? "Ver" : "Editar"}
+          <Pencil className="size-3.5" /> {abierto ? "Cerrar" : "Editar"}
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
         </span>
       </summary>
 
       <form ref={formRef} action={guardar} className="mt-4 space-y-5">
+        {!enCurso && <p className="text-sm text-muted-foreground">Aquí cambias solo la ficha del trabajador; la consulta firmada no cambia.</p>}
         {resultado && !resultado.ok && (
           <div id="dt-error" role="alert" className="flex items-start gap-2 rounded-md border border-alerta/50 bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -208,12 +211,12 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
             <Button type="button" variant="link" size="sm" className="h-auto p-0 text-aviso-texto underline" onClick={descartar}>Descartar cambios</Button>
           </div>
         )}
-        {faltan.length > 0 && !bloqueado && (
+        {faltan.length > 0 && (
           <p id="dt-faltan" className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
             Falta: {faltan.map((k) => CLAVE[k]).join(", ")}. Salen en los informes, la constancia y la vigilancia.
           </p>
         )}
-        <fieldset disabled={bloqueado} className="space-y-5">
+        <fieldset className="space-y-5">
           <Grupo titulo="Trabajo">
             <Campo id="dt-cargo" etiqueta="Cargo" nota={cambioDeCargo ? `Cambio de cargo: «${op.ficha.cargo}» pasa al historial.` : null}>
               <EntradaCargo id="dt-cargo" name="cargo" cargos={op.cargos} value={v("cargo")} onValor={(x) => { setF((y) => ({ ...y, cargo: x })); setCambiado(true); setResultado(null); }}
@@ -308,19 +311,17 @@ export function DatosTrabajador({ trabajadorId, consultaId, bloqueado, guardarPe
           </details>
         )}
 
-        {!bloqueado && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {cambiado && !resultado?.ok && <span role="status" className="text-sm text-aviso-texto">Cambios sin guardar en la ficha</span>}
-            {resultado?.ok && (
-              <span role="status" className={resultado.ok ? "flex items-center gap-1 text-sm text-ok-texto" : "text-sm text-alerta-texto"}>
-                {resultado.ok && <Check className="size-4" />} {resultado.mensaje}
-              </span>
-            )}
-            <Button type="submit" size="sm" variant={cambiado ? "default" : "outline"} disabled={guardando}>
-              {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar datos del trabajador
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {cambiado && !resultado?.ok && <span role="status" className="text-sm text-aviso-texto">Cambios sin guardar en la ficha</span>}
+          {resultado?.ok && (
+            <span role="status" className={resultado.ok ? "flex items-center gap-1 text-sm text-ok-texto" : "text-sm text-alerta-texto"}>
+              {resultado.ok && <Check className="size-4" />} {resultado.mensaje}
+            </span>
+          )}
+          <Button type="submit" size="sm" variant={cambiado ? "default" : "outline"} disabled={guardando}>
+            {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar datos del trabajador
+          </Button>
+        </div>
       </form>
     </details>
   );

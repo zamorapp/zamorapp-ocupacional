@@ -26,6 +26,8 @@ const DOCUMENTOS = {
   reubicacion: { fijo: false }, libre: { fijo: false },
   // Vigilancia con datos de ejemplo: fluye en varias hojas; el índice calcula sus páginas al abrir
   vigilancia: { fluye: true },
+  // Historia clínica: todas las consultas completas y el resumen al final, en las hojas que hagan falta
+  historia: { fluye: true },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 

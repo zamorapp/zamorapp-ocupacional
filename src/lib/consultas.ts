@@ -105,12 +105,14 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss, observacion").eq("consulta_id", id).maybeSingle(),
     c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
       : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    // El cargo con que se atendió (la ficha puede cambiar después; los impresos de una consulta cerrada no)
+    c.puesto_id ? supabase.from("puestos").select("nombre, riesgos").eq("id", c.puesto_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
   // Si una lectura falla, NUNCA se muestra la consulta como si no tuviera diagnósticos, aptitud o reposo: el siguiente
   // Guardar los borraría (30-oct: la vista de reposos sin la columna «observacion» hacía «desaparecer» el reposo).
   const fallo = partes.find((p) => p.error);
   if (fallo?.error) throw new Error(`No se pudo leer la consulta completa (${fallo.error.message}). No guardes cambios y vuelve a intentar.`);
-  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }] = partes;
+  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }, { data: puestoConsulta }] = partes;
 
   const tr = t as unknown as {
     id: string; nombres: string; apellidos: string; cedula: string; sexo: string | null; fecha_nacimiento: string | null;
@@ -132,8 +134,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       sexo: tr?.sexo ?? null,
       empresa: tr?.empresas?.razon_social ?? "",
       empresaId: c.empresa_id ?? null, // empresa de la consulta (la del trabajador al atenderlo)
-      cargo: tr?.puestos?.nombre ?? "",
-      riesgos: tr?.puestos?.riesgos ?? {},
+      cargo: (puestoConsulta as { nombre: string } | null)?.nombre ?? tr?.puestos?.nombre ?? "",
+      riesgos: (puestoConsulta as { riesgos: Record<string, string[]> } | null)?.riesgos ?? tr?.puestos?.riesgos ?? {},
     },
     datos: {
       id: c.id,
