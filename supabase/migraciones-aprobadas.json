@@ -1,21 +1,11 @@
 {
-  "etiqueta": "migraciones-20261031-15",
-  "aprobado": "Cesar, sí del 2026-10-31 12:40 UTC",
+  "etiqueta": "migraciones-20261031-16",
+  "aprobado": "Cesar, sí del 2026-10-31 13:49 UTC",
   "migraciones": [
     {
-      "archivo": "20261030750000_invitacion_quien_invita.sql",
-      "sha256": "28a811bae926a433164c1548bf4efe8e09f37a58c079e032e24bc3b0e5f48da7",
-      "descripcion": "Invitación de RR. HH.: quién invita editable"
-    },
-    {
-      "archivo": "20261030760000_trabajadores_inactivos.sql",
-      "sha256": "b56298d8097f6278a35b465216f2791b374974fa5b62e48fd46c777a742ea7a4",
-      "descripcion": "Trabajadores inactivos sin egreso: fuera de estadísticas y reingreso"
-    },
-    {
-      "archivo": "20261030780000_constancias_automaticas.sql",
-      "sha256": "f2671a3e0eea1e7f2c15a915467558009ea648d4dd4530a0cad37911c3929a4a",
-      "descripcion": "Constancias de aptitud automáticas a RR. HH."
+      "archivo": "20261030790000_disponibilidad_citas.sql",
+      "sha256": "aa389b6c3b9e992d356aba18de00cac8874e24623f9e8fc4d66ec4deb02c6a05",
+      "descripcion": "Disponibilidad para citas de RR. HH.: horario con cupos, bloqueos y choques"
     }
   ]
 }
