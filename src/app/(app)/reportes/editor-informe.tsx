@@ -6,7 +6,7 @@ import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, S
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { personaVacia, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
+import { conNombre, fechaEmisionDe, personaVacia, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
 import type { InformeVigilancia } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
 import { generarAnalisis, SECCIONES_ANALISIS, type DatosAnalisis } from "@/lib/vigilancia-analisis";
@@ -111,7 +111,7 @@ function Grupo({ titulo, ayuda, personas, cambiar, disabled, registro, varios }:
 }
 
 // Redacción del informe: cada sección trae un borrador generado con los datos del período, editable.
-export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: base, datos, firmantesBase, editable, enlaceImprimir, empresa }: {
+export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: base, datos, firmantesBase, editable, enlaceImprimir, hoy, empresa }: {
   empresaId: string | null;
   desde: string;
   hasta: string;
@@ -121,6 +121,8 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
   firmantesBase: Firmantes;
   editable: boolean;
   enlaceImprimir: string;
+  /** AAAA-MM-DD de hoy en Caracas, calculado en el servidor (hora anclada, no la de Windows) */
+  hoy: string;
   /** Datos de la portada que salen de la ficha de la empresa (solo lectura aquí) */
   empresa?: { id: string; datos: [string, string | null][] } | null;
 }) {
@@ -138,7 +140,11 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
     factores_riesgo: inicial?.factores_riesgo || sugeridos.factores_riesgo,
     medidas_control: inicial?.medidas_control || sugeridos.medidas_control,
   }));
-  const [firmantes, setFirmantes] = useState<Firmantes>(() => ({ ...firmantesBase, ...inicial?.firmantes }));
+  // La fecha de emisión arranca llena (la guardada, la del día en que se guardó o hoy) y es editable
+  const [firmantes, setFirmantes] = useState<Firmantes>(() => {
+    const f = { ...firmantesBase, ...inicial?.firmantes };
+    return { ...f, fecha_emision: fechaEmisionDe(f, inicial?.actualizado_en, hoy) };
+  });
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   // Textos de antes de «Usar en el informe» (IA): «Deshacer» los devuelve
   const [antesIA, setAntesIA] = useState<TextosInforme | null>(null);
@@ -155,13 +161,22 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
     setAviso(null);
   };
   const fijar = (c: Partial<Firmantes>) => { setFirmantes({ ...firmantes, ...c }); setAviso(null); };
+  // Lo que saldría como «Falta» o «Sin datos» en la portada: se nombra en el título y la sección se abre sola
+  const faltan = [
+    ...(empresa?.datos ?? []).filter(([, v]) => !v).map(([k]) => k),
+    ...(firmantes.medico?.nombre?.trim() ? [] : ["Elaborado por"]),
+    ...(firmantes.sst?.nombre?.trim() ? [] : ["Servicio de SST"]),
+    ...(conNombre(representantesDe(firmantes)).length ? [] : ["Representantes del patrono"]),
+    ...(conNombre(firmantes.delegados).length ? [] : ["Delegados de prevención"]),
+  ];
 
   const guardar = (imprimir = false) =>
     iniciar(async () => {
       const guardarTextos = async () => {
         // Del análisis solo se guarda lo editado a mano; lo demás lo vuelve a redactar la variante
         const editado = Object.fromEntries(Object.entries(analisis).filter(([k, v]) => v !== generado?.secciones[k as keyof typeof generado.secciones]));
-        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes, analisis: editado, variante });
+        // Si borraron la fecha, se guarda la de hoy: el informe nunca sale sin fecha de emisión
+        const r = await guardarInformeVigilancia(empresaId, desde, hasta, { ...textos, firmantes: { ...firmantes, fecha_emision: firmantes.fecha_emision || hoy }, analisis: editado, variante });
         setAviso(r);
         if (r.ok) setGuardado(true);
         return r.ok;
@@ -220,8 +235,11 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         </details>
       )}
 
-      <details className="group rounded-lg border p-3" open={!guardado}>
-        <summary className="cursor-pointer text-sm font-medium">Portada y firmantes <span className="font-normal text-muted-foreground">· se recuerdan del último informe de la empresa</span></summary>
+      <details className="group rounded-lg border p-3" open={!guardado || faltan.length > 0}>
+        <summary className="cursor-pointer text-sm font-medium">
+          Portada y firmantes <span className="font-normal text-muted-foreground">· se recuerdan del último informe de la empresa</span>
+          {faltan.length > 0 && <span className="ml-1.5 font-normal text-alerta-texto">· falta: {faltan.join(", ")}</span>}
+        </summary>
         <div className="mt-3 space-y-4">
           {empresa && (
             <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
@@ -237,8 +255,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Campo etiqueta="Autoridad" valor={firmantes.autoridad} cambiar={(v) => fijar({ autoridad: v })} disabled={!editable} />
             <Campo etiqueta="Custodio" valor={firmantes.custodio} cambiar={(v) => fijar({ custodio: v })} disabled={!editable} />
-            <Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Si se deja vacío, la dirección de la empresa" />
-            <Campo etiqueta="Fecha de emisión" tipo="date" valor={firmantes.fecha_emision} cambiar={(v) => fijar({ fecha_emision: v })} disabled={!editable} />
+            <div className="sm:col-span-2"><Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Si se deja vacío, la dirección de la empresa" /></div>
           </div>
           <Grupo titulo="Elaborado por" ayuda="Médico ocupacional" personas={[firmantes.medico ?? personaVacia]} cambiar={([p]) => fijar({ medico: p })} disabled={!editable} registro />
           <Grupo titulo="Servicio de Seguridad y Salud en el Trabajo" ayuda="Coordinador(a) y su registro del INPSASEL" personas={[firmantes.sst ?? personaVacia]} cambiar={([p]) => fijar({ sst: p })} disabled={!editable} registro />
@@ -247,7 +264,20 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
         </div>
       </details>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        {/* Junto a los botones, siempre a la vista: sale en la portada del informe */}
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-medium">Fecha de emisión</span>
+          <Input
+            type="date"
+            required
+            value={firmantes.fecha_emision ?? ""}
+            disabled={!editable}
+            onChange={(e) => fijar({ fecha_emision: e.target.value })}
+            onBlur={(e) => { if (!e.target.value) fijar({ fecha_emision: hoy }); }}
+            className="h-9 w-40 text-sm"
+          />
+        </label>
         {editable && (
           <>
             <Button disabled={ocupado} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>

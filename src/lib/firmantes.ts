@@ -1,6 +1,8 @@
 // Portada y firmantes del informe de vigilancia: se guardan en informes_vigilancia.firmantes (jsonb).
 // Sin dependencias de servidor: lo usan el editor (cliente), la acción que guarda y el impreso.
 
+import { hoyCaracas } from "@/lib/fecha";
+
 export type Persona = { nombre: string; cedula: string; cargo?: string; registro?: string };
 export type Firmantes = {
   medico?: Persona;
@@ -12,13 +14,18 @@ export type Firmantes = {
   autoridad?: string;
   custodio?: string;
   centro_trabajo?: string;
-  /** AAAA-MM-DD; vacía = la fecha en que se guardó el informe */
+  /** AAAA-MM-DD; vacía = la fecha en que se guardó el informe (o hoy, si aún no se guardó) */
   fecha_emision?: string;
 };
 
 export const AUTORIDAD = "Gerencia";
 export const CUSTODIO = "Servicio de Seguridad y Salud en el Trabajo";
 export const personaVacia: Persona = { nombre: "", cedula: "", cargo: "", registro: "" };
+
+// Fecha de emisión que sale en la portada y arranca en el editor: la elegida, la del día en que se guardó o la de hoy
+// (hoy = hoyCaracas() calculado en el servidor, con la hora anclada a la nube). Nunca queda vacía.
+export const fechaEmisionDe = (f: Firmantes, guardadoEn: string | null | undefined, hoy: string) =>
+  (f.fecha_emision && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha_emision) ? f.fecha_emision : "") || (guardadoEn ? hoyCaracas(guardadoEn) : hoy);
 
 export const representantesDe = (f: Firmantes): Persona[] => (f.representantes?.length ? f.representantes : f.empleador ? [f.empleador] : []);
 export const conNombre = (l: Persona[] | undefined) => (l ?? []).filter((p) => p?.nombre?.trim());

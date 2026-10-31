@@ -4,6 +4,8 @@ import { supabaseConfigurado } from "@/lib/config";
 import { BarrasH, Columnas, Dona, EjeMeses, Meta, nombreMes, Pareto, Piramide } from "@/components/graficos";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { datosLegalesFaltantes } from "@/lib/empresas";
+import { hoyCaracas } from "@/lib/fecha";
+import { fechaEmisionDe } from "@/lib/firmantes";
 import { fechaCorta as corta, parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
 import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
@@ -209,7 +211,7 @@ export default async function Vigilancia({ searchParams }: Props) {
         orgLogo={org?.logo ?? null}
         empresa={empresa}
         firmantes={firmantes}
-        guardadoEn={v.informe?.actualizado_en ?? null}
+        fechaEmision={fechaEmisionDe(firmantes, v.informe?.actualizado_en, hoyCaracas())}
         titulo={titulo}
         subtitulo={subtitulo}
         periodo={periodo}
