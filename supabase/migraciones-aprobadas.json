@@ -1,21 +1,16 @@
 {
-  "etiqueta": "migraciones-20261030-13",
-  "aprobado": "Cesar, sí del 2026-10-30 23:00 UTC (700000), 23:13 UTC (710000) y 23:19 UTC (720000)",
+  "etiqueta": "migraciones-20261031-14",
+  "aprobado": "Cesar, sí del 2026-10-31 02:03 UTC",
   "migraciones": [
     {
-      "archivo": "20261030700000_lateralidad_minuscula.sql",
-      "sha256": "8cac3a9a24d6aa3fd41a7e2e65af602c33ca52c8553864f3fa0b3e43c2f1873c",
-      "descripcion": "Guardado rechazado por la lateralidad: se acepta en minúscula"
+      "archivo": "20261030730000_firmadas_en_same.sql",
+      "sha256": "d4aaec16ca6da0436a862428f9f97690e512ec4f35e639292bf605e6512e3766",
+      "descripcion": "Consultas del SAME ya firmadas allá: estado firmada con origen SAME"
     },
     {
-      "archivo": "20261030710000_cambios_desde_por_tabla.sql",
-      "sha256": "0f36571d54e522fe031a04b32a11710794afd915d454d04d86c4741298d113da",
-      "descripcion": "Sincronía: la bajada arma el lote por tabla y ya no se corta por tiempo"
-    },
-    {
-      "archivo": "20261030720000_conclusiones_y_perfiles_examen.sql",
-      "sha256": "c163d3a06668da3ac3f4a78810759e0c15c6ae48b5bd65a7460049586ce324d2",
-      "descripcion": "Conclusiones y perfiles de examen físico"
+      "archivo": "20261030740000_empresas_inactivas.sql",
+      "sha256": "71d19a66f96d47608933c1161c125e84105cf89707b97c0ea3b9fc0abb7f9036",
+      "descripcion": "Empresas inactivas: Inicio y campana sin empresas inactivas; datos intactos"
     }
   ]
 }
