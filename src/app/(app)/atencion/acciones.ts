@@ -274,11 +274,13 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
 
 export async function reabrirConsulta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
-  const { error } = await supabase.from("consultas").update({ estado: "borrador", hora_cierre: null }).eq("id", id).eq("estado", "cerrada");
+  // Se pide la fila de vuelta: sin permiso (RLS) la base no da error, solo no cambia nada, y antes se decía «reabierta» igual
+  const { data, error } = await supabase.from("consultas").update({ estado: "borrador", hora_cierre: null }).eq("id", id).eq("estado", "cerrada").select("id");
   if (error) return { ok: false, mensaje: error.message };
+  if (!data?.length) return { ok: false, mensaje: "No se pudo reabrir: la consulta ya no está cerrada (recarga la página) o no tienes permiso para editarla." };
   revalidatePath("/atencion");
   olvidar("");
-  return { ok: true, mensaje: "Consulta reabierta." };
+  return { ok: true, mensaje: "Consulta reabierta: puedes editar cualquier pestaña. Al terminar, ciérrala de nuevo." };
 }
 
 // Firma: la consulta queda bloqueada; si hay un error se corrige con corregirConsulta (motivo obligatorio)
@@ -299,7 +301,7 @@ export async function corregirConsulta(id: string, motivo: string): Promise<Resu
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/atencion");
   olvidar("");
-  return { ok: true, mensaje: "Consulta abierta para corregir. La versión firmada quedó guardada en el historial.", revision: data as number };
+  return { ok: true, mensaje: "Consulta abierta para corregir: edita cualquier pestaña y vuelve a firmarla. La versión firmada quedó guardada en el historial.", revision: data as number };
 }
 
 // Resultados de los exámenes ya solicitados: se pueden escribir también con la consulta cerrada (llegan días después).

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
+import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -766,15 +766,16 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary"><Lock className="size-4" /> Firmada</span>
               {menuImprimir("default")}
               {puedeFirmar && !corrigiendo && (
-                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir</Button>
+                <Button variant="outline" onClick={() => setCorrigiendo(true)} disabled={guardando}><RotateCcw /> Corregir (reabrir)</Button>
               )}
+              {!puedeFirmar && <span className="text-xs text-muted-foreground">La corrige quien la firmó o el gerente médico.</span>}
               {!corrigiendo && <SiguientePaciente siguiente={siguiente} variante="default" />}
             </div>
           ) : bloqueado ? (
             <div className="flex flex-wrap gap-2">
               {menuImprimir("outline")}
               <Button variant="outline" onClick={() => iniciar(async () => { const r = await reabrirConsulta(d.id); setAviso(r); if (r.ok) setD({ ...d, estado: "borrador" }); })} disabled={guardando}>
-                <Lock /> Reabrir
+                <Pencil /> Reabrir para editar
               </Button>
               {puedeFirmar && (
                 <>
@@ -840,7 +841,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           <div className="mt-4 space-y-3 rounded-lg border border-aviso/40 bg-aviso/10 p-4">
             <p className="text-sm">
               <b>Corregir la consulta firmada.</b> La versión firmada se guarda tal cual en el historial (no se pierde ni se edita)
-              y la consulta vuelve a borrador para que la corrijas, la cierres y la firmes de nuevo. Los impresos nuevos dirán
+              y la consulta entera vuelve a borrador: puedes cambiar <b>cualquier pestaña</b> (generales, examen, paraclínicos,
+              diagnóstico, aptitud, tratamiento, conclusiones), y luego la cierras y la firmas de nuevo. Los datos personales del
+              trabajador no necesitan esto: se editan siempre en Generales › Datos del trabajador. Los impresos nuevos dirán
               «Revisión {d.revision + 1}» y reemplazan a los anteriores; si cambia la aptitud, la empresa recibe el aviso.
             </p>
             {sinInternet && (corregirEspera ? (
@@ -860,7 +863,7 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
             ))}
             <Label htmlFor="motivo-correccion">Motivo de la corrección</Label>
             <Textarea id="motivo-correccion" value={motivoCorreccion} onChange={(e) => setMotivoCorreccion(e.target.value)}
-              placeholder="Ej.: el diagnóstico correcto es sinusitis aguda, no rinofaringitis" rows={2} autoFocus />
+              placeholder="Ej.: corrijo la tensión arterial y agrego la recomendación de uso de lentes" rows={2} autoFocus />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setCorrigiendo(false); setMotivoCorreccion(""); }} disabled={guardando}>Cancelar</Button>
               <Button
@@ -984,10 +987,14 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
           {/* ── Generales ── */}
           {/* Siempre montada (oculta si no está activa): la ficha del trabajador guarda lo escrito aunque se cambie de pestaña;
               antes, al salir de «Generales» se desmontaba y el Guardar de la consulta ya no guardaba la ficha (30-oct) */}
+          </fieldset>
           <TabsContent value="generales" forceMount className="mt-4 space-y-4 data-[state=inactive]:hidden">
+            {/* La ficha es del trabajador, no del acto médico: se edita siempre, aun con la consulta cerrada o firmada
+                (Cesar, 31-oct). Con la consulta cerrada solo cambia la ficha; el cargo de la consulta queda como se atendió. */}
             <Seccion titulo="Datos del trabajador">
-              <DatosTrabajador trabajadorId={trabajador.id} consultaId={d.id} bloqueado={bloqueado} guardarPendiente={fichaPendiente} onPendiente={setFichaCambiada} />
+              <DatosTrabajador trabajadorId={trabajador.id} consultaId={bloqueado ? null : d.id} guardarPendiente={fichaPendiente} onPendiente={setFichaCambiada} />
             </Seccion>
+            <fieldset disabled={bloqueado} className="m-0 min-w-0 space-y-4 border-0 p-0">
 
             <Seccion titulo="Motivo">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -1066,7 +1073,9 @@ export function EditorConsulta({ inicial, trabajador, medico, listas, adjuntos, 
                 ))}
               </div>
             </Seccion>
+            </fieldset>
           </TabsContent>
+          <fieldset disabled={bloqueado} className="contents">
 
           {/* ── Antecedentes y hábitos ── */}
           <TabsContent value="antecedentes" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
