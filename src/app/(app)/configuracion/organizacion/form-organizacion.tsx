@@ -32,6 +32,7 @@ type Ajustes = {
   dias_equipo_confianza?: number;
   celda_minima_empresa?: number;
   membrete_lema?: string | null;
+  invita_como?: string | null;
   certificacion_trabajador?: string | null;
   vigilancia_poblacion?: "efectivos" | "todos";
   vigilancia_horas?: "same" | "nomina";
@@ -144,6 +145,8 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <p className="text-sm text-muted-foreground">{"Se abren en tu WhatsApp o tu correo listos para enviar. Campos que se reemplazan: {nombre}, {cedula}, {fecha}, {hora}, {motivo}, {empresa}, {servicio}, {aptitud}, {observacion}."}</p>
             <CampoTexto id="mensaje_cita" etiqueta="Recordatorio de cita (al trabajador)" rows={3} defaultValue={a.mensaje_cita ?? PLANTILLA_CITA} />
             <CampoTexto id="mensaje_aptitud" etiqueta="Resultado de aptitud (a RR. HH. de la empresa)" rows={3} defaultValue={a.mensaje_aptitud ?? PLANTILLA_APTITUD} />
+            {/* Invitación de RR. HH.: «Le invita el Dr. …» en la página del enlace y en el WhatsApp */}
+            <Campo id="invita_como" etiqueta="Quién invita a RR. HH. (se lee «Le invita …»)" defaultValue={a.invita_como ?? ""} maxLength={120} placeholder="el Dr. Nombre Apellido" />
           </CardContent>
         </Card>
 

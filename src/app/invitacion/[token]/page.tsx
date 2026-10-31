@@ -5,7 +5,7 @@ import { FormularioLogin } from "@/app/login/formulario-login";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { Aceptar } from "./aceptar";
+import { Aceptar, SalirParaRegistrarse } from "./aceptar";
 
 export const metadata: Metadata = { title: "Invitación al portal", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -47,7 +47,8 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
   const [{ data: filas }, { data: claims }] = supabase
     ? await Promise.all([supabase.rpc("ver_invitacion", { p_token: token }), supabase.auth.getClaims()])
     : [{ data: null }, { data: null }];
-  const inv = (filas as { empresa: string; organizacion: string; nombre: string | null; estado: string }[] | null)?.[0];
+  const inv = (filas as { empresa: string; organizacion: string; nombre: string | null; estado: string; invita: string | null; otro_rol: boolean }[] | null)?.[0];
+  const correo = typeof claims?.claims?.email === "string" ? claims.claims.email : null;
   const conSesion = Boolean(claims?.claims?.sub);
 
   return (
@@ -66,7 +67,10 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
         ) : (
           <>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">{inv.organizacion} te invita{inv.nombre ? `, ${inv.nombre.split(" ")[0]},` : ""} al portal de</p>
+              {/* «Le invita el Dr. …» sale de Configuración › Organización; sin eso, el nombre del servicio */}
+              <p className="text-sm text-muted-foreground">
+                {inv.invita ? `${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita} al portal de` : `${inv.organizacion} te invita${inv.nombre ? `, ${inv.nombre.split(" ")[0]},` : ""} al portal de`}
+              </p>
               <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><Building2 className="mt-1 size-6 shrink-0 text-primary" /> {inv.empresa}</h1>
             </div>
             <ul className="space-y-2 text-sm">
@@ -76,6 +80,15 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
             </ul>
             {inv.estado !== "vigente" && !conSesion ? (
               <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">{AVISO[inv.estado]}</p>
+            ) : conSesion && inv.otro_rol ? (
+              // Sesión abierta con una cuenta del servicio (p. ej. el médico probando en su teléfono): nunca se convierte
+              // en RR. HH.; se ofrece salir y crear la cuenta nueva aquí mismo
+              <div className="space-y-3 border-t pt-5">
+                <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">
+                  Este teléfono tiene abierta la cuenta {correo ? <strong className="[overflow-wrap:anywhere]">{correo}</strong> : "de otra persona"}, que ya trabaja en el servicio médico. La cuenta de RR. HH. debe ser otra, con su propio correo.
+                </p>
+                <SalirParaRegistrarse token={token} />
+              </div>
             ) : conSesion ? (
               <div className="space-y-4 border-t pt-5">
                 <Pasos actual={3} />

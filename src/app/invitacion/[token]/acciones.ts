@@ -32,3 +32,11 @@ export async function aceptar(token: string): Promise<{ ok: false; mensaje: stri
   (await cookies()).set(COOKIE_EMPRESA, String(empresaId), { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   redirect("/portal");
 }
+
+// Quien abrió el enlace con otra cuenta del servicio abierta: cierra solo esta sesión y vuelve al paso 1 del enlace
+export async function salirParaRegistrarse(token: string): Promise<void> {
+  if (!TOKEN_INVITACION.test(token)) redirect("/login");
+  const supabase = await crearClienteServidor();
+  await supabase.auth.signOut({ scope: "local" });
+  redirect(`/invitacion/${token}`);
+}
