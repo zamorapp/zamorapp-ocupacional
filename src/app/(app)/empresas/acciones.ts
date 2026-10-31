@@ -128,10 +128,12 @@ export async function ajustarAlertaVencimientos(id: string, ajuste: { mostrar: b
   if (e1) return { ok: false, mensaje: "No se pudo leer la empresa: " + e1.message };
   if (!actual) return { ok: false, mensaje: "No se encontró la empresa." };
   const otros = ((actual.avisos_apagados ?? []) as string[]).filter((k) => k !== "vencimientos");
-  const { error } = await supabase.from("empresas")
+  const { data, error } = await supabase.from("empresas")
     .update({ avisos_apagados: ajuste.mostrar ? otros : [...otros, "vencimientos"], dias_aviso_examen: dias, periodicidad_meses: meses })
-    .eq("id", id);
+    .eq("id", id).select("id");
   if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+  // Sin filas de vuelta = la base no dejó cambiarla (permisos): se dice, nunca «guardado» en falso
+  if (!data?.length) return { ok: false, mensaje: "No se guardó: tu usuario no tiene permiso para cambiar esta empresa." };
   invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: ajuste.mostrar ? "Ajuste guardado." : "Listo: esta empresa ya no avisa vencimientos en el Inicio." };

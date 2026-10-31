@@ -37,7 +37,7 @@ export function AjustarAlerta({ empresa }: { empresa: AjusteEmpresa }) {
   return (
     <Popover open={abierto} onOpenChange={(v) => { setAbierto(v); if (!v) setConfirmar(false); }}>
       <PopoverAnchor asChild>
-        <button type="button" aria-expanded={abierto} onClick={() => setAbierto((v) => !v)} aria-label={`Ajustar la alerta de ${empresa.nombre}`} title="Ajustar esta alerta"
+        <button type="button" aria-expanded={abierto} onClick={() => setAbierto((v) => !v)} aria-label={`Ajustar esta alerta: ${empresa.nombre}`} title="Ajustar esta alerta"
           className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground">
           <Settings2 className="size-4" />
         </button>
@@ -72,10 +72,11 @@ export function AjustarAlerta({ empresa }: { empresa: AjusteEmpresa }) {
             </button>
           ) : (
             <div className="space-y-2 rounded-md bg-muted/60 p-2.5 text-xs">
+              <p className="text-sm font-semibold">¿Inactivar {empresa.nombre}?</p>
               <p>Sale del Inicio, los avisos y los listados. Sus trabajadores, consultas y documentos quedan guardados. Se reactiva en Empresas › Ver inactivas.</p>
               <div className="flex gap-2">
-                <Button size="sm" variant="destructive" disabled={ocupado} onClick={inactivar}>Sí, inactivar</Button>
-                <Button size="sm" variant="ghost" onClick={() => setConfirmar(false)}>Ignorar</Button>
+                <Button size="sm" variant="outline" disabled={ocupado} onClick={inactivar} className="border-aviso/60 text-aviso-texto hover:bg-aviso/15">{ocupado && <Loader2 className="animate-spin" />} Sí, inactivar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmar(false)}>Cancelar</Button>
               </div>
             </div>
           )}
