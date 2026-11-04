@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
-import { DEPARTAMENTOS, METODOS, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
+import { DEPARTAMENTOS, METODOS, vistaInforme, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
@@ -36,9 +36,9 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
   const sesion = await obtenerSesion();
   const ev = await obtenerEvaluacion(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
-  const depto = DEPARTAMENTOS.find((d) => d.clave === para) ?? null;
+  const { depto, conMetodo, conFotos } = vistaInforme(sesion.rol, para);
 
-  const fotosVisibles = depto?.clave === "rrhh" ? [] : ev.fotos;
+  const fotosVisibles = conFotos ? ev.fotos : [];
   const supabase = sesion.demo ? null! : await crearClienteServidor();
   const sinDatos = { data: null };
   const [{ data: org }, { data: emp }, firmas, { data: urls }] = sesion.demo ? [sinDatos, sinDatos, null, { data: [] }] as const : await Promise.all([
@@ -101,7 +101,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
 
         {ev.conclusion && <Bloque titulo="Conclusión">{ev.conclusion}</Bloque>}
 
-        {r?.completo && metodo && (!depto || depto.clave !== "rrhh") && (
+        {r?.completo && metodo && conMetodo && (
           <Bloque titulo={`Resultado del método ${metodo.corto}`}>
             <div className="grid grid-cols-[auto_1fr] items-center gap-4">
               <div className={`rounded-lg px-4 py-2 text-center ${URGENCIA[r.urgencia]}`}>
