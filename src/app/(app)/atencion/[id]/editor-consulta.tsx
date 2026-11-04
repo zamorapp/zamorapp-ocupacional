@@ -1509,6 +1509,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 motivoCodigo={motivo?.codigo ?? null}
                 motivoNombre={motivo?.nombre ?? null}
                 valor={d.recomendacionesEmpresa}
+                categorias
                 onChange={(v) => set("recomendacionesEmpresa", v)}
               />
               <TextosFrecuentes
@@ -1517,6 +1518,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 motivoCodigo={motivo?.codigo ?? null}
                 motivoNombre={motivo?.nombre ?? null}
                 valor={d.recomendacionesTrabajador}
+                categorias
                 onChange={(v) => set("recomendacionesTrabajador", v)}
               />
               <Texto etiqueta="Observación privada (solo personal de salud)" valor={d.observacionPrivada} onChange={(v) => set("observacionPrivada", v)} filas={2} />

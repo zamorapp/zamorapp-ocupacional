@@ -6,13 +6,13 @@ import { Copy, ExternalLink, Loader2, Plus, Printer, RotateCcw, Save, Shuffle, S
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { conNombre, fechaEmisionDe, personaVacia, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
+import { conNombre, CUSTODIO, DOCUMENTO, fechaEmisionDe, personaVacia, representantesDe, servicioDe, type Firmantes, type Persona } from "@/lib/firmantes";
 import type { InformeVigilancia } from "@/lib/reportes";
 import type { TextosInforme } from "@/lib/vigilancia-textos";
 import { generarAnalisis, SECCIONES_ANALISIS, SECCIONES_INTEGRAL, type DatosAnalisis } from "@/lib/vigilancia-analisis";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { leerRespuestaIA, pedidoIA, TITULOS_IA, type ClaveIA } from "@/lib/vigilancia-ia";
-import { guardarInformeVigilancia } from "./acciones";
+import { buscarFirmante, guardarInformeVigilancia } from "./acciones";
 
 type Clave = keyof TextosInforme;
 
@@ -82,25 +82,49 @@ function Campo({ etiqueta, valor, cambiar, disabled, placeholder, tipo = "text" 
 }
 
 // Una o varias personas que firman: nombre, cédula, cargo y (médico, SST) registro
-function Grupo({ titulo, ayuda, personas, cambiar, disabled, registro, varios }: {
+function Grupo({ titulo, ayuda, personas, cambiar, disabled, registro, varios, empresaId, cargo }: {
   titulo: string; ayuda?: string; personas: Persona[]; cambiar: (l: Persona[]) => void; disabled: boolean; registro?: boolean; varios?: boolean;
+  /** Con empresa: al salir de la cédula se buscan nombre y cargo entre sus trabajadores (si el nombre está vacío) */
+  empresaId?: string | null;
+  /** Ejemplo de cargo para la casilla vacía */
+  cargo?: string;
 }) {
   const filas = personas.length ? personas : [personaVacia];
+  const [buscando, setBuscando] = useState<number | null>(null);
+  const [nota, setNota] = useState<{ i: number; texto: string } | null>(null);
   const poner = (i: number, c: Partial<Persona>) => cambiar(filas.map((p, j) => (j === i ? { ...personaVacia, ...p, ...c } : p)));
+  const buscar = async (i: number) => {
+    const p = filas[i];
+    if (!empresaId || disabled || p.nombre.trim() || p.cedula.replace(/\D/g, "").length < 5) return;
+    setBuscando(i);
+    try {
+      const t = await buscarFirmante(empresaId, p.cedula);
+      if (t) poner(i, { nombre: t.nombre, cargo: p.cargo?.trim() ? p.cargo : t.cargo });
+      setNota({ i, texto: t ? `Tomado de los trabajadores de la empresa${t.cargo ? "" : ": escribe el cargo"}.` : "No está entre los trabajadores de la empresa: escribe el nombre." });
+    } catch {
+      setNota({ i, texto: "No se pudo buscar ahora: escribe el nombre." });
+    } finally {
+      setBuscando(null);
+    }
+  };
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">{titulo}{ayuda && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{ayuda}</span>}</legend>
       {filas.map((p, i) => (
         <div key={i} className="grid grid-cols-1 gap-2 rounded-md border border-dashed p-2 sm:grid-cols-[minmax(0,1.4fr)_8rem_minmax(0,1fr)_auto]">
           <Input aria-label={`${titulo}: nombre y apellido`} placeholder="Nombre y apellido" disabled={disabled} value={p.nombre} onChange={(e) => poner(i, { nombre: e.target.value })} className="h-9" />
-          <Input aria-label={`${titulo}: cédula`} placeholder="Cédula" disabled={disabled} value={p.cedula} onChange={(e) => poner(i, { cedula: e.target.value })} className="h-9" />
-          <Input aria-label={`${titulo}: cargo`} placeholder="Cargo" disabled={disabled} value={p.cargo ?? ""} onChange={(e) => poner(i, { cargo: e.target.value })} className="h-9" />
+          <div className="relative">
+            <Input aria-label={`${titulo}: cédula`} placeholder="Cédula" inputMode="numeric" disabled={disabled} value={p.cedula} onChange={(e) => { poner(i, { cedula: e.target.value }); setNota(null); }} onBlur={() => buscar(i)} className="h-9" />
+            {buscando === i && <Loader2 className="absolute top-2.5 right-2 size-4 animate-spin text-muted-foreground" />}
+          </div>
+          <Input aria-label={`${titulo}: cargo`} placeholder={cargo ? `Cargo (p. ej. ${cargo})` : "Cargo"} disabled={disabled} value={p.cargo ?? ""} onChange={(e) => poner(i, { cargo: e.target.value })} className="h-9" />
           <div className="flex gap-1">
             {registro && <Input aria-label={`${titulo}: registro`} placeholder="Registro" disabled={disabled} value={p.registro ?? ""} onChange={(e) => poner(i, { registro: e.target.value })} className="h-9 w-32" />}
             {varios && !disabled && (filas.length > 1 || p.nombre) && (
               <Button type="button" variant="ghost" size="icon" aria-label={`Quitar de ${titulo.toLowerCase()}`} onClick={() => cambiar(filas.filter((_, j) => j !== i))}><Trash2 /></Button>
             )}
           </div>
+          {nota?.i === i && <p className="text-xs text-muted-foreground sm:col-span-4">{nota.texto}</p>}
         </div>
       ))}
       {varios && !disabled && filas.length < 8 && (
@@ -203,7 +227,7 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
   const faltan = [
     ...(empresa?.datos ?? []).filter(([, v]) => !v).map(([k]) => k),
     ...(firmantes.medico?.nombre?.trim() ? [] : ["Elaborado por"]),
-    ...(firmantes.sst?.nombre?.trim() ? [] : ["Servicio de SST"]),
+    ...(conNombre(servicioDe(firmantes)).length ? [] : ["Servicio de SST"]),
     ...(conNombre(representantesDe(firmantes)).length ? [] : ["Representantes del patrono"]),
     ...(conNombre(firmantes.delegados).length ? [] : ["Delegados de prevención"]),
   ];
@@ -294,15 +318,18 @@ export function EditorInforme({ empresaId, desde, hasta, inicial, sugeridos: bas
               <Link href={`/empresas/${empresa.id}`} className="mt-1 inline-block text-primary underline-offset-2 hover:underline">Corregir en la ficha de la empresa</Link>
             </div>
           )}
+          <p className="text-xs text-muted-foreground">Documento: <b className="text-foreground">{DOCUMENTO}</b></p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Campo etiqueta="Autoridad" valor={firmantes.autoridad} cambiar={(v) => fijar({ autoridad: v })} disabled={!editable} />
-            <Campo etiqueta="Custodio" valor={firmantes.custodio} cambiar={(v) => fijar({ custodio: v })} disabled={!editable} />
-            <div className="sm:col-span-2"><Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Si se deja vacío, la dirección de la empresa" /></div>
+            <Campo etiqueta="Custodio del documento" valor={firmantes.custodio} cambiar={(v) => fijar({ custodio: v })} disabled={!editable} placeholder={CUSTODIO} />
+            <Campo etiqueta="Aprobado por (opcional)" valor={firmantes.autoridad} cambiar={(v) => fijar({ autoridad: v })} disabled={!editable} placeholder="Vacío: no sale en la portada" />
+            <div className="sm:col-span-2"><Campo etiqueta="Centro de trabajo" valor={firmantes.centro_trabajo} cambiar={(v) => fijar({ centro_trabajo: v })} disabled={!editable} placeholder="Vacío: instalaciones de la empresa en su dirección" /></div>
+            <Campo etiqueta="N.º de trabajadores" tipo="number" valor={firmantes.trabajadores} cambiar={(v) => fijar({ trabajadores: v })} disabled={!editable} placeholder="Vacío: la población del período" />
           </div>
+          {empresaId && editable && <p className="text-xs text-muted-foreground">Escribe la cédula y sal de la casilla: si la persona trabaja en la empresa, su nombre y cargo se llenan solos.</p>}
           <Grupo titulo="Elaborado por" ayuda="Médico ocupacional" personas={[firmantes.medico ?? personaVacia]} cambiar={([p]) => fijar({ medico: p })} disabled={!editable} registro />
-          <Grupo titulo="Servicio de Seguridad y Salud en el Trabajo" ayuda="Coordinador(a) y su registro del INPSASEL" personas={[firmantes.sst ?? personaVacia]} cambiar={([p]) => fijar({ sst: p })} disabled={!editable} registro />
-          <Grupo titulo="Representantes del patrono" personas={representantesDe(firmantes)} cambiar={(l) => fijar({ representantes: l, empleador: undefined })} disabled={!editable} varios />
-          <Grupo titulo="Delegados de prevención" personas={firmantes.delegados ?? []} cambiar={(l) => fijar({ delegados: l })} disabled={!editable} varios />
+          <Grupo titulo="Servicio de Seguridad y Salud en el Trabajo" ayuda="Coordinador(a), inspector(es) y su registro del INPSASEL" personas={servicioDe(firmantes)} cambiar={(l) => fijar({ servicio: l, sst: undefined })} disabled={!editable} registro varios empresaId={empresaId} cargo="Coordinador(a) SSO" />
+          <Grupo titulo="Representantes del patrono" personas={representantesDe(firmantes)} cambiar={(l) => fijar({ representantes: l, empleador: undefined })} disabled={!editable} varios empresaId={empresaId} cargo="Gerente de proyecto" />
+          <Grupo titulo="Delegados de prevención" personas={firmantes.delegados ?? []} cambiar={(l) => fijar({ delegados: l })} disabled={!editable} varios empresaId={empresaId} cargo="Delegado(a) de prevención" />
         </div>
       </details>
 

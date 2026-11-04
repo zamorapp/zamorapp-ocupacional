@@ -1,3 +1,4 @@
+import { sinRepetidas } from "@/lib/recomendaciones-categorias";
 import { Fragment } from "react";
 import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
@@ -80,7 +81,8 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
         </Bloque>
       )}
       {apt.observacion && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={apt.observacion} /></Bloque>}
-      {d.datos.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={d.datos.recomendacionesEmpresa} /></Bloque>}
+      {/* Una recomendación elegida para los dos sale una sola vez (en la del trabajador, que va primero) */}
+      {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
       {(a.observacion_idoneidad ?? NOTA_IDONEIDAD) && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue">{a.observacion_idoneidad ?? NOTA_IDONEIDAD}</p>}
       <Firmas>
         {a.firma_paciente_constancia ? <FirmaTrabajador d={d} /> : <span />}
@@ -297,7 +299,9 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
       {c.interconsultas.length > 0 && <Bloque titulo="Referencias">{c.interconsultas.map((x) => `${x.especialidad}: ${x.motivo}`).join("\n")}</Bloque>}
       {c.conclusiones && !sin.includes("conclusiones") && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
       {(c.recomendacionesTrabajador || c.aptitud.observacion) && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={c.recomendacionesTrabajador || c.aptitud.observacion} /></Bloque>}
-      {laboral && c.recomendacionesEmpresa && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={c.recomendacionesEmpresa} /></Bloque>}
+      {laboral && sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion).trim() && (
+        <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion)} /></Bloque>
+      )}
     </>
   );
 }
