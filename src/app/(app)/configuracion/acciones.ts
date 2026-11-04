@@ -149,16 +149,51 @@ export async function moverItem(lista: string, id: string, direccion: -1 | 1): P
   }
 }
 
-export async function eliminarItem(id: string): Promise<Resultado> {
+// Borra del sistema (todas las empresas y motivos). Devuelve la fila completa para que «Deshacer» la reponga igual.
+export type FilaBorrada = { id: string; lista: string; codigo: string | null; nombre: string; grupo: string | null; texto: string | null; orden: number; activo: boolean; datos: Record<string, unknown> | null; base_id: string | null; origen: string | null; codigo_origen: string | null; lote_importacion: string | null };
+const COLUMNAS_ITEM = "id, lista, codigo, nombre, grupo, texto, orden, activo, datos, base_id, origen, codigo_origen, lote_importacion";
+
+export async function eliminarItem(id: string): Promise<Resultado & { fila?: FilaBorrada }> {
   try {
     const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
-    const { error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!);
+    const { data: fila } = await supabase.from("lista_items").select(COLUMNAS_ITEM).eq("id", id).eq("org_id", sesion.orgId!).maybeSingle();
+    if (!fila) return { ok: false, mensaje: "Ese elemento ya no existe." };
+    const { data: borradas, error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!).select("id");
     if (error) {
-      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Desactívalo en lugar de eliminarlo." };
+      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Ocúltalo (el ojo) en lugar de borrarlo." };
+      throw error;
+    }
+    // La RLS puede impedir el borrado sin dar error: se dice, no se finge
+    if (!borradas?.length) return { ok: false, mensaje: "No se borró: tu usuario no puede borrar este elemento. Pídeselo al administrador." };
+    revalidatePath("/configuracion", "layout");
+    return { ok: true, mensaje: `«${fila.nombre}» se borró del sistema.`, fila: fila as FilaBorrada };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// «Deshacer» de eliminarItem: repone la misma fila (mismo id) en la organización de quien la borró
+export async function restaurarItem(fila: FilaBorrada): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
+    if (!/^[0-9a-f-]{36}$/i.test(fila?.id ?? "") || typeof fila.lista !== "string" || typeof fila.nombre !== "string" || !fila.nombre.trim()) {
+      return { ok: false, mensaje: "No se pudo deshacer: datos incompletos." };
+    }
+    const { error } = await supabase.from("lista_items").insert({
+      id: fila.id, lista: fila.lista, org_id: sesion.orgId!, codigo: fila.codigo, nombre: fila.nombre, grupo: fila.grupo, texto: fila.texto,
+      orden: Number(fila.orden) || 0, activo: fila.activo !== false, datos: fila.datos ?? {}, base_id: fila.base_id, origen: fila.origen,
+      codigo_origen: fila.codigo_origen, lote_importacion: fila.lote_importacion,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Solo es «ya repuesto» si la fila está en la propia organización y en la misma lista
+        const { data: existe } = await supabase.from("lista_items").select("id").eq("id", fila.id).eq("org_id", sesion.orgId!).eq("lista", fila.lista).maybeSingle();
+        return existe ? { ok: true, mensaje: "Ya estaba repuesto." } : { ok: false, mensaje: "No se pudo deshacer: ese elemento ya existe en otro lugar. Créalo de nuevo con «Agregar»." };
+      }
       throw error;
     }
     revalidatePath("/configuracion", "layout");
-    return { ok: true, mensaje: "Eliminado." };
+    return { ok: true, mensaje: `«${fila.nombre}» volvió a su lugar.` };
   } catch (e) {
     return fallo(e);
   }
