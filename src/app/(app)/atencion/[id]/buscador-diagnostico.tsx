@@ -80,7 +80,7 @@ export function BuscadorMedicina({ valor, medicinas, onElegir, onEscribir, onAgr
     const palabras = palabrasDe(texto);
     return medicinas.flatMap((m) => {
       const pre = indicacionPreestablecida(m.texto);
-      const detalle = [pre.presentacion, pre.concentracion, pre.marcas && `· marca: ${pre.marcas}`].filter(Boolean).join(" ");
+      const detalle = [[pre.presentacion, pre.concentracion].filter(Boolean).join(" "), pre.marcas && `marca: ${pre.marcas}`].filter(Boolean).join(" · ");
       if (!coincide(textoBuscableMedicina(m.nombre, detalle), palabras)) return [];
       return [{ clave: m.id, codigo: "", nombre: m.nombre, detalle, grupo: m.datos?.propio === true ? GRUPOS_MED[0] : GRUPOS_MED[1] }];
     }).slice(0, 40);
