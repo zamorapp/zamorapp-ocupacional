@@ -65,7 +65,16 @@ function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Person
 
 // Portada del informe de vigilancia: control del documento, identificación de la empresa (de su ficha) y
 // responsables del sistema (de Reportes › Portada y firmantes). Cabe en una hoja Carta con hasta 11 firmantes (con más de 8, filas compactas).
-export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision, titulo, subtitulo, periodo, poblacion, org }: {
+// Textos de la portada: por defecto, los del informe de vigilancia; otros estudios (ergonomía) pasan los suyos
+export type TextosPortada = { serie: string; documento: string; norma: string; control: string; rango?: string; elaborado?: string };
+const TEXTOS_VIGILANCIA: TextosPortada = {
+  serie: "Sistema de vigilancia epidemiológica ocupacional",
+  documento: "Informe de vigilancia de la salud de los trabajadores",
+  norma: "Artículo 34 del Reglamento Parcial de la LOPCYMAT · Documento confidencial de salud ocupacional",
+  control: DOCUMENTO,
+};
+
+export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision, titulo, subtitulo, periodo, poblacion, org, textos = TEXTOS_VIGILANCIA }: {
   logoEmpresa: string | null;
   orgLogo: string | null;
   empresa: FichaEmpresa | null;
@@ -74,16 +83,18 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
   fechaEmision: string;
   titulo: string;
   subtitulo: string | null;
-  periodo: Pick<Periodo, "desde" | "hasta">;
-  poblacion: { total: number; femenino: number; masculino: number };
+  periodo?: Pick<Periodo, "desde" | "hasta">;
+  /** Sin población (p. ej. ergonomía): el n.º de trabajadores sale solo si se declaró en la portada */
+  poblacion?: { total: number; femenino: number; masculino: number } | null;
   org: string | null;
+  textos?: TextosPortada;
 }) {
-  const ficha = empresa ? Object.fromEntries(datosPortada(empresa, poblacion, firmantes.trabajadores)) as Record<string, string | null> : null;
+  const ficha = empresa ? Object.fromEntries(datosPortada(empresa, poblacion ?? null, firmantes.trabajadores)) as Record<string, string | null> : null;
   const centro = firmantes.centro_trabajo || centroPorDefecto(empresa?.direccion) || null;
   const firmas = { medico: conNombre([firmantes.medico!]), servicio: conNombre(servicioDe(firmantes)), representantes: conNombre(representantesDe(firmantes)), delegados: conNombre(firmantes.delegados) };
   const compacta = Object.values(firmas).reduce((n, l) => n + Math.max(l.length, 1), 0) > 8;
   const control: [string, string][] = [
-    ["Documento", DOCUMENTO],
+    ["Documento", textos.control],
     ["Custodio", firmantes.custodio || CUSTODIO],
     ...(firmantes.autoridad ? ([["Aprobado por", firmantes.autoridad]] as [string, string][]) : []),
     ["Fecha de emisión", emision(fechaEmision)],
@@ -105,14 +116,14 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
 
       {/* Título: sin fondo sólido (rinde el tóner), filete de acento a la izquierda */}
       <div className="mt-5 border-l-[5px] border-doc-acento pl-5">
-        <div className="text-[9.5px] font-bold uppercase tracking-[.24em] text-doc-acento">Sistema de vigilancia epidemiológica ocupacional</div>
-        <h1 className="mt-1.5 text-[26px] font-extrabold leading-[1.08] tracking-tight text-[#15201e]">Informe de vigilancia de la salud de los trabajadores</h1>
+        <div className="text-[9.5px] font-bold uppercase tracking-[.24em] text-doc-acento">{textos.serie}</div>
+        <h1 className="mt-1.5 text-[26px] font-extrabold leading-[1.08] tracking-tight text-[#15201e]">{textos.documento}</h1>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="text-[16px] font-extrabold text-doc-acento first-letter:uppercase">{titulo}</span>
           {subtitulo && <span className="text-[11px] font-semibold uppercase tracking-[.1em] text-doc-tenue">{subtitulo}</span>}
-          <span className="text-[11px] tabular-nums text-doc-tenue">Del {corta(periodo.desde)} al {corta(periodo.hasta)}</span>
+          <span className="text-[11px] tabular-nums text-doc-tenue">{textos.rango ?? (periodo ? `Del ${corta(periodo.desde)} al ${corta(periodo.hasta)}` : "")}</span>
         </div>
-        <div className="mt-1 text-[9.5px] text-doc-tenue">Artículo 34 del Reglamento Parcial de la LOPCYMAT · Documento confidencial de salud ocupacional</div>
+        <div className="mt-1 text-[9.5px] text-doc-tenue">{textos.norma}</div>
       </div>
 
       {/* Control del documento */}
@@ -138,7 +149,7 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
           {ficha["NIL"] && <Dato k="N.º de trabajadores" v={ficha["N.º de trabajadores"]} borde />}
         </div>
       ) : (
-        <p className="rounded-[8px] border border-doc-linea px-3 py-2 text-[11px]">Consolidado de todas las empresas clientes · {num(poblacion.total)} trabajadores (mujeres {num(poblacion.femenino)} · hombres {num(poblacion.masculino)})</p>
+        <p className="rounded-[8px] border border-doc-linea px-3 py-2 text-[11px]">Consolidado de todas las empresas clientes{poblacion && ` · ${num(poblacion.total)} trabajadores (mujeres ${num(poblacion.femenino)} · hombres ${num(poblacion.masculino)})`}</p>
       )}
 
       <Seccion n="02" titulo="Responsables del sistema · elaboración y aprobación" />
@@ -152,7 +163,7 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
           </tr>
         </thead>
         <tbody className="[&>tr:last-child>*]:border-b-0">
-          <FilasFirma rol="Elaborado por · médico ocupacional" personas={firmas.medico} compacta={compacta} />
+          <FilasFirma rol={textos.elaborado ?? "Elaborado por · médico ocupacional"} personas={firmas.medico} compacta={compacta} />
           <FilasFirma rol="Servicio de Seguridad y Salud en el Trabajo" personas={firmas.servicio} compacta={compacta} />
           <FilasFirma rol="Representantes del patrono" personas={firmas.representantes} compacta={compacta} />
           <FilasFirma rol="Delegados de prevención" personas={firmas.delegados} compacta={compacta} />
