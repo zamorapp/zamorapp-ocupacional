@@ -14,7 +14,7 @@ update public.lista_items set texto = 'Lo escribió el médico.' where lista = '
 update public.lista_items set grupo = 'PER' where lista = 'recomendacion_aptitud' and codigo = 'apto' and (org_id is null or org_id = :org);
 \set QUIET on
 \o /dev/null
-\i supabase/migrations/20261030820000_recomendaciones_completas.sql
+\i supabase/migrations/20261030797000_recomendaciones_completas.sql
 \o
 select 'la copia sin editar toma el texto nuevo (debe 1): ' || count(*) from public.lista_items where org_id = :org and codigo = 'apto'
   and lista = 'recomendacion_aptitud' and texto like '%evaluación médica periódica%' and texto like E'%\n%';
@@ -31,7 +31,7 @@ create temp table _borradas as select * from public.lista_items where org_id = :
   and ((lista = 'recomendacion_aptitud' and codigo = 'apto') or (lista = 'recomendacion_paciente' and codigo = 'pac_hombro'));
 \o /dev/null
 delete from public.lista_items where id in (select id from _borradas);
-\i supabase/migrations/20261030820000_recomendaciones_completas.sql
+\i supabase/migrations/20261030797000_recomendaciones_completas.sql
 \o
 select 'la categoría del médico queda (debe 1): ' || count(*) from public.lista_items where org_id = :org and codigo = 'pac_columna' and datos->>'categoria' = 'habitos';
 select 'lo borrado por la organización no vuelve (debe 0): ' || count(*) from public.lista_items where org_id = :org
