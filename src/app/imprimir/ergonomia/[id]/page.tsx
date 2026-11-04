@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
 import { DEPARTAMENTOS, METODOS, vistaInforme, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
-import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
+import { obtenerEvaluacion, obtenerEvaluacionEmpresa } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { Bloque, CasillaSello, fechaCorta, Ficha, Firmas, folio, Hoja, Membrete, Pie } from "../../componentes";
@@ -34,7 +35,7 @@ const ENFOQUE: Record<Departamento, string> = {
 export default async function ImprimirErgonomia({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ para?: string }> }) {
   const [{ id }, { para }] = await Promise.all([params, searchParams]);
   const sesion = await obtenerSesion();
-  const ev = await obtenerEvaluacion(id);
+  const ev = esRolEmpresa(sesion.rol) ? await obtenerEvaluacionEmpresa(id) : await obtenerEvaluacion(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
   const { depto, conMetodo, conFotos } = vistaInforme(sesion.rol, para);
 
