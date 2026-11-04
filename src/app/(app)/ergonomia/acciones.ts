@@ -19,6 +19,9 @@ async function contexto() {
   return { sesion, supabase: await crearClienteServidor() } as const;
 }
 
+// Ninguna fila cambió: la evaluación no existe o no está en tu alcance (RLS no da error, solo no toca nada)
+const SIN_FILA = "No se guardó: la evaluación ya no existe o no tienes permiso sobre ella. Recarga la página.";
+
 // Mensaje claro para los errores de la base (cerrada, permisos, puesto de otra empresa)
 const explicar = (e: { message: string; code?: string }) =>
   e.code === "42501" && !/cerrada|reabrir/i.test(e.message) ? "No tienes permiso sobre esta empresa." : e.message;
@@ -45,7 +48,7 @@ export type Cambios = {
 };
 
 // Limpia lo que llega del navegador: el puntaje lo calcula el servidor con las mismas tablas del método
-function limpiar(metodo: ClaveMetodo, x: Cambios) {
+function limpiar(metodo: ClaveMetodo, x: Cambios, carpeta: string) {
   const m = metodo === "rula" || metodo === "reba" ? METODOS[metodo] : null;
   const claves = new Set(m?.secciones.flatMap((s) => s.preguntas.map((p) => p.clave)) ?? []);
   const datos: Respuestas = {};
@@ -57,7 +60,7 @@ function limpiar(metodo: ClaveMetodo, x: Cambios) {
     departamento: DEPTOS.has(h.departamento) ? h.departamento : "sst",
     plazo: corto(h.plazo, 60), origen: h.origen === "metodo" || h.origen === "checklist" ? h.origen : "manual",
   })).filter((h) => h.factor || h.medida);
-  const fotos = (Array.isArray(x.fotos) ? x.fotos : []).slice(0, 12).filter((f) => typeof f.ruta === "string" && f.ruta.split("/").length === 3).map((f) => ({ ruta: f.ruta, nota: corto(f.nota, 300) }));
+  const fotos = (Array.isArray(x.fotos) ? x.fotos : []).slice(0, 12).filter((f) => typeof f.ruta === "string" && f.ruta.startsWith(carpeta) && f.ruta.split("/").length === 3 && !f.ruta.includes("..")).map((f) => ({ ruta: f.ruta, nota: corto(f.nota, 300) }));
   return {
     puesto: corto(x.puesto, 200), tarea: corto(x.tarea) || null,
     lado: x.lado === "derecho" || x.lado === "izquierdo" || x.lado === "ambos" ? x.lado : null,
@@ -71,15 +74,17 @@ function limpiar(metodo: ClaveMetodo, x: Cambios) {
 export async function guardarEvaluacion(id: string, metodo: ClaveMetodo, x: Cambios, cerrar = false): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  const campos = limpiar(metodo, x);
+  // Solo fotos de la carpeta de ESTA evaluación (<org>/<evaluación>/…): no se puede enlazar la foto de otra
+  const campos = limpiar(metodo, x, `${c.sesion.orgId}/${id}/`);
   if (!campos.puesto) return { ok: false, mensaje: "Escribe el nombre del puesto." };
   if (cerrar) {
     const r = campos.resultado as { completo?: boolean };
     if ((metodo === "rula" || metodo === "reba") && !r.completo) return { ok: false, mensaje: "Faltan posturas por marcar: completa brazo, antebrazo, muñeca, cuello, tronco y piernas antes de cerrar." };
     if (campos.hallazgos.some((h) => !h.p || !h.s)) return { ok: false, mensaje: "Hay hallazgos sin probabilidad o severidad: valóralos antes de cerrar." };
   }
-  const { error } = await c.supabase.from("evaluaciones_ergonomicas").update({ ...campos, ...(cerrar ? { estado: "cerrada" } : {}) }).eq("id", id);
+  const { data, error } = await c.supabase.from("evaluaciones_ergonomicas").update({ ...campos, ...(cerrar ? { estado: "cerrada" } : {}) }).eq("id", id).select("id");
   if (error) return { ok: false, mensaje: explicar(error) };
+  if (!data?.length) return { ok: false, mensaje: SIN_FILA };
   revalidatePath("/ergonomia");
   revalidatePath(`/ergonomia/${id}`);
   return { ok: true, mensaje: cerrar ? "Evaluación cerrada. Ya puedes imprimir los informes." : "Guardado." };
@@ -88,8 +93,9 @@ export async function guardarEvaluacion(id: string, metodo: ClaveMetodo, x: Camb
 export async function guardarObservaciones(id: string, observaciones: string): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  const { error } = await c.supabase.from("evaluaciones_ergonomicas").update({ observaciones: corto(observaciones, 4000) || null }).eq("id", id);
+  const { data, error } = await c.supabase.from("evaluaciones_ergonomicas").update({ observaciones: corto(observaciones, 4000) || null }).eq("id", id).select("id");
   if (error) return { ok: false, mensaje: explicar(error) };
+  if (!data?.length) return { ok: false, mensaje: SIN_FILA };
   revalidatePath(`/ergonomia/${id}`);
   return { ok: true, mensaje: "Observaciones guardadas." };
 }
@@ -97,8 +103,9 @@ export async function guardarObservaciones(id: string, observaciones: string): P
 export async function reabrirEvaluacion(id: string): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  const { error } = await c.supabase.from("evaluaciones_ergonomicas").update({ estado: "borrador" }).eq("id", id);
+  const { data, error } = await c.supabase.from("evaluaciones_ergonomicas").update({ estado: "borrador" }).eq("id", id).select("id");
   if (error) return { ok: false, mensaje: explicar(error) };
+  if (!data?.length) return { ok: false, mensaje: SIN_FILA };
   revalidatePath(`/ergonomia/${id}`);
   revalidatePath("/ergonomia");
   return { ok: true, mensaje: "Reabierta: ya puedes corregirla." };
@@ -114,8 +121,9 @@ export async function borrarEvaluacion(id: string): Promise<Resultado> {
   // Primero las fotos: el permiso del bucket exige que la evaluación exista y sea borrador
   const rutas = ((ev.fotos as Foto[] | null) ?? []).map((f) => f.ruta);
   if (rutas.length) await c.supabase.storage.from("ergonomia").remove(rutas);
-  const { error } = await c.supabase.from("evaluaciones_ergonomicas").delete().eq("id", id);
+  const { data, error } = await c.supabase.from("evaluaciones_ergonomicas").delete().eq("id", id).select("id");
   if (error) return { ok: false, mensaje: explicar(error) };
+  if (!data?.length) return { ok: false, mensaje: SIN_FILA };
   revalidatePath("/ergonomia");
   return { ok: true, mensaje: "Borrada." };
 }
