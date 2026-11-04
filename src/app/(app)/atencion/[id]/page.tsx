@@ -68,7 +68,8 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
         <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
           puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
-          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
+          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")}
+          puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"} />
       </FrescoAlVolver>
     </div>
   );
