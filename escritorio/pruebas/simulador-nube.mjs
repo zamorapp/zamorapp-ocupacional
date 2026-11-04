@@ -149,7 +149,11 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       const salida = {}; for (const h of DEVOLVER) { const v = r.headers.get(h); if (v) salida[h] = v; }
       res.writeHead(r.status, salida); return res.end(texto);
     }
-    const c = await pool.connect();
+    // Una petición que llega por una conexión viva después de cerrar la nube simulada no debe usar el pool ya
+    // terminado: sin esto, pool.connect() rechaza fuera de la prueba y Node la cuenta como fallo (CI Windows 302)
+    if (cerrada) return enviar(503, { message: "nube simulada cerrada" });
+    let c;
+    try { c = await pool.connect(); } catch (e) { return enviar(503, { message: e.message }); }
     try {
       await c.query("begin");
       await c.query("select set_config('request.jwt.claim.sub', $1, true)", [uid]);
@@ -183,8 +187,10 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       enviar(400, { message: e.message });
     } finally { c.release(); }
   });
+  let cerrada = false;
   const cerrar = async () => {
-    servidor.close();
+    cerrada = true;
+    servidor.close(); servidor.closeAllConnections?.();
     if (pgrst) await pgrst.then((p) => p.proceso.kill(), () => {});
     await pool.end();
   };

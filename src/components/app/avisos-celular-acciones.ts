@@ -18,21 +18,23 @@ export async function activarAvisos(s: Suscripcion & { equipo: string; prueba?: 
   if (vapid === "falta") return { ok: false, mensaje: "Falta un paso en Vercel (VAPID_PRIVADA). Pídele a Claude la guía." };
   if (vapid !== "ok") return { ok: false, mensaje: "La llave VAPID_PRIVADA de Vercel no es válida. Pídele a Claude que la renueve." };
   const sesion = await obtenerSesion();
-  if (!sesion.orgId || esRolEmpresa(sesion.rol)) return { ok: false, mensaje: "Los avisos son para el personal del servicio." };
+  // Servicio y RR. HH. (20261030790000: RR. HH. recibe solo lo de su empresa); la base lo vuelve a exigir
+  if (!sesion.orgId || (esRolEmpresa(sesion.rol) && sesion.rol !== "gerente_empresa")) return { ok: false, mensaje: "Su usuario no recibe avisos en el celular." };
+  const empresa = esRolEmpresa(sesion.rol);
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("guardar_suscripcion_push", {
     p_org: sesion.orgId, p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_equipo: s.equipo.slice(0, 120), p_clave: claveAvisos(),
   });
   if (error) return { ok: false, mensaje: error.message };
-  return { ...(await probarAviso(s.endpoint, s.prueba, "Avisos activos", "Así te llegarán los avisos de RR. HH. y de la campana.")), guardada: true };
+  return { ...(await probarAviso(s.endpoint, s.prueba, "Avisos activos", empresa ? "Así le llegarán las citas confirmadas, los cambios de hora y las respuestas del servicio médico." : "Así te llegarán los avisos de RR. HH. y de la campana.", empresa ? "/portal" : "/panel")), guardada: true };
 }
 
 // Aviso de prueba a este celular (el usuario solo lee sus propias suscripciones)
-export async function probarAviso(endpoint: string, prueba?: string, titulo = "Aviso de prueba", cuerpo = "Si ves esto, los avisos funcionan en este celular."): Promise<Resultado> {
+export async function probarAviso(endpoint: string, prueba?: string, titulo = "Aviso de prueba", cuerpo = "Si ves esto, los avisos funcionan en este celular.", ruta = "/panel"): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { data } = await supabase.from("suscripciones_push").select("endpoint, p256dh, auth").eq("endpoint", endpoint);
   if (!data?.length) return { ok: false, mensaje: "Este celular no tiene avisos activos." };
-  const { enviados, vencidos, fallo } = await enviarPush(data, { titulo, cuerpo, ruta: "/panel", prueba: prueba?.slice(0, 40) });
+  const { enviados, vencidos, fallo } = await enviarPush(data, { titulo, cuerpo, ruta: /^\/(?!\/)/.test(ruta) ? ruta : "/panel", prueba: prueba?.slice(0, 40) });
   if (vencidos.length) await supabase.from("suscripciones_push").delete().in("endpoint", vencidos);
   return enviados ? { ok: true, mensaje: "Aviso de prueba enviado." }
     : { ok: false, mensaje: "No se pudo enviar el aviso a este celular. Toca «Desactivar» y vuelve a activarlos.", detalle: fallo ? `el servicio de avisos respondió ${fallo.slice(0, 80)}` : undefined };

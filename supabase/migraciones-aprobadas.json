@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261031-16",
-  "aprobado": "Cesar, sí del 2026-10-31 13:49 UTC",
+  "etiqueta": "migraciones-20261104-17",
+  "aprobado": "Cesar, sí del 2026-11-04 21:42 UTC",
   "migraciones": [
     {
-      "archivo": "20261030790000_disponibilidad_citas.sql",
-      "sha256": "aa389b6c3b9e992d356aba18de00cac8874e24623f9e8fc4d66ec4deb02c6a05",
-      "descripcion": "Disponibilidad para citas de RR. HH.: horario con cupos, bloqueos y choques"
+      "archivo": "20261030795000_papelera_admin.sql",
+      "sha256": "42e1c1474e5b2e4e3cbc152ab37b622a1ba47f0562b0a3205b39348b040f7fce",
+      "descripcion": "Papelera del administrador: eliminar consultas y trabajadores con Deshacer"
     }
   ]
 }
