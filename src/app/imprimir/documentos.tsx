@@ -65,11 +65,13 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
         ) : (
           <p>Sin clasificación de aptitud.</p>
         )}
-        <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[10.5px] text-doc-tenue">
-          {(Object.keys(etiquetas) as Aptitud[]).filter((k) => k !== clase).map((k) => (
+        {/* Con un resultado elegido, las demás opciones no aplican y no se imprimen (pedido de Cesar, 03-nov);
+            sin resultado quedan las casillas en blanco para marcar a mano */}
+        {!clase && <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[10.5px] text-doc-tenue">
+          {(Object.keys(etiquetas) as Aptitud[]).map((k) => (
             <span key={k} className="before:mr-1.5 before:inline-block before:size-2.5 before:rounded-[2px] before:border before:border-[#9aa7a4] before:align-[-1px]">{etiquetas[k]}</span>
           ))}
-        </div>
+        </div>}
       </Bloque>
       {apt.limitaciones.length > 0 && !d.sin.includes("limitaciones") && <Bloque titulo="Restricciones">{apt.limitaciones.join(" · ")}</Bloque>}
       {!d.sin.includes("riesgos") && <BloqueRiesgos riesgos={d.trabajador.riesgos} ajustes={a} />}

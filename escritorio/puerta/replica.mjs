@@ -18,6 +18,7 @@ const esDemora = (e) => e?.code === "57014" || e?.name === "TimeoutError" || /st
 // base cortó la conexión en un respaldo o restauración): esos se reintentan en el ciclo siguiente (Arquitecto).
 const esDeLaBase = (e) => /^[0-9A-Z]{5}$/.test(e?.code || "") && !/^(40|57)/.test(e.code);
 const APARTADAS_POR_CICLO = 50;
+const CATALOGOS_CADA_MS = 120e3; // revisión de la huella de los catálogos (performance.now(): la fecha de Windows cambia)
 
 // Lo que ve la persona en el botón «Sincronizar ahora»: qué falló, en palabras simples (sin el texto técnico, que
 // puede traer datos del paciente)
@@ -41,7 +42,14 @@ export class Replica {
     this.motivo = null; // el error de arriba en palabras para la persona
     this.lote = LOTE_MAX;
     this.progreso = null; // durante la copia completa: { hechas, total, filas } para la primera pantalla
+    this.catalogosEn = -1e9; // última revisión de la huella de los catálogos (performance.now())
+    this.catalogosYa = false; // una escritura en la nube pide revisarlos en el próximo ciclo, sin esperar
+    this.sinHuella = false; // la nube aún no tiene huella_catalogos (migración sin aplicar): se avisa una vez
   }
+
+  // Tras guardar algo en la nube (ajustes de la organización, firma y sello, listas): que el próximo ciclo revise
+  // los catálogos, así la copia local no se queda con lo de antes
+  revisarCatalogos() { this.catalogosYa = true; }
 
   // Usuario cuya sesión baja los datos: el último interno con sesión válida en la nube.
   usuarioSincronia() {
@@ -75,6 +83,7 @@ export class Replica {
       await this.#vigilarPermisos(uid);
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
+      await this.#refrescarCatalogos(c, uid);
       await this.#reintentarApartadas(uid);
       this.ultima = this.nube.reloj.iso();
       this.ultimaMs = performance.now();
@@ -158,8 +167,64 @@ export class Replica {
     // Queda con hechas = total: la pantalla llega al final antes de abrir la app
     this.estado.d.cursor = seq ?? 0;
     this.estado.d.copiaCompleta = this.nube.reloj.iso();
+    this.estado.d.huellaCatalogos = {};
     this.estado.guardar();
     this.registro(`[réplica] copia completa lista (${tablas.length} tablas)`);
+  }
+
+  // Catálogos (organización, perfiles con firma y sello, listas…): no viajan por cambios_desde. Antes bajaban solo en la
+  // copia completa y un cambio posterior no llegaba nunca a la PC (04-nov-2026: «Firmar y cerrar» imprimía sin firma ni
+  // sello). Cada 2 min, o tras una escritura en la nube, se pide la huella de cada catálogo (unos bytes) y se vuelve a
+  // bajar solo el que cambió, entero: se reemplazan sus filas y se quitan las que ya no están en la nube.
+  async #refrescarCatalogos(c, uid) {
+    if (!this.catalogosYa && performance.now() - this.catalogosEn < CATALOGOS_CADA_MS) return;
+    const eq = this.estado.d.equipo;
+    let huellas;
+    try {
+      huellas = await this.nube.rpc(uid, "huella_catalogos", { p_equipo: eq.id, p_secreto: eq.secreto }, { opcional: true });
+    } catch (e) {
+      if (e?.status === 404 || e?.code === "PGRST202") {
+        if (!this.sinHuella) this.registro("[réplica] la nube aún no tiene huella_catalogos: los catálogos bajan solo en la copia completa");
+        this.sinHuella = true;
+        this.catalogosEn = performance.now();
+        this.catalogosYa = false;
+        return;
+      }
+      throw e;
+    }
+    const antes = (this.estado.d.huellaCatalogos ??= {});
+    for (const [tabla, huella] of Object.entries(huellas || {})) {
+      if (!CATALOGOS.includes(tabla) || antes[tabla] === huella) continue;
+      const filas = [];
+      let despues = null;
+      for (;;) {
+        const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
+        filas.push(...r.filas);
+        if (!r.ultimo || r.filas.length < 2000) break;
+        despues = r.ultimo;
+      }
+      const t = this.#seguro(tabla);
+      const conId = await this.#tieneId(c, t);
+      await c.query("begin");
+      try {
+        if (conId) {
+          await c.query(`delete from ${t} where not (id = any($1::uuid[]))`, [filas.map((f) => f.id)]);
+          if (filas.length) await this.#insertar(c, t, filas);
+        } else {
+          await c.query(`delete from ${t}`);
+          if (filas.length) await this.#insertar(c, t, filas);
+        }
+        await c.query("commit");
+      } catch (e) {
+        await c.query("rollback").catch(() => {});
+        throw e;
+      }
+      antes[tabla] = huella;
+      this.estado.guardar();
+      this.registro(`[réplica] catálogo ${tabla} al día (${filas.length} filas)`);
+    }
+    this.catalogosEn = performance.now();
+    this.catalogosYa = false;
   }
 
   async #cambios(c, uid) {

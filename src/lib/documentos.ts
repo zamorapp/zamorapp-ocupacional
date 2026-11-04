@@ -24,6 +24,9 @@ export type AjustesDocumentos = {
   certificado_nota?: string | null;
   firma_sello_separados?: boolean;
   membrete_lema?: string | null;
+  // Membrete: el médico titular va primero (p. ej. «Dr. …») y debajo su especialidad y universidades
+  membrete_titular?: string | null;
+  membrete_credenciales?: string | null;
   certificacion_trabajador?: string | null;
   // Imprimir por defecto también la copia de la constancia para el servicio médico (cada impresión lo puede cambiar)
   constancia_copia?: boolean;

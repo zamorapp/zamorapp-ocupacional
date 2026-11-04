@@ -892,6 +892,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         if (enLinea && await aLaNube(req, res, crudo, quien.uid)) {
           if (ruta.startsWith("/rest/v1/") && !lectura) {
             ultimaEscritura = performance.now();
+            replica.revisarCatalogos?.(); // si tocó un catálogo (ajustes, firma y sello, listas), que la copia lo traiga ya
             replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
           }
           await adjuntos.alBorrar(req, crudo, res.statusCode);

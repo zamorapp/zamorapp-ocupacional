@@ -235,6 +235,9 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)
       celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
+      // Membrete: titular y su especialidad van antes del nombre del servicio en todos los impresos (vacío = no salen)
+      membrete_titular: texto(datos, "membrete_titular")?.slice(0, 80) ?? null,
+      membrete_credenciales: texto(datos, "membrete_credenciales")?.slice(0, 160) ?? null,
       // Invitación de RR. HH.: «Le invita el Dr. …» (vacío = el nombre del servicio)
       invita_como: texto(datos, "invita_como")?.slice(0, 120) ?? null,
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),

@@ -33,6 +33,8 @@ type Ajustes = {
   dias_equipo_confianza?: number;
   celda_minima_empresa?: number;
   membrete_lema?: string | null;
+  membrete_titular?: string | null;
+  membrete_credenciales?: string | null;
   invita_como?: string | null;
   certificacion_trabajador?: string | null;
   vigilancia_poblacion?: "efectivos" | "todos";
@@ -65,6 +67,8 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
             <Campo id="correo" etiqueta="Correo" type="email" defaultValue={org.correo ?? ""} />
             <CampoDireccion defaultValue={org.direccion ?? ""} />
+            <Campo id="membrete_titular" etiqueta="Médico titular (debajo del nombre del servicio)" defaultValue={a.membrete_titular ?? ""} placeholder="Dr. Nombre Apellido" />
+            <Campo id="membrete_credenciales" etiqueta="Especialidad del titular" defaultValue={a.membrete_credenciales ?? ""} placeholder="Especialista en Medicina del Trabajo (Universidad)" />
             <Campo id="membrete_lema" etiqueta="Lema bajo el nombre (membrete)" defaultValue={a.membrete_lema ?? ""} placeholder="Servicios en Medicina Ocupacional · Ergonomía" className="sm:col-span-2" />
           </CardContent>
         </Card>
