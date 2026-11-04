@@ -44,10 +44,10 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-sidebar lg:block">
-        <BarraLateral organizacion={sesion.organizacion} portal={portal} />
+        <BarraLateral organizacion={sesion.organizacion} titular={sesion.titular} portal={portal} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <Encabezado usuario={usuario} empresas={opciones} empresaActiva={activa} organizacion={sesion.organizacion} portal={portal} />
+        <Encabezado usuario={usuario} empresas={opciones} empresaActiva={activa} organizacion={sesion.organizacion} titular={sesion.titular} portal={portal} />
         <AvisoActualizar />
         {!portal && <AvisoHello />}
         {!portal && <AvisoConflictos />}

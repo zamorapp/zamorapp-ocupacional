@@ -11,9 +11,9 @@ import { type Seccion, SECCIONES, SECCIONES_EMPRESA, seccionesPorGrupo } from "@
 import { cn } from "@/lib/utils";
 import { alPasar, IconoEnlace } from "./icono-enlace";
 
-type Props = { organizacion: string; portal?: boolean; alNavegar?: () => void };
+type Props = { organizacion: string; titular?: string | null; portal?: boolean; alNavegar?: () => void };
 
-export function BarraLateral({ organizacion, portal = false, alNavegar }: Props) {
+export function BarraLateral({ organizacion, titular, portal = false, alNavegar }: Props) {
   const ruta = usePathname();
   const secciones = portal ? SECCIONES_EMPRESA : SECCIONES;
   const [aviso, setAviso] = useState("");
@@ -100,9 +100,10 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
         </div>
       )}
       <div className="m-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        {organizacion}
-        <br />
-        {portal ? "Portal de empresas" : "Proveedor de salud ocupacional"}
+        <p className="font-medium text-foreground">{organizacion}</p>
+        {/* El titular sale de Configuración › Organización › «Médico titular»; vacío = no sale */}
+        {titular && <p className="mt-0.5 font-medium text-foreground" data-titular>{titular}</p>}
+        <p className="mt-0.5">{portal ? "Portal de empresas" : "Proveedor de salud ocupacional"}</p>
       </div>
     </div>
   );
