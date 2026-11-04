@@ -91,7 +91,7 @@ export function BarraLateral({ organizacion, titular, portal = false, alNavegar 
       <div className="m-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">{organizacion}</p>
         {/* El titular sale de Configuración › Organización › «Médico titular»; vacío = no sale */}
-        {titular && <p className="mt-0.5 font-medium text-primary" data-titular>{titular}</p>}
+        {titular && <p className="mt-0.5 font-medium text-foreground" data-titular>{titular}</p>}
         <p className="mt-0.5">{portal ? "Portal de empresas" : "Proveedor de salud ocupacional"}</p>
       </div>
     </div>
