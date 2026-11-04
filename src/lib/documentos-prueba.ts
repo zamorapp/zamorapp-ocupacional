@@ -53,7 +53,10 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
       empresa: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.",
       empresaId: "00000000-0000-4000-8000-000000000003",
       cargo: largo ? "Supervisora de Operaciones de Planta y Control de Calidad" : "Operadora",
-      riesgos: { fisicos: ["Ruido", "Calor"], ergonomicos: ["Levantamiento de cargas", "Posturas forzadas"] },
+      // Claves de GRUPOS_RIESGO (lib/pacientes): con «fisicos» no se imprimían y la prueba no veía el peor caso
+      riesgos: largo
+        ? { fisico: ["Ruido", "Calor", "Vibraciones"], quimico: ["Polvos", "Solventes"], mecanico: ["Atrapamiento", "Caídas al mismo nivel"], disergonomico: ["Levantamiento de cargas", "Posturas forzadas", "Movimientos repetitivos"], psicosocial: ["Trabajo por turnos"] }
+        : { fisico: ["Ruido", "Calor"], disergonomico: ["Levantamiento de cargas", "Posturas forzadas"] },
     },
     medico: "Dr. Médico de Prueba",
     medicoId: "00000000-0000-4000-8000-000000000004",
@@ -62,11 +65,13 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
     nueva: false,
     org: {
       nombre: "OcupaVida Salud Ocupacional", rif: "J-00000000-0", direccion: texto("Av. Principal, Maturín, estado Monagas.", largo ? 2 : 1),
-      telefono: "0291-0000000", correo: "consultorio@ejemplo.com", logo: logo("OcupaVida", "#0f766e"), ajustes: {},
+      telefono: "0291-0000000", correo: "consultorio@ejemplo.com", logo: logo("OcupaVida", "#0f766e"),
+      // Titular primero en el membrete (como lo pidió Cesar): la prueba mide con el membrete más alto
+      ajustes: { membrete_titular: "Dr. Nombre de Prueba", membrete_credenciales: "Especialista en Medicina del Trabajo, mención Salud Ocupacional (UDO – UNEG)" },
     },
     medicoDatos: {
       nombre_completo: "Dr. Médico de Prueba", cedula: "V-9.999.999", mpps: "12345", colegio_medicos: "6789", registro_inpsasel: "INP-001",
-      especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false,
+      especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: logo("Firma", "#15201e"), sello_url: logo("Sello", "#1d4ed8"), mostrar_firma: true, mostrar_sello: true,
     },
     motivo: { nombre: "Periódico", codigo: "PER", grupo: "preventivo" },
     empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8") },

@@ -1,4 +1,4 @@
--- zamorApp Ocupacional · Firma y sello del médico en la copia del escritorio
+-- zamorApp Ocupacional · Firma y sello del médico en la copia del escritorio, y titular en el membrete
 -- Causa (04-nov-2026): «Firmar y cerrar» en el escritorio imprimía sin firma ni sello. La copia local de perfiles
 -- se baja con instantanea(), que solo lleva las columnas que el rol puede leer, y firma_url/sello_url no se leen
 -- directo desde 20261026007000 (firma privada). La PC quedaba con firma_url nula y su firma_sello() local no
@@ -67,3 +67,12 @@ begin
 end $$;
 revoke execute on function public.huella_catalogos(uuid, text) from public, anon;
 grant execute on function public.huella_catalogos(uuid, text) to authenticated;
+
+-- Membrete (pedido de Cesar, 03-nov-2026): el titular va primero en todos los impresos. Es un dato de la organización
+-- (Configuración › Organización › «Médico titular»): aquí solo se carga una vez para la organización de ese RIF si
+-- todavía no lo tiene; después se edita desde la pantalla.
+update public.organizaciones
+   set ajustes = coalesce(ajustes, '{}') || jsonb_build_object(
+         'membrete_titular', 'Dr. César Zamora',
+         'membrete_credenciales', 'Especialista en Medicina del Trabajo, mención Salud Ocupacional (UDO – UNEG)')
+ where rif = 'V-13475931-0' and not coalesce(ajustes, '{}') ? 'membrete_titular';

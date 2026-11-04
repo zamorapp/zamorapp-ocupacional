@@ -1,4 +1,5 @@
 import localFont from "next/font/local";
+import { AjusteHojas } from "./ajuste-hojas";
 
 // Fuentes dentro del repo (sin Google Fonts al compilar). Tipografía propia de los documentos impresos: Public Sans (texto) e IBM Plex Mono (folios, fechas y cifras)
 const publicSans = localFont({ variable: "--font-public-sans", src: "../../fuentes/public-sans.woff2", weight: "100 900" });
@@ -11,5 +12,5 @@ const plexMono = localFont({
 });
 
 export default function LayoutImprimir({ children }: { children: React.ReactNode }) {
-  return <div className={`${publicSans.variable} ${plexMono.variable}`}>{children}</div>;
+  return <div className={`${publicSans.variable} ${plexMono.variable}`}>{children}<AjusteHojas /></div>;
 }
