@@ -1,6 +1,6 @@
 {
   "etiqueta": "migraciones-20261104-18",
-  "aprobado": "Cesar, sí del 2026-11-04 21:42-22:10 UTC (nómina, recomendaciones, ergonomía, reintento de correos de citas)",
+  "aprobado": "Cesar, sí del 2026-11-04 21:42-22:15 UTC (nómina, recomendaciones, ergonomía, reintento de correos, riesgos del puesto, vademécum 2026)",
   "migraciones": [
     {
       "archivo": "20261030796000_actualizar_nomina.sql",
@@ -26,6 +26,16 @@
       "archivo": "20261030802000_reintento_correo_propuesta.sql",
       "sha256": "ab2ec8b213d0adec6323f5465d5205f66956ebc1a630db56c8ac9b5242e6deb0",
       "descripcion": "Correos de citas con reintento y límite (cierra reenvío sin límite)"
+    },
+    {
+      "archivo": "20261030830000_riesgos_consulta.sql",
+      "sha256": "0e7aded16f994d9d07270042c780cb6f50c945511dbbe17ba21b87d2ad493a93",
+      "descripcion": "Riesgos del puesto con botones en la consulta"
+    },
+    {
+      "archivo": "20261030870000_vademecum_2026.sql",
+      "sha256": "8f439f3a6a825165fd0c05cb1700d6ba67268edac1c3694a4f9da4ba9381e58f",
+      "descripcion": "Vademécum 2026: fármacos de Venezuela y búsqueda por marca"
     }
   ]
 }
