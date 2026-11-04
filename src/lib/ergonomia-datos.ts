@@ -141,3 +141,20 @@ export async function puestosPorEmpresa(): Promise<Record<string, { id: string; 
   for (const p of data ?? []) (r[p.empresa_id as string] ??= []).push({ id: p.id as string, nombre: p.nombre as string, tareas: (p.tareas as string | null) ?? "" });
   return r;
 }
+
+// La empresa (RR. HH., supervisor, delegado, auditor) no lee la tabla: solo la vista con las cerradas de sus empresas,
+// sin datos del método, sin fotos y con los hallazgos de RR. HH. (Cesar, 04-nov)
+export async function obtenerEvaluacionEmpresa(id: string): Promise<Evaluacion | null> {
+  if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("evaluaciones_ergonomicas_rrhh")
+    .select("id, empresa_id, puesto, tarea, metodo, fecha, trabajadores_observados, nivel, hallazgos, conclusion, evaluado_por, cerrada_en")
+    .eq("id", id).maybeSingle();
+  if (error) throw new Error(`No se pudo leer la evaluación: ${error.message}`);
+  if (!data) return null;
+  const f = data as unknown as Fila;
+  return {
+    ...convertir({ ...f, empresas: null, puesto_id: null, lado: null, datos: {}, fotos: [], observaciones: null, estado: "cerrada" } as Fila),
+    resultado: f.nivel ? { nivel: f.nivel as string } : {},
+  };
+}

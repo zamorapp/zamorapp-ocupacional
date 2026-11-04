@@ -43,6 +43,7 @@ exception when insufficient_privilege then null; end $$;
 -- RR. HH. de A no ve el borrador ni puede escribir
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. no ve el borrador (debe 0): ' || count(*) from public.evaluaciones_ergonomicas;
+select 'RR. HH. no ve el borrador en su vista (debe 0): ' || count(*) from public.evaluaciones_ergonomicas_rrhh;
 select 'RR. HH. no ve la foto del borrador (debe 0): ' || count(*) from storage.objects where bucket_id='ergonomia';
 do $$ begin
   insert into public.evaluaciones_ergonomicas (org_id, empresa_id, puesto, metodo) values
@@ -74,7 +75,11 @@ do $$ begin
 exception when insufficient_privilege then null; end $$;
 
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
-select 'RR. HH. ve la cerrada y su foto (debe 2): ' || ((select count(*) from public.evaluaciones_ergonomicas) + (select count(*) from storage.objects where bucket_id='ergonomia'));
+select 'RR. HH. no lee la tabla ni las fotos, ni cerrada (debe 0): ' || ((select count(*) from public.evaluaciones_ergonomicas) + (select count(*) from storage.objects where bucket_id='ergonomia'));
+select 'RR. HH. ve la cerrada en su vista, sin hallazgos de otros departamentos (debe 1): ' || count(*) from public.evaluaciones_ergonomicas_rrhh
+ where id='18400000-0000-0000-0000-0000000000e1' and jsonb_array_length(hallazgos) = 0;
+select 'la vista de la empresa no tiene datos, resultado, fotos ni observaciones (debe 0): ' || count(*) from information_schema.columns
+ where table_schema='public' and table_name='evaluaciones_ergonomicas_rrhh' and column_name in ('datos','resultado','fotos','observaciones');
 do $$ begin
   update public.evaluaciones_ergonomicas set observaciones='x';
   if found then raise notice 'RR. HH. cambia la evaluación: FALLA'; end if;
