@@ -71,9 +71,14 @@ function limpiar(metodo: ClaveMetodo, x: Cambios, carpeta: string) {
   };
 }
 
-export async function guardarEvaluacion(id: string, metodo: ClaveMetodo, x: Cambios, cerrar = false): Promise<Resultado> {
+export async function guardarEvaluacion(id: string, x: Cambios, cerrar = false): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
+  // El método sale de la evaluación guardada, nunca del navegador
+  const { data: actual, error: errLeer } = await c.supabase.from("evaluaciones_ergonomicas").select("metodo").eq("id", id).maybeSingle();
+  if (errLeer) return { ok: false, mensaje: explicar(errLeer) };
+  if (!actual) return { ok: false, mensaje: SIN_FILA };
+  const metodo = actual.metodo as ClaveMetodo;
   // Solo fotos de la carpeta de ESTA evaluación (<org>/<evaluación>/…): no se puede enlazar la foto de otra
   const campos = limpiar(metodo, x, `${c.sesion.orgId}/${id}/`);
   if (!campos.puesto) return { ok: false, mensaje: "Escribe el nombre del puesto." };

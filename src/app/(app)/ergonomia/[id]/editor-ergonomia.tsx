@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  CLASE_URGENCIA, DEPARTAMENTOS, metodoDe, NOMBRE_DEPTO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
+  CLASE_URGENCIA, DEPARTAMENTOS, metodoDe, NOMBRE_DEPTO, SIN_LADO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
   type Departamento, type Hallazgo, type Metodo,
 } from "@/lib/ergonomia";
 import type { Evaluacion, Foto } from "@/lib/ergonomia-datos";
@@ -53,7 +53,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     const t = setTimeout(async () => {
       setEstado({ tipo: "guardando", texto: "Guardando…" });
       try {
-        const r = await guardarEvaluacion(ev.id, ev.metodo, x);
+        const r = await guardarEvaluacion(ev.id, x);
         if (n === vuelta.current) setEstado(r.ok ? { tipo: "ok", texto: "Guardado" } : { tipo: "error", texto: r.mensaje });
       } catch {
         if (n === vuelta.current) setEstado({ tipo: "error", texto: "No se pudo guardar (¿sin conexión?). Tus cambios siguen aquí: se guardan al volver la conexión con cualquier cambio o con «Guardar»." });
@@ -98,14 +98,14 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
       <div className="min-w-0 space-y-6">
         {/* Datos del puesto */}
         <section className="grid grid-cols-1 gap-3 rounded-xl border p-4 sm:grid-cols-4">
-          <div className="sm:col-span-2"><Label className="mb-1.5">Puesto</Label><Input disabled={!editable} value={x.puesto} onChange={(e) => set("puesto", e.target.value)} /></div>
+          <div className={SIN_LADO.includes(ev.metodo) ? "sm:col-span-3" : "sm:col-span-2"}><Label className="mb-1.5">Puesto</Label><Input disabled={!editable} value={x.puesto} onChange={(e) => set("puesto", e.target.value)} /></div>
           <div><Label className="mb-1.5">Fecha</Label><Input type="date" disabled={!editable} value={x.fecha} onChange={(e) => set("fecha", e.target.value)} /></div>
-          <div>
+          {!SIN_LADO.includes(ev.metodo) && <div>
             <Label className="mb-1.5">Lado evaluado</Label>
             <select disabled={!editable} value={x.lado ?? ""} onChange={(e) => set("lado", (e.target.value || null) as Cambios["lado"])} className={SELECT}>
               <option value="">—</option><option value="derecho">Derecho</option><option value="izquierdo">Izquierdo</option><option value="ambos">Ambos</option>
             </select>
-          </div>
+          </div>}
           <div className="sm:col-span-3"><Label className="mb-1.5">Tarea observada</Label><Input disabled={!editable} value={x.tarea} onChange={(e) => set("tarea", e.target.value)} /></div>
           <div><Label className="mb-1.5">Trabajadores expuestos</Label><Input type="number" min={0} disabled={!editable} value={x.trabajadoresObservados ?? ""} onChange={(e) => set("trabajadoresObservados", e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))))} /></div>
         </section>
@@ -132,7 +132,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                       const n = p.numero;
                       return (
                         <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm">{p.texto}</span>
+                          <span className="min-w-0 flex-1 text-sm">{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
                           <span className="flex items-center gap-1.5">
                             <Input
                               type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
@@ -280,6 +280,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
               <span className="font-cifra text-5xl font-semibold leading-none">{resultado.completo ? (resultado.texto ?? resultado.puntaje) : "—"}</span>
               {!resultado.texto && <span className="pb-1 text-sm text-muted-foreground">de {resultado.maximo}</span>}
             </div>
+            {resultado.completo && resultado.subtexto && <div className="mt-1.5 text-sm text-muted-foreground">{resultado.subtexto}</div>}
             {resultado.completo ? (
               <>
                 <div className={cn("mt-3 rounded-lg px-3 py-2 text-sm font-medium", CLASE_URGENCIA[resultado.urgencia])}>{resultado.nivel}</div>
@@ -320,14 +321,14 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           )}
           {editable && (
             <>
-              <Button className="w-full" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>{ocupado || estado?.tipo === "guardando" ? <><Loader2 className="animate-spin" /> Guardando</> : estado?.tipo === "ok" || !estado ? <><Check /> Guardado</> : "Guardar ahora"}</Button>
+              <Button className="w-full" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, x))}>{ocupado || estado?.tipo === "guardando" ? <><Loader2 className="animate-spin" /> Guardando</> : estado?.tipo === "ok" || !estado ? <><Check /> Guardado</> : "Guardar ahora"}</Button>
               <Button
                 variant="outline"
                 className="w-full"
                 disabled={ocupado}
                 onClick={async () => {
                   if (!(await confirmar({ titulo: "¿Cerrar la evaluación?", texto: "Queda como informe entregado: ya no se cambia (solo las observaciones). Un administrador o el gerente médico pueden reabrirla.", accion: "Cerrar evaluación" }))) return;
-                  accion(() => guardarEvaluacion(ev.id, ev.metodo, x, true));
+                  accion(() => guardarEvaluacion(ev.id, x, true));
                 }}
               >
                 <Lock /> Cerrar evaluación
@@ -371,7 +372,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
             {estado?.tipo === "error" && <span className="block truncate text-xs">{estado.texto}</span>}
           </div>
           {editable && (
-            <Button size="sm" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} className="shrink-0 bg-background text-foreground" disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>
+            <Button size="sm" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} className="shrink-0 bg-background text-foreground" disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, x))}>
               {ocupado || estado?.tipo === "guardando" ? <><Loader2 className="animate-spin" /> Guardando</> : estado?.tipo === "ok" || !estado ? <><Check /> Guardado</> : "Guardar ahora"}
             </Button>
           )}

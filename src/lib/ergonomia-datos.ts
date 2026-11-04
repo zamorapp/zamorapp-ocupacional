@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import { NIOSH, proponerHallazgos, RULA, type ClaveMetodo, type Hallazgo, type Respuestas, type Resultado } from "@/lib/ergonomia";
+import { NIOSH, proponerHallazgos, ROSA, RULA, type ClaveMetodo, type Hallazgo, type Respuestas, type Resultado } from "@/lib/ergonomia";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Foto = { ruta: string; nota: string };
@@ -54,12 +54,24 @@ const convertir = (f: Fila): Evaluacion => ({
 // Modo demo: una evaluación RULA de ejemplo (cajera) para conocer la pantalla sin datos reales
 export const ID_DEMO = "00000000-0000-4000-8000-00000000e601";
 export const ID_DEMO_NIOSH = "00000000-0000-4000-8000-00000000e602";
+export const ID_DEMO_ROSA = "00000000-0000-4000-8000-00000000e603";
+function demoRosa(): Evaluacion {
+  // Secretaria con silla sin ajustes y pantalla baja: segunda opción de cada pregunta
+  const datos: Respuestas = {};
+  for (const s of ROSA.secciones) for (const p of s.preguntas) datos[p.clave] = (p.opciones[1] ?? p.opciones[0]).valor;
+  const resultado = ROSA.calcular(datos);
+  let n = 0;
+  return {
+    ...demo(), id: ID_DEMO_ROSA, puesto: "Secretaria", tarea: "Trabajo en computadora y atención telefónica", metodo: "rosa", lado: null, trabajadoresObservados: 4,
+    datos, resultado, hallazgos: proponerHallazgos(ROSA, resultado, [], () => `dr${++n}`),
+  };
+}
 function demoNiosh(): Evaluacion {
   const datos = { carga: 25, h: 45, v: 20, d: 90, a: 45, frecuencia: 2, duracion: 3, agarre: 1 };
   const resultado = NIOSH.calcular(datos);
   let n = 0;
   return {
-    ...demo(), id: ID_DEMO_NIOSH, puesto: "Almacenista", tarea: "Carga de sacos de harina al camión", metodo: "niosh", lado: "ambos", trabajadoresObservados: 6,
+    ...demo(), id: ID_DEMO_NIOSH, puesto: "Almacenista", tarea: "Carga de sacos de harina al camión", metodo: "niosh", lado: null, trabajadoresObservados: 6,
     datos, resultado, hallazgos: proponerHallazgos(NIOSH, resultado, [], () => `dn${++n}`),
   };
 }
@@ -76,7 +88,7 @@ function demo(): Evaluacion {
 }
 
 export async function listarEvaluaciones(empresaId?: string | null): Promise<Evaluacion[]> {
-  if (!supabaseConfigurado) return [demo(), demoNiosh()];
+  if (!supabaseConfigurado) return [demo(), demoNiosh(), demoRosa()];
   const supabase = await crearClienteServidor();
   let q = supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(300);
   if (empresaId) q = q.eq("empresa_id", empresaId);
@@ -86,7 +98,7 @@ export async function listarEvaluaciones(empresaId?: string | null): Promise<Eva
 }
 
 export async function obtenerEvaluacion(id: string): Promise<Evaluacion | null> {
-  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : null;
+  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : id === ID_DEMO_ROSA ? demoRosa() : null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).eq("id", id).maybeSingle();

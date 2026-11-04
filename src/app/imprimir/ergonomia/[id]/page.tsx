@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
-import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
+import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SIN_LADO, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
@@ -91,9 +91,14 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
           celdas={[
             { k: "Puesto", v: ev.puesto, ancho: 2, destacada: true },
             { k: "Tarea observada", v: ev.tarea || "—", ancho: 2 },
-            { k: "Lado evaluado", v: ev.lado ? ev.lado[0].toUpperCase() + ev.lado.slice(1) : "—" },
-            { k: "Trabajadores expuestos", v: ev.trabajadoresObservados ?? "—" },
-            { k: metodo ? `Resultado ${metodo.corto}` : "Riesgo máximo", v: r?.completo ? `${r.texto ?? `${r.puntaje} de ${r.maximo}`} · ${r.nivel}` : max ? `${max.texto} (${max.n})` : "—", ancho: 2 },
+            ...(SIN_LADO.includes(ev.metodo) ? [] : [{ k: "Lado evaluado", v: ev.lado ? ev.lado[0].toUpperCase() + ev.lado.slice(1) : "—" }]),
+            { k: "Trabajadores expuestos", v: ev.trabajadoresObservados ?? "—", ancho: SIN_LADO.includes(ev.metodo) ? 2 as const : undefined },
+            {
+              k: metodo ? `Resultado ${metodo.corto}` : "Riesgo máximo", ancho: 2,
+              v: r?.completo
+                ? <>{r.texto ?? `${r.puntaje} de ${r.maximo}`} · {r.nivel}{r.subtexto && <span className="block text-[10px] font-normal">{r.subtexto}</span>}</>
+                : max ? `${max.texto} (${max.n})` : "—",
+            },
           ]}
         />
 

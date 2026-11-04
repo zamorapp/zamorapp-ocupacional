@@ -41,6 +41,8 @@ export type Resultado = {
   completo: boolean;
   /** Cómo se muestra el puntaje cuando no es «N de M» (NIOSH: «IL 1,45») */
   texto?: string;
+  /** Línea bajo el puntaje (NIOSH: «Carga 25 kg · límite recomendado 4,9 kg») */
+  subtexto?: string;
 };
 
 export type Metodo = {
@@ -561,10 +563,10 @@ export const NIOSH: Metodo = {
       titulo: "Posición al levantar (origen)",
       zona: "tronco",
       preguntas: [
-        { clave: "h", texto: "Distancia horizontal de las manos al punto medio entre los tobillos", opciones: [], numero: { min: 0, max: 100, unidad: "cm" } },
-        { clave: "v", texto: "Altura de las manos al inicio, desde el suelo", opciones: [], numero: { min: 0, max: 200, unidad: "cm" } },
-        { clave: "d", texto: "Recorrido vertical de la carga (diferencia de altura origen–destino)", opciones: [], numero: { min: 0, max: 200, unidad: "cm" } },
-        { clave: "a", texto: "Giro del tronco (asimetría)", opciones: [], numero: { min: 0, max: 180, unidad: "°" } },
+        { clave: "h", texto: "Distancia horizontal de las manos al punto medio entre los tobillos", opciones: [], numero: { min: 0, max: 100, unidad: "cm" }, ayuda: "Con cinta métrica, en el suelo: del punto medio entre los tobillos a la vertical de las manos." },
+        { clave: "v", texto: "Altura de las manos al inicio, desde el suelo", opciones: [], numero: { min: 0, max: 200, unidad: "cm" }, ayuda: "Con cinta métrica, del suelo a los nudillos al tomar la carga." },
+        { clave: "d", texto: "Recorrido vertical de la carga (diferencia de altura origen–destino)", opciones: [], numero: { min: 0, max: 200, unidad: "cm" }, ayuda: "Altura de las manos al dejar la carga menos altura al tomarla (sin signo)." },
+        { clave: "a", texto: "Giro del tronco (asimetría)", opciones: [], numero: { min: 0, max: 180, unidad: "°" }, ayuda: "Cuánto gira el tronco entre tomar y dejar: 0° de frente, 90° de lado." },
       ],
     },
     {
@@ -599,6 +601,7 @@ export const NIOSH: Metodo = {
     return {
       puntaje: r2(Math.min(il, 99)), maximo: 3, urgencia, nivel, accion, completo,
       texto: lpr > 0 ? `IL ${r2(il).toFixed(2).replace(".", ",")}` : "LPR 0",
+      subtexto: `Carga ${String(L).replace(".", ",")} kg · límite recomendado ${(Math.round(lpr * 10) / 10).toFixed(1).replace(".", ",")} kg`,
       parciales: [
         { etiqueta: "Multiplicador horizontal (HM)", valor: r2(hm) }, { etiqueta: "Multiplicador vertical (VM)", valor: r2(vm) },
         { etiqueta: "Multiplicador de distancia (DM)", valor: r2(dm) }, { etiqueta: "Multiplicador de asimetría (AM)", valor: r2(am) },
@@ -616,7 +619,9 @@ export const NIOSH: Metodo = {
 };
 
 export const METODOS: Record<"rula" | "reba" | "rosa" | "niosh", Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH };
-export const metodoDe = (clave: ClaveMetodo): Metodo | null => (clave in METODOS ? METODOS[clave as keyof typeof METODOS] : null);
+// Métodos donde el lado (derecho/izquierdo) no aplica
+export const SIN_LADO: ClaveMetodo[] = ["rosa", "niosh"];
+export const metodoDe = (clave: ClaveMetodo): Metodo | null => (Object.hasOwn(METODOS, clave) ? METODOS[clave as keyof typeof METODOS] : null);
 
 // Respuesta válida para la pregunta: una de sus opciones, o un número dentro de su rango (1 decimal)
 export function respuestaValida(m: Metodo, clave: string, valor: unknown): number | null {
