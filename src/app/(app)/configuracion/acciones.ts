@@ -188,6 +188,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)
       celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
+      // Invitación de RR. HH.: «Le invita el Dr. …» (vacío = el nombre del servicio)
+      invita_como: texto(datos, "invita_como")?.slice(0, 120) ?? null,
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
       // Informe de vigilancia: por defecto, los mismos criterios del SAME (para que la marcha en paralelo cuadre)
       vigilancia_poblacion: texto(datos, "vigilancia_poblacion") === "todos" ? "todos" : "efectivos",
@@ -277,7 +279,11 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
     const nombre = texto(datos, "nombre")?.slice(0, 120) ?? null;
     const telefono = texto(datos, "telefono")?.slice(0, 30) ?? null;
     const token = randomBytes(32).toString("base64url");
-    const { data: empresa } = await supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle();
+    const [{ data: empresa }, { data: org }] = await Promise.all([
+      supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle(),
+      supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle(),
+    ]);
+    const invita = String((org?.ajustes as { invita_como?: string | null } | null)?.invita_como ?? "").trim();
     const { error } = await supabase.from("invitaciones").insert({
       org_id: sesion.orgId,
       empresa_id: empresaId,
@@ -290,7 +296,7 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
     const enlace = `${URL_PUBLICA}/invitacion/${token}`;
     const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "su empresa";
     const mensajeWa = [
-      `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
+      `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${invita || sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
       "",
       "Son 3 pasos:",
       "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 8 letras o números):",

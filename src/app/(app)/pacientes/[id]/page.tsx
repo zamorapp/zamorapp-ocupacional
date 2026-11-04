@@ -42,6 +42,8 @@ import { ahora, hoyCaracas } from "@/lib/fecha";
 import { alertasDeTrabajador } from "@/lib/alertas";
 import { AlertasPaciente } from "./alertas-paciente";
 import { Vacaciones } from "./vacaciones";
+import { InactivarTrabajador, ReingresarTrabajador } from "./estado-laboral";
+import { periodosDeTrabajador } from "../acciones";
 import type { Vacacion } from "./vacaciones-acciones";
 
 type Props = { params: Promise<{ id: string }> };
@@ -93,9 +95,15 @@ export default async function FichaPaciente({ params }: Props) {
   // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
   const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
   // Empresa inactiva: la ficha y toda su historia se ven; para atenderlo de nuevo se pasa a una empresa activa
-  const pasarA = t.empresaInactiva && conBase && !esRolEmpresa(sesion.rol)
+  // Inactivo o egresado: «Reingresar» (misma u otra empresa) reemplaza a «Pasar a otra empresa»
+  const fuera = t.estado === "inactivo" || t.estado === "egresado";
+  const empresasActivas = conBase && !esRolEmpresa(sesion.rol) && (t.empresaInactiva || fuera)
     ? (await listarEmpresas()).map((e) => ({ id: e.id, nombre: e.razonSocial }))
     : null;
+  const pasarA = t.empresaInactiva && !fuera ? empresasActivas : null;
+  // Inactivar: lo decide el servicio de salud (la base también lo exige)
+  const puedeInactivar = conBase && !fuera && (sesion.clinico || sesion.rol === "administrador");
+  const periodos = conBase ? await periodosDeTrabajador(t.id) : [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -137,6 +145,18 @@ export default async function FichaPaciente({ params }: Props) {
             )}
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
+          {fuera && (
+            <ReingresarTrabajador
+              trabajadorId={t.id}
+              nombre={`${t.nombres} ${t.apellidos}`}
+              estado={t.estado as "inactivo" | "egresado"}
+              salida={t.fechaSalida ?? null}
+              motivo={t.motivoInactivo ?? null}
+              empresaActual={{ id: t.empresaId ?? "", nombre: t.empresa, activa: !t.empresaInactiva }}
+              empresas={empresasActivas}
+              hoy={hoyCaracas()}
+            />
+          )}
           {pasarA && (
             <div className="w-full">
               <PasarAEmpresa trabajadorId={t.id} empresaActual={t.empresa} empresas={pasarA} />
@@ -149,7 +169,7 @@ export default async function FichaPaciente({ params }: Props) {
             )}
             {!esRolEmpresa(sesion.rol) && (
               <>
-                <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
+                <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
                 {sesion.clinico && (
                   <Button variant="outline" asChild className="flex-1 xl:flex-none">
                     <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
@@ -160,6 +180,7 @@ export default async function FichaPaciente({ params }: Props) {
                     <Link href={`/imprimir/historia-laboral/${t.id}`} target="_blank"><BriefcaseBusiness /> Historia laboral</Link>
                   </Button>
                 )}
+                {puedeInactivar && <InactivarTrabajador trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} hoy={hoyCaracas()} />}
               </>
             )}
           </div>
@@ -225,6 +246,24 @@ export default async function FichaPaciente({ params }: Props) {
               ]} />
             </CardContent>
           </Card>
+          {periodos.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Empresas y períodos anteriores</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="divide-y text-sm">
+                  {periodos.map((p, i) => (
+                    <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+                      <span><span className="font-medium">{p.empresa}</span>{p.cargo && <span className="text-muted-foreground"> · {p.cargo}</span>}</span>
+                      <span className="text-muted-foreground">
+                        {p.desde ? fecha(p.desde) : "Sin fecha"} – {fecha(p.hasta)} · {p.cierre === "inactivo" ? "Inactivo" : p.cierre === "egresado" ? "Egreso" : "Cambio de empresa"}
+                        {p.motivo && ` (${p.motivo})`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader><CardTitle className="text-base">Riesgos del puesto</CardTitle></CardHeader>
             <CardContent className="space-y-3">

@@ -50,7 +50,7 @@ export async function marcarLeidas(ids: string[]) {
   await supabase.from("notificaciones").update({ leida: true }).in("id", ids);
 }
 
-export type Encontrado = { id: string; nombre: string; cedula: string; empresa: string; inactiva?: boolean };
+export type Encontrado = { id: string; nombre: string; cedula: string; empresa: string; inactiva?: boolean; inactivo?: boolean };
 
 // Buscador global (Ctrl+K): por cédula o nombre; respeta RLS, cada rol ve solo lo suyo.
 export async function buscarGlobal(texto: string): Promise<Encontrado[]> {

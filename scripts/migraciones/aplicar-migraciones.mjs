@@ -2,22 +2,35 @@
 // «migraciones-AAAAMMDD-N» del repo. Verifica el SHA-256 de cada archivo contra el manifiesto de esa etiqueta,
 // muestra la lista y pide «S» antes de tocar nada. Todo dentro de UNA transacción: o todas o ninguna.
 // No toca el SAME. El registro no lleva cédulas ni nombres.
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { MANIFIESTO, estaEnMain, leerManifiesto, lineaBase, pendientes, refsDeEtiquetas, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
+import { MANIFIESTO, etiquetasDeLsRemote, leerManifiesto, lineaBase, mensajeLimite, pendientes, resumen, respuestaSi, revisarOrden, ultimaEtiqueta, verificar } from "./aprobadas.mjs";
 
 const REPO_GITHUB = "zamorapp/zamorapp-ocupacional";
+const URL_GIT = `https://github.com/${REPO_GITHUB}.git`;
 const repo = process.cwd();
 const pg = createRequire(path.join(repo, "package.json"))("pg");
 const { configuracion } = await import(pathToFileURL(path.join(repo, "scripts", "conexion-segura.mjs")).href);
 const hora = () => new Date().toISOString();
 
-async function bajar(url, tipo = "text") {
-  const r = await fetch(url, { headers: { "User-Agent": "zamorapp-aplicar-migraciones" } });
-  if (!r.ok) throw new Error(`no se pudo bajar ${url} (HTTP ${r.status})`);
-  return tipo === "json" ? r.json() : r.text();
+const git = (...args) => execFileSync("git", args, { encoding: "utf8", windowsHide: true, maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+
+// Token opcional (GITHUB_TOKEN o el de «gh auth login»): sube el límite de GitHub si alguna vez hace falta
+function token() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim();
+  try { return execFileSync("gh", ["auth", "token"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 }).trim() || null; } catch { return null; }
+}
+const credencial = token();
+
+async function bajar(url) {
+  const r = await fetch(url, { headers: { "User-Agent": "zamorapp-aplicar-migraciones", ...(credencial ? { authorization: `Bearer ${credencial}` } : {}) } });
+  if (!r.ok) throw new Error(mensajeLimite(r.status, r.headers) ?? `no se pudo bajar ${url} (HTTP ${r.status})`);
+  return r.text();
 }
 
 // Cualquier error antes de conectar (red, etiqueta, manifiesto) sale con un mensaje claro: no se cambió nada
@@ -27,14 +40,17 @@ process.on("unhandledRejection", fallar);
 
 // La etiqueta se resuelve a su commit y todo se baja de ese commit: no cambia entre un archivo y otro.
 // Ese commit tiene que estar en main (revisado y unido): una etiqueta sobre una rama suelta no vale.
-const API = `https://api.github.com/repos/${REPO_GITHUB}`;
-const refs = refsDeEtiquetas(await bajar(`${API}/git/matching-refs/tags/migraciones-`, "json"));
+// Todo por git (ls-remote y un clon temporal solo de commits y carpetas), sin la API de GitHub.
+const refs = etiquetasDeLsRemote(git("ls-remote", "--tags", URL_GIT, "refs/tags/migraciones-*"));
 const etiqueta = ultimaEtiqueta(refs.map((r) => r.nombre));
 if (!etiqueta) throw new Error("no hay ninguna etiqueta de migraciones aprobadas en el repo");
-const ref = refs.find((r) => r.nombre === etiqueta);
-const commit = ref.tipo === "tag" ? (await bajar(`${API}/git/tags/${ref.sha}`, "json")).object.sha : ref.sha;
-if (!/^[0-9a-f]{40}$/.test(commit ?? "")) throw new Error(`la etiqueta ${etiqueta} no apunta a un commit`);
-if (!estaEnMain(await bajar(`${API}/compare/${commit}...main`, "json"))) throw new Error(`la etiqueta ${etiqueta} (${commit.slice(0, 7)}) no está en main: no se aplica nada que no esté revisado y unido`);
+const commit = refs.find((r) => r.nombre === etiqueta).commit;
+const temporal = fs.mkdtempSync(path.join(os.tmpdir(), "zamorapp-etiqueta-"));
+process.on("exit", () => fs.rmSync(temporal, { recursive: true, force: true }));
+git("init", "-q", "--bare", temporal);
+git("-C", temporal, "fetch", "-q", "--no-tags", "--filter=blob:none", URL_GIT, "+refs/heads/main:refs/heads/main", `+refs/tags/${etiqueta}:refs/tags/${etiqueta}`);
+const enMain = (() => { try { git("-C", temporal, "merge-base", "--is-ancestor", commit, "refs/heads/main"); return true; } catch { return false; } })();
+if (!enMain) throw new Error(`la etiqueta ${etiqueta} (${commit.slice(0, 7)}) no está en main: no se aplica nada que no esté revisado y unido`);
 const crudo = (ruta) => `https://raw.githubusercontent.com/${REPO_GITHUB}/${commit}/${ruta}`;
 const manifiesto = leerManifiesto(await bajar(crudo(MANIFIESTO)), etiqueta);
 console.log(`${hora()} fuente aprobada: ${etiqueta} (${commit.slice(0, 7)}), ${manifiesto.migraciones.length} migraciones en el manifiesto`);
@@ -47,7 +63,7 @@ try {
   const { rows: ya } = t.hay ? await c.query("select version from supabase_migrations.schema_migrations") : { rows: [] };
   let base = [];
   if (ya.length === 0) {
-    const nombres = (await bajar(`${API}/contents/supabase/migrations?ref=${commit}`, "json")).map((f) => f.name);
+    const nombres = git("-C", temporal, "ls-tree", "--name-only", commit, "supabase/migrations/").split("\n").filter(Boolean).map((f) => path.posix.basename(f));
     base = lineaBase(nombres, manifiesto);
     console.log(`${hora()} primera vez: el registro está vacío; con el corte ${manifiesto.linea_base_hasta} se anotarán ${base.length} cambios anteriores como ya hechos, sin ejecutarlos:`);
     console.log(base.map((x) => `    ${x.version} ${x.nombre}`).join("\n"));

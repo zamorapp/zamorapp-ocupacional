@@ -33,6 +33,11 @@ export type Trabajador = {
   telefono: string | null;
   correo: string | null;
   estado: EstadoTrabajador;
+  // Salida de la nómina: fecha de inactivo (sin egreso, p. ej. importados del SAME) o de egreso, y el motivo del inactivo
+  fechaSalida?: string | null;
+  motivoInactivo?: string | null;
+  // Inicio del período vigente (reingreso): la aptitud y los vencimientos solo cuentan desde aquí
+  periodoDesde?: string | null;
   aptitud: Aptitud | null;
   aptitudFecha: string | null;
   proximoExamen: string | null;

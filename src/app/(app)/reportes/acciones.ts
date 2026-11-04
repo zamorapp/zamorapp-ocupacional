@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prepararConstanciasLuego } from "@/lib/constancias-listas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
 import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
@@ -82,6 +83,7 @@ export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
     const { error: e } = await supabase.rpc("firmar_consulta", { p_id: c.id });
     if (e) fallos.push(e.message); else firmadas++;
   }
+  if (firmadas) await prepararConstanciasLuego(data.map((c) => c.id));
   revalidatePath("/reportes", "layout");
   olvidar("");
   if (!firmadas && !fallos.length) return { ok: false, mensaje: "No hay constancias cerradas tuyas por firmar. Las que están en curso se cierran desde la consulta." };

@@ -32,6 +32,11 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
   const [, iniciar] = useTransition();
   const sinInternet = useSinInternet();
   const contactos = empresas.find((e) => e.id === empresaId)?.contactos ?? [];
+  // A la vista solo lo que sirve (Esperando / Ya entró); anuladas y vencidas detrás de «Ver anteriores»
+  // (el mantenimiento las borra solo a los 30 días si nunca se usaron)
+  const [verAnteriores, setVerAnteriores] = useState(false);
+  const anteriores = invitaciones.filter((i) => i.estado === "anulada" || i.estado === "vencida").length;
+  const visibles = verAnteriores ? invitaciones : invitaciones.filter((i) => i.estado === "vigente" || i.estado === "usada");
 
   return (
     <Card id="invitar">
@@ -76,9 +81,10 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
           <Aviso resultado={estado} />
         )}
 
-        {invitaciones.length > 0 && (
+        {verAnteriores && <p className="text-xs text-muted-foreground">Anuladas y vencidas. Se borran solas a los 30 días.</p>}
+        {visibles.length > 0 && (
           <ul className="divide-y rounded-md border">
-            {invitaciones.map((i) => (
+            {visibles.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"} <span className="font-normal text-muted-foreground">· {i.empresa}</span></span>
@@ -93,6 +99,11 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
               </li>
             ))}
           </ul>
+        )}
+        {anteriores > 0 && (
+          <button type="button" onClick={() => setVerAnteriores(!verAnteriores)} aria-expanded={verAnteriores} className="text-xs text-muted-foreground underline-offset-4 hover:underline">
+            {verAnteriores ? "Ocultar anteriores" : `Ver anteriores (${anteriores})`}
+          </button>
         )}
       </CardContent>
     </Card>

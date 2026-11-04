@@ -3,57 +3,37 @@
 // Pantalla de error de toda la app (en vez del «Application error» mudo de Next). En zamorApp Escritorio
 // además pregunta a la puerta local si la nube ya va por delante del programa: entonces lo que toca es actualizar.
 import { Download, Globe, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { abrirWeb, buscarActualizacion, nubeAdelantada } from "@/lib/escritorio-actualizar";
-import { ahora } from "@/lib/fecha";
+import { actualizarApp } from "@/components/app/actualizar-app";
+import { abrirWeb, buscarActualizacion, ESCRITORIO, nubeAdelantada } from "@/lib/escritorio-actualizar";
+import { detalle, esVersionVieja, normalizarError, recargarUnaVez } from "@/lib/error-pantalla";
 
 // «Reintentar» que de verdad reintenta (31-oct, celular de Cesar: salía «Reintentar», no abría y al rato sí).
-// reset() solo vuelve a dibujar con lo que ya tenía el teléfono; si el fallo vino de la nube (pantalla armada en el
-// servidor) hay que pedirla de nuevo (router.refresh). Y si la app quedó abierta en segundo plano mientras se
-// publicaba una versión nueva, sus archivos viejos ya no existen: solo una recarga completa la abre.
-const RECARGA = "zamorapp.error.recarga";
-// Si el reintento automático vuelve a fallar, la pantalla se monta de nuevo: este registro (fuera del componente)
-// evita reintentar en bucle; queda el botón
-let ultimoAutomatico = -Infinity;
-const esVersionVieja = (e: Error) => /ChunkLoadError|Loading (CSS )?chunk|dynamically imported module|Failed to fetch|NetworkError|Load failed/i.test(`${e.name} ${e.message}`);
-function recargarUnaVez(): boolean {
-  // Una recarga automática por minuto como máximo: nunca un bucle si la nube de verdad está caída
-  try {
-    const ultima = Number(sessionStorage.getItem(RECARGA) ?? 0);
-    if (Math.abs(ahora() - ultima) < 60_000) return false;
-    sessionStorage.setItem(RECARGA, String(ahora()));
-  } catch { return false; }
-  window.location.reload();
-  return true;
-}
+// Siempre recarga completa: pide la pantalla y el código de nuevo a la nube (sirve también si se publicó una versión
+// con la app abierta). NO usar router.refresh() + reset(): con el error en un layout React revienta (#310) fuera de
+// esta pantalla y queda la pantalla blanca «Application error» (31-oct, reproducido con Playwright en la compilación
+// Turbopack de Vercel; prueba scripts/pruebas/pantalla-error.test.mjs).
 
-export default function ErrorApp({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  const router = useRouter();
+export default function ErrorApp({ error: lanzado }: { error: Error & { digest?: string }; reset: () => void }) {
+  // Lo lanzado puede no ser un Error (texto, objeto, null): la pantalla de error nunca debe fallar ella misma
+  const error = normalizarError(lanzado);
   const [actualizar, setActualizar] = useState(false);
   const [aviso, setAviso] = useState("");
   const [reintentando, setReintentando] = useState(false);
-  const intentos = useRef(0);
 
-  // Pide la pantalla otra vez a la nube; desde el segundo intento, recarga completa
   const reintentar = () => {
-    intentos.current += 1;
-    if (intentos.current > 1 || esVersionVieja(error)) { window.location.reload(); return; }
     setReintentando(true);
-    startTransition(() => { router.refresh(); reset(); });
-    setTimeout(() => setReintentando(false), 4000);
+    window.location.reload();
   };
 
   useEffect(() => {
     nubeAdelantada().then(setActualizar);
-    // Se reintenta sola una vez (versión vieja → recarga; si no, a los 2 s pide la pantalla de nuevo)
-    if (esVersionVieja(error) && recargarUnaVez()) return;
-    if (intentos.current > 0 || performance.now() - ultimoAutomatico < 30_000) return;
-    const t = setTimeout(() => { ultimoAutomatico = performance.now(); reintentar(); }, 2000);
+    // Se reintenta sola UNA vez por minuto como máximo (recargarUnaVez): partes de una versión vieja al instante,
+    // cualquier otro fallo a los 2 s. Si vuelve a fallar queda esta pantalla con el botón, nunca un bucle.
+    const t = setTimeout(recargarUnaVez, esVersionVieja(normalizarError(lanzado)) ? 0 : 2000);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [error]);
+  }, [lanzado]);
 
   const buscar = async () => setAviso(await buscarActualizacion());
   const web = async () => setAviso(await abrirWeb());
@@ -80,16 +60,18 @@ export default function ErrorApp({ error, reset }: { error: Error & { digest?: s
           <>
             <h1 className="text-lg font-semibold">No se pudo cargar esta pantalla</h1>
             <p className="text-sm text-muted-foreground">
-              Algo falló al preparar los datos. No se perdió nada de lo ya guardado. Revisa la conexión y vuelve a intentarlo.
+              No se perdió nada de lo ya guardado. Toca <strong>Reintentar</strong>;{" "}
+              {ESCRITORIO ? "si vuelve a salir, cierra y abre zamorApp." : <>si vuelve a salir, <strong>Actualizar la app</strong> trae la versión más reciente.</>}
             </p>
             {/* La causa a la vista: soporte sabe qué pasó sin pedir capturas de la consola */}
             <p className="break-words text-[11px] text-muted-foreground opacity-70">
-              {error.digest ? `Código: ${error.digest} · ` : ""}Detalle: {`${error.name}: ${error.message}`.slice(0, 140)}
+              {detalle(error)}
             </p>
             {reintentando && <p role="status" className="text-sm text-muted-foreground">Reintentando…</p>}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={reintentar} disabled={reintentando}>{reintentando && <Loader2 className="animate-spin" aria-hidden />} Reintentar</Button>
-              <Button variant="outline" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
+              {!ESCRITORIO && <Button variant="outline" onClick={() => actualizarApp()}>Actualizar la app</Button>}
+              <Button variant="ghost" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
             </div>
           </>
         )}

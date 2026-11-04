@@ -22,3 +22,7 @@ jobs:
       - name: Enviar avisos nuevos
         run: |
           curl -sS --max-time 60 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/avisos/campana"
+      # Constancias automáticas a RR. HH.: la base decide a qué empresa ya le toca su correo del día (una vez al día)
+      - name: Correo diario de constancias
+        run: |
+          curl -sS --max-time 70 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/envios/constancias-dia"

@@ -111,6 +111,8 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
       const r = await iniciarConsulta(p.id);
       if (r && !r.ok) {
         if (r.empresaInactiva) setPasando(p);
+        // Inactivo: se abre su ficha, donde está «Reingresar»
+        else if (r.inactivo) ir(`/pacientes/${p.id}`);
         else setError(r.mensaje);
       } else cerrar();
     });
@@ -172,7 +174,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{o.tipo === "paciente" ? o.p.nombre : o.titulo}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {o.tipo === "paciente" ? [o.p.cedula, o.p.empresa, o.p.inactiva && "empresa inactiva"].filter(Boolean).join(" · ") : o.descripcion}
+                      {o.tipo === "paciente" ? [o.p.cedula, o.p.empresa, o.p.inactivo && "inactivo", o.p.inactiva && "empresa inactiva"].filter(Boolean).join(" · ") : o.descripcion}
                     </span>
                   </span>
                 </button>

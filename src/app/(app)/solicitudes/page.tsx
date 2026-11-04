@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { barrerConstancias } from "@/lib/constancias-listas";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
@@ -28,6 +29,7 @@ export default async function Solicitudes({ searchParams }: { searchParams: Prom
   const sesion = await obtenerSesion();
   if (!sesion.rol || !SERVICIO.includes(sesion.rol)) notFound();
   const { ver = "abiertas" } = await searchParams;
+  await barrerConstancias(); // constancias pedidas por RR. HH. que aún no tenían PDF: salen solas (después de responder)
   const filtro = FILTROS.find((f) => f.clave === ver)?.clave ?? "abiertas";
   const [empresas, activa, listas] = await Promise.all([listarEmpresas(), empresaActivaId(), opciones(sesion.orgId, ["tipo_solicitud"])]);
   const solicitudes = await listarSolicitudes({ estado: filtro === "todas" ? undefined : filtro, empresaId: activa });
