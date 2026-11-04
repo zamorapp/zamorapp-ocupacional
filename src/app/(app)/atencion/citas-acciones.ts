@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import type { EstadoCita } from "@/lib/citas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { ahora } from "@/lib/fecha";
+import { ahora, hoyCaracas } from "@/lib/fecha";
+import { supabaseConfigurado } from "@/lib/config";
+import type { ModoPropuesta } from "@/lib/propuesta";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -88,10 +90,72 @@ export async function trabajadoresPorCedula(cedulas: string[]): Promise<Record<s
   return salida;
 }
 
-// Confirma una solicitud de la empresa, opcionalmente con otra fecha u hora
-export async function confirmarSolicitud(id: string, fecha: string, hora: string | null): Promise<Resultado> {
+// ─── Disponibilidad (20261030790000) ───────────────────────
+
+export type PropuestaNueva = { fecha: string; modo: ModoPropuesta; desde: string; hasta: string | null; nota: string | null };
+
+// «Proponer otra hora»: queda en la misma solicitud; RR. HH. recibe el aviso en la campana, su celular y su correo.
+// Se escribe por la tabla: en el escritorio funciona sin internet y sube con la sincronía.
+export async function proponerHora(ids: string[], p: PropuestaNueva): Promise<Resultado> {
+  if (!ids.length) return { ok: false, mensaje: "Nada que proponer." };
+  if (!p.fecha || !p.desde) return { ok: false, mensaje: "Indica el día y la hora." };
+  if (p.fecha < hoyCaracas()) return { ok: false, mensaje: "Ese día ya pasó." };
+  if (p.modo === "rango" && (!p.hasta || p.hasta <= p.desde)) return { ok: false, mensaje: "La hora final debe ser después de la inicial." };
   const supabase = await crearClienteServidor();
-  const { error } = await supabase.from("citas").update({ estado: "citado", fecha, hora: hora || null }).eq("id", id);
+  const { error } = await supabase.from("citas").update({
+    propuesta_fecha: p.fecha,
+    propuesta_desde: p.desde,
+    propuesta_hasta: p.modo === "rango" ? p.hasta : null,
+    propuesta_modo: p.modo,
+    propuesta_nota: p.nota?.trim().slice(0, 300) || null,
+  }).in("id", ids).eq("estado", "solicitada");
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite proponer horas." : error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Propuesta enviada a RR. HH." };
+}
+
+export async function anularPropuesta(id: string): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ propuesta_fecha: null }).eq("id", id);
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// Aviso de choque: solo informa (otras citas a esa hora, bloqueos, fuera del horario). Nunca impide confirmar.
+export async function choquesAgenda(fecha: string, hora: string | null, excluir: string | null): Promise<string[]> {
+  if (!fecha) return [];
+  if (!supabaseConfigurado) return hora === "08:00" ? ["2 citas de Empresa demo a esa hora"] : [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.rpc("choques_agenda", { p_fecha: fecha, p_hora: hora || null, p_excluir: excluir });
+  return (data as string[] | null) ?? [];
+}
+
+export type Agenda = { configurado: boolean; horas?: { hora: string; libres: number }[]; dias?: { fecha: string; libres: number }[] };
+
+// Horas libres de un día y próximos días con cupo (solo cifras): para RR. HH. al pedir y para el servicio al proponer
+export async function agendaDelDia(empresaId: string, fecha: string): Promise<Agenda> {
+  if (!supabaseConfigurado) return { configurado: true, horas: ["08:00", "08:30", "09:00", "09:30", "10:00"].map((hora, i) => ({ hora, libres: [0, 1, 2, 2, 1][i] })) };
+  if (!empresaId || !fecha) return { configurado: false };
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.rpc("agenda_portal", { p_empresa: empresaId, p_fecha: fecha });
+  return (data as Agenda | null) ?? { configurado: false };
+}
+
+// Confirmar o reprogramar de una vez todos los trabajadores de una misma solicitud
+export async function confirmarSolicitudes(ids: string[], fecha: string, hora: string | null): Promise<Resultado> {
+  if (!ids.length || !fecha) return { ok: false, mensaje: "Indica el día." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ estado: "citado", fecha, hora: hora || null, propuesta_fecha: null }).in("id", ids).eq("estado", "solicitada");
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+export async function rechazarSolicitudes(ids: string[]): Promise<Resultado> {
+  if (!ids.length) return { ok: false, mensaje: "Nada que rechazar." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ estado: "cancelada", propuesta_fecha: null }).in("id", ids).eq("estado", "solicitada");
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };

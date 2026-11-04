@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { claveAvisos, enviarPush, pushConfigurado, type Suscripcion } from "@/lib/push";
+import { correoConfigurado, enviarCorreo } from "@/lib/correo";
+import { URL_PUBLICA } from "@/lib/invitaciones";
 
 // Latido de los avisos de la campana al celular: lo llama el workflow «Avisos al celular» cada 15 minutos (también
 // con la laptop apagada). Sin sesión: la base solo responde con la clave del servidor (VAPID_PRIVADA, solo en Vercel)
@@ -23,5 +25,20 @@ export async function GET() {
     enviados += r.enviados;
     for (const endpoint of r.vencidos) await supabase.rpc("quitar_suscripcion_vencida_clave", { p_endpoint: endpoint, p_clave: clave });
   }
-  return NextResponse.json({ ok: true, enviados }, { headers: { "Cache-Control": "no-store" } });
+  // Correo a RR. HH. y a los contactos de la empresa por cada hora propuesta (20261030790000): sale una vez por propuesta
+  let correos = 0;
+  if (correoConfigurado()) {
+    const { data: porEnviar } = await supabase.rpc("correos_propuestas_por_enviar", { p_clave: clave });
+    for (const c of (porEnviar ?? []) as { para: string[]; asunto: string; texto: string }[]) {
+      for (const para of c.para ?? []) {
+        try {
+          await enviarCorreo({ para, asunto: c.asunto, texto: `${c.texto}\n${URL_PUBLICA}/portal#propuestas`, nombreRemitente: "zamorApp avisos", adjuntos: [] });
+          correos++;
+        } catch (e) {
+          console.error("correo de propuesta:", e instanceof Error ? e.message : e);
+        }
+      }
+    }
+  }
+  return NextResponse.json({ ok: true, enviados, correos }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -52,6 +52,7 @@ export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacaci
 export const RPC_LECTURA = new Set([
   "buscar_diagnosticos", "firma_sello", "indices_accidentalidad", "miembros_con_correo",
   "reporte_vigilancia", "requiere_dos_pasos", "falta_segundo_paso", "resumen_panel",
+  "choques_agenda", "agenda_portal", // disponibilidad para citas (20261030790000)
 ]);
 
 // Tablas que se copian a la PC: las que sincronizan (sync.tablas) más catálogos de solo bajada.
