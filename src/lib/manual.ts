@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-30";
+export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-04", texto: "El buscador (Ctrl+K o «Buscar») ahora encuentra pantallas, pestañas y ajustes, no solo trabajadores. Escribe «precios», «membrete», «vademécum», «respaldo» o una frase como «dónde coloco los precios» y te lleva allí", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Disponibilidad para citas: carga tu horario semanal con turnos y personas por turno, y bloquea días u horas (otra empresa, charlas, feriados). RR. HH. solo ve y toca las horas con cupo. Si una hora no te sirve, «Proponer otra hora» (exacta, entre dos horas o a partir de una) con nota; RR. HH. acepta o pide otra. Al confirmar, un aviso amarillo te dice si choca con otra cita o un bloqueo (solo informa)", tema: "atencion" },
   { fecha: "2026-11-04", texto: "El correo de «Proponer otra hora» se reintenta solo si falla. En la solicitud ves «Correo enviado a RR. HH.», «se reintenta solo» o, si al final no salió, el motivo en rojo y te llega el aviso «No salió el correo de la propuesta» para que avises por WhatsApp", tema: "atencion" },
   { fecha: "2026-11-04", texto: "Portal de RR. HH.: al elegir el día ve las horas con cupo y los próximos días libres; las horas que le propone el servicio llegan arriba con «Aceptar» o «Pedir otra», a la campanita, al correo y al celular. La bienvenida le guía para instalar zamorApp y activar los avisos", tema: "portal" },
@@ -65,12 +66,12 @@ export const MANUAL: TemaManual[] = [
     id: "atajos",
     titulo: "Buscar rápido, atajos y tema oscuro",
     para: "todos",
-    resumen: "Llega a cualquier trabajador o sección en dos teclas, desde cualquier pantalla.",
+    resumen: "Llega a cualquier trabajador, pantalla o ajuste en dos teclas, desde cualquier pantalla.",
     pasos: [
       "Pulsa Ctrl+K (o la tecla /) y escribe la cédula o el nombre. En el celular, toca «Buscar» en la barra de abajo.",
       "Con las flechas eliges; Enter abre la ficha del trabajador.",
       "Servicio médico: para atenderlo de una vez, toca «Atender» en el resultado o pulsa Ctrl+Enter: se abre la consulta nueva sin pasar por la ficha.",
-      "Si escribes el nombre de una sección (por ejemplo «reportes»), te lleva allí.",
+      "También encuentra pantallas, pestañas y ajustes por su nombre o por palabras comunes: «precios» o «tarifas» (Facturación › Servicios y precios), «membrete» (Organización), «vademécum» (lista de medicinas), «respaldo», «huella», «morbilidad», «importar excel». Sirve una frase como «dónde coloco los precios». Con palabras salen primero las pantallas; con una cédula, los trabajadores. Cada quien ve solo lo que su rol puede abrir.",
       "¿No existe? Si la cédula no aparece, el mismo buscador ofrece «Registrar y atender»: cédula, nombres, apellidos y empresa, y se abre la consulta. Sexo, cargo y demás datos se completan después. Recepción ve «Registrar» y llega a la ficha.",
       "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
     ],

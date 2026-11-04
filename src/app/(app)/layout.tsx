@@ -58,7 +58,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         </main>
       </div>
       <BarraInferior portal={portal} />
-      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} />
+      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} rol={sesion.rol} />
     </div>
   );
 }
