@@ -1,4 +1,4 @@
--- Correo de «Proponer otra hora» con reintento (20261030910000): 3 intentos con espera, aviso al servicio si no sale.
+-- Correo de «Proponer otra hora» con reintento (20261030802000): 3 intentos con espera, aviso al servicio si no sale.
 \pset tuples_only on
 reset role;
 insert into public.avisos_push_clave (org_id, clave_hash) values ('10000000-0000-0000-0000-000000000001', sha256(convert_to(repeat('k', 40), 'UTF8')))
