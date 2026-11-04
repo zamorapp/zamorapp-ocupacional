@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight, CornerDownLeft, Loader2, Search, Stethoscope, UserRound } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { iniciarConsulta } from "@/app/(app)/atencion/acciones";
-import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
+import { buscarSecciones, type Destino } from "@/lib/atajos";
 import { cn } from "@/lib/utils";
 import { buscarGlobal, type Encontrado } from "./acciones";
 import { RegistroRapido } from "./registro-rapido";
@@ -16,16 +16,18 @@ export const abrirBuscador = () => window.dispatchEvent(new Event(EVENTO_BUSCADO
 
 type Opcion =
   | { tipo: "paciente"; p: Encontrado }
-  | { tipo: "ir"; href: string; titulo: string; descripcion: string; icono: (typeof SECCIONES)[number]["icono"] };
-
-const sinAcentos = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  | ({ tipo: "ir" } & Destino);
 
 // Buscador universal: Ctrl+K o "/" desde cualquier pantalla.
 // Enter abre la ficha; Ctrl+Enter (o el botón Atender) abre la consulta directamente.
 // «Atender» y las secciones clínicas solo aparecen para el personal de salud.
-type Props = { portal?: boolean; clinico?: boolean; empresas?: { id: string; nombre: string }[]; empresaActiva?: string | null };
+// También encuentra pantallas, pestañas y configuraciones (lib/atajos): «precios», «membrete», «vademécum»…
+type Props = { portal?: boolean; clinico?: boolean; rol?: string | null; empresas?: { id: string; nombre: string }[]; empresaActiva?: string | null };
 
-export function BuscadorGlobal({ portal = false, clinico = false, empresas = [], empresaActiva = null }: Props) {
+// Hay texto sin números y alguna pantalla coincide
+const seccionesPrimero = (texto: string, nSecciones: number) => nSecciones > 0 && /\p{L}/u.test(texto) && !/\d/.test(texto);
+
+export function BuscadorGlobal({ portal = false, clinico = false, rol = null, empresas = [], empresaActiva = null }: Props) {
   const router = useRouter();
   const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
@@ -73,13 +75,11 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
   }, [texto, abierto]);
 
   const opciones = useMemo<Opcion[]>(() => {
-    const q = sinAcentos(texto.trim());
-    const secciones = (portal ? SECCIONES_EMPRESA : SECCIONES)
-      .filter((s) => clinico || !s.clinico)
-      .filter((s) => !q || sinAcentos(`${s.titulo} ${s.descripcion}`).includes(q))
-      .map((s) => ({ tipo: "ir" as const, href: s.href, titulo: s.titulo, descripcion: s.descripcion, icono: s.icono }));
-    return [...pacientes.map((p) => ({ tipo: "paciente" as const, p })), ...secciones];
-  }, [pacientes, texto, portal, clinico]);
+    const secciones = buscarSecciones(texto, { portal, clinico, rol }).map((d) => ({ tipo: "ir" as const, ...d }));
+    const trabajadores = pacientes.map((p) => ({ tipo: "paciente" as const, p }));
+    // Con palabras («precios», «respaldo») van primero las pantallas; con cédula o sin texto, los trabajadores
+    return seccionesPrimero(texto, secciones.length) ? [...secciones, ...trabajadores] : [...trabajadores, ...secciones];
+  }, [pacientes, texto, portal, clinico, rol]);
 
   useEffect(() => setActivo(0), [opciones.length]);
   useEffect(() => {
@@ -123,12 +123,18 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
   };
 
   const nPacientes = pacientes.length;
+  const nSecciones = opciones.length - nPacientes;
+  const primeroSecciones = seccionesPrimero(texto, nSecciones);
+  const encabezado = (i: number) =>
+    primeroSecciones
+      ? i === 0 ? "Pantallas y configuración" : i === nSecciones && nPacientes > 0 ? "Trabajadores" : null
+      : i === 0 && nPacientes > 0 ? "Trabajadores" : i === nPacientes ? (texto.trim() ? "Pantallas y configuración" : "Ir a") : null;
 
   return (
     <Dialog open={abierto} onOpenChange={(a) => (a ? setAbierto(true) : cerrar())}>
       <DialogContent showCloseButton={false} className="top-[12%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogTitle className="sr-only">Buscar</DialogTitle>
-        <DialogDescription className="sr-only">Busca un trabajador por cédula o nombre, o ve a una sección.</DialogDescription>
+        <DialogDescription className="sr-only">Busca un trabajador por cédula o nombre, o una pantalla o configuración por su nombre.</DialogDescription>
         <label className="flex items-center gap-3 border-b px-4">
           <Search className="size-5 shrink-0 text-muted-foreground" />
           <input
@@ -140,7 +146,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
               if (e.key === "ArrowUp") { e.preventDefault(); setActivo((i) => Math.max(i - 1, 0)); }
               if (e.key === "Enter" && opciones[activo]) { e.preventDefault(); elegir(opciones[activo], e.ctrlKey || e.metaKey); }
             }}
-            placeholder={portal ? "Buscar trabajador o sección…" : "Cédula, nombre o sección…"}
+            placeholder={portal ? "Buscar trabajador o sección…" : "Cédula, nombre o pantalla (ej.: precios)…"}
             aria-label="Buscar"
             role="combobox"
             aria-expanded="true"
@@ -160,9 +166,8 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
         )}
         <ul id="resultados-buscador" ref={lista} role="listbox" className="max-h-[60dvh] overflow-y-auto p-2">
           {opciones.map((o, i) => (
-            <li key={o.tipo === "ir" ? o.href : o.p.id} id={`opcion-${i}`} data-indice={i} role="option" aria-selected={i === activo}>
-              {(i === 0 && nPacientes > 0) && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Trabajadores</p>}
-              {i === nPacientes && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Ir a</p>}
+            <li key={o.tipo === "ir" ? `${o.href}|${o.titulo}` : o.p.id} id={`opcion-${i}`} data-indice={i} role="option" aria-selected={i === activo}>
+              {encabezado(i) && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">{encabezado(i)}</p>}
               <div
                 onMouseMove={() => setActivo(i)}
                 className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5", i === activo && "bg-accent text-accent-foreground")}
@@ -193,10 +198,10 @@ export function BuscadorGlobal({ portal = false, clinico = false, empresas = [],
               </div>
             </li>
           ))}
-          {texto.trim().length >= 2 && !buscando && nPacientes === 0 && (
+          {texto.trim().length >= 2 && !buscando && nPacientes === 0 && nSecciones === 0 && (
             <li className="space-y-3 px-1 py-3">
               <p className="text-center text-sm text-muted-foreground">
-                Ningún trabajador coincide con «{texto.trim()}».{" "}
+                Ninguna pantalla ni trabajador coincide con «{texto.trim()}».{" "}
                 <button type="button" className="font-medium text-primary hover:underline" onClick={() => ir(`/pacientes?q=${encodeURIComponent(texto.trim())}`)}>
                   Ver en Pacientes
                 </button>

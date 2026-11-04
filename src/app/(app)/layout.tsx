@@ -52,7 +52,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">{children}</main>
       </div>
       <BarraInferior portal={portal} />
-      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} />
+      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} rol={sesion.rol} />
     </div>
   );
 }
