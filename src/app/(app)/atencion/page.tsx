@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { CalendarCog, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +23,9 @@ import { recordarResultados } from "@/lib/recordatorios";
 import { trabajadoresConAlerta } from "@/lib/alertas";
 import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
-import { Solicitudes } from "./solicitudes";
+import { Solicitudes, type Contacto } from "./solicitudes";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { URL_PUBLICA } from "@/lib/invitaciones";
 import { RefrescarAlVolver } from "@/components/app/refrescar-al-volver";
 
 export const metadata: Metadata = { title: "Atención médica" };
@@ -57,6 +59,14 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const opcionesEmpresa = empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }));
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
   const abiertas = consultas.filter((c) => c.estado === "borrador").length;
+  // Contacto de cada empresa con teléfono: el WhatsApp de un toque al proponer otra hora
+  const contactos: Record<string, Contacto> = {};
+  const empresasSolicitud = [...new Set(solicitudes.map((c) => c.empresaId))];
+  if (empresasSolicitud.length) {
+    const { data } = await (await crearClienteServidor()).from("empresa_contactos").select("empresa_id, nombre, telefono, recibe_consulta")
+      .in("empresa_id", empresasSolicitud).eq("activo", true).not("telefono", "is", null).order("recibe_consulta").limit(200);
+    for (const k of data ?? []) if (!contactos[k.empresa_id]) contactos[k.empresa_id] = { nombre: k.nombre, telefono: k.telefono };
+  }
   const etiquetaDia = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dia + "T12:00:00Z"));
 
   return (
@@ -67,6 +77,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={ahora()} /></p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
           <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
@@ -79,7 +90,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <Solicitudes solicitudes={solicitudes} />
+      <Solicitudes solicitudes={solicitudes} contactos={contactos} servicio={org.nombre} url={URL_PUBLICA} />
 
       {/* Cola de atención del día */}
       <section className="space-y-3">

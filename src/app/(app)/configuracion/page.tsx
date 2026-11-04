@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Briefcase, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, CalendarCog, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -11,6 +11,7 @@ const OPCIONES = [
   { href: "/configuracion/ingreso", titulo: "Ingreso y seguridad", texto: ESCRITORIO ? "Entrar con Windows Hello (huella, rostro o PIN) sin escribir la clave, también sin internet." : "Entrar con huella, verificación en dos pasos y códigos de respaldo.", icono: Fingerprint },
   { href: "/configuracion/listas", titulo: "Listas configurables", texto: "Motivos, aptitud, paraclínicos, medicinas, recomendaciones y todos los maestros.", icono: ListChecks },
   { href: "/configuracion/clinica", titulo: "Ajustes clínicos", texto: "Lo que se precarga en cada consulta: plantillas por motivo, paraclínicos por empresa, recomendaciones y exámenes. Con vista previa.", icono: Wand2 },
+  { href: "/configuracion/horario", titulo: "Disponibilidad para citas", texto: "Horario semanal con cupos y días u horas bloqueadas: RR. HH. solo pide en horas libres.", icono: CalendarCog },
   { href: "/configuracion/organizacion", titulo: "Organización y documentos", texto: "Datos del servicio, palabra de aptitud, títulos y notas de los documentos.", icono: Building },
   { href: "/configuracion/usuarios", titulo: "Usuarios y roles", texto: "Quién entra a la app y qué puede ver o hacer.", icono: Users },
   { href: "/configuracion/auditoria", titulo: "Auditoría", texto: "Quién abrió cada historia y qué se cambió, día por día y con el equipo de origen.", icono: ShieldCheck },
