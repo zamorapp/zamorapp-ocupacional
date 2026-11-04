@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
+import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
 import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SIN_LADO, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
@@ -108,6 +109,19 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
 
         {r?.completo && metodo && (!depto || depto.clave !== "rrhh") && (
           <Bloque titulo={`Resultado del método ${metodo.corto}`}>
+            {r.factores ? (
+              <div className="grid grid-cols-[1fr_1.2fr] gap-5">
+                <GraficaDeb factores={r.factores} impreso />
+                <div>
+                  <div className="text-[13px] font-bold">{r.nivel} · {r.texto}</div>
+                  <div>{r.accion}.</div>
+                  {r.factores.filter((f) => f.zona === "rojo" || f.zona === "amarillo").map((f) => (
+                    <div key={f.clave} className="mt-1 text-[9.5px]"><b>{f.nombre}:</b> {[...f.rojas, ...f.fallas].join("; ")}. Evaluación específica: {f.especifica}.</div>
+                  ))}
+                  <div className="mt-0.5 text-[9px] text-doc-tenue">Fuente: {metodo.fuente}</div>
+                </div>
+              </div>
+            ) : (
             <div className="grid grid-cols-[auto_1fr] items-center gap-4">
               <div className={`rounded-lg px-4 py-2 text-center ${URGENCIA[r.urgencia]}`}>
                 <div className="font-cifra text-[28px] font-semibold leading-none">{r.texto ? r.texto.replace(/^IL /, "") : r.puntaje}</div>
@@ -120,6 +134,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
                 <div className="mt-0.5 text-[9px] text-doc-tenue">Fuente: {metodo.fuente}</div>
               </div>
             </div>
+            )}
           </Bloque>
         )}
 

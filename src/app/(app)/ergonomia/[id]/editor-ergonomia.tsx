@@ -11,17 +11,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CLASE_URGENCIA, DEPARTAMENTOS, metodoDe, NOMBRE_DEPTO, SIN_LADO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
-  type Departamento, type Hallazgo, type Metodo,
+  type ClaveMetodo, type Departamento, type Hallazgo, type Metodo,
 } from "@/lib/ergonomia";
 import type { Evaluacion, Foto } from "@/lib/ergonomia-datos";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
 import { prepararArchivo } from "@/lib/preparar-archivo";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { borrarEvaluacion, guardarEvaluacion, guardarObservaciones, reabrirEvaluacion, type Cambios } from "../acciones";
+import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
+import type { FactorDeb } from "@/lib/ergonomia-deb";
+import { borrarEvaluacion, crearEvaluacion, guardarEvaluacion, guardarObservaciones, reabrirEvaluacion, type Cambios } from "../acciones";
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nuevoId = () => crypto.randomUUID().slice(0, 8);
+// DEB en amarillo o rojo: método de la app para la evaluación específica de cada peligro (empuje aún no tiene)
+const ESPECIFICO: Partial<Record<FactorDeb, ClaveMetodo>> = { lev: "niosh", tra: "niosh", rep: "rula", pos: "reba" };
 
 type Props = { ev: Evaluacion; orgId: string; demo?: boolean; puedeEditar: boolean; puedeReabrir: boolean };
 
@@ -117,12 +121,13 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           <section className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">{metodo.nombre}</h2>
-              <p className="text-xs text-muted-foreground">{metodo.clave === "niosh" ? "Mide al inicio del levantamiento más exigente (si al dejar la carga es peor, evalúa también el destino)." : "Marca la postura más exigente o la que más se repite."} Fuente: {metodo.fuente}</p>
+              <p className="text-xs text-muted-foreground">{metodo.clave === "niosh" ? "Mide al inicio del levantamiento más exigente (si al dejar la carga es peor, evalúa también el destino)." : metodo.clave === "deb" ? "Recorre el puesto y responde Sí o No. Solo se abren las fichas de los peligros presentes; la zona roja aparece si falla alguna condición de la verde." : "Marca la postura más exigente o la que más se repite."} Fuente: {metodo.fuente}</p>
             </div>
-            {metodo.secciones.map((s) => (
-              <div key={s.titulo} className="rounded-xl border p-4">
+            {metodo.secciones.filter((s) => !s.si || s.si(x.datos)).map((s) => (
+              <div key={s.titulo} className={cn("rounded-xl border p-4", s.verde && "border-emerald-500/50 bg-emerald-500/5", s.roja && "border-red-500/50 bg-red-500/5")}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="font-medium">{s.titulo}</h3>
+                  {s.opcional && <span className="text-xs text-muted-foreground">marca solo los que haya</span>}
                   {metodo.clave !== "niosh" && resultado?.zonas[s.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[s.zona]}</span>}
                 </div>
                 <div className="space-y-3">
@@ -277,14 +282,36 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           <div className="rounded-xl border p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{NOMBRE_METODO[ev.metodo]}</div>
             <div className="mt-2 flex items-end gap-2">
-              <span className="font-cifra text-5xl font-semibold leading-none">{resultado.completo ? (resultado.texto ?? resultado.puntaje) : "—"}</span>
+              <span className={cn("font-cifra font-semibold leading-none", resultado.factores ? "text-2xl" : "text-5xl")}>{resultado.completo ? (resultado.factores ? resultado.nivel : resultado.texto ?? resultado.puntaje) : "—"}</span>
               {!resultado.texto && <span className="pb-1 text-sm text-muted-foreground">de {resultado.maximo}</span>}
             </div>
             {resultado.completo && resultado.subtexto && <div className="mt-1.5 text-sm text-muted-foreground">{resultado.subtexto}</div>}
+            {resultado.factores && <div className="mt-3"><GraficaDeb factores={resultado.factores} /></div>}
             {resultado.completo ? (
               <>
-                <div className={cn("mt-3 rounded-lg px-3 py-2 text-sm font-medium", CLASE_URGENCIA[resultado.urgencia])}>{resultado.nivel}</div>
+                <div className={cn("mt-3 rounded-lg px-3 py-2 text-sm font-medium", CLASE_URGENCIA[resultado.urgencia])}>{resultado.factores ? resultado.texto : resultado.nivel}</div>
                 <p className="mt-2 text-sm">{resultado.accion}</p>
+                {resultado.factores?.some((f) => f.zona === "rojo" || f.zona === "amarillo") && (
+                  <div className="mt-3 space-y-1.5 border-t pt-3">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evaluación específica</div>
+                    {resultado.factores.filter((f) => f.zona === "rojo" || f.zona === "amarillo").map((f) => {
+                      const m = ESPECIFICO[f.clave];
+                      return (
+                        <div key={f.clave} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="min-w-0"><b>{f.nombre}</b><span className="block text-muted-foreground">{f.especifica}</span></span>
+                          {m && puedeEditar && !demo && (
+                            <Button size="sm" variant="outline" className="shrink-0" disabled={ocupado}
+                              onClick={() => iniciar(async () => {
+                                const r = await crearEvaluacion({ empresaId: ev.empresaId, puestoId: ev.puestoId, puesto: x.puesto, tarea: x.tarea, metodo: m });
+                                if (!r.ok || !r.id) { setEstado({ tipo: "error", texto: r.mensaje }); return; }
+                                router.push(`/ergonomia/${r.id}`);
+                              })}>Hacer {m.toUpperCase()}</Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             ) : (
               <p className="mt-3 text-sm text-muted-foreground">Completa todos los datos para ver el resultado.</p>

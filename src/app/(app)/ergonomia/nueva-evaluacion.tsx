@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NIOSH, REBA, ROSA, RULA, type ClaveMetodo } from "@/lib/ergonomia";
+import { DEB } from "@/lib/ergonomia-deb";
 import { cn } from "@/lib/utils";
 import { crearEvaluacion } from "./acciones";
 
@@ -22,6 +23,7 @@ type Props = {
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const OPCIONES: { clave: ClaveMetodo; titulo: string; texto: string }[] = [
+  { clave: "deb", titulo: "DEB (CENEA)", texto: DEB.paraQue },
   { clave: "rula", titulo: "RULA", texto: RULA.paraQue },
   { clave: "reba", titulo: "REBA", texto: REBA.paraQue },
   { clave: "rosa", titulo: "ROSA", texto: ROSA.paraQue },
@@ -36,7 +38,7 @@ export function NuevaEvaluacion({ empresas, empresaInicial, puestos, fijo, boton
   const [puestoId, setPuestoId] = useState(fijo?.puestoId ?? "");
   const [puesto, setPuesto] = useState(fijo?.puesto ?? "");
   const [tarea, setTarea] = useState(fijo?.tareas?.split("\n")[0]?.slice(0, 200) ?? "");
-  const [metodo, setMetodo] = useState<ClaveMetodo>("rula");
+  const [metodo, setMetodo] = useState<ClaveMetodo>("deb");
   const [error, setError] = useState<string | null>(null);
   const [creando, iniciar] = useTransition();
   const lista = puestos[empresaId] ?? [];
@@ -106,7 +108,7 @@ export function NuevaEvaluacion({ empresas, empresaInicial, puestos, fijo, boton
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">DEB (CENEA), OCRA y KIM llegan en las próximas versiones.</p>
+          <p className="text-xs text-muted-foreground">¿No sabes por dónde empezar? Haz primero el DEB: te dice qué método específico usar. OCRA y KIM llegan en las próximas versiones.</p>
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}

@@ -7,6 +7,7 @@
 //   REBA: Hignett S, McAtamney L. Rapid Entire Body Assessment (REBA). Applied Ergonomics 2000;31(2):201-205.
 //   Prioridad: matriz 5×5 probabilidad × severidad del puesto (lib/puestos-tipos), la misma de la LOPCYMAT en la app.
 import { nivelRiesgo } from "@/lib/puestos-tipos";
+import { ADICIONALES, DEB, type ResultadoFactor } from "@/lib/ergonomia-deb";
 
 // Quién hace evaluaciones (la base aplica la misma lista en evaluaciones_ergonomicas_editar)
 export const ROLES_ERGONOMIA = ["administrador", "gerente_medico", "medico", "coordinador_sst"];
@@ -26,7 +27,11 @@ export const NOMBRE_DEPTO = Object.fromEntries(DEPARTAMENTOS.map((d) => [d.clave
 export type Opcion = { valor: number; texto: string; detalle?: string };
 // numero: se escribe un valor (kg, cm, grados) en vez de elegir una opción
 export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; numero?: { min: number; max: number; unidad: string; paso?: number } };
-export type Seccion = { titulo: string; zona: Zona; preguntas: Pregunta[] };
+export type Seccion = {
+  titulo: string; zona: Zona; preguntas: Pregunta[];
+  // DEB: a qué peligro pertenece, si es zona verde/roja, si sus respuestas son opcionales y cuándo se muestra
+  grupo?: string; verde?: boolean; roja?: boolean; opcional?: boolean; si?: (r: Respuestas) => boolean;
+};
 export type Respuestas = Record<string, number>;
 
 export type Resultado = {
@@ -36,13 +41,15 @@ export type Resultado = {
   urgencia: 0 | 1 | 2 | 3 | 4;
   nivel: string;
   accion: string;
-  parciales: { etiqueta: string; valor: number }[];
+  parciales: { etiqueta: string; valor: number | string }[];
   zonas: Partial<Record<Zona, number>>;
   completo: boolean;
   /** Cómo se muestra el puntaje cuando no es «N de M» (NIOSH: «IL 1,45») */
   texto?: string;
   /** Línea bajo el puntaje (NIOSH: «Carga 25 kg · límite recomendado 4,9 kg») */
   subtexto?: string;
+  /** DEB: zona de cada peligro, ordenados por prioridad */
+  factores?: ResultadoFactor[];
 };
 
 export type Metodo = {
@@ -618,9 +625,9 @@ export const NIOSH: Metodo = {
   },
 };
 
-export const METODOS: Record<"rula" | "reba" | "rosa" | "niosh", Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH };
+export const METODOS: Record<"rula" | "reba" | "rosa" | "niosh" | "deb", Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH, deb: DEB };
 // Métodos donde el lado (derecho/izquierdo) no aplica
-export const SIN_LADO: ClaveMetodo[] = ["rosa", "niosh"];
+export const SIN_LADO: ClaveMetodo[] = ["rosa", "niosh", "deb"];
 export const metodoDe = (clave: ClaveMetodo): Metodo | null => (Object.hasOwn(METODOS, clave) ? METODOS[clave as keyof typeof METODOS] : null);
 
 // Respuesta válida para la pregunta: una de sus opciones, o un número dentro de su rango (1 decimal)
@@ -636,7 +643,6 @@ export const NOMBRE_METODO: Record<ClaveMetodo, string> = {
 
 // Métodos recomendados para próximas versiones (se muestran como «Próximamente» con su fuente)
 export const PROXIMOS: { corto: string; para: string; fuente: string }[] = [
-  { corto: "DEB (CENEA)", para: "Diagnóstico ergonómico y biomecánico básico con lista de chequeo y fotos", fuente: "Centro de Ergonomía Aplicada (CENEA)" },
   { corto: "OCRA", para: "Movimientos repetitivos de mano y brazo", fuente: "Occhipinti E. Ergonomics 1998 · ISO 11228-3" },
   { corto: "KIM", para: "Empuje y arrastre de cargas", fuente: "BAuA (Alemania), Key Indicator Method LHC/PP 2019" },
 ];
@@ -761,6 +767,7 @@ const UMBRAL: Partial<Record<Zona, number>> = { brazo: 3, antebrazo: 2, muneca: 
 
 /** Hallazgos propuestos a partir del resultado del método (el médico los revisa, edita o borra). */
 export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hallazgo[] = [], nuevoId: () => string = () => Math.random().toString(36).slice(2, 10)): Hallazgo[] {
+  if (metodo.clave === "deb") return proponerDeb(resultado, ya, nuevoId);
   if (resultado.urgencia === 0) return [];
   // Probabilidad según la urgencia del método; severidad según la zona (cargas y tronco dañan más)
   const p = [1, 2, 3, 4, 5][resultado.urgencia];
@@ -784,6 +791,64 @@ export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hall
       medida: "Vigilancia de la salud musculoesquelética de los expuestos (evaluación periódica), notificación del riesgo por escrito (LOPCYMAT art. 53.1) y reevaluar el puesto al aplicar las medidas.",
       departamento: "sst", plazo: prioridad({ p, s: 3 })?.plazo ?? "", origen: "metodo",
     });
+  }
+  return nuevos;
+}
+
+// ─────────────────── DEB: hallazgos por peligro y por factor adicional ───────────────────
+// Medidas por peligro (de la más eficaz a la de apoyo); severidad: cargas dañan más la espalda
+const MEDIDAS_DEB: Record<ResultadoFactor["clave"], { s: number; consecuencia: string; medidas: [Departamento, string][] }> = {
+  lev: { s: 4, consecuencia: PROPUESTAS.carga.consecuencia, medidas: [
+    ["ingenieria", "Ayudas mecánicas (mesa elevadora, polipasto, manipulador) y cargas entre la cadera y los hombros, cerca del cuerpo."],
+    ["operaciones", "Bajar el peso unitario (envases más pequeños), reducir la frecuencia y levantar entre dos personas las cargas pesadas."],
+    ["rrhh", "Formación certificada en manipulación manual de cargas y rotación del personal."]] },
+  tra: { s: 4, consecuencia: "Lumbalgia, fatiga física y caídas durante el traslado", medidas: [
+    ["ingenieria", "Carretillas, traspaletas o cintas transportadoras para recorridos largos o masas acumuladas altas."],
+    ["operaciones", "Acortar los recorridos acercando almacén y puesto; repartir la masa transportada en la jornada."]] },
+  emp: { s: 3, consecuencia: "Lumbalgia, lesiones de hombro y caídas al empujar o arrastrar", medidas: [
+    ["ingenieria", "Carros con ruedas grandes en buen estado, asas a la altura entre la cadera y el pecho, y motorización si la fuerza es alta."],
+    ["operaciones", "Reducir la carga por viaje y evitar rampas; empujar en vez de arrastrar."]] },
+  rep: { s: 3, consecuencia: "Tendinitis, síndrome del túnel carpiano y epicondilitis", medidas: [
+    ["operaciones", "Pausas de al menos 8 min cada 2 horas, rotación con tareas no repetitivas y ritmo que permita recuperarse."],
+    ["ingenieria", "Bajar la altura de trabajo para que el codo no llegue al hombro; herramientas que reduzcan la fuerza y el agarre de precisión."]] },
+  pos: { s: 3, consecuencia: "Cervicalgia, lumbalgia y trastornos de hombro y rodilla por postura forzada", medidas: [
+    ["ingenieria", "Ajustar alturas y alcances (mesas regulables, plataformas, reposapiés) para trabajar con tronco, cuello y brazos neutros."],
+    ["operaciones", "Alternar posturas y tareas; evitar trabajo de rodillas o en cuclillas prolongado."]] },
+};
+
+function proponerDeb(resultado: Resultado, ya: Hallazgo[], nuevoId: () => string): Hallazgo[] {
+  const nuevos: Hallazgo[] = [];
+  const existe = (factor: string, d: Departamento) => [...ya, ...nuevos].some((h) => h.factor === factor && h.departamento === d);
+  const agregar = (h: Omit<Hallazgo, "id" | "plazo">) => { if (!existe(h.factor, h.departamento)) nuevos.push({ ...h, id: nuevoId(), plazo: prioridad(h)?.plazo ?? "" }); };
+  const factores = resultado.factores ?? [];
+  for (const f of factores) {
+    if (f.zona !== "rojo" && f.zona !== "amarillo") continue;
+    const m = MEDIDAS_DEB[f.clave];
+    // Zona roja = inaceptable: probabilidad 5 para que la prioridad dé «Inmediato»
+    const p = f.zona === "rojo" ? 5 : 3;
+    const detalle = `DEB · ${f.zona === "rojo" ? "zona roja" : "zona amarilla"}: ${[...f.rojas, ...f.fallas].slice(0, 6).join("; ")}`;
+    for (const [departamento, medida] of f.zona === "rojo" ? m.medidas : m.medidas.slice(0, 1))
+      agregar({ factor: f.nombre, detalle, p, s: m.s, consecuencia: m.consecuencia, medida, departamento, origen: "metodo" });
+    agregar({ factor: `Evaluación específica: ${f.nombre.toLowerCase()}`, detalle: `DEB · ${f.zona === "rojo" ? "zona roja" : "zona amarilla"}`, p, s: m.s,
+      consecuencia: m.consecuencia, medida: `Hacer la evaluación específica con ${f.especifica} para dimensionar la medida y verificarla después de aplicarla.`, departamento: "sst", origen: "metodo" });
+  }
+  // Cada factor adicional marcado deja su propia alerta, una sola vez aunque aplique a levantamiento y transporte
+  const vistos = new Set<string>();
+  for (const f of factores) for (const clave of f.adicionales) {
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    const a = ADICIONALES.find((x) => x.clave === clave);
+    if (!a) continue;
+    const factor = (a as { corto?: string }).corto ?? a.texto;
+    agregar({ factor: factor[0].toUpperCase() + factor.slice(1), detalle: `DEB · aspecto adicional (${f.nombre.toLowerCase()})`, p: 2, s: 3,
+      consecuencia: "Aumenta el riesgo de sobreesfuerzo, caídas o lesiones durante la manipulación", medida: a.medida, departamento: a.departamento, origen: "checklist" });
+  }
+  if (factores.some((f) => f.zona === "rojo" || f.zona === "amarillo")) {
+    const p = factores.some((f) => f.zona === "rojo") ? 5 : 3;
+    agregar({ factor: "Exposición a factores de riesgo biomecánico", detalle: `DEB · ${resultado.texto ?? resultado.nivel}`, p, s: 3,
+      consecuencia: "Trastornos musculoesqueléticos relacionados con el trabajo",
+      medida: "Vigilancia de la salud musculoesquelética de los expuestos, notificación del riesgo por escrito (LOPCYMAT art. 53.1) y nuevo DEB al aplicar las medidas.",
+      departamento: "sst", origen: "metodo" });
   }
   return nuevos;
 }

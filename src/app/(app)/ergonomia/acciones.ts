@@ -31,7 +31,7 @@ export async function crearEvaluacion(datos: { empresaId: string; puestoId: stri
   if ("error" in c) return { ok: false, mensaje: c.error! };
   if (!datos.empresaId) return { ok: false, mensaje: "Elige la empresa." };
   if (!corto(datos.puesto, 200)) return { ok: false, mensaje: "Elige o escribe el puesto que vas a evaluar." };
-  if (!["rula", "reba", "rosa", "niosh", "libre"].includes(datos.metodo)) return { ok: false, mensaje: "Ese método todavía no está disponible." };
+  if (!["rula", "reba", "rosa", "niosh", "deb", "libre"].includes(datos.metodo)) return { ok: false, mensaje: "Ese método todavía no está disponible." };
   const { data, error } = await c.supabase
     .from("evaluaciones_ergonomicas")
     .insert({ org_id: c.sesion.orgId!, empresa_id: datos.empresaId, puesto_id: datos.puestoId || null, puesto: corto(datos.puesto, 200), tarea: corto(datos.tarea) || null, metodo: datos.metodo })

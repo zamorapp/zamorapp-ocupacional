@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { NIOSH, proponerHallazgos, ROSA, RULA, type ClaveMetodo, type Hallazgo, type Respuestas, type Resultado } from "@/lib/ergonomia";
+import { DEB } from "@/lib/ergonomia-deb";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Foto = { ruta: string; nota: string };
@@ -54,6 +55,25 @@ const convertir = (f: Fila): Evaluacion => ({
 // Modo demo: una evaluación RULA de ejemplo (cajera) para conocer la pantalla sin datos reales
 export const ID_DEMO = "00000000-0000-4000-8000-00000000e601";
 export const ID_DEMO_NIOSH = "00000000-0000-4000-8000-00000000e602";
+export const ID_DEMO_DEB = "00000000-0000-4000-8000-00000000e604";
+function demoDeb(): Evaluacion {
+  // Despacho de un almacén: levantamiento en rojo, transporte y posturas en amarillo, empuje en verde con alertas
+  const si = (claves: string) => Object.fromEntries(claves.split(" ").map((k) => [k, 1]));
+  const no = (claves: string) => Object.fromEntries(claves.split(" ").map((k) => [k, 0]));
+  const datos: Respuestas = {
+    ...si("id_lev1 id_lev2 id_lev3 id_tra1 id_emp1 id_emp2 id_emp3 id_rep1 id_pos1 id_pos2"), ...no("id_rep2"),
+    ...si("v_lev_c v_lev_d"), ...no("v_lev_a v_lev_b v_lev_e"), ...si("r_lev_j"), ...no("r_lev_a r_lev_b r_lev_c r_lev_d r_lev_e r_lev_f r_lev_g r_lev_h r_lev_i r_lev_k"),
+    ...si("v_tra_c"), ...no("v_tra_a r_tra_a r_tra_b"), ...si("a_lt_suelo a_lt_8h"),
+    ...si("v_emp_a v_emp_b v_emp_c v_emp_d a_e_ruedas"),
+    ...si("v_pe_b v_pe_c v_pe_d v_pe_e v_pe_f v_pe_g v_pe_h v_pe_i v_pe_j v_pe_k v_pd_b v_pd_c v_pd_d v_pd_e v_pd_f"), ...no("v_pe_a v_pd_a"),
+  };
+  const resultado = DEB.calcular(datos);
+  let n = 0;
+  return {
+    ...demo(), id: ID_DEMO_DEB, puesto: "Despachador de almacén", tarea: "Preparación y carga de pedidos", metodo: "deb", lado: null, trabajadoresObservados: 8,
+    datos, resultado, hallazgos: proponerHallazgos(DEB, resultado, [], () => `dd${++n}`),
+  };
+}
 export const ID_DEMO_ROSA = "00000000-0000-4000-8000-00000000e603";
 function demoRosa(): Evaluacion {
   // Secretaria con silla sin ajustes y pantalla baja: segunda opción de cada pregunta
@@ -88,7 +108,7 @@ function demo(): Evaluacion {
 }
 
 export async function listarEvaluaciones(empresaId?: string | null): Promise<Evaluacion[]> {
-  if (!supabaseConfigurado) return [demo(), demoNiosh(), demoRosa()];
+  if (!supabaseConfigurado) return [demoDeb(), demo(), demoNiosh(), demoRosa()];
   const supabase = await crearClienteServidor();
   let q = supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(300);
   if (empresaId) q = q.eq("empresa_id", empresaId);
@@ -98,7 +118,7 @@ export async function listarEvaluaciones(empresaId?: string | null): Promise<Eva
 }
 
 export async function obtenerEvaluacion(id: string): Promise<Evaluacion | null> {
-  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : id === ID_DEMO_ROSA ? demoRosa() : null;
+  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : id === ID_DEMO_ROSA ? demoRosa() : id === ID_DEMO_DEB ? demoDeb() : null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).eq("id", id).maybeSingle();
