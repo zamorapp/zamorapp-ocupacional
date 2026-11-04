@@ -29,7 +29,8 @@ export const NOMBRE_DEPTO = Object.fromEntries(DEPARTAMENTOS.map((d) => [d.clave
 
 export type Opcion = { valor: number; texto: string; detalle?: string };
 // numero: se escribe un valor (kg, cm, grados) en vez de elegir una opción
-export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; numero?: { min: number; max: number; unidad: string; paso?: number } };
+// sinPuntos: las opciones son códigos (KIM: tipo de equipo), no se pinta «+N»
+export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; sinPuntos?: boolean; numero?: { min: number; max: number; unidad: string; paso?: number } };
 export type Seccion = {
   titulo: string; zona: Zona; preguntas: Pregunta[];
   // DEB: a qué peligro pertenece, si es zona verde/roja, si sus respuestas son opcionales y cuándo se muestra

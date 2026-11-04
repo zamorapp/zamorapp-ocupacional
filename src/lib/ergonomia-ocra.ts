@@ -74,8 +74,8 @@ export const OCRA: Metodo = {
       zona: "carga",
       preguntas: [
         { clave: "fzMod", texto: "Fuerza moderada (Borg 3-4)", opciones: [o(0, "No"), o(2, "1/3 del tiempo"), o(4, "50 %"), o(6, "Más del 50 %"), o(8, "Casi todo")] },
-        { clave: "fzInt", texto: "Fuerza intensa (Borg 5-7)", opciones: [o(0, "No"), o(4, "2 s cada 10 min"), o(8, "1 %"), o(16, "5 %"), o(24, "Más del 10 %")] },
-        { clave: "fzMax", texto: "Fuerza casi máxima (Borg 8 o más)", opciones: [o(0, "No"), o(6, "2 s cada 10 min"), o(12, "1 %"), o(24, "5 %"), o(32, "Más del 10 %")] },
+        { clave: "fzInt", texto: "Fuerza intensa (Borg 5-7)", opciones: [o(0, "No"), o(4, "2 s cada 10 min"), o(8, "1 % del tiempo"), o(16, "5 % del tiempo"), o(24, "Más del 10 % del tiempo")] },
+        { clave: "fzMax", texto: "Fuerza casi máxima (Borg 8 o más)", opciones: [o(0, "No"), o(6, "2 s cada 10 min"), o(12, "1 % del tiempo"), o(24, "5 % del tiempo"), o(32, "Más del 10 % del tiempo")] },
       ],
     },
     {

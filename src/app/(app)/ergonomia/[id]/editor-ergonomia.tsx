@@ -137,7 +137,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                   binaria && "min-w-14 text-center",
                 )}
               >
-                <span className="block">{o.texto}{!binaria && metodo?.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`}</span>}</span>
+                <span className="block">{o.texto}{!binaria && !p.sinPuntos && metodo?.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{(o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`).replace(".", ",")}</span>}</span>
                 {o.detalle && <span className={cn("block text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.detalle}</span>}
               </button>
             );

@@ -61,15 +61,15 @@ export const KIM: Metodo = {
       titulo: "Equipo y carga",
       zona: "carga",
       preguntas: [
-        { clave: "equipo", texto: "¿Con qué se mueve la carga?", opciones: [
+        { clave: "equipo", texto: "¿Con qué se mueve la carga?", sinPuntos: true, opciones: [
           o(1, "Carretilla de una rueda"), o(2, "Carretilla de dos ruedas o diablito", "un solo eje"),
           o(3, "Carro con ruedas giratorias", "las 4 ruedas giran"), o(4, "Contenedor con ruedas simples a la intemperie", "por ejemplo, de basura"),
           o(5, "Carro con ruedas fijas", "o giratorias con traba"), o(6, "Carro guiado con barra de tiro"),
           o(7, "Monorriel suspendido"), o(8, "Grúa puente suspendida")] },
         { clave: "masa", texto: "Masa total que se mueve (carga más el equipo)", opciones: [], numero: { min: 1, max: 3000, unidad: "kg" },
-          ayuda: "Pese el equipo vacío y súmele la carga más pesada habitual." },
+          ayuda: "Pesa el equipo vacío y súmale la carga más pesada habitual." },
         { clave: "recorrido", texto: "Recorrido total empujando o arrastrando en la jornada", opciones: [], numero: { min: 1, max: 30000, unidad: "m" },
-          ayuda: "Si solo sabe el tiempo: cada minuto empujando son unos 42 m (a paso de 2,5 km/h)." },
+          ayuda: "Si solo sabes el tiempo: cada minuto empujando son unos 42 m (a paso de 2,5 km/h)." },
       ],
     },
     {
