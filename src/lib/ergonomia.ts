@@ -389,7 +389,7 @@ const DURACION: Opcion[] = [
   { valor: 0, texto: "1 a 4 h al día", detalle: "o 30 min a 1 h seguidos" },
   { valor: 1, texto: "Más de 4 h al día", detalle: "o más de 1 h seguida" },
 ];
-const dur = (clave: string, que: string): Pregunta => ({ clave, texto: `Tiempo de uso de ${que}`, opciones: DURACION });
+const dur = (clave: string, que: string): Pregunta => ({ clave, texto: `Tiempo de uso ${que.replace(/^el /, "del ").replace(/^la /, "de la ")}`, opciones: DURACION });
 
 export const ROSA: Metodo = {
   clave: "rosa",
