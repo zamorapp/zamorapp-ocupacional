@@ -352,7 +352,7 @@ export const NOMBRE_METODO: Record<ClaveMetodo, string> = {
 
 // Métodos recomendados para próximas versiones (se muestran como «Próximamente» con su fuente)
 export const PROXIMOS: { corto: string; para: string; fuente: string }[] = [
-  { corto: "DEB (CENEA)", para: "Diagnóstico ergonómico y biomecánico básico con lista de chequeo y fotos", fuente: "Centro de Ergonomía Aplicada (CENEA), formato de Cesar" },
+  { corto: "DEB (CENEA)", para: "Diagnóstico ergonómico y biomecánico básico con lista de chequeo y fotos", fuente: "Centro de Ergonomía Aplicada (CENEA)" },
   { corto: "NIOSH", para: "Levantamiento manual de cargas (límite de peso recomendado)", fuente: "Waters TR et al. Ergonomics 1993;36(7):749-776 · ISO 11228-1" },
   { corto: "ROSA", para: "Puestos de oficina con computadora", fuente: "Sonne M et al. Applied Ergonomics 2012;43(1):98-108" },
   { corto: "OCRA", para: "Movimientos repetitivos de mano y brazo", fuente: "Occhipinti E. Ergonomics 1998 · ISO 11228-3" },

@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CloudOff, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { Camera, Check, ChevronDown, CloudOff, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  CLASE_URGENCIA, DEPARTAMENTOS, METODOS, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
+  CLASE_URGENCIA, DEPARTAMENTOS, METODOS, NOMBRE_DEPTO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
   type Departamento, type Hallazgo, type Metodo,
 } from "@/lib/ergonomia";
 import type { Evaluacion, Foto } from "@/lib/ergonomia-datos";
@@ -38,6 +38,8 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   const resultado = useMemo(() => (metodo ? metodo.calcular(x.datos) : null), [metodo, x.datos]);
   const [estado, setEstado] = useState<{ tipo: "ok" | "error" | "guardando" | "pendiente"; texto: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
+  const alternarAbierto = (id: string) => setAbiertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Guardado automático 1,5 s después del último cambio (a prueba de cortes de luz); el puntaje lo recalcula el servidor
   const primera = useRef(true);
@@ -168,40 +170,56 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
             {editable && (
               <div className="flex flex-wrap gap-2">
                 {metodo && <Button variant="outline" size="sm" onClick={proponer}><Sparkles /> Proponer desde el resultado</Button>}
-                <Button variant="outline" size="sm" onClick={() => set("hallazgos", [...x.hallazgos, { id: nuevoId(), factor: "", detalle: "", p: 0, s: 0, consecuencia: "", medida: "", departamento: "ingenieria", plazo: "", origen: "manual" }])}><Plus /> Agregar</Button>
+                <Button variant="outline" size="sm" onClick={() => { const id = nuevoId(); setAbiertos((a) => new Set(a).add(id)); set("hallazgos", [...x.hallazgos, { id, factor: "", detalle: "", p: 0, s: 0, consecuencia: "", medida: "", departamento: "ingenieria", plazo: "", origen: "manual" }]); }}><Plus /> Agregar</Button>
               </div>
             )}
           </div>
           {ordenados.length === 0 && <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Sin hallazgos todavía.{metodo ? " Marca las posturas y pulsa «Proponer desde el resultado»." : ""}</p>}
           {ordenados.map((h) => {
             const pr = prioridad(h);
+            const abierto = abiertos.has(h.id) || !h.factor;
             return (
-              <div key={h.id} className="space-y-2 rounded-xl border p-3">
-                <div className="flex items-start gap-2">
-                  <Input disabled={!editable} value={h.factor} placeholder="Factor de riesgo (ej.: brazos elevados)" onChange={(e) => cambiarHallazgo(h.id, { factor: e.target.value })} className="font-medium" />
-                  <span className={cn("shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium", pr ? pr.clase : "bg-muted text-muted-foreground")}>{pr ? `${pr.texto} (${pr.n})` : "Sin valorar"}</span>
-                  {editable && <button type="button" aria-label="Quitar hallazgo" className="mt-2 text-muted-foreground hover:text-destructive" onClick={() => set("hallazgos", x.hallazgos.filter((y) => y.id !== h.id))}><X className="size-4" /></button>}
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                  <select aria-label="Probabilidad" disabled={!editable} value={h.p} onChange={(e) => cambiarHallazgo(h.id, { p: Number(e.target.value) })} className={SELECT}>
-                    <option value={0}>Probabilidad</option>
-                    {[1, 2, 3, 4, 5].map((i) => <option key={i} value={i}>P{i} · {ESCALA_P[i]}</option>)}
-                  </select>
-                  <select aria-label="Severidad" disabled={!editable} value={h.s} onChange={(e) => cambiarHallazgo(h.id, { s: Number(e.target.value) })} className={SELECT}>
-                    <option value={0}>Severidad</option>
-                    {[1, 2, 3, 4, 5].map((i) => <option key={i} value={i}>S{i} · {ESCALA_S[i]}</option>)}
-                  </select>
-                  <select aria-label="Departamento" disabled={!editable} value={h.departamento} onChange={(e) => cambiarHallazgo(h.id, { departamento: e.target.value as Departamento })} className={SELECT}>
-                    {DEPARTAMENTOS.map((d) => <option key={d.clave} value={d.clave}>{d.nombre}</option>)}
-                  </select>
-                  <select aria-label="Plazo" disabled={!editable} value={h.plazo} onChange={(e) => cambiarHallazgo(h.id, { plazo: e.target.value })} className={SELECT}>
-                    <option value="">Plazo…</option>
-                    {PLAZOS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <Input disabled={!editable} value={h.consecuencia} placeholder="Posible daño: enfermedad o accidente que puede causar" onChange={(e) => cambiarHallazgo(h.id, { consecuencia: e.target.value })} className="text-sm" />
-                <Textarea disabled={!editable} rows={2} value={h.medida} placeholder="Medida recomendada" onChange={(e) => cambiarHallazgo(h.id, { medida: e.target.value })} className="text-sm" />
-                {h.detalle && <p className="text-xs text-muted-foreground">{h.detalle}</p>}
+              <div key={h.id} className="rounded-xl border">
+                {/* Plegado: prioridad · riesgo · responsable · plazo; se abre al tocarlo */}
+                <button
+                  type="button"
+                  aria-expanded={abierto}
+                  onClick={() => alternarAbierto(h.id)}
+                  className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-3 py-2.5 text-left text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]"
+                >
+                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", pr ? pr.clase : "bg-muted text-muted-foreground")}>{pr ? `${pr.texto} ${pr.n}` : "Sin valorar"}</span>
+                  <span className="truncate font-medium">{h.factor || "Nuevo hallazgo"}</span>
+                  <span className="col-start-2 row-start-2 text-xs text-muted-foreground sm:col-start-3 sm:row-start-1">{NOMBRE_DEPTO[h.departamento]} · {h.plazo || pr?.plazo || "sin plazo"}</span>
+                  <ChevronDown className={cn("col-start-3 row-start-1 size-4 shrink-0 text-muted-foreground transition sm:col-start-4", abierto && "rotate-180")} />
+                </button>
+                {abierto && (
+                  <div className="space-y-2 border-t px-3 pt-2 pb-3">
+                    <div className="flex items-start gap-2">
+                      <Input disabled={!editable} value={h.factor} placeholder="Factor de riesgo (ej.: brazos elevados)" onChange={(e) => cambiarHallazgo(h.id, { factor: e.target.value })} className="font-medium" />
+                      {editable && <button type="button" aria-label="Quitar hallazgo" className="mt-2 text-muted-foreground hover:text-destructive" onClick={() => set("hallazgos", x.hallazgos.filter((y) => y.id !== h.id))}><Trash2 className="size-4" /></button>}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <select aria-label="Probabilidad" disabled={!editable} value={h.p} onChange={(e) => cambiarHallazgo(h.id, { p: Number(e.target.value) })} className={SELECT}>
+                        <option value={0}>Probabilidad</option>
+                        {[1, 2, 3, 4, 5].map((i) => <option key={i} value={i}>P{i} · {ESCALA_P[i]}</option>)}
+                      </select>
+                      <select aria-label="Severidad" disabled={!editable} value={h.s} onChange={(e) => cambiarHallazgo(h.id, { s: Number(e.target.value) })} className={SELECT}>
+                        <option value={0}>Severidad</option>
+                        {[1, 2, 3, 4, 5].map((i) => <option key={i} value={i}>S{i} · {ESCALA_S[i]}</option>)}
+                      </select>
+                      <select aria-label="Responsable" disabled={!editable} value={h.departamento} onChange={(e) => cambiarHallazgo(h.id, { departamento: e.target.value as Departamento })} className={SELECT}>
+                        {DEPARTAMENTOS.map((d) => <option key={d.clave} value={d.clave}>{d.nombre}</option>)}
+                      </select>
+                      <select aria-label="Plazo" disabled={!editable} value={h.plazo} onChange={(e) => cambiarHallazgo(h.id, { plazo: e.target.value })} className={SELECT}>
+                        <option value="">Plazo…</option>
+                        {PLAZOS.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <Input disabled={!editable} value={h.consecuencia} placeholder="Posible daño: enfermedad o accidente que puede causar" onChange={(e) => cambiarHallazgo(h.id, { consecuencia: e.target.value })} className="text-sm" />
+                    <Textarea disabled={!editable} rows={2} value={h.medida} placeholder="Medida recomendada" onChange={(e) => cambiarHallazgo(h.id, { medida: e.target.value })} className="text-sm" />
+                    {h.detalle && <p className="text-xs text-muted-foreground">{h.detalle}</p>}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -302,6 +320,25 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           )}
         </div>
       </aside>
+
+      {/* Celular: resultado y Guardar siempre a la mano, encima de la barra inferior */}
+      {(resultado || editable) && (
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-3 rounded-2xl bg-foreground px-4 py-2.5 text-background shadow-lg lg:hidden">
+          <div className="min-w-0 flex-1 text-sm">
+            {resultado ? (
+              <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? `${resultado.puntaje} de ${resultado.maximo}` : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
+            ) : (
+              <span className="block truncate">{x.hallazgos.length} hallazgos</span>
+            )}
+            {estado && <span className="block truncate text-xs opacity-70">{estado.texto}</span>}
+          </div>
+          {editable && (
+            <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>
+              {ocupado && <Loader2 className="animate-spin" />} Guardar
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

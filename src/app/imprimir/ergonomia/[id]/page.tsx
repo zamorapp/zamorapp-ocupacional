@@ -16,12 +16,12 @@ export const maxDuration = 60;
 
 // Colores de papel por nivel (también legibles en blanco y negro por el texto)
 const NIVEL: Record<string, string> = {
-  Bajo: "bg-[#e7f4ec] text-[#1d7a46]",
-  Medio: "bg-[#fdf4dc] text-[#7a5300]",
-  Alto: "bg-[#fdecea] text-[#b42318]",
-  Crítico: "bg-[#b42318] text-white",
+  Bajo: "border border-[#1d7a46] bg-[#e7f4ec] font-bold text-[#1d7a46]",
+  Medio: "border border-[#7a5300] bg-[#fdf4dc] font-bold text-[#7a5300]",
+  Alto: "border border-[#b42318] bg-[#fdecea] font-bold text-[#b42318]",
+  Crítico: "border border-[#b42318] bg-[#b42318] font-bold text-white",
 };
-const URGENCIA = ["bg-[#e7f4ec] text-[#1d7a46]", "bg-[#e7f4ec] text-[#1d7a46]", "bg-[#fdf4dc] text-[#7a5300]", "bg-[#fdecea] text-[#b42318]", "bg-[#b42318] text-white"];
+const URGENCIA = ["border border-[#1d7a46] bg-[#e7f4ec] text-[#1d7a46]", "border border-[#1d7a46] bg-[#e7f4ec] text-[#1d7a46]", "border border-[#7a5300] bg-[#fdf4dc] text-[#7a5300]", "border border-[#b42318] bg-[#fdecea] text-[#b42318]", "border border-[#b42318] bg-[#b42318] text-white"];
 
 // Qué recibe cada departamento además de sus medidas
 const ENFOQUE: Record<Departamento, string> = {
@@ -91,7 +91,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
           celdas={[
             { k: "Puesto", v: ev.puesto, ancho: 2, destacada: true },
             { k: "Tarea observada", v: ev.tarea || "—", ancho: 2 },
-            { k: "Lado evaluado", v: ev.lado ?? "—" },
+            { k: "Lado evaluado", v: ev.lado ? ev.lado[0].toUpperCase() + ev.lado.slice(1) : "—" },
             { k: "Trabajadores expuestos", v: ev.trabajadoresObservados ?? "—" },
             { k: metodo ? `Resultado ${metodo.corto}` : "Riesgo máximo", v: r?.completo ? `${r.puntaje} de ${r.maximo} · ${r.nivel}` : max ? `${max.texto} (${max.n})` : "—", ancho: 2 },
           ]}
@@ -148,7 +148,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
         {!depto && todos.length > 0 && (
           <Bloque titulo="Resumen por departamento">
             <div className="grid grid-cols-4 gap-2">
-              {DEPARTAMENTOS.map((d) => {
+              {DEPARTAMENTOS.filter((d) => todos.some((h) => h.departamento === d.clave)).map((d) => {
                 const del = todos.filter((h) => h.departamento === d.clave);
                 const p = del.map((h) => prioridad(h)).find(Boolean);
                 return (
@@ -172,7 +172,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {firma && !borrador && <img src={firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
               </div>
-              <div className="text-[11px] font-bold">{firmas?.nombre_completo ?? "—"}</div>
+              {firmas?.nombre_completo && <div className="text-[11px] font-bold">{firmas.nombre_completo}</div>}
               <div className="text-doc-tenue">{[firmas?.especialidad || "Evaluador", firmas?.mpps && `MPPS ${firmas.mpps}`, firmas?.registro_inpsasel && `INPSASEL ${firmas.registro_inpsasel}`].filter(Boolean).join(" · ")}</div>
             </div>
             <CasillaSello imagen={borrador ? null : sello} className="h-[64px] w-[104px]" />
