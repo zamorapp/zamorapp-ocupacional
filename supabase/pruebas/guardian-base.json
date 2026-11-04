@@ -14,6 +14,7 @@
     "public.consulta_abierta(p_consulta uuid)",
     "public.correo_para_ingreso(p_usuario text, p_clave text)",
     "public.correos_propuestas_por_enviar(p_clave text)",
+    "public.resultado_correo_propuesta(p_clave text, p_citas uuid[], p_ok boolean, p_error text, p_definitivo boolean)",
     "public.depurar_nomina(p_empresa uuid, p_desde date, p_aplicar boolean)",
     "public.dias_equipo_confianza()",
     "public.dos_pasos_cumplido()",

@@ -1,11 +1,36 @@
 {
-  "etiqueta": "migraciones-20261104-17",
-  "aprobado": "Cesar, sí del 2026-11-04 21:42 UTC",
+  "etiqueta": "migraciones-20261104-18",
+  "aprobado": "Cesar, sí del 2026-11-04 21:42-22:10 UTC (papelera, nómina, recomendaciones, ergonomía, reintento de correos de citas)",
   "migraciones": [
     {
       "archivo": "20261030795000_papelera_admin.sql",
       "sha256": "42e1c1474e5b2e4e3cbc152ab37b622a1ba47f0562b0a3205b39348b040f7fce",
-      "descripcion": "Papelera del administrador: eliminar consultas y trabajadores con Deshacer"
+      "descripcion": "Papelera del administrador con Deshacer"
+    },
+    {
+      "archivo": "20261030796000_actualizar_nomina.sql",
+      "sha256": "cfac9d06f9d6265e40b0beb6021ea4763eeb0541f7860de21053d5b86eaf6e06",
+      "descripcion": "Actualizar nómina con plantilla de RR. HH."
+    },
+    {
+      "archivo": "20261030797000_recomendaciones_completas.sql",
+      "sha256": "e7091b1c35f2a7aeb34eba548aac0abe4b9ae1b2f1f68dbd9f0826047763cfc2",
+      "descripcion": "Recomendaciones más completas y por categorías"
+    },
+    {
+      "archivo": "20261030800000_evaluacion_ergonomica.sql",
+      "sha256": "c6fc4d0b92eada38ad7c4d8065296adbef27c97d821751a33f2d886b584d2f63",
+      "descripcion": "Evaluación ergonómica de puestos (RULA, REBA, DEB)"
+    },
+    {
+      "archivo": "20261030801000_ergonomia_rosa_niosh.sql",
+      "sha256": "705581fc79a42556ec26f60295bdd5d72a0d77950e9c7d178ef34e06b8732f98",
+      "descripcion": "Ergonomía: métodos ROSA y NIOSH"
+    },
+    {
+      "archivo": "20261030802000_reintento_correo_propuesta.sql",
+      "sha256": "ab2ec8b213d0adec6323f5465d5205f66956ebc1a630db56c8ac9b5242e6deb0",
+      "descripcion": "Correos de citas con reintento y límite (cierra reenvío sin límite)"
     }
   ]
 }
