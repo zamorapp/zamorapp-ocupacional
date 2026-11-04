@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import { proponerHallazgos, RULA, type ClaveMetodo, type Hallazgo, type Respuestas, type Resultado } from "@/lib/ergonomia";
+import { NIOSH, proponerHallazgos, RULA, type ClaveMetodo, type Hallazgo, type Respuestas, type Resultado } from "@/lib/ergonomia";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Foto = { ruta: string; nota: string };
@@ -53,6 +53,16 @@ const convertir = (f: Fila): Evaluacion => ({
 
 // Modo demo: una evaluación RULA de ejemplo (cajera) para conocer la pantalla sin datos reales
 export const ID_DEMO = "00000000-0000-4000-8000-00000000e601";
+export const ID_DEMO_NIOSH = "00000000-0000-4000-8000-00000000e602";
+function demoNiosh(): Evaluacion {
+  const datos = { carga: 25, h: 45, v: 20, d: 90, a: 45, frecuencia: 2, duracion: 3, agarre: 1 };
+  const resultado = NIOSH.calcular(datos);
+  let n = 0;
+  return {
+    ...demo(), id: ID_DEMO_NIOSH, puesto: "Almacenista", tarea: "Carga de sacos de harina al camión", metodo: "niosh", lado: "ambos", trabajadoresObservados: 6,
+    datos, resultado, hallazgos: proponerHallazgos(NIOSH, resultado, [], () => `dn${++n}`),
+  };
+}
 function demo(): Evaluacion {
   const datos = { brazo: 2, brazoAbducido: 1, antebrazo: 2, antebrazoCruza: 1, muneca: 2, munecaDesviada: 1, giro: 1, musculoBrazo: 1, cargaBrazo: 0, cuello: 3, cuelloGiro: 0, tronco: 2, troncoGiro: 1, piernas: 1, musculoCuerpo: 1, cargaCuerpo: 0 };
   const resultado = RULA.calcular(datos);
@@ -66,7 +76,7 @@ function demo(): Evaluacion {
 }
 
 export async function listarEvaluaciones(empresaId?: string | null): Promise<Evaluacion[]> {
-  if (!supabaseConfigurado) return [demo()];
+  if (!supabaseConfigurado) return [demo(), demoNiosh()];
   const supabase = await crearClienteServidor();
   let q = supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(300);
   if (empresaId) q = q.eq("empresa_id", empresaId);
@@ -76,7 +86,7 @@ export async function listarEvaluaciones(empresaId?: string | null): Promise<Eva
 }
 
 export async function obtenerEvaluacion(id: string): Promise<Evaluacion | null> {
-  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : null;
+  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).eq("id", id).maybeSingle();

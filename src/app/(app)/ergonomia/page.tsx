@@ -63,7 +63,7 @@ export default async function Ergonomia() {
                     <div className="flex flex-wrap gap-1.5">
                       {typeof e.resultado.puntaje === "number" && e.resultado.completo && (
                         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", CLASE_URGENCIA[u ?? 0])}>
-                          {e.resultado.puntaje}/{e.resultado.maximo} · {e.resultado.nivel}
+                          {e.resultado.texto ?? `${e.resultado.puntaje}/${e.resultado.maximo}`} · {e.resultado.nivel}
                         </span>
                       )}
                       {pr && <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", pr.clase)}>{e.hallazgos.length} hallazgos · máx. {pr.texto.toLowerCase()}</span>}

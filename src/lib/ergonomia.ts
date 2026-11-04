@@ -11,9 +11,9 @@ import { nivelRiesgo } from "@/lib/puestos-tipos";
 // Quién hace evaluaciones (la base aplica la misma lista en evaluaciones_ergonomicas_editar)
 export const ROLES_ERGONOMIA = ["administrador", "gerente_medico", "medico", "coordinador_sst"];
 
-export type ClaveMetodo = "rula" | "reba" | "deb" | "libre";
+export type ClaveMetodo = "rula" | "reba" | "rosa" | "niosh" | "deb" | "libre";
 export type Departamento = "ingenieria" | "operaciones" | "rrhh" | "sst";
-export type Zona = "brazo" | "antebrazo" | "muneca" | "cuello" | "tronco" | "piernas" | "carga" | "actividad";
+export type Zona = "brazo" | "antebrazo" | "muneca" | "cuello" | "tronco" | "piernas" | "carga" | "actividad" | "silla" | "pantalla" | "perifericos";
 
 export const DEPARTAMENTOS: { clave: Departamento; nombre: string; enfoque: string }[] = [
   { clave: "ingenieria", nombre: "Ingeniería y mantenimiento", enfoque: "Rediseño del puesto, alturas, alcances, herramientas, ayudas mecánicas" },
@@ -24,7 +24,8 @@ export const DEPARTAMENTOS: { clave: Departamento; nombre: string; enfoque: stri
 export const NOMBRE_DEPTO = Object.fromEntries(DEPARTAMENTOS.map((d) => [d.clave, d.nombre])) as Record<Departamento, string>;
 
 export type Opcion = { valor: number; texto: string; detalle?: string };
-export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string };
+// numero: se escribe un valor (kg, cm, grados) en vez de elegir una opción
+export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; numero?: { min: number; max: number; unidad: string; paso?: number } };
 export type Seccion = { titulo: string; zona: Zona; preguntas: Pregunta[] };
 export type Respuestas = Record<string, number>;
 
@@ -38,6 +39,8 @@ export type Resultado = {
   parciales: { etiqueta: string; valor: number }[];
   zonas: Partial<Record<Zona, number>>;
   completo: boolean;
+  /** Cómo se muestra el puntaje cuando no es «N de M» (NIOSH: «IL 1,45») */
+  texto?: string;
 };
 
 export type Metodo = {
@@ -345,16 +348,290 @@ export const CLASE_URGENCIA = [
   "bg-alerta text-white",
 ];
 
-export const METODOS: Record<"rula" | "reba", Metodo> = { rula: RULA, reba: REBA };
+// ─────────────────────────────── ROSA ───────────────────────────────
+// Sonne M, Villalta DL, Andrews DM. Development and evaluation of an office ergonomic risk checklist: ROSA.
+// Applied Ergonomics 2012;43(1):98-108. Tablas de la hoja oficial (Cornell University Ergonomics Web, 2011-2012).
+// Silla [altura + profundidad 2-8][apoyabrazos + respaldo 2-9]
+const ROSA_SILLA = [
+  [1, 2, 3, 4, 5, 6, 7, 8],
+  [2, 2, 3, 4, 5, 6, 7, 8],
+  [3, 3, 3, 4, 5, 7, 7, 8],
+  [4, 4, 4, 4, 5, 7, 7, 8],
+  [5, 5, 5, 5, 5, 8, 8, 9],
+  [6, 6, 6, 7, 7, 8, 9, 9],
+  [7, 7, 7, 8, 8, 9, 9, 9],
+];
+// Pantalla y teléfono [teléfono 0-6][pantalla 0-7]
+const ROSA_PANTALLA = [
+  [1, 1, 1, 2, 3, 4, 5, 6],
+  [1, 1, 2, 2, 3, 4, 5, 6],
+  [1, 2, 2, 3, 3, 4, 6, 7],
+  [2, 2, 3, 3, 4, 5, 6, 8],
+  [3, 3, 4, 4, 5, 6, 7, 8],
+  [4, 4, 5, 5, 6, 7, 8, 9],
+  [5, 5, 6, 7, 8, 8, 9, 9],
+];
+// Mouse y teclado [mouse 0-7][teclado 0-7]
+const ROSA_PERIFERICOS = [
+  [1, 1, 1, 2, 3, 4, 5, 6],
+  [1, 1, 2, 3, 4, 5, 6, 7],
+  [1, 2, 2, 3, 4, 5, 6, 7],
+  [2, 3, 3, 3, 5, 6, 7, 8],
+  [3, 4, 4, 5, 5, 6, 7, 8],
+  [4, 5, 5, 6, 6, 7, 8, 9],
+  [5, 6, 6, 7, 7, 8, 8, 9],
+  [6, 7, 7, 8, 8, 9, 9, 9],
+];
+const DURACION: Opcion[] = [
+  { valor: -1, texto: "Menos de 1 h al día", detalle: "o menos de 30 min seguidos" },
+  { valor: 0, texto: "1 a 4 h al día", detalle: "o 30 min a 1 h seguidos" },
+  { valor: 1, texto: "Más de 4 h al día", detalle: "o más de 1 h seguida" },
+];
+const dur = (clave: string, que: string): Pregunta => ({ clave, texto: `Tiempo de uso de ${que}`, opciones: DURACION });
+
+export const ROSA: Metodo = {
+  clave: "rosa",
+  nombre: "ROSA · Evaluación rápida de puestos de oficina",
+  corto: "ROSA",
+  paraQue: "Puestos de oficina con computadora: silla, pantalla, teléfono, teclado y mouse.",
+  fuente: "Sonne M, Villalta DL, Andrews DM. Applied Ergonomics 2012;43(1):98-108.",
+  secciones: [
+    {
+      titulo: "Silla: altura y asiento",
+      zona: "silla",
+      preguntas: [
+        { clave: "sillaAltura", texto: "Altura de la silla", opciones: [
+          { valor: 1, texto: "Rodillas a 90°" }, { valor: 2, texto: "Muy baja o muy alta", detalle: "rodillas a menos o más de 90°" },
+          { valor: 3, texto: "Los pies no tocan el suelo" }] },
+        { clave: "sillaEspacio", texto: "Espacio insuficiente debajo de la mesa (no puede cruzar las piernas)", opciones: si(1) },
+        { clave: "sillaAlturaFija", texto: "Altura de la silla no regulable", opciones: si(1) },
+        { clave: "asiento", texto: "Profundidad del asiento", opciones: [
+          { valor: 1, texto: "Unos 8 cm entre rodilla y borde", detalle: "tres dedos" }, { valor: 2, texto: "Muy largo o muy corto" }] },
+        { clave: "asientoFijo", texto: "Profundidad del asiento no regulable", opciones: si(1) },
+      ],
+    },
+    {
+      titulo: "Silla: apoyabrazos, respaldo y tiempo",
+      zona: "silla",
+      preguntas: [
+        { clave: "apoyabrazos", texto: "Apoyabrazos", opciones: [
+          { valor: 1, texto: "Codos apoyados, hombros relajados" }, { valor: 2, texto: "Muy altos o muy bajos", detalle: "hombros encogidos o brazos sin apoyo" }] },
+        { clave: "brazosDuros", texto: "Apoyabrazos duros o dañados", opciones: si(1) },
+        { clave: "brazosAnchos", texto: "Apoyabrazos muy separados", opciones: si(1) },
+        { clave: "brazosFijos", texto: "Apoyabrazos no regulables", opciones: si(1) },
+        { clave: "respaldo", texto: "Respaldo", opciones: [
+          { valor: 1, texto: "Apoyo lumbar adecuado, 95°–110°" },
+          { valor: 2, texto: "Sin apoyo lumbar, mal inclinado o sin respaldo", detalle: "o la persona se inclina hacia adelante" }] },
+        { clave: "mesaAlta", texto: "Superficie de trabajo muy alta (hombros encogidos)", opciones: si(1) },
+        { clave: "respaldoFijo", texto: "Respaldo no regulable", opciones: si(1) },
+        dur("durSilla", "la silla"),
+      ],
+    },
+    {
+      titulo: "Pantalla",
+      zona: "pantalla",
+      preguntas: [
+        { clave: "pantalla", texto: "Ubicación de la pantalla", opciones: [
+          { valor: 1, texto: "A un brazo (40–75 cm), a la altura de los ojos" }, { valor: 2, texto: "Muy baja", detalle: "más de 30° por debajo de los ojos" },
+          { valor: 3, texto: "Muy alta", detalle: "cuello hacia atrás" }] },
+        { clave: "pantallaLejos", texto: "Muy lejos (más de 75 cm)", opciones: si(1) },
+        { clave: "pantallaGiro", texto: "Cuello girado más de 30°", opciones: si(1) },
+        { clave: "pantallaReflejo", texto: "Reflejos en la pantalla", opciones: si(1) },
+        { clave: "pantallaAtril", texto: "Documentos sin atril", opciones: si(1) },
+        dur("durPantalla", "la pantalla"),
+      ],
+    },
+    {
+      titulo: "Teléfono",
+      zona: "pantalla",
+      preguntas: [
+        { clave: "telefono", texto: "Uso del teléfono", opciones: [
+          { valor: 1, texto: "Auricular, o una mano y cuello recto" }, { valor: 2, texto: "Muy lejos", detalle: "a más de 30 cm" }] },
+        { clave: "telefonoHombro", texto: "Lo sostiene entre el cuello y el hombro", opciones: si(2) },
+        { clave: "telefonoManos", texto: "Sin manos libres", opciones: si(1) },
+        dur("durTelefono", "el teléfono"),
+      ],
+    },
+    {
+      titulo: "Mouse",
+      zona: "perifericos",
+      preguntas: [
+        { clave: "mouse", texto: "Ubicación del mouse", opciones: [{ valor: 1, texto: "En línea con el hombro" }, { valor: 2, texto: "Hay que estirarse para alcanzarlo" }] },
+        { clave: "mouseNivel", texto: "Mouse y teclado a distinta altura", opciones: si(2) },
+        { clave: "mousePinza", texto: "Agarre en pinza (mouse pequeño)", opciones: si(1) },
+        { clave: "mouseApoyo", texto: "Reposamuñecas delante del mouse", opciones: si(1) },
+        dur("durMouse", "el mouse"),
+      ],
+    },
+    {
+      titulo: "Teclado",
+      zona: "perifericos",
+      preguntas: [
+        { clave: "teclado", texto: "Posición de las muñecas", opciones: [
+          { valor: 1, texto: "Rectas, hombros relajados" }, { valor: 2, texto: "Extendidas más de 15°", detalle: "o teclado inclinado hacia arriba" }] },
+        { clave: "tecladoDesvio", texto: "Muñecas desviadas al escribir", opciones: si(1) },
+        { clave: "tecladoAlto", texto: "Teclado muy alto (hombros encogidos)", opciones: si(1) },
+        { clave: "tecladoAlcance", texto: "Tiene que alcanzar objetos por encima de la cabeza", opciones: si(1) },
+        { clave: "tecladoFijo", texto: "Bandeja o superficie no regulable", opciones: si(1) },
+        dur("durTeclado", "el teclado"),
+      ],
+    },
+  ],
+  calcular(r) {
+    const altura = v(r, "sillaAltura") + v(r, "sillaEspacio") + v(r, "sillaAlturaFija");
+    const profundidad = v(r, "asiento") + v(r, "asientoFijo");
+    const brazos = v(r, "apoyabrazos") + v(r, "brazosDuros") + v(r, "brazosAnchos") + v(r, "brazosFijos");
+    const respaldo = v(r, "respaldo") + v(r, "mesaAlta") + v(r, "respaldoFijo");
+    const silla = tope(ROSA_SILLA[tope(altura + profundidad, 2, 8) - 2][tope(brazos + respaldo, 2, 9) - 2] + v(r, "durSilla"), 1, 10);
+    const pantalla = tope(v(r, "pantalla") + v(r, "pantallaLejos") + v(r, "pantallaGiro") + v(r, "pantallaReflejo") + v(r, "pantallaAtril") + v(r, "durPantalla"), 0, 7);
+    const telefono = tope(v(r, "telefono") + v(r, "telefonoHombro") + v(r, "telefonoManos") + v(r, "durTelefono"), 0, 6);
+    const mouse = tope(v(r, "mouse") + v(r, "mouseNivel") + v(r, "mousePinza") + v(r, "mouseApoyo") + v(r, "durMouse"), 0, 7);
+    const teclado = tope(v(r, "teclado") + v(r, "tecladoDesvio") + v(r, "tecladoAlto") + v(r, "tecladoAlcance") + v(r, "tecladoFijo") + v(r, "durTeclado"), 0, 7);
+    const pantallaTelefono = ROSA_PANTALLA[telefono][pantalla];
+    const perifericos = ROSA_PERIFERICOS[mouse][teclado];
+    // Tablas de periféricos y final: en la hoja oficial cada celda es el mayor de los dos puntajes
+    const equipos = tope(Math.max(pantallaTelefono, perifericos), 1, 9);
+    const puntaje = tope(Math.max(silla, equipos), 1, 10);
+    const completo = ["sillaAltura", "asiento", "apoyabrazos", "respaldo", "pantalla", "telefono", "mouse", "teclado"].every((k) => v(r, k) > 0)
+      && ["durSilla", "durPantalla", "durTelefono", "durMouse", "durTeclado"].every((k) => k in r);
+    const [urgencia, nivel, accion] =
+      puntaje >= 8 ? [4, "Muy alto", "Corregir el puesto de inmediato"] as const
+      : puntaje >= 5 ? [3, "Alto", "Riesgo alto (5 o más): evaluar a fondo y corregir pronto"] as const
+      : puntaje >= 3 ? [1, "Mejorable", "Ajustar los elementos con puntaje alto cuando sea posible"] as const
+      : [0, "Bajo", "Puesto adecuado"] as const;
+    return {
+      puntaje, maximo: 10, urgencia, nivel, accion, completo,
+      parciales: [
+        { etiqueta: "Altura + profundidad del asiento", valor: altura + profundidad }, { etiqueta: "Apoyabrazos + respaldo", valor: brazos + respaldo },
+        { etiqueta: "Silla (con tiempo)", valor: silla }, { etiqueta: "Pantalla", valor: pantalla }, { etiqueta: "Teléfono", valor: telefono },
+        { etiqueta: "Pantalla y teléfono", valor: pantallaTelefono }, { etiqueta: "Mouse", valor: mouse }, { etiqueta: "Teclado", valor: teclado },
+        { etiqueta: "Mouse y teclado", valor: perifericos }, { etiqueta: "Equipos", valor: equipos },
+      ],
+      zonas: { silla, pantalla: pantallaTelefono, perifericos },
+    };
+  },
+};
+
+// ─────────────────────────────── NIOSH ───────────────────────────────
+// Waters TR, Putz-Anderson V, Garg A, Fine LJ. Revised NIOSH equation for the design and evaluation of manual lifting
+// tasks. Ergonomics 1993;36(7):749-776. Applications Manual for the Revised NIOSH Lifting Equation, DHHS (NIOSH)
+// 2021-110 (tablas 5 y 7, en unidades métricas).
+const FRECUENCIAS = [0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+// [frecuencia][≤1 h V<75, ≤1 h V≥75, 1-2 h V<75, 1-2 h V≥75, 2-8 h V<75, 2-8 h V≥75]
+const NIOSH_FM = [
+  [1.0, 1.0, 0.95, 0.95, 0.85, 0.85],
+  [0.97, 0.97, 0.92, 0.92, 0.81, 0.81],
+  [0.94, 0.94, 0.88, 0.88, 0.75, 0.75],
+  [0.91, 0.91, 0.84, 0.84, 0.65, 0.65],
+  [0.88, 0.88, 0.79, 0.79, 0.55, 0.55],
+  [0.84, 0.84, 0.72, 0.72, 0.45, 0.45],
+  [0.8, 0.8, 0.6, 0.6, 0.35, 0.35],
+  [0.75, 0.75, 0.5, 0.5, 0.27, 0.27],
+  [0.7, 0.7, 0.42, 0.42, 0.22, 0.22],
+  [0.6, 0.6, 0.35, 0.35, 0.18, 0.18],
+  [0.52, 0.52, 0.3, 0.3, 0, 0.15],
+  [0.45, 0.45, 0.26, 0.26, 0, 0.13],
+  [0.41, 0.41, 0, 0.23, 0, 0],
+  [0.37, 0.37, 0, 0.21, 0, 0],
+  [0, 0.34, 0, 0, 0, 0],
+  [0, 0.31, 0, 0, 0, 0],
+  [0, 0.28, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0],
+];
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+export const NIOSH: Metodo = {
+  clave: "niosh",
+  nombre: "NIOSH · Ecuación de levantamiento de cargas",
+  corto: "NIOSH",
+  paraQue: "Levantar o bajar cargas con las dos manos: almacén, despacho, carga de camiones, producción.",
+  fuente: "Waters TR et al. Ergonomics 1993;36(7):749-776 · NIOSH Applications Manual 2021-110.",
+  secciones: [
+    {
+      titulo: "La carga",
+      zona: "carga",
+      preguntas: [
+        { clave: "carga", texto: "Peso de la carga", opciones: [], numero: { min: 0.5, max: 100, unidad: "kg", paso: 0.5 } },
+        { clave: "agarre", texto: "Agarre", opciones: [
+          { valor: 0, texto: "Bueno", detalle: "asas o cajas con agarraderas" }, { valor: 1, texto: "Regular", detalle: "sin asas, se puede doblar los dedos" },
+          { valor: 2, texto: "Malo", detalle: "voluminosa, irregular o resbaladiza" }] },
+      ],
+    },
+    {
+      titulo: "Posición al levantar (origen)",
+      zona: "tronco",
+      preguntas: [
+        { clave: "h", texto: "Distancia horizontal de las manos al punto medio entre los tobillos", opciones: [], numero: { min: 0, max: 100, unidad: "cm" } },
+        { clave: "v", texto: "Altura de las manos al inicio, desde el suelo", opciones: [], numero: { min: 0, max: 200, unidad: "cm" } },
+        { clave: "d", texto: "Recorrido vertical de la carga (diferencia de altura origen–destino)", opciones: [], numero: { min: 0, max: 200, unidad: "cm" } },
+        { clave: "a", texto: "Giro del tronco (asimetría)", opciones: [], numero: { min: 0, max: 180, unidad: "°" } },
+      ],
+    },
+    {
+      titulo: "Frecuencia y duración",
+      zona: "actividad",
+      preguntas: [
+        { clave: "frecuencia", texto: "Levantamientos por minuto", opciones: FRECUENCIAS.map((f) => ({
+          valor: f, texto: f === 16 ? "Más de 15" : f === 0.2 ? "1 cada 5 min o menos" : String(f).replace(".", ",") })) },
+        { clave: "duracion", texto: "Duración de la tarea en la jornada", opciones: [
+          { valor: 1, texto: "Hasta 1 hora", detalle: "con descanso igual después" }, { valor: 2, texto: "1 a 2 horas" }, { valor: 3, texto: "2 a 8 horas" }] },
+      ],
+    },
+  ],
+  calcular(r) {
+    const L = v(r, "carga"), H = v(r, "h"), V = v(r, "v"), D = v(r, "d"), A = v(r, "a");
+    const hm = H <= 25 ? 1 : H > 63 ? 0 : 25 / H;
+    const vm = V > 175 ? 0 : 1 - 0.003 * Math.abs(V - 75);
+    const dm = D <= 25 ? 1 : D > 175 ? 0 : 0.82 + 4.5 / D;
+    const am = A > 135 ? 0 : 1 - 0.0032 * A;
+    const fila = Math.max(0, FRECUENCIAS.indexOf(r.frecuencia ?? 0.2));
+    const fm = NIOSH_FM[fila][(tope(v(r, "duracion"), 1, 3) - 1) * 2 + (V >= 75 ? 1 : 0)];
+    const cm = v(r, "agarre") === 2 ? 0.9 : v(r, "agarre") === 1 && V < 75 ? 0.95 : 1;
+    const lpr = 23 * hm * vm * dm * am * fm * cm;
+    const il = lpr > 0 ? L / lpr : 99;
+    const completo = ["carga", "h", "v", "d", "a", "frecuencia", "duracion", "agarre"].every((k) => k in r) && L > 0;
+    const [urgencia, nivel, accion] =
+      il > 3 ? [4, "Muy alto", "Inaceptable para casi todos: rediseñar la tarea de inmediato"] as const
+      : il > 2 ? [3, "Alto", "Riesgo alto para muchos trabajadores: rediseñar pronto"] as const
+      : il > 1 ? [2, "Moderado", "Riesgo para algunos trabajadores: rediseñar la tarea"] as const
+      : [0, "Aceptable", "La carga no supera el límite recomendado"] as const;
+    const conRiesgo = il > 1;
+    return {
+      puntaje: r2(Math.min(il, 99)), maximo: 3, urgencia, nivel, accion, completo,
+      texto: lpr > 0 ? `IL ${r2(il).toFixed(2).replace(".", ",")}` : "LPR 0",
+      parciales: [
+        { etiqueta: "Multiplicador horizontal (HM)", valor: r2(hm) }, { etiqueta: "Multiplicador vertical (VM)", valor: r2(vm) },
+        { etiqueta: "Multiplicador de distancia (DM)", valor: r2(dm) }, { etiqueta: "Multiplicador de asimetría (AM)", valor: r2(am) },
+        { etiqueta: "Multiplicador de frecuencia (FM)", valor: fm }, { etiqueta: "Multiplicador de agarre (CM)", valor: cm },
+        { etiqueta: "Límite de peso recomendado (kg)", valor: r2(lpr) }, { etiqueta: "Índice de levantamiento (IL)", valor: r2(Math.min(il, 99)) },
+      ],
+      zonas: {
+        carga: conRiesgo ? 3 : 0,
+        tronco: conRiesgo && (A > 0 || V < 50) ? 3 : 0,
+        brazo: conRiesgo && H > 40 ? 3 : 0,
+        actividad: conRiesgo && fm < 0.75 ? 1 : 0,
+      },
+    };
+  },
+};
+
+export const METODOS: Record<"rula" | "reba" | "rosa" | "niosh", Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH };
+export const metodoDe = (clave: ClaveMetodo): Metodo | null => (clave in METODOS ? METODOS[clave as keyof typeof METODOS] : null);
+
+// Respuesta válida para la pregunta: una de sus opciones, o un número dentro de su rango (1 decimal)
+export function respuestaValida(m: Metodo, clave: string, valor: unknown): number | null {
+  const p = m.secciones.flatMap((s) => s.preguntas).find((x) => x.clave === clave);
+  if (!p || typeof valor !== "number" || !Number.isFinite(valor)) return null;
+  if (p.numero) return valor >= p.numero.min && valor <= p.numero.max ? Math.round(valor * 10) / 10 : null;
+  return p.opciones.some((o) => o.valor === valor) ? valor : null;
+}
 export const NOMBRE_METODO: Record<ClaveMetodo, string> = {
-  rula: "RULA", reba: "REBA", deb: "DEB · Diagnóstico ergonómico y biomecánico básico (CENEA)", libre: "Inspección con lista de hallazgos",
+  rula: "RULA", reba: "REBA", rosa: "ROSA · Puestos de oficina", niosh: "NIOSH · Levantamiento de cargas", deb: "DEB · Diagnóstico ergonómico y biomecánico básico (CENEA)", libre: "Inspección con lista de hallazgos",
 };
 
 // Métodos recomendados para próximas versiones (se muestran como «Próximamente» con su fuente)
 export const PROXIMOS: { corto: string; para: string; fuente: string }[] = [
   { corto: "DEB (CENEA)", para: "Diagnóstico ergonómico y biomecánico básico con lista de chequeo y fotos", fuente: "Centro de Ergonomía Aplicada (CENEA)" },
-  { corto: "NIOSH", para: "Levantamiento manual de cargas (límite de peso recomendado)", fuente: "Waters TR et al. Ergonomics 1993;36(7):749-776 · ISO 11228-1" },
-  { corto: "ROSA", para: "Puestos de oficina con computadora", fuente: "Sonne M et al. Applied Ergonomics 2012;43(1):98-108" },
   { corto: "OCRA", para: "Movimientos repetitivos de mano y brazo", fuente: "Occhipinti E. Ergonomics 1998 · ISO 11228-3" },
   { corto: "KIM", para: "Empuje y arrastre de cargas", fuente: "BAuA (Alemania), Key Indicator Method LHC/PP 2019" },
 ];
@@ -389,6 +666,29 @@ export function ordenarHallazgos(lista: Hallazgo[]) {
 
 // Qué se propone para cada zona cargada: factor, daño posible y una medida por departamento.
 const PROPUESTAS: Record<Zona, { factor: string; consecuencia: string; medidas: [Departamento, string][] }> = {
+  silla: {
+    factor: "Silla no ajustada a la persona",
+    consecuencia: "Lumbalgia, cervicalgia y molestias de hombros por estar sentado mucho tiempo",
+    medidas: [
+      ["ingenieria", "Silla regulable en altura, profundidad, apoyabrazos y apoyo lumbar; reposapiés si los pies no apoyan en el suelo."],
+      ["rrhh", "Enseñar a ajustar la silla al cuerpo y programar pausas activas cada hora."],
+    ],
+  },
+  pantalla: {
+    factor: "Pantalla o teléfono mal ubicados",
+    consecuencia: "Cervicalgia, fatiga visual y tensión de cuello y hombros",
+    medidas: [
+      ["ingenieria", "Pantalla de frente, a un brazo (40–75 cm), con el borde superior a la altura de los ojos y sin reflejos; atril para documentos; auricular o manos libres."],
+    ],
+  },
+  perifericos: {
+    factor: "Teclado y mouse fuera de alcance o a distinta altura",
+    consecuencia: "Tendinitis de muñeca, síndrome del túnel carpiano, epicondilitis",
+    medidas: [
+      ["ingenieria", "Teclado y mouse a la misma altura, cerca del cuerpo y con los codos a 90°; mouse de tamaño adecuado; bandeja regulable."],
+      ["operaciones", "Alternar el trabajo de teclado con otras tareas y pausas de 5 minutos cada hora."],
+    ],
+  },
   brazo: {
     factor: "Brazos elevados o separados del cuerpo",
     consecuencia: "Trastornos musculoesqueléticos de hombro (tendinitis del manguito rotador, bursitis)",
@@ -449,10 +749,10 @@ const PROPUESTAS: Record<Zona, { factor: string; consecuencia: string; medidas: 
   },
 };
 
-export const ZONAS: Record<Zona, string> = { brazo: "brazo", antebrazo: "antebrazo", muneca: "muñeca", cuello: "cuello", tronco: "tronco", piernas: "piernas", carga: "carga y agarre", actividad: "actividad" };
+export const ZONAS: Record<Zona, string> = { brazo: "brazo", antebrazo: "antebrazo", muneca: "muñeca", cuello: "cuello", tronco: "tronco", piernas: "piernas", carga: "carga y agarre", actividad: "actividad", silla: "silla", pantalla: "pantalla y teléfono", perifericos: "teclado y mouse" };
 
 // Umbral por zona para considerarla «cargada» (sobre lo neutro de cada método)
-const UMBRAL: Partial<Record<Zona, number>> = { brazo: 3, antebrazo: 2, muneca: 3, cuello: 3, tronco: 3, piernas: 2, carga: 2, actividad: 1 };
+const UMBRAL: Partial<Record<Zona, number>> = { brazo: 3, antebrazo: 2, muneca: 3, cuello: 3, tronco: 3, piernas: 2, carga: 2, actividad: 1, silla: 5, pantalla: 5, perifericos: 5 };
 
 /** Hallazgos propuestos a partir del resultado del método (el médico los revisa, edita o borra). */
 export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hallazgo[] = [], nuevoId: () => string = () => Math.random().toString(36).slice(2, 10)): Hallazgo[] {
@@ -474,7 +774,7 @@ export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hall
   // Toda evaluación con riesgo deja la vigilancia de la salud de los expuestos
   if (resultado.urgencia >= 2 && !ya.some((h) => h.departamento === "sst" && h.origen === "metodo")) {
     nuevos.push({
-      id: nuevoId(), factor: "Exposición a carga postural", detalle: `${metodo.corto} ${resultado.puntaje} · ${resultado.nivel}`, p, s: 3,
+      id: nuevoId(), factor: metodo.clave === "niosh" ? "Exposición a manipulación de cargas" : "Exposición a carga postural", detalle: `${metodo.corto} ${resultado.texto ?? resultado.puntaje} · ${resultado.nivel}`, p, s: 3,
       consecuencia: "Trastornos musculoesqueléticos relacionados con el trabajo",
       medida: "Vigilancia de la salud musculoesquelética de los expuestos (evaluación periódica), notificación del riesgo por escrito (LOPCYMAT art. 53.1) y reevaluar el puesto al aplicar las medidas.",
       departamento: "sst", plazo: prioridad({ p, s: 3 })?.plazo ?? "", origen: "metodo",

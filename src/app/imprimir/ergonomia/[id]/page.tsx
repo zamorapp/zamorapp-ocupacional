@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
-import { DEPARTAMENTOS, METODOS, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
+import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
@@ -59,7 +59,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
     empresa: { razon_social: emp?.razon_social ?? ev.empresa, rif: emp?.rif ?? "", logo: (emp?.logo as string | null) ?? null },
     impreso: { por: sesion.nombre, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
   };
-  const metodo = ev.metodo === "rula" || ev.metodo === "reba" ? METODOS[ev.metodo] : null;
+  const metodo = metodoDe(ev.metodo);
   const r = metodo ? metodo.calcular(ev.datos) : null;
   const todos = ordenarHallazgos(ev.hallazgos);
   const hallazgos = depto ? todos.filter((h) => h.departamento === depto.clave) : todos;
@@ -93,7 +93,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
             { k: "Tarea observada", v: ev.tarea || "—", ancho: 2 },
             { k: "Lado evaluado", v: ev.lado ? ev.lado[0].toUpperCase() + ev.lado.slice(1) : "—" },
             { k: "Trabajadores expuestos", v: ev.trabajadoresObservados ?? "—" },
-            { k: metodo ? `Resultado ${metodo.corto}` : "Riesgo máximo", v: r?.completo ? `${r.puntaje} de ${r.maximo} · ${r.nivel}` : max ? `${max.texto} (${max.n})` : "—", ancho: 2 },
+            { k: metodo ? `Resultado ${metodo.corto}` : "Riesgo máximo", v: r?.completo ? `${r.texto ?? `${r.puntaje} de ${r.maximo}`} · ${r.nivel}` : max ? `${max.texto} (${max.n})` : "—", ancho: 2 },
           ]}
         />
 
@@ -105,13 +105,13 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
           <Bloque titulo={`Resultado del método ${metodo.corto}`}>
             <div className="grid grid-cols-[auto_1fr] items-center gap-4">
               <div className={`rounded-lg px-4 py-2 text-center ${URGENCIA[r.urgencia]}`}>
-                <div className="font-cifra text-[28px] font-semibold leading-none">{r.puntaje}</div>
-                <div className="text-[8.5px] font-bold uppercase tracking-[.1em]">de {r.maximo}</div>
+                <div className="font-cifra text-[28px] font-semibold leading-none">{r.texto ? r.texto.replace(/^IL /, "") : r.puntaje}</div>
+                <div className="text-[8.5px] font-bold uppercase tracking-[.1em]">{r.texto?.startsWith("IL") ? "índice" : `de ${r.maximo}`}</div>
               </div>
               <div>
                 <div className="text-[13px] font-bold">{r.nivel}</div>
                 <div>{r.accion}.</div>
-                {!depto && <div className="mt-1 text-[9.5px] text-doc-tenue">{r.parciales.map((p) => `${p.etiqueta} ${p.valor}`).join(" · ")}</div>}
+                {!depto && <div className="mt-1 text-[9.5px] text-doc-tenue">{r.parciales.map((p) => `${p.etiqueta} ${String(p.valor).replace(".", ",")}`).join(" · ")}</div>}
                 <div className="mt-0.5 text-[9px] text-doc-tenue">Fuente: {metodo.fuente}</div>
               </div>
             </div>

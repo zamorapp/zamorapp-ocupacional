@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  CLASE_URGENCIA, DEPARTAMENTOS, METODOS, NOMBRE_DEPTO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
+  CLASE_URGENCIA, DEPARTAMENTOS, metodoDe, NOMBRE_DEPTO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
   type Departamento, type Hallazgo, type Metodo,
 } from "@/lib/ergonomia";
 import type { Evaluacion, Foto } from "@/lib/ergonomia-datos";
@@ -27,7 +27,7 @@ type Props = { ev: Evaluacion; orgId: string; demo?: boolean; puedeEditar: boole
 
 export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: Props) {
   const router = useRouter();
-  const metodo: Metodo | null = ev.metodo === "rula" || ev.metodo === "reba" ? METODOS[ev.metodo] : null;
+  const metodo: Metodo | null = metodoDe(ev.metodo);
   const cerrada = ev.estado === "cerrada";
   const editable = puedeEditar && !cerrada;
   const [x, setX] = useState<Cambios>({
@@ -62,7 +62,11 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     return () => clearTimeout(t);
   }, [x, editable, demo, ev.id, ev.metodo]);
 
-  const responder = (clave: string, valor: number) => set("datos", { ...x.datos, [clave]: valor });
+  const responder = (clave: string, valor: number | null) => {
+    const datos = { ...x.datos };
+    if (valor === null) delete datos[clave]; else datos[clave] = valor;
+    set("datos", datos);
+  };
 
   const proponer = () => {
     if (!metodo || !resultado) return;
@@ -113,17 +117,49 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           <section className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">{metodo.nombre}</h2>
-              <p className="text-xs text-muted-foreground">Marca la postura más exigente o la que más se repite. Fuente: {metodo.fuente}</p>
+              <p className="text-xs text-muted-foreground">{metodo.clave === "niosh" ? "Mide al inicio del levantamiento más exigente (si al dejar la carga es peor, evalúa también el destino)." : "Marca la postura más exigente o la que más se repite."} Fuente: {metodo.fuente}</p>
             </div>
             {metodo.secciones.map((s) => (
               <div key={s.titulo} className="rounded-xl border p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="font-medium">{s.titulo}</h3>
-                  {resultado?.zonas[s.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[s.zona]}</span>}
+                  {metodo.clave !== "niosh" && resultado?.zonas[s.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[s.zona]}</span>}
                 </div>
                 <div className="space-y-3">
                   {s.preguntas.map((p) => {
                     const actual = x.datos[p.clave];
+                    if (p.numero) {
+                      const n = p.numero;
+                      return (
+                        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm">{p.texto}</span>
+                          <span className="flex items-center gap-1.5">
+                            <Input
+                              type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
+                              value={actual ?? ""} className="h-9 w-24 text-right font-cifra"
+                              onChange={(e) => {
+                                const t = e.target.value.replace(",", ".");
+                                const num = t === "" ? null : Number(t);
+                                responder(p.clave, num === null || !Number.isFinite(num) ? null : Math.min(n.max, Math.max(n.min, num)));
+                              }}
+                            />
+                            <span className="w-6 text-sm text-muted-foreground">{n.unidad}</span>
+                          </span>
+                        </label>
+                      );
+                    }
+                    // Listas largas (frecuencia de NIOSH): un selector, no 18 botones
+                    if (p.opciones.length > 8) {
+                      return (
+                        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm">{p.texto}</span>
+                          <select disabled={!editable} value={actual ?? ""} onChange={(e) => responder(p.clave, e.target.value === "" ? null : Number(e.target.value))} className={cn(SELECT, "w-full sm:w-56")}>
+                            <option value="">Elige…</option>
+                            {p.opciones.map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
+                          </select>
+                        </label>
+                      );
+                    }
                     const binaria = p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
                     return (
                       <div key={p.clave} className={cn(binaria ? "flex flex-wrap items-center justify-between gap-2" : "space-y-1.5")}>
@@ -145,7 +181,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                                   binaria && "min-w-14 text-center",
                                 )}
                               >
-                                <span className="block">{o.texto}{!binaria && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>+{o.valor}</span>}</span>
+                                <span className="block">{o.texto}{!binaria && metodo.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`}</span>}</span>
                                 {o.detalle && <span className={cn("block text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.detalle}</span>}
                               </button>
                             );
@@ -241,8 +277,8 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           <div className="rounded-xl border p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{NOMBRE_METODO[ev.metodo]}</div>
             <div className="mt-2 flex items-end gap-2">
-              <span className="font-cifra text-5xl font-semibold leading-none">{resultado.completo ? resultado.puntaje : "—"}</span>
-              <span className="pb-1 text-sm text-muted-foreground">de {resultado.maximo}</span>
+              <span className="font-cifra text-5xl font-semibold leading-none">{resultado.completo ? (resultado.texto ?? resultado.puntaje) : "—"}</span>
+              {!resultado.texto && <span className="pb-1 text-sm text-muted-foreground">de {resultado.maximo}</span>}
             </div>
             {resultado.completo ? (
               <>
@@ -250,12 +286,12 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                 <p className="mt-2 text-sm">{resultado.accion}</p>
               </>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Marca todas las posturas para ver el resultado.</p>
+              <p className="mt-3 text-sm text-muted-foreground">Completa todos los datos para ver el resultado.</p>
             )}
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-xs text-muted-foreground">Cómo se calculó</summary>
               <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs">
-                {resultado.parciales.map((p) => (<div key={p.etiqueta} className="contents"><dt className="text-muted-foreground">{p.etiqueta}</dt><dd className="text-right font-cifra">{p.valor}</dd></div>))}
+                {resultado.parciales.map((p) => (<div key={p.etiqueta} className="contents"><dt className="text-muted-foreground">{p.etiqueta}</dt><dd className="text-right font-cifra">{String(p.valor).replace(".", ",")}</dd></div>))}
               </dl>
             </details>
           </div>
@@ -328,7 +364,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
         <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5", resultado?.completo ? CLASE_URGENCIA[resultado.urgencia] : "")}>
           <div className="min-w-0 flex-1 text-sm">
             {resultado ? (
-              <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? `${resultado.puntaje} de ${resultado.maximo}` : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
+              <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? (resultado.texto ?? `${resultado.puntaje} de ${resultado.maximo}`) : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
             ) : (
               <span className="block truncate">{x.hallazgos.length} hallazgos</span>
             )}

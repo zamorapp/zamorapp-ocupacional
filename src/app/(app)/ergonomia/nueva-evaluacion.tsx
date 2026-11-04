@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RULA, REBA, type ClaveMetodo } from "@/lib/ergonomia";
+import { NIOSH, REBA, ROSA, RULA, type ClaveMetodo } from "@/lib/ergonomia";
 import { cn } from "@/lib/utils";
 import { crearEvaluacion } from "./acciones";
 
@@ -24,6 +24,8 @@ const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const OPCIONES: { clave: ClaveMetodo; titulo: string; texto: string }[] = [
   { clave: "rula", titulo: "RULA", texto: RULA.paraQue },
   { clave: "reba", titulo: "REBA", texto: REBA.paraQue },
+  { clave: "rosa", titulo: "ROSA", texto: ROSA.paraQue },
+  { clave: "niosh", titulo: "NIOSH", texto: NIOSH.paraQue },
   { clave: "libre", titulo: "Inspección con hallazgos", texto: "Fotos y lista de riesgos con prioridad y recomendaciones, sin puntaje de postura." },
 ];
 
@@ -104,7 +106,7 @@ export function NuevaEvaluacion({ empresas, empresaInicial, puestos, fijo, boton
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">DEB (CENEA), NIOSH, ROSA y OCRA llegan en las próximas versiones.</p>
+          <p className="text-xs text-muted-foreground">DEB (CENEA), OCRA y KIM llegan en las próximas versiones.</p>
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}

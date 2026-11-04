@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { DEPARTAMENTOS, METODOS, ROLES_ERGONOMIA, type ClaveMetodo, type Hallazgo, type Respuestas } from "@/lib/ergonomia";
+import { DEPARTAMENTOS, metodoDe, respuestaValida, ROLES_ERGONOMIA, type ClaveMetodo, type Hallazgo, type Respuestas } from "@/lib/ergonomia";
 import type { Foto } from "@/lib/ergonomia-datos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -31,7 +31,7 @@ export async function crearEvaluacion(datos: { empresaId: string; puestoId: stri
   if ("error" in c) return { ok: false, mensaje: c.error! };
   if (!datos.empresaId) return { ok: false, mensaje: "Elige la empresa." };
   if (!corto(datos.puesto, 200)) return { ok: false, mensaje: "Elige o escribe el puesto que vas a evaluar." };
-  if (!["rula", "reba", "libre"].includes(datos.metodo)) return { ok: false, mensaje: "Ese método todavía no está disponible." };
+  if (!["rula", "reba", "rosa", "niosh", "libre"].includes(datos.metodo)) return { ok: false, mensaje: "Ese método todavía no está disponible." };
   const { data, error } = await c.supabase
     .from("evaluaciones_ergonomicas")
     .insert({ org_id: c.sesion.orgId!, empresa_id: datos.empresaId, puesto_id: datos.puestoId || null, puesto: corto(datos.puesto, 200), tarea: corto(datos.tarea) || null, metodo: datos.metodo })
@@ -49,10 +49,10 @@ export type Cambios = {
 
 // Limpia lo que llega del navegador: el puntaje lo calcula el servidor con las mismas tablas del método
 function limpiar(metodo: ClaveMetodo, x: Cambios, carpeta: string) {
-  const m = metodo === "rula" || metodo === "reba" ? METODOS[metodo] : null;
-  const claves = new Set(m?.secciones.flatMap((s) => s.preguntas.map((p) => p.clave)) ?? []);
+  const m = metodoDe(metodo);
   const datos: Respuestas = {};
-  for (const [k, val] of Object.entries(x.datos ?? {})) if (claves.has(k) && Number.isInteger(val) && Math.abs(val) <= 4) datos[k] = val;
+  // Solo claves del método con una de sus opciones o un número dentro de su rango
+  if (m) for (const [k, val] of Object.entries(x.datos ?? {})) { const ok = respuestaValida(m, k, val); if (ok !== null) datos[k] = ok; }
   const hallazgos = (Array.isArray(x.hallazgos) ? x.hallazgos : []).slice(0, 60).map((h) => ({
     id: corto(h.id, 40) || crypto.randomUUID(),
     factor: corto(h.factor, 200), detalle: corto(h.detalle, 500), p: uno5(h.p), s: uno5(h.s),
@@ -79,7 +79,7 @@ export async function guardarEvaluacion(id: string, metodo: ClaveMetodo, x: Camb
   if (!campos.puesto) return { ok: false, mensaje: "Escribe el nombre del puesto." };
   if (cerrar) {
     const r = campos.resultado as { completo?: boolean };
-    if ((metodo === "rula" || metodo === "reba") && !r.completo) return { ok: false, mensaje: "Faltan posturas por marcar: completa brazo, antebrazo, muñeca, cuello, tronco y piernas antes de cerrar." };
+    if (metodoDe(metodo) && !r.completo) return { ok: false, mensaje: "Faltan datos del método: completa todas las secciones antes de cerrar." };
     if (campos.hallazgos.some((h) => !h.p || !h.s)) return { ok: false, mensaje: "Hay hallazgos sin probabilidad o severidad: valóralos antes de cerrar." };
   }
   const { data, error } = await c.supabase.from("evaluaciones_ergonomicas").update({ ...campos, ...(cerrar ? { estado: "cerrada" } : {}) }).eq("id", id).select("id");
