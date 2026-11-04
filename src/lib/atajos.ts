@@ -24,14 +24,21 @@ export type Atajo = {
   palabras?: string; // sinónimos y términos coloquiales, separados por espacio
   clinico?: boolean; // solo personal de salud
   roles?: string[]; // solo estos roles (si no se indica, todos los del servicio médico)
+  // Regla propia cuando la página admite «clínico O gerencia» (Ajustes clínicos); reemplaza clinico/roles
+  puede?: (o: { clinico?: boolean; rol?: string | null }) => boolean;
 };
 
+// Los permisos repiten los que exige cada página (si la página cambia, cambia aquí y en la prueba
+// scripts/pruebas/buscador-atajos.test.mjs).
+
 const GERENCIA = ["administrador", "gerente_medico"];
+const ADMIN = ["administrador"];
+// Configuración › Respaldos solo muestra su contenido a estos roles
+const RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"];
 
 const FACTURACION: Atajo[] = [
   { href: "/facturacion?vista=servicios", titulo: "Servicios y precios", donde: "Facturación", icono: Receipt, palabras: "precio tarifa costo arancel baremo valor monto catalogo lista de precios cobrar" },
-  { href: "/facturacion?vista=cobros", titulo: "Notas de cobro", donde: "Facturación", icono: Receipt, palabras: "factura facturar cobro recibo" },
-  { href: "/facturacion/nuevo", titulo: "Nueva nota de cobro", donde: "Facturación", icono: Receipt, palabras: "factura facturar cobrar crear emitir" },
+  { href: "/facturacion?vista=cobros", titulo: "Notas de cobro", donde: "Facturación", icono: Receipt, palabras: "factura facturar cobro recibo emitir" },
   { href: "/facturacion?vista=cuentas", titulo: "Cuentas por cobrar", donde: "Facturación", icono: Receipt, palabras: "deuda moroso pendiente pago saldo vencida" },
   { href: "/facturacion?vista=presupuestos", titulo: "Presupuestos", donde: "Facturación", icono: Receipt, palabras: "cotizacion oferta propuesta" },
   { href: "/facturacion?vista=atendidos", titulo: "Pacientes atendidos por facturar", donde: "Facturación", icono: Receipt, palabras: "facturar atendidos" },
@@ -39,39 +46,40 @@ const FACTURACION: Atajo[] = [
 ];
 
 const CONFIGURACION: Atajo[] = [
-  { href: "/configuracion/organizacion", titulo: "Organización y documentos", donde: "Configuración", icono: Settings, palabras: "membrete rif direccion telefono logo encabezado datos del servicio titulos notas palabra aptitud" },
+  { href: "/configuracion/organizacion", titulo: "Organización y documentos", donde: "Configuración", icono: Settings, palabras: "membrete rif direccion telefono logo encabezado datos del servicio titulos notas palabra aptitud", roles: GERENCIA },
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", donde: "Configuración", icono: Settings, palabras: "firma sello cedula mpps colegio medicos inpsasel avisos celular notificaciones" },
   { href: "/configuracion/ingreso", titulo: "Ingreso y seguridad", donde: "Configuración", icono: Settings, palabras: "huella windows hello dos pasos codigo clave contraseña pin" },
-  { href: "/configuracion/usuarios", titulo: "Usuarios y roles", donde: "Configuración", icono: Settings, palabras: "permisos acceso enfermera secretaria recepcion invitar rrhh" },
+  { href: "/configuracion/usuarios", titulo: "Usuarios y roles", donde: "Configuración", icono: Settings, palabras: "permisos acceso enfermera secretaria recepcion invitar rrhh", roles: GERENCIA },
   { href: "/configuracion/listas", titulo: "Listas configurables", donde: "Configuración", icono: Settings, palabras: "maestros catalogos opciones valores" },
-  { href: "/configuracion/clinica", titulo: "Ajustes clínicos", donde: "Configuración", icono: Settings, palabras: "precarga plantilla motivo perfil paraclinicos empresa recomendaciones examenes", clinico: true },
-  { href: "/configuracion/plantillas", titulo: "Plantillas de examen", donde: "Configuración", icono: Settings, palabras: "examen fisico normal texto predeterminado" },
-  { href: "/configuracion/auditoria", titulo: "Auditoría", donde: "Configuración", icono: Settings, palabras: "quien abrio historia cambios accesos bitacora registro" },
-  { href: "/configuracion/respaldo", titulo: "Respaldos", donde: "Configuración", icono: Settings, palabras: "respaldar copia seguridad google drive restaurar backup" },
-  { href: "/configuracion/equipos", titulo: "Equipos", donde: "Configuración", icono: Settings, palabras: "pc computadora escritorio sincronia revocar instalado" },
-  { href: "/configuracion/cargos", titulo: "Unir cargos", donde: "Configuración", icono: Settings, palabras: "puestos duplicados juntar", roles: ["administrador"] },
+  { href: "/configuracion/clinica", titulo: "Ajustes clínicos", donde: "Configuración", icono: Settings, palabras: "precarga plantilla motivo perfil paraclinicos empresa recomendaciones examenes", puede: (o) => Boolean(o.clinico) || GERENCIA.includes(o.rol ?? "") },
+  { href: "/configuracion/plantillas", titulo: "Plantillas de examen", donde: "Configuración", icono: Settings, palabras: "examen fisico normal texto predeterminado", clinico: true },
+  { href: "/configuracion/auditoria", titulo: "Auditoría", donde: "Configuración", icono: Settings, palabras: "quien abrio historia cambios accesos bitacora registro", roles: [...GERENCIA, "auditor"] },
+  { href: "/configuracion/respaldo", titulo: "Respaldos", donde: "Configuración", icono: Settings, palabras: "respaldar copia seguridad google drive restaurar backup", roles: RESPALDO },
+  { href: "/configuracion/equipos", titulo: "Equipos", donde: "Configuración", icono: Settings, palabras: "pc computadora escritorio sincronia revocar instalado", roles: ADMIN },
+  { href: "/configuracion/cargos", titulo: "Unir cargos", donde: "Configuración", icono: Settings, palabras: "puestos duplicados juntar", roles: ADMIN },
   { href: "/configuracion/escaneados-same", titulo: "Escaneados del SAME", donde: "Configuración", icono: Settings, palabras: "subir pdf escaneos", clinico: true, roles: GERENCIA },
 ];
 
 // Listas configurables más buscadas (cada una abre su editor)
-const LISTAS: [string, string, string][] = [
+// [código, título, sinónimos, clínica (solo personal de salud)]
+const LISTAS: [string, string, string, boolean?][] = [
   ["motivo_consulta", "Motivos de consulta", "pre empleo preempleo egreso periodico reintegro"],
-  ["diagnostico", "Diagnósticos", "cie10 cie enfermedades"],
-  ["antecedente_medico", "Antecedentes médicos", "personales familiares"],
-  ["habito", "Hábitos", "tabaco alcohol cafe"],
-  ["examen_funcional", "Exámenes funcionales", "espirometria audiometria visiometria"],
-  ["examen_fisico", "Examen físico", "sistemas"],
-  ["paraclinico", "Paraclínicos", "laboratorio examenes hematologia orina heces rangos"],
-  ["grupo_paraclinicos", "Perfiles de paraclínicos", "perfil laboratorio empresa"],
-  ["especialidad", "Especialidades", "referencia interconsulta"],
-  ["clasificacion_aptitud", "Clasificación de aptitud", "apto no apto"],
-  ["recomendacion_aptitud", "Recomendaciones de aptitud", ""],
-  ["limitacion_ocupacional", "Limitaciones ocupacionales", "restricciones"],
-  ["causa_reposo", "Causas de reposo", "permiso"],
+  ["diagnostico", "Diagnósticos", "cie10 cie enfermedades", true],
+  ["antecedente_medico", "Antecedentes médicos", "personales familiares", true],
+  ["habito", "Hábitos", "tabaco alcohol cafe", true],
+  ["examen_funcional", "Exámenes funcionales", "espirometria audiometria visiometria", true],
+  ["examen_fisico", "Examen físico", "sistemas", true],
+  ["paraclinico", "Paraclínicos", "laboratorio examenes hematologia orina heces rangos", true],
+  ["grupo_paraclinicos", "Perfiles de paraclínicos", "perfil laboratorio empresa", true],
+  ["especialidad", "Especialidades", "referencia interconsulta", true],
+  ["clasificacion_aptitud", "Clasificación de aptitud", "apto no apto", true],
+  ["recomendacion_aptitud", "Recomendaciones de aptitud", "", true],
+  ["limitacion_ocupacional", "Limitaciones ocupacionales", "restricciones", true],
+  ["causa_reposo", "Causas de reposo", "permiso", true],
   ["recomendacion_empresa", "Recomendaciones a la empresa", ""],
-  ["recomendacion_paciente", "Recomendaciones al paciente", "trabajador"],
-  ["conclusion_consulta", "Conclusiones de consulta", ""],
-  ["medicina", "Medicinas", "medicamentos vademecum farmacos recipe tratamiento"],
+  ["recomendacion_paciente", "Recomendaciones al paciente", "trabajador", true],
+  ["conclusion_consulta", "Conclusiones de consulta", "", true],
+  ["medicina", "Medicinas", "medicamentos vademecum farmacos recipe tratamiento", true],
   ["tipo_paciente", "Tipos de paciente", ""],
   ["turno", "Turnos", "horario"],
   ["tipo_riesgo", "Tipos de riesgo", "riesgos puesto"],
@@ -93,8 +101,8 @@ const OTROS: Atajo[] = [
 export const ATAJOS: Atajo[] = [
   ...FACTURACION,
   ...CONFIGURACION,
-  ...LISTAS.map(([codigo, titulo, palabras]): Atajo => ({ href: `/configuracion/listas?l=${codigo}`, titulo, donde: "Configuración › Listas", icono: Settings, palabras })),
-  ...REPORTES.map((r): Atajo => ({ href: `/reportes/${r.clave}`, titulo: r.titulo, donde: `Reportes › ${r.grupo}`, icono: BarChart3, palabras: `${r.corto} ${r.descripcion} reporte informe estadistica` })),
+  ...LISTAS.map(([codigo, titulo, palabras, clinico]): Atajo => ({ href: `/configuracion/listas?l=${codigo}`, titulo, donde: "Configuración › Listas", icono: Settings, palabras, clinico })),
+  ...REPORTES.map((r): Atajo => ({ href: `/reportes/${r.clave}`, titulo: r.titulo, donde: `Reportes › ${r.grupo}`, icono: BarChart3, palabras: `${r.corto} ${r.descripcion} reporte informe estadistica`, clinico: r.clinico })),
   ...OTROS,
 ];
 
@@ -111,7 +119,8 @@ export type Destino = Pick<Atajo, "href" | "titulo" | "icono"> & { descripcion: 
 
 type Opciones = { portal?: boolean; clinico?: boolean; rol?: string | null };
 
-const visible = (a: { clinico?: boolean; roles?: string[] }, o: Opciones) => (o.clinico || !a.clinico) && (!a.roles || a.roles.includes(o.rol ?? ""));
+const visible = (a: { clinico?: boolean; roles?: string[]; puede?: Atajo["puede"] }, o: Opciones) =>
+  a.puede ? a.puede(o) : (o.clinico || !a.clinico) && (!a.roles || a.roles.includes(o.rol ?? ""));
 
 // Cada palabra buscada debe estar (como inicio de palabra) en el título, la ruta o los sinónimos.
 // Puntúa más lo que coincide en el título. Sin texto: las secciones del menú.
