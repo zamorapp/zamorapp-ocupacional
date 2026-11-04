@@ -1,41 +1,16 @@
 {
-  "etiqueta": "migraciones-20261104-18",
-  "aprobado": "Cesar, sí del 2026-11-04 21:42-22:15 UTC (nómina, recomendaciones, ergonomía, reintento de correos, riesgos del puesto, vademécum 2026)",
+  "etiqueta": "migraciones-20261104-19",
+  "aprobado": "Cesar, sí del 2026-11-04 22:30 UTC (firma y sello en el escritorio; OCRA y KIM)",
   "migraciones": [
     {
-      "archivo": "20261030796000_actualizar_nomina.sql",
-      "sha256": "cfac9d06f9d6265e40b0beb6021ea4763eeb0541f7860de21053d5b86eaf6e06",
-      "descripcion": "Actualizar nómina con plantilla de RR. HH."
+      "archivo": "20261030880000_firma_copia_y_membrete.sql",
+      "sha256": "32a321d4e5e5e072107a22b0be8bbfdd6f546e680aea52603af6d7628301320d",
+      "descripcion": "Firma y sello en la copia del escritorio y titular del membrete"
     },
     {
-      "archivo": "20261030797000_recomendaciones_completas.sql",
-      "sha256": "e7091b1c35f2a7aeb34eba548aac0abe4b9ae1b2f1f68dbd9f0826047763cfc2",
-      "descripcion": "Recomendaciones más completas y por categorías"
-    },
-    {
-      "archivo": "20261030800000_evaluacion_ergonomica.sql",
-      "sha256": "c6fc4d0b92eada38ad7c4d8065296adbef27c97d821751a33f2d886b584d2f63",
-      "descripcion": "Evaluación ergonómica de puestos (RULA, REBA, DEB)"
-    },
-    {
-      "archivo": "20261030801000_ergonomia_rosa_niosh.sql",
-      "sha256": "705581fc79a42556ec26f60295bdd5d72a0d77950e9c7d178ef34e06b8732f98",
-      "descripcion": "Ergonomía: métodos ROSA y NIOSH"
-    },
-    {
-      "archivo": "20261030802000_reintento_correo_propuesta.sql",
-      "sha256": "ab2ec8b213d0adec6323f5465d5205f66956ebc1a630db56c8ac9b5242e6deb0",
-      "descripcion": "Correos de citas con reintento y límite (cierra reenvío sin límite)"
-    },
-    {
-      "archivo": "20261030830000_riesgos_consulta.sql",
-      "sha256": "0e7aded16f994d9d07270042c780cb6f50c945511dbbe17ba21b87d2ad493a93",
-      "descripcion": "Riesgos del puesto con botones en la consulta"
-    },
-    {
-      "archivo": "20261030870000_vademecum_2026.sql",
-      "sha256": "8f439f3a6a825165fd0c05cb1700d6ba67268edac1c3694a4f9da4ba9381e58f",
-      "descripcion": "Vademécum 2026: fármacos de Venezuela y búsqueda por marca"
+      "archivo": "20261030881000_ergonomia_ocra_kim.sql",
+      "sha256": "9cc13d87ec211254e5dc17620c7e6dadda960d52431296b5b174c76638523f7c",
+      "descripcion": "Ergonomía: métodos OCRA y KIM"
     }
   ]
 }
