@@ -27,7 +27,7 @@ import {
   taAlterada,
 } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
-import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
+import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
@@ -48,6 +48,8 @@ import type { DeclaracionConsulta } from "../../accidentes/acciones";
 import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
+import { EliminarPapelera } from "@/components/app/eliminar-papelera";
+import { rutaConDeshacer } from "@/components/app/franja-deshacer";
 import { TextoDictado } from "./dictado";
 import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
@@ -61,6 +63,7 @@ import { sumarDias } from "@/lib/fecha";
 import { FechaEvaluacion, diasEntre } from "./fecha-evaluacion";
 import type { SiguienteCita } from "@/lib/citas";
 import { SiguientePaciente } from "../siguiente-paciente";
+import { RiesgosPuesto } from "./riesgos-puesto";
 import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
@@ -75,7 +78,7 @@ const APTITUD_LEGIBLE: Record<Aptitud, string> = {
 
 type Props = {
   inicial: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   // Firmada y emitida en el SAME (consulta importada): hora de esa firma; null = firmada aquí o sin firmar
   firmadaEnSame?: string | null;
@@ -96,6 +99,8 @@ type Props = {
   diasAvisoFecha?: number;
   alertas?: AlertaClinica[];
   puedeRevisarAlertas?: boolean; // médico, gerente médico o administrador (lo exige la base)
+  puedeEliminar?: boolean; // administrador con acceso clínico: «Eliminar consulta» (va a la Papelera, con Deshacer)
+  notaRiesgos?: string; // nota legal debajo de «Riesgos del puesto» (Configuración › Organización)
 };
 
 // Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
@@ -278,7 +283,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false, notaRiesgos }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -316,6 +321,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const [ignorarPendientes, setIgnorarPendientes] = useState(false);
   const [ignorarPerfil, setIgnorarPerfil] = useState(false);
   const [accidente, setAccidente] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   // Alertas para la próxima evaluación: las pendientes del trabajador y las dejadas o revisadas en esta consulta
   const [alertas, setAlertas] = useState(alertasIniciales);
   const [nuevaAlerta, setNuevaAlerta] = useState(false);
@@ -831,9 +837,20 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setNuevaAlerta(true)}><BellRing /> Alerta para la próxima evaluación</DropdownMenuItem>
+              {puedeEliminar && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setEliminando(true)}><Trash2 /> Eliminar consulta…</DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        {puedeEliminar && (
+          <EliminarPapelera tipo="consulta" id={d.id} nombre={`la consulta del ${d.fecha.split("-").reverse().join("/")}${d.estado === "firmada" ? " (firmada)" : ""}`}
+            abierto={eliminando} onAbierto={setEliminando}
+            onEliminado={(papeleraId, mensaje) => router.push(rutaConDeshacer(`/pacientes/${trabajador.id}`, papeleraId, mensaje, `/atencion/${d.id}`))} />
+        )}
         <NuevaAlerta abierta={nuevaAlerta} onCerrar={() => setNuevaAlerta(false)} consultaId={d.id} paraclinicos={listas.paraclinico ?? []} hoy={hoy}
           onCreada={cambiarAlerta} />
         <RegistrarAccidente
@@ -1069,16 +1086,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             </Seccion>
 
             <Seccion titulo="Riesgos del puesto">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {GRUPOS_RIESGO.map(([k, n]) => (
-                  <div key={k} className="flex flex-wrap items-baseline gap-2 text-sm">
-                    <span className="w-28 text-muted-foreground">{n}</span>
-                    {(trabajador.riesgos[k] ?? []).length
-                      ? trabajador.riesgos[k].map((r) => <span key={r} className="rounded bg-muted px-2 py-0.5">{r}</span>)
-                      : <span className="text-muted-foreground/60">—</span>}
-                  </div>
-                ))}
-              </div>
+              <RiesgosPuesto valor={d.riesgos} cargo={trabajador.riesgosCargo ?? trabajador.riesgos} nombreCargo={trabajador.cargo}
+                catalogo={listas.agente_riesgo ?? []} nota={notaRiesgos ?? ""} onChange={(v) => set("riesgos", v)} />
             </Seccion>
             </fieldset>
           </TabsContent>
@@ -1377,6 +1386,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                       <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
                         <option value="">{ph}</option>
                         {items.map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
+                        {/* Lo que llenó el vademécum o una consulta anterior y no está en la lista se conserva y se ve */}
+                        {m[k] && !items.some((x) => x.nombre === m[k]) && <option value={m[k]}>{m[k]}</option>}
                       </select>
                     ))}
                     <Input value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
@@ -1509,6 +1520,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 motivoCodigo={motivo?.codigo ?? null}
                 motivoNombre={motivo?.nombre ?? null}
                 valor={d.recomendacionesEmpresa}
+                categorias
                 onChange={(v) => set("recomendacionesEmpresa", v)}
               />
               <TextosFrecuentes
@@ -1517,6 +1529,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 motivoCodigo={motivo?.codigo ?? null}
                 motivoNombre={motivo?.nombre ?? null}
                 valor={d.recomendacionesTrabajador}
+                categorias
                 onChange={(v) => set("recomendacionesTrabajador", v)}
               />
               <Texto etiqueta="Observación privada (solo personal de salud)" valor={d.observacionPrivada} onChange={(v) => set("observacionPrivada", v)} filas={2} />

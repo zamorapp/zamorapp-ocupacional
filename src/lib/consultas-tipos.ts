@@ -79,6 +79,8 @@ export type DatosConsulta = {
   sano: boolean;
   potencialDiscapacidad: boolean;
   discapacidadNota: string;
+  // Riesgos del puesto elegidos con botones en esta consulta ({grupo: [agentes]}). null = los del cargo, sin tocar
+  riesgos?: Record<string, string[]> | null;
 };
 
 // Mediciones anteriores del trabajador (consultas cerradas o firmadas) para los gráficos de evolución

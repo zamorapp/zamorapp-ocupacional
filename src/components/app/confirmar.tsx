@@ -14,6 +14,8 @@ export type Pregunta = {
   accion?: string; // texto del botón que confirma
   cancelar?: string;
   peligro?: boolean; // botón rojo para acciones que borran, anulan o no se deshacen
+  // Camino más suave que la acción (p. ej. «Quitar solo de una empresa»): cierra como «no» y lo ejecuta
+  alternativa?: { texto: string; alElegir: () => void };
 };
 
 type Pendiente = Pregunta & { responder: (si: boolean) => void };
@@ -61,7 +63,7 @@ export function Confirmador() {
 
   return (
     <Dialog open={abierto} onOpenChange={(a) => !a && responder(false)}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
+      <DialogContent showCloseButton={false} className={actual?.alternativa ? "sm:max-w-xl" : "sm:max-w-md"}>
         <div className="flex gap-4">
           <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", actual?.peligro ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
             <Icono className="size-5" />
@@ -71,10 +73,19 @@ export function Confirmador() {
             <DialogDescription className={cn(!actual?.texto && "sr-only")}>{actual?.texto || actual?.titulo}</DialogDescription>
           </div>
         </div>
-        <DialogFooter>
-          <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual?.cancelar ?? "Cancelar"}</Button>
-          <Button variant={actual?.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual?.accion ?? "Aceptar"}</Button>
-        </DialogFooter>
+        {actual?.alternativa ? (
+          // Con alternativa: de lo seguro a lo grave, arriba-abajo en el celular e izquierda-derecha en la PC
+          <DialogFooter className="flex-col sm:flex-row sm:flex-wrap">
+            <Button variant="secondary" onClick={() => { const a = actual.alternativa!; responder(false); a.alElegir(); }}>{actual.alternativa.texto}</Button>
+            <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual.cancelar ?? "Cancelar"}</Button>
+            <Button variant={actual.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual.accion ?? "Aceptar"}</Button>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual?.cancelar ?? "Cancelar"}</Button>
+            <Button variant={actual?.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual?.accion ?? "Aceptar"}</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

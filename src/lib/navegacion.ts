@@ -6,6 +6,7 @@ import {
   HardHat,
   Inbox,
   LayoutDashboard,
+  PersonStanding,
   Receipt,
   Send,
   type LucideIcon,
@@ -31,6 +32,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/atencion", titulo: "Atención médica", icono: Stethoscope, descripcion: "Cola, consultas, aptitud, reposos y récipes", clinico: true },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
   { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
+  { href: "/ergonomia", titulo: "Ergonomía", icono: PersonStanding, descripcion: "Evaluación de puestos con RULA y REBA, fotos, riesgos priorizados e informes por departamento" },
   { href: "/empresas", titulo: "Empresas", icono: Building2, descripcion: "Empresas clientes, sedes, dependencias y puestos" },
   { href: "/reportes", titulo: "Reportes", icono: BarChart3, descripcion: "Atendidos, morbilidad, aptitud, reposos e informe trimestral" },
   { href: "/facturacion", titulo: "Facturación", icono: Receipt, descripcion: "Servicios, pacientes atendidos y notas de cobro" },
@@ -40,6 +42,25 @@ export const SECCIONES: Seccion[] = [
   { href: "/configuracion", titulo: "Configuración", icono: Settings, descripcion: "Usuarios, roles y listas configurables" },
   { href: "/ayuda", titulo: "Manual de uso", icono: BookOpen, descripcion: "Cómo usar cada función" },
 ];
+
+// Grupos de la barra lateral (en este orden). Una sección nueva que no esté en ninguna lista cae en «Gestión».
+export type Grupo = { titulo: string; hrefs: string[] };
+export const GRUPOS: Grupo[] = [
+  { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
+  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/ergonomia", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
+  { titulo: "Ajustes", hrefs: ["/configuracion", "/ayuda"] },
+];
+
+export function seccionesPorGrupo(secciones: Seccion[]): { titulo: string; secciones: Seccion[] }[] {
+  const ubicadas = new Set(GRUPOS.flatMap((g) => g.hrefs));
+  return GRUPOS.map((g) => ({
+    titulo: g.titulo,
+    secciones: [
+      ...g.hrefs.map((h) => secciones.find((s) => s.href === h)).filter((s): s is Seccion => Boolean(s)),
+      ...(g.titulo === "Gestión" ? secciones.filter((s) => !ubicadas.has(s.href)) : []),
+    ],
+  })).filter((g) => g.secciones.length > 0);
+}
 
 // Portal de empresas (RR. HH. y gerentes de la empresa cliente)
 export const SECCIONES_EMPRESA: Seccion[] = [

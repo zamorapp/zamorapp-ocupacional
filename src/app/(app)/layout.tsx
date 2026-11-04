@@ -8,6 +8,8 @@ import { BarraInferior } from "@/components/app/barra-inferior";
 import { BarraLateral } from "@/components/app/barra-lateral";
 import { BuscadorGlobal } from "@/components/app/buscador-global";
 import { Encabezado } from "@/components/app/encabezado";
+import { FranjaDeshacer } from "@/components/app/franja-deshacer";
+import { Suspense } from "react";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { RUTAS_EMPRESA } from "@/lib/navegacion";
@@ -49,10 +51,14 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <AvisoActualizar />
         {!portal && <AvisoHello />}
         {!portal && <AvisoConflictos />}
-        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">{children}</main>
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">
+          {/* «Deshacer» después de eliminar una consulta o un trabajador (solo lo usa el administrador) */}
+          {!portal && sesion.rol === "administrador" && <Suspense fallback={null}><div className="mx-auto mb-4 max-w-6xl empty:hidden"><FranjaDeshacer /></div></Suspense>}
+          {children}
+        </main>
       </div>
       <BarraInferior portal={portal} />
-      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} />
+      <BuscadorGlobal portal={portal} empresas={paraRegistrar} empresaActiva={paraRegistrar.some((o) => o.id === activa) ? activa : null} clinico={!portal && sesion.clinico} rol={sesion.rol} />
     </div>
   );
 }

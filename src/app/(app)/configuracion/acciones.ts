@@ -9,6 +9,7 @@ import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
 import { CLASES } from "@/lib/estudios";
+import { esCategoria } from "@/lib/recomendaciones-categorias";
 import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -65,6 +66,16 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const uuids = (k: string) => (texto(datos, k) ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), empresas: uuids("d_empresas"), motivos: uuids("d_motivos") };
+    }
+
+    // Recomendaciones de empresa y trabajador: categoría del botón desplegable de la consulta ("" = automática)
+    if ((lista === "recomendacion_empresa" || lista === "recomendacion_paciente") && datos.has("d_categoria")) {
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const previos: Record<string, unknown> = { ...((anterior as Record<string, unknown>) ?? {}) };
+      const categoria = texto(datos, "d_categoria");
+      if (categoria && esCategoria(categoria)) previos.categoria = categoria;
+      else delete previos.categoria;
+      campos.datos = previos;
     }
 
     if (id) {
@@ -138,16 +149,51 @@ export async function moverItem(lista: string, id: string, direccion: -1 | 1): P
   }
 }
 
-export async function eliminarItem(id: string): Promise<Resultado> {
+// Borra del sistema (todas las empresas y motivos). Devuelve la fila completa para que «Deshacer» la reponga igual.
+export type FilaBorrada = { id: string; lista: string; codigo: string | null; nombre: string; grupo: string | null; texto: string | null; orden: number; activo: boolean; datos: Record<string, unknown> | null; base_id: string | null; origen: string | null; codigo_origen: string | null; lote_importacion: string | null };
+const COLUMNAS_ITEM = "id, lista, codigo, nombre, grupo, texto, orden, activo, datos, base_id, origen, codigo_origen, lote_importacion";
+
+export async function eliminarItem(id: string): Promise<Resultado & { fila?: FilaBorrada }> {
   try {
     const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
-    const { error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!);
+    const { data: fila } = await supabase.from("lista_items").select(COLUMNAS_ITEM).eq("id", id).eq("org_id", sesion.orgId!).maybeSingle();
+    if (!fila) return { ok: false, mensaje: "Ese elemento ya no existe." };
+    const { data: borradas, error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!).select("id");
     if (error) {
-      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Desactívalo en lugar de eliminarlo." };
+      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Ocúltalo (el ojo) en lugar de borrarlo." };
+      throw error;
+    }
+    // La RLS puede impedir el borrado sin dar error: se dice, no se finge
+    if (!borradas?.length) return { ok: false, mensaje: "No se borró: tu usuario no puede borrar este elemento. Pídeselo al administrador." };
+    revalidatePath("/configuracion", "layout");
+    return { ok: true, mensaje: `«${fila.nombre}» se borró del sistema.`, fila: fila as FilaBorrada };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// «Deshacer» de eliminarItem: repone la misma fila (mismo id) en la organización de quien la borró
+export async function restaurarItem(fila: FilaBorrada): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
+    if (!/^[0-9a-f-]{36}$/i.test(fila?.id ?? "") || typeof fila.lista !== "string" || typeof fila.nombre !== "string" || !fila.nombre.trim()) {
+      return { ok: false, mensaje: "No se pudo deshacer: datos incompletos." };
+    }
+    const { error } = await supabase.from("lista_items").insert({
+      id: fila.id, lista: fila.lista, org_id: sesion.orgId!, codigo: fila.codigo, nombre: fila.nombre, grupo: fila.grupo, texto: fila.texto,
+      orden: Number(fila.orden) || 0, activo: fila.activo !== false, datos: fila.datos ?? {}, base_id: fila.base_id, origen: fila.origen,
+      codigo_origen: fila.codigo_origen, lote_importacion: fila.lote_importacion,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Solo es «ya repuesto» si la fila está en la propia organización y en la misma lista
+        const { data: existe } = await supabase.from("lista_items").select("id").eq("id", fila.id).eq("org_id", sesion.orgId!).eq("lista", fila.lista).maybeSingle();
+        return existe ? { ok: true, mensaje: "Ya estaba repuesto." } : { ok: false, mensaje: "No se pudo deshacer: ese elemento ya existe en otro lugar. Créalo de nuevo con «Agregar»." };
+      }
       throw error;
     }
     revalidatePath("/configuracion", "layout");
-    return { ok: true, mensaje: "Eliminado." };
+    return { ok: true, mensaje: `«${fila.nombre}» volvió a su lugar.` };
   } catch (e) {
     return fallo(e);
   }
@@ -171,6 +217,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       reposo_pie_original: texto(datos, "reposo_pie_original"),
       orden_nota: texto(datos, "orden_nota"),
       orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
+      nota_riesgos_puesto: String(datos.get("nota_riesgos_puesto") ?? "").trim(),
       mensaje_cita: texto(datos, "mensaje_cita"),
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),

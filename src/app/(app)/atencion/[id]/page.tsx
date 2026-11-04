@@ -10,7 +10,7 @@ import { listarAdjuntos } from "@/lib/adjuntos";
 import { alertasDeTrabajador } from "@/lib/alertas";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { hoyCaracas } from "@/lib/fecha";
-import { PLANTILLA_APTITUD } from "@/lib/mensajes";
+import { NOTA_RIESGOS_PUESTO, PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
@@ -27,7 +27,7 @@ const LISTAS = [
   "motivo_consulta", "clasificacion_aptitud", "limitacion_ocupacional", "paraclinico", "antecedente_medico",
   "causa_reposo", "ente_emisor_reposo", "sistema_organico", "medicina", "presentacion_medicina", "via_administracion",
   "frecuencia_dosis", "duracion_tratamiento", "especialidad", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "conclusion_consulta", "modelo_informe_libre",
-  "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion",
+  "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo",
 ];
 
 export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string }> }) {
@@ -68,7 +68,9 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
         <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
           puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
-          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
+          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")}
+          puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"}
+          notaRiesgos={org.ajustes.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO} />
       </FrescoAlVolver>
     </div>
   );

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { fraseUsada, quitarFrase, sumarFrase } from "@/lib/frases";
 import type { Item } from "@/lib/listas";
+import { agruparPorCategoria, nombreLegible } from "@/lib/recomendaciones-categorias";
 import { cn } from "@/lib/utils";
 import { TextoDictado } from "./dictado";
 
@@ -15,14 +17,18 @@ type Props = {
   valor: string;
   onChange: (v: string) => void;
   filas?: number;
+  /** Recomendaciones de empresa y trabajador: además de las del motivo, botones por categoría (columna, HTA…) y buscador */
+  categorias?: boolean;
 };
 
 // "PRE,PER" → ["PRE","PER"]; vacío = sirve para cualquier motivo
 const motivosDe = (i: Item) => (i.grupo ?? "").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
 
 // Campo de texto con un stock de frases frecuentes: un clic pega la frase, otro la quita
-export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, valor, onChange, filas = 4 }: Props) {
+export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, valor, onChange, filas = 4, categorias }: Props) {
   const [verTodos, setVerTodos] = useState(false);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [buscar, setBuscar] = useState("");
   const codigo = motivoCodigo?.toUpperCase() ?? null;
 
   const delMotivo = codigo ? items.filter((i) => motivosDe(i).includes(codigo)) : [];
@@ -31,12 +37,9 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
   const visibles = [...delMotivo, ...generales, ...(verTodos ? otros : [])];
 
   const texto = (i: Item) => (i.texto || i.nombre).trim();
-  const usado = (i: Item) => valor.split("\n").some((l) => l.trim() === texto(i));
-
-  const alternar = (i: Item) => {
-    const lineas = valor.split("\n").filter((l) => l.trim());
-    onChange(usado(i) ? lineas.filter((l) => l.trim() !== texto(i)).join("\n") : [...lineas, texto(i)].join("\n"));
-  };
+  // Una frase puede tener varias líneas (recomendaciones completas): se marca, suma y quita como bloque
+  const usado = (i: Item) => fraseUsada(valor, texto(i));
+  const alternar = (i: Item) => onChange(usado(i) ? quitarFrase(valor, texto(i)) : sumarFrase(valor, texto(i)));
 
   const Chip = ({ i, sugerido }: { i: Item; sugerido: boolean }) => (
     <button
@@ -45,7 +48,7 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
       aria-pressed={usado(i)}
       onClick={() => alternar(i)}
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition",
+        "inline-flex max-w-full items-start gap-1 rounded-2xl border px-2.5 py-1 text-left text-xs transition",
         usado(i)
           ? "border-primary bg-primary text-primary-foreground"
           : sugerido
@@ -53,10 +56,79 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
             : "hover:border-primary/50 hover:bg-muted",
       )}
     >
-      {usado(i) ? <Check className="size-3" /> : <Plus className="size-3" />}
-      {i.nombre}
+      {usado(i) ? <Check className="mt-0.5 size-3 shrink-0" /> : <Plus className="mt-0.5 size-3 shrink-0" />}
+      {/* En el celular el nombre largo baja de línea; el texto completo va en title */}
+      <span className="min-w-0 break-words">{nombreLegible(i.nombre)}</span>
     </button>
   );
+
+  if (categorias && items.length > 0) {
+    const grupos = agruparPorCategoria(items);
+    const q = buscar.trim().toLowerCase();
+    const halladas = q ? items.filter((i) => `${i.nombre} ${i.texto ?? ""}`.toLowerCase().includes(q)) : [];
+    const grupo = grupos.find((g) => g.categoria === abierta);
+    return (
+      <div className="space-y-2">
+        <Label>{etiqueta}</Label>
+        <div className="space-y-2 rounded-lg border bg-muted/30 p-2.5">
+          {delMotivo.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">Sugeridas para <b className="text-foreground">{motivoNombre}</b></p>
+              <div className="flex flex-wrap gap-1.5">{delMotivo.map((i) => <Chip key={i.id} i={i} sugerido />)}</div>
+            </div>
+          )}
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-2 left-2.5 size-3.5 text-muted-foreground" />
+            <input
+              type="search"
+              value={buscar}
+              onChange={(e) => setBuscar(e.target.value)}
+              placeholder="Buscar: hernia, lumbalgia, tensión…"
+              aria-label={`Buscar en ${etiqueta.toLowerCase()}`}
+              className="h-8 w-full rounded-md border bg-card pr-8 pl-8 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+            {buscar && <button type="button" aria-label="Limpiar búsqueda" onClick={() => setBuscar("")} className="absolute top-1.5 right-1.5 rounded p-0.5 text-muted-foreground hover:bg-muted"><X className="size-3.5" /></button>}
+          </div>
+          {q ? (
+            halladas.length
+              ? <div className="flex flex-wrap gap-1.5">{halladas.map((i) => <Chip key={i.id} i={i} sugerido={false} />)}</div>
+              : <p className="text-xs text-muted-foreground">Nada con «{buscar.trim()}». Escríbela abajo o agrégala en Configuración › Datos clínicos.</p>
+          ) : (
+            <>
+              <div className="-mx-2.5 flex gap-1.5 overflow-x-auto px-2.5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" role="group" aria-label="Categorías">
+                {grupos.map((g) => {
+                  const usadas = g.items.filter(usado).length;
+                  const activa = abierta === g.categoria;
+                  return (
+                    <button
+                      key={g.categoria}
+                      type="button"
+                      aria-expanded={activa}
+                      onClick={() => setAbierta(activa ? null : g.categoria)}
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium transition",
+                        activa ? "border-primary bg-primary/10 text-primary" : "bg-card hover:border-primary/50",
+                      )}
+                    >
+                      {g.nombre}
+                      <span className={cn("rounded px-1 tabular-nums", usadas ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>{usadas ? `${usadas}/${g.items.length}` : g.items.length}</span>
+                      <ChevronDown className={cn("size-3 transition-transform", activa && "rotate-180")} />
+                    </button>
+                  );
+                })}
+              </div>
+              {grupo && (
+                <div className="flex flex-wrap gap-1.5 border-t pt-2">
+                  {grupo.items.map((i) => <Chip key={i.id} i={i} sugerido={delMotivo.includes(i)} />)}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <TextoDictado id={`frecuentes-${etiqueta}`} valor={valor} filas={filas} onChange={onChange} placeholder="Elige recomendaciones arriba, escribe o dicta" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

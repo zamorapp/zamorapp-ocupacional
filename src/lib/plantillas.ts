@@ -3,6 +3,7 @@
 // los perfiles de examen y las recomendaciones de la organización.
 import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
 import { sumarMeses } from "@/lib/fecha";
+import { sumarFrase } from "@/lib/frases";
 import { completarPerfil } from "@/lib/perfil-opciones";
 
 export type DatosPlantilla = {
@@ -62,15 +63,14 @@ function aplicarExamen(filas: FilaExamen[], texto: string | null): FilaExamen[] 
   return nuevas;
 }
 
-// Agrega las frases elegidas (una por línea) sin repetir las que ya están
+// Agrega las frases elegidas (de una o varias líneas) sin repetir las líneas que ya están
 function sumarFrases(actual: string, codigos: string[], items: ItemTexto[] = []) {
-  const lineas = actual.split("\n").filter((l) => l.trim());
+  let texto = actual;
   for (const c of codigos) {
     const it = items.find((i) => i.codigo === c);
-    const frase = it ? (it.texto || it.nombre).trim() : "";
-    if (frase && !lineas.some((l) => l.trim() === frase)) lineas.push(frase);
+    if (it) texto = sumarFrase(texto, it.texto || it.nombre);
   }
-  return lineas.join("\n");
+  return texto;
 }
 
 // Listas de la organización por código (las que falten se toman vacías)

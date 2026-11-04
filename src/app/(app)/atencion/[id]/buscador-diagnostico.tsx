@@ -53,7 +53,22 @@ export function BuscadorDiagnostico({ cie10, descripcion, onElegir, onEscribir, 
 
 const GRUPOS_MED = ["Mis medicinas", "Vademécum"];
 
-// Medicinas: filtra en memoria la lista ya cargada (rápido en una PC modesta y sin internet)
+// Nombres que en Venezuela se usan igual que el DCI del catálogo: «acetaminofén» encuentra Paracetamol y viceversa.
+// Se comparan sin acentos y en minúsculas. Agregar aquí cualquier otro par que el médico escriba distinto.
+const SINONIMOS: [string, string][] = [
+  ["paracetamol", "acetaminofen"], ["diclofenaco", "diclofenac"], ["amlodipino", "amlodipina"], ["levofloxacina", "levofloxacino"],
+  ["moxifloxacina", "moxifloxacino"], ["ciprofloxacina", "ciprofloxacino"], ["finasterida", "finasteride"], ["irbesartan", "ibersartan"],
+  ["acido acetilsalicilico", "aspirina"], ["butilbromuro de hioscina", "buscapina"], ["metamizol", "dipirona"], ["hioscina", "escopolamina"],
+];
+const sinAcentos = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+export function textoBuscableMedicina(nombre: string, extra: string) {
+  const base = sinAcentos(`${nombre} ${extra}`);
+  const alias = SINONIMOS.flatMap(([a, b]) => (base.includes(a) ? [b] : base.includes(b) ? [a] : []));
+  return [base, ...alias].join(" ");
+}
+
+// Medicinas: filtra en memoria la lista ya cargada (rápido en una PC modesta y sin internet).
+// También encuentra por nombre venezolano (acetaminofén, diclofenac) y por marca («marcas: Atamel» en el vademécum).
 export function BuscadorMedicina({ valor, medicinas, onElegir, onEscribir, onAgregada }: {
   valor: string;
   medicinas: Item[];
@@ -65,8 +80,8 @@ export function BuscadorMedicina({ valor, medicinas, onElegir, onEscribir, onAgr
     const palabras = palabrasDe(texto);
     return medicinas.flatMap((m) => {
       const pre = indicacionPreestablecida(m.texto);
-      const detalle = [pre.presentacion, pre.concentracion].filter(Boolean).join(" ");
-      if (!coincide(`${m.nombre} ${detalle}`, palabras)) return [];
+      const detalle = [[pre.presentacion, pre.concentracion].filter(Boolean).join(" "), pre.marcas && `marca: ${pre.marcas}`].filter(Boolean).join(" · ");
+      if (!coincide(textoBuscableMedicina(m.nombre, detalle), palabras)) return [];
       return [{ clave: m.id, codigo: "", nombre: m.nombre, detalle, grupo: m.datos?.propio === true ? GRUPOS_MED[0] : GRUPOS_MED[1] }];
     }).slice(0, 40);
   }, [medicinas]);

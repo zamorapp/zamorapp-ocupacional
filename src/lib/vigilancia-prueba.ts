@@ -118,3 +118,35 @@ export function vigilanciaDePrueba(caso: "normal" | "vacio" = "normal"): DatosBr
     informe: null, riesgos: {}, perfil: null, criterioHoras: "same", previos: null,
   };
 }
+
+// Portada con todos los datos (personas inventadas): la prueba de impresión verifica que quepa en una hoja.
+// «largo»: el peor caso razonable, 11 firmantes, NIL, aprobación y dirección larga.
+export function portadaDePrueba(caso: "normal" | "largo" = "normal") {
+  const p = (nombre: string, cedula: string, cargo: string, registro = "") => ({ nombre, cedula, cargo, registro });
+  const largo = caso === "largo";
+  return {
+    logoEmpresa: null,
+    orgLogo: null,
+    org: "Servicio de prueba",
+    empresa: {
+      razonSocial: "SERVICIOS INDUSTRIALES DE EJEMPLO, C.A.", rif: "J-00000000-0", nil: largo ? "000000000" : null, actividad: "Servicios industriales",
+      direccion: largo ? "Avenida de ejemplo, galpón 12, zona industrial norte, sector de prueba, municipio de ejemplo, estado de ejemplo" : "Avenida de ejemplo, zona industrial",
+      telefono: "0412-0000000",
+    },
+    firmantes: {
+      medico: p("Médico de Prueba", "10000000", "Médico ocupacional", "MPPS 00000"),
+      servicio: [p("Coordinadora de Prueba", "11000000", "Coordinadora SSO"), p("Inspector de Prueba", "12000000", "Inspector SSO"), ...(largo ? [p("Analista de Prueba", "12500000", "Analista SSO")] : [])],
+      representantes: [p("Gerente de Prueba", "13000000", "Gerente de proyecto"), p("Coordinador de Prueba", "14000000", "Coordinador AIT"), p("Analista de Prueba", "15000000", "Coordinadora de aseguramiento de calidad"), ...(largo ? [p("Jefe de Prueba", "15500000", "Jefe de operaciones")] : [])],
+      delegados: [p("Delegada de Prueba", "16000000", "Delegada de prevención"), p("Delegado de Prueba", "17000000", "Delegado de prevención"), ...(largo ? [p("Delegado Tres", "17500000", "Delegado de prevención")] : [])],
+      custodio: "Gerencia",
+      autoridad: largo ? "Gerencia general" : undefined,
+      centro_trabajo: "Galpones e instalaciones de la empresa ubicados en la avenida de ejemplo, zona industrial",
+      trabajadores: "75",
+    },
+    fechaEmision: "2026-11-04",
+    titulo: "III trimestre 2026",
+    subtitulo: null,
+    periodo: { desde: "2026-07-01", hasta: "2026-09-30" },
+    poblacion: { total: 180, femenino: 51, masculino: 129 },
+  };
+}

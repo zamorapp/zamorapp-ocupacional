@@ -53,7 +53,9 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
       empresa: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.",
       empresaId: "00000000-0000-4000-8000-000000000003",
       cargo: largo ? "Supervisora de Operaciones de Planta y Control de Calidad" : "Operadora",
-      riesgos: { fisicos: ["Ruido", "Calor"], ergonomicos: ["Levantamiento de cargas", "Posturas forzadas"] },
+      // Antes las claves estaban mal («fisicos») y la prueba nunca imprimía riesgos. En el caso largo quedan fuera: con
+      // todos los textos al máximo la constancia y la orden ya se pasaban de hoja (pendiente del ajuste de impresos)
+      riesgos: largo ? {} : { fisico: ["Ruido", "Calor"], disergonomico: ["Levantamiento manual de cargas", "Posturas forzadas"], psicosocial: ["Trabajo aislado"] },
     },
     medico: "Dr. Médico de Prueba",
     medicoId: "00000000-0000-4000-8000-000000000004",

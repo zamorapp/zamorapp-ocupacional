@@ -1,5 +1,4 @@
-import { Fragment } from "react";
-import { AUTORIDAD, conNombre, CUSTODIO, datosPortada, representantesDe, type Firmantes, type Persona } from "@/lib/firmantes";
+import { CUSTODIO, centroPorDefecto, conNombre, datosPortada, DOCUMENTO, representantesDe, servicioDe, type Firmantes, type Persona } from "@/lib/firmantes";
 import { fechaCorta as corta, type Periodo } from "@/lib/periodos";
 import { Hoja, Marca } from "../componentes";
 
@@ -12,36 +11,60 @@ const Falta = () => <><span className="font-semibold text-red-700 print:hidden">
 const emision = (fecha: string) =>
   new Date(`${fecha}T12:00:00-04:00`).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "numeric", month: "long", year: "numeric" });
 
-// Una fila por persona en el cuadro de elaboración y aprobación; el rol ocupa todas las filas de su grupo
-function FilasFirma({ rol, personas }: { rol: string; personas: Persona[] }) {
+// Encabezado de sección: número, título y filete; sobrio, se lee igual en blanco y negro
+function Seccion({ n, titulo }: { n: string; titulo: string }) {
+  return (
+    <div className="mt-4 mb-2 flex items-center gap-2.5">
+      <span className="text-[10px] font-extrabold tabular-nums text-doc-acento">{n}</span>
+      <h2 className="text-[10.5px] font-extrabold uppercase tracking-[.16em] text-[#15201e]">{titulo}</h2>
+      <span className="h-px flex-1 bg-doc-linea" />
+    </div>
+  );
+}
+
+// Un dato de la empresa: etiqueta pequeña arriba, valor abajo (ficha corporativa, no formulario)
+function Dato({ k, v, col = 1, fuerte, borde }: { k: string; v: string | null; col?: 1 | 2 | 3; fuerte?: boolean; borde?: boolean }) {
+  return (
+    <div className={`border-t border-doc-linea px-3 py-1.5 ${col === 3 ? "col-span-3" : col === 2 ? "col-span-2" : ""} ${borde ? "border-l" : ""}`}>
+      <div className="text-[8.5px] font-bold uppercase tracking-[.14em] text-doc-tenue">{k}</div>
+      <div className={`mt-0.5 leading-snug ${fuerte ? "text-[13px] font-extrabold tracking-tight" : "text-[11.5px] font-medium"}`}>{v || <Falta />}</div>
+    </div>
+  );
+}
+
+// Una fila por persona; el rol encabeza su grupo y ocupa todas sus filas
+function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Persona[]; compacta: boolean }) {
   const filas = personas.length ? personas : [undefined];
-  const td = "border border-doc-linea px-2.5 align-top";
+  const td = "border-b border-doc-linea px-2.5 align-middle";
   return filas.map((p, i) => (
     <tr key={i} className="break-inside-avoid">
-      {i === 0 && <th rowSpan={filas.length} scope="row" className={`${td} w-[27%] bg-doc-suave py-2 text-left text-[10px] font-bold uppercase leading-snug tracking-[.06em] text-doc-acento`}>{rol}</th>}
-      <td className={`${td} py-1.5`}>
+      {i === 0 && (
+        <th rowSpan={filas.length} scope="row" className={`${td} w-[24%] border-r bg-doc-suave/60 py-1.5 text-left align-top text-[9px] font-bold uppercase leading-snug tracking-[.08em] text-doc-acento`}>
+          {rol}
+        </th>
+      )}
+      <td className={`${td} py-1`}>
         {p?.nombre ? (
-          <>
-            <div className="text-[11.5px] font-semibold leading-tight">{p.nombre}</div>
-            <div className="text-[10px] leading-snug text-doc-tenue">{[p.cedula && `C.I. ${p.cedula}`, p.cargo, p.registro && `Reg. ${p.registro}`].filter(Boolean).map((x, j) => <span key={j} className="whitespace-nowrap">{j > 0 && " · "}{x}</span>)}</div>
-          </>
+          // Compacta (más de 8 firmantes): nombre y cargo en una línea
+          <div className={compacta ? "leading-tight" : ""}>
+            <span className={`${compacta ? "" : "block"} text-[11.5px] font-semibold leading-tight`}>{p.nombre}</span>
+            {(p.cargo || p.registro) && (
+              <span className={`${compacta ? "ml-1.5 text-[9px]" : "block text-[9.5px] leading-snug"} text-doc-tenue`}>
+                {compacta && "· "}{[p.cargo, p.registro && `Reg. ${p.registro}`].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
         ) : <span className="text-[10px] italic text-doc-tenue"><span className="print:hidden">Sin datos: complétalo en Reportes › Redacción del informe › Portada y firmantes</span></span>}
       </td>
-      <td className={`${td} h-[18mm] w-[30%]`} />
-      <td className={`${td} w-[11%]`} />
+      <td className={`${td} w-[15%] whitespace-nowrap text-[10.5px] tabular-nums`}>{p?.cedula ? `C.I. ${p.cedula}` : ""}</td>
+      {/* Espacio de firma: 11,6 mm (44 px); con más de 8 firmantes, 7,5 mm para que todo quepa en una hoja */}
+      <td className={`${td} ${compacta ? "h-[7.5mm]" : "h-[11.6mm]"} w-[25%] border-l`} />
     </tr>
   ));
 }
 
-type Dato = [string, string | null];
-// Razón social, actividad, dirección y centro de trabajo a lo ancho; RIF con NIL y teléfonos con trabajadores, en pareja
-function filasFicha(ficha: Dato[], centro: string | null): Dato[][] {
-  const d = Object.fromEntries(ficha) as Record<string, string | null>;
-  const par = (k: string): Dato => [k, d[k] ?? null];
-  return [[par("Razón social")], [par("RIF"), par("NIL")], [par("Actividad económica")], [par("Dirección")], [["Centro de trabajo", centro]], [par("Teléfonos"), par("N.º de trabajadores")]];
-}
-
-// Portada del informe de vigilancia: identificación de la empresa (de su ficha) y control del documento (de Reportes)
+// Portada del informe de vigilancia: control del documento, identificación de la empresa (de su ficha) y
+// responsables del sistema (de Reportes › Portada y firmantes). Cabe en una hoja Carta con hasta 11 firmantes (con más de 8, filas compactas).
 export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision, titulo, subtitulo, periodo, poblacion, org }: {
   logoEmpresa: string | null;
   orgLogo: string | null;
@@ -55,85 +78,86 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
   poblacion: { total: number; femenino: number; masculino: number };
   org: string | null;
 }) {
-  const ficha = empresa ? datosPortada(empresa, poblacion) : null;
-  const pob = poblacion.total;
+  const ficha = empresa ? Object.fromEntries(datosPortada(empresa, poblacion, firmantes.trabajadores)) as Record<string, string | null> : null;
+  const centro = firmantes.centro_trabajo || centroPorDefecto(empresa?.direccion) || null;
+  const firmas = { medico: conNombre([firmantes.medico!]), servicio: conNombre(servicioDe(firmantes)), representantes: conNombre(representantesDe(firmantes)), delegados: conNombre(firmantes.delegados) };
+  const compacta = Object.values(firmas).reduce((n, l) => n + Math.max(l.length, 1), 0) > 8;
+  const control: [string, string][] = [
+    ["Documento", DOCUMENTO],
+    ["Custodio", firmantes.custodio || CUSTODIO],
+    ...(firmantes.autoridad ? ([["Aprobado por", firmantes.autoridad]] as [string, string][]) : []),
+    ["Fecha de emisión", emision(fechaEmision)],
+  ];
   return (
     <Hoja>
-      <header className="flex items-center justify-between gap-6">
-        {/* Logo de la empresa; sin él, el de la organización que emite (o sus iniciales) */}
-        <div className="flex min-w-0 items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {logoEmpresa ? <img src={logoEmpresa} alt="" className="h-16 max-w-44 object-contain" /> : <Marca logo={orgLogo} nombre={org ?? ""} />}
-        </div>
-        <div className="text-right">
-          <div className="text-[9px] font-bold uppercase tracking-[.16em] text-doc-tenue">Fecha de emisión</div>
-          <div className="text-[13px] font-semibold first-letter:uppercase">{emision(fechaEmision)}</div>
-          {/* Es dato de salud: va en toda copia, también la que recibe la empresa */}
-          <div className="mt-0.5 text-[9px] text-doc-tenue">Documento confidencial de salud ocupacional</div>
+      {/* Logos: la empresa a la izquierda; a la derecha, el servicio que elabora */}
+      <header className="flex items-center justify-between gap-6 border-b border-doc-linea pb-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {logoEmpresa ? <img src={logoEmpresa} alt="" className="h-14 max-w-44 object-contain" /> : <Marca logo={orgLogo} nombre={org ?? ""} />}
+        <div className="flex items-center gap-3 text-right">
+          <div>
+            <div className="text-[8.5px] font-bold uppercase tracking-[.16em] text-doc-tenue">Elaborado por el servicio médico</div>
+            <div className="text-[11px] font-semibold">{org}</div>
+          </div>
+          {logoEmpresa && <Marca logo={orgLogo} nombre={org ?? ""} />}
         </div>
       </header>
 
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-doc-linea bg-doc-linea text-[11px]">
-        {([["Autoridad que aprueba", firmantes.autoridad || AUTORIDAD], ["Custodio del documento", firmantes.custodio || CUSTODIO]] as const).map(([k, x]) => (
-          <div key={k} className="bg-white px-3.5 py-2"><span className="mr-2 text-[9px] font-bold uppercase tracking-[.14em] text-doc-tenue">{k}</span><span className="font-semibold">{x}</span></div>
-        ))}
-      </div>
-
-      {/* Sin fondos sólidos: rinde el tóner y se lee igual en blanco y negro */}
-      <div className="mt-4 rounded-b-[12px] border-t-4 border-doc-acento bg-doc-suave/45 px-6 py-4 text-doc-acento">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[.22em] text-doc-tenue">Sistema de vigilancia epidemiológica ocupacional</div>
-          <h1 className="mt-2 max-w-[80%] text-[25px] font-extrabold leading-[1.12] tracking-tight">Salud de los trabajadores</h1>
-          <div className="mt-2.5 flex flex-wrap items-end gap-x-6 gap-y-1">
-            <div className="text-[19px] font-extrabold first-letter:uppercase">{titulo}</div>
-            {subtitulo && <div className="text-[12px] font-semibold uppercase tracking-[.08em]">{subtitulo}</div>}
-            <div className="text-[11px] tabular-nums text-doc-tenue">{corta(periodo.desde)} – {corta(periodo.hasta)}</div>
-          </div>
-          <div className="mt-1.5 text-[9.5px] text-doc-tenue">
-            Informe trimestral según el artículo 34 del Reglamento Parcial de la LOPCYMAT{org ? ` · ${org}` : ""}
-          </div>
+      {/* Título: sin fondo sólido (rinde el tóner), filete de acento a la izquierda */}
+      <div className="mt-5 border-l-[5px] border-doc-acento pl-5">
+        <div className="text-[9.5px] font-bold uppercase tracking-[.24em] text-doc-acento">Sistema de vigilancia epidemiológica ocupacional</div>
+        <h1 className="mt-1.5 text-[26px] font-extrabold leading-[1.08] tracking-tight text-[#15201e]">Informe de vigilancia de la salud de los trabajadores</h1>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span className="text-[16px] font-extrabold text-doc-acento first-letter:uppercase">{titulo}</span>
+          {subtitulo && <span className="text-[11px] font-semibold uppercase tracking-[.1em] text-doc-tenue">{subtitulo}</span>}
+          <span className="text-[11px] tabular-nums text-doc-tenue">Del {corta(periodo.desde)} al {corta(periodo.hasta)}</span>
         </div>
+        <div className="mt-1 text-[9.5px] text-doc-tenue">Artículo 34 del Reglamento Parcial de la LOPCYMAT · Documento confidencial de salud ocupacional</div>
       </div>
 
-      <h2 className="mt-4 mb-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Identificación de la empresa</h2>
+      {/* Control del documento */}
+      <dl className={`mt-4 grid overflow-hidden rounded-[8px] border border-doc-linea ${control.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+        {control.map(([k, v], i) => (
+          <div key={k} className={`px-3 py-2 ${i ? "border-l border-doc-linea" : ""}`}>
+            <dt className="text-[8.5px] font-bold uppercase tracking-[.14em] text-doc-tenue">{k}</dt>
+            <dd className="mt-0.5 text-[11px] font-semibold leading-snug first-letter:uppercase">{v}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <Seccion n="01" titulo="Datos de la empresa" />
       {ficha ? (
-        <table className="w-full overflow-hidden rounded-[10px] text-[11px] [border-collapse:separate] [border-spacing:0] border border-doc-linea">
-          <tbody>
-            {/* Pares cortos en la misma fila: con firmas de 18 mm la portada tiene que caber en Carta y en A4 */}
-            {filasFicha(ficha, firmantes.centro_trabajo || empresa?.direccion || null).map((fila, i) => (
-              <tr key={i} className={i % 2 ? "bg-doc-suave/50" : ""}>
-                {fila.map(([k, x], j) => (
-                  <Fragment key={k}>
-                    <th scope="row" className={`w-[19%] px-3 py-1 text-left align-top text-[9px] font-bold uppercase tracking-[.1em] text-doc-tenue ${i ? "border-t border-doc-linea" : ""} ${j ? "border-l border-doc-linea" : ""}`}>{k}</th>
-                    <td colSpan={fila.length === 1 ? 3 : 1} className={`px-3 py-1 tabular-nums ${i ? "border-t border-doc-linea font-medium" : "font-bold"}`}>{x || <Falta />}</td>
-                  </Fragment>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="grid grid-cols-3 overflow-hidden rounded-[8px] border border-doc-linea [&>*:first-child]:border-t-0">
+          <Dato k="Razón social" v={ficha["Razón social"]} col={3} fuerte />
+          <Dato k="RIF" v={ficha["RIF"]} />
+          <Dato k="Teléfono" v={ficha["Teléfonos"]} borde />
+          {ficha["NIL"] ? <Dato k="NIL" v={ficha["NIL"]} borde /> : <Dato k="N.º de trabajadores" v={ficha["N.º de trabajadores"]} borde />}
+          <Dato k="Dirección" v={ficha["Dirección"]} col={3} />
+          <Dato k="Centro de trabajo" v={centro} col={3} />
+          <Dato k="Actividad económica" v={ficha["Actividad económica"]} col={ficha["NIL"] ? 2 : 3} />
+          {ficha["NIL"] && <Dato k="N.º de trabajadores" v={ficha["N.º de trabajadores"]} borde />}
+        </div>
       ) : (
-        <p className="rounded-[10px] border border-doc-linea px-3 py-2 text-[11px]">Consolidado de todas las empresas clientes · {num(pob)} trabajadores (mujeres {num(poblacion.femenino)} · hombres {num(poblacion.masculino)})</p>
+        <p className="rounded-[8px] border border-doc-linea px-3 py-2 text-[11px]">Consolidado de todas las empresas clientes · {num(poblacion.total)} trabajadores (mujeres {num(poblacion.femenino)} · hombres {num(poblacion.masculino)})</p>
       )}
 
-      <h2 className="mt-4 mb-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">Elaboración y aprobación</h2>
-      <table className="w-full border-collapse text-[11px]">
+      <Seccion n="02" titulo="Responsables del sistema · elaboración y aprobación" />
+      <table className="w-full border-separate overflow-hidden rounded-[8px] border border-doc-linea text-[11px] [border-spacing:0]">
         <thead>
-          <tr className="text-left text-[9px] uppercase tracking-[.12em] text-doc-tenue">
-            <th className="px-2.5 pb-1 font-bold" />
-            <th className="px-2.5 pb-1 font-bold">Nombre y apellido · cargo</th>
-            <th className="px-2.5 pb-1 font-bold">Firma</th>
-            <th className="px-2.5 pb-1 font-bold">Fecha</th>
+          <tr className="text-left text-[8.5px] uppercase tracking-[.14em] text-doc-tenue">
+            <th className="border-b border-r border-doc-linea bg-doc-suave/60 px-2.5 py-1 font-bold">Rol</th>
+            <th className="border-b border-doc-linea px-2.5 py-1 font-bold">Nombre y apellido · cargo</th>
+            <th className="border-b border-doc-linea px-2.5 py-1 font-bold">Cédula</th>
+            <th className="border-b border-l border-doc-linea px-2.5 py-1 font-bold">Firma</th>
           </tr>
         </thead>
-        <tbody>
-          <FilasFirma rol="Elaborado por" personas={conNombre([firmantes.medico!])} />
-          <FilasFirma rol="Servicio de Seguridad y Salud en el Trabajo" personas={conNombre([firmantes.sst!])} />
-          <FilasFirma rol="Representantes del patrono" personas={conNombre(representantesDe(firmantes))} />
-          <FilasFirma rol="Delegados de prevención" personas={conNombre(firmantes.delegados)} />
+        <tbody className="[&>tr:last-child>*]:border-b-0">
+          <FilasFirma rol="Elaborado por · médico ocupacional" personas={firmas.medico} compacta={compacta} />
+          <FilasFirma rol="Servicio de Seguridad y Salud en el Trabajo" personas={firmas.servicio} compacta={compacta} />
+          <FilasFirma rol="Representantes del patrono" personas={firmas.representantes} compacta={compacta} />
+          <FilasFirma rol="Delegados de prevención" personas={firmas.delegados} compacta={compacta} />
         </tbody>
       </table>
-
     </Hoja>
   );
 }

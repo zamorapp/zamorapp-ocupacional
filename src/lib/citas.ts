@@ -3,9 +3,9 @@ import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
-import type { ModoPropuesta, Propuesta } from "@/lib/propuesta";
+import type { EstadoCorreoPropuesta, ModoPropuesta, Propuesta } from "@/lib/propuesta";
 
-export type { ModoPropuesta, Propuesta } from "@/lib/propuesta";
+export type { EstadoCorreoPropuesta, ModoPropuesta, Propuesta } from "@/lib/propuesta";
 
 export type EstadoCita = "solicitada" | "citado" | "en_espera" | "en_consulta" | "atendido" | "no_asistio" | "cancelada";
 
@@ -42,6 +42,7 @@ type Fila = {
   motivo_id: string | null; consulta_id: string | null; observacion: string | null;
   empresa_id?: string; propuesta_fecha?: string | null; propuesta_desde?: string | null; propuesta_hasta?: string | null;
   propuesta_modo?: ModoPropuesta | null; propuesta_nota?: string | null; propuesta_en?: string | null; respuesta_empresa?: Cita["respuestaEmpresa"];
+  propuesta_correo_estado?: EstadoCorreoPropuesta | null; propuesta_correo_error?: string | null;
   creado_en?: string | null; confirmada_en?: string | null; en_consulta_en?: string | null; atendida_en?: string | null; cerrada_en?: string | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null } | null;
   empresas: { razon_social: string } | null;
@@ -53,7 +54,8 @@ const propuesta = (c: Fila) => ({
   empresaId: c.empresa_id ?? "",
   respuestaEmpresa: c.respuesta_empresa ?? null,
   propuesta: c.propuesta_fecha && c.propuesta_desde && c.propuesta_modo
-    ? { fecha: c.propuesta_fecha, desde: c.propuesta_desde.slice(0, 5), hasta: c.propuesta_hasta?.slice(0, 5) ?? null, modo: c.propuesta_modo, nota: c.propuesta_nota ?? null, en: c.propuesta_en ?? null }
+    ? { fecha: c.propuesta_fecha, desde: c.propuesta_desde.slice(0, 5), hasta: c.propuesta_hasta?.slice(0, 5) ?? null, modo: c.propuesta_modo, nota: c.propuesta_nota ?? null, en: c.propuesta_en ?? null,
+        ...(c.propuesta_correo_estado !== undefined ? { correo: { estado: c.propuesta_correo_estado, error: c.propuesta_correo_error ?? null } } : {}) }
     : null,
 });
 
@@ -104,7 +106,7 @@ export async function listarSolicitudes(): Promise<Cita[]> {
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("citas")
-    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, ${PROPUESTA}, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
+    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, nota_empresa, ${PROPUESTA}, propuesta_correo_estado, propuesta_correo_error, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
     .eq("estado", "solicitada")
     .gte("fecha", hoyCaracas())
     .order("fecha")

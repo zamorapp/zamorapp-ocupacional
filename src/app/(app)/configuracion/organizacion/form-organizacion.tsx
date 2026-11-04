@@ -7,7 +7,7 @@ import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guardarOrganizacion } from "../acciones";
-import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
+import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH, NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
 
 type Ajustes = {
   palabra_aptitud?: string;
@@ -18,6 +18,7 @@ type Ajustes = {
   reposo_pie_copia?: string | null;
   orden_nota?: string | null;
   orden_nota_preempleo?: string | null;
+  nota_riesgos_puesto?: string | null;
   constancia_copia?: boolean;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
@@ -163,6 +164,13 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
           <CardContent className="grid gap-4">
             <Campo id="orden_nota" etiqueta="Nota al pie (ej. ayuno de 8 horas, laboratorio convenido)" defaultValue={a.orden_nota ?? ""} />
             <CampoTexto id="orden_nota_preempleo" etiqueta="Nota de la autorización pre-empleo (vacío para no imprimirla)" rows={2} defaultValue={a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Riesgos del puesto</CardTitle></CardHeader>
+          <CardContent className="grid gap-4">
+            <CampoTexto id="nota_riesgos_puesto" etiqueta="Nota en letra pequeña debajo de los riesgos (informe, constancia, orden e historia; vacío para no imprimirla)" rows={3} defaultValue={a.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO} />
           </CardContent>
         </Card>
       </fieldset>

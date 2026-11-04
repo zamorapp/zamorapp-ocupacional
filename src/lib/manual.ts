@@ -10,10 +10,16 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-10-30";
+export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-04", texto: "Menú más ordenado: la barra de la izquierda tiene tres grupos (Día a día, Gestión y Ajustes) y Configuración se agrupa por tarea: Consulta, Cobros, Documentos, Seguridad y equipos, y Mantenimiento. «Servicios y precios» y la Tasa BCV se abren también desde Configuración › Cobros", tema: "atajos" },
+  { fecha: "2026-11-04", texto: "Ajustes clínicos en 3 pasos: empresa, evaluación y qué se pide. «Ninguno» quita los paraclínicos de una empresa sin borrar el perfil; borrar del sistema queda aparte y con «Deshacer»", tema: "configuracion" },
+  { fecha: "2026-11-04", texto: "El buscador (Ctrl+K o «Buscar») ahora encuentra pantallas, pestañas y ajustes, no solo trabajadores. Escribe «precios», «membrete», «vademécum», «respaldo» o una frase como «dónde coloco los precios» y te lleva allí", tema: "atajos" },
+  { fecha: "2026-11-04", texto: "Disponibilidad para citas: carga tu horario semanal con turnos y personas por turno, y bloquea días u horas (otra empresa, charlas, feriados). RR. HH. solo ve y toca las horas con cupo. Si una hora no te sirve, «Proponer otra hora» (exacta, entre dos horas o a partir de una) con nota; RR. HH. acepta o pide otra. Al confirmar, un aviso amarillo te dice si choca con otra cita o un bloqueo (solo informa)", tema: "atencion" },
+  { fecha: "2026-11-04", texto: "El correo de «Proponer otra hora» se reintenta solo si falla. En la solicitud ves «Correo enviado a RR. HH.», «se reintenta solo» o, si al final no salió, el motivo en rojo y te llega el aviso «No salió el correo de la propuesta» para que avises por WhatsApp", tema: "atencion" },
+  { fecha: "2026-11-04", texto: "Portal de RR. HH.: al elegir el día ve las horas con cupo y los próximos días libres; las horas que le propone el servicio llegan arriba con «Aceptar» o «Pedir otra», a la campanita, al correo y al celular. La bienvenida le guía para instalar zamorApp y activar los avisos", tema: "portal" },
   { fecha: "2026-10-30", texto: "Moverse entre pantallas es más rápido: volver a una que viste hace poco es instantáneo y el menú gira apenas lo tocas", tema: "atajos" },
   { fecha: "2026-10-30", texto: "Atajos de teclado en la consulta: Alt + número va a ese paso, Alt + AvPág / RePág al siguiente o al anterior, y Ctrl + Enter cierra, firma e imprime (con confirmación)", tema: "consulta" },
   { fecha: "2026-10-30", texto: "«Siguiente: nombre» al cerrar o firmar una consulta y en la hoja de impresión: abre la consulta del primero que espera hoy en un clic, sin volver a la cola. Si otro médico ya lo tomó, abre al que sigue", tema: "consulta" },
@@ -54,6 +60,7 @@ export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-27", texto: "Informe de investigación NT-02 de enfermedad ocupacional y seguimiento de la certificación del INPSASEL", tema: "accidentes" },
   { fecha: "2026-10-27", texto: "15 reportes del SAME con impresión y Excel, y nuevos documentos (OAM, constancia de atención, evaluación de puesto)", tema: "reportes-same" },
   { fecha: "2026-10-27", texto: "Solicitudes de las empresas desde el portal y respaldo diario en Google Drive", tema: "solicitudes" },
+  { fecha: "2026-11-04", texto: "«Actualizar nómina» (Pacientes): descargas la nómina actual de la empresa en Excel, RR. HH. la corrige, llena lo amarillo (datos que faltan para la vigilancia), agrega a los nuevos y escribe NO a quien ya no está. Al subirla ves cuánto se completa, qué cambia, quién entra y quién sale antes de aplicar; luego queda «Deshacer» ese mismo día. Necesita internet", tema: "pacientes" },
 ];
 
 export const MANUAL: TemaManual[] = [
@@ -61,12 +68,12 @@ export const MANUAL: TemaManual[] = [
     id: "atajos",
     titulo: "Buscar rápido, atajos y tema oscuro",
     para: "todos",
-    resumen: "Llega a cualquier trabajador o sección en dos teclas, desde cualquier pantalla.",
+    resumen: "Llega a cualquier trabajador, pantalla o ajuste en dos teclas, desde cualquier pantalla.",
     pasos: [
       "Pulsa Ctrl+K (o la tecla /) y escribe la cédula o el nombre. En el celular, toca «Buscar» en la barra de abajo.",
       "Con las flechas eliges; Enter abre la ficha del trabajador.",
       "Servicio médico: para atenderlo de una vez, toca «Atender» en el resultado o pulsa Ctrl+Enter: se abre la consulta nueva sin pasar por la ficha.",
-      "Si escribes el nombre de una sección (por ejemplo «reportes»), te lleva allí.",
+      "También encuentra pantallas, pestañas y ajustes por su nombre o por palabras comunes: «precios» o «tarifas» (Facturación › Servicios y precios), «membrete» (Organización), «vademécum» (lista de medicinas), «respaldo», «huella», «morbilidad», «importar excel». Sirve una frase como «dónde coloco los precios». Con palabras salen primero las pantallas; con una cédula, los trabajadores. Cada quien ve solo lo que su rol puede abrir.",
       "¿No existe? Si la cédula no aparece, el mismo buscador ofrece «Registrar y atender»: cédula, nombres, apellidos y empresa, y se abre la consulta. Sexo, cargo y demás datos se completan después. Recepción ve «Registrar» y llega a la ficha.",
       "Tema claro u oscuro: toca tu inicial arriba a la derecha y elige Claro, Oscuro o Sistema (sigue al del equipo). Se recuerda en cada equipo.",
     ],
@@ -163,7 +170,8 @@ export const MANUAL: TemaManual[] = [
     para: "todos",
     resumen: "Expediente único de cada trabajador: datos personales, puesto, riesgos, consultas y resultados.",
     pasos: [
-      "Pacientes → «Nuevo» para registrar uno, o «Importar» para cargar la nómina desde Excel (acepta fechas en formato Excel).",
+      "Pacientes → «Nuevo» para registrar uno, o «Actualizar nómina» para cargar o poner al día la nómina de una empresa desde Excel (acepta fechas en formato Excel).",
+      "Actualizar nómina: 1) elige la empresa; 2) «Descargar nómina actual» y envíala a RR. HH. (las celdas amarillas son datos que faltan para el informe de vigilancia); 3) sube la planilla llena. Ves la población antes y después, cuánto se completa cada dato y cinco listas: completar o corregir, nuevos, RR. HH. dice NO, no aparecen y revisar a mano. La cédula debe coincidir exacta; si está en otra empresa o inactiva, va a «Revisar» para que la abras. Nombre, sexo o nacimiento distintos solo se cambian si lo marcas, y quienes no aparecen solo salen si lo marcas. «Deshacer» devuelve todo ese mismo día, salvo lo que alguien cambió o usó después. Necesita internet.",
       "Abre un paciente para ver sus pestañas: Resumen, Laboral y riesgos, Consultas y Resultados.",
       "En el celular la lista se ve en tarjetas de 25 en 25 con la aptitud de cada uno; el personal de salud tiene «Atender» al lado de cada nombre.",
       "«Nueva consulta» abre la atención médica del trabajador (solo personal de salud).",
@@ -186,6 +194,7 @@ export const MANUAL: TemaManual[] = [
       "La cola está «En vivo»: si recepción marca una llegada en otro equipo, la ves al instante sin recargar. Las tarjetas avisan «Faltan N resultados» cuando hay paraclínicos pendientes.",
       "Arriba también ves las solicitudes de cita que llegan del portal de empresas. Varios trabajadores de una misma solicitud salen juntos y se confirman de una vez. Si a esa hora ya hay otras citas, un bloqueo o queda fuera de tu horario, sale un aviso amarillo de choque (solo informa: puedes confirmar igual).",
       "«Proponer otra hora»: eliges el día y una hora exacta, «Entre» dos horas o «A partir de» una hora, con una nota opcional. RR. HH. lo recibe en su campanita, su celular y su correo, y responde «Aceptar» (queda confirmada) o «Pedir otra». Su respuesta te llega a la campanita y al celular; si en 24 horas no responde, les llega un recordatorio a los dos. «WhatsApp» abre el mensaje listo para el contacto de la empresa.",
+      "Bajo «Propuesta enviada» ves cómo va el correo a RR. HH.: «Correo enviado», «se reintenta solo» (hasta 3 intentos, unos minutos entre cada uno) o, si no salió, el motivo en rojo (por ejemplo, que la empresa no tiene correo registrado). En ese caso también te llega «No salió el correo de la propuesta»: RR. HH. igual la ve en su portal, y puedes avisarle con el botón de WhatsApp. Para que salgan los correos, la empresa debe tener un usuario de RR. HH. o un contacto con correo.",
       "«Disponibilidad» (o Configuración › Disponibilidad para citas): el horario semanal con la duración de cada turno y las personas por turno, y los días u horas bloqueadas (otra empresa, charlas, feriados) con un motivo que solo ve el servicio. Con horario cargado, RR. HH. solo puede pedir horas con cupo; sin horario, escribe la hora libremente. Funciona también sin internet en el escritorio.",
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
       "El botón verde de WhatsApp en cada cita abre tu WhatsApp con el recordatorio listo para enviar al trabajador.",
@@ -432,8 +441,9 @@ export const MANUAL: TemaManual[] = [
       "Organización: nombre, RIF, dirección, logo y textos de los documentos, incluidos el certificado de salud y las plantillas de WhatsApp y correo.",
       "Mi perfil: tus datos de médico (cédula, MPPS, colegio, INPSASEL) y las fotos de tu firma y tu sello. Marca si quieres que se impriman o dejar la casilla vacía para firmar y sellar a mano. Las fotos de firma y sello son privadas: solo las usa el personal de salud al imprimir; RR. HH. de las empresas no puede verlas.",
       "Usuarios: agrega a cada persona con el correo con el que creó su cuenta y su rol. Bajo su nombre, «Asignar usuario de ingreso» le da un usuario corto (3 a 30 letras o números, sin espacios ni @) para entrar sin escribir el correo; vacío lo quita. Solo el administrador ve y cambia los usuarios de los demás, y cada cambio queda en la bitácora. Los roles de la empresa cliente (RR. HH., trabajador, supervisor, delegado de prevención, auditor) deben tener su empresa asignada y solo ven esa: entran al portal de empresas (Inicio, Trabajadores, Accidentes y Manual), nunca al menú del servicio médico; solo RR. HH. pide citas, carga la nómina y hace solicitudes, los demás roles de empresa solo consultan. El trabajador ve solo su propia ficha: la que tiene el mismo correo que su cuenta. Los usuarios de una empresa no ven a los de otras empresas ni las listas clínicas (paraclínicos, medicinas, perfiles de examen). El grupo sanguíneo y la discapacidad del trabajador solo los ve el servicio (administrador, gerente médico, médico, enfermería y recepción). La bitácora con el contenido de consultas, aptitudes y reposos solo la lee el administrador o gerente médico con acceso clínico; el auditor ve el resto, solo de su empresa. El coordinador SST con empresas asignadas solo ve y edita los puestos e informes de esas empresas.",
+      "Disponibilidad para citas: tu horario de cada día (puedes tener mañana y tarde), cuánto dura cada turno y cuántas personas por turno; «Copiar el lunes de martes a viernes» lo arma en un toque. Abajo bloqueas un día completo o unas horas, con un motivo que RR. HH. no ve. Sin horario cargado, RR. HH. escribe la hora que quiera.",
       "Listas: motivos de consulta, exámenes, perfiles, medicamentos, textos frecuentes, causas de reposo y más. Puedes agregar, editar, ordenar o desactivar. En «Paraclínicos» cada examen lleva su unidad y su rango de referencia (y uno para mujeres si cambia por sexo), o «Normal / Alterado» para Rx, audiometría y otros informes: con eso se colorea el resultado.",
-      "Ajustes clínicos: una sola pantalla con todo lo que se precarga en la consulta. Arriba eliges empresa y motivo y ves cómo se abriría (examen, paraclínicos sugeridos, recomendaciones y vigencia) y de dónde sale cada cosa; la tabla «Paraclínicos por empresa» muestra qué perfil sale en cada combinación. Abajo, en pestañas, se editan plantillas, perfiles, recomendaciones y exámenes. El personal clínico la ve; guardan el administrador y el gerente médico.",
+      "Ajustes clínicos (asistente en 3 pasos): 1) elige la empresa o «Todas las empresas»; 2) elige la evaluación; 3) marca qué paraclínicos se piden («Lo general», un perfil o «Ninguno») y toca «Guardar». Eso solo cambia esa empresa en esa evaluación: no borra ningún perfil, y «Deshacer» lo deja como estaba. El examen, las recomendaciones y la vigencia salen de la plantilla de la evaluación (iguales para todas las empresas). «Cómo está cada empresa» muestra el perfil de cada casilla; tócala para ajustarla. «Catálogos completos» (plegado) sirve para crear o editar perfiles, plantillas, recomendaciones y exámenes; ahí la papelera BORRA DEL SISTEMA para todas las empresas, y también trae «Deshacer». El personal clínico la ve; guardan el administrador y el gerente médico.",
       "Plantillas de examen (administrador y gerente médico): una por motivo. Elige el perfil de examen funcional y físico, marca las frases de aptitud y de recomendaciones a la empresa y al trabajador, la vigencia en meses y unas conclusiones base. Se aplican al elegir ese motivo en la consulta; desmarca «Aplicar al elegir este motivo» para apagarla. Los paraclínicos por empresa y tipo de examen se arman en los perfiles de paraclínicos.",
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",

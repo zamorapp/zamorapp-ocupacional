@@ -345,6 +345,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       sano: d.sano,
       potencial_discapacidad: d.potencialDiscapacidad,
       discapacidad_nota: d.potencialDiscapacidad ? d.discapacidadNota || null : null,
+      // Sin la clave (guardados que no la traen) la base conserva lo elegido
+      ...(d.riesgos !== undefined ? { riesgos: d.riesgos } : {}),
       reubicacion: d.reubicacion.activa
         ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
             desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,
