@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-04", texto: "Menú más ordenado: la barra de la izquierda tiene tres grupos (Día a día, Gestión y Ajustes) y Configuración se agrupa por tarea: Consulta, Cobros, Documentos, Seguridad y equipos, y Mantenimiento. «Servicios y precios» y la Tasa BCV se abren también desde Configuración › Cobros", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Ajustes clínicos en 3 pasos: empresa, evaluación y qué se pide. «Ninguno» quita los paraclínicos de una empresa sin borrar el perfil; borrar del sistema queda aparte y con «Deshacer»", tema: "configuracion" },
   { fecha: "2026-11-04", texto: "El buscador (Ctrl+K o «Buscar») ahora encuentra pantallas, pestañas y ajustes, no solo trabajadores. Escribe «precios», «membrete», «vademécum», «respaldo» o una frase como «dónde coloco los precios» y te lleva allí", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Disponibilidad para citas: carga tu horario semanal con turnos y personas por turno, y bloquea días u horas (otra empresa, charlas, feriados). RR. HH. solo ve y toca las horas con cupo. Si una hora no te sirve, «Proponer otra hora» (exacta, entre dos horas o a partir de una) con nota; RR. HH. acepta o pide otra. Al confirmar, un aviso amarillo te dice si choca con otra cita o un bloqueo (solo informa)", tema: "atencion" },

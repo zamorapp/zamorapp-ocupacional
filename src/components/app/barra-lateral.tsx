@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useCasosBandeja } from "@/components/app/aviso-conflictos";
 import { APP_NOMBRE } from "@/lib/config";
 import { buscarActualizacion, ESCRITORIO } from "@/lib/escritorio-actualizar";
-import { SECCIONES, SECCIONES_EMPRESA } from "@/lib/navegacion";
+import { type Seccion, SECCIONES, SECCIONES_EMPRESA, seccionesPorGrupo } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 import { alPasar, IconoEnlace } from "./icono-enlace";
 
@@ -18,6 +18,28 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
   const secciones = portal ? SECCIONES_EMPRESA : SECCIONES;
   const [aviso, setAviso] = useState("");
   const casos = useCasosBandeja().length;
+  // El servicio ve tres grupos con título; el portal de empresas, una lista corta sin títulos
+  const grupos = portal ? [{ titulo: "", secciones }] : seccionesPorGrupo(secciones);
+  const enlace = ({ href, titulo, icono: Icono, descripcion }: Seccion) => {
+    const activa = ruta === href || ruta.startsWith(href + "/");
+    return (
+      // En Inicio, Pacientes y Atención se pide la pantalla completa al pasar el mouse
+      <Link
+        href={href}
+        title={descripcion}
+        {...alPasar(href)}
+        aria-current={activa ? "page" : undefined}
+        onClick={alNavegar}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium transition-colors",
+          activa ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <IconoEnlace icono={Icono} className="size-[18px]" />
+        {titulo}
+      </Link>
+    );
+  };
   return (
     <div className="flex h-full flex-col">
       <Link href={portal ? "/portal" : "/panel"} onClick={alNavegar} className="flex h-16 items-center gap-3 px-5">
@@ -25,28 +47,17 @@ export function BarraLateral({ organizacion, portal = false, alNavegar }: Props)
         <img src="/icono.svg" alt="" className="size-8 rounded-lg" />
         <span className="font-semibold tracking-tight">{APP_NOMBRE}</span>
       </Link>
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        {secciones.map(({ href, titulo, icono: Icono, descripcion }) => {
-          const activa = ruta === href || ruta.startsWith(href + "/");
-          return (
-            // En Inicio, Pacientes y Atención se pide la pantalla completa al pasar el mouse
-            <Link
-              key={href}
-              href={href}
-              title={descripcion}
-              {...alPasar(href)}
-              aria-current={activa ? "page" : undefined}
-              onClick={alNavegar}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors",
-                activa ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <IconoEnlace icono={Icono} className="size-[18px]" />
-              {titulo}
-            </Link>
-          );
-        })}
+      <nav aria-label="Secciones" className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        {grupos.map(({ titulo, secciones: lista }, i) => (
+          <div key={titulo} className={cn(i > 0 && "mt-3")}>
+            {titulo && <h2 className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground/80">{titulo}</h2>}
+            <ul className="space-y-0.5">
+              {lista.map((s) => (
+                <li key={s.href}>{enlace(s)}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
       {ESCRITORIO && (
         <div className="mx-3">
