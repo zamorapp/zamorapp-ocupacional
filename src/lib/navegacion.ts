@@ -41,6 +41,25 @@ export const SECCIONES: Seccion[] = [
   { href: "/ayuda", titulo: "Manual de uso", icono: BookOpen, descripcion: "Cómo usar cada función" },
 ];
 
+// Grupos de la barra lateral (en este orden). Una sección nueva que no esté en ninguna lista cae en «Gestión».
+export type Grupo = { titulo: string; hrefs: string[] };
+export const GRUPOS: Grupo[] = [
+  { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
+  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/ergonomia", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
+  { titulo: "Ajustes", hrefs: ["/configuracion", "/ayuda"] },
+];
+
+export function seccionesPorGrupo(secciones: Seccion[]): { titulo: string; secciones: Seccion[] }[] {
+  const ubicadas = new Set(GRUPOS.flatMap((g) => g.hrefs));
+  return GRUPOS.map((g) => ({
+    titulo: g.titulo,
+    secciones: [
+      ...g.hrefs.map((h) => secciones.find((s) => s.href === h)).filter((s): s is Seccion => Boolean(s)),
+      ...(g.titulo === "Gestión" ? secciones.filter((s) => !ubicadas.has(s.href)) : []),
+    ],
+  })).filter((g) => g.secciones.length > 0);
+}
+
 // Portal de empresas (RR. HH. y gerentes de la empresa cliente)
 export const SECCIONES_EMPRESA: Seccion[] = [
   { href: "/portal", titulo: "Inicio", icono: CalendarClock, descripcion: "Citas, evaluaciones y avisos" },
