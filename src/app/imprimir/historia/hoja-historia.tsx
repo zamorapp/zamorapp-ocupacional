@@ -3,9 +3,9 @@ import { diasSolapados, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosCon
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { textoLateralidad } from "@/lib/lateralidad";
 import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
-import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
+import type { Aptitud } from "@/lib/pacientes";
 import { sinCodigo } from "@/lib/diagnostico-texto";
-import { Bloque, DatosPaciente, fechaCorta, Firmas, FirmaTrabajador, folio, Hoja, Membrete, Pie, Titulo } from "../componentes";
+import { Bloque, BloqueRiesgos, DatosPaciente, fechaCorta, Firmas, FirmaTrabajador, folio, Hoja, Membrete, Pie, Titulo } from "../componentes";
 import { COLOR_APTITUD, CuerpoConsulta, etiquetasAptitud, Informe } from "../documentos";
 
 export type ConsultaHistoria = { datos: DatosConsulta; motivo: string | null; medico: string | null };
@@ -65,7 +65,6 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
   const corta = (a: Aptitud) => etiquetas[a].replace(" para el cargo propuesto", "");
   const palabra = ajustes.palabra_aptitud ?? "Elegible";
   const certificacion = ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
-  const riesgos = d.sin.includes("riesgos") ? [] : GRUPOS_RIESGO.filter(([k]) => (ficha.riesgos[k] ?? []).length);
   const primera = consultas[0].datos.fecha;
   const ultima = consultas.at(-1)!.datos;
 
@@ -96,11 +95,7 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
           <div><span className="text-doc-tenue">Teléfono:</span> {ficha.telefono ?? "—"}</div>
         </div>
       </Bloque>
-      {riesgos.length > 0 && (
-        <Bloque titulo="Riesgos del puesto actual">
-          <div className="grid grid-cols-2 gap-x-6">{riesgos.map(([k, n]) => <div key={k}><b>{n}:</b> {ficha.riesgos[k]!.join(", ")}</div>)}</div>
-        </Bloque>
-      )}
+      {!d.sin.includes("riesgos") && <BloqueRiesgos titulo="Riesgos del puesto actual" riesgos={ficha.riesgos} ajustes={ajustes} />}
       {empleos.length > 0 && (
         <Bloque titulo="Historia laboral">
           {empleos.map((e) => (

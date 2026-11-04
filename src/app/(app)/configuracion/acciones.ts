@@ -171,6 +171,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       reposo_pie_original: texto(datos, "reposo_pie_original"),
       orden_nota: texto(datos, "orden_nota"),
       orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
+      nota_riesgos_puesto: String(datos.get("nota_riesgos_puesto") ?? "").trim(),
       mensaje_cita: texto(datos, "mensaje_cita"),
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),

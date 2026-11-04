@@ -27,7 +27,7 @@ import {
   taAlterada,
 } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
-import { ESTILO_APTITUD, GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
+import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
@@ -61,6 +61,7 @@ import { sumarDias } from "@/lib/fecha";
 import { FechaEvaluacion, diasEntre } from "./fecha-evaluacion";
 import type { SiguienteCita } from "@/lib/citas";
 import { SiguientePaciente } from "../siguiente-paciente";
+import { RiesgosPuesto } from "./riesgos-puesto";
 import { mensajeGuardadoLocal, refrescarEstado, sincronizarAhora, useEstadoEscritorio } from "@/lib/escritorio-estado";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 
@@ -75,7 +76,7 @@ const APTITUD_LEGIBLE: Record<Aptitud, string> = {
 
 type Props = {
   inicial: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   // Firmada y emitida en el SAME (consulta importada): hora de esa firma; null = firmada aquí o sin firmar
   firmadaEnSame?: string | null;
@@ -96,6 +97,7 @@ type Props = {
   diasAvisoFecha?: number;
   alertas?: AlertaClinica[];
   puedeRevisarAlertas?: boolean; // médico, gerente médico o administrador (lo exige la base)
+  notaRiesgos?: string; // nota legal debajo de «Riesgos del puesto» (Configuración › Organización)
 };
 
 // Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
@@ -278,7 +280,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, notaRiesgos }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -1069,16 +1071,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             </Seccion>
 
             <Seccion titulo="Riesgos del puesto">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {GRUPOS_RIESGO.map(([k, n]) => (
-                  <div key={k} className="flex flex-wrap items-baseline gap-2 text-sm">
-                    <span className="w-28 text-muted-foreground">{n}</span>
-                    {(trabajador.riesgos[k] ?? []).length
-                      ? trabajador.riesgos[k].map((r) => <span key={r} className="rounded bg-muted px-2 py-0.5">{r}</span>)
-                      : <span className="text-muted-foreground/60">—</span>}
-                  </div>
-                ))}
-              </div>
+              <RiesgosPuesto valor={d.riesgos} cargo={trabajador.riesgosCargo ?? trabajador.riesgos} nombreCargo={trabajador.cargo}
+                catalogo={listas.agente_riesgo ?? []} nota={notaRiesgos ?? ""} onChange={(v) => set("riesgos", v)} />
             </Seccion>
             </fieldset>
           </TabsContent>

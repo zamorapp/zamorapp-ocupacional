@@ -84,7 +84,8 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
 
 export type ConsultaCompleta = {
   datos: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]> };
+  // riesgos: los que salen en los impresos (los elegidos en la consulta o, si no se tocaron, los del cargo)
+  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
   // Firmada y emitida en el SAME (importada): hora de esa firma. null = sin firma o firmada en zamorApp
@@ -120,6 +121,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     id: string; nombres: string; apellidos: string; cedula: string; sexo: string | null; fecha_nacimiento: string | null;
     empresas: { razon_social: string } | null; puestos: { nombre: string; riesgos: Record<string, string[]> } | null;
   } | null;
+  const riesgosCargo = (puestoConsulta as { riesgos: Record<string, string[]> } | null)?.riesgos ?? tr?.puestos?.riesgos ?? {};
+  const riesgosConsulta = c.riesgos && typeof c.riesgos === "object" ? (c.riesgos as Record<string, string[]>) : null;
   const nac = tr?.fecha_nacimiento ? new Date(tr.fecha_nacimiento) : null;
   const edad = nac ? Math.floor((ahora() - nac.getTime()) / (365.25 * 864e5)) : null;
 
@@ -138,7 +141,8 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       empresa: tr?.empresas?.razon_social ?? "",
       empresaId: c.empresa_id ?? null, // empresa de la consulta (la del trabajador al atenderlo)
       cargo: (puestoConsulta as { nombre: string } | null)?.nombre ?? tr?.puestos?.nombre ?? "",
-      riesgos: (puestoConsulta as { riesgos: Record<string, string[]> } | null)?.riesgos ?? tr?.puestos?.riesgos ?? {},
+      riesgos: riesgosConsulta ?? riesgosCargo,
+      riesgosCargo,
     },
     datos: {
       id: c.id,
@@ -186,6 +190,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       sano: c.sano ?? false,
       potencialDiscapacidad: c.potencial_discapacidad ?? false,
       discapacidadNota: c.discapacidad_nota ?? "",
+      riesgos: riesgosConsulta,
     },
   };
 }

@@ -14,6 +14,10 @@ export const CERTIFICACION_TRABAJADOR =
 export const NOTA_IDONEIDAD = "La clasificación de idoneidad del paciente se basa en el protocolo de evaluación clínica establecido.";
 // Certificado de salud (manipuladores de alimentos y otros)
 export const NOTA_CERTIFICADO_SACS = "Certificado emitido de acuerdo con la Providencia Administrativa N.º 155-2015 del Servicio Autónomo de Contraloría Sanitaria (SACS), artículo 13.";
+// Debajo de «Riesgos del puesto» en los impresos (pedido de Cesar, 03-nov-2026). LOPCYMAT arts. 40 (Servicio de SST:
+// identificar, evaluar y controlar las condiciones de trabajo), 53.1 y 56.3 (informar al trabajador sus riesgos)
+export const NOTA_RIESGOS_PUESTO =
+  "Riesgos posiblemente asociados al puesto de trabajo, señalados con fines preventivos. Deben ser identificados, evaluados y controlados por el Servicio de Seguridad y Salud en el Trabajo de la entidad de trabajo, para mantener un margen preventivo en las actividades y tareas del trabajador (LOPCYMAT, arts. 40, 53.1 y 56.3).";
 // Autorización de exámenes pre-empleo
 export const NOTA_PREEMPLEO_VIH = "No incluye prueba de VIH, por resolución del MSAS, Gaceta Oficial N.º 35.538 del 02-09-04.";
 

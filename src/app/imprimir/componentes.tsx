@@ -1,6 +1,9 @@
+import { Fragment } from "react";
 import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import type { DatosDocumento } from "@/lib/documentos";
 import { antiguedad } from "@/lib/fecha";
+import { NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
+import { GRUPOS_RIESGO } from "@/lib/pacientes";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
 // Los colores son fijos (papel), no siguen el tema oscuro de la app.
@@ -138,6 +141,23 @@ export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; compl
     );
   } else celdas[3] = { ...celdas[3], ancho: 4 };
   return <Ficha celdas={celdas} />;
+}
+
+// Riesgos del puesto por categoría + la nota legal en letra pequeña (Configuración › Organización; vacía = sin nota).
+// Sin riesgos marcados no imprime nada.
+export function BloqueRiesgos({ riesgos, ajustes, titulo = "Riesgos del puesto" }: {
+  riesgos: Record<string, string[] | undefined>; ajustes: DatosDocumento["org"]["ajustes"]; titulo?: string;
+}) {
+  const grupos = GRUPOS_RIESGO.filter(([k]) => (riesgos[k] ?? []).length);
+  if (!grupos.length) return null;
+  const nota = (ajustes.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO).trim();
+  return (
+    <Bloque titulo={titulo}>
+      {/* Corrido en un párrafo (no en dos columnas): ocupa menos alto y la firma no se pasa a la segunda hoja */}
+      <p className="leading-snug">{grupos.map(([k, n], i) => <Fragment key={k}>{i > 0 && " · "}<b>{n}:</b> {riesgos[k]!.join(", ")}</Fragment>)}</p>
+      {nota && <p className="mt-0.5 text-[8px] italic leading-tight text-doc-tenue">{nota}</p>}
+    </Bloque>
+  );
 }
 
 export function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
