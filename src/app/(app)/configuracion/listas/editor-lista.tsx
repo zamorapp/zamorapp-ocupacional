@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, Undo2, Wand2, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cambiosSugeridos, datosSugeridos, sugeridoPara } from "@/lib/paraclinicos-sugeridos";
 import { CLASES, claseDeducida, FAMILIA, NOMBRE_FAMILIA, type Clase } from "@/lib/estudios";
 import { cn } from "@/lib/utils";
-import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
+import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem, restaurarItem, type FilaBorrada, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
@@ -262,6 +262,33 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
   const [ocupado, iniciar] = useTransition();
   const [verInactivos, setVerInactivos] = useState(true);
   const [sugeridos, setSugeridos] = useState(false);
+  const [borrada, setBorrada] = useState<FilaBorrada | null>(null);
+
+  // Borrar del sistema: dice el alcance real (todas las empresas y motivos) y deja «Deshacer» a la vista
+  const borrar = async (item: Item) => {
+    const usoPerfil = alcance ? (() => {
+      const a = alcancePerfil(item);
+      const nombres = a.empresas.map((x) => nombreDe.get(x)).filter(Boolean);
+      return nombres.length ? ` Hoy se sugiere en: ${nombres.slice(0, 5).join(", ")}${nombres.length > 5 ? ` y ${nombres.length - 5} más` : ""}.` : "";
+    })() : "";
+    const si = await confirmar({
+      titulo: `¿Borrar «${item.nombre}» del sistema?`,
+      texto: `Desaparece de esta lista para TODAS las empresas y motivos.${usoPerfil}${alcance ? " Si solo quieres que no salga en una empresa, usa el asistente de arriba y elige «Ninguno» para esa empresa." : " Si solo quieres que no se ofrezca, mejor desactívalo (el ojo)."} Lo ya guardado en consultas no cambia.`,
+      accion: "Borrar del sistema",
+      peligro: true,
+    });
+    if (!si) return;
+    iniciar(async () => {
+      const r = await eliminarItem(item.id);
+      setAviso(r.ok ? null : r);
+      setBorrada(r.ok && r.fila ? r.fila : null);
+    });
+  };
+  const deshacerBorrado = () => borrada && iniciar(async () => {
+    const r = await restaurarItem(borrada);
+    setAviso(r);
+    if (r.ok) setBorrada(null);
+  });
 
   const ejecutar = (f: () => Promise<Resultado>) =>
     iniciar(async () => {
@@ -307,6 +334,13 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
         </label>
       )}
       {aviso && <div className="border-b px-5 py-3"><Aviso resultado={aviso} /></div>}
+      {borrada && (
+        <div role="status" className="flex flex-wrap items-center gap-2 border-b bg-aviso/10 px-5 py-3 text-sm">
+          <span className="min-w-0 flex-1">«{borrada.nombre}» se borró del sistema.</span>
+          <Button size="sm" variant="outline" onClick={deshacerBorrado} disabled={ocupado}><Undo2 /> Deshacer</Button>
+          <Button size="sm" variant="ghost" onClick={() => setBorrada(null)} aria-label="Cerrar aviso"><X /></Button>
+        </div>
+      )}
       {sugeridos && <CompletarSugeridos items={items} alTerminar={() => setSugeridos(false)} />}
       {editando === "nuevo" && <Formulario lista={lista.codigo} item={null} motivos={motivos} alcance={alcance} alTerminar={() => setEditando(null)} />}
 
@@ -352,15 +386,16 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                   <Button variant="ghost" size="icon" className="size-8" title="Subir" disabled={i === 0 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, -1))}><ArrowUp /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title="Bajar" disabled={i === visibles.length - 1 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, 1))}><ArrowDown /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title="Editar" onClick={() => setEditando(item.id)}><Pencil /></Button>
-                  <Button variant="ghost" size="icon" className="size-8" title={item.activo ? "Desactivar" : "Activar"} onClick={() => ejecutar(() => alternarItem(item.id, !item.activo))}>
+                  <Button variant="ghost" size="icon" className="size-8" title={item.activo ? "Desactivar (no se ofrece, pero no se borra)" : "Activar"} onClick={() => ejecutar(() => alternarItem(item.id, !item.activo))}>
                     {item.activo ? <EyeOff /> : <Eye />}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-8 hover:text-destructive"
-                    title="Eliminar"
-                    onClick={async () => (await confirmar({ titulo: `¿Eliminar «${item.nombre}»?`, accion: "Eliminar", peligro: true })) && ejecutar(() => eliminarItem(item.id))}
+                    title="Borrar del sistema"
+                    aria-label={`Borrar «${item.nombre}» del sistema`}
+                    onClick={() => borrar(item)}
                   >
                     <Trash2 />
                   </Button>
