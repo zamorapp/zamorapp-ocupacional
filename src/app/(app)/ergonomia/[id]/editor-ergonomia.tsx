@@ -284,7 +284,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
           )}
           {editable && (
             <>
-              <Button className="w-full" disabled={ocupado} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>{ocupado && <Loader2 className="animate-spin" />} Guardar</Button>
+              <Button className="w-full" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>{ocupado || estado?.tipo === "guardando" ? <><Loader2 className="animate-spin" /> Guardando</> : estado?.tipo === "ok" || !estado ? <><Check /> Guardado</> : "Guardar ahora"}</Button>
               <Button
                 variant="outline"
                 className="w-full"
@@ -323,20 +323,23 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
 
       {/* Celular: resultado y Guardar siempre a la mano, encima de la barra inferior */}
       {(resultado || editable) && (
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-3 rounded-2xl bg-foreground px-4 py-2.5 text-background shadow-lg lg:hidden">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 rounded-2xl bg-background shadow-lg lg:hidden">
+        {/* Color del nivel sobre fondo opaco: el contenido de atrás no se transparenta */}
+        <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5", resultado?.completo ? CLASE_URGENCIA[resultado.urgencia] : "")}>
           <div className="min-w-0 flex-1 text-sm">
             {resultado ? (
               <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? `${resultado.puntaje} de ${resultado.maximo}` : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
             ) : (
               <span className="block truncate">{x.hallazgos.length} hallazgos</span>
             )}
-            {estado && <span className="block truncate text-xs opacity-70">{estado.texto}</span>}
+            {estado?.tipo === "error" && <span className="block truncate text-xs">{estado.texto}</span>}
           </div>
           {editable && (
-            <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>
-              {ocupado && <Loader2 className="animate-spin" />} Guardar
+            <Button size="sm" variant={estado?.tipo === "ok" || !estado ? "outline" : "default"} className="shrink-0 bg-background text-foreground" disabled={ocupado || estado?.tipo === "guardando"} onClick={() => accion(() => guardarEvaluacion(ev.id, ev.metodo, x))}>
+              {ocupado || estado?.tipo === "guardando" ? <><Loader2 className="animate-spin" /> Guardando</> : estado?.tipo === "ok" || !estado ? <><Check /> Guardado</> : "Guardar ahora"}
             </Button>
           )}
+        </div>
         </div>
       )}
     </div>
