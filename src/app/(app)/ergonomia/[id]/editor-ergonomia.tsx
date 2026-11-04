@@ -220,7 +220,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
               </div>
             )}
             {avisoFaltan && faltan.length > 0 && (
-                <div id="deb-faltan" role="alert" className="scroll-mt-20 space-y-1 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <div id="deb-faltan" role="alert" className="scroll-mt-20 space-y-1 rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">
                   <div className="font-medium">Antes de cerrar, responde lo que falta:</div>
                   {faltan.map((q) => (
                     <div key={q.factor} className="flex items-center justify-between gap-2">
