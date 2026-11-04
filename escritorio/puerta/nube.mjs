@@ -124,7 +124,8 @@ export class Nube {
     this.estado.guardar();
   }
 
-  async rpc(uid, funcion, args) {
+  // opcional: la función puede faltar en una nube aún sin la migración (no se anota como «actualiza el programa»)
+  async rpc(uid, funcion, args, { opcional = false } = {}) {
     const token = await this.token(uid);
     if (!token) throw new Error("Sin sesión en la nube");
     const r = await fetch(`${CONFIG.nube}/rest/v1/rpc/${funcion}`, {
@@ -134,7 +135,7 @@ export class Nube {
     const json = await r.json().catch(() => null);
     if (!r.ok) {
       if (process.env.DEPURAR_BANDEJA) console.error("rpc", funcion, r.status, JSON.stringify(json), JSON.stringify(args).slice(0, 400));
-      this.anotarIncompatibilidad(r.status, json, `rpc ${funcion}`);
+      if (!(opcional && r.status === 404)) this.anotarIncompatibilidad(r.status, json, `rpc ${funcion}`);
       // El detalle y la pista de PostgREST dicen dónde falló (p. ej. qué disparador): van en el mensaje del registro
       const detalle = [json?.details, json?.hint].filter(Boolean).join(" · ");
       throw Object.assign(new Error((json?.message || `rpc ${funcion}: ${r.status}`) + (detalle ? ` (${detalle})` : "")), { status: r.status, code: json?.code });
