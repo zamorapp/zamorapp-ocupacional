@@ -71,9 +71,20 @@ export async function elegirPerfilCasilla(empresaId: string | null, motivoId: st
       }
     }
 
-    for (const c of cambios) {
-      const { error: e } = await supabase.from("lista_items").update({ datos: c.datos }).eq("id", c.id).eq("org_id", sesion.orgId!).eq("lista", "grupo_paraclinicos");
-      if (e) throw e;
+    // Se aplica uno por uno y se verifica que la fila cambió (la RLS puede bloquear sin error). Si algo falla a mitad,
+    // se devuelve lo ya aplicado a como estaba, para no dejar la casilla a medias.
+    const aplicados: Antes[] = [];
+    const revertir = async () => {
+      for (const a of aplicados) await supabase.from("lista_items").update({ datos: a.datos }).eq("id", a.id).eq("org_id", sesion.orgId!).eq("lista", "grupo_paraclinicos");
+    };
+    for (const [k, c] of cambios.entries()) {
+      const { data: hecho, error: e } = await supabase.from("lista_items").update({ datos: c.datos }).eq("id", c.id).eq("org_id", sesion.orgId!).eq("lista", "grupo_paraclinicos").select("id");
+      if (e || !hecho?.length) {
+        await revertir();
+        revalidatePath("/configuracion", "layout");
+        return { ok: false, mensaje: e ? `No se guardó: ${e.message}. Quedó como estaba.` : "No se guardó: tu usuario no puede cambiar este perfil. Quedó como estaba; pídeselo al administrador." };
+      }
+      aplicados.push(antes[k]);
     }
     revalidatePath("/configuracion", "layout");
     const nombre = perfiles.find((p) => p.id === perfilId)?.nombre;
@@ -94,13 +105,14 @@ export async function restaurarCasilla(antes: Antes[]): Promise<ResultadoCasilla
     if (e0) throw e0;
     for (const a of validos) {
       const actual = { ...((filas ?? []).find((f) => f.id === a.id)?.datos as Record<string, unknown> | undefined ?? {}) };
-      if (!filas?.some((f) => f.id === a.id)) continue;
+      if (!filas?.some((f) => f.id === a.id)) return { ok: false, mensaje: "No se pudo deshacer: uno de los perfiles ya no existe o no lo puedes ver." };
       const { pares, excluir } = casillasPerfil({ datos: a.datos });
       delete actual.pares;
       delete actual.excluir;
       const datos = { ...actual, ...(pares.length ? { pares } : {}), ...(excluir.length ? { excluir } : {}) };
-      const { error } = await supabase.from("lista_items").update({ datos }).eq("id", a.id).eq("org_id", sesion.orgId!).eq("lista", "grupo_paraclinicos");
+      const { data: hecho, error } = await supabase.from("lista_items").update({ datos }).eq("id", a.id).eq("org_id", sesion.orgId!).eq("lista", "grupo_paraclinicos").select("id");
       if (error) throw error;
+      if (!hecho?.length) return { ok: false, mensaje: "No se pudo deshacer: tu usuario no puede cambiar ese perfil. Pídeselo al administrador." };
     }
     revalidatePath("/configuracion", "layout");
     return { ok: true, mensaje: "Deshecho: quedó como estaba." };

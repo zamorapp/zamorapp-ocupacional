@@ -147,11 +147,13 @@ export async function eliminarItem(id: string): Promise<Resultado & { fila?: Fil
     const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
     const { data: fila } = await supabase.from("lista_items").select(COLUMNAS_ITEM).eq("id", id).eq("org_id", sesion.orgId!).maybeSingle();
     if (!fila) return { ok: false, mensaje: "Ese elemento ya no existe." };
-    const { error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!);
+    const { data: borradas, error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!).select("id");
     if (error) {
-      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Desactívalo en lugar de borrarlo." };
+      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Ocúltalo (el ojo) en lugar de borrarlo." };
       throw error;
     }
+    // La RLS puede impedir el borrado sin dar error: se dice, no se finge
+    if (!borradas?.length) return { ok: false, mensaje: "No se borró: tu usuario no puede borrar este elemento. Pídeselo al administrador." };
     revalidatePath("/configuracion", "layout");
     return { ok: true, mensaje: `«${fila.nombre}» se borró del sistema.`, fila: fila as FilaBorrada };
   } catch (e) {
@@ -172,7 +174,11 @@ export async function restaurarItem(fila: FilaBorrada): Promise<Resultado> {
       codigo_origen: fila.codigo_origen, lote_importacion: fila.lote_importacion,
     });
     if (error) {
-      if (error.code === "23505") return { ok: true, mensaje: "Ya estaba repuesto." };
+      if (error.code === "23505") {
+        // Solo es «ya repuesto» si la fila está en la propia organización y en la misma lista
+        const { data: existe } = await supabase.from("lista_items").select("id").eq("id", fila.id).eq("org_id", sesion.orgId!).eq("lista", fila.lista).maybeSingle();
+        return existe ? { ok: true, mensaje: "Ya estaba repuesto." } : { ok: false, mensaje: "No se pudo deshacer: ese elemento ya existe en otro lugar. Créalo de nuevo con «Agregar»." };
+      }
       throw error;
     }
     revalidatePath("/configuracion", "layout");

@@ -20,7 +20,7 @@ const RECOMENDACIONES = [
   { lista: "recomendacion_paciente", titulo: "Al trabajador" },
 ] as const;
 
-// De dónde sale el perfil sugerido: propio de la empresa (y del motivo), general del motivo o general de la empresa.
+// De dónde sale el perfil sugerido: propio de la empresa (y de la evaluación), lo general o de la empresa para toda evaluación.
 // Mismo criterio que perfilesSugeridos, que es la función que usa la consulta.
 function origenPerfil(p: Item, empresa: Empresa): Origen {
   if (casillasPerfil(p).pares.some((c) => c.e === empresa.id)) return "propio";
@@ -97,7 +97,7 @@ export function AjustesClinicos(props: {
         </div>
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
           <span><b className="text-ok-texto">●</b> Propio de la empresa</span>
-          <span><b className="text-info-texto">●</b> General del motivo</span>
+          <span><b className="text-info-texto">●</b> Lo general</span>
           <span>○ Sin paraclínicos</span>
         </div>
         <Card className="overflow-x-auto p-0">
@@ -162,7 +162,8 @@ export function AjustesClinicos(props: {
 
         {pestana === "plantillas" && <EditorPlantillas motivos={motivos} plantillas={plantillas} listas={listas} editable={editable} />}
         {pestana === "perfiles" && meta.get("grupo_paraclinicos") && (
-          <EditorLista key="perfiles" lista={meta.get("grupo_paraclinicos")!} items={perfiles} editable={editable} motivos={motivosLista} alcance={alcance} />
+          <EditorLista key="perfiles" lista={meta.get("grupo_paraclinicos")!} items={perfiles} editable={editable} motivos={motivosLista} alcance={alcance}
+            alQuitarDeEmpresa={() => { setSel({ ...sel, paso: 1 }); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         )}
         {pestana === "recomendaciones" && (
           <div className="space-y-3">

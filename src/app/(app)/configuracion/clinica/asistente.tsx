@@ -18,6 +18,8 @@ export type Seleccion = { empresaId: string; motivoId: string; paso: 1 | 2 | 3 }
 
 const TODAS = "";
 const sinAcentos = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// El modo demo no es un error: se avisa en ámbar
+const demo = (m: string) => m.startsWith("En modo demo");
 const examenesDe = (p?: Item) => p?.texto?.split("\n").map((l) => l.trim()).filter(Boolean) ?? [];
 
 // Un paso del asistente: abierto muestra su contenido; hecho muestra la respuesta en una línea con «Cambiar»
@@ -145,7 +147,7 @@ export function Asistente({ editable, motivos, empresas, plantillas, listas, per
             <button type="button" onClick={() => ir({ empresaId: TODAS, paso: 2 })}
               className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition hover:border-primary/50", sel.empresaId === TODAS && "border-primary bg-primary/5")}>
               <Globe2 className="size-4 shrink-0 text-primary" />
-              <span><span className="font-medium">Todas las empresas</span><span className="block text-xs text-muted-foreground">Lo general, para empresas sin ajuste propio</span></span>
+              <span><span className="font-medium">Todas las empresas</span><span className="block text-xs text-muted-foreground">Lo general: vale para las empresas sin ajuste propio</span></span>
             </button>
           )}
           {lista.map((e) => (
@@ -198,20 +200,25 @@ export function Asistente({ editable, motivos, empresas, plantillas, listas, per
                   </p>
                 </div>
               </div>
-              <div className="grid gap-2" role="radiogroup" aria-labelledby="as-para">
+              <div className="space-y-4" role="radiogroup" aria-labelledby="as-para">
                 {empresa && (
-                  <Opcion id="general" icono={<Globe2 className="size-3.5 text-muted-foreground" />}
-                    titulo={general ? <>Lo general: «{general.nombre}»</> : "Lo general (hoy no hay ninguno)"}
-                    detalle={general ? resumenExamenes(general) : "Sin paraclínicos mientras no haya un perfil general para esta evaluación."} />
+                  <div className="grid gap-2">
+                    <Opcion id="general" icono={<Globe2 className="size-3.5 text-muted-foreground" />}
+                      titulo={<>Seguir lo general (hoy: {general ? `«${general.nombre}»` : "ninguno"})</>}
+                      detalle={<>{general ? `${resumenExamenes(general)}.` : "Sin paraclínicos mientras lo general no tenga un perfil para esta evaluación."} Si cambias lo general, {empresa.nombre} cambia también.</>} />
+                  </div>
                 )}
-                {activos.map((p) => <Opcion key={p.id} id={p.id} titulo={p.nombre} detalle={resumenExamenes(p)} />)}
-                <Opcion id="ninguno" icono={<X className="size-3.5 text-muted-foreground" />} titulo="Ninguno: no pedir paraclínicos"
-                  detalle={empresa ? `En ${empresa.nombre} esta evaluación no llevará laboratorio. Los perfiles siguen existiendo para las demás empresas.` : "Ninguna empresa sin ajuste propio recibirá paraclínicos en esta evaluación."} />
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium">{empresa ? `O fija un perfil solo para ${empresa.nombre}:` : `Elige lo general para ${motivo.nombre}:`}</p>
+                  {activos.map((p) => <Opcion key={p.id} id={p.id} titulo={p.nombre} detalle={resumenExamenes(p)} />)}
+                  <Opcion id="ninguno" icono={<X className="size-3.5 text-muted-foreground" />} titulo="Ninguno: no pedir paraclínicos"
+                    detalle={empresa ? `En ${empresa.nombre} esta evaluación no llevará laboratorio. Los perfiles siguen existiendo para las demás empresas.` : "Lo general queda sin paraclínicos en esta evaluación."} />
+                </div>
               </div>
               {editable ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" onClick={guardar} disabled={ocupado || elegido === hoy}>
-                    {ocupado && <Loader2 className="animate-spin" />} Guardar para {empresa ? empresa.nombre : "todas las empresas"}
+                    {ocupado && <Loader2 className="animate-spin" />} {empresa ? `Guardar para ${empresa.nombre}` : "Guardar lo general"}
                   </Button>
                   {elegido !== hoy && <Button type="button" variant="ghost" onClick={() => setEleccion(null)} disabled={ocupado}>Dejar como estaba</Button>}
                   <button type="button" onClick={alVerCatalogo} className="ml-auto text-sm font-medium text-primary hover:underline">Crear o editar perfiles</button>
@@ -220,7 +227,7 @@ export function Asistente({ editable, motivos, empresas, plantillas, listas, per
                 <p className="text-sm text-muted-foreground">Solo el administrador y el gerente médico pueden cambiar esto.</p>
               )}
               {aviso && (
-                <div role="status" className={cn("flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm", aviso.ok ? "border-ok/40 bg-ok/10" : "border-alerta/40 bg-alerta/10 text-alerta-texto")}>
+                <div role="status" className={cn("flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm", aviso.ok ? "border-ok/40 bg-ok/10" : demo(aviso.mensaje) ? "border-aviso/40 bg-aviso/15 text-aviso-texto" : "border-alerta/40 bg-alerta/10 text-alerta-texto")}>
                   <span className="min-w-0 flex-1">{aviso.mensaje}</span>
                   {aviso.ok && aviso.antes && aviso.antes.length > 0 && (
                     <Button type="button" size="sm" variant="outline" onClick={deshacer} disabled={ocupado}><Undo2 /> Deshacer</Button>
@@ -249,7 +256,7 @@ export function Asistente({ editable, motivos, empresas, plantillas, listas, per
                 <dd>{plantilla?.datos.meses ? `${plantilla.datos.meses} ${plantilla.datos.meses === 1 ? "mes" : "meses"}` : <span className="text-muted-foreground">La de la organización</span>}</dd>
               </dl>
               <Button type="button" variant="outline" onClick={() => setEditarPlantilla(!editarPlantilla)}>
-                {editarPlantilla ? "Cerrar la plantilla" : `${editable ? "Editar" : "Ver"} la plantilla de ${motivo.nombre}`}
+                {editarPlantilla ? "Cerrar la plantilla" : editable ? `Editar la plantilla de ${motivo.nombre} (cambia para todas las empresas)` : `Ver la plantilla de ${motivo.nombre}`}
               </Button>
               {editarPlantilla && <EditorPlantillas motivos={[motivo]} plantillas={plantillas} listas={listas} editable={editable} />}
             </section>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Item, Lista } from "@/lib/listas";
 import { defExamen, textoReferencia } from "@/lib/paraclinicos";
-import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinicos";
+import { alcancePerfil, examenesNoEncontrados, perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cambiosSugeridos, datosSugeridos, sugeridoPara } from "@/lib/paraclinicos-sugeridos";
 import { CLASES, claseDeducida, FAMILIA, NOMBRE_FAMILIA, type Clase } from "@/lib/estudios";
@@ -134,7 +134,7 @@ function SelectorMotivos({ motivos, inicial }: { motivos: Motivo[]; inicial: str
   return (
     <div className="sm:col-span-3">
       <input type="hidden" name="grupo" value={elegidos.join(",")} />
-      <p className="mb-1.5 text-sm font-medium">Sugerir en estos motivos <span className="font-normal text-muted-foreground">(ninguno = en todos)</span></p>
+      <p className="mb-1.5 text-sm font-medium">Sugerir en estas evaluaciones <span className="font-normal text-muted-foreground">(ninguna = en todas)</span></p>
       <div className="flex flex-wrap gap-1.5">
         {motivos.map((m) => {
           const activo = elegidos.includes(m.codigo);
@@ -175,7 +175,7 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
           {/* El nombre de empresa que guardaban los perfiles viejos se reemplaza al elegir empresas */}
           <input type="hidden" name="grupo" value={alcancePerfil(item ?? {}).empresas.length ? "" : (item?.grupo ?? "")} />
           <SelectorVarios nombre="d_empresas" titulo="Sugerir en estas empresas" opciones={alcance.empresas} inicial={alcancePerfil(item ?? {}).empresas} />
-          <SelectorVarios nombre="d_motivos" titulo="Y en estos tipos de examen" opciones={alcance.motivos} inicial={alcancePerfil(item ?? {}).motivos} />
+          <SelectorVarios nombre="d_motivos" titulo="Y en estas evaluaciones" opciones={alcance.motivos} inicial={alcancePerfil(item ?? {}).motivos} />
           {item?.grupo && !alcancePerfil(item).empresas.length && (
             <p className="text-xs text-aviso-texto sm:col-span-3">Este perfil se sugería por el nombre «{item.grupo}». Elige la empresa para que quede enlazado.</p>
           )}
@@ -251,7 +251,10 @@ function CompletarSugeridos({ items, alTerminar }: { items: Item[]; alTerminar: 
   );
 }
 
-export function EditorLista({ lista, items, editable, motivos, alcance }: { lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[]; alcance?: Alcance }) {
+export function EditorLista({ lista, items, editable, motivos, alcance, alQuitarDeEmpresa }: {
+  lista: Lista; items: Item[]; editable: boolean; motivos: Motivo[]; alcance?: Alcance;
+  alQuitarDeEmpresa?: () => void; // perfiles: abre el asistente para quitarlo solo de una empresa
+}) {
   const nombreDe = new Map([...(alcance?.empresas ?? []), ...(alcance?.motivos ?? [])].map((o) => [o.id, o.nombre]));
   const nombreMotivo = new Map(motivos.map((m) => [m.codigo, m.nombre]));
   const etiquetaGrupo = (g: string) =>
@@ -266,16 +269,27 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
 
   // Borrar del sistema: dice el alcance real (todas las empresas y motivos) y deja «Deshacer» a la vista
   const borrar = async (item: Item) => {
+    // Perfiles: en cuántas empresas y evaluaciones sale hoy (mismo cálculo que la consulta)
     const usoPerfil = alcance ? (() => {
-      const a = alcancePerfil(item);
-      const nombres = a.empresas.map((x) => nombreDe.get(x)).filter(Boolean);
-      return nombres.length ? ` Hoy se sugiere en: ${nombres.slice(0, 5).join(", ")}${nombres.length > 5 ? ` y ${nombres.length - 5} más` : ""}.` : "";
+      const empresas = new Set<string>();
+      const evaluaciones = new Set<string>();
+      for (const e of [{ id: "", nombre: "" }, ...alcance.empresas]) for (const m of alcance.motivos) {
+        if (perfilesSugeridos([item], { empresaId: e.id || null, empresa: e.nombre, motivoId: m.id }).length) {
+          if (e.id) empresas.add(e.id);
+          evaluaciones.add(m.id);
+        }
+      }
+      const n = (k: number, uno: string, varios: string) => `${k} ${k === 1 ? uno : varios}`;
+      return empresas.size || evaluaciones.size
+        ? ` Hoy se pide en ${n(empresas.size, "empresa", "empresas")} y ${n(evaluaciones.size, "evaluación", "evaluaciones")}.`
+        : " Hoy no se pide en ninguna empresa.";
     })() : "";
     const si = await confirmar({
       titulo: `¿Borrar «${item.nombre}» del sistema?`,
-      texto: `Desaparece de esta lista para TODAS las empresas y motivos.${usoPerfil}${alcance ? " Si solo quieres que no salga en una empresa, usa el asistente de arriba y elige «Ninguno» para esa empresa." : " Si solo quieres que no se ofrezca, mejor desactívalo (el ojo)."} Lo ya guardado en consultas no cambia.`,
+      texto: `Desaparece de esta lista para TODAS las empresas y evaluaciones.${usoPerfil}${alcance ? "" : " Si solo quieres que no se ofrezca, mejor ocúltalo (el ojo)."} Lo ya guardado en consultas no cambia.`,
       accion: "Borrar del sistema",
       peligro: true,
+      ...(alQuitarDeEmpresa ? { alternativa: { texto: "Quitar solo de una empresa", alElegir: alQuitarDeEmpresa } } : {}),
     });
     if (!si) return;
     iniciar(async () => {
@@ -375,7 +389,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                   return (
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {a.empresas.length ? nombres(a.empresas) : item.grupo ? `Por nombre: ${item.grupo}` : "Todas las empresas"}
-                      {" · "}{a.motivos.length ? nombres(a.motivos) : "todo tipo de examen"}
+                      {" · "}{a.motivos.length ? nombres(a.motivos) : "todas las evaluaciones"}
                     </p>
                   );
                 })()}
@@ -386,7 +400,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                   <Button variant="ghost" size="icon" className="size-8" title="Subir" disabled={i === 0 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, -1))}><ArrowUp /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title="Bajar" disabled={i === visibles.length - 1 || !verInactivos || Boolean(filtro)} onClick={() => ejecutar(() => moverItem(lista.codigo, item.id, 1))}><ArrowDown /></Button>
                   <Button variant="ghost" size="icon" className="size-8" title="Editar" onClick={() => setEditando(item.id)}><Pencil /></Button>
-                  <Button variant="ghost" size="icon" className="size-8" title={item.activo ? "Desactivar (no se ofrece, pero no se borra)" : "Activar"} onClick={() => ejecutar(() => alternarItem(item.id, !item.activo))}>
+                  <Button variant="ghost" size="icon" className="size-8" title={item.activo ? "Ocultar (no se borra)" : "Mostrar de nuevo"} aria-label={`${item.activo ? "Ocultar (no se borra)" : "Mostrar de nuevo"}: ${item.nombre}`} onClick={() => ejecutar(() => alternarItem(item.id, !item.activo))}>
                     {item.activo ? <EyeOff /> : <Eye />}
                   </Button>
                   <Button
@@ -394,7 +408,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                     size="icon"
                     className="size-8 hover:text-destructive"
                     title="Borrar del sistema"
-                    aria-label={`Borrar «${item.nombre}» del sistema`}
+                    aria-label={`Borrar del sistema: ${item.nombre}`}
                     onClick={() => borrar(item)}
                   >
                     <Trash2 />

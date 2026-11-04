@@ -14,6 +14,8 @@ export type Pregunta = {
   accion?: string; // texto del botón que confirma
   cancelar?: string;
   peligro?: boolean; // botón rojo para acciones que borran, anulan o no se deshacen
+  // Camino más suave que la acción (p. ej. «Quitar solo de una empresa»): cierra como «no» y lo ejecuta
+  alternativa?: { texto: string; alElegir: () => void };
 };
 
 type Pendiente = Pregunta & { responder: (si: boolean) => void };
@@ -73,6 +75,9 @@ export function Confirmador() {
         </div>
         <DialogFooter>
           <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual?.cancelar ?? "Cancelar"}</Button>
+          {actual?.alternativa && (
+            <Button variant="secondary" onClick={() => { const a = actual.alternativa!; responder(false); a.alElegir(); }}>{actual.alternativa.texto}</Button>
+          )}
           <Button variant={actual?.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual?.accion ?? "Aceptar"}</Button>
         </DialogFooter>
       </DialogContent>
