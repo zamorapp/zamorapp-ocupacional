@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { BriefcaseBusiness, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { BriefcaseBusiness, Loader2, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
 import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { CONDICIONES, type EmpleoAnterior } from "@/lib/historia-laboral";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
-import { eliminarEmpleo, guardarEmpleo } from "./historia-acciones";
+import { eliminarEmpleo, guardarEmpleo, restaurarEmpleo, type EmpleoBorrado } from "./historia-acciones";
 import { confirmar } from "@/components/app/confirmar";
 
 function Formulario({ trabajadorId, e, alTerminar }: { trabajadorId: string; e: EmpleoAnterior | null; alTerminar: () => void }) {
@@ -44,8 +44,31 @@ const Dato = ({ k, v }: { k: string; v: string | null | undefined }) => (v ? <di
 export function HistoriaLaboral({ trabajadorId, empleos }: { trabajadorId: string; empleos: EmpleoAnterior[] }) {
   const [editando, setEditando] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [borrado, setBorrado] = useState<EmpleoBorrado | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const borrar = async (e: EmpleoAnterior) => {
+    if (!(await confirmar({ titulo: `¿Borrar el empleo en ${e.empresa}?`, texto: "Se quita de la historia laboral de este trabajador, con sus riesgos y problemas de salud anotados. Podrás deshacerlo enseguida.", accion: "Borrar empleo", peligro: true }))) return;
+    iniciar(async () => {
+      const r = await eliminarEmpleo(e.id, trabajadorId);
+      setError(r.ok ? null : r.mensaje);
+      setBorrado(r.ok && r.fila ? r.fila : null);
+    });
+  };
+  const deshacer = () => borrado && iniciar(async () => {
+    const r = await restaurarEmpleo(borrado);
+    setError(r.ok ? null : r.mensaje);
+    if (r.ok) setBorrado(null);
+  });
   return (
     <div className="space-y-3">
+      {borrado && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">Se borró el empleo en {borrado.empresa}.</span>
+          <Button size="sm" variant="outline" onClick={deshacer} disabled={ocupado}><Undo2 /> Deshacer</Button>
+          <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
+        </div>
+      )}
+      {error && <p role="alert" className="text-sm text-alerta-texto">{error}</p>}
       <div className="flex items-center gap-2">
         <p className="flex-1 text-sm text-muted-foreground">Empleos anteriores, riesgos a los que estuvo expuesto y problemas de salud relacionados.</p>
         {ocupado && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
@@ -66,8 +89,8 @@ export function HistoriaLaboral({ trabajadorId, empleos }: { trabajadorId: strin
                 <div className="text-muted-foreground">{[e.industria, e.duracion, e.horario].filter(Boolean).join(" · ")}</div>
               </div>
               <Button variant="ghost" size="icon" className="size-8" title="Editar" onClick={() => setEditando(e.id)}><Pencil /></Button>
-              <Button variant="ghost" size="icon" className="size-8 hover:text-destructive" title="Eliminar"
-                onClick={async () => (await confirmar({ titulo: `¿Eliminar el empleo en ${e.empresa}?`, accion: "Eliminar", peligro: true })) && iniciar(async () => { await eliminarEmpleo(e.id, trabajadorId); })}><Trash2 /></Button>
+              <Button variant="ghost" size="icon" className="size-8 hover:text-alerta-texto" title="Borrar empleo" aria-label={`Borrar el empleo en ${e.empresa}`}
+                onClick={() => borrar(e)}><Trash2 /></Button>
             </div>
             <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
               <Dato k="Tareas" v={e.descripcion} />
