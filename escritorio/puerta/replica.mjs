@@ -193,38 +193,43 @@ export class Replica {
       throw e;
     }
     const antes = (this.estado.d.huellaCatalogos ??= {});
+    let fallo = false;
     for (const [tabla, huella] of Object.entries(huellas || {})) {
       if (!CATALOGOS.includes(tabla) || antes[tabla] === huella) continue;
-      const filas = [];
-      let despues = null;
-      for (;;) {
-        const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
-        filas.push(...r.filas);
-        if (!r.ultimo || r.filas.length < 2000) break;
-        despues = r.ultimo;
-      }
-      const t = this.#seguro(tabla);
-      const conId = await this.#tieneId(c, t);
-      await c.query("begin");
+      // Un catálogo que falla (corte, dato que la copia no acepta) no frena a los demás ni al ciclo: queda con su huella
+      // vieja y se reintenta en el ciclo siguiente, sin esperar los 2 min (Analizar, #228)
       try {
-        if (conId) {
-          await c.query(`delete from ${t} where not (id = any($1::uuid[]))`, [filas.map((f) => f.id)]);
-          if (filas.length) await this.#insertar(c, t, filas);
-        } else {
-          await c.query(`delete from ${t}`);
-          if (filas.length) await this.#insertar(c, t, filas);
+        const filas = [];
+        let despues = null;
+        for (;;) {
+          const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
+          filas.push(...r.filas);
+          if (!r.ultimo || r.filas.length < 2000) break;
+          despues = r.ultimo;
         }
-        await c.query("commit");
+        const t = this.#seguro(tabla);
+        const conId = await this.#tieneId(c, t);
+        await c.query("begin");
+        try {
+          if (conId) await c.query(`delete from ${t} where not (id = any($1::uuid[]))`, [filas.map((f) => f.id)]);
+          else await c.query(`delete from ${t}`);
+          if (filas.length) await this.#insertar(c, t, filas);
+          await c.query("commit");
+        } catch (e) {
+          await c.query("rollback").catch(() => {});
+          throw e;
+        }
+        antes[tabla] = huella;
+        this.estado.guardar();
+        this.registro(`[réplica] catálogo ${tabla} al día (${filas.length} filas)`);
       } catch (e) {
-        await c.query("rollback").catch(() => {});
-        throw e;
+        fallo = true;
+        // Solo la clase: el texto de la nube o de PG puede traer datos
+        this.registro(`[réplica] catálogo ${tabla} no se pudo bajar (${claseDe(e)}): se reintenta en el próximo ciclo`);
       }
-      antes[tabla] = huella;
-      this.estado.guardar();
-      this.registro(`[réplica] catálogo ${tabla} al día (${filas.length} filas)`);
     }
     this.catalogosEn = performance.now();
-    this.catalogosYa = false;
+    this.catalogosYa = fallo;
   }
 
   async #cambios(c, uid) {
