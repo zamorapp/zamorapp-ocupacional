@@ -40,10 +40,13 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
     return () => { vivo = false; };
   }, [abierto, tipo, id]);
 
-  const consultas = vista?.resumen["clinico.consultas"] ?? 0;
-  // Pide escribir ELIMINAR si hay algo firmado o si el trabajador tiene consultas
-  const fuerte = Boolean(vista && (vista.firmadas > 0 || (tipo === "trabajador" && consultas > 0)));
-  const listo = Boolean(vista) && motivo.trim().length >= 5 && (!fuerte || palabra.trim().toUpperCase() === PALABRA);
+  // Pide escribir ELIMINAR solo si hay algo firmado
+  const fuerte = Boolean(vista && vista.firmadas > 0);
+  const faltaMotivo = motivo.trim().length < 5;
+  const faltaPalabra = fuerte && palabra.trim().toUpperCase() !== PALABRA;
+  const listo = Boolean(vista) && !faltaMotivo && !faltaPalabra;
+  // Por qué el botón está apagado, dicho en pantalla (no solo al pasar el ratón)
+  const porQue = !vista ? "" : faltaMotivo ? "Escribe el motivo para poder eliminar." : faltaPalabra ? `Escribe ${PALABRA} para poder eliminar.` : "";
   const principal = tipo === "consulta" ? "clinico.consultas" : "public.trabajadores";
   const junto = vista ? listarResumen(vista.resumen, principal) : "";
   const sueltas = vista ? listarResumen(vista.sueltas) : "";
@@ -75,13 +78,13 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
           {vista && (
             <ul className="space-y-1.5 rounded-lg border bg-muted/40 px-3 py-2.5">
               <li><b>Se elimina con {tipo === "consulta" ? "ella" : "él"}:</b> {junto || "nada más"}.</li>
-              {vista.firmadas > 0 && <li className="text-destructive"><b>{vista.firmadas === 1 ? "Hay 1 consulta firmada." : `Hay ${vista.firmadas} consultas firmadas.`}</b> Con la firma y sus versiones anteriores.</li>}
+              {vista.firmadas > 0 && <li className="text-alerta-texto"><b>{vista.firmadas === 1 ? "Hay 1 consulta firmada." : `Hay ${vista.firmadas} consultas firmadas.`}</b> Con la firma y sus versiones anteriores.</li>}
               {sueltas && <li><b>Se quedan</b>, sin el enlace: {sueltas}.</li>}
               <li className="flex items-start gap-1.5 text-muted-foreground"><Undo2 className="mt-0.5 size-4 shrink-0" /> Queda en Configuración › Papelera: «Deshacer» lo devuelve idéntico, con su firma y su número de historia.</li>
             </ul>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="motivo-eliminar">Motivo (queda en la auditoría)</Label>
+            <Label htmlFor="motivo-eliminar">Motivo (obligatorio, queda en la auditoría)</Label>
             <Textarea id="motivo-eliminar" value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2}
               placeholder={tipo === "consulta" ? "Ej.: duplicada al probar la firma" : "Ej.: registrado dos veces, la cédula correcta es la otra"} />
           </div>
@@ -94,10 +97,11 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
           {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{error}</p>}
         </div>
 
-        <DialogFooter>
+        {porQue && !enCurso && <p className="text-right text-xs text-muted-foreground">{porQue}</p>}
+        {/* En el celular «Cancelar» queda arriba y «Eliminar» abajo, lejos del pulgar por descuido */}
+        <DialogFooter className="flex-col sm:flex-row">
           <Button autoFocus variant="outline" onClick={() => onAbierto(false)} disabled={enCurso}>Cancelar</Button>
-          <Button variant="destructive" onClick={eliminar} disabled={!listo || enCurso}
-            title={!listo ? (motivo.trim().length < 5 ? "Escribe el motivo" : `Escribe ${PALABRA}`) : undefined}>
+          <Button variant="destructive" onClick={eliminar} disabled={!listo || enCurso} title={porQue || undefined}>
             {enCurso ? <Loader2 className="animate-spin" /> : <Trash2 />} Eliminar
           </Button>
         </DialogFooter>

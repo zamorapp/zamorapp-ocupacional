@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2, Undo2, X } from "lucide-react";
+import { CheckCircle2, Loader2, Trash2, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { restaurarDePapelera } from "@/app/(app)/configuracion/papelera/acciones";
 
@@ -37,7 +37,7 @@ export function FranjaDeshacer() {
       <Button size="sm" variant="outline" onClick={deshacer} disabled={enCurso}>
         {enCurso ? <Loader2 className="animate-spin" /> : <Undo2 />} Deshacer
       </Button>
-      <Link href="/configuracion/papelera" className="text-xs text-muted-foreground underline-offset-2 hover:underline">Papelera</Link>
+      <Button size="sm" variant="ghost" asChild><Link href="/configuracion/papelera"><Trash2 /> Ver Papelera</Link></Button>
       <Button size="icon" variant="ghost" className="size-7" aria-label="Cerrar" onClick={() => { setCerrada(true); limpiar(); }}><X className="size-4" /></Button>
     </div>
   );
