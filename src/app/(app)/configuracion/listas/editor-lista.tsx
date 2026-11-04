@@ -11,6 +11,7 @@ import { alcancePerfil, examenesNoEncontrados } from "@/lib/perfiles-paraclinico
 import { sinonimosDe } from "@/lib/ocr/interpretar";
 import { cambiosSugeridos, datosSugeridos, sugeridoPara } from "@/lib/paraclinicos-sugeridos";
 import { CLASES, claseDeducida, FAMILIA, NOMBRE_FAMILIA, type Clase } from "@/lib/estudios";
+import { categoriaDe, CATEGORIAS_RECOMENDACION, esCategoria, nombreCategoria } from "@/lib/recomendaciones-categorias";
 import { cn } from "@/lib/utils";
 import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem, type Resultado } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -169,7 +170,15 @@ function Formulario({ lista, item, motivos, alcance, alTerminar }: { lista: stri
       <Campo id="nombre" etiqueta="Nombre *" defaultValue={item?.nombre} required autoFocus />
       <Campo id="codigo" etiqueta={ETIQUETA_CODIGO[lista] ?? "Código"} defaultValue={item?.codigo ?? ""} required={lista === "diagnostico" || lista === "declaracion_ocupacional"} />
       {lista.startsWith("recomendacion_") ? (
-        <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
+        <>
+          <SelectorMotivos motivos={motivos} inicial={item?.grupo ?? ""} />
+          {lista !== "recomendacion_aptitud" && (
+            <CampoSelect id="d_categoria" etiqueta="Categoría (botón donde aparece en la consulta)" defaultValue={esCategoria(item?.datos?.categoria) ? String(item?.datos?.categoria) : ""}>
+              <option value="">Automática{item ? ` (${nombreCategoria(categoriaDe({ ...item, datos: {} }))})` : " (por el nombre)"}</option>
+              {CATEGORIAS_RECOMENDACION.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+            </CampoSelect>
+          )}
+        </>
       ) : lista === "grupo_paraclinicos" && alcance ? (
         <>
           {/* El nombre de empresa que guardaban los perfiles viejos se reemplaza al elegir empresas */}
@@ -325,6 +334,7 @@ export function EditorLista({ lista, items, editable, motivos, alcance }: { list
                   <span className="font-medium">{item.nombre}</span>
                   {item.codigo && <span className="rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground">{item.codigo}</span>}
                   {item.grupo && !alcance && <span className="rounded-full bg-primary/10 px-2 text-xs text-primary">{etiquetaGrupo(item.grupo)}</span>}
+                  {(lista.codigo === "recomendacion_empresa" || lista.codigo === "recomendacion_paciente") && <span className="rounded-full border px-2 text-xs text-muted-foreground">{nombreCategoria(categoriaDe(item))}</span>}
                   {!item.activo && <span className="text-xs text-muted-foreground">inactivo</span>}
                 </div>
                 {lista.codigo === "paraclinico" && (() => {

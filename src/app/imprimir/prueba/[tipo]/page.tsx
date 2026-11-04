@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { documentoDePrueba, historiaDePrueba } from "@/lib/documentos-prueba";
 import { armarVigilancia } from "@/lib/vigilancia";
-import { vigilanciaDePrueba } from "@/lib/vigilancia-prueba";
+import { portadaDePrueba, vigilanciaDePrueba } from "@/lib/vigilancia-prueba";
 import { EditorInforme } from "@/app/(app)/reportes/editor-informe";
 import { HistoriaClinica } from "../../historia/hoja-historia";
 import { TIPOS } from "../../tipos";
 import { InformeVigilancia } from "../../vigilancia/informe";
+import { Portada } from "../../vigilancia/portada";
 
 // Solo para la prueba automática de impresión (scripts/pruebas/impresion.mjs): sin la variable no existe
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
       </div>
     );
   }
+  // Portada del informe de vigilancia sola: con todos sus firmantes tiene que caber en una hoja
+  if (tipo === "portada") return <div className="papel min-h-dvh bg-neutral-100 print:bg-white"><Portada {...portadaDePrueba(caso === "largo" ? "largo" : "normal")} /></div>;
   if (tipo === "vigilancia") {
     // ?caso=empresa: la versión que va a la empresa (cifras <3 tapadas, diagnósticos no nombrables agrupados)
     const paraEmpresa = caso === "empresa";

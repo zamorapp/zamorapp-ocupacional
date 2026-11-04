@@ -9,6 +9,7 @@ import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
 import { CLASES } from "@/lib/estudios";
+import { esCategoria } from "@/lib/recomendaciones-categorias";
 import { ahora } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
@@ -65,6 +66,16 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const uuids = (k: string) => (texto(datos, k) ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), empresas: uuids("d_empresas"), motivos: uuids("d_motivos") };
+    }
+
+    // Recomendaciones de empresa y trabajador: categoría del botón desplegable de la consulta ("" = automática)
+    if ((lista === "recomendacion_empresa" || lista === "recomendacion_paciente") && datos.has("d_categoria")) {
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const previos: Record<string, unknown> = { ...((anterior as Record<string, unknown>) ?? {}) };
+      const categoria = texto(datos, "d_categoria");
+      if (categoria && esCategoria(categoria)) previos.categoria = categoria;
+      else delete previos.categoria;
+      campos.datos = previos;
     }
 
     if (id) {

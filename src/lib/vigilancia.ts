@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { listarEmpresas } from "@/lib/empresas";
-import { AUTORIDAD, CUSTODIO } from "@/lib/firmantes";
+import { AUTORIDAD, centroPorDefecto, CUSTODIO, sinDefectosViejos } from "@/lib/firmantes";
 import { opciones } from "@/lib/listas";
 import { recordar } from "@/lib/memo";
 import { mismoPeriodoAnioAnterior, periodoAnterior, periodoDeConsulta, type ConsultaPeriodo, type Periodo } from "@/lib/periodos";
@@ -130,10 +130,15 @@ export function armarVigilancia(b: DatosBrutosVigilancia, { paraEmpresa = false 
   const medico = perfil?.nombre_completo
     ? { cargo: "Médico ocupacional", ...previos?.medico, nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "", registro: perfil.registro_inpsasel || perfil.mpps || previos?.medico?.registro || "" }
     : previos?.medico;
-  const firmantesBase: Firmantes = { autoridad: AUTORIDAD, custodio: CUSTODIO, centro_trabajo: empresa?.direccion ?? "", ...previos, medico };
+  const firmantesBase: Firmantes = {
+    autoridad: AUTORIDAD, custodio: CUSTODIO, centro_trabajo: centroPorDefecto(empresa?.direccion),
+    ...sinDefectosViejos(previos ?? {}, empresa?.direccion), medico,
+  };
 
   return {
     empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, resultadosReubicacion, ausentismo,
-    informe, sugeridos, firmantesBase, datosAnalisis, analisis, variante,
+    // Lo guardado del período, sin los valores por defecto viejos (se ven y se imprimen los de ahora)
+    informe: informe && { ...informe, firmantes: sinDefectosViejos(informe.firmantes ?? {}, empresa?.direccion) },
+    sugeridos, firmantesBase, datosAnalisis, analisis, variante,
   };
 }
