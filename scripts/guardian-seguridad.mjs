@@ -3,6 +3,7 @@
 //   node scripts/guardian-seguridad.mjs cruces [rama-base]    → números de migración/prueba que ya usa otro PR abierto
 //   node scripts/guardian-seguridad.mjs catalogo              → arma una base con las migraciones, con los
 //        permisos por defecto de Supabase (anon ejecuta toda función que no se le quite), y revisa el catálogo
+//   node scripts/guardian-seguridad.mjs siembra <archivo.sql…>  → solo la regla de siembras de catálogo
 //   node scripts/guardian-seguridad.mjs catalogo --actualizar → reescribe la línea base (solo con el visto bueno de Analizar)
 // Errores: el PR no pasa. Avisos: se muestran y no frenan. Las reglas nacen de errores reales (ver cada una).
 import { spawnSync } from "node:child_process";
@@ -53,6 +54,12 @@ function revisarCambios(base) {
   for (const f of pruebas) porNumero.set(prefijo(f), [...(porNumero.get(prefijo(f)) ?? []), f]);
   for (const [n, fs_] of porNumero) if (fs_.length > 1 && !base_.pruebasRepetidas.includes(n)) error(`supabase/pruebas/${fs_[1]}`, 1, `Número de prueba repetido ${n}: ${fs_.join(", ")}`);
 
+  // Migraciones nuevas que siembran catálogos (archivo completo, no línea a línea)
+  for (const [estado, archivo] of estados) {
+    if (estado === "A" && archivo.startsWith("supabase/migrations/") && archivo.endsWith(".sql"))
+      for (const [n, texto] of problemasSiembra(fs.readFileSync(path.join(raiz, archivo), "utf8"))) error(archivo, n, texto);
+  }
+
   // Línea por línea de lo agregado
   const diff = git("diff", "-U0", "--no-renames", desde, "HEAD");
   let archivo = "";
@@ -65,6 +72,25 @@ function revisarCambios(base) {
     revisarLinea(archivo, linea, l.slice(1));
     linea += 1;
   }
+}
+
+// 04-nov (#222 y riesgos del puesto, dos veces el mismo día): una migración nueva llamó a copiar_listas_base(), que
+// repone en cada organización TODO lo de la base cuya copia no exista, de cualquier lista: vuelve lo que el servicio
+// borró a propósito. Y una siembra sin es_base_local() crea en la PC filas con id propio que chocan con la réplica.
+// Regla: copiar solo lo nuevo (lista y código, como sembrar_vademecum_2026) y con la guarda. Excepción explícita
+// (p. ej. una función de disparador que escribe en lista_items en tiempo de uso): «-- guardián: no es siembra».
+export function problemasSiembra(sql) {
+  const lineas = sql.split("\n");
+  const codigo = lineas.map((l) => l.replace(/--.*$/, "")).join("\n");
+  const linea = (re) => { const i = lineas.findIndex((l) => re.test(l.replace(/--.*$/, ""))); return i < 0 ? 1 : i + 1; };
+  const salida = [];
+  const llamada = /(?<!function\s+(?:public\.)?)\bcopiar_listas_base\s*\(/i;
+  if (llamada.test(codigo))
+    salida.push([linea(llamada), "Migración nueva llama a copiar_listas_base(): repone en cada organización lo que borró a propósito. Copia solo las filas nuevas (lista y código), como sembrar_vademecum_2026"]);
+  const siembra = /\b(insert\s+into|update|delete\s+from)\s+public\.lista_items\b/i;
+  if (siembra.test(codigo) && !/\bes_base_local\s*\(\s*\)/i.test(codigo) && !/--\s*guardián:\s*no es siembra/i.test(sql))
+    salida.push([linea(siembra), "Migración nueva escribe en lista_items sin la guarda public.es_base_local(): en la PC crea filas que chocan con la réplica. Envuélvela en do $$ … if public.es_base_local() then return; end if; …"]);
+  return salida;
 }
 
 const SECRETOS = [
@@ -245,5 +271,7 @@ function informar() {
 if (modo === "cambios") revisarCambios(resto.find((a) => !a.startsWith("--")) ?? "origin/main");
 else if (modo === "cruces") await revisarCruces(resto.find((a) => !a.startsWith("--")) ?? "origin/main");
 else if (modo === "catalogo") revisarCatalogo(resto.includes("--actualizar"));
-else throw new Error(`Modo desconocido: ${modo} (usa «cambios», «cruces» o «catalogo»)`);
+// Revisa migraciones sueltas (la prueba scripts/pruebas/guardian-siembra.test.mjs y para probar a mano)
+else if (modo === "siembra") for (const f of resto) for (const [n, t] of problemasSiembra(fs.readFileSync(f, "utf8"))) error(f, n, t);
+else throw new Error(`Modo desconocido: ${modo} (usa «cambios», «cruces», «catalogo» o «siembra»)`);
 informar();
