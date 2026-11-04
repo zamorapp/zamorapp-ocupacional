@@ -23,7 +23,7 @@ const ETIQUETA_TEXTO: Record<string, string> = {
   perfil_examen_fisico: "Hallazgos: una línea por fila, «Fila: hallazgo» (ej. Nariz: congestión nasal)",
   perfil_examen_funcional: "Síntomas: una línea por fila, «Fila: síntoma» (ej. Respiratorio: tos húmeda)",
   grupo_paraclinicos: "Exámenes del perfil, uno por línea (con el mismo nombre del catálogo)",
-  medicina: "Indicación que se llena sola, una línea por campo: «concentracion: 500 mg», «presentacion: Tableta», «via: Oral», «dosis: 1 tableta», «frecuencia: Cada 8 horas», «duracion: 5 días», «observacion: …»",
+  medicina: "Indicación que se llena sola, una línea por campo: «concentracion: 500 mg», «presentacion: Tableta», «via: Oral», «dosis: 1 tableta», «frecuencia: Cada 8 horas», «duracion: 5 días», «observacion: …», «marcas: Atamel, …» (la marca solo sirve para buscar; no se imprime)",
 };
 const ETIQUETA_GRUPO: Record<string, string> = {
   motivo_consulta: "Grupo (preventivo / no_preventivo)",

@@ -1377,6 +1377,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                       <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
                         <option value="">{ph}</option>
                         {items.map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
+                        {/* Lo que llenó el vademécum o una consulta anterior y no está en la lista se conserva y se ve */}
+                        {m[k] && !items.some((x) => x.nombre === m[k]) && <option value={m[k]}>{m[k]}</option>}
                       </select>
                     ))}
                     <Input value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
