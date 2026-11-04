@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Cita } from "@/lib/citas";
 import { enlaceWhatsApp } from "@/lib/mensajes";
-import { hora12, textoPropuesta, type ModoPropuesta } from "@/lib/propuesta";
+import { hora12, textoPropuesta, type ModoPropuesta, type Propuesta } from "@/lib/propuesta";
 import { cn } from "@/lib/utils";
 import { agendaDelDia, anularPropuesta, choquesAgenda, confirmarSolicitudes, proponerHora, rechazarSolicitudes, type Agenda } from "./citas-acciones";
 import { confirmar } from "@/components/app/confirmar";
@@ -30,6 +30,21 @@ function agrupar(solicitudes: Cita[]): Grupo[] {
     grupos.set(clave, [...(grupos.get(clave) ?? []), c]);
   }
   return [...grupos].map(([clave, citas]) => ({ clave, citas }));
+}
+
+// Cómo va el correo de la propuesta a RR. HH. (20261030910000): se reintenta solo; si al final no sale, se dice por qué
+function EstadoCorreo({ correo }: { correo?: Propuesta["correo"] }) {
+  if (!correo?.estado) return null;
+  if (correo.estado === "enviado") return <span className="block text-xs text-muted-foreground">Correo enviado a RR. HH.</span>;
+  if (correo.estado === "fallido") {
+    return (
+      <span role="status" className="mt-0.5 flex items-start gap-1 text-xs text-destructive">
+        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+        <span>No salió el correo{correo.error ? ` (${correo.error})` : ""}. RR. HH. igual la ve en su portal; avísele por WhatsApp.</span>
+      </span>
+    );
+  }
+  return <span className="block text-xs text-aviso-texto">{correo.estado === "reintentar" ? "El correo falló; se reintenta solo en unos minutos." : "Enviando el correo a RR. HH.…"}</span>;
 }
 
 // Aviso de choque: solo informa, nunca bloquea. Se recalcula al cambiar el día o la hora.
@@ -153,7 +168,7 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
 
       {p && (
         <div className="mt-2 flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="flex min-w-0 flex-1 gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" /><span><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span></span></span>
+          <span className="flex min-w-0 flex-1 gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" /><span><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span><EstadoCorreo correo={p.correo} /></span></span>
           <span className="flex flex-wrap gap-2">
           {textoWa && (
             <Button size="sm" variant="outline" asChild>

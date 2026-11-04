@@ -1,6 +1,11 @@
 // Otra hora propuesta por el servicio a una cita pedida por RR. HH. (sirve en servidor y en pantalla)
 export type ModoPropuesta = "exacta" | "rango" | "desde";
-export type Propuesta = { fecha: string; desde: string; hasta: string | null; modo: ModoPropuesta; nota: string | null; en: string | null };
+export type EstadoCorreoPropuesta = "enviando" | "reintentar" | "enviado" | "fallido";
+export type Propuesta = {
+  fecha: string; desde: string; hasta: string | null; modo: ModoPropuesta; nota: string | null; en: string | null;
+  // Solo en la vista del servicio (Atención médica): cómo va el correo a RR. HH. (20261030910000)
+  correo?: { estado: EstadoCorreoPropuesta | null; error: string | null };
+};
 
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 /** «08:30» → «8:30 a. m.» */
