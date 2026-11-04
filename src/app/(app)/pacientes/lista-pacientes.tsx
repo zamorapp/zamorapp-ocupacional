@@ -78,7 +78,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
           {depurar}
           {importar && (
             <Button variant="outline" asChild>
-              <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
+              <Link href="/pacientes/importar"><FileSpreadsheet /> {clinico ? "Actualizar nómina" : "Importar Excel"}</Link>
             </Button>
           )}
           {nuevo}
