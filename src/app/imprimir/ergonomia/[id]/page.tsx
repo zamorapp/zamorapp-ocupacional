@@ -10,6 +10,10 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
+import { Portada } from "../../vigilancia/portada";
+import { firmantesAnteriores } from "@/lib/reportes";
+import { hoyCaracas } from "@/lib/fecha";
+import type { Firmantes } from "@/lib/firmantes";
 import { Bloque, CasillaSello, fechaCorta, Ficha, Firmas, folio, Hoja, Membrete, Pie } from "../../componentes";
 
 export const metadata: Metadata = { title: "Evaluación ergonómica" };
@@ -43,16 +47,18 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
   const fotosVisibles = conFotos ? ev.fotos : [];
   const supabase = sesion.demo ? null! : await crearClienteServidor();
   const sinDatos = { data: null };
-  const [{ data: org }, { data: emp }, firmas, { data: urls }] = sesion.demo ? [sinDatos, sinDatos, null, { data: [] }] as const : await Promise.all([
+  const [{ data: org }, { data: emp }, firmas, { data: urls }, previos] = sesion.demo ? [sinDatos, sinDatos, null, { data: [] }, null] as const : await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", sesion.orgId!).single(),
-    supabase.from("empresas").select("razon_social, rif, logo").eq("id", ev.empresaId).single(),
+    supabase.from("empresas").select("razon_social, rif, logo, nil, actividad_economica, direccion, telefono").eq("id", ev.empresaId).single(),
     ev.evaluadoPor
       ? Promise.all([
-          supabase.from("perfiles").select("nombre_completo, especialidad, mpps, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", ev.evaluadoPor).maybeSingle(),
+          supabase.from("perfiles").select("nombre_completo, cedula, especialidad, mpps, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", ev.evaluadoPor).maybeSingle(),
           supabase.rpc("firma_sello", { p_usuario: ev.evaluadoPor }).maybeSingle(),
         ]).then(([{ data: p }, { data: img }]) => (p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null))
       : Promise.resolve(null),
     fotosVisibles.length ? supabase.storage.from("ergonomia").createSignedUrls(fotosVisibles.map((f) => f.ruta), 600) : Promise.resolve({ data: [] as { path: string | null; signedUrl: string }[] }),
+    // Portada: responsables del último informe de vigilancia de la empresa (Reportes › Portada y firmantes); sin acceso, vacía
+    firmantesAnteriores(ev.empresaId).catch(() => null),
   ]);
   const url = new Map((urls ?? []).map((u) => [u.path, u.signedUrl]));
 
@@ -69,10 +75,40 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
   const firma = firmas && firmas.mostrar_firma !== false ? firmas.firma_url : null;
   const sello = firmas && firmas.mostrar_sello !== false ? firmas.sello_url : null;
   const borrador = ev.estado !== "cerrada";
+  // Portada: «Elaborado por» es quien evaluó el puesto; el resto, los responsables de la empresa
+  const firmantes: Firmantes = {
+    ...(previos ?? {}),
+    medico: firmas?.nombre_completo
+      ? { nombre: firmas.nombre_completo, cedula: firmas.cedula ?? "", cargo: firmas.especialidad || "Médico ocupacional", registro: firmas.registro_inpsasel || firmas.mpps || "" }
+      : previos?.medico,
+  };
+  const ficha = emp ? { razonSocial: emp.razon_social, rif: emp.rif ?? "", nil: emp.nil ?? null, actividad: emp.actividad_economica ?? null, direccion: emp.direccion ?? null, telefono: emp.telefono ?? null } : { razonSocial: ev.empresa, rif: "", nil: null, actividad: null, direccion: null, telefono: null };
+  const corto = NOMBRE_METODO[ev.metodo].split(" · ")[0];
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       <BarraImpresion volver={`/ergonomia/${ev.id}`} titulo={`Ergonomía · ${ev.puesto}${depto ? ` · ${depto.nombre}` : ""}`} />
+      <Portada
+        logoEmpresa={doc.empresa.logo}
+        orgLogo={doc.org.logo}
+        empresa={ficha}
+        firmantes={firmantes}
+        fechaEmision={ev.cerradaEn ? hoyCaracas(ev.cerradaEn) : ev.fecha}
+        titulo={ev.puesto}
+        subtitulo={ev.tarea ? ev.tarea.slice(0, 80) : null}
+        org={doc.org.nombre}
+        textos={{
+          serie: "Ergonomía · evaluación de puestos de trabajo",
+          documento: depto ? `Informe ergonómico del puesto para ${depto.nombre}` : "Informe de evaluación ergonómica del puesto de trabajo",
+          // RR. HH. no recibe el método (sin fotos ni detalle del método)
+          norma: `${depto?.clave === "rrhh" ? "" : `Método ${corto} · `}LOPCYMAT art. 56 y 59 · NT-04-2023${borrador ? " · BORRADOR" : ""}`,
+          control: "Evaluación ergonómica de puestos de trabajo",
+          rango: `Evaluado el ${fechaCorta(ev.fecha)}`,
+          elaborado: "Elaborado por · evaluador del puesto",
+          sinDatos: "Sin datos: se toman del último informe de vigilancia de esta empresa (Reportes › Portada y firmantes)",
+          sinElaborado: "Sin datos: es quien evaluó el puesto",
+        }}
+      />
       <Hoja className="relative print:block">
         {borrador && <div className="pointer-events-none absolute top-[40%] left-1/2 -translate-x-1/2 -rotate-12 text-[64px] font-extrabold tracking-widest text-[#b42318]/10">BORRADOR</div>}
         <Membrete d={doc} />
