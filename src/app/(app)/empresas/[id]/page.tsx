@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, Building2, Link2, Printer, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, Link2, PersonStanding, Printer, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,8 @@ import { guardarLogoEmpresa } from "../acciones";
 import { envioAutoEmpresa, ROLES_ENVIO_AUTO } from "@/lib/envio-auto";
 import { listarContactos } from "@/lib/envios";
 import { EnvioAutoConstancias } from "./envio-auto";
+import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
+import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
 
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
@@ -38,6 +40,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   const { dependencias, puestos } = estructura;
   const editaPuestos = !sesion.demo && ["administrador", "coordinador_sst", "gerente_medico"].includes(sesion.rol ?? "");
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  const evaluaErgonomia = !sesion.demo && ROLES_ERGONOMIA.includes(sesion.rol ?? "");
   // Constancias automáticas a RR. HH.: la ve el personal del servicio; la cambia quien firma con criterio médico
   const veEnvioAuto = !sesion.demo && Boolean(sesion.orgId) && ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
@@ -129,6 +132,15 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
                             <Button variant="ghost" size="sm" asChild>
                               <a href={`/imprimir/puesto/${p.id}`} target="_blank" rel="noopener" title="Informe de evaluación del puesto"><Printer /> Informe</a>
                             </Button>
+                          )}
+                          {evaluaErgonomia && (
+                            <NuevaEvaluacion
+                              empresas={[]}
+                              empresaInicial={id}
+                              puestos={{}}
+                              fijo={{ empresaId: id, puestoId: p.id, puesto: p.nombre, tareas: p.tareas }}
+                              boton={<Button variant="ghost" size="sm" title="Evaluación ergonómica (RULA, REBA)"><PersonStanding /> Ergonomía</Button>}
+                            />
                           )}
                           {!sesion.demo && ROLES_NOTIFICAN.includes(sesion.rol ?? "") && <BotonNotificarPuesto puestoId={p.id} trabajadores={p.trabajadores} />}
                           {editaPuestos && <EditorPuesto empresaId={id} puesto={p} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
