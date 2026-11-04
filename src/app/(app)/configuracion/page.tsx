@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Briefcase, CalendarCog, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, CalendarCog, Trash2, Building, DatabaseBackup, Fingerprint, FolderInput, Laptop, ListChecks, ShieldCheck, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -23,13 +23,16 @@ const OPCIONES = [
 // Cargos repetidos de todas las empresas: solo el administrador
 const CARGOS = { href: "/configuracion/cargos", titulo: "Unir cargos", texto: "Junta el mismo cargo escrito de varias formas (mayúsculas, acentos, abreviaturas) en todas las empresas.", icono: Briefcase };
 
+// Consultas y trabajadores eliminados (con Restaurar): solo administrador con acceso clínico
+const PAPELERA = { href: "/configuracion/papelera", titulo: "Papelera", texto: "Consultas y trabajadores eliminados por error o duplicados, con el motivo. «Restaurar» los devuelve idénticos.", icono: Trash2 };
+
 // Importación de una sola vez (escaneados del SAME): solo administrador o gerente médico con acceso clínico
 const ESCANEADOS = { href: "/configuracion/escaneados-same", titulo: "Escaneados del SAME", texto: "Sube a cada historia los exámenes escaneados que tenía el SAME (una sola vez).", icono: FolderInput };
 
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
   const gerencia = sesion.rol === "administrador" || sesion.rol === "gerente_medico";
-  const opciones = [...OPCIONES, ...(sesion.rol === "administrador" ? [CARGOS] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
+  const opciones = [...OPCIONES, ...(sesion.rol === "administrador" ? [CARGOS] : []), ...(sesion.rol === "administrador" && sesion.clinico ? [PAPELERA] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>

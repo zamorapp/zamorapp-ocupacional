@@ -48,6 +48,8 @@ import type { DeclaracionConsulta } from "../../accidentes/acciones";
 import { reglasDeListas } from "@/lib/declaracion";
 import { TextosFrecuentes } from "./textos-frecuentes";
 import { confirmar } from "@/components/app/confirmar";
+import { EliminarPapelera } from "@/components/app/eliminar-papelera";
+import { rutaConDeshacer } from "@/components/app/franja-deshacer";
 import { TextoDictado } from "./dictado";
 import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
@@ -96,6 +98,7 @@ type Props = {
   diasAvisoFecha?: number;
   alertas?: AlertaClinica[];
   puedeRevisarAlertas?: boolean; // médico, gerente médico o administrador (lo exige la base)
+  puedeEliminar?: boolean; // administrador con acceso clínico: «Eliminar consulta» (va a la Papelera, con Deshacer)
 };
 
 // Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
@@ -278,7 +281,7 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -316,6 +319,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const [ignorarPendientes, setIgnorarPendientes] = useState(false);
   const [ignorarPerfil, setIgnorarPerfil] = useState(false);
   const [accidente, setAccidente] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   // Alertas para la próxima evaluación: las pendientes del trabajador y las dejadas o revisadas en esta consulta
   const [alertas, setAlertas] = useState(alertasIniciales);
   const [nuevaAlerta, setNuevaAlerta] = useState(false);
@@ -831,9 +835,20 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setNuevaAlerta(true)}><BellRing /> Alerta para la próxima evaluación</DropdownMenuItem>
+              {puedeEliminar && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setEliminando(true)}><Trash2 /> Eliminar consulta…</DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        {puedeEliminar && (
+          <EliminarPapelera tipo="consulta" id={d.id} nombre={`la consulta del ${d.fecha.split("-").reverse().join("/")}${d.estado === "firmada" ? " (firmada)" : ""}`}
+            abierto={eliminando} onAbierto={setEliminando}
+            onEliminado={(papeleraId, mensaje) => router.push(rutaConDeshacer(`/pacientes/${trabajador.id}`, papeleraId, mensaje, `/atencion/${d.id}`))} />
+        )}
         <NuevaAlerta abierta={nuevaAlerta} onCerrar={() => setNuevaAlerta(false)} consultaId={d.id} paraclinicos={listas.paraclinico ?? []} hoy={hoy}
           onCreada={cambiarAlerta} />
         <RegistrarAccidente

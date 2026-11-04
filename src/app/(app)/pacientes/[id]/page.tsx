@@ -30,6 +30,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
+import { EliminarTrabajador } from "./eliminar-trabajador";
 import { PasarAEmpresa } from "@/components/app/pasar-a-empresa";
 import { listarEmpresas } from "@/lib/empresas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
@@ -162,7 +163,7 @@ export default async function FichaPaciente({ params }: Props) {
               <PasarAEmpresa trabajadorId={t.id} empresaActual={t.empresa} empresas={pasarA} />
             </div>
           )}
-          <div className="flex w-full gap-2 xl:w-auto">
+          <div className="flex w-full flex-wrap gap-2 xl:w-auto">
             {/* RR. HH. envía estudios al expediente; solo los ve el personal de salud (entregar_estudio) */}
             {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (
               <EnviarEstudio orgId={sesion.orgId} trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} catalogo={estudiosRrhh} />
@@ -181,6 +182,7 @@ export default async function FichaPaciente({ params }: Props) {
                   </Button>
                 )}
                 {puedeInactivar && <InactivarTrabajador trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} hoy={hoyCaracas()} />}
+                {!sesion.demo && sesion.clinico && sesion.rol === "administrador" && <EliminarTrabajador trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} />}
               </>
             )}
           </div>
