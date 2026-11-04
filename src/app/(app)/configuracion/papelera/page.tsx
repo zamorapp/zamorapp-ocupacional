@@ -41,7 +41,7 @@ export default async function Papelera() {
       {!puede ? (
         <p className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">Solo el administrador con acceso clínico ve la papelera.</p>
       ) : error ? (
-        <p role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>
+        <p role="alert" className="rounded-lg bg-alerta/10 px-4 py-3 text-sm text-alerta-texto">{error}</p>
       ) : entradas.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">La papelera está vacía.</p>
       ) : (

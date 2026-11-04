@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2, Trash2, Undo2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Trash2, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { restaurarDePapelera } from "@/app/(app)/configuracion/papelera/acciones";
 
@@ -32,8 +32,10 @@ export function FranjaDeshacer() {
 
   return (
     <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
-      <CheckCircle2 className="size-4 shrink-0 text-primary" aria-hidden />
-      <span className="min-w-0 flex-1 basis-56">{error || texto}</span>
+      {error
+        ? <AlertTriangle className="size-4 shrink-0 text-alerta-texto" aria-hidden />
+        : <CheckCircle2 className="size-4 shrink-0 text-primary" aria-hidden />}
+      <span role={error ? "alert" : undefined} className={error ? "min-w-0 flex-1 basis-56 text-alerta-texto" : "min-w-0 flex-1 basis-56"}>{error || texto}</span>
       <Button size="sm" variant="outline" onClick={deshacer} disabled={enCurso}>
         {enCurso ? <Loader2 className="animate-spin" /> : <Undo2 />} Deshacer
       </Button>
