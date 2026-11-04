@@ -92,7 +92,7 @@ const n = (x: number) => x.toLocaleString("es-VE");
 
 // Identificación de la empresa en la portada: sale de su ficha (Empresas) y de la población del período; el n.º de
 // trabajadores puede declararse a mano en la portada (la nómina del centro puede no coincidir con la población vigilada)
-export function datosPortada(e: FichaEmpresa, p: { total: number; femenino: number; masculino: number }, declarados?: string): [string, string | null][] {
+export function datosPortada(e: FichaEmpresa, p: { total: number; femenino: number; masculino: number } | null, declarados?: string): [string, string | null][] {
   const d = trabajadoresDeclarados(declarados);
   return [
     ["Razón social", e.razonSocial],
@@ -102,6 +102,6 @@ export function datosPortada(e: FichaEmpresa, p: { total: number; femenino: numb
     ["Actividad económica", e.actividad],
     ["Dirección", e.direccion],
     ["Teléfonos", e.telefono],
-    ["N.º de trabajadores", d ? `${n(d)} trabajadores` : `${n(p.total)} · mujeres ${n(p.femenino)} · hombres ${n(p.masculino)}`],
+    ["N.º de trabajadores", d ? `${n(d)} trabajadores` : p ? `${n(p.total)} · mujeres ${n(p.femenino)} · hombres ${n(p.masculino)}` : null],
   ];
 }

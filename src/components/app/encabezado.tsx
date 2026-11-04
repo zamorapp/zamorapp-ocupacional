@@ -32,6 +32,7 @@ type Props = {
   empresas: { id: string; nombre: string; trabajadores: number }[];
   empresaActiva: string | null;
   organizacion: string;
+  titular?: string | null;
   portal?: boolean;
 };
 
@@ -40,7 +41,7 @@ function iniciales(nombre: string) {
   return ((p[0]?.[0] ?? "") + (p.length > 2 ? p[2][0] : p[1]?.[0] ?? "")).toUpperCase();
 }
 
-export function Encabezado({ usuario, empresas, empresaActiva, organizacion, portal = false }: Props) {
+export function Encabezado({ usuario, empresas, empresaActiva, organizacion, titular, portal = false }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [huellaAbierta, setHuellaAbierta] = useState(false);
   const [, iniciar] = useTransition();
@@ -57,7 +58,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetTitle className="sr-only">Menú</SheetTitle>
-          <BarraLateral organizacion={organizacion} portal={portal} alNavegar={() => setMenuAbierto(false)} />
+          <BarraLateral organizacion={organizacion} titular={titular} portal={portal} alNavegar={() => setMenuAbierto(false)} />
         </SheetContent>
       </Sheet>
 

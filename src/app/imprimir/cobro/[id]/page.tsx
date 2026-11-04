@@ -5,7 +5,7 @@ import { bs, totales, usd } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
-import { fechaCorta, Hoja, Marca } from "../../componentes";
+import { fechaCorta, Hoja, Marca, Titular } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
 
@@ -15,7 +15,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
   if (!c || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
   const [{ data: org }, { data: emp }] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo").eq("id", sesion.orgId).single(),
+    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single(),
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
   ]);
   const t = totales(c);
@@ -29,6 +29,7 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
             <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
             <div>
               <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <Titular ajustes={org?.ajustes} />
               <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
             </div>
           </div>

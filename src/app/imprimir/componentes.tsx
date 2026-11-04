@@ -31,6 +31,8 @@ export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/
 export function Hoja({ children, className = "", media, horizontal, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean }) {
   return (
     <section
+      // Hojas de carta completas: AjusteHojas las reduce un poco si se pasan, para que la firma no quede sola en otra hoja
+      data-ajustar={corte && !media ? (horizontal ? "apaisada" : "vertical") : undefined}
       className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full ${horizontal ? "max-w-[279mm] [page:apaisada]" : "max-w-[216mm]"} flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${horizontal ? "min-h-[216mm] print:min-h-[186mm]" : media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
     >
       {children}
@@ -38,37 +40,49 @@ export function Hoja({ children, className = "", media, horizontal, corte = true
   );
 }
 
-// Marca de una palabra con mayúsculas internas («OcupaVida» → «OV»); si no, primeras letras de dos palabras
-function iniciales(nombre: string) {
-  const primera = nombre.trim().split(/\s+/)[0] ?? "";
-  const internas = /\p{Ll}/u.test(primera) ? (primera.match(/\p{Lu}/gu) ?? []) : [];
-  if (internas.length >= 2) return internas.slice(0, 2).join("");
-  return nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+";
-}
-
-export function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
+// Logo del servicio si lo hay; sin logo no se dibuja nada (el nombre ya va en texto: un recuadro de relleno no aporta)
+export function Marca({ logo }: { logo: string | null | undefined; nombre?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  if (logo) return <img src={logo} alt="" className="h-12 max-w-32 object-contain" />;
-  return (
-    <span className="grid size-12 shrink-0 place-items-center rounded-[11px] bg-doc-acento text-lg font-extrabold text-white">
-      {iniciales(nombre)}
-    </span>
-  );
+  return logo ? <img src={logo} alt="" className="h-12 max-w-32 object-contain" /> : null;
 }
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
 // Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
 // sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
+type AjustesMembrete = { membrete_titular?: string | null; membrete_credenciales?: string | null; membrete_lema?: string | null };
+
+// Titular y su especialidad, debajo del nombre del servicio (encabezados propios: nota de cobro, pacientes atendidos)
+export function Titular({ ajustes }: { ajustes: unknown }) {
+  const a = (ajustes ?? {}) as AjustesMembrete;
+  if (!a.membrete_titular?.trim()) return null;
+  return (
+    <div data-prueba="membrete-titular">
+      <div className="text-[12px] font-bold leading-tight text-[#15201e]">{a.membrete_titular.trim()}</div>
+      {a.membrete_credenciales?.trim() && <div className="text-[10.5px] font-medium leading-snug text-doc-acento">{a.membrete_credenciales.trim()}</div>}
+    </div>
+  );
+}
+
+// Titular del servicio primero (Configuración › Organización: «Médico titular» y su especialidad), luego el servicio
 export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
   if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
+  const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
+  const titular = a.membrete_titular?.trim();
   return (
-    <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
-      <Marca logo={d.org.logo} nombre={d.org.nombre} />
+    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea pb-3`}>
+      <Marca logo={d.org.logo} />
       <div className="min-w-0">
-        <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px]"}`}>{d.org.nombre}</div>
-        {!compacto && d.org.ajustes.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{d.org.ajustes.membrete_lema}</div>}
-        {/* La dirección no pasa de dos líneas: un membrete alto empuja las firmas a otra hoja */}
-        <div className="line-clamp-2 text-[10.5px] text-doc-tenue">
+        {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
+        <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px] leading-tight"}`}>{d.org.nombre}</div>
+        {titular && (
+          <div data-prueba="membrete-titular" className={`leading-snug ${compacto ? "line-clamp-1 text-[10px]" : "text-[11.5px]"}`}>
+            <b className="font-bold">{titular}</b>
+            {a.membrete_credenciales?.trim() && <span className="font-medium text-doc-acento"> · {a.membrete_credenciales.trim()}</span>}
+          </div>
+        )}
+        {!titular && !compacto && a.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{a.membrete_lema}</div>}
+        {/* La dirección no pasa de dos líneas (una con titular o en el compacto): un membrete alto empuja las firmas a otra hoja */}
+        <div className={`${titular || compacto ? "line-clamp-1" : "line-clamp-2"} ${compacto ? "text-[10px]" : "text-[10.5px]"} text-doc-tenue`}>
           {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>
@@ -162,8 +176,10 @@ export function BloqueRiesgos({ riesgos, ajustes, titulo = "Riesgos del puesto" 
 
 export function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="mb-3.5 break-inside-avoid">
-      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
+    // Separador de sección: línea continua de 1,5 px en el color de la marca (en escala de grises queda gris oscuro) y
+    // el título en mayúsculas debajo, como en el SAME: dos secciones nunca se leen como un solo párrafo
+    <div data-prueba="bloque" className="mb-3 break-inside-avoid border-t-[1.5px] border-doc-acento pt-1.5">
+      <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento">{titulo}</div>
       <div className="whitespace-pre-line">{children}</div>
     </div>
   );
@@ -224,8 +240,12 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   // Configuración › Organización: firma y sello en casillas separadas (por defecto) o en una sola línea
   const separados = d.org.ajustes.firma_sello_separados !== false;
   const img = imagenesMedico(d);
+  const aviso = d.sin.includes("firma") || d.firmadaEnSame || !m || (m.mostrar_firma === false && m.mostrar_sello === false) ? null
+    : !img.firma && !img.sello ? "Esta hoja sale sin firma ni sello digitales: el médico no los tiene cargados en Configuración › Mi perfil. En el escritorio, si los cargó hace poco, espera unos minutos a que la PC los copie."
+    : !img.firma && m.mostrar_firma !== false ? "Esta hoja sale sin firma digital: no está cargada en Configuración › Mi perfil."
+    : !img.sello && m.mostrar_sello !== false ? "Esta hoja sale sin sello digital: no está cargado en Configuración › Mi perfil." : null;
   return (
-    <div data-prueba="firma-medico" className="flex items-end gap-3.5">
+    <div data-prueba="firma-medico" className="flex flex-wrap items-end gap-3.5">
       <div className="w-64 text-center text-[10px] leading-[1.35]">
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -248,6 +268,8 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
         )}
       </div>
       {separados && <CasillaSello imagen={img.sello} className={compacto ? "h-[70px] w-[124px]" : undefined} />}
+      {/* Error visible (no sale en papel): sin imágenes la hoja sale para firmar a mano y la persona debe saber por qué */}
+      {aviso && <p data-prueba="aviso-sin-firma" className="basis-full text-[10.5px] font-medium text-[#7a5300] print:hidden">{aviso}</p>}
     </div>
   );
 }

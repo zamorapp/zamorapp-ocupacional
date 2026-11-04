@@ -14,6 +14,8 @@ export type Sesion = {
   correo: string;
   orgId: string | null;
   organizacion: string;
+  // Médico titular del servicio (Configuración › Organización › «Médico titular»): sale bajo la marca en la barra
+  titular: string | null;
   rol: Rol | null;
   clinico: boolean; // mismo criterio que es_clinico() en la base: rol de salud o acceso clínico activado
 };
@@ -25,6 +27,7 @@ const SESION_DEMO: Sesion = {
   correo: "",
   orgId: null,
   organizacion: "OcupaVida Salud Ocupacional",
+  titular: "Dr. César Zamora",
   rol: "gerente_medico",
   clinico: true,
 };
@@ -58,18 +61,19 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
       .from("miembros")
-      .select("org_id, rol, acceso_clinico, organizaciones(nombre)")
+      .select("org_id, rol, acceso_clinico, organizaciones(nombre, ajustes)")
       .eq("usuario_id", usuarioId)
       .eq("activo", true)
       .limit(1)
       .maybeSingle(),
   ]);
 
-  const org = miembro?.organizaciones as unknown as { nombre: string } | null;
+  const org = miembro?.organizaciones as unknown as { nombre: string; ajustes: { membrete_titular?: string | null } | null } | null;
   const datos: Datos = {
     nombre: perfil?.nombre_completo || correo,
     orgId: miembro?.org_id ?? null,
     organizacion: org?.nombre ?? "Sin organización",
+    titular: org?.ajustes?.membrete_titular?.trim() || null,
     rol: (miembro?.rol as Rol) ?? null,
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
   };

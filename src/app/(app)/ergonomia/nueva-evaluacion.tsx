@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NIOSH, REBA, ROSA, RULA, type ClaveMetodo } from "@/lib/ergonomia";
+import { KIM } from "@/lib/ergonomia-kim";
+import { OCRA } from "@/lib/ergonomia-ocra";
 import { DEB } from "@/lib/ergonomia-deb";
 import { cn } from "@/lib/utils";
 import { crearEvaluacion } from "./acciones";
@@ -28,6 +30,8 @@ const OPCIONES: { clave: ClaveMetodo; titulo: string; texto: string }[] = [
   { clave: "reba", titulo: "REBA", texto: REBA.paraQue },
   { clave: "rosa", titulo: "ROSA", texto: ROSA.paraQue },
   { clave: "niosh", titulo: "NIOSH", texto: NIOSH.paraQue },
+  { clave: "ocra", titulo: "OCRA Checklist", texto: OCRA.paraQue },
+  { clave: "kim", titulo: "KIM-PP", texto: KIM.paraQue },
   { clave: "libre", titulo: "Inspección con hallazgos", texto: "Fotos y lista de riesgos con prioridad y recomendaciones, sin puntaje de postura." },
 ];
 

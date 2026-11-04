@@ -145,6 +145,57 @@ test("C13: el avance de la copia llega al total y /zamorapp/estado lo da sin nom
   assert.deepEqual(Object.keys(r.json.copia).sort(), ["filas", "hechas", "total"]);
 });
 
+test("catálogos al día: la firma y el sello cargados después de la copia y los ajustes de la organización llegan a la PC", { skip: omitir }, async () => {
+  // 04-nov-2026: «Firmar y cerrar» en el escritorio imprimía sin firma ni sello. La copia de perfiles no traía firma_url
+  // (columna privada) y los catálogos bajaban solo en la copia completa.
+  const marca = `data:image/png;base64,F${Date.now()}`;
+  const lema = `Lema ${Date.now()}`;
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1, sello_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
+  replicaObj.revisarCatalogos();
+  await replicaObj.ciclo();
+  assert.equal(replicaObj.error, null);
+  const [p] = await enLocal("select firma_url, sello_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+  assert.equal(p.firma_url, marca, "la firma llegó a la copia");
+  assert.equal(p.sello_url, marca, "el sello llegó a la copia");
+  const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
+  assert.equal(o.lema, lema, "los ajustes de la organización llegaron a la copia");
+  assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles al día/.test(l)));
+  // Sin cambios en la nube, la revisión siguiente no vuelve a bajar nada
+  const antes = lineasReplica.length;
+  replicaObj.revisarCatalogos();
+  await replicaObj.ciclo();
+  assert.ok(!lineasReplica.slice(antes).some((l) => /catálogo .* al día/.test(l)), "sin cambios no se baja de nuevo");
+});
+
+test("un catálogo que falla al bajar no frena a los demás ni al ciclo, y se reintenta en el ciclo siguiente", { skip: omitir }, async () => {
+  const marca = `data:image/png;base64,R${Date.now()}`;
+  const lema = `Reintento ${Date.now()}`;
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
+  const rpc = nubeObj.rpc.bind(nubeObj);
+  let cortes = 0;
+  nubeObj.rpc = async (uid, f, args, op) => {
+    if (f === "instantanea" && args?.p_tabla === "public.perfiles" && cortes === 0) { cortes++; throw Object.assign(new Error("corte simulado"), { status: 503 }); }
+    return rpc(uid, f, args, op);
+  };
+  try {
+    replicaObj.revisarCatalogos();
+    await replicaObj.ciclo();
+    assert.equal(replicaObj.error, null, "el ciclo no falla por un catálogo");
+    assert.equal(cortes, 1);
+    const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
+    assert.equal(o.lema, lema, "los demás catálogos sí bajaron");
+    const [p1] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    assert.notEqual(p1.firma_url, marca, "el que falló quedó como estaba");
+    assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles no se pudo bajar \(HTTP 503\)/.test(l)));
+    assert.ok(!lineasReplica.some((l) => /corte simulado/.test(l)), "el texto del error no va al registro");
+    await replicaObj.ciclo(); // sin revisarCatalogos ni esperar 2 min: el fallo pide reintento
+    const [p2] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    assert.equal(p2.firma_url, marca, "en el ciclo siguiente llegó");
+  } finally { nubeObj.rpc = rpc; }
+});
+
 test("con internet, la app lee de la nube", { skip: omitir }, async () => {
   const r = await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } });
   assert.equal(r.status, 200);

@@ -8,12 +8,14 @@
 //   Prioridad: matriz 5×5 probabilidad × severidad del puesto (lib/puestos-tipos), la misma de la LOPCYMAT en la app.
 import { nivelRiesgo } from "@/lib/puestos-tipos";
 import { ADICIONALES, DEB, type ResultadoFactor } from "@/lib/ergonomia-deb";
+import { KIM } from "@/lib/ergonomia-kim";
+import { OCRA } from "@/lib/ergonomia-ocra";
 import { esRolEmpresa, type Rol } from "@/lib/sesion-roles";
 
 // Quién hace evaluaciones (la base aplica la misma lista en evaluaciones_ergonomicas_editar)
 export const ROLES_ERGONOMIA = ["administrador", "gerente_medico", "medico", "coordinador_sst"];
 
-export type ClaveMetodo = "rula" | "reba" | "rosa" | "niosh" | "deb" | "libre";
+export type ClaveMetodo = "rula" | "reba" | "rosa" | "niosh" | "deb" | "ocra" | "kim" | "libre";
 export type Departamento = "ingenieria" | "operaciones" | "rrhh" | "sst";
 export type Zona = "brazo" | "antebrazo" | "muneca" | "cuello" | "tronco" | "piernas" | "carga" | "actividad" | "silla" | "pantalla" | "perifericos";
 
@@ -27,7 +29,8 @@ export const NOMBRE_DEPTO = Object.fromEntries(DEPARTAMENTOS.map((d) => [d.clave
 
 export type Opcion = { valor: number; texto: string; detalle?: string };
 // numero: se escribe un valor (kg, cm, grados) en vez de elegir una opción
-export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; numero?: { min: number; max: number; unidad: string; paso?: number } };
+// sinPuntos: las opciones son códigos (KIM: tipo de equipo), no se pinta «+N»
+export type Pregunta = { clave: string; texto: string; opciones: Opcion[]; ayuda?: string; sinPuntos?: boolean; numero?: { min: number; max: number; unidad: string; paso?: number } };
 export type Seccion = {
   titulo: string; zona: Zona; preguntas: Pregunta[];
   // DEB: a qué peligro pertenece, si es zona verde/roja, si sus respuestas son opcionales y cuándo se muestra
@@ -626,9 +629,9 @@ export const NIOSH: Metodo = {
   },
 };
 
-export const METODOS: Record<"rula" | "reba" | "rosa" | "niosh" | "deb", Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH, deb: DEB };
+export const METODOS: Record<Exclude<ClaveMetodo, "libre">, Metodo> = { rula: RULA, reba: REBA, rosa: ROSA, niosh: NIOSH, deb: DEB, ocra: OCRA, kim: KIM };
 // Métodos donde el lado (derecho/izquierdo) no aplica
-export const SIN_LADO: ClaveMetodo[] = ["rosa", "niosh", "deb"];
+export const SIN_LADO: ClaveMetodo[] = ["rosa", "niosh", "deb", "kim"];
 export const metodoDe = (clave: ClaveMetodo): Metodo | null => (Object.hasOwn(METODOS, clave) ? METODOS[clave as keyof typeof METODOS] : null);
 
 // Respuesta válida para la pregunta: una de sus opciones, o un número dentro de su rango (1 decimal)
@@ -639,14 +642,11 @@ export function respuestaValida(m: Metodo, clave: string, valor: unknown): numbe
   return p.opciones.some((o) => o.valor === valor) ? valor : null;
 }
 export const NOMBRE_METODO: Record<ClaveMetodo, string> = {
-  rula: "RULA", reba: "REBA", rosa: "ROSA · Puestos de oficina", niosh: "NIOSH · Levantamiento de cargas", deb: "DEB · Diagnóstico ergonómico y biomecánico básico (CENEA)", libre: "Inspección con lista de hallazgos",
+  rula: "RULA", reba: "REBA", rosa: "ROSA · Puestos de oficina", niosh: "NIOSH · Levantamiento de cargas", deb: "DEB · Diagnóstico ergonómico y biomecánico básico (CENEA)", ocra: "OCRA Checklist · Movimientos repetitivos", kim: "KIM-PP · Empuje y arrastre de cargas", libre: "Inspección con lista de hallazgos",
 };
 
 // Métodos recomendados para próximas versiones (se muestran como «Próximamente» con su fuente)
-export const PROXIMOS: { corto: string; para: string; fuente: string }[] = [
-  { corto: "OCRA", para: "Movimientos repetitivos de mano y brazo", fuente: "Occhipinti E. Ergonomics 1998 · ISO 11228-3" },
-  { corto: "KIM", para: "Empuje y arrastre de cargas", fuente: "BAuA (Alemania), Key Indicator Method LHC/PP 2019" },
-];
+export const PROXIMOS: { corto: string; para: string; fuente: string }[] = [];
 
 // ───────────────────────── Hallazgos y prioridad ─────────────────────────
 export type Hallazgo = {
@@ -787,7 +787,7 @@ export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hall
   // Toda evaluación con riesgo deja la vigilancia de la salud de los expuestos
   if (resultado.urgencia >= 2 && !ya.some((h) => h.departamento === "sst" && h.origen === "metodo")) {
     nuevos.push({
-      id: nuevoId(), factor: metodo.clave === "niosh" ? "Exposición a manipulación de cargas" : "Exposición a carga postural", detalle: `${metodo.corto} ${resultado.texto ?? resultado.puntaje} · ${resultado.nivel}`, p, s: 3,
+      id: nuevoId(), factor: EXPOSICION[metodo.clave] ?? "Exposición a carga postural", detalle: `${metodo.corto} ${resultado.texto ?? resultado.puntaje} · ${resultado.nivel}`, p, s: 3,
       consecuencia: "Trastornos musculoesqueléticos relacionados con el trabajo",
       medida: "Vigilancia de la salud musculoesquelética de los expuestos (evaluación periódica), notificación del riesgo por escrito (LOPCYMAT art. 53.1) y reevaluar el puesto al aplicar las medidas.",
       departamento: "sst", plazo: prioridad({ p, s: 3 })?.plazo ?? "", origen: "metodo",
@@ -795,6 +795,8 @@ export function proponerHallazgos(metodo: Metodo, resultado: Resultado, ya: Hall
   }
   return nuevos;
 }
+
+const EXPOSICION: Partial<Record<ClaveMetodo, string>> = { niosh: "Exposición a manipulación de cargas", kim: "Exposición a empuje y arrastre de cargas", ocra: "Exposición a movimientos repetitivos" };
 
 // ─────────────────── DEB: hallazgos por peligro y por factor adicional ───────────────────
 // Medidas por peligro (de la más eficaz a la de apoyo); severidad: cargas dañan más la espalda

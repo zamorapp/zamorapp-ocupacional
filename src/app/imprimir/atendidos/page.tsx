@@ -5,7 +5,7 @@ import { ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../barra";
-import { fechaCorta, Hoja, Marca } from "../componentes";
+import { fechaCorta, Hoja, Marca, Titular } from "../componentes";
 import { hoyCaracas } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Pacientes atendidos" };
@@ -24,7 +24,7 @@ export default async function Atendidos({ searchParams }: Props) {
   const [atenciones, empresas] = await Promise.all([listarAtenciones(q.empresa ?? null, desde, hasta), listarEmpresas(true)]);
   const empresa = empresas.find((e) => e.id === q.empresa);
   const supabase = await crearClienteServidor();
-  const { data: org } = sesion.orgId ? await supabase.from("organizaciones").select("nombre, rif, logo").eq("id", sesion.orgId).single() : { data: null };
+  const { data: org } = sesion.orgId ? await supabase.from("organizaciones").select("nombre, rif, logo, ajustes").eq("id", sesion.orgId).single() : { data: null };
 
   // Resumen por motivo
   const porMotivo = new Map<string, number>();
@@ -39,6 +39,7 @@ export default async function Atendidos({ searchParams }: Props) {
             <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
             <div>
               <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <Titular ajustes={org?.ajustes} />
               <div className="text-[11px] text-neutral-600">{org?.rif && `RIF ${org.rif}`}</div>
             </div>
           </div>

@@ -25,7 +25,7 @@ import { borrarEvaluacion, crearEvaluacion, guardarEvaluacion, guardarObservacio
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nuevoId = () => crypto.randomUUID().slice(0, 8);
 // DEB en amarillo o rojo: método de la app para la evaluación específica de cada peligro (empuje aún no tiene)
-const ESPECIFICO: Partial<Record<FactorDeb, ClaveMetodo>> = { lev: "niosh", tra: "niosh", rep: "rula", pos: "reba" };
+const ESPECIFICO: Partial<Record<FactorDeb, ClaveMetodo>> = { lev: "niosh", tra: "niosh", emp: "kim", rep: "ocra", pos: "reba" };
 
 type Props = { ev: Evaluacion; orgId: string; demo?: boolean; puedeEditar: boolean; puedeReabrir: boolean };
 
@@ -137,7 +137,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                   binaria && "min-w-14 text-center",
                 )}
               >
-                <span className="block">{o.texto}{!binaria && metodo?.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`}</span>}</span>
+                <span className="block">{o.texto}{!binaria && !p.sinPuntos && metodo?.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{(o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`).replace(".", ",")}</span>}</span>
                 {o.detalle && <span className={cn("block text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.detalle}</span>}
               </button>
             );
