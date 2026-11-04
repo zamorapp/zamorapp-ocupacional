@@ -6,9 +6,13 @@ select 'catálogo base con los agentes nuevos (debe 16): ' || count(*) from publ
  where lista = 'agente_riesgo' and org_id is null and orden > 100;
 select 'cada organización recibe la copia (debe 16): ' || count(*) from public.lista_items
  where lista = 'agente_riesgo' and org_id = '10000000-0000-0000-0000-000000000001' and orden > 100;
+-- Lo que una organización borró no vuelve al repetir la siembra (ni un agente nuevo ni uno viejo)
+delete from public.lista_items where org_id = '10000000-0000-0000-0000-000000000001' and lista = 'agente_riesgo' and nombre in ('Humedad', 'Ruido');
 select public.sembrar_agentes_riesgo_2026() \g /dev/null
 select 'repetir la siembra no duplica (debe 16): ' || count(*) from public.lista_items
  where lista = 'agente_riesgo' and org_id is null and orden > 100;
+select 'lo borrado por la organización no vuelve (debe 0): ' || count(*) from public.lista_items
+ where org_id = '10000000-0000-0000-0000-000000000001' and lista = 'agente_riesgo' and nombre in ('Humedad', 'Ruido');
 
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null

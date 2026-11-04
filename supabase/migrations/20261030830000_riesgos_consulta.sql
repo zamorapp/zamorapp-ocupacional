@@ -192,19 +192,28 @@ create or replace function public.sembrar_agentes_riesgo_2026()
 returns void language plpgsql set search_path = public as $$
 begin
   if public.es_base_local() then return; end if;
-  insert into public.lista_items (lista, grupo, nombre, orden)
-  select 'agente_riesgo', x.grupo, x.nombre, x.orden
-  from (values
-    ('fisico', 'Humedad', 101), ('fisico', 'Ventilación deficiente', 102), ('fisico', 'Presión atmosférica anormal', 103),
-    ('quimico', 'Fibras (asbesto, fibra de vidrio)', 101), ('quimico', 'Metales pesados (plomo, mercurio)', 102), ('quimico', 'Nieblas y rocíos', 103),
-    ('biologico', 'Parásitos', 101), ('biologico', 'Material cortopunzante contaminado', 102),
-    ('mecanico', 'Máquinas y herramientas en movimiento', 101), ('mecanico', 'Espacios confinados', 102), ('mecanico', 'Superficies calientes y quemaduras', 103),
-    ('disergonomico', 'Esfuerzo visual', 101), ('disergonomico', 'Diseño inadecuado del puesto', 102),
-    ('psicosocial', 'Ritmo acelerado o presión de tiempo', 101), ('psicosocial', 'Trabajo aislado', 102), ('psicosocial', 'Alta responsabilidad', 103)
-  ) as x(grupo, nombre, orden)
-  where not exists (select 1 from public.lista_items i
-                     where i.lista = 'agente_riesgo' and i.org_id is null and lower(i.nombre) = lower(x.nombre));
-  perform public.copiar_listas_base(id) from public.organizaciones;
+  -- A cada organización van SOLO los agentes que esta misma corrida agrega a la base. No copiar_listas_base: repondría
+  -- todo lo que una organización borró (Analizar, 04-nov). Si se vuelve a correr, la base ya los tiene, no agrega nada
+  -- y nada borrado regresa. Sin duplicar por base_id ni por nombre.
+  with nuevos as (
+    insert into public.lista_items (lista, grupo, nombre, orden)
+    select 'agente_riesgo', x.grupo, x.nombre, x.orden
+    from (values
+      ('fisico', 'Humedad', 101), ('fisico', 'Ventilación deficiente', 102), ('fisico', 'Presión atmosférica anormal', 103),
+      ('quimico', 'Fibras (asbesto, fibra de vidrio)', 101), ('quimico', 'Metales pesados (plomo, mercurio)', 102), ('quimico', 'Nieblas y rocíos', 103),
+      ('biologico', 'Parásitos', 101), ('biologico', 'Material cortopunzante contaminado', 102),
+      ('mecanico', 'Máquinas y herramientas en movimiento', 101), ('mecanico', 'Espacios confinados', 102), ('mecanico', 'Superficies calientes y quemaduras', 103),
+      ('disergonomico', 'Esfuerzo visual', 101), ('disergonomico', 'Diseño inadecuado del puesto', 102),
+      ('psicosocial', 'Ritmo acelerado o presión de tiempo', 101), ('psicosocial', 'Trabajo aislado', 102), ('psicosocial', 'Alta responsabilidad', 103)
+    ) as x(grupo, nombre, orden)
+    where not exists (select 1 from public.lista_items i
+                       where i.lista = 'agente_riesgo' and i.org_id is null and lower(i.nombre) = lower(x.nombre))
+    returning id, lista, codigo, nombre, grupo, texto, orden, activo, datos)
+  insert into public.lista_items (lista, org_id, codigo, nombre, grupo, texto, orden, activo, datos, base_id)
+  select n.lista, o.id, n.codigo, n.nombre, n.grupo, n.texto, n.orden, n.activo, n.datos, n.id
+    from nuevos n cross join public.organizaciones o
+   where not exists (select 1 from public.lista_items x where x.org_id = o.id and x.base_id = n.id)
+     and not exists (select 1 from public.lista_items x where x.org_id = o.id and x.lista = 'agente_riesgo' and lower(x.nombre) = lower(n.nombre));
 end $$;
 revoke execute on function public.sembrar_agentes_riesgo_2026() from public, anon, authenticated;
 select public.sembrar_agentes_riesgo_2026();

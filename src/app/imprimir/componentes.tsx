@@ -155,7 +155,7 @@ export function BloqueRiesgos({ riesgos, ajustes, titulo = "Riesgos del puesto" 
     <Bloque titulo={titulo}>
       {/* Corrido en un párrafo (no en dos columnas): ocupa menos alto y la firma no se pasa a la segunda hoja */}
       <p className="leading-snug">{grupos.map(([k, n], i) => <Fragment key={k}>{i > 0 && " · "}<b>{n}:</b> {riesgos[k]!.join(", ")}</Fragment>)}</p>
-      {nota && <p className="mt-0.5 text-[8px] italic leading-tight text-doc-tenue">{nota}</p>}
+      {nota && <p className="mt-0.5 text-[7pt] italic leading-tight text-doc-tenue">{nota}</p>}
     </Bloque>
   );
 }
