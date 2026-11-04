@@ -31,8 +31,8 @@ export const NOMBRE_FACTOR: Record<FactorDeb, string> = {
 const ESPECIFICA: Record<FactorDeb, string> = {
   lev: "NIOSH (ecuación de levantamiento, ISO 11228-1)",
   tra: "Masa acumulada y NIOSH del levantamiento (ISO 11228-1)",
-  emp: "Tablas de Snook y Ciriello o KIM (ISO 11228-2)",
-  rep: "OCRA (ISO 11228-3); mientras tanto, RULA",
+  emp: "KIM-PP de la BAuA (ISO 11228-2)",
+  rep: "OCRA Checklist (ISO 11228-3)",
   pos: "REBA (cuerpo entero) o RULA (miembro superior), ISO 11226",
 };
 

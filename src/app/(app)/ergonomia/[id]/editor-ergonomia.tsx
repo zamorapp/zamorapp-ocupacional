@@ -25,7 +25,7 @@ import { borrarEvaluacion, crearEvaluacion, guardarEvaluacion, guardarObservacio
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nuevoId = () => crypto.randomUUID().slice(0, 8);
 // DEB en amarillo o rojo: método de la app para la evaluación específica de cada peligro (empuje aún no tiene)
-const ESPECIFICO: Partial<Record<FactorDeb, ClaveMetodo>> = { lev: "niosh", tra: "niosh", rep: "rula", pos: "reba" };
+const ESPECIFICO: Partial<Record<FactorDeb, ClaveMetodo>> = { lev: "niosh", tra: "niosh", emp: "kim", rep: "ocra", pos: "reba" };
 
 type Props = { ev: Evaluacion; orgId: string; demo?: boolean; puedeEditar: boolean; puedeReabrir: boolean };
 

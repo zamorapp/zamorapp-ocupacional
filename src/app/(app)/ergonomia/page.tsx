@@ -77,14 +77,14 @@ export default async function Ergonomia() {
         )}
       </Card>
 
-      <details className="rounded-xl border border-dashed p-4 text-sm">
+      {PROXIMOS.length > 0 && <details className="rounded-xl border border-dashed p-4 text-sm">
         <summary className="cursor-pointer font-medium">Próximamente ({PROXIMOS.length} métodos)</summary>
         <ul className="mt-2 grid grid-cols-1 gap-2 text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
           {PROXIMOS.map((m) => (
             <li key={m.corto}><span className="font-medium text-foreground">{m.corto}:</span> {m.para}. <span className="text-xs">({m.fuente})</span></li>
           ))}
         </ul>
-      </details>
+      </details>}
     </div>
   );
 }
