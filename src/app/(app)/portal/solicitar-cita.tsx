@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
 import { solicitarCita } from "./acciones";
+import { ElegirHora } from "./elegir-hora";
 
 type Nuevo = { cedula: string; nombres: string; apellidos: string };
 
@@ -121,8 +122,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
               </ul>
             )}
           </div>
-          <Campo id="fecha" etiqueta={<><Paso n={2} /> ¿Qué día?</>} type="date" min={manana} defaultValue={manana} required />
-          <Campo id="hora" etiqueta="Hora (opcional)" type="time" />
+          <ElegirHora empresaId={empresaNuevos || empresas[0]?.id || ""} min={manana} etiqueta={<><Paso n={2} /> ¿Qué día y a qué hora?</>} personas={Math.max(total, 1)} />
           <CampoSelect id="motivo_id" etiqueta={<><Paso n={3} /> Tipo de evaluación</>} defaultValue="" className="sm:col-span-2">
             <option value="">No sé / que lo defina el médico</option>
             {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}

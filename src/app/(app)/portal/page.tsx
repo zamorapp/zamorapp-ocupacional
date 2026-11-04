@@ -21,6 +21,9 @@ import { CancelarSolicitud } from "./cancelar";
 import { Refrescar } from "./refrescar";
 import { SolicitarCita } from "./solicitar-cita";
 import { AnotarVacaciones } from "./anotar-vacaciones";
+import { Propuestas, type GrupoPropuesta } from "./propuestas";
+import { Bienvenida } from "@/components/app/bienvenida-portal";
+import { datosOrganizacion } from "@/lib/organizacion";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -46,6 +49,17 @@ export default async function Portal() {
     obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
     listarSolicitudes({ limite: 20 }),
   ]);
+  // Otra hora propuesta por el servicio: una tarjeta para responder (varios trabajadores de la misma propuesta juntos)
+  const grupos = new Map<string, GrupoPropuesta>();
+  for (const c of citas) {
+    const p = c.estado === "solicitada" ? c.propuesta : null;
+    if (!p) continue;
+    const k = [c.empresaId, c.motivo, p.fecha, p.desde, p.hasta, p.modo, p.nota].join("·");
+    const g = grupos.get(k) ?? { ids: [], nombres: [], empresaId: c.empresaId, motivo: c.motivo, propuesta: p };
+    g.ids.push(c.id); g.nombres.push(c.paciente);
+    grupos.set(k, g);
+  }
+  const org = await datosOrganizacion();
   const empresa = empresas.find((e) => e.id === activa) ?? (empresas.length === 1 ? empresas[0] : null);
   const deHoy = citas.filter((c) => c.fecha === hoy && c.estado !== "cancelada");
   const proximas = citas.filter((c) => c.fecha > hoy && ["solicitada", "citado"].includes(c.estado));
@@ -75,6 +89,10 @@ export default async function Portal() {
           {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
       </div>
+
+      {!sesion.demo && <Bienvenida servicio={org.nombre} />}
+
+      <Propuestas grupos={[...grupos.values()]} manana={sumarDias(hoy, 1)} gestiona={gestiona} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
@@ -121,7 +139,9 @@ export default async function Portal() {
                   <li key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-24 font-mono text-muted-foreground">{fecha(c.fecha)}{c.hora && ` ${c.hora}`}</span>
                     <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
+                    {c.estado === "solicitada" && c.propuesta
+                      ? <a href="#propuestas" className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">Responder hora propuesta</a>
+                      : <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>}
                     {gestiona && c.estado === "solicitada" && <CancelarSolicitud id={c.id} />}
                   </li>
                 ))}
