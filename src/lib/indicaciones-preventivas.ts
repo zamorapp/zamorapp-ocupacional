@@ -6,31 +6,31 @@ export type BloquePlan = { clave: string; boton: string; titulo: string; items: 
 
 export const PLAN_BASE = {
   intro:
-    "Plan de alimentación indicado con fines preventivos, para cuidar su salud y su rendimiento en el trabajo. Sigue el modelo de la dieta mediterránea, adaptado a los alimentos de Venezuela: comida natural, poca harina refinada y ningún ultraprocesado.",
+    "Indicado con fines preventivos. Modelo de dieta mediterránea con alimentos de Venezuela: comida natural, poca harina refinada y ningún ultraprocesado.",
   plato: [
-    { parte: "½", texto: "Verduras y hortalizas", ejemplo: "ensalada, auyama, vainitas, brócoli, berenjena, calabacín" },
-    { parte: "¼", texto: "Proteínas", ejemplo: "pescado, pollo sin piel, huevo, caraotas, lentejas" },
-    { parte: "¼", texto: "Carbohidratos de calidad", ejemplo: "víveres, arroz o pasta integral, ½ arepa" },
+    { parte: "1/2", color: "#cfe7d6", texto: "Verduras y hortalizas", ejemplo: "ensalada, auyama, vainitas, brócoli, berenjena, calabacín" },
+    { parte: "1/4", color: "#f6dcc9", texto: "Proteínas", ejemplo: "pescado, pollo sin piel, huevo, caraotas, lentejas" },
+    { parte: "1/4", color: "#f3e7b5", texto: "Carbohidratos de calidad", ejemplo: "víveres, arroz o pasta integral, media arepa" },
   ],
   preferir: [
-    "Verduras y hortalizas en almuerzo y cena: son el contorno principal del plato.",
-    "Pescado 2 a 3 veces por semana (sardina, jurel, atún); pollo sin piel, huevos y granos (caraotas, lentejas, quinchonchos, frijoles).",
-    "Aceite de oliva extra virgen como grasa principal, crudo o para cocinar.",
-    "Fruta entera 2 a 3 veces al día (lechosa, guayaba, naranja, mango, patilla), mejor que en jugo.",
-    "Un puñado de frutos secos o semillas al día: maní sin sal, merey, almendras, chía o linaza.",
-    "Agua: 6 a 8 vasos al día, más si trabaja con calor o esfuerzo físico.",
+    "Verduras y hortalizas: el contorno principal de almuerzo y cena.",
+    "Pescado 2 a 3 veces por semana (sardina, jurel, atún); pollo sin piel, huevos y granos.",
+    "Aceite de oliva extra virgen para cocinar y aliñar.",
+    "Fruta entera 2 a 3 veces al día, mejor que en jugo.",
+    "Un puñado al día de maní sin sal, merey, chía o linaza.",
+    "Para beber: agua, 6 a 8 vasos al día.",
     "Lácteos naturales: yogur sin azúcar, queso blanco bajo en sal.",
   ],
   moderar: [
-    "Carbohidratos: solo ¼ del plato; preferir víveres (yuca, ñame, ocumo, batata, plátano) e integrales en porción pequeña.",
+    "Carbohidratos: un cuarto del plato; mejor víveres (yuca, ñame, ocumo, batata, plátano) o integrales.",
     "Carne roja magra: 1 a 2 veces por semana.",
     "Aceite de coco y mantequilla: en poca cantidad.",
     "Café: hasta 3 tazas al día, sin azúcar o con muy poca.",
     "Sal: menos de 5 g al día (una cucharadita rasa), contando la de los alimentos.",
   ],
   evitar: [
-    "Ultraprocesados: embutidos (salchicha, jamón, mortadela), enlatados salados, snacks de paquete, galletas y comida rápida.",
-    "Harinas refinadas en exceso: pan blanco, pasta y arroz blanco, empanadas y frituras.",
+    "Ultraprocesados: embutidos, enlatados salados, snacks de paquete, galletas y comida rápida.",
+    "Harinas refinadas: pan blanco, pasta y arroz blanco en exceso, empanadas y frituras.",
     "Bebidas azucaradas: refrescos, jugos de caja, maltas y bebidas energéticas.",
     "Azúcar añadida y dulces.",
     "Margarina, grasas trans y aceite de freír reutilizado.",
@@ -38,19 +38,18 @@ export const PLAN_BASE = {
   ],
   habitos: [
     "Tres comidas y hasta dos meriendas a horas regulares; no saltarse el desayuno.",
-    "Comer despacio y sentado; cocinar a la plancha, al horno, al vapor o guisado.",
+    "Comer despacio; cocinar a la plancha, al horno, al vapor o guisado.",
     "Leer las etiquetas y preferir los productos sin sellos de «exceso» (azúcar, sodio, grasas).",
     "Actividad física: al menos 150 minutos por semana (30 minutos, 5 días), caminar cuenta.",
   ],
   ejemplo: [
-    { comida: "Desayuno", texto: "2 huevos revueltos con tomate y cebolla, ½ aguacate, ½ arepa pequeña o 1 rebanada de pan integral; café sin azúcar." },
-    { comida: "Merienda", texto: "1 fruta entera y un puñado de maní sin sal." },
-    { comida: "Almuerzo", texto: "Medio plato de ensalada o vegetales salteados en aceite de oliva, pescado o pollo a la plancha (del tamaño de la palma de la mano) y ½ taza de caraotas o una porción pequeña de yuca." },
-    { comida: "Merienda", texto: "Yogur natural sin azúcar con chía." },
-    { comida: "Cena", texto: "Crema de auyama o vegetales, atún o queso blanco y ensalada. Cenar al menos 2 horas antes de acostarse." },
+    { comida: "Desayuno", texto: "2 huevos revueltos con tomate y cebolla, medio aguacate, media arepa pequeña o 1 rebanada de pan integral; café sin azúcar." },
+    { comida: "Meriendas", texto: "1 fruta entera con un puñado de maní sin sal, o yogur natural sin azúcar con chía." },
+    { comida: "Almuerzo", texto: "Medio plato de vegetales con aceite de oliva, pescado o pollo a la plancha (la palma de la mano) y media taza de caraotas o un trozo de yuca." },
+    { comida: "Cena", texto: "Crema de auyama, atún o queso blanco y ensalada, 2 horas antes de acostarse." },
   ],
   fuentes:
-    "OMS, «Alimentación sana», nota descriptiva (2020). Estruch R. y cols., PREDIMED, N Engl J Med 2018;378:e34. AHA, Dietary Guidance to Improve Cardiovascular Health, Circulation 2021;144:e472. OMS, Directrices sobre actividad física (2020). Instituto Nacional de Nutrición (INN), Trompo de los Alimentos.",
+    "OMS, Alimentación sana (2020). Estruch R y cols., PREDIMED, N Engl J Med 2018. AHA, Dietary Guidance, Circulation 2021. OMS, Actividad física (2020). INN, Trompo de los Alimentos.",
 };
 
 // Esquemas que el médico agrega con un botón, según la condición del trabajador
@@ -73,7 +72,7 @@ export const PLANES: BloquePlan[] = [
     boton: "Diabetes",
     titulo: "Si tiene diabetes o prediabetes",
     items: [
-      "Método del plato en cada comida: ½ vegetales, ¼ proteína, ¼ carbohidrato; la misma cantidad de carbohidrato a la misma hora cada día.",
+      "Método del plato en cada comida: la mitad vegetales, un cuarto proteína y un cuarto carbohidrato; la misma cantidad de carbohidrato a la misma hora cada día.",
       "Carbohidratos de absorción lenta: granos, víveres en porción pequeña e integrales; evitar pan blanco, arroz blanco y pasta en exceso.",
       "Nada de bebidas azucaradas ni jugos (aunque sean naturales): la fruta, entera y una porción por vez.",
       "Fibra todos los días: vegetales, granos, avena, chía o linaza.",

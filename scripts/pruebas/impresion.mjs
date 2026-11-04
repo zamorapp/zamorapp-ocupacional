@@ -28,8 +28,8 @@ const DOCUMENTOS = {
   vigilancia: { fluye: true },
   // Historia clínica: todas las consultas completas y el resumen al final, en las hojas que hagan falta
   historia: { fluye: true },
-  // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan de alimentación con todos los esquemas fluye
-  "control-ta": { fijo: true }, dieta: { fluye: true },
+  // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan con un esquema cabe en una carta (con todos, fluye)
+  "control-ta": { fijo: true }, dieta: { fijo: false },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 
