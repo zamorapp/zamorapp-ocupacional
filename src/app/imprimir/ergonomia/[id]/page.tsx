@@ -125,8 +125,8 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
             ) : (
             <div className="grid grid-cols-[auto_1fr] items-center gap-4">
               <div className={`rounded-lg px-4 py-2 text-center ${URGENCIA[r.urgencia]}`}>
-                <div className="font-cifra text-[28px] font-semibold leading-none">{r.texto ? r.texto.replace(/^IL /, "") : r.puntaje}</div>
-                <div className="text-[8.5px] font-bold uppercase tracking-[.1em]">{r.texto?.startsWith("IL") ? "índice" : `de ${r.maximo}`}</div>
+                <div className="font-cifra text-[28px] font-semibold leading-none">{r.texto ? r.texto.replace(/^(IL|ICKL) | puntos$/g, "") : r.puntaje}</div>
+                <div className="text-[8.5px] font-bold uppercase tracking-[.1em]">{!r.texto ? `de ${r.maximo}` : r.texto.endsWith(" puntos") ? "puntos" : `índice ${r.texto.split(" ")[0]}`}</div>
               </div>
               <div>
                 <div className="text-[13px] font-bold">{r.nivel}</div>
