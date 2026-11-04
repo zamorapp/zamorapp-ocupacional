@@ -8,6 +8,7 @@
 //   Prioridad: matriz 5×5 probabilidad × severidad del puesto (lib/puestos-tipos), la misma de la LOPCYMAT en la app.
 import { nivelRiesgo } from "@/lib/puestos-tipos";
 import { ADICIONALES, DEB, type ResultadoFactor } from "@/lib/ergonomia-deb";
+import { esRolEmpresa, type Rol } from "@/lib/sesion-roles";
 
 // Quién hace evaluaciones (la base aplica la misma lista en evaluaciones_ergonomicas_editar)
 export const ROLES_ERGONOMIA = ["administrador", "gerente_medico", "medico", "coordinador_sst"];
@@ -851,4 +852,13 @@ function proponerDeb(resultado: Resultado, ya: Hallazgo[], nuevoId: () => string
       departamento: "sst", origen: "metodo" });
   }
   return nuevos;
+}
+
+// Qué ve cada quien en el informe impreso. Una cuenta de la empresa (RR. HH., supervisor, delegado…) SIEMPRE recibe
+// el informe de RR. HH., sin importar ?para=: sin fotos ni detalle del método.
+export function vistaInforme(rol: Rol | null | undefined, para: string | undefined) {
+  const clave = esRolEmpresa(rol) ? "rrhh" : para;
+  const depto = DEPARTAMENTOS.find((d) => d.clave === clave) ?? null;
+  const rrhh = depto?.clave === "rrhh";
+  return { depto, conMetodo: !rrhh, conFotos: !rrhh };
 }

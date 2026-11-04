@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { AjustesDocumentos } from "@/lib/documentos";
 import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
-import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SIN_LADO, type Departamento, type Hallazgo } from "@/lib/ergonomia";
+import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SIN_LADO, vistaInforme, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
@@ -37,9 +37,9 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
   const sesion = await obtenerSesion();
   const ev = await obtenerEvaluacion(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
-  const depto = DEPARTAMENTOS.find((d) => d.clave === para) ?? null;
+  const { depto, conMetodo, conFotos } = vistaInforme(sesion.rol, para);
 
-  const fotosVisibles = depto?.clave === "rrhh" ? [] : ev.fotos;
+  const fotosVisibles = conFotos ? ev.fotos : [];
   const supabase = sesion.demo ? null! : await crearClienteServidor();
   const sinDatos = { data: null };
   const [{ data: org }, { data: emp }, firmas, { data: urls }] = sesion.demo ? [sinDatos, sinDatos, null, { data: [] }] as const : await Promise.all([
@@ -107,7 +107,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
 
         {ev.conclusion && <Bloque titulo="Conclusión">{ev.conclusion}</Bloque>}
 
-        {r?.completo && metodo && (!depto || depto.clave !== "rrhh") && (
+        {r?.completo && metodo && conMetodo && (
           <Bloque titulo={`Resultado del método ${metodo.corto}`}>
             {r.factores ? (
               <div className="grid grid-cols-[1fr_1.2fr] gap-5">
