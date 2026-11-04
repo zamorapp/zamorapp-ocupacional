@@ -54,6 +54,7 @@ export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
   { fecha: "2026-10-27", texto: "Informe de investigación NT-02 de enfermedad ocupacional y seguimiento de la certificación del INPSASEL", tema: "accidentes" },
   { fecha: "2026-10-27", texto: "15 reportes del SAME con impresión y Excel, y nuevos documentos (OAM, constancia de atención, evaluación de puesto)", tema: "reportes-same" },
   { fecha: "2026-10-27", texto: "Solicitudes de las empresas desde el portal y respaldo diario en Google Drive", tema: "solicitudes" },
+  { fecha: "2026-11-04", texto: "«Actualizar nómina» (Pacientes): descargas la nómina actual de la empresa en Excel, RR. HH. la corrige, llena lo amarillo (datos que faltan para la vigilancia), agrega a los nuevos y escribe NO a quien ya no está. Al subirla ves cuánto se completa, qué cambia, quién entra y quién sale antes de aplicar; luego queda «Deshacer» ese mismo día. Necesita internet", tema: "pacientes" },
 ];
 
 export const MANUAL: TemaManual[] = [
@@ -163,7 +164,8 @@ export const MANUAL: TemaManual[] = [
     para: "todos",
     resumen: "Expediente único de cada trabajador: datos personales, puesto, riesgos, consultas y resultados.",
     pasos: [
-      "Pacientes → «Nuevo» para registrar uno, o «Importar» para cargar la nómina desde Excel (acepta fechas en formato Excel).",
+      "Pacientes → «Nuevo» para registrar uno, o «Actualizar nómina» para cargar o poner al día la nómina de una empresa desde Excel (acepta fechas en formato Excel).",
+      "Actualizar nómina: 1) elige la empresa; 2) «Descargar nómina actual» y envíala a RR. HH. (las celdas amarillas son datos que faltan para el informe de vigilancia); 3) sube la planilla llena. Ves la población antes y después, cuánto se completa cada dato y cinco listas: completar o corregir, nuevos, RR. HH. dice NO, no aparecen y revisar a mano. La cédula debe coincidir exacta; si está en otra empresa o inactiva, va a «Revisar» para que la abras. Nombre, sexo o nacimiento distintos solo se cambian si lo marcas, y quienes no aparecen solo salen si lo marcas. «Deshacer» devuelve todo ese mismo día, salvo lo que alguien cambió o usó después. Necesita internet.",
       "Abre un paciente para ver sus pestañas: Resumen, Laboral y riesgos, Consultas y Resultados.",
       "En el celular la lista se ve en tarjetas de 25 en 25 con la aptitud de cada uno; el personal de salud tiene «Atender» al lado de cada nombre.",
       "«Nueva consulta» abre la atención médica del trabajador (solo personal de salud).",
