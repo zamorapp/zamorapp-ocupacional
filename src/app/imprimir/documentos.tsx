@@ -5,11 +5,11 @@ import { textoResultado } from "@/lib/paraclinicos";
 import { faltantesRecipe } from "@/lib/documentos";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
-import { GRUPOS_RIESGO, type Aptitud } from "@/lib/pacientes";
+import type { Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
 import { sinCodigo, textoDiagnostico } from "@/lib/diagnostico-texto";
 import {
-  Bloque, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
+  Bloque, BloqueRiesgos, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
 
 // "Elegible" / "Apto" / "Recomendable" según Configuración › Organización
@@ -50,7 +50,6 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
   const etiquetas = etiquetasAptitud(a.palabra_aptitud);
   const apt = d.datos.aptitud;
   const clase = apt.clasificacion || null;
-  const riesgos = GRUPOS_RIESGO.filter(([k]) => (d.trabajador.riesgos[k] ?? []).length);
   return (
     <Hoja>
       <Membrete d={d} />
@@ -73,13 +72,7 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
         </div>
       </Bloque>
       {apt.limitaciones.length > 0 && !d.sin.includes("limitaciones") && <Bloque titulo="Restricciones">{apt.limitaciones.join(" · ")}</Bloque>}
-      {riesgos.length > 0 && !d.sin.includes("riesgos") && (
-        <Bloque titulo="Riesgos del puesto">
-          <div className="grid grid-cols-2 gap-x-6">
-            {riesgos.map(([k, n]) => <div key={k}><b>{n}:</b> {d.trabajador.riesgos[k].join(", ")}</div>)}
-          </div>
-        </Bloque>
-      )}
+      {!d.sin.includes("riesgos") && <BloqueRiesgos riesgos={d.trabajador.riesgos} ajustes={a} />}
       {apt.observacion && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={apt.observacion} /></Bloque>}
       {/* Una recomendación elegida para los dos sale una sola vez (en la del trabajador, que va primero) */}
       {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
@@ -626,7 +619,6 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
   const t = d.trabajador;
   const a = d.org.ajustes;
   const certificacion = a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
-  const riesgos = GRUPOS_RIESGO.filter(([k]) => (t.riesgos[k] ?? []).length);
   const evaluaciones = ["Historia clínica ocupacional", "Examen funcional", "Examen físico", ...c.paraclinicos.map((p) => p.nombre)];
   return (
     <Hoja>
@@ -649,11 +641,7 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
         titulo="Evaluación solicitada"
         filas={[["Motivo", d.motivo?.nombre], ["Tipo de consulta", c.tipo === "primera" ? "Primera vez" : c.tipo === "sucesiva" ? "Sucesiva" : "Derivada"], ["Fecha", fechaCorta(c.fecha)], ["Hora", hora12(d.hora)]]}
       />
-      {riesgos.length > 0 && !d.sin.includes("riesgos") && (
-        <Bloque titulo="Riesgos del puesto">
-          <div className="grid grid-cols-2 gap-x-6">{riesgos.map(([k, n]) => <div key={k}><b>{n}:</b> {t.riesgos[k].join(", ")}</div>)}</div>
-        </Bloque>
-      )}
+      {!d.sin.includes("riesgos") && <BloqueRiesgos riesgos={t.riesgos} ajustes={a} />}
       <Bloque titulo="Evaluaciones a practicar">
         {/* Muchas evaluaciones (pre-empleo completo): tres columnas para que la orden quepa en una hoja */}
         <div className={`grid gap-x-8 ${evaluaciones.length > 12 ? "grid-cols-3 text-[11px]" : "grid-cols-2"}`}>

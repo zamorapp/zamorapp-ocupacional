@@ -28,6 +28,8 @@ export type AjustesDocumentos = {
   // Imprimir por defecto también la copia de la constancia para el servicio médico (cada impresión lo puede cambiar)
   constancia_copia?: boolean;
   orden_nota_preempleo?: string | null;
+  // Nota legal debajo de «Riesgos del puesto» (null = la de zamorApp; "" = sin nota)
+  nota_riesgos_puesto?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;
