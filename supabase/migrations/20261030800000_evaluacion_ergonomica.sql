@@ -36,22 +36,39 @@ create index if not exists evaluaciones_ergonomicas_puesto on public.evaluacione
 create index if not exists evaluaciones_ergonomicas_org on public.evaluaciones_ergonomicas (org_id, fecha desc);
 
 alter table public.evaluaciones_ergonomicas enable row level security;
--- Leer: el servicio (sin rol «trabajador») en su alcance; la empresa solo las cerradas
+-- Leer la tabla (datos del método, fotos, todos los hallazgos): solo el servicio en su alcance; recepción, solo cerradas.
+-- La empresa NO lee la tabla ni el bucket (Cesar, 04-nov): ve las cerradas por la vista evaluaciones_ergonomicas_rrhh.
 drop policy if exists evaluaciones_ergonomicas_leer on public.evaluaciones_ergonomicas;
 create policy evaluaciones_ergonomicas_leer on public.evaluaciones_ergonomicas for select using (
-  ((org_id = any ((select public.orgs_con(p_sin_limite => true))::uuid[])
-    or (org_id::text || empresa_id::text) = any ((select public.pares_limitados())::text[]))
-   and not org_id = any ((select public.orgs_con('{trabajador}'))::uuid[]))
-  and (estado = 'cerrada'
-       or org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,enfermeria,coordinador_sst}'))::uuid[])));
+  org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,enfermeria,coordinador_sst}', p_sin_limite => true))::uuid[])
+  or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,enfermeria,coordinador_sst}'))::text[])
+  or (estado = 'cerrada' and (
+        org_id = any ((select public.orgs_con('{recepcion}', p_sin_limite => true))::uuid[])
+     or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{recepcion}'))::text[]))));
 drop policy if exists evaluaciones_ergonomicas_editar on public.evaluaciones_ergonomicas;
 create policy evaluaciones_ergonomicas_editar on public.evaluaciones_ergonomicas for all
-  using (public.puede_ver_empresa(org_id, empresa_id)
-         and public.mi_rol(org_id) in ('administrador', 'gerente_medico', 'medico', 'coordinador_sst'))
-  with check (public.puede_ver_empresa(org_id, empresa_id)
-         and public.mi_rol(org_id) in ('administrador', 'gerente_medico', 'medico', 'coordinador_sst'));
+  -- = puede_ver_empresa(org_id, empresa_id) y mi_rol en (…), en la forma rápida (C14): una sola llamada por consulta
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,coordinador_sst}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,coordinador_sst}'))::text[]))
+  with check (org_id = any ((select public.orgs_con('{administrador,gerente_medico,medico,coordinador_sst}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,gerente_medico,medico,coordinador_sst}'))::text[]));
 grant select, insert, update, delete on public.evaluaciones_ergonomicas to authenticated;
 revoke all on public.evaluaciones_ergonomicas from anon;
+
+-- Lo que ve la empresa (RR. HH., supervisor, delegado, auditor): solo las cerradas de sus empresas, sin datos del
+-- método, sin fotos y solo los hallazgos dirigidos a RR. HH. Vista con permisos del dueño que filtra por el usuario;
+-- security_barrier: un filtro del usuario no se evalúa antes que el where de la vista.
+create or replace view public.evaluaciones_ergonomicas_rrhh with (security_barrier = true) as
+  select e.id, e.org_id, e.empresa_id, e.puesto, e.tarea, e.metodo, e.fecha, e.trabajadores_observados,
+         e.resultado ->> 'nivel' as nivel,
+         coalesce(jsonb_path_query_array(e.hallazgos, '$[*] ? (@.departamento == "rrhh")'), '[]'::jsonb) as hallazgos,
+         e.conclusion, e.evaluado_por, e.cerrada_en
+  from public.evaluaciones_ergonomicas e
+  where e.estado = 'cerrada'
+    and (e.org_id = any ((select public.orgs_con('{gerente_empresa,supervisor,delegado_prevencion,auditor}', p_sin_limite => true))::uuid[])
+      or (e.org_id::text || e.empresa_id::text) = any ((select public.pares_limitados('{gerente_empresa,supervisor,delegado_prevencion,auditor}'))::text[]));
+revoke all on public.evaluaciones_ergonomicas_rrhh from public, anon;
+grant select on public.evaluaciones_ergonomicas_rrhh to authenticated;
 
 -- Reglas: el puesto es de la misma empresa; quien evalúa es quien la crea y no cambia; cerrada = solo observaciones
 -- (o reabrir, sin tocar nada más, si es administrador o gerente médico); una cerrada no se borra.
@@ -107,7 +124,7 @@ drop trigger if exists bit_evaluaciones_ergonomicas on public.evaluaciones_ergon
 create trigger bit_evaluaciones_ergonomicas after insert or update or delete on public.evaluaciones_ergonomicas for each row execute function public.registrar_bitacora();
 
 -- Fotos de la inspección: bucket privado, solo JPG/PNG de hasta 10 MB (la app las achica y les quita el EXIF).
--- Ver: quien puede leer la evaluación. Subir/borrar: quien puede editarla y mientras sea borrador.
+-- Ver: quien puede leer la tabla (el servicio; la empresa no). Subir/borrar: quien puede editarla y mientras sea borrador.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('ergonomia', 'ergonomia', false, 10485760, array['image/jpeg', 'image/png'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
