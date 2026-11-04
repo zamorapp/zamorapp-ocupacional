@@ -38,7 +38,8 @@ create index if not exists papelera_org_en on public.papelera (org_id, eliminado
 create index if not exists papelera_objeto on public.papelera (objeto_id);
 alter table public.papelera enable row level security;
 drop policy if exists papelera_admin on public.papelera;
-create policy papelera_admin on public.papelera for select using (public.es_admin(org_id) and public.es_clinico(org_id));
+create policy papelera_admin on public.papelera for select
+  using (org_id = any ((select public.orgs_con('{administrador}', p_clinico => true))::uuid[]));
 revoke all on public.papelera from anon, authenticated;
 -- Las filas guardadas (datos clínicos completos) no se leen directo: solo el listado
 grant select (id, org_id, tipo, objeto_id, titulo, resumen, motivo, eliminado_por, eliminado_en, restaurado_por, restaurado_en)
