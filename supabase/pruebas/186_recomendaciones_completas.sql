@@ -26,10 +26,22 @@ select 'sin duplicados al repetir (debe 0): ' || count(*) from (select lista, co
 select 'ninguna base queda de una sola línea (debe 0): ' || count(*) from public.lista_items where org_id is null and lista like 'recomendacion_%' and texto not like E'%\n%' and codigo not like 'integral_%';
 -- La categoría elegida por el médico no se pisa al repetir
 update public.lista_items set datos = datos || '{"categoria":"habitos"}' where org_id = :org and lista = 'recomendacion_paciente' and codigo = 'pac_columna';
+-- La organización borró a propósito una recomendación vieja («apto» de la empresa) y una nueva (pac_hombro)
+create temp table _borradas as select * from public.lista_items where org_id = :org
+  and ((lista = 'recomendacion_aptitud' and codigo = 'apto') or (lista = 'recomendacion_paciente' and codigo = 'pac_hombro'));
 \o /dev/null
+delete from public.lista_items where id in (select id from _borradas);
 \i supabase/migrations/20261030820000_recomendaciones_completas.sql
 \o
 select 'la categoría del médico queda (debe 1): ' || count(*) from public.lista_items where org_id = :org and codigo = 'pac_columna' and datos->>'categoria' = 'habitos';
+select 'lo borrado por la organización no vuelve (debe 0): ' || count(*) from public.lista_items where org_id = :org
+  and ((lista = 'recomendacion_aptitud' and codigo = 'apto') or (lista = 'recomendacion_paciente' and codigo = 'pac_hombro'));
+select 'sus copias editadas siguen igual (debe 1): ' || count(*) from public.lista_items where org_id = :org and codigo = 'preempleo'
+  and lista = 'recomendacion_aptitud' and texto = 'Lo escribió el médico.';
+\o /dev/null
+insert into public.lista_items select * from _borradas;
+drop table _borradas;
+\o
 -- Estado como estaba
 \o /dev/null
 update public.lista_items set datos = datos || '{"categoria":"columna"}' where org_id = :org and lista = 'recomendacion_paciente' and codigo = 'pac_columna';

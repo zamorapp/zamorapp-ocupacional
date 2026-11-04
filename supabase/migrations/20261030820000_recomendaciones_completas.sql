@@ -6,11 +6,18 @@
 --    editó en Configuración › Datos clínicos queda tal cual. Igual con el grupo (motivos).
 -- 3) 23 recomendaciones nuevas: evaluaciones que no tenían (no apto temporal, reinserción, prenatal, postnatal,
 --    evaluación especial) y por condición de salud (hernias y pared abdominal, columna, hombro y miembro superior,
---    hipertensión, diabetes, ansiedad y depresión, maternidad, accidente). Se copian a cada organización.
+--    hipertensión, diabetes, ansiedad y depresión, maternidad, accidente). Se copian a cada organización SOLO
+--    ellas (no copiar_listas_base: repondría lo que el servicio borró a propósito) y sin duplicar: si la
+--    organización ya tiene una con el mismo código o el mismo nombre en esa lista, no se agrega.
 -- 4) Categoría (datos.categoria) para encontrarlas por botones desplegables en la consulta. Las que no la tienen
 --    (p. ej. las traídas del SAME) se clasifican solas por su nombre (lib/recomendaciones-categorias.ts) y el médico
 --    la cambia en Configuración. A las copias solo se les pone si no tienen una.
 -- Los códigos no cambian: las plantillas de examen que ya los usan toman el texto nuevo solas.
+-- En la PC no corre: las filas llegan por la réplica con los ids de la nube.
+
+do $$
+begin
+if public.es_base_local() then return; end if;
 
 create temp table _recomendaciones (lista text, codigo text, nombre text, grupo text, orden int, categoria text, texto text);
 insert into _recomendaciones (lista, codigo, nombre, grupo, orden, categoria, texto) values
@@ -104,14 +111,24 @@ where b.org_id is null and b.lista = r.lista and b.codigo = r.codigo
   and (b.texto is distinct from r.texto or b.grupo is distinct from coalesce(r.grupo, b.grupo)
     or (r.categoria is not null and b.datos->>'categoria' is distinct from r.categoria));
 
--- Nuevas en la base
-insert into public.lista_items (lista, codigo, nombre, grupo, texto, orden, datos)
-select r.lista, r.codigo, r.nombre, r.grupo, r.texto, r.orden, case when r.categoria is null then '{}'::jsonb else jsonb_build_object('categoria', r.categoria) end
-from _recomendaciones r
-where r.nombre is not null
-  and not exists (select 1 from public.lista_items b where b.org_id is null and b.lista = r.lista and b.codigo = r.codigo);
-
--- …y en cada organización (solo las que falten)
-select public.copiar_listas_base(id) from public.organizaciones;
+-- Nuevas en la base y, de esas mismas (solo las creadas ahora: repetir no repone lo que se borre después), una copia
+-- en cada organización que no tenga ya una con la misma base, el mismo código o el mismo nombre en esa lista
+with nuevas as (
+  insert into public.lista_items (lista, codigo, nombre, grupo, texto, orden, datos)
+  select r.lista, r.codigo, r.nombre, r.grupo, r.texto, r.orden, case when r.categoria is null then '{}'::jsonb else jsonb_build_object('categoria', r.categoria) end
+  from _recomendaciones r
+  where r.nombre is not null
+    and not exists (select 1 from public.lista_items b where b.org_id is null and b.lista = r.lista and b.codigo = r.codigo)
+  returning *
+)
+insert into public.lista_items (lista, org_id, codigo, nombre, grupo, texto, orden, activo, datos, base_id)
+select b.lista, g.id, b.codigo, b.nombre, b.grupo, b.texto, b.orden, b.activo, b.datos, b.id
+from nuevas b cross join public.organizaciones g
+where not exists (
+  select 1 from public.lista_items o
+  where o.org_id = g.id and o.lista = b.lista
+    and (o.base_id = b.id or o.codigo = b.codigo
+      or lower(translate(btrim(o.nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')) = lower(translate(btrim(b.nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou'))));
 
 drop table _recomendaciones;
+end $$;

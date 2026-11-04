@@ -57,3 +57,10 @@ test("categorías: la elegida manda; si no, por el nombre (hernia discal es colu
   assert.equal(categoriaDe({ nombre: "Obesidad I (con factores de riesgo cardiovascular)" }), "metabolico");
   assert.equal(categoriaDe({ nombre: "Algo sin tema", grupo: "" }), "otras");
 });
+test("nombres del SAME en Tipo Título se muestran con mayúscula solo al inicio", async () => {
+  const { nombreLegible } = await jiti.import("../../src/lib/recomendaciones-categorias.ts");
+  assert.equal(nombreLegible("Hernia Umbilical"), "Hernia umbilical");
+  assert.equal(nombreLegible("Recomendaciones Para Trabajador Con Defecto De Pared"), "Recomendaciones para trabajador con defecto de pared");
+  assert.equal(nombreLegible("Dotación de EPP"), "Dotación de EPP");
+  assert.equal(nombreLegible("Uso De EPP"), "Uso de EPP");
+});

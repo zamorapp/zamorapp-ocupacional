@@ -57,8 +57,8 @@ function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Person
         ) : <span className="text-[10px] italic text-doc-tenue"><span className="print:hidden">Sin datos: complétalo en Reportes › Redacción del informe › Portada y firmantes</span></span>}
       </td>
       <td className={`${td} w-[15%] whitespace-nowrap text-[10.5px] tabular-nums`}>{p?.cedula ? `C.I. ${p.cedula}` : ""}</td>
-      {/* Espacio de firma: 10 mm; con más de 8 firmantes, 7,5 mm para que todo quepa en una hoja */}
-      <td className={`${td} ${compacta ? "h-[7.5mm]" : "h-[10mm]"} w-[25%] border-l`} />
+      {/* Espacio de firma: 11,6 mm (44 px); con más de 8 firmantes, 7,5 mm para que todo quepa en una hoja */}
+      <td className={`${td} ${compacta ? "h-[7.5mm]" : "h-[11.6mm]"} w-[25%] border-l`} />
     </tr>
   ));
 }

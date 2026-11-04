@@ -87,3 +87,12 @@ export function sinRepetidas(texto: string | null | undefined, otro: string | nu
   const ya = new Set(otro.replace(/\r\n?/g, "\n").split("\n").map(clave).filter(Boolean));
   return texto.replace(/\r\n?/g, "\n").split("\n").filter((l) => !ya.has(clave(l))).join("\n");
 }
+
+// «Hernia Umbilical» (nombres del SAME en Mayúscula Cada Palabra) → «Hernia umbilical» al mostrarlos; siglas
+// (EPP, AIT, IVSS) quedan. No cambia lo guardado.
+export function nombreLegible(nombre: string) {
+  const palabras = nombre.trim().split(/\s+/);
+  const tipoTitulo = palabras.length > 1 && palabras.filter((w) => /^\p{L}/u.test(w)).every((w) => /^\p{Lu}/u.test(w));
+  if (!tipoTitulo) return nombre.trim();
+  return palabras.map((w, i) => (i === 0 || (w.length > 1 && w === w.toUpperCase()) ? w : w.toLowerCase())).join(" ");
+}

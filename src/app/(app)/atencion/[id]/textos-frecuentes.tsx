@@ -5,7 +5,7 @@ import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { fraseUsada, quitarFrase, sumarFrase } from "@/lib/frases";
 import type { Item } from "@/lib/listas";
-import { agruparPorCategoria } from "@/lib/recomendaciones-categorias";
+import { agruparPorCategoria, nombreLegible } from "@/lib/recomendaciones-categorias";
 import { cn } from "@/lib/utils";
 import { TextoDictado } from "./dictado";
 
@@ -48,7 +48,7 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
       aria-pressed={usado(i)}
       onClick={() => alternar(i)}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition",
+        "inline-flex max-w-full items-start gap-1 rounded-2xl border px-2.5 py-1 text-left text-xs transition",
         usado(i)
           ? "border-primary bg-primary text-primary-foreground"
           : sugerido
@@ -56,8 +56,9 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
             : "hover:border-primary/50 hover:bg-muted",
       )}
     >
-      {usado(i) ? <Check className="size-3 shrink-0" /> : <Plus className="size-3 shrink-0" />}
-      <span className="truncate">{i.nombre}</span>
+      {usado(i) ? <Check className="mt-0.5 size-3 shrink-0" /> : <Plus className="mt-0.5 size-3 shrink-0" />}
+      {/* En el celular el nombre largo baja de línea; el texto completo va en title */}
+      <span className="min-w-0 break-words">{nombreLegible(i.nombre)}</span>
     </button>
   );
 
@@ -94,7 +95,7 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
               : <p className="text-xs text-muted-foreground">Nada con «{buscar.trim()}». Escríbela abajo o agrégala en Configuración › Datos clínicos.</p>
           ) : (
             <>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Categorías">
+              <div className="-mx-2.5 flex gap-1.5 overflow-x-auto px-2.5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" role="group" aria-label="Categorías">
                 {grupos.map((g) => {
                   const usadas = g.items.filter(usado).length;
                   const activa = abierta === g.categoria;
@@ -105,7 +106,7 @@ export function TextosFrecuentes({ etiqueta, items, motivoCodigo, motivoNombre, 
                       aria-expanded={activa}
                       onClick={() => setAbierta(activa ? null : g.categoria)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition",
+                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium transition",
                         activa ? "border-primary bg-primary/10 text-primary" : "bg-card hover:border-primary/50",
                       )}
                     >
