@@ -20,7 +20,7 @@ export function BotonRestaurar({ id }: { id: string }) {
       })}>
         {enCurso ? <Loader2 className="animate-spin" /> : <Undo2 />} Restaurar
       </Button>
-      {error && <p role="alert" className="max-w-xs text-right text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="max-w-xs text-right text-xs text-alerta-texto">{error}</p>}
     </div>
   );
 }

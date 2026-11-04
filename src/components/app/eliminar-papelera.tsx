@@ -80,7 +80,7 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
               <li><b>Se elimina con {tipo === "consulta" ? "ella" : "él"}:</b> {junto || "nada más"}.</li>
               {vista.firmadas > 0 && <li className="text-alerta-texto"><b>{vista.firmadas === 1 ? "Hay 1 consulta firmada." : `Hay ${vista.firmadas} consultas firmadas.`}</b> Con la firma y sus versiones anteriores.</li>}
               {sueltas && <li><b>Se quedan</b>, sin el enlace: {sueltas}.</li>}
-              <li className="flex items-start gap-1.5 text-muted-foreground"><Undo2 className="mt-0.5 size-4 shrink-0" /> Queda en Configuración › Papelera: «Deshacer» lo devuelve idéntico, con su firma y su número de historia.</li>
+              <li className="flex items-start gap-1.5 text-muted-foreground"><Undo2 className="mt-0.5 size-4 shrink-0" /> «Deshacer» ahora, o «Restaurar» desde Configuración › Papelera, lo devuelve idéntico, con su firma y su número de historia.</li>
             </ul>
           )}
           <div className="space-y-1.5">
@@ -94,7 +94,7 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
               <Input id="palabra-eliminar" value={palabra} onChange={(e) => setPalabra(e.target.value)} autoComplete="off" className="max-w-48 uppercase" />
             </div>
           )}
-          {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{error}</p>}
+          {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-alerta-texto">{error}</p>}
         </div>
 
         {porQue && !enCurso && <p className="text-right text-xs text-muted-foreground">{porQue}</p>}
