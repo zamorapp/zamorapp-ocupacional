@@ -66,8 +66,8 @@ export function FormOrganizacion({ org, editable }: { org: Org; editable: boolea
             <Campo id="telefono" etiqueta="Teléfono" defaultValue={org.telefono ?? ""} />
             <Campo id="correo" etiqueta="Correo" type="email" defaultValue={org.correo ?? ""} />
             <CampoDireccion defaultValue={org.direccion ?? ""} />
-            <Campo id="membrete_titular" etiqueta="Médico titular (primera línea del membrete)" defaultValue={a.membrete_titular ?? ""} placeholder="Dr. Nombre Apellido" />
-            <Campo id="membrete_credenciales" etiqueta="Especialidad del titular (segunda línea)" defaultValue={a.membrete_credenciales ?? ""} placeholder="Especialista en Medicina del Trabajo (Universidad)" />
+            <Campo id="membrete_titular" etiqueta="Médico titular (debajo del nombre del servicio)" defaultValue={a.membrete_titular ?? ""} placeholder="Dr. Nombre Apellido" />
+            <Campo id="membrete_credenciales" etiqueta="Especialidad del titular" defaultValue={a.membrete_credenciales ?? ""} placeholder="Especialista en Medicina del Trabajo (Universidad)" />
             <Campo id="membrete_lema" etiqueta="Lema bajo el nombre (membrete)" defaultValue={a.membrete_lema ?? ""} placeholder="Servicios en Medicina Ocupacional · Ergonomía" className="sm:col-span-2" />
           </CardContent>
         </Card>

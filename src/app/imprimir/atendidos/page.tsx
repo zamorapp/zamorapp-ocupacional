@@ -38,8 +38,8 @@ export default async function Atendidos({ searchParams }: Props) {
           <div className="flex items-center gap-3">
             <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
             <div>
-              <Titular ajustes={org?.ajustes} />
               <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <Titular ajustes={org?.ajustes} />
               <div className="text-[11px] text-neutral-600">{org?.rif && `RIF ${org.rif}`}</div>
             </div>
           </div>

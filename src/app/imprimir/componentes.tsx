@@ -48,13 +48,13 @@ export function Marca({ logo }: { logo: string | null | undefined; nombre?: stri
 // sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
 type AjustesMembrete = { membrete_titular?: string | null; membrete_credenciales?: string | null; membrete_lema?: string | null };
 
-// Titular y su especialidad (para encabezados propios: nota de cobro, pacientes atendidos, portada)
+// Titular y su especialidad, debajo del nombre del servicio (encabezados propios: nota de cobro, pacientes atendidos)
 export function Titular({ ajustes }: { ajustes: unknown }) {
   const a = (ajustes ?? {}) as AjustesMembrete;
   if (!a.membrete_titular?.trim()) return null;
   return (
     <div data-prueba="membrete-titular">
-      <div className="text-[15px] font-extrabold leading-tight tracking-tight text-[#15201e]">{a.membrete_titular.trim()}</div>
+      <div className="text-[12px] font-bold leading-tight text-[#15201e]">{a.membrete_titular.trim()}</div>
       {a.membrete_credenciales?.trim() && <div className="text-[10.5px] font-medium leading-snug text-doc-acento">{a.membrete_credenciales.trim()}</div>}
     </div>
   );
@@ -69,32 +69,19 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
     <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea pb-3`}>
       <Marca logo={d.org.logo} />
       <div className="min-w-0">
+        {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
+        <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px] leading-tight"}`}>{d.org.nombre}</div>
         {titular && (
-          <>
-            <div data-prueba="membrete-titular" className={`font-extrabold leading-tight tracking-tight ${compacto ? "text-[13px]" : "text-[15px]"}`}>{titular}</div>
-            {a.membrete_credenciales?.trim() && <div className={`font-medium leading-snug text-doc-acento ${compacto ? "text-[9.5px]" : "text-[10.5px]"}`}>{a.membrete_credenciales.trim()}</div>}
-          </>
-        )}
-        {/* Compacto con titular (reposo: dos mitades por carta): servicio, RIF y dirección en una sola línea */}
-        {titular && compacto ? (
-          <div className="line-clamp-1 text-[10px] text-doc-tenue">
-            <b className="font-bold uppercase tracking-wide text-[#15201e]">{d.org.nombre}</b>
-            {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion].filter(Boolean).map((x) => ` · ${x}`).join("")}
+          <div data-prueba="membrete-titular" className={`leading-snug ${compacto ? "line-clamp-1 text-[10px]" : "text-[11.5px]"}`}>
+            <b className="font-bold">{titular}</b>
+            {a.membrete_credenciales?.trim() && <span className="font-medium text-doc-acento"> · {a.membrete_credenciales.trim()}</span>}
           </div>
-        ) : (
-          <>
-            <div className={titular ? "text-[11px] font-bold uppercase tracking-wide" : `font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px]"}`}>
-              {d.org.nombre}
-              {/* Con titular, el lema va en la misma línea del servicio: el membrete no crece (las firmas caben en la hoja) */}
-              {titular && !compacto && a.membrete_lema && <span className="font-normal normal-case tracking-normal text-doc-tenue"> · {a.membrete_lema}</span>}
-            </div>
-            {!titular && !compacto && a.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{a.membrete_lema}</div>}
-            {/* La dirección no pasa de dos líneas (una con titular): un membrete alto empuja las firmas a otra hoja */}
-            <div className={`${titular ? "line-clamp-1" : "line-clamp-2"} text-[10.5px] text-doc-tenue`}>
-              {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
-            </div>
-          </>
         )}
+        {!titular && !compacto && a.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{a.membrete_lema}</div>}
+        {/* La dirección no pasa de dos líneas (una con titular o en el compacto): un membrete alto empuja las firmas a otra hoja */}
+        <div className={`${titular || compacto ? "line-clamp-1" : "line-clamp-2"} ${compacto ? "text-[10px]" : "text-[10.5px]"} text-doc-tenue`}>
+          {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
+        </div>
       </div>
       <div className="flex items-center gap-3 text-right">
         <div>

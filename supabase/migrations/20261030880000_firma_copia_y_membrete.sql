@@ -68,7 +68,7 @@ end $$;
 revoke execute on function public.huella_catalogos(uuid, text) from public, anon;
 grant execute on function public.huella_catalogos(uuid, text) to authenticated;
 
--- Membrete (pedido de Cesar, 03-nov-2026): el titular va primero en todos los impresos. Es un dato de la organización
+-- Membrete (pedido de Cesar, 03 y 04-nov-2026): el titular va debajo del nombre del servicio en todos los impresos. Es un dato de la organización
 -- (Configuración › Organización › «Médico titular»): aquí solo se carga una vez para la organización de ese RIF si
 -- todavía no lo tiene; después se edita desde la pantalla.
 update public.organizaciones
