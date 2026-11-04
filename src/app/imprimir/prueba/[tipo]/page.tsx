@@ -5,6 +5,8 @@ import { vigilanciaDePrueba } from "@/lib/vigilancia-prueba";
 import { EditorInforme } from "@/app/(app)/reportes/editor-informe";
 import { HistoriaClinica } from "../../historia/hoja-historia";
 import { TIPOS } from "../../tipos";
+import { ControlTension, PlanAlimentacion } from "../../indicaciones";
+import { PLANES } from "@/lib/indicaciones-preventivas";
 import { InformeVigilancia } from "../../vigilancia/informe";
 
 // Solo para la prueba automática de impresión (scripts/pruebas/impresion.mjs): sin la variable no existe
@@ -40,5 +42,8 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   }
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
+  // Peor caso de las indicaciones: 14 días de tensión (dos hojas) y el plan con todos los esquemas
+  if (tipo === "control-ta") return <ControlTension d={documentoDePrueba("normal")} dias={largo === "largo" ? 14 : 7} />;
+  if (tipo === "dieta") return <PlanAlimentacion d={documentoDePrueba("normal")} planes={largo === "largo" ? PLANES.map((p) => p.clave) : ["hta"]} />;
   return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
 }
