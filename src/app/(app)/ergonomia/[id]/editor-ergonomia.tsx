@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CLASE_URGENCIA, DEPARTAMENTOS, metodoDe, NOMBRE_DEPTO, SIN_LADO, NOMBRE_METODO, PLAZOS, ordenarHallazgos, prioridad, proponerHallazgos,
-  type ClaveMetodo, type Departamento, type Hallazgo, type Metodo,
+  type ClaveMetodo, type Departamento, type Hallazgo, type Metodo, type Pregunta, type Seccion,
 } from "@/lib/ergonomia";
 import type { Evaluacion, Foto } from "@/lib/ergonomia-datos";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
@@ -19,7 +19,7 @@ import { prepararArchivo } from "@/lib/preparar-archivo";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
-import type { FactorDeb } from "@/lib/ergonomia-deb";
+import { evaluarFactor, faltantesDeb, FACTORES, NOMBRE_FACTOR, presente, TEXTO_ZONA, type FactorDeb } from "@/lib/ergonomia-deb";
 import { borrarEvaluacion, crearEvaluacion, guardarEvaluacion, guardarObservaciones, reabrirEvaluacion, type Cambios } from "../acciones";
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
@@ -43,6 +43,13 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   const [estado, setEstado] = useState<{ tipo: "ok" | "error" | "guardando" | "pendiente"; texto: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
+  const esDeb = metodo?.clave === "deb";
+  // DEB: un acordeón por peligro; abierto solo el que se está llenando (el primero sin terminar)
+  const [debAbierto, setDebAbierto] = useState<FactorDeb | null>(() => (ev.metodo === "deb" ? FACTORES.find((f) => evaluarFactor(f, ev.datos).zona === null) ?? null : null));
+  const faltan = useMemo(() => (esDeb ? faltantesDeb(x.datos) : []), [esDeb, x.datos]);
+  const revisados = FACTORES.length - faltan.length;
+  const [avisoFaltan, setAvisoFaltan] = useState(false);
+  const irA = (f: FactorDeb) => { setDebAbierto(f); setTimeout(() => document.getElementById(`deb-${f}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
   const alternarAbierto = (id: string) => setAbiertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Guardado automático 1,5 s después del último cambio (a prueba de cortes de luz); el puntaje lo recalcula el servidor
@@ -71,6 +78,89 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     if (valor === null) delete datos[clave]; else datos[clave] = valor;
     set("datos", datos);
   };
+
+  // Una pregunta: número, lista larga o botones (Sí/No: sin responder ambos con borde; «No» gris, «Sí» verde)
+  const pregunta = (p: Pregunta) => {
+    const actual = x.datos[p.clave];
+    if (p.numero) {
+      const n = p.numero;
+      return (
+        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+          <span className="min-w-0 flex-1 text-sm">{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
+          <span className="flex items-center gap-1.5">
+            <Input
+              type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
+              value={actual ?? ""} className="h-9 w-24 text-right font-cifra"
+              onChange={(e) => {
+                const t = e.target.value.replace(",", ".");
+                const num = t === "" ? null : Number(t);
+                responder(p.clave, num === null || !Number.isFinite(num) ? null : Math.min(n.max, Math.max(n.min, num)));
+              }}
+            />
+            <span className="w-6 text-sm text-muted-foreground">{n.unidad}</span>
+          </span>
+        </label>
+      );
+    }
+    // Listas largas (frecuencia de NIOSH): un selector, no 18 botones
+    if (p.opciones.length > 8) {
+      return (
+        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm">{p.texto}</span>
+          <select disabled={!editable} value={actual ?? ""} onChange={(e) => responder(p.clave, e.target.value === "" ? null : Number(e.target.value))} className={cn(SELECT, "w-full sm:w-56")}>
+            <option value="">Elige…</option>
+            {p.opciones.map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
+          </select>
+        </label>
+      );
+    }
+    const binaria = p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
+    return (
+      <div key={p.clave} className={cn(binaria ? "flex flex-wrap items-center justify-between gap-2" : "space-y-1.5")}>
+        <div className={cn("text-sm", binaria && "min-w-0 flex-1")}>{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</div>
+        <div className={cn("flex flex-wrap gap-1.5", !binaria && "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4")} role="radiogroup" aria-label={p.texto}>
+          {p.opciones.map((o) => {
+            // En RULA/REBA un ajuste sin marcar cuenta como «No»; en el DEB hay que responder cada pregunta
+            const elegido = actual === o.valor || (actual === undefined && binaria && o.valor === 0 && !esDeb);
+            const no = binaria && o.valor === 0;
+            return (
+              <button
+                key={o.valor}
+                type="button"
+                role="radio"
+                aria-checked={elegido}
+                disabled={!editable}
+                onClick={() => responder(p.clave, o.valor)}
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-left text-sm transition disabled:cursor-default",
+                  elegido ? (no ? "border-neutral-700 bg-neutral-700 text-white dark:border-neutral-300 dark:bg-neutral-300 dark:text-neutral-900" : "border-primary bg-primary text-primary-foreground") : "hover:border-primary/60",
+                  binaria && "min-w-14 text-center",
+                )}
+              >
+                <span className="block">{o.texto}{!binaria && metodo?.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`}</span>}</span>
+                {o.detalle && <span className={cn("block text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.detalle}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+  // Una sección; en el DEB va dentro del acordeón del peligro (sin borde propio; franja de color en verde y roja)
+  const seccion = (sec: Seccion, enAcordeon: boolean) => (
+    <div key={sec.titulo} className={cn(enAcordeon ? "space-y-3" : "rounded-xl border p-4", (sec.verde || sec.roja) && "border-l-4 pl-3", sec.verde && "border-l-emerald-500", sec.roja && "border-l-red-600")}>
+      <div className={cn("flex items-center justify-between gap-2", !enAcordeon && "mb-3")}>
+        <h3 className="font-medium">
+          {sec.verde && <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Zona verde</span>}
+          {sec.roja && <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">Zona roja</span>}
+          {enAcordeon ? sec.titulo.replace(/^.*?: (¿?)(\p{L})/u, (_m, q: string, c: string) => q + c.toUpperCase()).replace(/ \(zona (verde|roja)\)$/, "") : sec.titulo}
+        </h3>
+        {sec.opcional && <span className="shrink-0 text-xs text-muted-foreground">marca solo los que haya</span>}
+        {metodo && metodo.clave !== "niosh" && resultado?.zonas[sec.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[sec.zona]}</span>}
+      </div>
+      <div className="space-y-3">{sec.preguntas.map(pregunta)}</div>
+    </div>
+  );
 
   const proponer = () => {
     if (!metodo || !resultado) return;
@@ -123,81 +213,47 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
               <h2 className="text-lg font-semibold">{metodo.nombre}</h2>
               <p className="text-xs text-muted-foreground">{metodo.clave === "niosh" ? "Mide al inicio del levantamiento más exigente (si al dejar la carga es peor, evalúa también el destino)." : metodo.clave === "deb" ? "Recorre el puesto y responde Sí o No. Solo se abren las fichas de los peligros presentes; la zona roja aparece si falla alguna condición de la verde." : "Marca la postura más exigente o la que más se repite."} Fuente: {metodo.fuente}</p>
             </div>
-            {metodo.secciones.filter((s) => !s.si || s.si(x.datos)).map((s) => (
-              <div key={s.titulo} className={cn("rounded-xl border p-4", s.verde && "border-emerald-500/50 bg-emerald-500/5", s.roja && "border-red-500/50 bg-red-500/5")}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="font-medium">{s.titulo}</h3>
-                  {s.opcional && <span className="text-xs text-muted-foreground">marca solo los que haya</span>}
-                  {metodo.clave !== "niosh" && resultado?.zonas[s.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[s.zona]}</span>}
-                </div>
-                <div className="space-y-3">
-                  {s.preguntas.map((p) => {
-                    const actual = x.datos[p.clave];
-                    if (p.numero) {
-                      const n = p.numero;
-                      return (
-                        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="min-w-0 flex-1 text-sm">{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
-                          <span className="flex items-center gap-1.5">
-                            <Input
-                              type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
-                              value={actual ?? ""} className="h-9 w-24 text-right font-cifra"
-                              onChange={(e) => {
-                                const t = e.target.value.replace(",", ".");
-                                const num = t === "" ? null : Number(t);
-                                responder(p.clave, num === null || !Number.isFinite(num) ? null : Math.min(n.max, Math.max(n.min, num)));
-                              }}
-                            />
-                            <span className="w-6 text-sm text-muted-foreground">{n.unidad}</span>
-                          </span>
-                        </label>
-                      );
-                    }
-                    // Listas largas (frecuencia de NIOSH): un selector, no 18 botones
-                    if (p.opciones.length > 8) {
-                      return (
-                        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm">{p.texto}</span>
-                          <select disabled={!editable} value={actual ?? ""} onChange={(e) => responder(p.clave, e.target.value === "" ? null : Number(e.target.value))} className={cn(SELECT, "w-full sm:w-56")}>
-                            <option value="">Elige…</option>
-                            {p.opciones.map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
-                          </select>
-                        </label>
-                      );
-                    }
-                    const binaria = p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
-                    return (
-                      <div key={p.clave} className={cn(binaria ? "flex flex-wrap items-center justify-between gap-2" : "space-y-1.5")}>
-                        <div className="text-sm">{p.texto}</div>
-                        <div className={cn("flex flex-wrap gap-1.5", !binaria && "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4")} role="radiogroup" aria-label={p.texto}>
-                          {p.opciones.map((o) => {
-                            const elegido = actual === o.valor || (actual === undefined && binaria && o.valor === 0);
-                            return (
-                              <button
-                                key={o.valor}
-                                type="button"
-                                role="radio"
-                                aria-checked={elegido}
-                                disabled={!editable}
-                                onClick={() => responder(p.clave, o.valor)}
-                                className={cn(
-                                  "rounded-lg border px-3 py-1.5 text-left text-sm transition disabled:cursor-default",
-                                  elegido ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/60",
-                                  binaria && "min-w-14 text-center",
-                                )}
-                              >
-                                <span className="block">{o.texto}{!binaria && metodo.clave !== "niosh" && <span className={cn("ml-1 font-cifra text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.valor < 0 ? `−${-o.valor}` : `+${o.valor}`}</span>}</span>
-                                {o.detalle && <span className={cn("block text-xs", elegido ? "opacity-80" : "text-muted-foreground")}>{o.detalle}</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+            {esDeb && (
+              <div className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                <span className="font-medium">Peligros revisados {revisados} de {FACTORES.length}</span>
+                <span className="grid h-2 flex-1 grid-cols-5 gap-0.5" aria-hidden>{FACTORES.map((f, i) => <span key={f} className={cn("rounded-sm", i < revisados ? "bg-primary" : "bg-muted")} />)}</span>
               </div>
-            ))}
+            )}
+            {avisoFaltan && faltan.length > 0 && (
+                <div id="deb-faltan" role="alert" className="scroll-mt-20 space-y-1 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <div className="font-medium">Antes de cerrar, responde lo que falta:</div>
+                  {faltan.map((q) => (
+                    <div key={q.factor} className="flex items-center justify-between gap-2">
+                      <span>{q.n ? `Faltan ${q.n} ${q.n === 1 ? "pregunta" : "preguntas"} en ${q.nombre}` : `${q.nombre}: sin revisar`}</span>
+                      <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => irA(q.factor)}>Ir</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            {esDeb
+              ? FACTORES.map((f) => {
+                  const z = evaluarFactor(f, x.datos).zona;
+                  const hay = presente(f, x.datos);
+                  const abierto = debAbierto === f;
+                  const secs = metodo.secciones.filter((sec) => sec.grupo === f && (!sec.si || sec.si(x.datos)));
+                  const falta = faltan.find((q) => q.factor === f);
+                  return (
+                    <div key={f} id={`deb-${f}`} className="scroll-mt-4 rounded-xl border">
+                      <button type="button" aria-expanded={abierto} onClick={() => setDebAbierto(abierto ? null : f)} className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left">
+                        <span className="min-w-0">
+                          <span className="block font-medium">{NOMBRE_FACTOR[f]}</span>
+                          <span className={cn("block text-xs", z === "rojo" ? "text-red-700 dark:text-red-400" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
+                            {z ? (z === "no" ? "No presente" : TEXTO_ZONA[z]) : hay === null ? "Sin revisar" : `Faltan ${falta?.n ?? 0} ${falta?.n === 1 ? "pregunta" : "preguntas"}`}
+                          </span>
+                        </span>
+                        <ChevronDown className={cn("size-4 shrink-0 transition", abierto && "rotate-180")} />
+                      </button>
+                      {abierto && <div className="space-y-4 border-t px-4 pt-3 pb-4">{secs.map((sec) => seccion(sec, true))}</div>}
+                    </div>
+                  );
+                })
+              : metodo.secciones.filter((sec) => !sec.si || sec.si(x.datos)).map((sec) => seccion(sec, false))}
           </section>
         )}
 
@@ -354,6 +410,12 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                 className="w-full"
                 disabled={ocupado}
                 onClick={async () => {
+                  if (faltan.length) {
+                    setAvisoFaltan(true);
+                    setDebAbierto(faltan[0].factor);
+                    setTimeout(() => document.getElementById("deb-faltan")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                    return;
+                  }
                   if (!(await confirmar({ titulo: "¿Cerrar la evaluación?", texto: "Queda como informe entregado: ya no se cambia (solo las observaciones). Un administrador o el gerente médico pueden reabrirla.", accion: "Cerrar evaluación" }))) return;
                   accion(() => guardarEvaluacion(ev.id, x, true));
                 }}
@@ -392,7 +454,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
         <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5", resultado?.completo ? CLASE_URGENCIA[resultado.urgencia] : "")}>
           <div className="min-w-0 flex-1 text-sm">
             {resultado ? (
-              <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? (resultado.texto ?? `${resultado.puntaje} de ${resultado.maximo}`) : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
+              esDeb && !resultado.completo ? <span className="block truncate"><b>DEB</b> · {revisados} de {FACTORES.length} revisados</span> : <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? (resultado.texto ?? `${resultado.puntaje} de ${resultado.maximo}`) : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
             ) : (
               <span className="block truncate">{x.hallazgos.length} hallazgos</span>
             )}

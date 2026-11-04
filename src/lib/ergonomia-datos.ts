@@ -74,6 +74,12 @@ function demoDeb(): Evaluacion {
     datos, resultado, hallazgos: proponerHallazgos(DEB, resultado, [], () => `dd${++n}`),
   };
 }
+// DEB a medio llenar: para conocer el avance, las preguntas sin responder y el aviso al cerrar
+export const ID_DEMO_DEB_EN_CURSO = "00000000-0000-4000-8000-00000000e605";
+function demoDebEnCurso(): Evaluacion {
+  const datos: Respuestas = { id_lev1: 1, id_lev2: 1, id_lev3: 1, v_lev_a: 1, v_lev_b: 0, id_tra1: 0 };
+  return { ...demoDeb(), id: ID_DEMO_DEB_EN_CURSO, puesto: "Operador de línea", tarea: "Empaque de producto terminado", trabajadoresObservados: 14, datos, resultado: DEB.calcular(datos), hallazgos: [] };
+}
 export const ID_DEMO_ROSA = "00000000-0000-4000-8000-00000000e603";
 function demoRosa(): Evaluacion {
   // Secretaria con silla sin ajustes y pantalla baja: segunda opción de cada pregunta
@@ -108,7 +114,7 @@ function demo(): Evaluacion {
 }
 
 export async function listarEvaluaciones(empresaId?: string | null): Promise<Evaluacion[]> {
-  if (!supabaseConfigurado) return [demoDeb(), demo(), demoNiosh(), demoRosa()];
+  if (!supabaseConfigurado) return [demoDebEnCurso(), demoDeb(), demo(), demoNiosh(), demoRosa()];
   const supabase = await crearClienteServidor();
   let q = supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(300);
   if (empresaId) q = q.eq("empresa_id", empresaId);
@@ -118,7 +124,7 @@ export async function listarEvaluaciones(empresaId?: string | null): Promise<Eva
 }
 
 export async function obtenerEvaluacion(id: string): Promise<Evaluacion | null> {
-  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : id === ID_DEMO_ROSA ? demoRosa() : id === ID_DEMO_DEB ? demoDeb() : null;
+  if (!supabaseConfigurado) return id === ID_DEMO ? demo() : id === ID_DEMO_NIOSH ? demoNiosh() : id === ID_DEMO_ROSA ? demoRosa() : id === ID_DEMO_DEB ? demoDeb() : id === ID_DEMO_DEB_EN_CURSO ? demoDebEnCurso() : null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("evaluaciones_ergonomicas").select(COLUMNAS).eq("id", id).maybeSingle();

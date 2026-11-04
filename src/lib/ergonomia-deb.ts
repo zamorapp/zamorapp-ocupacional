@@ -185,7 +185,7 @@ const conNo = (r: Respuestas, ps: P[]) => ps.filter((p) => val(r, p.clave) === 0
 const conSi = (r: Respuestas, ps: P[]) => ps.filter((p) => val(r, p.clave) === 1);
 
 // Presencia del peligro: levantamiento, empuje y repetitivos exigen todas «Sí»; transporte su única; posturas, alguna
-function presente(f: FactorDeb, r: Respuestas): boolean | null {
+export function presente(f: FactorDeb, r: Respuestas): boolean | null {
   const ps = ID[f];
   if (f === "pos") return conSi(r, ps).length > 0 ? true : respondidas(r, ps) ? false : null;
   if (conNo(r, ps).length) return false;
@@ -214,7 +214,7 @@ export function evaluarFactor(f: FactorDeb, r: Respuestas): ResultadoFactor {
 }
 
 // ── Secciones del formulario (cada una se muestra solo cuando aplica) ──
-const FACTORES: FactorDeb[] = ["lev", "tra", "emp", "rep", "pos"];
+export const FACTORES: FactorDeb[] = ["lev", "tra", "emp", "rep", "pos"];
 const ZONA_SECCION: Record<FactorDeb, Seccion["zona"]> = { lev: "carga", tra: "carga", emp: "carga", rep: "actividad", pos: "tronco" };
 function secciones(): Seccion[] {
   const s: Seccion[] = [];
@@ -271,3 +271,14 @@ export const DEB: Metodo = {
     };
   },
 };
+
+// Preguntas obligatorias que faltan por peligro (secciones visibles, sin contar los aspectos adicionales).
+// En zona roja basta una «Sí»: el resto de la ficha roja ya no hace falta.
+export function faltantesDeb(r: Respuestas): { factor: FactorDeb; nombre: string; n: number }[] {
+  return FACTORES.flatMap((f) => {
+    if (evaluarFactor(f, r).zona !== null) return [];
+    const n = DEB.secciones.filter((s) => s.grupo === f && !s.opcional && (!s.si || s.si(r)))
+      .flatMap((s) => s.preguntas).filter((p) => val(r, p.clave) === null).length;
+    return [{ factor: f, nombre: NOMBRE_FACTOR[f], n }];
+  });
+}
