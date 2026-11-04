@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CalendarClock, Check, ChevronDown, Inbox, Loader2, MessageCircle, Send, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import type { Cita } from "@/lib/citas";
 import { enlaceWhatsApp } from "@/lib/mensajes";
 import { hora12, textoPropuesta, type ModoPropuesta, type Propuesta } from "@/lib/propuesta";
 import { cn } from "@/lib/utils";
-import { agendaDelDia, anularPropuesta, choquesAgenda, confirmarSolicitudes, proponerHora, rechazarSolicitudes, type Agenda } from "./citas-acciones";
+import { agendaDelDia, anularPropuesta, choquesAgenda, confirmarSolicitudes, proponerHora, reintentarCorreoPropuesta, rechazarSolicitudes, type Agenda } from "./citas-acciones";
 import { confirmar } from "@/components/app/confirmar";
 
 export type Contacto = { nombre: string; telefono: string };
@@ -33,14 +34,30 @@ function agrupar(solicitudes: Cita[]): Grupo[] {
 }
 
 // Cómo va el correo de la propuesta a RR. HH. (20261030910000): se reintenta solo; si al final no sale, se dice por qué
-function EstadoCorreo({ correo }: { correo?: Propuesta["correo"] }) {
+// en palabras simples (el detalle técnico va aparte) y se ofrece la salida: agregar el correo o reintentar ahora.
+function EstadoCorreo({ correo, ids, empresaId }: { correo?: Propuesta["correo"]; ids: string[]; empresaId: string }) {
+  const [ocupado, iniciar] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
   if (!correo?.estado) return null;
   if (correo.estado === "enviado") return <span className="block text-xs text-muted-foreground">Correo enviado a RR. HH.</span>;
   if (correo.estado === "fallido") {
+    const sinCorreo = correo.error?.startsWith("La empresa no tiene correo");
+    const motivo = sinCorreo ? "la empresa no tiene correo registrado"
+      : correo.error === "El envío no terminó" ? "el envío no terminó" : "el servidor de correo lo rechazó";
     return (
-      <span role="status" className="mt-0.5 flex items-start gap-1 text-xs text-destructive">
-        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-        <span>No salió el correo{correo.error ? ` (${correo.error})` : ""}. RR. HH. igual la ve en su portal; avísele por WhatsApp.</span>
+      <span role="status" className="mt-0.5 block text-xs text-alerta-texto">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="flex items-start gap-1"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> No salió el correo: {motivo}.</span>
+          {sinCorreo
+            ? <Link href={`/envios?empresa=${empresaId}`} className="font-medium underline underline-offset-2">Agregar correo de RR. HH.</Link>
+            : <button type="button" disabled={ocupado} className="font-medium underline underline-offset-2 disabled:opacity-60"
+                onClick={() => iniciar(async () => { const r = await reintentarCorreoPropuesta(ids); setMsg(r.ok ? null : r.mensaje); })}>
+                {ocupado ? "Reintentando…" : "Reintentar ahora"}
+              </button>}
+        </span>
+        <span className="block text-muted-foreground">RR. HH. igual la ve en su portal; también puedes avisarle por WhatsApp.</span>
+        {correo.error && !sinCorreo && <span className="block text-[11px] text-muted-foreground" title={correo.error}>Detalle: <span className="break-all">{correo.error}</span></span>}
+        {msg && <span className="block text-destructive">{msg}</span>}
       </span>
     );
   }
@@ -168,7 +185,7 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
 
       {p && (
         <div className="mt-2 flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="flex min-w-0 flex-1 gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" /><span><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span><EstadoCorreo correo={p.correo} /></span></span>
+          <span className="flex min-w-0 flex-1 gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" /><span><b>Propuesta enviada:</b> {textoPropuesta(p)}{p.nota && <span className="text-muted-foreground"> · {p.nota}</span>} <span className="text-muted-foreground">· esperando a RR. HH.</span><EstadoCorreo correo={p.correo} ids={ids} empresaId={c.empresaId} /></span></span>
           <span className="flex flex-wrap gap-2">
           {textoWa && (
             <Button size="sm" variant="outline" asChild>

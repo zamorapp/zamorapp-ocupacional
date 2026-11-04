@@ -40,6 +40,34 @@ set role anon;
 select 'fallido no se vuelve a tomar (debe 0): ' || count(*) from public.correos_propuestas_por_enviar(repeat('k', 40)) where '19500000-0000-0000-0000-0000000000c1' = any (citas);
 reset role;
 
+-- RR. HH. no puede reiniciar ni maquillar el correo de la propuesta (Analizar, 04-nov)
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+do $$ begin
+  update public.citas set propuesta_correo_estado = null, propuesta_correo_intentos = 0 where id = '19500000-0000-0000-0000-0000000000c1';
+  raise notice 'FALLA: RR. HH. reinició el correo de la propuesta';
+exception when insufficient_privilege then null;
+end $$;
+do $$ begin
+  update public.citas set propuesta_correo_en = null where id = '19500000-0000-0000-0000-0000000000c1';
+  raise notice 'FALLA: RR. HH. borró la hora del correo';
+exception when insufficient_privilege then null;
+end $$;
+do $$ begin
+  update public.citas set propuesta_correo_estado = 'enviado' where id = '19500000-0000-0000-0000-0000000000c1';
+  raise notice 'FALLA: RR. HH. marcó el correo como enviado';
+exception when insufficient_privilege then null;
+end $$;
+do $$ begin
+  update public.citas set propuesta_recordada_en = public.ahora() where id = '19500000-0000-0000-0000-0000000000c1';
+  raise notice 'FALLA: RR. HH. apagó el recordatorio';
+exception when insufficient_privilege then null;
+end $$;
+select set_config('request.jwt.claim.sub', '', false) \g /dev/null
+reset role;
+select 'tras los intentos de RR. HH. la fila no cambió (debe 1): ' || count(*) from public.citas
+ where id = '19500000-0000-0000-0000-0000000000c1' and propuesta_correo_estado = 'fallido' and propuesta_correo_intentos = 3;
+
 -- Proponer otra hora reinicia el correo; con éxito queda «enviado» y no se repite
 update public.citas set propuesta_desde = '10:00' where id = '19500000-0000-0000-0000-0000000000c1';
 select 'nueva propuesta: correo desde cero (debe 1): ' || count(*) from public.citas

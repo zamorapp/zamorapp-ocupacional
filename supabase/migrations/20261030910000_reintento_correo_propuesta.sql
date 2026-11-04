@@ -19,6 +19,36 @@ alter table public.citas add constraint citas_propuesta_correo_estado check (
 update public.citas set propuesta_correo_estado = 'enviado'
  where propuesta_correo_en is not null and propuesta_correo_estado is null and propuesta_fecha is not null;
 
+-- RR. HH. (empresa) no toca la propuesta ni su correo, recordatorio o respuesta (Analizar, 04-nov): la política
+-- citas_empresa_cancelar le deja actualizar sus citas «solicitada» en cualquier columna y así podía reiniciar el
+-- correo (reenvíos sin límite desde la cuenta del servicio) o marcarlo «enviado» para esconder un fallo.
+-- Su respuesta va solo por responder_propuesta (security definer: este trigger no la ve como 'authenticated').
+create or replace function public.cita_portal_en_horario()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user is distinct from 'authenticated' or not public.es_empresa(new.org_id) then return new; end if;
+  if tg_op = 'UPDATE' and (new.propuesta_fecha, new.propuesta_desde, new.propuesta_hasta, new.propuesta_modo, new.propuesta_nota)
+       is distinct from (old.propuesta_fecha, old.propuesta_desde, old.propuesta_hasta, old.propuesta_modo, old.propuesta_nota) then
+    raise exception 'La hora propuesta solo la cambia el servicio médico.' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' and (new.propuesta_en, new.propuesta_recordada_en, new.propuesta_correo_en, new.propuesta_correo_estado,
+                           new.propuesta_correo_intentos, new.propuesta_correo_error, new.respuesta_empresa)
+       is distinct from (old.propuesta_en, old.propuesta_recordada_en, old.propuesta_correo_en, old.propuesta_correo_estado,
+                         old.propuesta_correo_intentos, old.propuesta_correo_error, old.respuesta_empresa) then
+    raise exception 'Los avisos de la hora propuesta solo los maneja el servicio médico.' using errcode = '42501';
+  end if;
+  if tg_op = 'INSERT' and (new.propuesta_fecha is not null or new.propuesta_en is not null or new.propuesta_recordada_en is not null
+       or new.propuesta_correo_en is not null or new.propuesta_correo_estado is not null or new.propuesta_correo_intentos <> 0
+       or new.propuesta_correo_error is not null or new.respuesta_empresa is not null) then
+    raise exception 'La hora propuesta solo la pone el servicio médico.' using errcode = '42501';
+  end if;
+  if new.estado = 'solicitada' and (tg_op = 'INSERT' or (new.fecha, new.hora) is distinct from (old.fecha, old.hora)) then
+    perform public.validar_hora_portal(new.org_id, new.fecha, new.hora, new.id);
+  end if;
+  return new;
+end $$;
+revoke execute on function public.cita_portal_en_horario() from public, anon;
+
 -- Proponer de nuevo reinicia también el correo
 create or replace function public.propuesta_de_cita()
 returns trigger language plpgsql set search_path = public as $$
@@ -55,7 +85,7 @@ begin
       (select razon_social from public.empresas where id = r.empresa_id) || ' · ' || r.n
         || case when r.n = 1 then ' trabajador · ' else ' trabajadores · ' end
         || public.texto_propuesta(r.propuesta_fecha, r.propuesta_desde, r.propuesta_hasta, r.propuesta_modo)
-        || coalesce(' · ' || r.error, '') || ' · RR. HH. sí la ve en su portal; si quiere, avísele por WhatsApp',
+        || coalesce(' · ' || r.error, '') || ' · RR. HH. sí la ve en su portal; puedes avisarle por WhatsApp',
       '/atencion?dia=' || r.propuesta_fecha);
   end loop;
 end $$;
