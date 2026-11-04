@@ -29,7 +29,7 @@ async function registro() {
   return (await navigator.serviceWorker.getRegistration()) ?? navigator.serviceWorker.register("/sw.js");
 }
 
-function useAvisos(escritorio = false) {
+export function useAvisos(escritorio = false) {
   const [estado, setEstado] = useState<Estado>("cargando");
   const [endpoint, setEndpoint] = useState<string | null>(null);
   useEffect(() => {
@@ -115,7 +115,7 @@ async function suscribir() {
 }
 
 /** Tarjeta de Mi perfil: activar, probar o quitar los avisos en este celular (en el escritorio solo dice dónde se activan). */
-export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) {
+export function AvisosCelular({ escritorio = false, para = "servicio", sinMarco = false }: { escritorio?: boolean; para?: "servicio" | "empresa"; sinMarco?: boolean }) {
   const { estado, setEstado, endpoint, setEndpoint } = useAvisos(escritorio);
   const [trabajando, setTrabajando] = useState(false);
   const [equipo, setEquipo] = useState("celular");
@@ -165,15 +165,21 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
     return r;
   });
 
-  return (
-    <Card id="avisos-celular">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base"><BellRing className="size-4" /> Avisos en el celular</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+  const contenido = (<>
         {escritorio ? (
           <p className="text-muted-foreground">Los avisos se activan desde tu celular: abre zamorApp en el celular › Mi perfil.</p>
         ) : (<>
+        {para === "empresa" ? (
+          <div className="text-muted-foreground">
+            <p>Le avisa al momento cuando el servicio médico:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              <li>Confirma, reprograma o le propone otra hora</li>
+              <li>Responde sus solicitudes</li>
+              <li>Tiene constancias listas</li>
+            </ul>
+            <p className="mt-1">Nunca muestra datos médicos. Actívelo en cada {equipo} donde lo quiera.</p>
+          </div>
+        ) : (
         <div className="text-muted-foreground">
           <p>Te avisa al momento de:</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
@@ -185,6 +191,7 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
           </ul>
           <p className="mt-1">Llega aunque la laptop esté apagada. Actívalo en cada {equipo} donde lo quieras.</p>
         </div>
+        )}
         {estado === "cargando" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {estado === "no-soporta" && <p>Este navegador no recibe avisos. En Android usa Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
         {estado === "instalar-iphone" && <p>En iPhone primero agrega zamorApp a la pantalla de inicio (Compartir › «Agregar a inicio»), ábrela desde ahí y vuelve aquí.</p>}
@@ -208,7 +215,15 @@ export function AvisosCelular({ escritorio = false }: { escritorio?: boolean }) 
         {esperando && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Esperando el aviso en este celular…</p>}
         {mensaje && <Resultado key={mensaje.texto} m={mensaje} />}
         </>)}
-      </CardContent>
+  </>);
+
+  if (sinMarco) return <div className="space-y-3 text-sm">{contenido}</div>;
+  return (
+    <Card id="avisos-celular">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base"><BellRing className="size-4" /> Avisos en el celular</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">{contenido}</CardContent>
     </Card>
   );
 }
