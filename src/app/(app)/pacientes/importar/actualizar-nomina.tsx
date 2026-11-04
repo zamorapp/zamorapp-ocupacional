@@ -99,7 +99,7 @@ export function ActualizarNomina({ empresas, empresaInicial }: { empresas: { id:
     setAvance(null);
     setHecho({ ...suma, lote: lote! });
     setPlan(null);
-    setMensaje({ ok: true, texto: `Nómina actualizada: ${suma.cambios} con datos completados o corregidos, ${suma.nuevos} nuevos y ${suma.inactivados} inactivos. La población de la vigilancia ya usa estos datos.` });
+    setMensaje({ ok: true, texto: `Listo: ${resumen(suma.cambios, suma.nuevos, suma.inactivados) || "sin cambios"}. La población de la vigilancia ya usa estos datos.` });
   });
 
   const deshacer = (id: string) => iniciar(async () => {
@@ -178,7 +178,7 @@ export function ActualizarNomina({ empresas, empresaInicial }: { empresas: { id:
                   const total = Math.max(plan.poblacion.despues, 1);
                   const a = pct(c.antes, Math.max(plan.poblacion.antes, 1)), d = pct(c.despues, total);
                   return (
-                    <div key={c.campo} className="grid grid-cols-[6rem_1fr_auto] items-center gap-2 text-sm">
+                    <div key={c.campo} className="grid grid-cols-[5.5rem_minmax(3rem,1fr)_auto] sm:grid-cols-[6.5rem_1fr_auto] items-center gap-2 text-sm">
                       <span className="text-muted-foreground">{ETIQUETA[c.campo]}</span>
                       <div className="relative h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
                         <div className="absolute inset-y-0 left-0 rounded-full bg-primary/30" style={{ width: `${d}%` }} />
@@ -203,7 +203,7 @@ export function ActualizarNomina({ empresas, empresaInicial }: { empresas: { id:
 
           <Card className="gap-0 overflow-hidden py-0">
             <div className="border-b px-5 py-3 text-sm text-muted-foreground">
-              {pestana === "cambios" && <>Desmarca a quien no quieras tocar. <span className="text-ok-texto">Verde</span>: dato que faltaba. <span className="line-through">Tachado</span>: nombre, sexo o nacimiento distintos (solo se cambian si lo eliges abajo). {plan.iguales > 0 && `${plan.iguales} sin cambios.`}</>}
+              {pestana === "cambios" && <>Desmarca a quien no quieras tocar. <span className="text-ok-texto">Verde</span>: dato que faltaba. <span className="text-aviso-texto">Ámbar</span>: nombre, sexo o nacimiento distintos (solo se cambian si lo eliges abajo; tachado = no se aplica). {plan.iguales > 0 && `${plan.iguales} sin cambios.`}</>}
               {pestana === "nuevos" && "Se registran en esta empresa como activos. Sus evaluaciones empiezan desde cero."}
               {pestana === "salen" && "Quedan inactivos: salen de la población y de las alertas, pero sus datos y su historia se conservan."}
               {pestana === "ausentes" && "Están en zamorApp pero no en la planilla. No se tocan, salvo que marques «Inactivar también a los que no aparecen»."}
@@ -216,7 +216,7 @@ export function ActualizarNomina({ empresas, empresaInicial }: { empresas: { id:
                   <div className="flex flex-wrap gap-1.5">
                     {c.difs.map((d) => (
                       <span key={d.campo} className={cn("rounded-md px-2 py-0.5 text-xs",
-                        d.tipo === "completa" ? "bg-ok/10 text-ok-texto" : d.tipo === "identidad" ? (identidad ? "bg-alerta/15 text-alerta-texto" : "bg-muted text-muted-foreground line-through") : "bg-primary/10 text-foreground")}>
+                        d.tipo === "completa" ? cn("bg-ok/10 text-ok-texto", excluir.has(c.id) && "line-through opacity-70") : d.tipo === "identidad" ? cn("bg-aviso/15 text-aviso-texto", (!identidad || excluir.has(c.id)) && "line-through") : cn("bg-primary/10 text-foreground", excluir.has(c.id) && "line-through opacity-70"))}>
                         {ETIQUETA[d.campo]}: {d.tipo === "completa" ? "" : <>{mostrar(d.campo, d.antes)} → </>}<b>{mostrar(d.campo, d.despues)}</b>
                       </span>
                     ))}

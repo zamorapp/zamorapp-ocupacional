@@ -30,7 +30,10 @@ create index if not exists nomina_actualizaciones_empresa on public.nomina_actua
 alter table public.nomina_actualizaciones enable row level security;
 drop policy if exists nomina_actualizaciones_leer on public.nomina_actualizaciones;
 create policy nomina_actualizaciones_leer on public.nomina_actualizaciones for select
-  using ((public.es_admin(org_id) or public.es_clinico(org_id)) and public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con('{administrador}', p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador}'))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[]));
 revoke all on public.nomina_actualizaciones from anon, authenticated;
 grant select (id, org_id, empresa_id, archivo, fecha, hecho_por, creado_en, deshecho_en) on public.nomina_actualizaciones to authenticated;
 
@@ -40,6 +43,7 @@ returns text[] language sql immutable as $$
   select array['nombres', 'apellidos', 'sexo', 'fecha_nacimiento', 'fecha_ingreso', 'puesto_id', 'dependencia_id', 'turno',
                'tipo_paciente_id', 'telefono', 'correo', 'direccion', 'ficha']
 $$;
+revoke execute on function public.nomina_campos() from public, anon, authenticated;
 
 -- Quién puede, en qué empresa; y que los catálogos (cargo, departamento, tipo) sean de esa empresa u organización
 create or replace function public.nomina_validar(p_org uuid, p_empresa uuid, p_campos jsonb)
