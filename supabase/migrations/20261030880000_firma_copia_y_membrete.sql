@@ -75,6 +75,4 @@ update public.organizaciones
    set ajustes = coalesce(ajustes, '{}') || jsonb_build_object(
          'membrete_titular', 'Dr. César Zamora',
          'membrete_credenciales', 'Especialista en Medicina del Trabajo, mención Salud Ocupacional (UDO – UNEG)')
- where rif = 'V-13475931-0' and not coalesce(ajustes, '{}') ? 'membrete_titular'
-   -- En la base de una PC no: allí organizaciones es copia de la nube y la réplica la trae
-   and not public.es_base_local();
+ where rif = 'V-13475931-0' and not coalesce(ajustes, '{}') ? 'membrete_titular';
