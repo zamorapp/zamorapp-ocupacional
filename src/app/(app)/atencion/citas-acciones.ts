@@ -7,6 +7,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { supabaseConfigurado } from "@/lib/config";
 import type { ModoPropuesta } from "@/lib/propuesta";
+import { URL_PUBLICA } from "@/lib/invitaciones";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -118,6 +119,23 @@ export async function anularPropuesta(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("citas").update({ propuesta_fecha: null }).eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// «Reintentar ahora» el correo de una propuesta que no salió: vuelve a quedar pendiente (3 intentos nuevos) y se
+// despierta la ruta de avisos para que salga ya, sin esperar el latido de 15 minutos.
+export async function reintentarCorreoPropuesta(ids: string[]): Promise<Resultado> {
+  if (!supabaseConfigurado) return { ok: true, mensaje: "" };
+  if (!ids.length || ids.length > 200) return { ok: false, mensaje: "Nada que reintentar" };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas")
+    .update({ propuesta_correo_estado: null, propuesta_correo_intentos: 0, propuesta_correo_error: null })
+    .in("id", ids).eq("propuesta_correo_estado", "fallido");
+  if (error) return { ok: false, mensaje: error.message };
+  if (process.env.NEXT_PUBLIC_ESCRITORIO !== "1") {
+    await fetch(`${URL_PUBLICA}/api/avisos/campana`, { cache: "no-store" }).catch(() => {});
+  }
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
 }
