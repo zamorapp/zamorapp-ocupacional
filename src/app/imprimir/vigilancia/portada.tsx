@@ -33,7 +33,8 @@ function Dato({ k, v, col = 1, fuerte, borde }: { k: string; v: string | null; c
 }
 
 // Una fila por persona; el rol encabeza su grupo y ocupa todas sus filas
-function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Persona[]; compacta: boolean }) {
+const SIN_DATOS = "Sin datos: complétalo en Reportes › Redacción del informe › Portada y firmantes";
+function FilasFirma({ rol, personas, compacta, vacio = SIN_DATOS }: { rol: string; personas: Persona[]; compacta: boolean; vacio?: string }) {
   const filas = personas.length ? personas : [undefined];
   const td = "border-b border-doc-linea px-2.5 align-middle";
   return filas.map((p, i) => (
@@ -54,7 +55,7 @@ function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Person
               </span>
             )}
           </div>
-        ) : <span className="text-[10px] italic text-doc-tenue"><span className="print:hidden">Sin datos: complétalo en Reportes › Redacción del informe › Portada y firmantes</span></span>}
+        ) : <span className="text-[10px] italic text-doc-tenue"><span className="print:hidden">{vacio}</span></span>}
       </td>
       <td className={`${td} w-[15%] whitespace-nowrap text-[10.5px] tabular-nums`}>{p?.cedula ? `C.I. ${p.cedula}` : ""}</td>
       {/* Espacio de firma: 11,6 mm (44 px); con más de 8 firmantes, 7,5 mm para que todo quepa en una hoja */}
@@ -66,7 +67,8 @@ function FilasFirma({ rol, personas, compacta }: { rol: string; personas: Person
 // Portada del informe de vigilancia: control del documento, identificación de la empresa (de su ficha) y
 // responsables del sistema (de Reportes › Portada y firmantes). Cabe en una hoja Carta con hasta 11 firmantes (con más de 8, filas compactas).
 // Textos de la portada: por defecto, los del informe de vigilancia; otros estudios (ergonomía) pasan los suyos
-export type TextosPortada = { serie: string; documento: string; norma: string; control: string; rango?: string; elaborado?: string };
+export type TextosPortada = { serie: string; documento: string; norma: string; control: string; rango?: string; elaborado?: string;
+  /** Aviso en pantalla de firmantes vacíos (y el de «Elaborado por») */ sinDatos?: string; sinElaborado?: string };
 const TEXTOS_VIGILANCIA: TextosPortada = {
   serie: "Sistema de vigilancia epidemiológica ocupacional",
   documento: "Informe de vigilancia de la salud de los trabajadores",
@@ -163,10 +165,10 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
           </tr>
         </thead>
         <tbody className="[&>tr:last-child>*]:border-b-0">
-          <FilasFirma rol={textos.elaborado ?? "Elaborado por · médico ocupacional"} personas={firmas.medico} compacta={compacta} />
-          <FilasFirma rol="Servicio de Seguridad y Salud en el Trabajo" personas={firmas.servicio} compacta={compacta} />
-          <FilasFirma rol="Representantes del patrono" personas={firmas.representantes} compacta={compacta} />
-          <FilasFirma rol="Delegados de prevención" personas={firmas.delegados} compacta={compacta} />
+          <FilasFirma rol={textos.elaborado ?? "Elaborado por · médico ocupacional"} personas={firmas.medico} compacta={compacta} vacio={textos.sinElaborado ?? textos.sinDatos} />
+          <FilasFirma rol="Servicio de Seguridad y Salud en el Trabajo" personas={firmas.servicio} compacta={compacta} vacio={textos.sinDatos} />
+          <FilasFirma rol="Representantes del patrono" personas={firmas.representantes} compacta={compacta} vacio={textos.sinDatos} />
+          <FilasFirma rol="Delegados de prevención" personas={firmas.delegados} compacta={compacta} vacio={textos.sinDatos} />
         </tbody>
       </table>
     </Hoja>

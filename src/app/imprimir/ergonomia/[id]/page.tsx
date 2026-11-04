@@ -100,10 +100,13 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
         textos={{
           serie: "Ergonomía · evaluación de puestos de trabajo",
           documento: depto ? `Informe ergonómico del puesto para ${depto.nombre}` : "Informe de evaluación ergonómica del puesto de trabajo",
-          norma: `Método ${corto} · LOPCYMAT art. 56 y 59 · NT-04-2023${borrador ? " · BORRADOR" : ""}`,
+          // RR. HH. no recibe el método (sin fotos ni detalle del método)
+          norma: `${depto?.clave === "rrhh" ? "" : `Método ${corto} · `}LOPCYMAT art. 56 y 59 · NT-04-2023${borrador ? " · BORRADOR" : ""}`,
           control: "Evaluación ergonómica de puestos de trabajo",
           rango: `Evaluado el ${fechaCorta(ev.fecha)}`,
           elaborado: "Elaborado por · evaluador del puesto",
+          sinDatos: "Sin datos: se toman del último informe de vigilancia de esta empresa (Reportes › Portada y firmantes)",
+          sinElaborado: "Sin datos: es quien evaluó el puesto",
         }}
       />
       <Hoja className="relative print:block">
