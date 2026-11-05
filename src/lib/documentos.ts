@@ -5,6 +5,8 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerSesion } from "@/lib/sesion";
 import type { OpcionImpresion } from "@/lib/documentos-opciones";
 import { ahora } from "@/lib/fecha";
+import { faltantesMedicinas, sugerenciasCatalogo, textoFalta, type CampoRecipe } from "@/lib/recipe";
+import { opciones } from "@/lib/listas";
 
 export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
@@ -107,23 +109,25 @@ export const copiaDeUrl = (copia: string | undefined, ajustes: AjustesDocumentos
 
 // Campos que exige la Res. MPPS 028 (G.O. 40.131, 19-03-2013), reformada por la Res. 031 (G.O. 40.136, 26-03-2013,
 // art. 6) para imprimir un récipe. Sin uno de ellos la farmacia no puede despachar (art. 7).
-export function faltantesRecipe(d: DatosDocumento) {
-  const f: string[] = [];
+// Datos del médico, del centro y del paciente que faltan, con el lugar donde se completan
+export function faltantesGenerales(d: DatosDocumento): { texto: string; href: string | null }[] {
+  const f: { texto: string; href: string | null }[] = [];
   const m = d.medicoDatos;
-  if (!m?.nombre_completo) f.push("nombre del médico");
-  if (!m?.cedula) f.push("cédula del médico (Mi perfil)");
-  if (!m?.mpps) f.push("Nº MPPS del médico (Mi perfil)");
-  if (!d.org.nombre) f.push("nombre del centro");
-  if (!d.org.direccion) f.push("dirección del centro (Configuración › Organización)");
-  if (!d.org.rif) f.push("RIF del centro (Configuración › Organización)");
-  if (!d.extra.fecha_nacimiento) f.push("fecha de nacimiento del paciente");
-  const meds = d.datos.tratamiento.filter((x) => x.medicina);
-  if (!meds.length) f.push("al menos una medicina");
-  meds.forEach((x) => {
-    const falta = [!x.concentracion && "concentración", !x.presentacion && "presentación", !x.via && "vía", !x.dosis && "dosis", !x.frecuencia && "frecuencia", !x.duracion && "duración"].filter(Boolean);
-    if (falta.length) f.push(`${x.medicina}: ${falta.join(", ")}`);
-  });
+  const perfil = "/configuracion/perfil", org = "/configuracion/organizacion", ficha = `/pacientes/${d.trabajador.id}`;
+  if (!m?.nombre_completo) f.push({ texto: "nombre del médico", href: perfil });
+  if (!m?.cedula) f.push({ texto: "cédula del médico", href: perfil });
+  if (!m?.mpps) f.push({ texto: "Nº MPPS del médico", href: perfil });
+  if (!d.org.nombre) f.push({ texto: "nombre del centro", href: org });
+  if (!d.org.direccion) f.push({ texto: "dirección del centro", href: org });
+  if (!d.org.rif) f.push({ texto: "RIF del centro", href: org });
+  if (!d.extra.fecha_nacimiento) f.push({ texto: "fecha de nacimiento del paciente", href: ficha });
+  if (!d.datos.tratamiento.some((x) => x.medicina)) f.push({ texto: "al menos una medicina", href: null });
   return f;
+}
+
+export function faltantesRecipe(d: DatosDocumento) {
+  // La concentración que ya trae el nombre («Udox 75mg») cuenta: sale impresa en el récipe
+  return [...faltantesGenerales(d).map((x) => x.texto), ...faltantesMedicinas(d.datos.tratamiento).map(textoFalta)];
 }
 
 export type Anexo = { id: string; nombre: string; tipo: string; descripcion: string | null; url: string | null; fecha: string };
@@ -145,3 +149,27 @@ export async function obtenerAnexos(d: Pick<DatosDocumento, "datos" | "trabajado
   const url = new Map((firmadas ?? []).map((f) => [f.path, f.signedUrl]));
   return lista.map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo_mime, descripcion: a.descripcion, url: url.get(a.ruta) ?? null, fecha: a.creado_en }));
 }
+
+// Lo que necesita el aviso «Completar el récipe»: qué falta, sugerencias del vademécum de la organización
+// (solo las medicinas que faltan, calculadas aquí: al navegador no viaja el catálogo) y las listas para elegir.
+export async function datosCompletarRecipe(d: DatosDocumento) {
+  const medicinas = faltantesMedicinas(d.datos.tratamiento);
+  const generales = faltantesGenerales(d);
+  const sugerencias: Record<string, string[]> = {};
+  const opcionesListas: Partial<Record<CampoRecipe, string[]>> = {};
+  if (medicinas.length && d.datos.estado !== "firmada") {
+    const sesion = await obtenerSesion();
+    const listas = await opciones(sesion.orgId, ["medicina", ...Object.values(LISTA_DE_CAMPO)]);
+    const catalogo = listas.medicina ?? [];
+    for (const m of medicinas) for (const campo of m.campos) {
+      const s = sugerenciasCatalogo(d.datos.tratamiento[m.indice], catalogo, campo);
+      if (s.length) sugerencias[`${m.indice}:${campo}`] = s;
+    }
+    for (const [campo, lista] of Object.entries(LISTA_DE_CAMPO)) opcionesListas[campo as CampoRecipe] = (listas[lista] ?? []).map((x) => x.nombre);
+  }
+  return { consultaId: d.datos.id, estado: d.datos.estado, generales, medicinas, sugerencias, opciones: opcionesListas };
+}
+
+const LISTA_DE_CAMPO: Partial<Record<CampoRecipe, string>> = {
+  presentacion: "presentacion_medicina", via: "via_administracion", frecuencia: "frecuencia_dosis", duracion: "duracion_tratamiento",
+};
