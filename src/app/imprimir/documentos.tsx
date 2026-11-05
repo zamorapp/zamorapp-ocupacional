@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
 import { faltantesRecipe } from "@/lib/documentos";
+import { nombreConConcentracion } from "@/lib/recipe";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import type { Aptitud } from "@/lib/pacientes";
@@ -286,7 +287,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
       )}
       {c.tratamiento.some((m) => m.medicina) && (
         <Bloque titulo="Tratamiento">
-          <Lista columnas={1} texto={c.tratamiento.filter((m) => m.medicina).map((m) => [m.medicina, m.concentracion, m.presentacion, m.dosis, m.via, m.frecuencia, m.duracion, m.observacion].filter(Boolean).join(" · ")).join("\n")} />
+          <Lista columnas={1} texto={c.tratamiento.filter((m) => m.medicina).map((m) => [nombreConConcentracion(m), m.presentacion, m.dosis, m.via, m.frecuencia, m.duracion, m.observacion].filter(Boolean).join(" · ")).join("\n")} />
           {c.indicaciones && <p className="mt-1">{c.indicaciones}</p>}
         </Bloque>
       )}
@@ -354,7 +355,7 @@ export function Recipe({ d }: { d: DatosDocumento }) {
     <Hoja horizontal>
       <div className="grid flex-1 grid-cols-2 gap-5">
         <MitadRecipe d={d} titulo="Récipe">
-          {meds.map((x, i) => `${i + 1}. ${x.medicina} ${x.concentracion} · ${x.presentacion}${x.notaFarmacia ? `\n   Farmacia: ${x.notaFarmacia}` : ""}`).join("\n")}
+          {meds.map((x, i) => `${i + 1}. ${nombreConConcentracion(x)} · ${x.presentacion}${x.notaFarmacia ? `\n   Farmacia: ${x.notaFarmacia}` : ""}`).join("\n")}
         </MitadRecipe>
         <MitadRecipe d={d} titulo="Indicaciones">
           {meds.map((x, i) => `${i + 1}. ${x.medicina}: ${x.dosis} vía ${x.via.toLowerCase()} ${x.frecuencia.toLowerCase()} por ${x.duracion.toLowerCase()}${x.observacion ? `. ${x.observacion}` : ""}`).join("\n")}
@@ -468,7 +469,7 @@ export function Referencia({ d }: { d: DatosDocumento }) {
             {c.diagnosticos.length ? c.diagnosticos.map((x) => textoDiagnostico(x.cie10, x.descripcion)).join("\n") : "—"}
           </Bloque>
           {c.tratamiento.some((m) => m.medicina) && (
-            <Bloque titulo="Tratamiento indicado">{c.tratamiento.filter((m) => m.medicina).map((m) => [m.medicina, m.concentracion, m.dosis, m.frecuencia].filter(Boolean).join(" · ")).join("\n")}</Bloque>
+            <Bloque titulo="Tratamiento indicado">{c.tratamiento.filter((m) => m.medicina).map((m) => [nombreConConcentracion(m), m.dosis, m.frecuencia].filter(Boolean).join(" · ")).join("\n")}</Bloque>
           )}
           <p className="mt-2 text-[12px]">Agradezco su atención y la contrarreferencia con sus hallazgos y recomendaciones.</p>
           <Firmas>

@@ -27,6 +27,7 @@ import {
   taAlterada,
 } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
+import { CAMPOS_RECIPE, concentracionEnNombre, faltantesMedicinas } from "@/lib/recipe";
 import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
@@ -421,6 +422,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const [medicinasPropias, setMedicinasPropias] = useState<Item[]>([]);
   const medicinas = useMemo(() => [...medicinasPropias, ...listas.medicina], [medicinasPropias, listas.medicina]);
   const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
+  // Datos del récipe que faltan por medicina (índice → «concentración, vía»): aviso en la fila y antes de firmar e imprimir
+  const faltaRecipe = useMemo(() => new Map(faltantesMedicinas(d.tratamiento).map((f) => [f.indice, f.campos.map((c) => CAMPOS_RECIPE.find(([k]) => k === c)![1]).join(", ")])), [d.tratamiento]);
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
@@ -511,6 +514,17 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
 
   // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
   const firmarEImprimir = async () => {
+    // Antes de firmar: si el récipe no saldría por datos que faltan, se completa ahora (después habría que corregir la firmada)
+    if (faltaRecipe.size > 0 && !(await confirmar({
+      titulo: "El récipe no saldrá en la impresión",
+      texto: `Falta: ${[...faltaRecipe.entries()].map(([i, f]) => `${d.tratamiento[i].medicina} (${f})`).join("; ")}. Complétalo antes de firmar; después habría que corregir la consulta firmada.`,
+      accion: "Firmar sin récipe",
+      cancelar: "Completar primero",
+    }))) {
+      const i = pasos.findIndex((p) => p.id === "tratamiento");
+      if (i >= 0) irA(i);
+      return;
+    }
     if (!(await confirmar(confirmarFirma("Firmar e imprimir")))) return;
     iniciar(async () => {
       if (d.estado === "borrador") {
@@ -1371,7 +1385,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                         const pre = indicacionPreestablecida(it.texto);
                         actualizarMed(i, {
                           medicina: it.nombre,
-                          concentracion: pre.concentracion ?? "",
+                          // Sin concentración en el vademécum, la que trae el nombre («Udox 75mg» → 75mg)
+                          concentracion: pre.concentracion ?? concentracionEnNombre(it.nombre) ?? "",
                           presentacion: pre.presentacion ?? "",
                           via: pre.via ?? "",
                           dosis: pre.dosis ?? "",
@@ -1381,7 +1396,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                         });
                       }}
                     />
-                    <Input value={m.concentracion ?? ""} placeholder="Concentración" className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
+                    <Input value={m.concentracion ?? ""} placeholder={concentracionEnNombre(m.medicina) ? `${concentracionEnNombre(m.medicina)} (del nombre)` : "Concentración"} className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
                     {([["presentacion", listas.presentacion_medicina, "Presentación"], ["via", listas.via_administracion, "Vía"], ["frecuencia", listas.frecuencia_dosis, "Frecuencia"], ["duracion", listas.duracion_tratamiento, "Duración"]] as const).map(([k, items, ph]) => (
                       <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
                         <option value="">{ph}</option>
@@ -1394,6 +1409,12 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                     <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("tratamiento", d.tratamiento.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
                     <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
                     <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
+                    {/* Aviso (no bloquea): lo que pide la Res. MPPS 028 para que el récipe se pueda imprimir */}
+                    {faltaRecipe.get(i) && (
+                      <p className="flex items-center gap-1.5 text-xs text-aviso-texto sm:col-span-full" data-estado="falta-recipe">
+                        <AlertTriangle className="size-3.5 shrink-0" aria-hidden /> Para el récipe falta: {faltaRecipe.get(i)}
+                      </p>
+                    )}
                   </div>
                 ))}
                 <Texto etiqueta="Otras indicaciones" valor={d.indicaciones} onChange={(v) => set("indicaciones", v)} filas={2} />
