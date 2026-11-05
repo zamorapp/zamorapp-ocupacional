@@ -69,7 +69,7 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
   const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
   const titular = a.membrete_titular?.trim();
   return (
-    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea pb-3`}>
+    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea ${compacto ? "pb-2" : "pb-3"}`}>
       <Marca logo={d.org.logo} />
       <div className="min-w-0">
         {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
@@ -249,7 +249,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
       <div className="w-64 text-center text-[10px] leading-[1.35]">
         {/* Altura fija y la firma DENTRO del recuadro, apoyada en la línea: nunca tapa la línea, el nombre ni el MPPS
             (una firma escaneada con fondo blanco los borraba) ni el texto de arriba */}
-        <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-12" : "h-14"}`}>
+        <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 bottom-px mx-auto max-h-full max-w-[90%] object-contain" />}
           {/* eslint-disable-next-line @next/next/no-img-element */}
