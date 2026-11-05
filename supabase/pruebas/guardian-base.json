@@ -18,6 +18,7 @@
     "public.depurar_nomina(p_empresa uuid, p_desde date, p_aplicar boolean)",
     "public.dias_equipo_confianza()",
     "public.dos_pasos_cumplido()",
+    "public.enviar_solicitud_paciente(p_token text, p_datos jsonb)",
     "public.equipo_de_confianza()",
     "public.equipo_desactivado(p_equipo uuid)",
     "public.es_base_local()",
@@ -42,6 +43,7 @@
     "public.ve_consulta(p_org uuid, p_consulta uuid)",
     "public.ve_trabajador(p_org uuid, p_trabajador uuid)",
     "public.ver_invitacion(p_token text)",
+    "public.ver_solicitud_paciente(p_token text)",
     "public.verificar_dos_pasos()"
   ],
   "politicasPorFila": [
