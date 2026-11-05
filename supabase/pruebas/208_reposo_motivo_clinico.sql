@@ -16,7 +16,7 @@ select public.guardar_consulta('20800000-0000-0000-0000-0000000000c1', format('{
  '{"causa":"enfermedad_comun","ente":"servicio_medico","desde":"2026-10-01","hasta":"2026-10-05"}', false) \g /dev/null
 select 'un guardado sin la clave no borra el motivo (debe 1): ' || count(*) from public.reposos
  where consulta_id = '20800000-0000-0000-0000-0000000000c1' and hasta = '2026-10-05' and motivo_clinico = 'Dolor lumbar con limitación funcional';
--- Texto larguísimo: se guarda recortado (el editor ya no deja pasar de 260)
+-- Texto larguísimo: se guarda recortado (el editor ya no deja pasar de 160)
 select public.guardar_consulta('20800000-0000-0000-0000-0000000000c1', format('{"tipo":"primera","fecha":"%s"}', public.hoy_caracas())::jsonb,
  '[{"cie10":"M54.5","descripcion":"Lumbago","origen":"comun","principal":true}]', null,
  jsonb_build_object('causa','enfermedad_comun','ente','servicio_medico','desde','2026-10-01','hasta','2026-10-05','motivo_clinico', repeat('dolor ', 300)), false) \g /dev/null

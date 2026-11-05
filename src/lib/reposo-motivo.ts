@@ -4,7 +4,7 @@
 import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
 
 /** Tope del texto impreso: original y copia comparten una hoja carta. */
-export const MAXIMO_MOTIVO_REPOSO = 260;
+export const MAXIMO_MOTIVO_REPOSO = 160;
 
 const limpiar = (t: string) => t.replace(/\s+/g, " ").trim().replace(/[.;,:\s]+$/, "");
 const minuscula = (t: string) => (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t);
@@ -29,7 +29,7 @@ export function proponerMotivoReposo(c: Pick<DatosConsulta, "motivoTexto" | "enf
     || positivos(c.examenFuncional).map((x) => `${minuscula(x.nombre)}: ${limpiar(x.valor)}`).join("; ");
   const hallazgos = positivos(c.examenFisico).map((x) => `${minuscula(limpiar(x.nombre))}: ${minuscula(limpiar(x.valor))}`);
   const inicio = motivo
-    ? `Se indica reposo médico por presentar ${minuscula(recortar(motivo, 140))}.`
+    ? `Se indica reposo médico por presentar ${minuscula(recortar(motivo, 90))}.`
     : c.diagnosticos[0]?.descripcion ? `Se indica reposo médico por ${minuscula(limpiar(c.diagnosticos[0].descripcion))}.` : "";
   if (!hallazgos.length) return inicio;
   // Se agregan hallazgos mientras quepan; el médico ve en pantalla exactamente lo que sale

@@ -123,12 +123,12 @@ function CuerpoReposo({ d, copia, original }: { d: DatosDocumento; copia: string
           </div>
         ))}
       </div>
-      {/* Por qué se indica (Cesar, 05-nov): lo escrito por el médico o la propuesta del motivo y el examen.
-          A todo el ancho y con tope de MAXIMO_MOTIVO_REPOSO: dos líneas, así original y copia siguen en una carta */}
-      {motivo && <p data-prueba="motivo-reposo" className="mb-1 text-[12px] leading-tight"><b>Motivo:</b> {motivo}</p>}
       {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
       <Firmas compacto>
         <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
+          {/* Por qué se indica (Cesar, 05-nov): junto al diagnóstico, al lado de la firma, donde sobra alto; con el tope
+              de MAXIMO_MOTIVO_REPOSO son 3 líneas a lo sumo y original y copia siguen en una carta */}
+          {motivo && <p data-prueba="motivo-reposo" className="mb-0.5 text-[12px] leading-tight"><b>Motivo:</b> {motivo}</p>}
           {diag && <p><b>Diagnóstico:</b> {textoDiagnostico(diag.cie10, diag.descripcion)}</p>}
           <p className="text-[10.5px] text-doc-tenue">
             {[`Emitido por: ${nombreReposo(r.ente)}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
