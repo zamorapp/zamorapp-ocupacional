@@ -512,7 +512,8 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
         </Seccion>
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">
-          <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} />
+          {/* Cesar (05-nov, «sí cifras exactas»): el resumen del art. 34 sale con cifras exactas también para la empresa; no nombra diagnósticos */}
+          <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} minimo={0} />
           <Analisis texto={a.art34} />
           <p className="text-[9.5px] italic text-doc-tenue">La versión para cartelera de este cuadro va en la última hoja del informe.</p>
         </Seccion>
@@ -586,7 +587,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             <T columnas={["Dependencia", "Casos", "Días"]} filas={(r.ausentismo.por_dependencia ?? []).map((d) => [d.nombre, d.n, d.dias])} />
           </Panel>
           <Analisis texto={a.anexo_reposo_dependencia} />
-          <p className="text-[9.5px] italic text-doc-tenue">Ningún cuadro identifica a trabajadores.{minimo > 0 && ` Las cifras menores de ${minimo} se muestran como «<${minimo}».`}</p>
+          <p className="text-[9.5px] italic text-doc-tenue">Ningún cuadro identifica a trabajadores.{minimo > 0 && ` Las cifras menores de ${minimo} se muestran como «<${minimo}», salvo en el resumen del artículo 34, que va con cifras exactas.`}</p>
         </Seccion>
 
         {/* Análisis integral: lee todos los cuadros y gráficos juntos (analizador propio, editable en Reportes) */}
@@ -617,7 +618,6 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           poblacion={pob}
           org={org?.nombre ?? null}
           logo={org?.logo ?? null}
-          minimo={minimo}
         />
       </Hoja>
     </div>
