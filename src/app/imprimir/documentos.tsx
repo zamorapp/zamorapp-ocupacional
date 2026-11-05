@@ -9,6 +9,7 @@ import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_P
 import type { Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
 import { sinCodigo, textoDiagnostico } from "@/lib/diagnostico-texto";
+import { CERTIFICACION_PARTICULAR, esParticular } from "@/lib/particulares";
 import {
   Bloque, BloqueRiesgos, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
@@ -76,9 +77,9 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
       </Bloque>
       {apt.limitaciones.length > 0 && !d.sin.includes("limitaciones") && <Bloque titulo="Restricciones">{apt.limitaciones.join(" · ")}</Bloque>}
       {!d.sin.includes("riesgos") && <BloqueRiesgos riesgos={d.trabajador.riesgos} ajustes={a} />}
-      {apt.observacion && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={apt.observacion} /></Bloque>}
+      {apt.observacion && <Bloque titulo={esParticular(d.empresa) ? "Recomendaciones al paciente" : "Recomendaciones al trabajador"}><Lista texto={apt.observacion} /></Bloque>}
       {/* Una recomendación elegida para los dos sale una sola vez (en la del trabajador, que va primero) */}
-      {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
+      {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo={esParticular(d.empresa) ? "Recomendaciones" : "Recomendaciones a la empresa"}><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
       {(a.observacion_idoneidad ?? NOTA_IDONEIDAD) && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue">{a.observacion_idoneidad ?? NOTA_IDONEIDAD}</p>}
       <Firmas>
         {a.firma_paciente_constancia ? <FirmaTrabajador d={d} /> : <span />}
@@ -179,7 +180,7 @@ function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[
 
 export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
   const laboral = variante === "completo";
-  const certificacion = laboral ? d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR : null;
+  const certificacion = laboral ? (esParticular(d.empresa) ? CERTIFICACION_PARTICULAR : d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR) : null;
   const [prefijo, titulo] = TITULO_INFORME[variante];
   // Flujo normal al imprimir: el informe suele ocupar dos hojas y así no deja huecos al pasar de página
   return (
@@ -187,8 +188,8 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       <Membrete d={d} />
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
-      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} />
-      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
+      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
+      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
       <Firmas>
         {certificacion ? <FirmaTrabajador d={d} /> : <span />}
         <FirmaMedico d={d} />
@@ -200,8 +201,8 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
 
 // Contenido clínico de una consulta, igual en el informe y en cada consulta de la historia clínica.
 // antecedentes=false: la historia los omite cuando no cambiaron desde la consulta anterior.
-export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", antecedentes = true }: {
-  c: DatosConsulta; sin: OpcionImpresion[]; ajustes: AjustesDocumentos; variante?: VarianteInforme; antecedentes?: boolean;
+export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", antecedentes = true, particular = false }: {
+  c: DatosConsulta; sin: OpcionImpresion[]; ajustes: AjustesDocumentos; variante?: VarianteInforme; antecedentes?: boolean; particular?: boolean;
 }) {
   const laboral = variante === "completo";
   const sv = c.signos;
@@ -296,7 +297,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
       {c.conclusiones && !sin.includes("conclusiones") && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
       {(c.recomendacionesTrabajador || c.aptitud.observacion) && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={c.recomendacionesTrabajador || c.aptitud.observacion} /></Bloque>}
       {laboral && sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion).trim() && (
-        <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion)} /></Bloque>
+        <Bloque titulo={particular ? "Recomendaciones" : "Recomendaciones a la empresa"}><Lista texto={sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion)} /></Bloque>
       )}
     </>
   );
@@ -374,7 +375,7 @@ export function Orden({ d }: { d: DatosDocumento }) {
   const a = d.org.ajustes;
   const pre = esPreempleo(d);
   const notaPre = pre ? a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH : null;
-  const certificacion = pre ? a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR : null;
+  const certificacion = pre ? (esParticular(d.empresa) ? CERTIFICACION_PARTICULAR : a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR) : null;
   const examenes = d.datos.paraclinicos;
   const grupos = new Map<string, string[]>();
   for (const p of examenes) grupos.set(p.grupo ?? "Otros", [...(grupos.get(p.grupo ?? "Otros") ?? []), p.nombre]);
@@ -417,7 +418,7 @@ export function Certificado({ d }: { d: DatosDocumento }) {
       <Titulo d={d} prefijo="CS" sub={d.motivo?.nombre ?? null}>{a.certificado_titulo ?? "Certificado de salud"}</Titulo>
       <p className="my-3 text-[13px] leading-relaxed">
         Quien suscribe, médico del servicio de salud ocupacional, certifica que evaluó a <b>{d.trabajador.nombre}</b>, C.I. <b>{d.trabajador.cedula}</b>,
-        {d.trabajador.cargo && <> {d.trabajador.cargo.toLowerCase()} de <b>{d.empresa.razon_social}</b>,</>} el día {fechaLarga(c.fecha)}
+        {d.trabajador.cargo && !esParticular(d.empresa) && <> {d.trabajador.cargo.toLowerCase()} de <b>{d.empresa.razon_social}</b>,</>} el día {fechaLarga(c.fecha)}
         {d.motivo?.nombre ? `, con motivo de evaluación ${d.motivo.nombre.toLowerCase()}` : ""}, encontrando:
       </p>
       <Bloque titulo="Examen funcional y físico">
@@ -456,7 +457,7 @@ export function Referencia({ d }: { d: DatosDocumento }) {
           <DatosPaciente d={d} completo={false} />
           <p className="mb-3 text-[13px]">Estimado(a) colega de <b>{r.especialidad}</b>:</p>
           <p className="mb-4 text-[13px] leading-relaxed">
-            Remito a <b>{d.trabajador.nombre}</b>, C.I. {d.trabajador.cedula}{d.trabajador.edad !== null && `, de ${d.trabajador.edad} años`}, trabajador(a) de {d.empresa.razon_social}, para su evaluación y conducta.
+            Remito a <b>{d.trabajador.nombre}</b>, C.I. {d.trabajador.cedula}{d.trabajador.edad !== null && `, de ${d.trabajador.edad} años`}{esParticular(d.empresa) ? "" : `, trabajador(a) de ${d.empresa.razon_social}`}, para su evaluación y conducta.
           </p>
           <Bloque titulo="Motivo de la referencia">{r.motivo || "—"}</Bloque>
           {(c.motivoTexto || c.enfermedadActual) && <Bloque titulo="Resumen clínico">{[c.motivoTexto, c.enfermedadActual].filter(Boolean).join("\n")}</Bloque>}
@@ -513,9 +514,9 @@ export function Reubicacion({ d }: { d: DatosDocumento }) {
       />
       {r.motivo && <Bloque titulo="Motivo médico">{r.motivo}</Bloque>}
       {r.restricciones && <Bloque titulo="Restricciones"><Lista texto={r.restricciones} /></Bloque>}
-      <p className="mt-2 text-[12px]">
+      {!esParticular(d.empresa) && <p className="mt-2 text-[12px]">
         Se recomienda a {d.empresa.razon_social} adecuar las tareas del trabajador según lo indicado, conforme a la LOPCYMAT, y notificar al servicio médico cualquier cambio en sus condiciones de trabajo.
-      </p>
+      </p>}
       <Firmas>
         <FirmaTrabajador d={d} />
         <FirmaMedico d={d} etiqueta="Médico ocupacional" />
@@ -566,7 +567,7 @@ export function ConstanciaAtencion({ d, diagnostico = false }: { d: DatosDocumen
       <p className="mb-2 text-[12.5px] font-bold">A quien pueda interesar:</p>
       <p className="mb-3 text-[12.5px] leading-relaxed">
         Quien suscribe, médico del servicio de salud ocupacional, hace constar que <b>{t.nombre}</b>, C.I. <b>{t.cedula}</b>
-        {t.cargo ? <>, {t.cargo.toLowerCase()}</> : null} de <b>{d.empresa.razon_social}</b>, acudió a este servicio médico el día {fechaLarga(c.fecha)}, de {llegada ?? linea} a {salida ?? linea}
+        {t.cargo && !esParticular(d.empresa) ? <>, {t.cargo.toLowerCase()}</> : null}{esParticular(d.empresa) ? null : <> de <b>{d.empresa.razon_social}</b></>}, acudió a este servicio médico el día {fechaLarga(c.fecha)}, de {llegada ?? linea} a {salida ?? linea}
         {d.motivo?.nombre ? `, con motivo de ${d.motivo.nombre.toLowerCase()}.` : salida ? "" : "."}
       </p>
       <div className="mb-3 grid grid-cols-4 gap-2.5">
@@ -621,23 +622,30 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
   const c = d.datos;
   const t = d.trabajador;
   const a = d.org.ajustes;
-  const certificacion = a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
+  const certificacion = esParticular(d.empresa) ? CERTIFICACION_PARTICULAR : a.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR;
   const evaluaciones = ["Historia clínica ocupacional", "Examen funcional", "Examen físico", ...c.paraclinicos.map((p) => p.nombre)];
   return (
     <Hoja>
       <Membrete d={d} />
       <Titulo d={d} prefijo="OA" sub={d.motivo?.nombre ?? null}>Orden de atención médica ocupacional</Titulo>
+      {esParticular(d.empresa) ? (
+        <TablaOrden titulo="Atención" filas={[["Tipo", "Paciente particular (sin empresa)"], ["Ocupación", t.cargo]]} />
+      ) : (
+        <TablaOrden
+          titulo="Empresa"
+          filas={[["Razón social", d.empresa.razon_social], ["RIF", d.empresa.rif], ["Dependencia", d.dependencia], ["Cargo", t.cargo]]}
+        />
+      )}
       <TablaOrden
-        titulo="Empresa"
-        filas={[["Razón social", d.empresa.razon_social], ["RIF", d.empresa.rif], ["Dependencia", d.dependencia], ["Cargo", t.cargo]]}
-      />
-      <TablaOrden
-        titulo="Trabajador"
+        titulo={esParticular(d.empresa) ? "Paciente" : "Trabajador"}
         filas={[
           ["Nombre", t.nombre], ["Cédula", t.cedula],
           ["Nacimiento", d.extra.fecha_nacimiento ? `${fechaCorta(d.extra.fecha_nacimiento)}${t.edad !== null ? ` (${t.edad} años)` : ""}` : null], ["Sexo", t.sexo === "F" ? "Femenino" : t.sexo === "M" ? "Masculino" : null],
-          ["Ingreso", d.extra.fecha_ingreso ? fechaCorta(d.extra.fecha_ingreso) : null], ["Turno", d.extra.turno],
-          ["Tipo", d.extra.tipo?.nombre], ["Ficha", d.extra.ficha],
+          // Un particular no tiene ingreso, turno, ficha ni tipo de trabajador (Diseño, 05-nov)
+          ...(esParticular(d.empresa) ? [] : [
+            ["Ingreso", d.extra.fecha_ingreso ? fechaCorta(d.extra.fecha_ingreso) : null], ["Turno", d.extra.turno],
+            ["Tipo", d.extra.tipo?.nombre], ["Ficha", d.extra.ficha],
+          ] as [string, React.ReactNode][]),
         ]}
       />
       <TablaOrden
@@ -651,7 +659,7 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
           {evaluaciones.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><span className="size-3 shrink-0 rounded-[2px] border border-[#15201e]" />{n}</div>)}
         </div>
       </Bloque>
-      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del trabajador.</b> {certificacion}</p>}
+      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
       <Firmas>
         <div className="flex items-end gap-3">
           <FirmaTrabajador d={d} />
