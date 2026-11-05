@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2, Eye, Loader2, MessageCircle, RefreshCw, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, MessageCircle, RefreshCw, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -130,12 +130,17 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <Label htmlFor="frase-trabajador" className="flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> Frase del mensaje</Label>
-                  {datos.frases.length > 1 && (
-                    <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={otraFrase}><RefreshCw /> Otra frase</Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {datos.frases.length > 1 && (
+                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={otraFrase}><RefreshCw /> Otra frase</Button>
+                    )}
+                    {frase && (
+                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground" onClick={() => setFrase("")}><X /> Sin frase</Button>
+                    )}
+                  </div>
                 </div>
                 <Textarea id="frase-trabajador" rows={2} maxLength={MAX_FRASE} value={frase ?? ""} onChange={(e) => setFrase(e.target.value)} placeholder="Sin frase" />
-                <p className="mt-1 text-xs text-muted-foreground">Va después del enlace. Cámbiala, edítala o bórrala; cada envío trae otra distinta.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Va después del enlace. Cámbiala, edítala o quítala; cada envío trae otra distinta.</p>
               </div>
             )}
             <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || Boolean(falta)} onClick={mandar}>

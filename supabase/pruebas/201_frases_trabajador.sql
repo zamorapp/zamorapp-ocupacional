@@ -10,8 +10,8 @@ select 'ninguna pasa de 140 letras (debe 0): ' || count(*) from public.lista_ite
 select 'el orden no se repite (debe 0): ' || count(*) from (select orden from public.lista_items where org_id is null and lista = 'frase_trabajador' group by 1 having count(*) > 1) r;
 select 'repetir la siembra no duplica (debe 0): ' || public.sembrar_frases_trabajador('10000000-0000-0000-0000-000000000001');
 -- El servicio ya había escrito la misma frase a mano: no se agrega otra
-delete from public.lista_items where org_id = '10000000-0000-0000-0000-000000000001' and lista = 'frase_trabajador' and codigo = 'frase_001';
-insert into public.lista_items (lista, org_id, codigo, nombre) values ('frase_trabajador', '10000000-0000-0000-0000-000000000001', 'propia', 'no estás deprimido, estás distraído.');
+delete from public.lista_items where org_id = '10000000-0000-0000-0000-000000000001' and lista = 'frase_trabajador' and nombre = 'Caminante, no hay camino, se hace camino al andar.';
+insert into public.lista_items (lista, org_id, codigo, nombre) values ('frase_trabajador', '10000000-0000-0000-0000-000000000001', 'propia', 'caminante, no hay camino, se hace camino al andar.');
 select 'la misma frase escrita a mano cuenta como existente (debe 0): ' || public.sembrar_frases_trabajador('10000000-0000-0000-0000-000000000001');
 delete from public.lista_items where org_id = '10000000-0000-0000-0000-000000000001' and codigo = 'propia';
 select 'luego se repone la del banco (debe 1): ' || public.sembrar_frases_trabajador('10000000-0000-0000-0000-000000000001');

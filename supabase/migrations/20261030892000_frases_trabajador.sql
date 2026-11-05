@@ -3,9 +3,10 @@
 -- y trabajo seguro. Cada envío por «WhatsApp al trabajador» sugiere la siguiente (editable o quitable en el momento).
 -- Viven en Configuración › Listas › «Frases para el trabajador»: agregar, editar, apagar o borrar sin tocar código.
 --
--- Autores: solo citas cortas de atribución conocida (Cabral, Machado, Martí, Bolívar, Séneca, Epicteto, Cervantes,
+-- Autores: solo citas cortas de atribución conocida (Machado, Martí, Bolívar, Séneca, Epicteto, Cervantes,
 -- Mistral, Juvenal, Saint-Exupéry) o refranes; las de Jorge Bucay van como «Inspirada en <cuento>», porque son
 -- resúmenes propios de sus cuentos, no citas textuales. El resto son frases originales sin autor.
+-- Ninguna frase culpa a la persona de su enfermedad ni minimiza la salud mental (revisión de Diseño, 05-nov).
 -- datos: {"categoria": …, "autor": …, "banco": "2026-11"}. grupo = categoria (filtro en Configuración).
 --
 -- Reglas (como 20261030870000):
@@ -24,7 +25,7 @@ begin
   select 'frase_trabajador', 'frase_' || lpad(v.orden::text, 3, '0'), v.texto, v.categoria, v.orden,
          jsonb_strip_nulls(jsonb_build_object('categoria', v.categoria, 'autor', v.autor, 'banco', '2026-11'))
   from (values
-    (1, 'crecimiento', 'No estás deprimido, estás distraído.', 'Facundo Cabral'),
+    (1, 'crecimiento', 'Tus emociones merecen atención: si pesan mucho, pide ayuda.', null),
     (2, 'salud', 'Mente sana en cuerpo sano.', 'Juvenal'),
     (3, 'familia', 'El futuro de los niños es siempre hoy. Mañana será tarde.', 'Gabriela Mistral'),
     (4, 'trascendente', 'Moral y luces son nuestras primeras necesidades.', 'Simón Bolívar'),
@@ -37,7 +38,7 @@ begin
     (11, 'crecimiento', 'La mejor manera de decir es hacer.', 'José Martí'),
     (12, 'salud', 'Toma agua durante el día, aunque no sientas sed.', null),
     (13, 'familia', 'Un abrazo a tiempo cura más de lo que imaginas.', null),
-    (14, 'trascendente', 'Pobrecito mi patrón, piensa que el pobre soy yo.', 'Facundo Cabral'),
+    (14, 'trascendente', 'La riqueza de verdad se mide en afectos.', null),
     (15, 'trabajo', 'Ningún trabajo es tan urgente como para hacerlo sin seguridad.', null),
     (16, 'crecimiento', 'Ser culto es el único modo de ser libre.', 'José Martí'),
     (17, 'salud', 'Camina al menos 30 minutos al día: tu corazón lo agradece.', null),
@@ -130,7 +131,7 @@ begin
     (104, 'trascendente', 'Tu vida es tu mensaje al mundo.', null),
     (105, 'trabajo', 'Un incidente reportado hoy evita un accidente mañana.', null),
     (106, 'crecimiento', 'La disciplina es elegir entre lo que quieres ahora y lo que más quieres.', null),
-    (107, 'salud', 'Cuida tu peso: cada kilo de más es una carga para tus rodillas y tu corazón.', null),
+    (107, 'salud', 'Un peso saludable alivia tus rodillas y tu corazón.', null),
     (108, 'familia', 'Agradece a quien te espera cada día al volver.', null),
     (109, 'trascendente', 'Cada amanecer es una segunda oportunidad.', null),
     (110, 'trabajo', 'No uses herramientas en mal estado.', null),
@@ -222,14 +223,14 @@ begin
     (196, 'crecimiento', 'Donde pones tu atención, pones tu energía.', null),
     (197, 'salud', 'Tose o estornuda en el pliegue del codo.', null),
     (198, 'familia', 'Pon límites con cariño: también es una forma de amar.', null),
-    (199, 'trascendente', 'Ser feliz es una decisión que se toma cada mañana.', null),
+    (199, 'trascendente', 'Busca cada mañana un motivo para sonreír.', null),
     (200, 'trabajo', 'Pensar antes de actuar evita lesiones.', null),
     (201, 'crecimiento', 'Hoy haz algo que tu yo del futuro te agradezca.', null),
     (202, 'salud', 'Si tienes gripe, descansa y evita contagiar a otros.', null),
     (203, 'familia', 'Que tu hogar sea un refugio, no un campo de batalla.', null),
     (204, 'trascendente', 'Nadie se salva solo: nos necesitamos unos a otros.', null),
     (205, 'trabajo', 'Una herramienta en su sitio es un accidente menos.', null),
-    (206, 'crecimiento', 'No eres lo que te pasó; eres lo que decides hacer con eso.', null),
+    (206, 'crecimiento', 'Lo que te pasó no te define.', null),
     (207, 'salud', 'Cepíllate los dientes después de cada comida.', null),
     (208, 'familia', 'Sonreírle a tu familia al llegar cambia el ambiente de la casa.', null),
     (209, 'trascendente', 'La bondad es un idioma que todos entienden.', null),
@@ -281,7 +282,7 @@ begin
     (255, 'trabajo', 'El trabajo bien hecho empieza con un trabajador sano.', null),
     (256, 'crecimiento', 'Respira hondo: casi todo se ve mejor después de una pausa.', null),
     (257, 'salud', 'Moverte un poco es mucho mejor que no moverte nada.', null),
-    (258, 'familia', 'Una familia que se cuida se enferma menos.', null),
+    (258, 'familia', 'Una familia que se cuida vive mejor.', null),
     (259, 'trascendente', 'La sabiduría empieza por reconocer lo que no sabemos.', null),
     (260, 'trabajo', 'Tu salud en el trabajo es un derecho y también una responsabilidad.', null),
     (261, 'crecimiento', 'Lee diez páginas al día y en un año habrás leído muchos libros.', null),
