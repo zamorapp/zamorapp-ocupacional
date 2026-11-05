@@ -155,6 +155,9 @@ export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; compl
       { k: "Tipo · Ficha", v: [d.extra.tipo?.nombre, d.extra.ficha].filter(Boolean).join(" · ") },
     );
   } else celdas[3] = { ...celdas[3], ancho: 4 };
+  // Proyecto u obra de la empresa (Empresas › ficha), a todo el ancho después de la identificación (Cesar, 05-nov)
+  const proyecto = d.empresa.proyecto?.trim();
+  if (proyecto) celdas.push({ k: "Proyecto", v: proyecto, ancho: 4 });
   return <Ficha celdas={celdas} />;
 }
 

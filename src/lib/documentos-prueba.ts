@@ -77,7 +77,7 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
       especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: firma, sello_url: logo("Sello", "#1d4ed8"), mostrar_firma: true, mostrar_sello: true,
     },
     motivo: { nombre: "Periódico", codigo: "PER", grupo: "preventivo" },
-    empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8") },
+    empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8"), proyecto: largo ? "Acciones mecánicas y corrección de fallas de los sistemas de distribución de gas metano, Área operacional Charallave - El Cují, estado Miranda, Contrato #4600141983/1C-132-012-A-24-S-0064" : null },
     dependencia: largo ? "Gerencia de Producción y Mantenimiento Industrial" : "Producción",
     extra: { fecha_nacimiento: "1988-03-15", fecha_ingreso: "2015-06-01", fecha_ingreso_cargo: "2019-09-16", turno: "Diurno", numero_historia: 1234, ficha: "F-0042", tipo_contrato: "indeterminado", tipo: { nombre: "Trabajador" } },
     impreso: { por: "Usuario de prueba", revision: largo ? 2 : 1, el: "28/10/26, 9:30 a. m." },

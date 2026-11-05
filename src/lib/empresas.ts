@@ -7,6 +7,7 @@ import type { AvisoEmpresa } from "@/lib/empresas-avisos";
 export type Empresa = {
   id: string;
   razonSocial: string;
+  proyecto: string | null;
   rif: string;
   nil: string | null;
   actividad: string | null;
@@ -71,6 +72,7 @@ function empresasDemo(): Empresa[] {
     return EMPRESAS_DEMO.map((e) => ({
       id: e.rif,
       razonSocial: e.nombre,
+      proyecto: null,
       rif: e.rif,
       nil: null,
       actividad: null,
@@ -102,7 +104,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
     supabase
       .from("empresas")
-      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
+      .select("id, razon_social, proyecto, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
       .order("razon_social"),
     supabase.rpc("trabajadores_por_empresa"),
   ]);
@@ -113,6 +115,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
   return (data ?? []).map((e) => ({
     id: e.id,
     razonSocial: e.razon_social,
+    proyecto: e.proyecto,
     rif: e.rif,
     nil: e.nil,
     actividad: e.actividad_economica,
