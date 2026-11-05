@@ -3,6 +3,7 @@ import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import type { DatosDocumento } from "@/lib/documentos";
 import { antiguedad } from "@/lib/fecha";
 import { NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
+import { puntosUnicos } from "@/lib/recomendaciones-categorias";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
@@ -185,12 +186,10 @@ export function Bloque({ titulo, children }: { titulo: string; children: React.R
   );
 }
 
-// Texto con un punto por línea (o «1. … 2. …» corrido) → lista numerada en una o dos columnas
+// Texto con un punto por línea (o «1. … 2. …» corrido) → lista numerada en una o dos columnas, sin puntos repetidos
 export function Lista({ texto, columnas }: { texto: string; columnas?: 1 | 2 }) {
-  const items = texto
-    .split(/\n|(?:^|\s)(?=\d{1,2}[.)]\s)/)
-    .map((x) => x.replace(/^\s*(\d{1,2}[.)]|[-•*])\s*/, "").trim())
-    .filter(Boolean);
+  // Dos frases elegidas que comparten una indicación («Uso de EPP») la imprimen una sola vez
+  const items = puntosUnicos(texto);
   if (items.length <= 1) return <p className="whitespace-pre-line">{texto.trim()}</p>;
   const cols = columnas ?? (items.length >= 5 ? 2 : 1);
   return (
