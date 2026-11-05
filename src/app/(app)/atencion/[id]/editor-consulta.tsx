@@ -52,6 +52,7 @@ import { confirmar } from "@/components/app/confirmar";
 import { EliminarPapelera } from "@/components/app/eliminar-papelera";
 import { rutaConDeshacer } from "@/components/app/franja-deshacer";
 import { TextoDictado } from "./dictado";
+import { MotivoReposo } from "./motivo-reposo";
 import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
@@ -1497,6 +1498,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                         <Button type="button" size="sm" variant="ghost" className="h-7 text-aviso-texto hover:bg-aviso/20 hover:text-aviso-texto" onClick={() => setIgnorados((x) => [...x, claveSolape])}>Ignorar</Button>
                       </div>
                     )}
+                    <MotivoReposo d={d} onCambio={(motivoClinico) => set("reposo", { ...d.reposo, motivoClinico })} />
                     {d.reposo.ente !== "servicio_medico" && (
                       <div className="col-span-2">
                         <Label className="mb-1.5">Médico externo que lo indicó</Label>

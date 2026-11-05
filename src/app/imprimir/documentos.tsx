@@ -1,4 +1,5 @@
 import { sinRepetidas } from "@/lib/recomendaciones-categorias";
+import { motivoReposoImpreso } from "@/lib/reposo-motivo";
 import { Fragment } from "react";
 import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
@@ -95,19 +96,24 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
   const reintegro = sumarDias(r.hasta, 1);
   const diag = d.datos.diagnosticos.find((x) => x.cie10 === r.cie10) ?? d.datos.diagnosticos[0];
   const t = d.trabajador;
+  const motivo = d.sin.includes("motivo") ? "" : motivoReposoImpreso(d.datos);
   return (
     <Hoja media corte={false}>
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="RP" compacto copia={copia} sub={r.causa.replace(/_/g, " ")}>Reposo médico</Titulo>
       <Ficha celdas={[{ k: "Trabajador", v: t.nombre, ancho: 2, destacada: true }, { k: "Cédula", v: t.cedula }, { k: "Cargo", v: t.cargo }]} />
-      <div className="mb-3 grid grid-cols-4 gap-2.5">
+      {/* Con motivo clínico las fechas se compactan un poco: original y copia siguen en una carta */}
+      <div className={`grid grid-cols-4 gap-2.5 ${motivo ? "mb-2" : "mb-3"}`}>
         {[["Desde", fechaCorta(r.desde)], ["Hasta", fechaCorta(r.hasta)], ["Días", String(dias)], ["Reintegro", fechaCorta(reintegro)]].map(([k, v]) => (
-          <div key={k} className={`rounded-lg px-3 py-2 ${k === "Días" ? "border-2 border-doc-acento bg-doc-suave" : "border border-doc-linea"}`}>
+          <div key={k} className={`rounded-lg px-3 ${motivo ? "py-1" : "py-2"} ${k === "Días" ? "border-2 border-doc-acento bg-doc-suave" : "border border-doc-linea"}`}>
             <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">{k}</div>
-            <div className="font-cifra text-[17px] font-medium">{v}</div>
+            <div className={`font-cifra font-medium ${motivo ? "text-[15px] leading-tight" : "text-[17px]"}`}>{v}</div>
           </div>
         ))}
       </div>
+      {/* Por qué se indica (Cesar, 05-nov): lo escrito por el médico o la propuesta del motivo y el examen.
+          A todo el ancho y con tope de MAXIMO_MOTIVO_REPOSO: dos líneas, así original y copia siguen en una carta */}
+      {motivo && <p data-prueba="motivo-reposo" className="mb-1 text-[10px] leading-snug">{motivo}</p>}
       {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
       <Firmas compacto>
         <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
@@ -118,7 +124,7 @@ function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
         </div>
         <FirmaMedico d={d} compacto />
       </Firmas>
-      <Pie d={d} derecha={`Folio ${folio("RP", d.datos.id)}`} />
+      <Pie d={d} compacto={!!motivo} derecha={`Folio ${folio("RP", d.datos.id)}`} />
     </Hoja>
   );
 }

@@ -68,7 +68,9 @@ export type DatosConsulta = {
   interconsultas: Interconsulta[];
   reposo: { activo: boolean; causa: string; ente: string; desde: string; hasta: string; cie10: string; medicoExterno: string; centroIvss: string; validadoIvss: boolean;
     // Observación escrita en el SAME (solo lectura: el reposo nuevo no la usa)
-    observacion?: string };
+    observacion?: string;
+    // Por qué se indica (sale en la hoja de reposo). Vacío = se imprime la propuesta de lib/reposo-motivo
+    motivoClinico?: string };
   reubicacion: Reubicacion;
   informeLibre: InformeLibre;
   conclusiones: string;

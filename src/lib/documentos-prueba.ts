@@ -37,7 +37,10 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
       tratamiento: Array.from({ length: largo ? 8 : 2 }, (_, i) => ({ medicina: `Medicamento de prueba ${i + 1}`, concentracion: "500 mg", presentacion: "Tabletas", dosis: "1 tableta", frecuencia: "cada 8 horas", duracion: "7 días", via: "Oral", observacion: texto("Tomar después de las comidas.", 2), notaFarmacia: "" })),
       indicaciones: texto("Reposo relativo, hidratación abundante y control en 15 días.", 5),
       interconsultas: Array.from({ length: largo ? 4 : 1 }, (_, i) => ({ especialidad: `Traumatología ${i + 1}`, motivo: texto("Valoración de dolor lumbar persistente.", 4) })),
-      reposo: { activo: true, causa: "enfermedad_comun", ente: "servicio_medico", desde: "2026-10-28", hasta: "2026-11-03", cie10: "M54.5", medicoExterno: "", centroIvss: "", validadoIvss: false },
+      reposo: { activo: true, causa: "enfermedad_comun", ente: "servicio_medico", desde: "2026-10-28", hasta: "2026-11-03", cie10: "M54.5", medicoExterno: "", centroIvss: "", validadoIvss: false,
+        // Peor caso: el tope completo del motivo clínico (MAXIMO_MOTIVO_REPOSO, en mayúsculas: lo más ancho)
+        motivoClinico: largo ? repetir("DOLOR LUMBAR INTENSO CON LIMITACIÓN FUNCIONAL PARA LA FLEXIÓN.", 7).slice(0, 260)
+          : "Se indica reposo médico por presentar dolor lumbar agudo con limitación funcional para la flexión del tronco. Al examen físico: columna lumbar: contractura paravertebral bilateral; Lasègue positivo a 45° derecho." },
       reubicacion: { activa: true, tipo: "temporal", puestoActual: "Operador de montacargas", puestoPropuesto: "Almacenista", desde: "2026-10-28", hasta: "2026-12-28", motivo: texto("Lumbalgia en tratamiento.", 3), restricciones: texto("Sin cargas mayores de 10 kg.", 3), resultado: texto("Se adapta bien al puesto propuesto.", 2) },
       informeLibre: { titulo: "Informe médico", dirigidoA: "Gerencia de Recursos Humanos", cuerpo: texto("Por medio de la presente se informa la evolución clínica del trabajador.", largo ? 25 : 3) },
       conclusiones: texto("Trabajador en buenas condiciones generales de salud.", 5),
