@@ -223,7 +223,7 @@ export default async function Reportes({ searchParams }: Props) {
                 />
                 {v.informe?.id && !sesion.demo && sesion.rol === "administrador" && sesion.clinico && (
                   <div className="mt-4 flex justify-end border-t pt-3">
-                    <BotonEliminar tipo="informe_vigilancia" id={v.informe.id} nombre={`el informe guardado de ${periodo.etiqueta}`} variant="ghost">Eliminar informe guardado</BotonEliminar>
+                    <BotonEliminar tipo="informe_vigilancia" id={v.informe.id} nombre={`el informe guardado de ${periodo.etiqueta}`} variant="ghost">Eliminar informe guardado…</BotonEliminar>
                   </div>
                 )}
               </CardContent>
