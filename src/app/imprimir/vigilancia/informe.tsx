@@ -29,8 +29,10 @@ const porc = (n: number, total: number) => (total ? num(Math.round((n * 1000) / 
 // Cuadro compacto: total y % sobre la última columna numérica; sin filas, una sola línea
 // minimo: en lo que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo» (sin su % ni el total que las delata)
 // texto: columnas (además de la primera) que llevan palabras: a la izquierda y en letra normal
-function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [] }: {
-  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[];
+// agrupar: la primera columna se escribe solo en la primera fila de cada grupo, con una línea más marcada entre grupos
+// cerosTenues: los ceros en gris (cuadros completos que listan también lo que no tuvo casos)
+function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [], agrupar = false, cerosTenues = false }: {
+  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[]; agrupar?: boolean; cerosTenues?: boolean;
 }) {
   const cifra = (j: number) => j > 0 && !texto.includes(j);
   if (!filas.length) return <p className="text-[10.5px] italic text-doc-tenue">{vacio}</p>;
@@ -43,17 +45,21 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
     <table className="w-full border-collapse text-[10.5px]">
       <thead>
         <tr className="bg-doc-suave text-left text-[9.5px] uppercase tracking-wide text-doc-acento">
-          {columnas.map((c, i) => <th key={c} className={`${th} ${cifra(i) ? "text-right" : ""}`}>{c}</th>)}
-          {porcentaje && <th className={`${th} w-12 text-right`}>%</th>}
+          {columnas.map((c, i) => <th key={c} className={`${th} ${cifra(i) ? "whitespace-nowrap text-right" : ""}`}>{c}</th>)}
+          {porcentaje && <th className={`${th} w-12 whitespace-nowrap text-right`}>%</th>}
         </tr>
       </thead>
       <tbody>
-        {filas.map((f, i) => (
-          <tr key={i}>
-            {f.map((v, j) => <td key={j} className={`${td} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""}`}>{oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
-            {porcentaje && <td className={`${td} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
-          </tr>
-        ))}
+        {filas.map((f, i) => {
+          const sigue = agrupar && i > 0 && filas[i - 1][0] === f[0];
+          const borde = agrupar && i > 0 && !sigue ? "border-t-doc-acento/50" : "";
+          return (
+            <tr key={i}>
+              {f.map((v, j) => <td key={j} className={`${td} ${borde} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""} ${(cerosTenues && v === 0) || (j === 0 && sigue) ? "text-doc-tenue" : ""}`}>{j === 0 && sigue ? "" : oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
+              {porcentaje && <td className={`${td} ${borde} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
+            </tr>
+          );
+        })}
         {total && filas.length > 1 && !conOcultas && (
           <tr className="font-semibold">
             <td className={`${td} border-t-doc-acento`} colSpan={columnas.length - 1}>Total</td>
@@ -554,16 +560,16 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             );
           })}
           <Panel ancla="i-anexo-dependencia-motivo" titulo="Morbilidad por dependencia y motivo de consulta">
-            <T columnas={["Dependencia", "Motivo", "Consultas", "Diagnósticos"]} texto={[1]} porcentaje={false}
+            <T columnas={["Dependencia", "Motivo", "Consultas", "Diagnósticos"]} texto={[1]} porcentaje={false} agrupar
               filas={dependenciaMotivoFilas(r, minimo)} />
           </Panel>
           <Analisis texto={a.anexo_dependencia_motivo} />
           <div className="grid grid-cols-2 items-start gap-3">
             <Panel ancla="i-anexo-motivos-todos" titulo="Consultas por motivo · todos los motivos" nota="Incluye los motivos sin consultas en el período, como el formato del SAME.">
-              <T columnas={["Motivo", "Consultas"]} filas={motivosTodos(r, minimo)} />
+              <T columnas={["Motivo", "Consultas"]} cerosTenues filas={motivosTodos(r, minimo)} />
             </Panel>
             <Panel ancla="i-anexo-sistemas-todos" titulo="Morbilidad por aparatos y sistemas · todos" nota="Incluye los sistemas sin diagnósticos en el período.">
-              <T columnas={["Aparato o sistema", "Diagnósticos"]} filas={sistemasTodos(r, minimo)} />
+              <T columnas={["Aparato o sistema", "Diagnósticos"]} cerosTenues filas={sistemasTodos(r, minimo)} />
             </Panel>
           </div>
           <Analisis texto={a.anexo_motivos_todos} titulo="Todos los motivos" />

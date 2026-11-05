@@ -306,7 +306,7 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     const causa = minus(causasNombre[c] ?? humano(c));
     const laboral = c === "accidente_laboral" || c === "enfermedad_ocupacional";
     // 1 o 2 casos: sus días y su diagnóstico serían los de esas personas
-    if (casos < 3) return `Los reposos por ${causa} son menos de tres casos; para proteger la confidencialidad no se detallan sus días.${laboral ? " Por su origen laboral, cada caso debe tener investigación, declaración y seguimiento hasta el reintegro." : ""}`;
+    if (casos < 3) return `Los reposos por ${causa} son menos de tres casos; por confidencialidad, este análisis no detalla sus días ni sus diagnósticos.${laboral ? " Por su origen laboral, cada caso debe tener investigación, declaración y seguimiento hasta el reintegro." : ""}`;
     const f = [elige([
       `Los reposos por ${causa} suman ${plural(dias, "día", "días")} en ${plural(casos, "caso", "casos")} (${n1(dias / Math.max(casos, 1))} días por caso).`,
       `Por ${causa} se perdieron ${plural(dias, "día", "días")}, con un promedio de ${n1(dias / Math.max(casos, 1))} días por reposo.`,
