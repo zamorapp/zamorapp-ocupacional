@@ -207,7 +207,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
                 {tasa && <div>Equivale a $ {num(t.total)} a la tasa BCV de Bs. {num(tasa)} por dólar.</div>}
                 {c.observacion && <div>{c.observacion}</div>}
-                {datosPago && <div className="mt-0.5 whitespace-pre-line"><b>Datos para el pago:</b> {datosPago}</div>}
+                {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
               </div>
               <div className="w-[72mm] shrink-0 space-y-[1px]">
                 <div className="flex justify-between"><span>{c.ivaPct === 0 ? "Monto exento" : "Base imponible"}</span><span className="font-mono tabular-nums">{num(enMoneda(t.subtotal))}</span></div>

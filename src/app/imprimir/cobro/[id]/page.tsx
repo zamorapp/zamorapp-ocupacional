@@ -6,6 +6,7 @@ import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
+import { DatosPagoCobro } from "../datos-pago";
 import { fechaCorta, Hoja, Marca, Titular } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
@@ -121,15 +122,7 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
         {/* Condiciones y datos para el pago (Configuración › Organización › Documentos); la nota de entrega no lleva montos */}
         {!entrega && (() => {
           const aj = (org?.ajustes ?? {}) as { cobro_condiciones?: string | null; cobro_datos_pago?: string | null };
-          const condiciones = (aj.cobro_condiciones ?? CONDICION_PAGO_BCV).trim();
-          const datosPago = (aj.cobro_datos_pago ?? "").trim();
-          if (!condiciones && !datosPago) return null;
-          return (
-            <div data-prueba="cobro-pago" className="mt-4 break-inside-avoid rounded-md border border-neutral-300 px-3 py-2 text-[11.5px]">
-              {condiciones && <p><b>Condiciones de pago:</b> {condiciones}</p>}
-              {datosPago && <div className={condiciones ? "mt-1.5" : ""}><b>Datos para el pago</b><p className="whitespace-pre-line">{datosPago}</p></div>}
-            </div>
-          );
+          return <DatosPagoCobro condiciones={(aj.cobro_condiciones ?? CONDICION_PAGO_BCV).trim()} datosPago={(aj.cobro_datos_pago ?? "").trim()} />;
         })()}
         <p className="mt-10 border-t pt-2 text-[10.5px] italic text-neutral-600">
           {entrega ? "Constancia de los servicios entregados. No sustituye la factura." : <>Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.</>}

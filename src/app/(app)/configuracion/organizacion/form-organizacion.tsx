@@ -204,6 +204,20 @@ function PasoServicio({ org, a }: { org: Org; a: Ajustes }) {
   );
 }
 
+// Condiciones de pago del recibo: vacío = no se imprimen; un toque repone el texto sugerido (tasa BCV)
+function CondicionesPago({ defecto }: { defecto: string }) {
+  const [valor, setValor] = useState(defecto);
+  return (
+    <div className="sm:col-span-2">
+      <CampoTexto id="cobro_condiciones" etiqueta="Condiciones de pago" rows={2} value={valor} onChange={(e) => setValor(e.target.value)} />
+      <p className="mt-1 text-xs text-muted-foreground">
+        Déjalo vacío para no imprimirlas.
+        {!valor.trim() && <> <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setValor(CONDICION_PAGO_BCV)}>Usar el texto sugerido (tasa BCV)</button></>}
+      </p>
+    </div>
+  );
+}
+
 function PasoDocumentos({ a }: { a: Ajustes }) {
   return (
     <>
@@ -245,10 +259,14 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
           <CampoTexto id="certificado_nota" etiqueta="Nota legal al pie (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.certificado_nota ?? NOTA_CERTIFICADO_SACS} />
         </Grupo>
         <Grupo titulo="Nota de cobro y recibo">
-          <CampoTexto id="cobro_condiciones" etiqueta="Condiciones de pago (vacío para no imprimirlas)" rows={2} className="sm:col-span-2" defaultValue={a.cobro_condiciones ?? CONDICION_PAGO_BCV} />
+          <CondicionesPago defecto={a.cobro_condiciones ?? CONDICION_PAGO_BCV} />
           <CampoTexto id="cobro_datos_pago" etiqueta="Datos para el pago (cuentas y pago móvil; una por línea)" rows={6} className="sm:col-span-2" defaultValue={a.cobro_datos_pago ?? ""}
             placeholder={"Mercantil, cuenta corriente 0105-…, V-…, Nombre\nPago móvil: 0102 (Venezuela) · cédula · teléfono"} />
-          <CampoTexto id="factura_datos_pago" etiqueta="Datos para el pago en la factura del talonario (vacío = no salen)" rows={3} className="sm:col-span-2" defaultValue={a.factura_datos_pago ?? ""} />
+          <p className="pt-1 text-sm font-medium sm:col-span-2">Factura del talonario</p>
+          <div className="sm:col-span-2">
+            <CampoTexto id="factura_datos_pago" etiqueta="Datos para el pago en la factura (una cuenta por línea)" rows={3} defaultValue={a.factura_datos_pago ?? ""} />
+            <p className="mt-1 text-xs text-muted-foreground">Déjalo vacío para que la factura no los imprima.</p>
+          </div>
         </Grupo>
         <Grupo titulo="Informe de vigilancia epidemiológica">
           <CampoSelect id="vigilancia_poblacion" etiqueta="Población que cuenta" defaultValue={a.vigilancia_poblacion ?? "efectivos"}
