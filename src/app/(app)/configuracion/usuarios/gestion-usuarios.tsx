@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { AtSign, Check, Loader2, Pencil, ShieldOff, UserPlus, X } from "lucide-react";
+import { useState, useTransition } from "react";
+import { AtSign, Check, Loader2, Pencil, ShieldOff, X } from "lucide-react";
+import { AgregarUsuario } from "./agregar-usuario";
 import { confirmar } from "@/components/app/confirmar";
-import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
+import { Aviso } from "@/components/app/campo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
-import { agregarUsuario, cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
+import { cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
@@ -19,9 +20,7 @@ function iniciales(texto: string) {
 }
 
 export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros: Miembro[]; yo: string; esAdmin: boolean; empresas: { id: string; nombre: string }[] }) {
-  const [rolNuevo, setRolNuevo] = useState<Rol>("medico");
   const nombreEmpresa = new Map(empresas.map((e) => [e.id, e.nombre]));
-  const [estado, accion, enviando] = useActionState(agregarUsuario, null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
 
@@ -32,35 +31,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
 
   return (
     <div className="space-y-4">
-      {esAdmin && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Agregar usuario</CardTitle></CardHeader>
-          <CardContent>
-            <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
-              <Campo id="correo" etiqueta="Correo con el que creó su cuenta" type="email" required />
-              <CampoSelect id="rol" etiqueta="Rol" value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value as Rol)}>
-                {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </CampoSelect>
-              {ROLES_EMPRESA.includes(rolNuevo) && (
-                <div className="sm:col-span-3">
-                  <p className="mb-1.5 text-sm font-medium">Empresa a la que pertenece * (solo verá esa)</p>
-                  <div className="flex flex-wrap gap-3">
-                    {empresas.map((e) => (
-                      <label key={e.id} className="flex items-center gap-1.5 text-sm">
-                        <input type="checkbox" name="empresas" value={e.id} className="size-4 accent-[var(--primary)]" /> {e.nombre}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <Button type="submit" disabled={enviando} className="h-10">
-                {enviando ? <Loader2 className="animate-spin" /> : <UserPlus />} Agregar
-              </Button>
-            </form>
-            <div className="mt-3"><Aviso resultado={estado} /></div>
-          </CardContent>
-        </Card>
-      )}
+      {esAdmin && <AgregarUsuario empresas={empresas} />}
 
       <Card className="gap-0 py-0">
         <div className="flex items-center gap-2 border-b px-5 py-4">
