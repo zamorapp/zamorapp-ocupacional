@@ -118,3 +118,17 @@ export async function obtenerCobro(id: string): Promise<Cobro | null> {
   const { data } = await supabase.from("cobros").select("*, empresas(razon_social, rif), cobro_items(*)").eq("id", id).maybeSingle();
   return data ? aCobro(data as unknown as FilaCobro) : null;
 }
+
+// Motivos de consulta con su código, para elegir con casillas cuáles cobra solo cada servicio
+export async function listarMotivosCobro(): Promise<{ codigo: string; nombre: string }[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("lista_items").select("codigo, nombre").eq("lista", "motivo_consulta").eq("activo", true).not("org_id", "is", null).not("codigo", "is", null).order("nombre");
+  const vistos = new Set<string>();
+  return (data ?? []).flatMap((m) => {
+    const codigo = String(m.codigo).trim().toUpperCase();
+    if (!codigo || vistos.has(codigo)) return [];
+    vistos.add(codigo);
+    return [{ codigo, nombre: m.nombre as string }];
+  });
+}
