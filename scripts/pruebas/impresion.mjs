@@ -32,6 +32,8 @@ const DOCUMENTOS = {
   historia: { fluye: true },
   // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan con un esquema cabe en una carta (con todos, fluye)
   "control-ta": { fijo: true }, dieta: { fijo: false },
+  // Bienestar: las pausas activas solas en una carta; con todos los temas fluye
+  bienestar: { fijo: false },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 

@@ -7,6 +7,8 @@ import { HistoriaClinica } from "../../historia/hoja-historia";
 import { TIPOS } from "../../tipos";
 import { ControlTension, PlanAlimentacion } from "../../indicaciones";
 import { PLANES } from "@/lib/indicaciones-preventivas";
+import { Bienestar } from "../../bienestar";
+import { BOTONES_BIENESTAR } from "@/lib/bienestar";
 import { InformeVigilancia } from "../../vigilancia/informe";
 import { Portada } from "../../vigilancia/portada";
 
@@ -48,5 +50,7 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   // Peor caso de las indicaciones: 14 días de tensión (dos hojas) y el plan con todos los esquemas
   if (tipo === "control-ta") return <ControlTension d={documentoDePrueba("normal")} dias={largo === "largo" ? 14 : 7} />;
   if (tipo === "dieta") return <PlanAlimentacion d={documentoDePrueba("normal")} planes={largo === "largo" ? PLANES.map((p) => p.clave) : ["hta"]} />;
+  // Bienestar: las pausas activas solas caben en una carta; con todos los temas fluye
+  if (tipo === "bienestar") return <Bienestar d={documentoDePrueba("normal")} temas={largo === "largo" ? BOTONES_BIENESTAR.map((t) => t.clave) : ["pausas"]} />;
   return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
 }
