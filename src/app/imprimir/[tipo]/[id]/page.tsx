@@ -8,9 +8,12 @@ import { OpcionesImpresion } from "../../opciones";
 import { BarraImpresion } from "../../barra";
 import { ConstanciaAtencion } from "../../documentos";
 import { TIPOS } from "../../tipos";
+import { ControlTension, PlanAlimentacion } from "../../indicaciones";
+import { OpcionesIndicaciones } from "../../opciones-indicaciones";
+import { clavesPlan, diasTa } from "@/lib/indicaciones-preventivas";
 
 
-type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
@@ -19,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
-  const { dx, sin, copia } = await searchParams;
+  const { dx, sin, copia, dias, plan } = await searchParams;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
   const base = await obtenerDocumento(id);
@@ -47,7 +50,11 @@ export default async function Imprimir({ params, searchParams }: Props) {
               </Link>
             </div>
           )}
-          {tipo === "atencion" ? <ConstanciaAtencion d={d} diagnostico={dx === "1"} /> : <t.Componente d={d} />}
+          {(tipo === "control-ta" || tipo === "dieta") && <OpcionesIndicaciones tipo={tipo} />}
+          {tipo === "atencion" ? <ConstanciaAtencion d={d} diagnostico={dx === "1"} />
+            : tipo === "control-ta" ? <ControlTension d={d} dias={diasTa(dias)} />
+            : tipo === "dieta" ? <PlanAlimentacion d={d} planes={clavesPlan(plan)} />
+            : <t.Componente d={d} />}
         </>
       )}
     </div>
