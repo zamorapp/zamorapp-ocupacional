@@ -25,6 +25,10 @@ export async function GET() {
   const u = (ultima as string | null) ?? "";
   if (u > hoy || (u === hoy && hora < 15)) return NextResponse.json({ ok: true, guardada: false, motivo: "al día" });
 
+  // Freno: como mucho un intento cada 10 minutos aunque llamen la ruta muchas veces
+  const { data: toca } = await supabase.rpc("tasa_bcv_reservar_intento", { p_clave: clave });
+  if (!toca) return NextResponse.json({ ok: true, guardada: false, motivo: "intento reciente" });
+
   const { tasa, fallas } = await leerTasaBcv();
   if (!tasa) {
     console.error("tasa-bcv: no se pudo leer", fallas.join(" | "));

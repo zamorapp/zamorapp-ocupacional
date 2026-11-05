@@ -21,6 +21,10 @@ exception when others then null; end $$;
 do $$ begin perform public.guardar_tasa_bcv_auto('clave-de-prueba-210-0123456789abcdef', public.hoy_caracas() + 2, 900, 'manual'); raise notice 'FALLA: el latido se hizo pasar por manual';
 exception when others then null; end $$;
 
+select 'freno: el primer intento toca (debe 1): ' || count(*) from (select public.tasa_bcv_reservar_intento('clave-de-prueba-210-0123456789abcdef') r) x where r;
+select 'freno: el segundo antes de 10 min no (debe 0): ' || count(*) from (select public.tasa_bcv_reservar_intento('clave-de-prueba-210-0123456789abcdef') r) x where r;
+select 'freno: clave falsa no reserva (debe 0): ' || count(*) from (select public.tasa_bcv_reservar_intento('clave-falsa-210-xxxxxxxxxxxxxxxxxxxxxxx') r) x where r;
+
 -- El administrador corrige la de hoy a mano: el latido ya no la pisa
 reset role;
 set role authenticated;

@@ -124,7 +124,7 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
               {t.totalBs !== null && tasaUsada && (
                 <>
                   <div className="flex justify-between font-semibold"><span>Total en bolívares</span><span>{bs(t.totalBs)}</span></div>
-                  <div className="text-right text-[11px] text-neutral-600">Tasa BCV{auto ? ` del ${fechaCorta(auto.fecha)}` : ""}: Bs. {tasaUsada.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} por dólar</div>
+                  <div className="text-right text-[12px] text-neutral-600">Tasa BCV{auto ? ` del ${fechaCorta(auto.fecha)}` : ""}: Bs. {tasaUsada.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} por dólar</div>
                 </>
               )}
             </div>

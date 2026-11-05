@@ -40,7 +40,7 @@ export async function guardarServicio(s: Servicio): Promise<Resultado> {
 export async function guardarTasa(fecha: string, tasa: number): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  if (!(tasa > 0)) return { ok: false, mensaje: "Escribe una tasa válida." };
+  if (!(tasa > 0) || tasa >= 10_000_000) return { ok: false, mensaje: "Escribe una tasa válida." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Fecha no válida." };
   // Escrita a mano: manda sobre la automática (el latido nunca pisa una tasa «manual»)
   const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa, fuente: "manual" }, { onConflict: "org_id,fecha" });
@@ -170,10 +170,11 @@ export async function convertirPresupuesto(id: string): Promise<Resultado> {
 export async function guardarTasaCobro(id: string, tasa: number): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  if (!(tasa > 0)) return { ok: false, mensaje: "Escribe una tasa válida." };
-  const { data: filas, error } = await c.supabase.from("cobros").update({ tasa_bcv: tasa }).eq("id", id).neq("estado", "anulada").select("id");
+  if (!(tasa > 0) || tasa >= 10_000_000) return { ok: false, mensaje: "Escribe una tasa válida." };
+  // Nunca en una nota pagada (su tasa es la del pago) ni anulada
+  const { data: filas, error } = await c.supabase.from("cobros").update({ tasa_bcv: tasa }).eq("id", id).not("estado", "in", "(pagada,anulada)").select("id");
   if (error) return { ok: false, mensaje: error.message };
-  if (!filas?.length) return { ok: false, mensaje: "No se guardó la tasa: la nota no existe, está anulada o tu rol no puede cambiarla." };
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó la tasa: la nota está pagada o anulada, no existe o tu rol no puede cambiarla." };
   revalidatePath("/facturacion");
   return { ok: true, mensaje: "Tasa anotada en la nota de cobro." };
 }

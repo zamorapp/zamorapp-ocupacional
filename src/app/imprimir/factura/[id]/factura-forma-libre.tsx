@@ -32,12 +32,14 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   const [emision, setEmision] = useState(c.fecha);
   // Tasa BCV de la fecha de emisión (la de ese día o la anterior más cercana); si no hay, la de la nota de cobro.
   // Se puede corregir a mano. Al imprimir se anota en la nota para que el registro diga lo mismo que el papel.
+  // En una nota pagada la tasa queda fija: la anotada en la nota (la del pago); nunca se cambia desde aquí.
+  const tasaFija = c.estado === "pagada" && !!c.tasaBcv;
   const tasaAuto = (d: string) => tasaParaFecha(tasas, d);
-  const [tasaTxt, setTasaTxt] = useState(() => { const a = tasaAuto(c.fecha)?.tasa ?? c.tasaBcv; return a ? cifraTasa(a) : ""; });
+  const [tasaTxt, setTasaTxt] = useState(() => { const a = tasaFija ? c.tasaBcv : (tasaAuto(c.fecha)?.tasa ?? c.tasaBcv); return a ? cifraTasa(a) : ""; });
   const cambiarEmision = (d: string) => {
     setEmision(d);
     const a = tasaAuto(d);
-    if (a) setTasaTxt(cifraTasa(a.tasa));
+    if (a && !tasaFija) setTasaTxt(cifraTasa(a.tasa));
   };
   const [detallar, setDetallar] = useState(false);
   const [guia, setGuia] = useState(false);
@@ -96,7 +98,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
 
   const guardarNumero = () => {
     // La tasa impresa queda anotada en la nota de cobro (si cambió)
-    if (editable && tasa && tasa !== c.tasaBcv) void guardarTasaCobro(c.id, tasa);
+    if (editable && tasa && tasa !== c.tasaBcv && c.estado !== "pagada" && c.estado !== "anulada") void guardarTasaCobro(c.id, tasa);
     if (!editable || !numero.trim() || numero.trim() === guardado) return;
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, numero);
@@ -137,8 +139,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Tasa BCV (Bs/$)</span>
-            <Input value={tasaTxt} inputMode="decimal" placeholder="Ej. 896,1225" disabled={!editable} onChange={(e) => setTasaTxt(e.target.value)} className="font-mono text-foreground disabled:opacity-100" />
-            <span className="block text-xs text-muted-foreground">{tasa ? origenTasa : "Sin tasa: sale solo en $"}</span>
+            <Input value={tasaTxt} inputMode="decimal" placeholder="Ej. 896,1225" disabled={!editable || tasaFija} onChange={(e) => setTasaTxt(e.target.value)} className="font-mono text-foreground disabled:opacity-100" />
+            <span className="block text-xs text-muted-foreground">{tasaFija ? "La del pago (nota pagada)" : tasa ? origenTasa : "Sin tasa: sale solo en $"}</span>
           </label>
           <div className="flex flex-col justify-start gap-1.5 pt-5">
             <label className="flex items-center gap-2"><input type="checkbox" checked={detallar} onChange={(e) => setDetallar(e.target.checked)} /> Un renglón por trabajador (sin agrupar)</label>
@@ -168,7 +170,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         {sinNumero && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Escribe el número de la factura del talonario para poder imprimir.</p>}
         {desborde && (
           <p className="flex items-start gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No cabe entre el membrete y la leyenda ni reducida al 80 %. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No cabe: {renglones.length} renglones. No cabe entre el membrete y la leyenda ni reducida al 80 %. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
           </p>
         )}
         {!tasa && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Sin tasa BCV para el {fecha(emision)}: los montos salen solo en dólares. Escribe la tasa arriba para facturar en bolívares.</p>}
@@ -211,15 +213,15 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                   <th className="py-0.5 font-semibold">Descripción</th>
                   {tasa ? (
                     <>
-                      <th className="w-[17mm] py-0.5 text-right font-semibold">Precio $</th>
-                      <th className="w-[25mm] py-0.5 text-right font-semibold">Precio Bs.</th>
-                      <th className="w-[20mm] py-0.5 text-right font-semibold">Monto $</th>
-                      <th className="w-[28mm] py-0.5 text-right font-semibold">Monto Bs.</th>
+                      <th className="w-[17mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio $</th>
+                      <th className="w-[25mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio Bs.</th>
+                      <th className="w-[20mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto $</th>
+                      <th className="w-[28mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto Bs.</th>
                     </>
                   ) : (
                     <>
-                      <th className="w-[30mm] py-0.5 text-right font-semibold">Precio unit. $</th>
-                      <th className="w-[32mm] py-0.5 text-right font-semibold">Monto $</th>
+                      <th className="w-[30mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio unit. $</th>
+                      <th className="w-[32mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto $</th>
                     </>
                   )}
                 </tr>
@@ -229,10 +231,10 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                   <tr key={k} className="border-b border-neutral-200 align-top">
                     <td className="py-[1px] pr-2 text-right tabular-nums">{r.cantidad}</td>
                     <td className="py-[1px]">{r.descripcion}{r.detalle && <span className="text-neutral-600"> · {r.detalle}</span>}{c.ivaPct === 0 && " (E)"}</td>
-                    {tasa && <td className="py-[1px] text-right font-mono tabular-nums">{num(r.precio)}</td>}
-                    <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.precio))}</td>
-                    {tasa && <td className="py-[1px] text-right font-mono tabular-nums">{num(r.cantidad * r.precio)}</td>}
-                    <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.cantidad * r.precio))}</td>
+                    {tasa && <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(r.precio)}</td>}
+                    <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.precio))}</td>
+                    {tasa && <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(r.cantidad * r.precio)}</td>}
+                    <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.cantidad * r.precio))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -249,7 +251,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                 {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.iva))}</span></div>}
                 {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.igtf))}</span></div>}
                 <div className="flex justify-between border-t border-neutral-800 pt-0.5 text-[12px] font-bold"><span>TOTAL A PAGAR {moneda}</span><span className="font-mono tabular-nums">{num(enMoneda(t.total))}</span></div>
-                {tasa && <div className="flex justify-between font-semibold"><span>Total en dólares $</span><span className="font-mono tabular-nums">{num(t.total)}</span></div>}
+                {tasa && <div className="flex justify-between text-[12px] font-bold"><span>TOTAL EN DÓLARES $</span><span className="font-mono tabular-nums">{num(t.total)}</span></div>}
               </div>
             </div>
           </div>

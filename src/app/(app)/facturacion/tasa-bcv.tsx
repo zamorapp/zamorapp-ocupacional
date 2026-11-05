@@ -25,7 +25,7 @@ export function TasaBcv({ actual, proxima, hoy, editable }: { actual: Tasa | nul
       <span className="font-medium">Tasa BCV</span>
       {actual ? (
         <span className="tabular-nums" title={`Fecha valor ${dia(actual.fecha)} · ${ORIGEN[actual.fuente]}`}>
-          <b>{cifra(actual.tasa)}</b> Bs/$ <span className="text-muted-foreground">· {deHoy ? "hoy" : `del ${dia(actual.fecha)}`}</span>
+          <b>{cifra(actual.tasa)}</b> Bs/$ <span className={deHoy ? "text-muted-foreground" : "text-aviso-texto"}>· {deHoy ? "hoy" : `del ${dia(actual.fecha)}`}</span>
         </span>
       ) : (
         <span className="text-aviso-texto">sin cargar</span>

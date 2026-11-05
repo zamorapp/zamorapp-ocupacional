@@ -25,6 +25,26 @@ end $$;
 revoke execute on function public.tasa_bcv_ultima_fecha(text) from public;
 grant execute on function public.tasa_bcv_ultima_fecha(text) to anon, authenticated;
 
+-- Freno: la ruta es pública, así que como mucho un intento de salir al BCV cada 10 minutos (Analizar, 05-nov).
+-- Devuelve true y anota la hora si toca intentar; false si hubo un intento hace menos de 10 minutos.
+alter table public.avisos_push_clave add column if not exists tasa_bcv_intento timestamptz;
+
+create or replace function public.tasa_bcv_reservar_intento(p_clave text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare
+  v_hash bytea := sha256(convert_to(coalesce(p_clave, ''), 'UTF8'));
+  v_n int;
+begin
+  if length(coalesce(p_clave, '')) < 32 then return false; end if;
+  update public.avisos_push_clave set tasa_bcv_intento = public.ahora()
+   where clave_hash = v_hash
+     and (tasa_bcv_intento is null or tasa_bcv_intento < public.ahora() - interval '10 minutes');
+  get diagnostics v_n = row_count;
+  return v_n > 0;
+end $$;
+revoke execute on function public.tasa_bcv_reservar_intento(text) from public;
+grant execute on function public.tasa_bcv_reservar_intento(text) to anon, authenticated;
+
 -- Guarda la tasa leída del BCV para su fecha valor. Límites de cordura: fecha entre 10 días atrás y 7 adelante, tasa
 -- positiva y a no más de ±30 % de la última conocida (si el BCV cambia de formato y se lee otro número, no se guarda).
 -- Devuelve cuántas organizaciones quedaron con esa tasa.
