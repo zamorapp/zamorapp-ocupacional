@@ -24,7 +24,8 @@ trab as (
   from public.trabajadores t
   left join public.organizaciones o on o.id = t.org_id
   left join public.lista_items tp on tp.id = t.tipo_paciente_id
-  where (p_empresa is null or t.empresa_id = p_empresa)
+  -- «Todas las empresas» deja fuera la bolsa de pacientes particulares (empresas.es_particular, 20261030894000)
+  where (p_empresa is null and not exists (select 1 from public.empresas ep where ep.id = t.empresa_id and ep.es_particular) or t.empresa_id = p_empresa)
     and t.estado in ('activo', 'reposo')
     and (coalesce(o.ajustes ->> 'vigilancia_poblacion', 'efectivos') = 'todos'
          or coalesce(tp.grupo = 'efectivo', t.tipo_paciente_id is null))
@@ -58,7 +59,8 @@ prog as (
 eo as (
   select ev.*, coalesce(ev.fecha_diagnostico, ev.fecha_hora) as fdx
   from public.eventos ev
-  where ev.tipo = 'enfermedad' and (p_empresa is null or ev.empresa_id = p_empresa)
+  where ev.tipo = 'enfermedad'
+    and (p_empresa is null and not exists (select 1 from public.empresas ep where ep.id = ev.empresa_id and ep.es_particular) or ev.empresa_id = p_empresa)
     and coalesce(ev.fecha_diagnostico, ev.fecha_hora) >= p_desde
     and coalesce(ev.fecha_diagnostico, ev.fecha_hora) < p_hasta + 1
 ),

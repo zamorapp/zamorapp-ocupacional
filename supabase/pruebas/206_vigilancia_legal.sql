@@ -48,6 +48,15 @@ select 'sospecha ocupacional sin registrar (debe 1): ' || (v -> 'enfermedades' -
 select 'audiometría alterada en expuestos a ruido (debe 1): ' || (select x ->> 'alterados' from jsonb_array_elements(v -> 'resultados') x where x ->> 'grupo' = 'Expuestos a ruido') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
 select 'espirometría normal en expuestos a polvo (debe 1): ' || (select x ->> 'normales' from jsonb_array_elements(v -> 'resultados') x where x ->> 'estudio' = 'Espirometría' and (x ->> 'expuesto')::boolean) from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
 select 'expuestos a ruido sin audiometría (debe 1): ' || (v -> 'expuestos_sin_estudio' ->> 'ruido') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
+-- «Todas las empresas» no cuenta la bolsa de particulares: se marca E206 como particular un momento
+reset role;
+update public.empresas set es_particular = true where id = '20000000-0000-0000-0000-000000000206';
+set role authenticated;
+select 'todas las empresas sin particulares: no cuenta su enfermedad (debe 0): ' || (v -> 'enfermedades' ->> 'registradas') from public.vigilancia_legal(null,'2027-07-01','2027-09-30') v;
+select 'pedida por su id, la bolsa sí responde (debe 1): ' || (v -> 'enfermedades' ->> 'registradas') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
+reset role;
+update public.empresas set es_particular = false where id = '20000000-0000-0000-0000-000000000206';
+set role authenticated;
 -- RR. HH. de la empresa: ve conteos de enfermedades registradas, pero nunca resultados ni sospechas (datos clínicos)
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000002a6',false) \g /dev/null
 select 'RR. HH. ve la enfermedad registrada (debe 1): ' || (v -> 'enfermedades' ->> 'registradas') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
