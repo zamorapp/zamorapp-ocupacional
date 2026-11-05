@@ -21,6 +21,8 @@ export type Reporte = {
     por_sexo: { F: number; M: number };
     por_edad: { grupo: string; n: number }[];
     por_dependencia?: (Conteo & { personal: number })[];
+    // Morbilidad por dependencia desglosada por motivo (como el SAME, pág. 19): vigilancia_complemento
+    por_dependencia_motivo?: { dependencia: string; motivo: string; consultas: number; diagnosticos: number }[];
   };
   morbilidad: {
     total: number;
@@ -31,7 +33,11 @@ export type Reporte = {
     primeras_causas: Causa[];
     // Diez primeras causas por corte: tipo, origen, sexo, edad, sistema, actividad, motivo, dependencia
     cortes?: Record<string, Record<string, Causa[]>>;
+    // Cargos con diagnósticos en el período (el anexo muestra los 15 con más casos)
+    cargos_total?: number;
   };
+  // Motivos configurados y sistemas que el servicio usa: los cuadros completos los listan también en cero (como el SAME)
+  catalogo?: { motivos: { nombre: string; grupo: string | null }[]; sistemas: string[] };
   referencias?: { total: number; por_especialidad: Conteo[] };
   ausentismo: {
     reposos: number; dias_perdidos: number; dias_periodo: number; dias_computables: number;
@@ -62,8 +68,32 @@ export async function obtenerReporte(empresaId: string | null, p: Periodo): Prom
   const { data, error } = await supabase.rpc("reporte_vigilancia", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
   if (error) throw error;
   const r = data as Reporte;
+  await complementar(r, empresaId, p, supabase);
   await nombresCie10(r, supabase);
   return r;
+}
+
+type Complemento = {
+  dependencia_motivo: NonNullable<Reporte["consultas"]["por_dependencia_motivo"]>;
+  cargos: Record<string, Causa[]>;
+  cargos_total: number;
+  motivos: { nombre: string; grupo: string | null }[];
+  sistemas: string[];
+};
+
+// Cuadros que el SAME trae y reporte_vigilancia no (dependencia × motivo, causas por cargo, catálogos para las filas en cero).
+// Es un complemento: si la función falla (o la copia del escritorio todavía no tiene la migración), el informe sale igual sin ellos.
+async function complementar(r: Reporte, empresaId: string | null, p: Periodo, supabase: Awaited<ReturnType<typeof crearClienteServidor>>) {
+  const { data, error } = await supabase.rpc("vigilancia_complemento", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
+  if (error || !data) {
+    if (error) console.error("vigilancia_complemento:", error.message);
+    return;
+  }
+  const c = data as Complemento;
+  r.consultas.por_dependencia_motivo = c.dependencia_motivo ?? [];
+  r.morbilidad.cortes = { ...r.morbilidad.cortes, cargo: c.cargos ?? {} };
+  r.morbilidad.cargos_total = c.cargos_total ?? 0;
+  r.catalogo = { motivos: c.motivos ?? [], sistemas: c.sistemas ?? [] };
 }
 
 // Diagnósticos registrados sin nombre (vacío, igual al código o abreviado, p. ej. migrados del SAME):

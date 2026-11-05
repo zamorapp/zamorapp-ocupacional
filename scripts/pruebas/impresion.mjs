@@ -84,6 +84,13 @@ for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
   const esta = /F32|Episodio depresivo/.test(html);
   filas.push(`${"vigilancia F32".padEnd(20)} ${caso.padEnd(7)} ${esta ? "nombra F32" : "no nombra F32"}`);
   if (esta !== debe) fallas.push(`vigilancia (${caso}): ${debe ? "el informe del médico debe mostrar F32.9" : "la versión para la empresa nombra F32.9 (1 caso, confidencial)"}`);
+  // Cuadros del 05-nov: un cargo con 1 caso y un motivo sensible (prenatal) no salen en la copia de la empresa
+  const cargo = /Gerente general/.test(html), prenatal = /Almacén<\/td><td[^>]*>Prenatal/.test(html);
+  filas.push(`${"vigilancia cargo".padEnd(20)} ${caso.padEnd(7)} ${cargo ? "nombra cargo chico" : "no nombra cargo chico"} · ${prenatal ? "nombra prenatal" : "no nombra prenatal"}`);
+  if (cargo !== debe || prenatal !== debe) fallas.push(`vigilancia (${caso}): cargo de 1 caso o motivo prenatal ${debe ? "deben salir en la copia del médico" : "no deben salir en la copia de la empresa"}`);
+  for (const cuadro of ["Morbilidad por dependencia y motivo de consulta", "Consultas por motivo · todos los motivos", "Morbilidad por aparatos y sistemas · todos", "Diez primeras causas de morbilidad por cargo"]) {
+    if (!html.replace(/<!-- -->/g, "").includes(cuadro)) fallas.push(`vigilancia (${caso}): falta el cuadro «${cuadro}»`);
+  }
 }
 await navegador.close();
 console.log(filas.join("\n"));

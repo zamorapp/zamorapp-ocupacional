@@ -6,7 +6,8 @@
 
 import type { Reporte } from "@/lib/reportes";
 import type { DatosAnalisis, Series } from "@/lib/vigilancia-analisis";
-import { dx, etq, humano, mayus, minus, n0, n1, n2, nombrable, p, pc, personas, plural, sinRegistros, unir } from "@/lib/vigilancia-redaccion";
+import { sensible } from "@/lib/vigilancia-ia";
+import { dx, etq, humano, lapsoDe, mayus, minus, n0, n1, n2, nombrable, p, pc, personas, plural, sinRegistros, unir } from "@/lib/vigilancia-redaccion";
 
 export type Herramientas = { elige: <T>(a: T[]) => T; baraja: <T>(a: T[]) => T[]; azar: () => number };
 export type Totales = { consultas: number; preventivas: number; diagnosticos: number; dias: number; poblacion: number };
@@ -22,6 +23,7 @@ const CORTES_ANEXO = [
   ["sistema", "aparato o sistema"],
   ["motivo", "motivo de consulta"],
   ["dependencia", "dependencia"],
+  ["cargo", "cargo"],
 ] as const;
 export const CAUSAS_REPOSO = ["accidente_comun", "accidente_laboral", "enfermedad_comun", "enfermedad_ocupacional"] as const;
 const ETIQUETA: Record<string, string> = {
@@ -250,8 +252,11 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     const grupos = Object.entries(cortes[g] ?? {}).filter(([, l]) => l.length);
     if (!grupos.length) return sin;
     if (g === "sexo" && pocosPorSexo) return "Uno de los sexos tiene menos de tres trabajadores: para proteger la confidencialidad no se comparan las causas por sexo.";
-    const filas = grupos.map(([k, l]) => ({ k, nombre: etiqueta(k), total: sumar(l, (x) => x.n), top: l.find(nombrable), lista: l })).sort((a, b) => b.total - a.total);
-    const suma = sumar(filas, (x) => x.total);
+    const todas = grupos.map(([k, l]) => ({ k, nombre: etiqueta(k), total: sumar(l, (x) => x.n), top: l.find(nombrable), lista: l })).sort((a, b) => b.total - a.total);
+    // Un cargo con 1 o 2 casos no se nombra: en una empresa chica señalaría a la persona
+    const filas = g === "cargo" ? todas.filter((x) => x.total >= 3) : todas;
+    if (!filas.length) return `Los diagnósticos se reparten en ${plural(todas.length, "cargo", "cargos")} con menos de tres casos cada uno; para proteger la confidencialidad no se nombran.`;
+    const suma = sumar(todas, (x) => x.total);
     const mayor = filas[0];
     const f: string[] = [filas.length === 1
       ? `Por ${nombre}, todas las primeras causas corresponden a ${mayor.nombre}.`
@@ -276,6 +281,14 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     if (g === "tipo" && filas.some((x) => x.k === "sucesiva")) f.push("Las causas de las consultas sucesivas señalan los casos que necesitan seguimiento hasta su resolución.");
     if (g === "actividad" && filas.some((x) => x.k === "preventiva")) f.push("Lo hallado en las consultas preventivas es detección precoz: casos que se captan antes de que generen ausentismo.");
     if (g === "dependencia" && mayor.top) f.push(`Este dato orienta la inspección de los puestos de ${mayor.nombre}.`);
+    if (g === "cargo") {
+      f.push(elige([
+        `Este cuadro orienta la evaluación de riesgos del puesto de ${mayor.nombre} y la actualización de su notificación de riesgos (art. 56 de la LOPCYMAT).`,
+        `Conviene revisar las condiciones del puesto de ${mayor.nombre} (carga física, postura, exposición) con el Servicio de Seguridad y Salud en el Trabajo.`,
+      ]));
+      const total = r.morbilidad.cargos_total ?? todas.length;
+      if (total > todas.length) f.push(`Se muestran los ${n0(todas.length)} cargos con más diagnósticos de ${n0(total)} con casos en ${lapsoDe(d.etiqueta)}.`);
+    }
     if (g === "edad") {
       const mayores = filas.find((x) => /(5\d|6\d|más)/.test(x.k) && x.top);
       if (mayores && mayores !== mayor) f.push(`En el grupo de ${mayores.nombre} años la primera causa es ${minus(mayores.top!.descripcion || mayores.top!.cie10)}, propia de la edad, que justifica controles dirigidos.`);
@@ -322,7 +335,67 @@ export function analisisAnexo(d: DatosAnalisis, h: Herramientas, causasNombre: R
     return f.join(" ");
   })();
 
+  // Morbilidad por dependencia y motivo (como el SAME): dónde y por qué consulta cada área
+  const dependenciaMotivo = (() => {
+    const l = r.consultas.por_dependencia_motivo ?? [];
+    if (!l.length) return sin;
+    const porDep = new Map<string, { consultas: number; dx: number; motivos: { motivo: string; consultas: number }[] }>();
+    for (const x of l) {
+      const e = porDep.get(x.dependencia) ?? { consultas: 0, dx: 0, motivos: [] };
+      e.consultas += x.consultas; e.dx += x.diagnosticos; e.motivos.push({ motivo: x.motivo, consultas: x.consultas });
+      porDep.set(x.dependencia, e);
+    }
+    const deps = [...porDep.entries()].map(([nombre, e]) => ({ nombre, ...e, motivos: e.motivos.sort((a, b) => b.consultas - a.consultas) })).sort((a, b) => b.consultas - a.consultas);
+    const total = sumar(deps, (x) => x.consultas);
+    const mayor = deps[0];
+    const f = [deps.length === 1
+      ? `Todas las consultas del período corresponden a ${mayor.nombre}; su motivo principal es ${minus(mayor.motivos[0].motivo)} (${pc(mayor.motivos[0].consultas, mayor.consultas)}).`
+      : elige([
+          `${mayus(mayor.nombre)} concentra el ${pc(mayor.consultas, total)} de las consultas, sobre todo por ${minus(mayor.motivos[0].motivo)} (${pc(mayor.motivos[0].consultas, mayor.consultas)} de esa área).`,
+          `Por dependencia y motivo, la mayor demanda viene de ${mayor.nombre} (${pc(mayor.consultas, total)}), donde predomina ${minus(mayor.motivos[0].motivo)}.`,
+        ])];
+    // Áreas donde predomina lo asistencial (no preventivo): señal de morbilidad que se atiende y no se previene
+    const grupoDe = new Map((r.consultas.por_motivo ?? []).map((m) => [m.nombre, m.grupo]));
+    const asistenciales = deps.filter((x) => x.consultas >= 3 && p(sumar(x.motivos.filter((m) => grupoDe.get(m.motivo) !== "preventivo"), (m) => m.consultas), x.consultas) >= 60);
+    if (asistenciales.length) f.push(`En ${unir(asistenciales.slice(0, 3).map((x) => x.nombre))} predominan las consultas asistenciales sobre las preventivas: conviene reforzar allí los exámenes periódicos y la vigilancia por riesgo.`);
+    const conDx = deps.filter((x) => x.consultas >= 3).sort((a, b) => b.dx / b.consultas - a.dx / a.consultas)[0];
+    if (conDx && conDx.dx && deps.length > 1) f.push(`La mayor carga de diagnósticos por consulta está en ${conDx.nombre} (${n1(conDx.dx / conDx.consultas)} por consulta).`);
+    const sinPreventivas = deps.filter((x) => x.consultas >= 3 && !x.motivos.some((m) => grupoDe.get(m.motivo) === "preventivo"));
+    if (sinPreventivas.length) f.push(`${mayus(unir(sinPreventivas.slice(0, 3).map((x) => x.nombre)))} no ${sinPreventivas.length === 1 ? "tuvo" : "tuvieron"} evaluaciones preventivas en ${lapsoDe(d.etiqueta)}.`);
+    return f.join(" ");
+  })();
+
+  // Cuadros completos (también en cero): qué motivos y sistemas no tuvieron actividad
+  const motivosTodos = (() => {
+    const cat = r.catalogo?.motivos ?? [];
+    if (!cat.length) return sin;
+    const con = new Set((r.consultas.por_motivo ?? []).filter((m) => m.n > 0).map((m) => m.nombre));
+    const cero = cat.filter((m) => !con.has(m.nombre));
+    if (!con.size) return sin;
+    const f = [`De ${plural(cat.length, "motivo configurado", "motivos configurados")}, ${plural(cat.length - cero.length, "tuvo", "tuvieron")} consultas en ${lapsoDe(d.etiqueta)}.`];
+    const ceroPrev = cero.filter((m) => m.grupo === "preventivo").map((m) => minus(m.nombre));
+    if (ceroPrev.length) f.push(`Sin registros en motivos preventivos: ${unir(ceroPrev.slice(0, 6))}${ceroPrev.length > 6 ? " y otros" : ""}. Si corresponden a evaluaciones previstas en el programa, conviene programarlas.`);
+    else f.push("Todos los motivos preventivos tuvieron actividad.");
+    return f.join(" ");
+  })();
+  const sistemasTodos = (() => {
+    const cat = r.catalogo?.sistemas ?? [];
+    const con = (r.morbilidad.por_sistema ?? []).filter((x) => x.n > 0);
+    if (!con.length) return sin;
+    const nombres = new Set(con.map((x) => x.nombre));
+    const cero = cat.filter((x) => !nombres.has(x));
+    const f = [`${mayus(plural(con.length, "aparato o sistema tuvo", "aparatos y sistemas tuvieron"))} diagnósticos en ${lapsoDe(d.etiqueta)}${cero.length ? `; ${plural(cero.length, "queda", "quedan")} en cero` : ""}.`];
+    const mayor = [...con].sort((a, b) => b.n - a.n)[0];
+    const total = sumar(con, (x) => x.n);
+    if (con.length > 1 && mayor.n >= 3 && !sensible(mayor.nombre)) f.push(`${mayus(mayor.nombre)} reúne el ${pc(mayor.n, total)}.`);
+    if (con.length <= 2 && total >= 10) f.push("La morbilidad está muy concentrada en pocos sistemas, lo que facilita dirigir las acciones de prevención.");
+    return f.join(" ");
+  })();
+
   return {
+    anexo_dependencia_motivo: dependenciaMotivo,
+    anexo_motivos_todos: motivosTodos,
+    anexo_sistemas_todos: sistemasTodos,
     ...Object.fromEntries(CORTES_ANEXO.map(([g, nombre]) => [`anexo_${g}`, corte(g, nombre)])),
     ...Object.fromEntries(CAUSAS_REPOSO.map((c) => [`anexo_reposo_${c}`, reposoPor(c)])),
     anexo_reposo_dependencia: reposoDependencia,

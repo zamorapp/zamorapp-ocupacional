@@ -14,6 +14,7 @@ export const CORTES: [string, string][] = [
   ["sistema", "Aparato o sistema"],
   ["motivo", "Motivo de consulta"],
   ["dependencia", "Dependencia"],
+  ["cargo", "Cargo"],
 ];
 
 export const ETIQUETA_CLAVE: Record<string, string> = {

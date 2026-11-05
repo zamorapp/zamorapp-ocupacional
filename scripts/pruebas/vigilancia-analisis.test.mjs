@@ -118,3 +118,37 @@ test("RR. HH.: 1 enfermedad ocupacional y 1 reposo por accidente laboral no se c
     assert.doesNotMatch(todo, /Esguince|20 días/);
   }
 });
+
+test("anexo: causas por cargo, sin nombrar cargos con menos de 3 casos", () => {
+  const d = structuredClone(datos);
+  d.r.morbilidad.cortes = { cargo: { Soldador: [{ cie10: "H83.3", descripcion: "Hipoacusia por ruido", n: 4, pacientes: 3 }], "Gerente general": [{ cie10: "I10", descripcion: "Hipertensión", n: 1, pacientes: 1 }] } };
+  d.r.morbilidad.cargos_total = 20;
+  for (let v = 0; v < 4; v++) {
+    const a = generarAnalisis(d, v).secciones;
+    assert.match(a.anexo_cargo, /Soldador/);
+    assert.match(a.anexo_cargo, /Hipoacusia/);
+    assert.doesNotMatch(a.anexo_cargo, /Gerente|Hipertensión/);
+    assert.match(a.anexo_cargo, /de 20 con casos/);
+  }
+  d.r.morbilidad.cortes = { cargo: { "Gerente general": [{ cie10: "I10", descripcion: "Hipertensión", n: 1, pacientes: 1 }] } };
+  assert.match(generarAnalisis(d, 0).secciones.anexo_cargo, /no se nombran/);
+  d.r.morbilidad.cortes = {};
+  assert.match(generarAnalisis(d, 0).secciones.anexo_cargo, /no se encontraron registros/);
+});
+
+test("anexo: morbilidad por dependencia y motivo, y motivos y sistemas en cero", () => {
+  const d = structuredClone(datos);
+  d.r.consultas.por_dependencia_motivo = [
+    { dependencia: "Proyección", motivo: "Morbilidad", consultas: 9, diagnosticos: 8 }, { dependencia: "Proyección", motivo: "Pre-empleo", consultas: 3, diagnosticos: 0 },
+    { dependencia: "Taquilla", motivo: "Morbilidad", consultas: 4, diagnosticos: 2 },
+  ];
+  d.r.catalogo = { motivos: [...d.r.consultas.por_motivo.map((m) => ({ nombre: m.nombre, grupo: m.grupo })), { nombre: "Periódico", grupo: "preventivo" }], sistemas: ["Osteomuscular", "Respiratorio", "Piel"] };
+  const a = generarAnalisis(d, 0).secciones;
+  assert.match(a.anexo_dependencia_motivo, /Proyección/);
+  assert.match(a.anexo_dependencia_motivo, /Taquilla no tuvo evaluaciones preventivas/);
+  assert.match(a.anexo_motivos_todos, /De 5 motivos configurados, 4 tuvieron/);
+  assert.match(a.anexo_motivos_todos, /periódico/);
+  assert.match(a.anexo_sistemas_todos, /quedan en cero/);
+  d.r.consultas.por_dependencia_motivo = [];
+  assert.match(generarAnalisis(d, 0).secciones.anexo_dependencia_motivo, /no se encontraron registros/);
+});

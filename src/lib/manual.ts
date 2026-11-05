@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-05", texto: "Vigilancia: el anexo trae, como el SAME, la morbilidad por dependencia y motivo de consulta, todos los motivos y todos los aparatos y sistemas aunque estén en cero, y las diez primeras causas por cargo (los 15 cargos con más casos). Cada cuadro con su análisis. En la copia para la empresa, los cargos y motivos con menos de 3 casos o sensibles (prenatal, salud mental) no se nombran", tema: "reportes" },
   { fecha: "2026-11-04", texto: "Menú más ordenado: la barra de la izquierda tiene tres grupos (Día a día, Gestión y Ajustes) y Configuración se agrupa por tarea: Consulta, Cobros, Documentos, Seguridad y equipos, y Mantenimiento. «Servicios y precios» y la Tasa BCV se abren también desde Configuración › Cobros", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Ajustes clínicos en 3 pasos: empresa, evaluación y qué se pide. «Ninguno» quita los paraclínicos de una empresa sin borrar el perfil; borrar del sistema queda aparte y con «Deshacer»", tema: "configuracion" },
   { fecha: "2026-11-04", texto: "El buscador (Ctrl+K o «Buscar») ahora encuentra pantallas, pestañas y ajustes, no solo trabajadores. Escribe «precios», «membrete», «vademécum», «respaldo» o una frase como «dónde coloco los precios» y te lleva allí", tema: "atajos" },
