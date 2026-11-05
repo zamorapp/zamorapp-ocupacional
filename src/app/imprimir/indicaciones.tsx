@@ -1,10 +1,14 @@
 import { Fragment } from "react";
 import type { DatosDocumento } from "@/lib/documentos";
-import { CONTROL_TA, PLAN_BASE, PLANES } from "@/lib/indicaciones-preventivas";
+import { CONTROL_TA, PLANES } from "@/lib/indicaciones-preventivas";
+import { dietaDe, sumables } from "@/lib/dietas";
+import { IconoSalud } from "./iconos-salud";
+import { ListaEditable, TextoEditable } from "./lista-editable";
+import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, DatosPaciente, Ficha, FirmaMedico, Firmas, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
 
 // Hojas de indicaciones preventivas que el médico entrega al trabajador: control de tensión arterial en casa
-// y plan de alimentación. Los textos se pueden tocar y cambiar en pantalla antes de imprimir (no se guardan).
+// y plan de alimentación. Los textos se pueden tocar, quitar o agregar en pantalla antes de imprimir (no se guardan).
 const editable = { contentEditable: true, suppressContentEditableWarning: true, spellCheck: false } as const;
 
 function Fuentes({ texto }: { texto: string }) {
@@ -118,28 +122,28 @@ function Plato() {
   );
 }
 
-function Columna({ titulo, items, tono }: { titulo: string; items: string[]; tono: "ok" | "aviso" | "alerta" }) {
+function Columna({ id, titulo, items, tono }: { id: string; titulo: string; items: string[]; tono: "ok" | "aviso" | "alerta" }) {
   const color = { ok: "border-[#1d7a46] text-[#1d7a46]", aviso: "border-[#9a6a00] text-[#7a5300]", alerta: "border-[#b42318] text-[#b42318]" }[tono];
   return (
     <div className={`rounded-lg border-t-[3px] bg-[#f7faf9] px-2.5 py-1.5 ${color}`}>
-      <div className="mb-0.5 text-[9.5px] font-extrabold uppercase tracking-[.12em]">{titulo}</div>
-      <ul className="space-y-0.5 text-[9.5px] leading-[1.3] text-[#15201e]">
-        {items.map((x) => <li key={x} className="break-inside-avoid pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
-      </ul>
+      <div className="mb-0.5 text-[10.5px] font-extrabold uppercase tracking-[.12em]">{titulo}</div>
+      <ListaEditable id={id} items={items} className="text-[12px] leading-[1.3] text-[#15201e]" />
     </div>
   );
 }
 
-// Plan de alimentación tipo mediterráneo; planes: esquemas por condición que el médico agregó con los botones
-export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes?: string[] }) {
-  const elegidos = PLANES.filter((p) => planes.includes(p.clave));
-  const b = PLAN_BASE;
-  // Con un esquema cabe en una carta y la firma va al pie; con más, la hoja fluye a una segunda página
+// Plan de alimentación: la dieta completa del caso que eligió el médico (?dieta=) y, abajo, las indicaciones cortas
+// de otras condiciones que quiera sumar (?plan=). Cada renglón se cambia, se quita o se agrega antes de imprimir.
+export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosDocumento; dieta?: string; planes?: string[]; cambios?: Cambios }) {
+  const b = dietaDe(dieta);
+  const extras = PLANES.filter((p) => planes.includes(p.clave) && sumables(b, p.clave));
+  // Letra de 9 pt como mínimo: fluye en dos hojas; con 0 o 1 indicación sumada, el «Día de ejemplo» abre la segunda
+  // hoja para que la firma no quede sola arriba de una hoja en blanco
   return (
-    <Hoja className={elegidos.length > 1 ? "print:block" : ""}>
+    <Hoja className="print:block">
       <Membrete d={d} compacto />
-      <Titulo d={d} prefijo="PA" compacto sub={elegidos.length ? `Tipo mediterráneo · ${elegidos.map((p) => p.boton.toLowerCase()).join(", ")}` : "Tipo mediterráneo"}>
-        Plan de alimentación saludable
+      <Titulo d={d} prefijo="PA" compacto sub={extras.length ? `${b.boton} · con ${extras.map((p) => p.boton.toLowerCase()).join(", ")}` : b.boton}>
+        {b.titulo}
       </Titulo>
       <Ficha celdas={[
         { k: "Trabajador", v: d.trabajador.nombre, destacada: true, ancho: 2 },
@@ -147,47 +151,53 @@ export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes
         { k: "Edad", v: d.trabajador.edad !== null ? `${d.trabajador.edad} años` : "" },
       ]} />
 
+      {/* Lo más importante de esta dieta, en dibujos */}
+      <div data-prueba="destacados" className="mb-2 grid grid-cols-4 gap-2 break-inside-avoid">
+        {b.destacados.map((x, i) => (
+          <div key={x.texto} className="flex items-center gap-2 rounded-lg border border-doc-linea px-2 py-1">
+            <IconoSalud icono={x.icono} no={x.no} className="size-[11mm]" />
+            <TextoEditable id={`destacado${i}`} valor={texto(cambios, `destacado${i}`, x.texto)} className="text-[11px] font-semibold leading-tight" />
+          </div>
+        ))}
+      </div>
+
       <div className="mb-2 flex items-center gap-4 break-inside-avoid rounded-lg border border-doc-linea px-3 py-1.5">
         <Plato />
         <div className="flex-1">
           <div className="mb-0.5 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento">El plato de cada comida</div>
-          <p className="mb-1 text-[10px] leading-snug text-doc-tenue" {...editable}>{b.intro}</p>
-          {b.plato.map((p) => (
-            <div key={p.texto} className="flex gap-2 text-[10.5px] leading-snug">
+          <TextoEditable id="intro" bloque valor={texto(cambios, "intro", b.intro)} className="mb-1 text-[12px] leading-snug text-doc-tenue" />
+          {b.plato.map((p, i) => (
+            <div key={p.texto} className="flex gap-2 text-[12px] leading-snug">
               <span aria-hidden className="mt-[3px] size-2.5 shrink-0 rounded-[2px]" style={{ background: p.color }} />
               <b className="w-7 shrink-0">{p.parte}</b>
-              <span><b>{p.texto}:</b> <span {...editable}>{p.ejemplo}</span></span>
+              <span><b>{p.texto}:</b> <TextoEditable id={`plato${i}`} valor={texto(cambios, `plato${i}`, p.ejemplo)} /></span>
             </div>
           ))}
         </div>
       </div>
 
       <div className="mb-2 grid grid-cols-[1.15fr_1fr_1fr] gap-2.5 break-inside-avoid">
-        <Columna titulo="✓ Preferir" items={b.preferir} tono="ok" />
-        <Columna titulo="≈ Con moderación" items={b.moderar} tono="aviso" />
-        <Columna titulo="✕ Evitar" items={b.evitar} tono="alerta" />
+        <Columna id="preferir" titulo="✓ Preferir" items={lista(cambios, "preferir", b.preferir)} tono="ok" />
+        <Columna id="moderar" titulo="≈ Con moderación" items={lista(cambios, "moderar", b.moderar)} tono="aviso" />
+        <Columna id="evitar" titulo="✕ Evitar" items={lista(cambios, "evitar", b.evitar)} tono="alerta" />
       </div>
 
-      {elegidos.map((p) => (
+      {extras.map((p) => (
         <div key={p.clave} data-prueba={`plan-${p.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
           <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{p.titulo}</div>
-          <ul className="columns-2 gap-5 text-[9.5px] leading-[1.3]">
-            {p.items.map((x) => <li key={x} className="mb-0.5 break-inside-avoid pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
-          </ul>
+          <ListaEditable id={`extra-${p.clave}`} items={lista(cambios, `extra-${p.clave}`, p.items)} columnas className="text-[12px] leading-[1.3]" />
           <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {p.fuente}</p>
         </div>
       ))}
 
-      <div className="mb-1 grid grid-cols-2 gap-4 break-inside-avoid">
+      <div className={`mb-1 grid grid-cols-2 gap-4 break-inside-avoid ${extras.length <= 1 ? "print:break-before-page print:pt-[4mm]" : ""}`}>
         <Bloque titulo="Un día de ejemplo">
-          <div className="space-y-0.5 text-[9.5px] leading-[1.3]">
-            {b.ejemplo.map((e, i) => <p key={i}><b>{e.comida}:</b> <span {...editable}>{e.texto}</span></p>)}
+          <div className="space-y-0.5 text-[12px] leading-[1.3]">
+            {b.ejemplo.map((e, i) => <p key={i}><b>{e.comida}:</b> <TextoEditable id={`ejemplo${i}`} valor={texto(cambios, `ejemplo${i}`, e.texto)} /></p>)}
           </div>
         </Bloque>
         <Bloque titulo="Hábitos">
-          <ul className="space-y-0.5 text-[9.5px] leading-[1.3]">
-            {b.habitos.map((x) => <li key={x} className="pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
-          </ul>
+          <ListaEditable id="habitos" items={lista(cambios, "habitos", b.habitos)} className="text-[12px] leading-[1.3]" />
         </Bloque>
       </div>
 
@@ -196,7 +206,7 @@ export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes
         <div className="min-w-0 flex-1 self-stretch">
           <Bloque titulo="Indicaciones del médico">
             {/* Vacío: en pantalla invita a escribir; al imprimir quedan 2 líneas para escribir a mano */}
-            <p className="min-h-[9mm] rounded border border-dashed border-doc-linea px-2 py-1 text-[10.5px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" {...editable} />
+            <TextoEditable id="indicaciones" bloque valor={texto(cambios, "indicaciones", "")} className="min-h-[9mm] whitespace-pre-line rounded border border-dashed border-doc-linea px-2 py-1 text-[12px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" />
           </Bloque>
           <Fuentes texto={`${b.fuentes} Este plan no reemplaza la evaluación por nutricionista cuando el médico la indique.`} />
         </div>

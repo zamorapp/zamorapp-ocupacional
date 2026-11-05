@@ -9,13 +9,16 @@ import { BarraImpresion } from "../../barra";
 import { ConstanciaAtencion } from "../../documentos";
 import { TIPOS } from "../../tipos";
 import { ControlTension, PlanAlimentacion } from "../../indicaciones";
+import { Bienestar } from "../../bienestar";
 import { OpcionesIndicaciones } from "../../opciones-indicaciones";
 import { clavesPlan, diasTa } from "@/lib/indicaciones-preventivas";
 import { esDocTrabajador } from "@/lib/whatsapp-trabajador";
 import { obtenerSesion } from "@/lib/sesion";
+import { temasBienestar } from "@/lib/bienestar";
+import { leerCambios } from "@/lib/cambios-hoja";
 
 
-type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
@@ -24,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
-  const { dx, sin, copia, dias, plan } = await searchParams;
+  const { dx, sin, copia, dias, plan, tema, dieta, c } = await searchParams;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
   const base = await obtenerDocumento(id);
@@ -49,10 +52,11 @@ export default async function Imprimir({ params, searchParams }: Props) {
               </Link>
             </div>
           )}
-          {(tipo === "control-ta" || tipo === "dieta") && <OpcionesIndicaciones tipo={tipo} />}
+          {(tipo === "control-ta" || tipo === "dieta" || tipo === "bienestar") && <OpcionesIndicaciones tipo={tipo} />}
           {tipo === "atencion" ? <ConstanciaAtencion d={d} diagnostico={dx === "1"} />
             : tipo === "control-ta" ? <ControlTension d={d} dias={diasTa(dias)} />
-            : tipo === "dieta" ? <PlanAlimentacion d={d} planes={clavesPlan(plan)} />
+            : tipo === "dieta" ? <PlanAlimentacion d={d} dieta={dieta} planes={clavesPlan(plan)} cambios={leerCambios(c)} />
+            : tipo === "bienestar" ? <Bienestar d={d} temas={temasBienestar(tema)} cambios={leerCambios(c)} />
             : <t.Componente d={d} />}
         </>
       )}

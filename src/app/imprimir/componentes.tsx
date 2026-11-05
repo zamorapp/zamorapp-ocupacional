@@ -70,13 +70,13 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
   const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
   const titular = a.membrete_titular?.trim();
   return (
-    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea pb-3`}>
+    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea ${compacto ? "pb-2" : "pb-3"}`}>
       <Marca logo={d.org.logo} />
       <div className="min-w-0">
         {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
         <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px] leading-tight"}`}>{d.org.nombre}</div>
         {titular && (
-          <div data-prueba="membrete-titular" className={`leading-snug ${compacto ? "line-clamp-1 text-[10px]" : "text-[11.5px]"}`}>
+          <div data-prueba="membrete-titular" className={compacto ? "text-[9px] leading-tight" : "text-[11.5px] leading-snug"}>
             <b className="font-bold">{titular}</b>
             {a.membrete_credenciales?.trim() && <span className="font-medium text-doc-acento"> · {a.membrete_credenciales.trim()}</span>}
           </div>
@@ -246,9 +246,11 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   return (
     <div data-prueba="firma-medico" className="flex flex-wrap items-end gap-3.5">
       <div className="w-64 text-center text-[10px] leading-[1.35]">
+        {/* Altura fija y la firma DENTRO del recuadro, apoyada en la línea: nunca tapa la línea, el nombre ni el MPPS
+            (una firma escaneada con fondo blanco los borraba) ni el texto de arriba */}
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
+          {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 bottom-px mx-auto max-h-full max-w-[90%] object-contain" />}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
         </div>

@@ -30,8 +30,10 @@ const DOCUMENTOS = {
   portada: { fijo: true },
   // Historia clínica: todas las consultas completas y el resumen al final, en las hojas que hagan falta
   historia: { fluye: true },
-  // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan con un esquema cabe en una carta (con todos, fluye)
-  "control-ta": { fijo: true }, dieta: { fijo: false },
+  // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan de alimentación (letra de 9 pt) fluye en dos hojas o más
+  "control-ta": { fijo: true }, dieta: { fluye: true },
+  // Bienestar: las pausas activas solas en una carta; con todos los temas fluye
+  bienestar: { fijo: false },
 };
 const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
 
