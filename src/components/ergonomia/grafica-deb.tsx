@@ -34,7 +34,7 @@ export function GraficaDeb({ factores, otros, impreso }: { factores: ResultadoFa
         <div className="font-semibold">Otros riesgos del puesto</div>
         {otros.map((c) => (
           <div key={c.categoria} className="mt-0.5 break-inside-avoid">
-            <span className="text-amber-700 dark:text-amber-400">⚠ {c.categoria}:</span> {c.items.map((i) => i.texto).join("; ")}
+            <span className={cn("font-semibold", impreso ? "text-[#15201e]" : "text-foreground")}>{c.categoria}:</span> {c.items.map((i) => i.texto).join("; ")}
           </div>
         ))}
       </div>

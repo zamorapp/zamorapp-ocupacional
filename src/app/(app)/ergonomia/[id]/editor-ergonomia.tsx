@@ -86,7 +86,10 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
       const n = p.numero;
       return (
         <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 text-sm">{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
+          <span className="min-w-0 flex-1 text-sm">{p.texto}
+            {/* Mediciones ambientales del DEB: aviso si el valor queda fuera de la referencia */}
+            {typeof actual === "number" && (p as { fuera?: (v: number) => boolean }).fuera?.(actual) && <span className="ml-1.5 text-xs font-medium text-aviso-texto">Fuera de referencia</span>}
+            {p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
           <span className="flex items-center gap-1.5">
             <Input
               type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
