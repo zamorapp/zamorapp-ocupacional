@@ -5,7 +5,7 @@ import { olvidar } from "@/lib/memo";
 import { obtenerSesion } from "@/lib/sesion";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import type { TipoPapelera, VistaPrevia } from "@/lib/papelera";
+import { TIPOS_PAPELERA, type TipoPapelera, type VistaPrevia } from "@/lib/papelera";
 
 export type ResultadoPapelera = { ok: boolean; mensaje: string; papeleraId?: string };
 
@@ -44,13 +44,16 @@ export async function eliminarAPapelera(tipo: TipoPapelera, id: string, motivo: 
   if (no) return { ok: false, mensaje: no };
   if (motivo.trim().length < 5) return { ok: false, mensaje: "Escribe el motivo (al menos 5 letras)." };
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc(tipo === "consulta" ? "eliminar_consulta" : "eliminar_trabajador", { p_id: id, p_motivo: motivo.trim() });
+  if (!(tipo in TIPOS_PAPELERA)) return { ok: false, mensaje: "Tipo desconocido." };
+  const { data, error } = tipo === "consulta" || tipo === "trabajador"
+    ? await supabase.rpc(tipo === "consulta" ? "eliminar_consulta" : "eliminar_trabajador", { p_id: id, p_motivo: motivo.trim() })
+    : await supabase.rpc("eliminar_documento", { p_tipo: tipo, p_id: id, p_motivo: motivo.trim() });
   if (error) return { ok: false, mensaje: explicar(error) };
   refrescar();
   return {
     ok: true,
     papeleraId: data as string,
-    mensaje: tipo === "consulta" ? "Consulta eliminada. Quedó en la Papelera: puedes deshacerlo." : "Trabajador eliminado. Quedó en la Papelera: puedes deshacerlo.",
+    mensaje: `${TIPOS_PAPELERA[tipo].hecho}. Quedó en la Papelera: puedes deshacerlo.`,
   };
 }
 

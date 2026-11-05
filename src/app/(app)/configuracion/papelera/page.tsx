@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { listarResumen } from "@/lib/papelera";
+import { listarResumen, TIPOS_PAPELERA, type TipoPapelera } from "@/lib/papelera";
 import { Volver } from "../volver";
 import { BotonRestaurar } from "./restaurar";
 
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Papelera" };
 export const dynamic = "force-dynamic";
 
 type Entrada = {
-  id: string; tipo: "consulta" | "trabajador"; titulo: string; motivo: string; resumen: Record<string, number>;
+  id: string; tipo: TipoPapelera; titulo: string; motivo: string; resumen: Record<string, number>;
   eliminado_en: string; restaurado_en: string | null;
 };
 
@@ -34,8 +34,9 @@ export default async function Papelera() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Papelera</h1>
         <p className="text-muted-foreground">
-          Consultas y trabajadores eliminados por el administrador, con el motivo. «Restaurar» los devuelve idénticos: misma firma,
-          mismo número de historia y unidos otra vez a sus reposos, citas y cobros. Nada se borra de aquí por sí solo.
+          Consultas, trabajadores, accidentes, investigaciones, ergonomía, informes y notificaciones eliminados por el administrador,
+          con el motivo. «Restaurar» los devuelve idénticos: misma firma, mismo número de historia y unidos otra vez a sus reposos,
+          citas y cobros. Nada se borra de aquí por sí solo.
         </p>
       </div>
       {!puede ? (
@@ -47,12 +48,12 @@ export default async function Papelera() {
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
           {entradas.map((e) => {
-            const junto = listarResumen(e.resumen, e.tipo === "consulta" ? "clinico.consultas" : "public.trabajadores");
+            const junto = listarResumen(e.resumen, TIPOS_PAPELERA[e.tipo]?.tabla);
             return (
               <li key={e.id} className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3">
                 <div className="min-w-0 flex-1 basis-64 space-y-0.5">
                   <div className="font-medium">
-                    <span className="mr-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{e.tipo === "consulta" ? "Consulta" : "Trabajador"}</span>
+                    <span className="mr-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{TIPOS_PAPELERA[e.tipo]?.etiqueta ?? e.tipo}</span>
                     {e.titulo}
                   </div>
                   <div className="text-sm text-muted-foreground">Eliminado el {fechaHora(e.eliminado_en)} · {e.motivo}</div>

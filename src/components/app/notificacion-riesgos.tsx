@@ -8,16 +8,18 @@ import { desactualizada, type NotificacionRiesgo } from "@/lib/notificacion-ries
 import { cn } from "@/lib/utils";
 import { marcarFirmada, notificarPuesto, notificarRiesgos } from "@/app/(app)/pacientes/notificacion-acciones";
 import { hoyCaracas } from "@/lib/fecha";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 
 const fecha = (v: string) => v.slice(0, 10).split("-").reverse().join("/");
 const imprimir = (ids: string[]) => window.open(`/imprimir/notificacion-riesgos?ids=${ids.join(",")}`, "_blank", "noopener");
 
 // Ficha del trabajador: entregas de la notificación de riesgos, acuse firmado y aviso si el puesto cambió
-export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }: {
+export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita, elimina = false }: {
   trabajadorId: string;
   puesto: { id: string | null; nombre: string; evaluadoEn: string | null };
   iniciales: NotificacionRiesgo[];
   edita: boolean;
+  elimina?: boolean; // administrador clínico: puede quitar una notificación errada (va a la Papelera)
 }) {
   const [lista, setLista] = useState(iniciales);
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -54,7 +56,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
               <span className="min-w-0 flex-1 truncate text-muted-foreground">{n.puesto}{desactualizada(n, puesto) && " · desactualizada"}</span>
               {edita ? (
                 <label className="flex items-center gap-1.5 text-xs">
-                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado || Boolean(n.firmadaEn)} title={n.firmadaEn ? "Con el acuse firmado no se cambia: si hubo un error, registra una nueva" : undefined} className="size-4 accent-[var(--primary)]"
+                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado || Boolean(n.firmadaEn)} title={n.firmadaEn ? (elimina ? "Con el acuse firmado no se cambia: si hubo un error, elimínala y registra una nueva" : "Con el acuse firmado no se cambia: si hubo un error, registra una nueva") : undefined} className="size-4 accent-[var(--primary)]"
                     onChange={(x) => iniciar(async () => {
                       const r = await marcarFirmada(n.id, x.target.checked);
                       setAviso(r);
@@ -64,6 +66,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
                 </label>
               ) : n.firmadaEn && <span className="flex items-center gap-1 text-xs text-ok-texto"><CheckCircle2 className="size-3.5" /> Firmada</span>}
               <Button variant="ghost" size="sm" onClick={() => imprimir([n.id])}><Printer /> Imprimir</Button>
+              {elimina && <BotonEliminar tipo="notificacion_riesgo" id={n.id} nombre={`la notificación del ${fecha(n.entregadaEn)} (${n.puesto})`} variant="ghost" size="icon" className="size-8" />}
             </li>
           ))}
         </ul>
