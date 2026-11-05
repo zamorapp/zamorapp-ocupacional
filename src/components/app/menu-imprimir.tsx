@@ -53,8 +53,8 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
     { tipo: "atencion", texto: "Constancia de atención", nota: "asistencia", icono: Clock },
     { tipo: "oam", texto: "Orden de atención ocupacional", nota: "OAM", icono: ClipboardList },
     { tipo: "control-ta", texto: "Control de tensión arterial", nota: "7 días", icono: Gauge },
-    { tipo: "dieta", texto: "Plan de alimentación", nota: "por condición", icono: Salad },
-    { tipo: "bienestar", texto: "Bienestar y pausas activas", nota: "estrés, gerentes", icono: Activity },
+    { tipo: "dieta", texto: "Plan de alimentación", nota: "según el caso", icono: Salad },
+    { tipo: "bienestar", texto: "Bienestar y pausas activas", nota: "estrés, acoso", icono: Activity },
     anexos && { tipo: "anexos", texto: "Exámenes escaneados", icono: ScanLine },
   ].filter(Boolean) as { tipo: string; texto: string; nota?: string; icono: typeof FileText }[];
 

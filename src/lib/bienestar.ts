@@ -71,6 +71,27 @@ export type TemaBienestar = { clave: string; boton: string; titulo: string; grup
 // Temas que el médico agrega con un botón. «pausas» tiene su propio diseño (rutina por zona y registro)
 export const TEMAS: TemaBienestar[] = [
   {
+    clave: "higiene",
+    boton: "Higiene mental",
+    titulo: "Higiene mental: cuidar la mente cada día",
+    grupos: [
+      {
+        items: [
+          "Rutina estable: horas fijas para dormir, comer, trabajar y descansar.",
+          "Reservar cada día un rato para algo que disfrute: música, lectura, un oficio, la fe o la naturaleza.",
+          "Limitar las noticias y las redes sociales a horarios fijos; evitar el teléfono al despertar y al acostarse.",
+          "Tomar la luz del sol por la mañana y moverse todos los días.",
+          "Practicar la gratitud: anotar cada noche tres cosas buenas del día.",
+          "Poner límites: aprender a decir que no, sin culpa.",
+          "Hablarse con amabilidad: cambiar el «no sirvo» por «estoy aprendiendo».",
+          "Ponerse metas pequeñas y celebrarlas al cumplirlas.",
+          "Pedir ayuda a tiempo: hablar de lo que siente no es debilidad.",
+        ],
+      },
+    ],
+    fuente: "OMS, Informe mundial sobre salud mental: transformar la salud mental para todos (2022). OMS, En tiempos de estrés, haz lo que importa (2020).",
+  },
+  {
     clave: "meditacion",
     boton: "Meditación",
     titulo: "Meditación y atención plena",
@@ -110,6 +131,54 @@ export const TEMAS: TemaBienestar[] = [
       },
     ],
     fuente: "OMS, En tiempos de estrés, haz lo que importa: guía ilustrada (2020). OMS y OIT, Directrices sobre salud mental en el trabajo (2022).",
+  },
+  {
+    clave: "sobrecarga",
+    boton: "Sobrecarga de trabajo",
+    titulo: "Si se siente agobiado por el trabajo",
+    grupos: [
+      {
+        items: [
+          "Hacer una lista de todo lo pendiente y clasificarlo: urgente, importante, puede esperar o se puede delegar.",
+          "Hablar con su supervisor con la lista en la mano y pedir ayuda para fijar prioridades y plazos realistas.",
+          "Dividir las tareas grandes en pasos pequeños y empezar por el primero.",
+          "Respetar la jornada y la hora de almuerzo: las horas extra seguidas aumentan los errores y los accidentes.",
+          "Hacer las pausas de la jornada aunque haya mucho trabajo: se rinde más.",
+          "Al terminar la jornada, anotar lo pendiente para mañana y dejar el trabajo allí.",
+          "Señales de agotamiento (burnout): cansancio que no mejora con el descanso, desgano, distancia con el trabajo y sentirse ineficaz. Consulte al servicio médico.",
+          "La ley protege su jornada, sus descansos y sus vacaciones.",
+        ],
+      },
+    ],
+    fuente: "OMS, CIE-11, QD85 Síndrome de desgaste ocupacional (2019). OMS y OIT, Directrices sobre salud mental en el trabajo (2022). LOPCYMAT (2005), art. 53. LOTTT (2012).",
+  },
+  {
+    clave: "acoso",
+    boton: "Acoso laboral",
+    titulo: "Acoso laboral: cómo reconocerlo y qué hacer",
+    grupos: [
+      {
+        titulo: "Cómo reconocerlo",
+        items: [
+          "Trato hostil, humillante o intimidante que se repite: gritos, burlas, insultos, amenazas o aislamiento.",
+          "Quitarle tareas sin razón o cargarlo de trabajo imposible para hacerlo fallar.",
+          "Comentarios, contactos o propuestas sexuales no deseadas.",
+          "No es su culpa y no tiene por qué aguantarlo.",
+        ],
+      },
+      {
+        titulo: "Qué hacer",
+        items: [
+          "Anotar cada hecho: fecha, hora, lugar, qué pasó, quién lo hizo y quién lo vio; guardar mensajes y correos.",
+          "Si se siente seguro, decir con calma y claridad que esa conducta no es aceptable.",
+          "Denunciarlo por escrito ante su supervisor, Recursos Humanos o el Comité de Seguridad y Salud Laboral, y pedir copia sellada.",
+          "Puede acudir al Delegado o Delegada de Prevención y a la Gerencia Estadal de Salud de los Trabajadores (INPSASEL).",
+          "Buscar apoyo en la familia, en compañeros de confianza y en el servicio médico: el acoso afecta la salud y se puede atender.",
+          "Si es testigo: apoyar a la persona afectada y servir de testigo.",
+        ],
+      },
+    ],
+    fuente: "LOPCYMAT (2005), art. 56, numeral 5. LOTTT (2012), art. 164. OIT, Convenio 190 sobre la violencia y el acoso (2019).",
   },
   {
     clave: "emocional",

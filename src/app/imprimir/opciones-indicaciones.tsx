@@ -4,6 +4,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Pencil, Plus } from "lucide-react";
 import { DIAS_TA, PLANES, clavesPlan, diasTa } from "@/lib/indicaciones-preventivas";
 import { BOTONES_BIENESTAR, temasBienestar } from "@/lib/bienestar";
+import { DIETAS, dietaDe } from "@/lib/dietas";
+import { confirmar } from "@/components/app/confirmar";
 import { cn } from "@/lib/utils";
 
 const chip = (activo: boolean) =>
@@ -22,8 +24,19 @@ export function OpcionesIndicaciones({ tipo }: { tipo: "control-ta" | "dieta" | 
     router.replace(`${ruta}${p.size ? `?${p}` : ""}`, { scroll: false });
   };
   const planes = clavesPlan(q.get("plan") ?? undefined);
+  const dieta = dietaDe(q.get("dieta") ?? undefined).clave;
   const dias = diasTa(q.get("dias") ?? undefined);
   const temas = temasBienestar(q.get("tema") ?? undefined);
+  // Otra dieta es otra hoja: los cambios hechos a la anterior no aplican (se avisa si había)
+  const cambiarDieta = async (clave: string) => {
+    if (clave === dieta) return;
+    if (q.get("c") && !(await confirmar({ titulo: "¿Cambiar de dieta?", texto: "Se pierden los cambios que hizo en esta hoja.", accion: "Cambiar" }))) return;
+    const p = new URLSearchParams(q);
+    p.delete("c");
+    if (clave === "general") p.delete("dieta");
+    else p.set("dieta", clave);
+    router.replace(`${ruta}${p.size ? `?${p}` : ""}`, { scroll: false });
+  };
   // Siempre queda al menos un tema: el último marcado no se puede quitar
   const cambiarTema = (clave: string) => {
     const nuevos = temas.includes(clave) ? temas.filter((x) => x !== clave) : [...temas, clave];
@@ -55,9 +68,19 @@ export function OpcionesIndicaciones({ tipo }: { tipo: "control-ta" | "dieta" | 
           })}
         </div>
       ) : (
+        <>
+        {/* Una sola dieta completa por hoja, la del caso del trabajador */}
+        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Tipo de dieta">
+          <span className="mr-1 font-medium">Tipo de dieta:</span>
+          {DIETAS.map((x) => (
+            <button key={x.clave} type="button" role="radio" aria-checked={dieta === x.clave} onClick={() => cambiarDieta(x.clave)} className={chip(dieta === x.clave)}>
+              {dieta === x.clave && <Check className="size-3.5" />} {x.boton}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-muted-foreground">Agregar esquema:</span>
-          {PLANES.map((p) => {
+          <span className="mr-1 text-muted-foreground">Sumar indicaciones de:</span>
+          {PLANES.filter((p) => p.clave !== dieta).map((p) => {
             const activo = planes.includes(p.clave);
             return (
               <button
@@ -72,9 +95,10 @@ export function OpcionesIndicaciones({ tipo }: { tipo: "control-ta" | "dieta" | 
             );
           })}
         </div>
+        </>
       )}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Pencil className="size-3.5" /> Puede tocar cualquier texto de la hoja para cambiarlo antes de imprimir. El cambio vale solo para esta impresión.
+        <Pencil className="size-3.5" /> Toque cualquier texto para cambiarlo; con ✕ quita un renglón y con «Agregar» suma otro. Vale solo para esta impresión.
       </p>
     </div>
   );
