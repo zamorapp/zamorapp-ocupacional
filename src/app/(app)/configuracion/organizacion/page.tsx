@@ -26,7 +26,11 @@ export default async function Organizacion() {
       <Volver />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Organización y documentos</h1>
-        <p className="text-muted-foreground">Cinco pasos. Abre el que necesites, cambia lo que quieras y pulsa «Guardar cambios» abajo.</p>
+        <p className="text-muted-foreground">
+          {!sesion.demo && sesion.rol === "administrador"
+            ? "Cinco pasos. Abre el que necesites, cambia lo que quieras y pulsa «Guardar cambios» abajo."
+            : "Puedes ver cómo está todo; solo el administrador puede cambiarlo."}
+        </p>
       </div>
       <FormOrganizacion org={org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, ajustes: {} }} editable={!sesion.demo && sesion.rol === "administrador"}
         logo={

@@ -83,8 +83,8 @@ function resumen(id: IdPaso, f: HTMLFormElement | null, inicial: Record<string, 
     case "servicio": return unir(v("nombre") || "Falta el nombre", v("rif") && `RIF ${v("rif")}`, v("membrete_titular"));
     case "documentos": return unir(`Aptitud: ${v("palabra_aptitud") || "Elegible"}`, v("constancia_copia") ? "constancia con copia" : "constancia sin copia", v("firma_sello_separados") ? "firma y sello separados" : "firma y sello juntos");
     case "plazos": return unir(`Periódico cada ${v("meses_examen_periodico") || 12} meses`, v("recordatorio_resultados_dias") === "0" ? "sin recordar resultados" : `recordar resultados cada ${v("recordatorio_resultados_dias") || 3} días`, v("centinela_correo") ? "plazos legales por correo" : "plazos legales solo en la campana");
-    case "privacidad": return unir(v("dias_equipo_confianza") === "0" ? "Código en cada entrada" : `Código cada ${v("dias_equipo_confianza") || 30} días`, v("celda_minima_empresa") === "0" ? "la empresa ve todas las cifras" : `la empresa ve «<${v("celda_minima_empresa") || 3}» en cifras pequeñas`);
-    case "mensajes": return unir("Cita", "resultado de aptitud", v("invita_como") ? `invita ${v("invita_como")}` : "invita el servicio");
+    case "privacidad": return unir(v("dias_equipo_confianza") === "0" ? "Código en cada entrada" : `Código cada ${v("dias_equipo_confianza") || 30} días`, v("celda_minima_empresa") === "0" ? "la empresa ve todas las cifras" : `la empresa no ve cifras menores de ${v("celda_minima_empresa") || 3}`);
+    case "mensajes": return "3 mensajes: cita, resultado e invitación";
   }
 }
 
@@ -149,7 +149,7 @@ export function FormOrganizacion({ org, editable, logo }: { org: Org; editable: 
                     esAbierto ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold">{p.titulo}</span>
-                    <span className="block truncate text-sm text-muted-foreground">{esAbierto ? p.ayuda : resumen(p.id, formulario.current, inicial) || p.ayuda}</span>
+                    <span className="line-clamp-2 block text-sm text-muted-foreground">{esAbierto ? p.ayuda : resumen(p.id, formulario.current, inicial) || p.ayuda}</span>
                   </span>
                   <span className="shrink-0 text-sm font-medium text-primary">{esAbierto ? "Cerrar" : editable ? "Cambiar" : "Ver"}</span>
                 </button>
@@ -222,7 +222,7 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
             <option value="Apto">Apto / No apto</option>
             <option value="Recomendable">Recomendable / No recomendable</option>
           </CampoSelect>
-          <Campo id="titulo_constancia" etiqueta="Título de la constancia" defaultValue={a.titulo_constancia ?? "Constancia de Aptitud"} />
+          <Campo id="titulo_constancia" etiqueta="Título de la constancia" ayuda="Vacío: se usa «Constancia de Aptitud»." defaultValue={a.titulo_constancia ?? "Constancia de Aptitud"} />
           <CampoTexto id="observacion_idoneidad" etiqueta="Nota de idoneidad (pie de la constancia; vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.observacion_idoneidad ?? NOTA_IDONEIDAD} />
           <div className="space-y-2 sm:col-span-2">
             <Casilla id="constancia_copia" etiqueta="Constancia con copia para el servicio médico (2 hojas)" defecto={a.constancia_copia ?? false} />
@@ -244,11 +244,11 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
           <CampoTexto id="orden_nota_preempleo" etiqueta="Nota de la autorización pre-empleo (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH} />
         </Grupo>
         <Grupo titulo="Reposo médico">
-          <Campo id="reposo_pie_original" etiqueta="Pie del original" defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
-          <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
+          <Campo id="reposo_pie_original" etiqueta="Pie del original" ayuda="Vacío: se usa «Original · RR. HH.»." defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
+          <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" ayuda="Vacío: se usa «Copia · Servicio médico»." defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
         </Grupo>
         <Grupo titulo="Certificado de salud">
-          <Campo id="certificado_titulo" etiqueta="Título" defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
+          <Campo id="certificado_titulo" etiqueta="Título" ayuda="Vacío: se usa «Certificado de salud»." defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
           <CampoTexto id="certificado_nota" etiqueta="Nota legal al pie (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.certificado_nota ?? NOTA_CERTIFICADO_SACS} />
         </Grupo>
         <Grupo titulo="Informe de vigilancia epidemiológica">
