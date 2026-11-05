@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { FileImage, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
+import { ChevronDown, FileImage, FileText, Loader2, Paperclip, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
 import { subirAdjunto } from "@/lib/preparar-archivo";
 import { confirmar } from "@/components/app/confirmar";
+import { borrarAdjunto, papeleraDe, purgarVencidos, restaurarAdjunto, TEXTO_BORRAR, type EnPapelera } from "@/lib/papelera-adjuntos";
 import { CLASES, clasificarAdjunto, familiaDe, NOMBRE_FAMILIA, type Familia } from "@/lib/estudios";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
@@ -60,13 +61,43 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
       return data.signedUrl;
     });
 
+  // Papelera de 30 días: borrar no pierde el archivo; «Deshacer» al momento y «Restaurar» desde la ficha
+  const [borrado, setBorrado] = useState<{ adjunto: Adjunto; papeleraId: string } | null>(null);
+  const [papelera, setPapelera] = useState<EnPapelera[]>([]);
+  const [verPapelera, setVerPapelera] = useState(false);
+  const leerPapelera = useCallback(async () => {
+    if (!catalogo) return; // solo en la ficha del paciente
+    try { setPapelera(await papeleraDe(crearClienteNavegador(), trabajadorId)); } catch (e) { setError((e as Error).message); }
+  }, [catalogo, trabajadorId]);
+  useEffect(() => {
+    void leerPapelera();
+    if (catalogo) void purgarVencidos(crearClienteNavegador());
+  }, [leerPapelera, catalogo]);
+
   const borrar = async (a: Adjunto) => {
-    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: "El archivo se elimina y no se puede recuperar.", accion: "Borrar", peligro: true }))) return;
-    const supabase = crearClienteNavegador();
-    const { error: e } = await supabase.from("adjuntos").delete().eq("id", a.id);
-    if (e) { setError(e.message); return; }
-    await supabase.storage.from("adjuntos").remove([a.ruta]);
-    setLista((l) => l.filter((x) => x.id !== a.id));
+    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: TEXTO_BORRAR, accion: "Borrar", peligro: true }))) return;
+    setError(null);
+    try {
+      const papeleraId = await borrarAdjunto(crearClienteNavegador(), a);
+      setLista((l) => l.filter((x) => x.id !== a.id));
+      setBorrado({ adjunto: a, papeleraId });
+      void leerPapelera();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const restaurar = async (papeleraId: string, adjuntoId?: string) => {
+    setOcupado(true);
+    setError(null);
+    try {
+      const fila = await restaurarAdjunto(crearClienteNavegador(), papeleraId, adjuntoId);
+      if (fila) setLista((l) => [fila, ...l.filter((x) => x.id !== fila.id)].sort((x, y) => y.creado_en.localeCompare(x.creado_en)));
+      setBorrado(null);
+      await leerPapelera();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setOcupado(false);
   };
 
   return (
@@ -100,7 +131,14 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
             ))}
         </div>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {borrado && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">Se borró «{borrado.adjunto.nombre}». Queda 30 días en la papelera.</span>
+          <Button size="sm" variant="outline" disabled={ocupado} onClick={() => restaurar(borrado.papeleraId, borrado.adjunto.id)}><Undo2 /> Deshacer</Button>
+          <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
+        </div>
+      )}
+      {error && <p role="alert" className="text-sm text-alerta-texto">{error}</p>}
       {lista.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin resultados adjuntos.</p>
       ) : (
@@ -134,6 +172,31 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
             );
           })}
         </ul>
+      )}
+      {catalogo && papelera.length > 0 && (
+        <div className="rounded-lg border border-dashed">
+          <button type="button" aria-expanded={verPapelera} onClick={() => setVerPapelera((v) => !v)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground">
+            <Trash2 className="size-4" />
+            <span className="flex-1">Papelera de archivos ({papelera.length}) · se guardan 30 días</span>
+            <ChevronDown className={cn("size-4 transition", verPapelera && "rotate-180")} />
+          </button>
+          {verPapelera && (
+            <ul className="divide-y border-t">
+              {papelera.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{p.nombre}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Borrado el {fecha(p.eliminado_en)}{p.eliminado_por ? ` por ${p.eliminado_por}` : ""} · se elimina para siempre el {fecha(p.vence)}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" disabled={ocupado} onClick={() => restaurar(p.id, p.adjunto_id)} aria-label={`Restaurar ${p.nombre}`}><RotateCcw /> Restaurar</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

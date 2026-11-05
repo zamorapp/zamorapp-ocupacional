@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Undo2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { confirmar } from "@/components/app/confirmar";
@@ -10,6 +10,7 @@ import type { Paraclinico } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
 import { contarResultados, defExamen, ESTILO_RESULTADO, ETIQUETA_RESULTADO, estadoCalculado, pendiente, plural, textoReferencia, type DefExamen, type EstadoResultado } from "@/lib/paraclinicos";
 import { subirAdjunto } from "@/lib/preparar-archivo";
+import { borrarAdjunto, restaurarAdjunto, TEXTO_BORRAR } from "@/lib/papelera-adjuntos";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { LectorLaboratorio, type Registro } from "./lector-laboratorio";
@@ -134,14 +135,32 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
     setVer(a.id);
   };
 
+  // Papelera de 30 días: el archivo no se pierde; «Deshacer» al momento o «Restaurar» desde la ficha del paciente
+  const [borrado, setBorrado] = useState<{ adjunto: Adjunto; papeleraId: string } | null>(null);
   const borrar = async (a: Adjunto) => {
-    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: "El archivo se elimina y no se puede recuperar.", accion: "Borrar", peligro: true }))) return;
-    const supabase = crearClienteNavegador();
-    const { error: e } = await supabase.from("adjuntos").delete().eq("id", a.id);
-    if (e) return setError(e.message);
-    await supabase.storage.from("adjuntos").remove([a.ruta]);
-    setLista((l) => l.filter((x) => x.id !== a.id));
-    if (ver === a.id) setVer(null);
+    if (!(await confirmar({ titulo: `¿Borrar «${a.nombre}»?`, texto: TEXTO_BORRAR, accion: "Borrar", peligro: true }))) return;
+    setError(null);
+    try {
+      const papeleraId = await borrarAdjunto(crearClienteNavegador(), a);
+      setLista((l) => l.filter((x) => x.id !== a.id));
+      if (ver === a.id) setVer(null);
+      setBorrado({ adjunto: a, papeleraId });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const deshacerBorrado = async () => {
+    if (!borrado) return;
+    setOcupado(true);
+    setError(null);
+    try {
+      const fila = await restaurarAdjunto(crearClienteNavegador(), borrado.papeleraId, borrado.adjunto.id);
+      if (fila) { setLista((l) => [fila, ...l.filter((x) => x.id !== fila.id)]); setVer(fila.id); }
+      setBorrado(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setOcupado(false);
   };
 
   // Arrastrar: un archivo de «Sin asignar» a un examen, o archivos del equipo a la zona o directo a un examen
@@ -268,7 +287,14 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
               <Button size="sm" variant="ghost" className="h-7" onClick={() => setOfrecer(null)}>Ahora no</Button>
             </div>
           )}
-          {error && <p className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
+          {borrado && (
+            <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1">Se borró «{borrado.adjunto.nombre}». Queda 30 días en la papelera de la ficha del paciente.</span>
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={deshacerBorrado}><Undo2 /> Deshacer</Button>
+              <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
+            </div>
+          )}
+          {error && <p role="alert" className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
 
           <Card className="gap-0 overflow-hidden py-0">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
