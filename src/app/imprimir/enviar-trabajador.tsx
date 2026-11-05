@@ -52,7 +52,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   }, [consultaId, tipo]);
 
   const listo = datos && !("error" in datos) ? datos : null;
-  const lista = [...marcados].filter((d) => !listo?.noDisponibles[d]);
+  const lista = [...marcados].filter((d) => listo && !listo.noDisponibles[d] && (listo.firmada || !DOCS_TRABAJADOR[d].clinico));
   useEffect(() => {
     if (listo && !editado) setMensaje(mensajeTrabajador(listo.nombre, servicio, TODOS.filter((d) => lista.includes(d))));
   }, [listo, editado, servicio, lista.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -72,7 +72,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const alternar = (d: DocTrabajador) => setMarcados((s) => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; });
 
   const valido = telefonoTrabajador(telefono);
-  const sinFirma = Boolean(listo && !listo.firmada && lista.some((d) => DOCS_TRABAJADOR[d].clinico));
+  const sinFirma = Boolean(listo && !listo.firmada);
   const distinto = Boolean(listo && valido && valido !== listo.telefono);
   const conCedula = lista.some((d) => DOCS_TRABAJADOR[d].clinico);
 
@@ -142,7 +142,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
                 <KeyRound className="inline size-3" /> Los documentos médicos piden los 4 últimos dígitos de su cédula para abrirse. Cada hoja sale como la dejaste en pantalla.
               </p>
             </fieldset>
-            {sinFirma && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto" role="status">Firma la consulta para enviar los documentos médicos.</p>}
+            {sinFirma && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto" role="status">Consulta sin firmar: por ahora solo salen tensión, dieta y bienestar. Fírmala para enviar los documentos médicos.</p>}
             <div>
               <Label htmlFor="tel-trabajador" className="mb-1.5">Celular del trabajador</Label>
               <div className="relative">
@@ -164,7 +164,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <Textarea id="msg-trabajador" rows={4} maxLength={600} value={mensaje} onChange={(e) => { setMensaje(e.target.value); setEditado(true); }} />
               <p className="mt-1 text-xs text-muted-foreground">El enlace se agrega al final.{editado && <> <button type="button" className="text-primary hover:underline" onClick={() => setEditado(false)}>Volver al mensaje sugerido</button></>}</p>
             </div>
-            <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || !lista.length || sinFirma} onClick={mandar}>
+            <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || !lista.length} onClick={mandar}>
               {enviando ? <Loader2 className="animate-spin" /> : <MessageCircle />}{" "}
               {enviando ? "Preparando los PDF…" : lista.length ? `Enviar ${lista.length} documento${lista.length === 1 ? "" : "s"} por WhatsApp` : "Marca al menos un documento"}
             </Button>
