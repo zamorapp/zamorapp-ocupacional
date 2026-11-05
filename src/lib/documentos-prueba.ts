@@ -12,7 +12,7 @@ const firma = `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w
 const repetir = (frase: string, n: number) => Array.from({ length: n }, () => frase).join(" ");
 
 // «same»: consulta importada del SAME, firmada y emitida allá (leyenda junto a la firma)
-export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocumento {
+export function documentoDePrueba(caso: "normal" | "largo" | "same" | "particular"): DatosDocumento {
   const largo = caso === "largo";
   const texto = (corto: string, n: number) => (largo ? repetir(corto, n) : corto);
   return {
@@ -77,7 +77,8 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
       especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: firma, sello_url: logo("Sello", "#1d4ed8"), mostrar_firma: true, mostrar_sello: true,
     },
     motivo: { nombre: "Periódico", codigo: "PER", grupo: "preventivo" },
-    empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8") },
+    // ?caso=particular: paciente sin empresa (la bolsa «Pacientes particulares»); el papel nunca dice «Empresa»
+    empresa: caso === "particular" ? { razon_social: "Pacientes particulares", rif: "PARTICULR", logo: null, proyecto: null } : { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8"), proyecto: largo ? "Acciones mecánicas y corrección de fallas de los sistemas de distribución de gas metano, Área operacional Charallave - El Cují, estado Miranda, Contrato #4600141983/1C-132-012-A-24-S-0064" : null },
     dependencia: largo ? "Gerencia de Producción y Mantenimiento Industrial" : "Producción",
     extra: { fecha_nacimiento: "1988-03-15", fecha_ingreso: "2015-06-01", fecha_ingreso_cargo: "2019-09-16", turno: "Diurno", numero_historia: 1234, ficha: "F-0042", tipo_contrato: "indeterminado", tipo: { nombre: "Trabajador" } },
     impreso: { por: "Usuario de prueba", revision: largo ? 2 : 1, el: "28/10/26, 9:30 a. m." },

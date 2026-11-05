@@ -54,5 +54,5 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   if (tipo === "dieta") return <PlanAlimentacion d={documentoDePrueba("normal")} dieta={dieta ?? (largo === "largo" ? "renal" : "hta")} planes={largo === "largo" ? PLANES.map((p) => p.clave) : ["lipidos"]} cambios={leerCambios(c)} />;
   // Bienestar: las pausas activas solas caben en una carta; con todos los temas fluye
   if (tipo === "bienestar") return <Bienestar d={documentoDePrueba("normal")} temas={tema ? temasBienestar(tema) : largo === "largo" ? BOTONES_BIENESTAR.map((t) => t.clave) : ["pausas"]} cambios={leerCambios(c)} />;
-  return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
+  return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" || caso === "particular" ? caso : "normal")} />;
 }
