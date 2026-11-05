@@ -5,7 +5,8 @@ import { datosLegalesFaltantes } from "@/lib/empresas";
 import { hoyCaracas } from "@/lib/fecha";
 import { fechaEmisionDe } from "@/lib/firmantes";
 import { fechaCorta as corta, parametrosPeriodo } from "@/lib/periodos";
-import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa } from "@/lib/reportes";
+import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa, type Reporte } from "@/lib/reportes";
+import { sensible } from "@/lib/vigilancia-ia";
 import type { cargarVigilancia } from "@/lib/vigilancia";
 import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
 import { CAUSAS_REPOSO, filasArt34 } from "@/lib/vigilancia-integral";
@@ -28,8 +29,10 @@ const porc = (n: number, total: number) => (total ? num(Math.round((n * 1000) / 
 // Cuadro compacto: total y % sobre la última columna numérica; sin filas, una sola línea
 // minimo: en lo que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo» (sin su % ni el total que las delata)
 // texto: columnas (además de la primera) que llevan palabras: a la izquierda y en letra normal
-function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [] }: {
-  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[];
+// agrupar: la primera columna se escribe solo en la primera fila de cada grupo, con una línea más marcada entre grupos
+// cerosTenues: los ceros en gris (cuadros completos que listan también lo que no tuvo casos)
+function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [], agrupar = false, cerosTenues = false }: {
+  columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[]; agrupar?: boolean; cerosTenues?: boolean;
 }) {
   const cifra = (j: number) => j > 0 && !texto.includes(j);
   if (!filas.length) return <p className="text-[10.5px] italic text-doc-tenue">{vacio}</p>;
@@ -42,17 +45,21 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
     <table className="w-full border-collapse text-[10.5px]">
       <thead>
         <tr className="bg-doc-suave text-left text-[9.5px] uppercase tracking-wide text-doc-acento">
-          {columnas.map((c, i) => <th key={c} className={`${th} ${cifra(i) ? "text-right" : ""}`}>{c}</th>)}
-          {porcentaje && <th className={`${th} w-12 text-right`}>%</th>}
+          {columnas.map((c, i) => <th key={c} className={`${th} ${cifra(i) ? "whitespace-nowrap text-right" : ""}`}>{c}</th>)}
+          {porcentaje && <th className={`${th} w-12 whitespace-nowrap text-right`}>%</th>}
         </tr>
       </thead>
       <tbody>
-        {filas.map((f, i) => (
-          <tr key={i}>
-            {f.map((v, j) => <td key={j} className={`${td} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""}`}>{oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
-            {porcentaje && <td className={`${td} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
-          </tr>
-        ))}
+        {filas.map((f, i) => {
+          const sigue = agrupar && i > 0 && filas[i - 1][0] === f[0];
+          const borde = agrupar && i > 0 && !sigue ? "border-t-doc-acento/50" : "";
+          return (
+            <tr key={i}>
+              {f.map((v, j) => <td key={j} className={`${td} ${borde} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""} ${(cerosTenues && v === 0) || (j === 0 && sigue) ? "text-doc-tenue" : ""}`}>{j === 0 && sigue ? "" : oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
+              {porcentaje && <td className={`${td} ${borde} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
+            </tr>
+          );
+        })}
         {total && filas.length > 1 && !conOcultas && (
           <tr className="font-semibold">
             <td className={`${td} border-t-doc-acento`} colSpan={columnas.length - 1}>Total</td>
@@ -136,6 +143,34 @@ function apartar<F extends { cie10: string | null; n: number; pacientes?: number
   const otros = filas.filter((f) => !ok(f));
   return { visibles: filas.filter(ok), otros, sale: otros.reduce((s, f) => s + Math.min(f.n, f.pacientes ?? f.n), 0) >= minimo };
 }
+// Cuadros completos como el SAME: cada motivo configurado y cada sistema usado, también en cero (los del período van primero)
+// En la copia de la empresa, los de 1 a minimo-1 casos (o de nombre confidencial) no se nombran: se suman en «Otros» y
+// tampoco se listan en cero (saldrían como si no tuvieran casos)
+function completa(catalogo: string[], datos: { nombre: string; n: number }[], minimo = 0, ocultar: (nombre: string) => boolean = () => false): Celda[][] {
+  const apartados = minimo ? datos.filter((x) => x.n > 0 && (x.n < minimo || ocultar(x.nombre))) : [];
+  const fuera = new Set(apartados.map((x) => x.nombre));
+  const n = new Map(datos.map((x) => [x.nombre, x.n]));
+  const nombres = [...new Set([...datos.map((x) => x.nombre), ...catalogo])].filter((x) => !fuera.has(x));
+  const filas: Celda[][] = nombres.map((x) => ({ x, v: n.get(x) ?? 0 })).sort((a, b) => b.v - a.v || a.x.localeCompare(b.x, "es")).map(({ x, v }) => [x, v]);
+  return apartados.length ? [...filas, [`Otros (menos de ${minimo} casos o confidenciales)`, apartados.reduce((t, x) => t + x.n, 0)]] : filas;
+}
+// Motivos que por su nombre dicen algo de salud (prenatal, lactancia, salud mental)
+const motivoSensible = (m: string) => sensible(m) || /natal|embaraz|lactan|psic/i.test(m);
+const motivosTodos = (r: Reporte, minimo: number) => completa((r.catalogo?.motivos ?? []).map((m) => m.nombre), r.consultas.por_motivo ?? [], minimo, motivoSensible);
+// Dependencia × motivo: en la copia de la empresa, los cruces chicos o de motivo sensible se suman en «Otros motivos» de su dependencia
+function dependenciaMotivoFilas(r: Reporte, minimo: number): Celda[][] {
+  const l = r.consultas.por_dependencia_motivo ?? [];
+  if (!minimo) return l.map((x) => [x.dependencia, x.motivo, x.consultas, x.diagnosticos]);
+  const filas: Celda[][] = [];
+  for (const dep of [...new Set(l.map((x) => x.dependencia))]) {
+    const de = l.filter((x) => x.dependencia === dep);
+    const chicos = de.filter((x) => x.consultas < minimo || motivoSensible(x.motivo));
+    for (const x of de) if (!chicos.includes(x)) filas.push([x.dependencia, x.motivo, x.consultas, x.diagnosticos]);
+    if (chicos.length) filas.push([dep, "Otros motivos", chicos.reduce((t, x) => t + x.consultas, 0), chicos.reduce((t, x) => t + x.diagnosticos, 0)]);
+  }
+  return filas;
+}
+const sistemasTodos = (r: Reporte, minimo: number) => completa(r.catalogo?.sistemas ?? [], r.morbilidad.por_sistema ?? [], minimo, sensible);
 const causasFilas = (c: Causa[], pob: number, minimo = 0): Celda[][] => {
   const { visibles, otros, sale } = apartar(c, minimo);
   const filas: Celda[][] = visibles.map((x) => [textoCausa(x.cie10, x.descripcion), porc(x.pacientes ?? 0, pob), x.n]);
@@ -507,7 +542,8 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
       <Hoja>
         <Seccion ancla="s-anexo" n="A" titulo="Anexo estadístico">
           {CORTES.map(([g, nombre]) => {
-            const grupos = Object.keys(cortes[g] ?? {}).sort();
+            // En la copia de la empresa, un grupo sin ninguna fila que se pueda mostrar no sale (su nombre solo delataría casos chicos)
+            const grupos = Object.keys(cortes[g] ?? {}).filter((k) => !minimo || causasFilas(cortes[g][k], pob, minimo).length).sort();
             return (
               <div key={g} id={`i-anexo-${g}`} data-indice={`Causas de morbilidad por ${nombre.toLowerCase()}`} className="space-y-2">
                 <div className="text-[11px] font-bold text-doc-acento break-after-avoid">Diez primeras causas de morbilidad por {nombre.toLowerCase()}</div>
@@ -523,6 +559,21 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
               </div>
             );
           })}
+          <Panel ancla="i-anexo-dependencia-motivo" titulo="Morbilidad por dependencia y motivo de consulta">
+            <T columnas={["Dependencia", "Motivo", "Consultas", "Diagnósticos"]} texto={[1]} porcentaje={false} agrupar
+              filas={dependenciaMotivoFilas(r, minimo)} />
+          </Panel>
+          <Analisis texto={a.anexo_dependencia_motivo} />
+          <div className="grid grid-cols-2 items-start gap-3">
+            <Panel ancla="i-anexo-motivos-todos" titulo="Consultas por motivo · todos los motivos" nota="Incluye los motivos sin consultas en el período, como el formato del SAME.">
+              <T columnas={["Motivo", "Consultas"]} cerosTenues filas={motivosTodos(r, minimo)} />
+            </Panel>
+            <Panel ancla="i-anexo-sistemas-todos" titulo="Morbilidad por aparatos y sistemas · todos" nota="Incluye los sistemas sin diagnósticos en el período.">
+              <T columnas={["Aparato o sistema", "Diagnósticos"]} cerosTenues filas={sistemasTodos(r, minimo)} />
+            </Panel>
+          </div>
+          <Analisis texto={a.anexo_motivos_todos} titulo="Todos los motivos" />
+          <Analisis texto={a.anexo_sistemas_todos} titulo="Todos los aparatos y sistemas" />
           {CAUSAS_REPOSO.map((c) => (
             <div key={c} className="space-y-2">
               <Panel ancla={`i-anexo-reposo-${c}`} titulo={`Causas de reposo por ${(causas[c] ?? c.replace("_", " ")).toLowerCase()}`}>
