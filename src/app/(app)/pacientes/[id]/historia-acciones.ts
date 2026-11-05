@@ -31,10 +31,33 @@ export async function guardarEmpleo(_: Resultado | null, d: FormData): Promise<R
   return { ok: true, mensaje: "Guardado." };
 }
 
-export async function eliminarEmpleo(id: string, trabajadorId: string): Promise<Resultado> {
+// Campos que se reponen con «Deshacer» (los mismos que guarda guardarEmpleo)
+const CAMPOS_EMPLEO = "id, trabajador_id, empresa, industria, cargo, descripcion, duracion, horario, condiciones, riesgos, epp, problemas_salud, accidentes, enfermedades, observaciones";
+export type EmpleoBorrado = Record<string, unknown> & { id: string; trabajador_id: string; empresa: string };
+
+export async function eliminarEmpleo(id: string, trabajadorId: string): Promise<Resultado & { fila?: EmpleoBorrado }> {
   const supabase = await crearClienteServidor();
-  const { error } = await supabase.from("historia_laboral").delete().eq("id", id);
+  const { data: fila } = await supabase.from("historia_laboral").select(CAMPOS_EMPLEO).eq("id", id).maybeSingle();
+  const { data: borrados, error } = await supabase.from("historia_laboral").delete().eq("id", id).select("id");
   if (error) return { ok: false, mensaje: error.message };
+  if (!borrados?.length) return { ok: false, mensaje: "No se borró: solo el personal de salud puede editar la historia laboral." };
   revalidatePath(`/pacientes/${trabajadorId}`);
-  return { ok: true, mensaje: "Eliminado." };
+  return { ok: true, mensaje: "Empleo borrado de la historia laboral.", fila: (fila ?? undefined) as EmpleoBorrado | undefined };
+}
+
+// «Deshacer»: repone el mismo empleo (mismo id) en la organización de quien lo borró; la tabla vuelve a revisar permisos
+export async function restaurarEmpleo(fila: EmpleoBorrado): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para guardar." };
+  if (!/^[0-9a-f-]{36}$/i.test(fila?.id ?? "") || !/^[0-9a-f-]{36}$/i.test(fila?.trabajador_id ?? "") || typeof fila.empresa !== "string") return { ok: false, mensaje: "No se pudo deshacer: datos incompletos." };
+  const repuesta = Object.fromEntries(CAMPOS_EMPLEO.split(", ").map((k) => [k, fila[k] ?? null]));
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("historia_laboral").insert({ ...repuesta, org_id: sesion.orgId });
+  if (error) {
+    if (error.code !== "23505") return { ok: false, mensaje: error.message };
+    const { data: existe } = await supabase.from("historia_laboral").select("id").eq("id", fila.id).eq("trabajador_id", fila.trabajador_id).maybeSingle();
+    if (!existe) return { ok: false, mensaje: "No se pudo deshacer: vuelve a agregar el empleo con «Agregar empleo»." };
+  }
+  revalidatePath(`/pacientes/${fila.trabajador_id}`);
+  return { ok: true, mensaje: "El empleo volvió a la historia laboral." };
 }
