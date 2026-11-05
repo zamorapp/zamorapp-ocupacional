@@ -264,6 +264,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
   const subtitulo = periodo.etiqueta.match(/\((.*)\)$/)?.[1] ?? null;
 
   const art34 = filasArt34(r, acc?.accidentes, causas);
+  const lg = r.legal;
 
   return (
     <div data-informe className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
@@ -492,6 +493,28 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             ]} />
           )}
           <Analisis texto={a.indices_accidentes} titulo="Índices de accidentalidad y enfermedad ocupacional" />
+          {lg && (
+            <div className="grid grid-cols-2 items-start gap-3">
+              <Panel ancla="i-eo-declaracion" titulo="Enfermedades ocupacionales: declaración e investigación" nota="LOPCYMAT art. 73 · NT-02-2008">
+                <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={[
+                  ["Registradas en el período", lg.enfermedades.registradas],
+                  ["Declaradas ante el INPSASEL", lg.enfermedades.declaradas],
+                  ["Declaradas dentro de 24 horas", lg.enfermedades.a_tiempo],
+                  ["Por declarar", lg.enfermedades.por_declarar],
+                  ["Con informe NT-02", lg.enfermedades.informe_nt02],
+                  ["Informe NT-02 a tiempo (15 o 30 días)", lg.enfermedades.informe_a_tiempo],
+                  ["Informe NT-02 pendiente", lg.enfermedades.informe_pendiente],
+                  ["Certificadas por el INPSASEL", lg.enfermedades.certificadas],
+                  ["Diagnósticos ocupacionales sin registrar", lg.enfermedades.sospechas_sin_registro],
+                ]} />
+              </Panel>
+              <Panel ancla="i-eo-anexo1" titulo="Enfermedades ocupacionales por grupo del Anexo 1">
+                <T columnas={["Grupo (NT-02-2008)", "Casos"]} vacio="Sin enfermedades ocupacionales registradas en el período."
+                  filas={completa([], lg.enfermedades.por_grupo.map((x) => ({ nombre: x.grupo, n: x.n })), minimo, (x) => /psicosocial/i.test(x))} />
+              </Panel>
+            </div>
+          )}
+          <Analisis texto={a.eo_declaracion} titulo="Enfermedades ocupacionales: declaración e investigación" />
         </Seccion>
 
         <Seccion ancla="s-referencias" n="6" titulo="Referencias y exámenes de salud">
@@ -509,6 +532,33 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           <Analisis texto={a.aptitud} titulo="Aptitud" />
           <Analisis texto={a.externas} titulo="Consulta externa" />
           <Analisis texto={a.reubicaciones} titulo="Reubicaciones" />
+          {lg && (
+            <div className="grid grid-cols-2 items-start gap-3">
+              <Panel ancla="i-periodicos" titulo="Cumplimiento de exámenes periódicos" nota="LOPCYMAT art. 40 y 53 · NT-01-2008">
+                <T columnas={["Concepto", "Trabajadores"]} porcentaje={false} total={false} minimo={0} filas={[
+                  ["Con examen previsto hasta el cierre", lg.examenes.programados],
+                  ["Evaluados a tiempo", lg.examenes.realizados],
+                  ["Vencidos al cierre", lg.examenes.vencidos],
+                  ["Cumplimiento", lg.examenes.programados ? `${num((lg.examenes.realizados * 100) / lg.examenes.programados, 1)} %` : "—"],
+                  ["Vencen el próximo trimestre", lg.examenes.por_vencer],
+                  ["Activos sin ninguna evaluación", lg.examenes.sin_evaluacion],
+                ]} />
+              </Panel>
+              <Panel ancla="i-periodicos-dependencia" titulo="Exámenes periódicos por dependencia">
+                <T columnas={["Dependencia", "Previstos", "Evaluados", "Vencidos"]} porcentaje={false} minimo={0} vacio="Ningún examen periódico previsto en el período."
+                  filas={lg.examenes.por_dependencia.map((x) => [x.dependencia, x.programados, x.realizados, x.vencidos])} />
+              </Panel>
+            </div>
+          )}
+          <Analisis texto={a.examenes_periodicos} titulo="Cumplimiento de exámenes periódicos" />
+          {lg && (
+            <Panel ancla="i-resultados-exposicion" titulo="Audiometría y espirometría por exposición" nota="Último resultado de cada trabajador en el período">
+              <T columnas={["Estudio", "Grupo", "Evaluados", "Normales", "Alterados", "Sin resultado"]} texto={[1]} porcentaje={false} total={false}
+                vacio="Sin audiometrías ni espirometrías en el período."
+                filas={lg.resultados.map((x) => [x.estudio, x.grupo, x.evaluados, x.normales, x.alterados, x.sin_resultado])} />
+            </Panel>
+          )}
+          <Analisis texto={a.resultados_exposicion} titulo="Audiometría y espirometría por exposición" />
         </Seccion>
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">

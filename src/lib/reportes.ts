@@ -38,6 +38,8 @@ export type Reporte = {
   };
   // Motivos configurados y sistemas que el servicio usa: los cuadros completos los listan también en cero (como el SAME)
   catalogo?: { motivos: { nombre: string; grupo: string | null }[]; sistemas: string[] };
+  // vigilancia_legal (05-nov): cumplimiento de periódicos, enfermedades ocupacionales y resultados por exposición
+  legal?: Legal;
   referencias?: { total: number; por_especialidad: Conteo[] };
   ausentismo: {
     reposos: number; dias_perdidos: number; dias_periodo: number; dias_computables: number;
@@ -83,6 +85,16 @@ type Complemento = {
 
 // Cuadros que el SAME trae y reporte_vigilancia no (dependencia × motivo, causas por cargo, catálogos para las filas en cero).
 // Es un complemento: si la función falla (o la copia del escritorio todavía no tiene la migración), el informe sale igual sin ellos.
+export type Legal = {
+  examenes: { programados: number; realizados: number; vencidos: number; evaluados_periodo: number; por_vencer: number; sin_evaluacion: number;
+    por_dependencia: { dependencia: string; programados: number; realizados: number; vencidos: number }[] };
+  enfermedades: { registradas: number; declaradas: number; a_tiempo: number; por_declarar: number; informe_nt02: number; informe_a_tiempo: number;
+    informe_pendiente: number; certificadas: number; sospechas_sin_registro: number; por_grupo: { grupo: string; n: number }[] };
+  // Solo llegan al personal del servicio (RR. HH. recibe la lista vacía y ceros)
+  resultados: { estudio: string; grupo: string; expuesto: boolean; evaluados: number; normales: number; alterados: number; sin_resultado: number }[];
+  expuestos_sin_estudio: { ruido: number; respiratorio: number };
+};
+
 async function complementar(r: Reporte, empresaId: string | null, p: Periodo, supabase: Awaited<ReturnType<typeof crearClienteServidor>>) {
   const { data, error } = await supabase.rpc("vigilancia_complemento", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
   if (error || !data) {
@@ -94,6 +106,9 @@ async function complementar(r: Reporte, empresaId: string | null, p: Periodo, su
   r.morbilidad.cortes = { ...r.morbilidad.cortes, cargo: c.cargos ?? {} };
   r.morbilidad.cargos_total = c.cargos_total ?? 0;
   r.catalogo = { motivos: c.motivos ?? [], sistemas: c.sistemas ?? [] };
+  const legal = await supabase.rpc("vigilancia_legal", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
+  if (legal.error) console.error("vigilancia_legal:", legal.error.message);
+  else if (legal.data) r.legal = legal.data as Legal;
 }
 
 // Diagnósticos registrados sin nombre (vacío, igual al código o abreviado, p. ej. migrados del SAME):

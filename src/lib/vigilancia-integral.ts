@@ -237,7 +237,78 @@ export function analisisCuadros(d: DatosAnalisis, h: Herramientas) {
     return f.join(" ");
   })();
 
-  return { vigilancia_clinica, demografia, indices_ausentismo, causas_reposo, indices_accidentes, externas, reubicaciones, art34 };
+  // ── Indicadores legales (05-nov, «sí exámenes vencidos», «sí enfermedades declaradas», «sí resultados por exposición»)
+  const lapso = lapsoDe(d.etiqueta);
+  // Cumplimiento de exámenes periódicos (LOPCYMAT art. 40 y 53; NT-01-2008)
+  const examenes_periodicos = (() => {
+    const e = r.legal?.examenes;
+    if (!e) return sin;
+    if (!e.programados) return `${elige([
+      `Ningún trabajador tenía su examen periódico previsto para ${lapso}.`,
+      `En ${lapso} no vencía el examen periódico de ningún trabajador.`,
+    ])}${e.por_vencer ? ` Para el próximo trimestre ${e.por_vencer === 1 ? "vence 1" : `vencen ${n0(e.por_vencer)}`}: conviene agendarlos desde ahora.` : ""}`;
+    const cumple = p(e.realizados, e.programados);
+    const f = [elige([
+      `De ${plural(e.programados, "trabajador", "trabajadores")} con examen periódico previsto hasta el cierre de ${lapso}, ${e.realizados === 1 ? "se evaluó 1" : `se evaluaron ${n0(e.realizados)}`} (${pc(e.realizados, e.programados)} de cumplimiento).`,
+      `El cumplimiento de los exámenes periódicos fue de ${pc(e.realizados, e.programados)}: ${n0(e.realizados)} de ${plural(e.programados, "trabajador", "trabajadores")} que debían evaluarse.`,
+    ])];
+    if (e.vencidos) {
+      const peor = [...e.por_dependencia].sort((a, b) => b.vencidos - a.vencidos)[0];
+      f.push(`${mayus(plural(e.vencidos, "trabajador quedó", "trabajadores quedaron"))} con el examen vencido${peor && peor.vencidos && e.por_dependencia.length > 1 ? `, sobre todo en ${peor.dependencia} (${n0(peor.vencidos)})` : ""}.`);
+      f.push(cumple < 80
+        ? "El programa de vigilancia de la salud (NT-01-2008) exige mantener al día los exámenes periódicos: conviene citar primero a los vencidos y a los expuestos a riesgos específicos."
+        : "El cumplimiento es bueno; falta completar los pendientes para cerrar el ciclo.");
+    } else f.push("Todos los exámenes previstos se realizaron a tiempo.");
+    if (e.por_vencer) f.push(`Para el próximo trimestre ${e.por_vencer === 1 ? "vence 1 examen" : `vencen ${n0(e.por_vencer)} exámenes`}: conviene agendarlos desde ahora.`);
+    if (e.sin_evaluacion) f.push(`${mayus(plural(e.sin_evaluacion, "trabajador activo no tiene", "trabajadores activos no tienen"))} ninguna evaluación registrada.`);
+    return f.join(" ");
+  })();
+
+  // Enfermedades ocupacionales: declaración ante el INPSASEL en 24 h e informe NT-02 en 15 o 30 días
+  const eo_declaracion = (() => {
+    const e = r.legal?.enfermedades;
+    if (!e) return sin;
+    const sospechas = e.sospechas_sin_registro ?? 0;
+    if (!e.registradas && !sospechas) return `${sin} ${elige([
+      "No se registraron enfermedades ocupacionales ni diagnósticos de origen ocupacional pendientes de declarar.",
+      "Sin enfermedades ocupacionales registradas ni sospechas pendientes de declaración.",
+    ])}`;
+    const f: string[] = [];
+    if (e.registradas) {
+      f.push(`Se ${e.registradas === 1 ? "registró 1 enfermedad ocupacional" : `registraron ${n0(e.registradas)} enfermedades ocupacionales`}; ${e.a_tiempo === e.registradas ? (e.registradas === 1 ? "se declaró" : "todas se declararon") : `${n0(e.a_tiempo)} se ${e.a_tiempo === 1 ? "declaró" : "declararon"}`} ante el INPSASEL dentro de las 24 horas (LOPCYMAT art. 73).`);
+      if (e.por_declarar) f.push(`${mayus(e.por_declarar === 1 ? "queda 1 sin declarar" : `quedan ${n0(e.por_declarar)} sin declarar`)}: la declaración es obligatoria aunque el diagnóstico esté en estudio.`);
+      if (e.informe_pendiente) f.push(`${mayus(e.informe_pendiente === 1 ? "falta 1 informe" : `faltan ${n0(e.informe_pendiente)} informes`)} de investigación NT-02 (15 días si está en el Anexo 1, 30 si no).`);
+      else f.push("Todas tienen su informe de investigación NT-02.");
+      if (e.certificadas) f.push(`${mayus(e.certificadas === 1 ? "1 ya está certificada" : `${n0(e.certificadas)} ya están certificadas`)} por el INPSASEL.`);
+    }
+    if (sospechas) f.push(`Además, ${personas(sospechas, "trabajador tiene", "trabajadores tienen")} un diagnóstico de origen ocupacional sin enfermedad registrada: conviene confirmarlo y, si procede, declararlo.`);
+    return f.join(" ");
+  })();
+
+  // Audiometría y espirometría por grupo de exposición (vigilancia por riesgo, NT-01-2008)
+  const resultados_exposicion = (() => {
+    const l = r.legal?.resultados ?? [];
+    const sinEst = r.legal?.expuestos_sin_estudio;
+    if (!l.length && !(sinEst?.ruido || sinEst?.respiratorio)) return r.legal ? `${sin} ${elige([
+      "No hay audiometrías ni espirometrías registradas con resultado.",
+      "No se registraron audiometrías ni espirometrías.",
+    ])}` : sin;
+    const f: string[] = [];
+    for (const est of ["Audiometría", "Espirometría"]) {
+      const ex = l.find((x) => x.estudio === est && x.expuesto);
+      const no = l.find((x) => x.estudio === est && !x.expuesto);
+      const nombre = est.toLowerCase();
+      if (ex) f.push(`En ${ex.grupo.toLowerCase()}, ${plural(ex.evaluados, `${nombre}`, `${nombre}s`)}: ${ex.alterados ? `${personas(ex.alterados, "alterada", "alteradas")}${ex.alterados >= 3 ? ` (${pc(ex.alterados, ex.evaluados)})` : ""}` : "ninguna alterada"}.`);
+      if (ex && no && ex.evaluados >= 3 && no.evaluados >= 3 && p(ex.alterados, ex.evaluados) > p(no.alterados, no.evaluados) + 10)
+        f.push(`Las alteraciones son más frecuentes en los expuestos que en los no expuestos (${pc(no.alterados, no.evaluados)}), lo que apunta al riesgo del puesto: revisar los controles en la fuente y el uso de la protección.`);
+    }
+    if (sinEst?.ruido) f.push(`${mayus(plural(sinEst.ruido, "trabajador expuesto", "trabajadores expuestos"))} a ruido no ${sinEst.ruido === 1 ? "tiene" : "tienen"} audiometría en ${lapso}.`);
+    if (sinEst?.respiratorio) f.push(`${mayus(plural(sinEst.respiratorio, "trabajador expuesto", "trabajadores expuestos"))} a polvos, humos o químicos no ${sinEst.respiratorio === 1 ? "tiene" : "tienen"} espirometría en ${lapso}.`);
+    if (!f.length) f.push("Las audiometrías y espirometrías del período no corresponden a trabajadores con exposición registrada.");
+    return f.join(" ");
+  })();
+
+  return { vigilancia_clinica, demografia, indices_ausentismo, causas_reposo, indices_accidentes, externas, reubicaciones, art34, examenes_periodicos, eo_declaracion, resultados_exposicion };
 }
 
 // ---------- Anexo estadístico: un análisis por cuadro, también cuando no hay datos
