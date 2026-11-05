@@ -40,11 +40,25 @@ export async function editarVacaciones(trabajadorId: string, id: string, desde: 
   return { ok: true, mensaje: "Vacaciones corregidas." };
 }
 
-export async function quitarVacaciones(trabajadorId: string, id: string): Promise<Resultado> {
+export async function quitarVacaciones(trabajadorId: string, id: string): Promise<Resultado & { quitada?: Vacacion }> {
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.from("vacaciones").delete().eq("id", id).select("id");
+  const { data, error } = await supabase.from("vacaciones").delete().eq("id", id).select("id, desde, regreso");
   if (error) return { ok: false, mensaje: error.message };
   if (!data?.length) return { ok: false, mensaje: "No puedes quitar estas vacaciones." };
   revalidatePath(`/pacientes/${trabajadorId}`);
-  return { ok: true, mensaje: "" };
+  return { ok: true, mensaje: "Vacaciones quitadas.", quitada: data[0] as Vacacion };
+}
+
+// «Deshacer» de quitarVacaciones: las vuelve a anotar con el mismo id
+export async function reponerVacaciones(trabajadorId: string, v: Vacacion): Promise<Resultado> {
+  if (!/^[0-9a-f-]{36}$/i.test(v?.id ?? "") || !FECHA.test(v.desde) || !FECHA.test(v.regreso)) return { ok: false, mensaje: "No se pudo deshacer." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("vacaciones").insert({ id: v.id, trabajador_id: trabajadorId, desde: v.desde, regreso: v.regreso });
+  if (error) {
+    if (error.code !== "23505") return { ok: false, mensaje: error.message };
+    const { data: existe } = await supabase.from("vacaciones").select("id").eq("id", v.id).eq("trabajador_id", trabajadorId).maybeSingle();
+    if (!existe) return { ok: false, mensaje: "No se pudo deshacer: anótalas de nuevo." };
+  }
+  revalidatePath(`/pacientes/${trabajadorId}`);
+  return { ok: true, mensaje: "Vacaciones repuestas." };
 }

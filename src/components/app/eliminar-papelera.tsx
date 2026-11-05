@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { eliminarAPapelera, vistaPreviaPapelera } from "@/app/(app)/configuracion/papelera/acciones";
-import { listarResumen, type TipoPapelera, type VistaPrevia } from "@/lib/papelera";
+import { listarResumen, TIPOS_PAPELERA, type TipoPapelera, type VistaPrevia } from "@/lib/papelera";
 
 const PALABRA = "ELIMINAR";
 
-// Eliminar una consulta o un trabajador (solo el administrador). Antes de confirmar dice qué se va con él y qué se
+// Eliminar cualquier documento: consulta, trabajador, accidente, investigación, ergonomía, informe o notificación (solo el administrador). Antes de confirmar dice qué se va con él y qué se
 // queda; pide el motivo (va a la bitácora) y, si hay algo firmado, que se escriba ELIMINAR. Nada se pierde: queda en
 // la Papelera y «Deshacer» lo devuelve idéntico.
 export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onEliminado }: {
@@ -47,7 +47,8 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
   const listo = Boolean(vista) && !faltaMotivo && !faltaPalabra;
   // Por qué el botón está apagado, dicho en pantalla (no solo al pasar el ratón)
   const porQue = !vista ? "" : faltaMotivo ? "Escribe el motivo para poder eliminar." : faltaPalabra ? `Escribe ${PALABRA} para poder eliminar.` : "";
-  const principal = tipo === "consulta" ? "clinico.consultas" : "public.trabajadores";
+  const t = TIPOS_PAPELERA[tipo];
+  const principal = t.tabla;
   const junto = vista ? listarResumen(vista.resumen, principal) : "";
   const sueltas = vista ? listarResumen(vista.sueltas) : "";
 
@@ -66,9 +67,7 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
           <div className="min-w-0 space-y-1.5 pt-1">
             <DialogTitle className="text-base leading-snug">¿Eliminar {nombre}?</DialogTitle>
             <DialogDescription>
-              {tipo === "consulta"
-                ? "Para consultas duplicadas o hechas por error. Desaparece de la historia, los reportes y los conteos."
-                : "Para un trabajador repetido o registrado por error. Desaparece de la lista, los reportes y los conteos. Si solo dejó la empresa, usa «Inactivar» en su ficha."}
+              {t.para}
             </DialogDescription>
           </div>
         </div>
@@ -77,16 +76,18 @@ export function EliminarPapelera({ tipo, id, nombre, abierto, onAbierto, onElimi
           {!vista && !error && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Revisando qué tiene…</p>}
           {vista && (
             <ul className="space-y-1.5 rounded-lg border bg-muted/40 px-3 py-2.5">
-              <li><b>Se elimina con {tipo === "consulta" ? "ella" : "él"}:</b> {junto || "nada más"}.</li>
-              {vista.firmadas > 0 && <li className="text-alerta-texto"><b>{vista.firmadas === 1 ? "Hay 1 consulta firmada." : `Hay ${vista.firmadas} consultas firmadas.`}</b> Con la firma y sus versiones anteriores.</li>}
+              <li><b>Se elimina con {t.con}:</b> {junto || "nada más"}.</li>
+              {vista.firmadas > 0 && (tipo === "consulta" || tipo === "trabajador"
+                ? <li className="text-alerta-texto"><b>{vista.firmadas === 1 ? "Hay 1 consulta firmada." : `Hay ${vista.firmadas} consultas firmadas.`}</b> Con la firma y sus versiones anteriores.</li>
+                : <li className="text-alerta-texto"><b>{vista.firmadas === 1 ? "Está cerrado o firmado." : `Hay ${vista.firmadas} documentos cerrados o firmados.`}</b></li>)}
               {sueltas && <li><b>Se quedan</b>, sin el enlace: {sueltas}.</li>}
-              <li className="flex items-start gap-1.5 text-muted-foreground"><Undo2 className="mt-0.5 size-4 shrink-0" /> «Deshacer» ahora, o «Restaurar» desde Configuración › Papelera, lo devuelve idéntico, con su firma y su número de historia.</li>
+              <li className="flex items-start gap-1.5 text-muted-foreground"><Undo2 className="mt-0.5 size-4 shrink-0" /> «Deshacer» ahora, o «Restaurar» desde Configuración › Papelera, lo devuelve idéntico{tipo === "consulta" || tipo === "trabajador" ? ", con su firma y su número de historia" : ""}.</li>
             </ul>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="motivo-eliminar">Motivo (obligatorio, queda en la auditoría)</Label>
             <Textarea id="motivo-eliminar" value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2}
-              placeholder={tipo === "consulta" ? "Ej.: duplicada al probar la firma" : "Ej.: registrado dos veces, la cédula correcta es la otra"} />
+              placeholder={t.ejemplo} />
           </div>
           {fuerte && (
             <div className="space-y-1.5">

@@ -41,6 +41,17 @@ const reporte: Reporte = {
     por_sexo: { F: 52, M: 102 },
     por_edad: [{ grupo: "18-24", n: 14 }, { grupo: "25-34", n: 46 }, { grupo: "35-44", n: 44 }, { grupo: "45-54", n: 30 }, { grupo: "55-64", n: 20 }],
     por_dependencia: [{ nombre: "Producción", n: 70, personal: 80 }, { nombre: "Almacén", n: 38, personal: 25 }, { nombre: "Mantenimiento", n: 26, personal: 35 }, { nombre: "Administración", n: 20, personal: 40 }],
+    por_dependencia_motivo: [
+      { dependencia: "Administración", motivo: "Periódico", consultas: 12, diagnosticos: 3 }, { dependencia: "Administración", motivo: "Morbilidad", consultas: 8, diagnosticos: 7 },
+      { dependencia: "Almacén", motivo: "Morbilidad", consultas: 30, diagnosticos: 28 }, { dependencia: "Almacén", motivo: "Control", consultas: 6, diagnosticos: 4 }, { dependencia: "Almacén", motivo: "Prenatal", consultas: 2, diagnosticos: 1 },
+      { dependencia: "Mantenimiento", motivo: "Morbilidad", consultas: 16, diagnosticos: 15 }, { dependencia: "Mantenimiento", motivo: "Periódico", consultas: 10, diagnosticos: 2 },
+      { dependencia: "Producción", motivo: "Morbilidad", consultas: 28, diagnosticos: 26 }, { dependencia: "Producción", motivo: "Pre-empleo", consultas: 14, diagnosticos: 2 }, { dependencia: "Producción", motivo: "Pre vacacional", consultas: 9, diagnosticos: 1 },
+      { dependencia: "Producción", motivo: "Post vacacional", consultas: 6, diagnosticos: 1 }, { dependencia: "Producción", motivo: "Periódico", consultas: 6, diagnosticos: 1 }, { dependencia: "Producción", motivo: "Control", consultas: 6, diagnosticos: 4 }, { dependencia: "Producción", motivo: "Egreso", consultas: 1, diagnosticos: 0 },
+    ],
+  },
+  catalogo: {
+    motivos: ["Pre-empleo", "Periódico", "Pre vacacional", "Post vacacional", "Egreso", "Reintegro", "Anual", "Cambio de puesto", "Morbilidad", "Control", "Urgencia", "Prenatal"].map((nombre, i) => ({ nombre, grupo: i < 8 ? "preventivo" : "no_preventivo" })),
+    sistemas: ["Osteomuscular", "Respiratorio", "Traumatismos", "Circulatorio", "Digestivo", "Piel", "Ojo y anexos", "Oído", "Nervioso", "Genitourinario", "Endocrino"],
   },
   morbilidad: {
     total: 99, pacientes: 71,
@@ -51,6 +62,7 @@ const reporte: Reporte = {
     cortes: {
       sexo: { F: [causa("J00", "Rinofaringitis aguda", 6, 6), causa("M54.5", "Lumbago no especificado", 4, 4)], M: [causa("M54.5", "Lumbago no especificado", 17, 12), causa("M75.1", "Síndrome del manguito rotador", 7, 5), causa("J00", "Rinofaringitis aguda", 8, 7)] },
       edad: { "25-34": [causa("M54.5", "Lumbago no especificado", 9, 7), causa("J00", "Rinofaringitis aguda", 6, 6)], "55-64": [causa("I10", "Hipertensión esencial", 5, 5), causa("M54.5", "Lumbago no especificado", 3, 3)] },
+      cargo: { "Operador de montacargas": [causa("M54.5", "Lumbago no especificado", 9, 7), causa("M75.1", "Síndrome del manguito rotador", 4, 3)], Soldador: [causa("H10.9", "Conjuntivitis", 3, 3), causa("L23.9", "Dermatitis alérgica de contacto", 3, 3)], "Gerente general": [causa("I10", "Hipertensión esencial", 1, 1)] },
       dependencia: { Producción: [causa("M54.5", "Lumbago no especificado", 12, 9), causa("M75.1", "Síndrome del manguito rotador", 6, 4)], Almacén: [causa("M54.5", "Lumbago no especificado", 6, 5), causa("S93.4", "Esguince de tobillo", 3, 3), causa("F32.9", "Episodio depresivo", 1, 1)] },
       origen: { comun: [causa("M54.5", "Lumbago no especificado", 18, 14), causa("J00", "Rinofaringitis aguda", 14, 13)], accidente_laboral: [causa("S93.4", "Esguince de tobillo", 3, 3)] },
       tipo: { primera: [causa("J00", "Rinofaringitis aguda", 12, 12), causa("M54.5", "Lumbago no especificado", 10, 10)], sucesiva: [causa("M54.5", "Lumbago no especificado", 9, 5), causa("I10", "Hipertensión esencial", 4, 4)] },

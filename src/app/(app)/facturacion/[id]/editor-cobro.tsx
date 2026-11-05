@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CheckCircle2, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, ChevronDown, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,7 +49,18 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
           <p className="text-muted-foreground">{c.empresa} · {c.rif} · {f(c.fecha)}{c.desde && ` · periodo ${f(c.desde)} al ${f(c.hasta)}`}</p>
         </div>
         <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium">{etiquetaEstado(c.tipo, c.estado)}</span>
-        <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
+        {presupuesto ? (
+          <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="outline"><Printer /> Imprimir <ChevronDown className="opacity-60" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem asChild><Link href={`/imprimir/factura/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Factura en el talonario</span><span className="text-xs text-muted-foreground">Forma libre, sin membrete. Pide el Nº de factura.</span></Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}?doc=entrega`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Nota de entrega</span><span className="text-xs text-muted-foreground">Recibo de evaluaciones con membrete, sin montos, con «Recibido por».</span></Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">{c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro"}</span><span className="text-xs text-muted-foreground">Con membrete y montos.</span></Link></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <Card className="gap-0 py-0">
@@ -90,7 +102,7 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div><Label className="mb-1.5">Tasa BCV (Bs/$)</Label><Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} /></div>
-            <div><Label className="mb-1.5">Nº de factura fiscal</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Cuando la emitas en el sistema fiscal" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
+            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
             <div><Label className="mb-1.5">IGTF % (pago en divisas)</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.igtfPct} onChange={(e) => set("igtfPct", Number(e.target.value))} /></div>
             <div className="sm:col-span-2"><Label className="mb-1.5">Observación</Label><Input disabled={!editable} value={c.observacion} onChange={(e) => set("observacion", e.target.value)} /></div>
@@ -124,7 +136,7 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
           </div>
         </div>
       )}
-      {!presupuesto && <p className="text-xs text-muted-foreground">La nota de cobro no sustituye la factura fiscal: emítela en tu sistema homologado o con la imprenta autorizada y anota aquí su número.</p>}
+      {!presupuesto && <p className="text-xs text-muted-foreground">La nota de cobro no sustituye la factura: imprímela en tu talonario con «Imprimir › Factura en el talonario» (pide el número y lo deja anotado aquí).</p>}
     </div>
   );
 }

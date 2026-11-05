@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { Loader2, Palmtree, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/app/confirmar";
+import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 import { sumarDias } from "@/lib/fecha";
-import { editarVacaciones, guardarVacaciones, quitarVacaciones, type Vacacion } from "./vacaciones-acciones";
+import { editarVacaciones, guardarVacaciones, quitarVacaciones, reponerVacaciones, type Vacacion } from "./vacaciones-acciones";
 
 const corta = (iso: string) => iso.split("-").reverse().join("/");
 const CHIP = { alerta: "bg-alerta/15 text-alerta-texto", aviso: "bg-aviso/20 text-aviso-texto", ok: "bg-ok/15 text-ok-texto", neutro: "bg-muted text-muted-foreground" };
@@ -18,6 +19,7 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
   const [editando, setEditando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [quitada, setQuitada] = useState<Vacacion | null>(null);
 
   const guardar = () => iniciar(async () => {
     const r = editando ? await editarVacaciones(trabajadorId, editando, desde, regreso) : await guardarVacaciones(trabajadorId, desde, regreso);
@@ -30,7 +32,8 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
     if (!(await confirmar({ titulo: "¿Quitar estas vacaciones?", texto: `Del ${corta(v.desde)} al ${corta(v.regreso)}. También se quita su aviso de post vacacional.`, accion: "Quitar", peligro: true }))) return;
     iniciar(async () => {
       const r = await quitarVacaciones(trabajadorId, v.id);
-      if (!r.ok) setMensaje({ ok: false, texto: r.mensaje });
+      setMensaje(r.ok ? null : { ok: false, texto: r.mensaje });
+      setQuitada(r.ok && r.quitada ? r.quitada : null);
     });
   };
 
@@ -75,6 +78,11 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
           </Button>
           {editando && <Button type="button" size="sm" variant="ghost" onClick={cancelar}>Cancelar</Button>}
         </div>
+      )}
+      {quitada && (
+        <FranjaDeshacerLocal texto={`Se quitaron las vacaciones del ${corta(quitada.desde).slice(0, 5)} al ${corta(quitada.regreso).slice(0, 5)}.`} ocupado={ocupado}
+          onDeshacer={() => iniciar(async () => { const r = await reponerVacaciones(trabajadorId, quitada); setMensaje({ ok: r.ok, texto: r.mensaje }); if (r.ok) setQuitada(null); })}
+          onCerrar={() => setQuitada(null)} />
       )}
       {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-alerta-texto"}>{mensaje.texto}</p>}
       <p className="text-xs text-muted-foreground">Te avisamos 2 días antes del regreso y el plazo es de {diasPost} días (se cambia en la empresa). El aviso se quita solo al hacer la consulta «Post vacacional».</p>

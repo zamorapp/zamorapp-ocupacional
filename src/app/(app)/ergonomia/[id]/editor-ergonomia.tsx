@@ -45,7 +45,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
   const esDeb = metodo?.clave === "deb";
   // DEB: un acordeón por peligro; abierto solo el que se está llenando (el primero sin terminar)
-  const [debAbierto, setDebAbierto] = useState<FactorDeb | null>(() => (ev.metodo === "deb" ? FACTORES.find((f) => evaluarFactor(f, ev.datos).zona === null) ?? null : null));
+  const [debAbierto, setDebAbierto] = useState<FactorDeb | "otros" | null>(() => (ev.metodo === "deb" ? FACTORES.find((f) => evaluarFactor(f, ev.datos).zona === null) ?? null : null));
   const faltan = useMemo(() => (esDeb ? faltantesDeb(x.datos) : []), [esDeb, x.datos]);
   const revisados = FACTORES.length - faltan.length;
   const [avisoFaltan, setAvisoFaltan] = useState(false);
@@ -86,7 +86,10 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
       const n = p.numero;
       return (
         <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 text-sm">{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
+          <span className="min-w-0 flex-1 text-sm">{p.texto}
+            {/* Mediciones ambientales del DEB: aviso si el valor queda fuera de la referencia */}
+            {typeof actual === "number" && (p as { fuera?: (v: number) => boolean }).fuera?.(actual) && <span className="ml-1.5 text-xs font-medium text-aviso-texto">Fuera de referencia</span>}
+            {p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</span>
           <span className="flex items-center gap-1.5">
             <Input
               type="number" inputMode="decimal" min={n.min} max={n.max} step={n.paso ?? 1} disabled={!editable}
@@ -252,7 +255,25 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                       {abierto && <div className="space-y-4 border-t px-4 pt-3 pb-4">{secs.map((sec) => seccion(sec, true))}</div>}
                     </div>
                   );
-                })
+                }).concat((() => {
+                  // Otros riesgos del puesto (complemento del DEB): opcional, no bloquea el cierre
+                  const abierto = debAbierto === "otros";
+                  const n = (resultado?.otros ?? []).reduce((t, c) => t + c.items.length, 0);
+                  return (
+                    <div key="otros" id="deb-otros" className="scroll-mt-4 rounded-xl border border-dashed">
+                      <button type="button" aria-expanded={abierto} onClick={() => setDebAbierto(abierto ? null : "otros")} className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left">
+                        <span className="min-w-0">
+                          <span className="block font-medium">Otros riesgos del puesto</span>
+                          <span className={cn("block text-xs", n ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                            {n ? `${n} ${n === 1 ? "alerta" : "alertas"}` : "Físicos, químicos, biológicos, psicosociales y mediciones · opcional"}
+                          </span>
+                        </span>
+                        <ChevronDown className={cn("size-4 shrink-0 transition", abierto && "rotate-180")} />
+                      </button>
+                      {abierto && <div className="space-y-4 border-t px-4 pt-3 pb-4">{metodo.secciones.filter((sec) => sec.grupo === "otros").map((sec) => seccion(sec, true))}</div>}
+                    </div>
+                  );
+                })())
               : metodo.secciones.filter((sec) => !sec.si || sec.si(x.datos)).map((sec) => seccion(sec, false))}
           </section>
         )}
@@ -342,7 +363,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
               {!resultado.texto && <span className="pb-1 text-sm text-muted-foreground">de {resultado.maximo}</span>}
             </div>
             {resultado.completo && resultado.subtexto && <div className="mt-1.5 text-sm text-muted-foreground">{resultado.subtexto}</div>}
-            {resultado.factores && <div className="mt-3"><GraficaDeb factores={resultado.factores} /></div>}
+            {resultado.factores && <div className="mt-3"><GraficaDeb factores={resultado.factores} otros={resultado.otros} /></div>}
             {resultado.completo ? (
               <>
                 <div className={cn("mt-3 rounded-lg px-3 py-2 text-sm font-medium", CLASE_URGENCIA[resultado.urgencia])}>{resultado.factores ? resultado.texto : resultado.nivel}</div>

@@ -178,6 +178,84 @@ const ADICIONALES_EMP: Adicional[] = [
 ];
 export const ADICIONALES: Adicional[] = [...ADICIONALES_LT, ...ADICIONALES_EMP];
 
+// ── Otros riesgos del puesto (complemento del DEB): «Sí» = alerta con su medida ──
+// Clasificación de procesos peligrosos de la NT-01-2008 (físicos, químicos, biológicos, psicosociales) y LOPCYMAT art. 59;
+// referencias de medición: COVENIN 2254 (calor y frío), 1565 (ruido), 2249 (iluminancia), 2253 (químicos).
+export type CategoriaOtro = "fisico" | "quimico" | "biologico" | "psicosocial";
+type Otro = Adicional & { s: number; consecuencia: string };
+const ot = (clave: string, texto: string, corto: string, departamento: Departamento, s: number, consecuencia: string, medida: string): Otro =>
+  ({ ...ad(clave, texto, corto, departamento, medida), s, consecuencia });
+export const OTROS: { clave: CategoriaOtro; nombre: string; items: Otro[] }[] = [
+  { clave: "fisico", nombre: "Riesgos físicos", items: [
+    ot("o_sol", "¿Trabaja al aire libre bajo el sol directo, sobre todo entre las 10 y las 16 horas?", "radiación solar", "sst", 3, "Quemaduras, cáncer de piel, daño ocular y golpe de calor",
+      "Sombra en las áreas de trabajo, tareas al sol fuera de 10 a 16 h, ropa de manga larga, sombrero de ala ancha, lentes con filtro UV y protector solar."),
+    ot("o_calor", "¿Hay calor intenso (sol, hornos, calderas o poca ventilación) que hace sudar mucho?", "calor intenso", "ingenieria", 4, "Agotamiento y golpe de calor, deshidratación",
+      "Medir el estrés térmico (WBGT, COVENIN 2254); ventilación o enfriamiento, agua fresca a mano, pausas a la sombra y aclimatación del personal nuevo."),
+    ot("o_frio", "¿Hay frío intenso (cavas, cuartos fríos, lluvia frecuente)?", "frío intenso", "sst", 3, "Hipotermia, lesiones por frío y molestias musculares",
+      "Ropa térmica, tiempo de permanencia limitado y pausas en área templada (COVENIN 2254)."),
+    ot("o_ruido", "¿Hay que alzar la voz para hablar con alguien a 1 metro?", "ruido alto", "ingenieria", 4, "Pérdida auditiva inducida por ruido y estrés",
+      "Medir el ruido (COVENIN 1565); aislar o encerrar la fuente, protectores auditivos y audiometría de los expuestos."),
+    ot("o_vibra", "¿Usa herramientas que vibran o va sobre vehículos o maquinaria pesada?", "vibraciones", "ingenieria", 3, "Lesiones de manos y columna por vibración",
+      "Herramientas y asientos antivibración, mantenimiento de equipos y límite de tiempo de uso."),
+    ot("o_luz", "¿La iluminación es escasa o produce reflejos o deslumbramiento?", "iluminación inadecuada", "ingenieria", 2, "Fatiga visual, cefalea y posturas forzadas del cuello",
+      "Medir la iluminancia (COVENIN 2249) y ajustar luminarias; evitar reflejos en pantallas."),
+  ] },
+  { clave: "quimico", nombre: "Riesgos químicos", items: [
+    ot("o_polvo", "¿Hay polvo en el aire (tierra, cemento, harina, madera, sílice)?", "polvo en el ambiente", "ingenieria", 4, "Enfermedades respiratorias por polvo",
+      "Humedecer o extraer el polvo en su origen; mascarilla con filtro adecuado (N95 o P100) y vigilancia respiratoria (COVENIN 2253)."),
+    ot("o_humo", "¿Hay humo, gases o vapores (combustión, soldadura, escapes, quemas)?", "humo, gases o vapores", "ingenieria", 4, "Irritación e intoxicación respiratoria",
+      "Ventilación o extracción localizada; respirador con cartucho adecuado y medición de contaminantes (COVENIN 2253)."),
+    ot("o_quim", "¿Manipula sustancias químicas (solventes, plaguicidas, combustibles, limpiadores fuertes)?", "sustancias químicas", "sst", 4, "Dermatitis, quemaduras e intoxicaciones",
+      "Fichas de datos de seguridad a mano, guantes y protección ocular adecuados, lavaojos cerca y formación en manejo seguro."),
+  ] },
+  { clave: "biologico", nombre: "Riesgos biológicos", items: [
+    ot("o_bio", "¿Hay contacto con animales, insectos, aguas servidas, desechos o fluidos de personas?", "agentes biológicos", "sst", 3, "Infecciones, picaduras y mordeduras",
+      "Vacunas indicadas (tétanos, hepatitis B), guantes y botas, repelente en campo y lavado de manos."),
+  ] },
+  { clave: "psicosocial", nombre: "Riesgos psicosociales y de organización", items: [
+    ot("o_destajo", "¿Se paga por pieza o por meta (a destajo), o las metas de producción son muy exigentes?", "trabajo a destajo o metas exigentes", "rrhh", 3, "Estrés, fatiga y sobreesfuerzo por saltarse pausas",
+      "Revisar metas y forma de pago para que permitan las pausas; que el pago por pieza no obligue a trabajar sin descanso (LOPCYMAT art. 59)."),
+    ot("o_turnos", "¿Trabaja de noche, en turnos rotativos o en jornadas de más de 8 horas u horas extras frecuentes?", "turnos nocturnos, rotativos o jornadas largas", "rrhh", 3, "Trastornos del sueño, fatiga y estrés",
+      "Rotar turnos en sentido horario, descanso suficiente entre turnos, limitar horas extras y evaluar la salud del trabajador nocturno."),
+    ot("o_ritmo", "¿El ritmo lo impone una máquina, la línea o el cliente, sin poder parar?", "ritmo impuesto", "operaciones", 3, "Estrés y trastornos musculoesqueléticos",
+      "Dar control sobre el ritmo y las pausas; personal de relevo."),
+    ot("o_mental", "¿La tarea exige mucha concentración o atención sostenida, o es monótona sin variar en la jornada?", "alta exigencia mental o monotonía", "operaciones", 2, "Fatiga mental y estrés",
+      "Pausas cortas frecuentes, variar y rotar tareas, y estudio de carga mental si hace falta."),
+    ot("o_aislado", "¿Trabaja solo o lejos de ayuda (por ejemplo, en campo)?", "trabajo aislado", "sst", 3, "Demora en la atención de accidentes o emergencias",
+      "Comunicación permanente (radio o teléfono), plan de emergencias y reporte de llegada y salida."),
+    ot("o_violencia", "¿Atiende público conflictivo o hay riesgo de agresión o acoso?", "riesgo de agresión o acoso", "rrhh", 3, "Estrés, ansiedad y lesiones por agresión",
+      "Protocolo ante agresiones y acoso, formación en manejo de conflictos y apoyo psicológico."),
+    ot("o_viajes", "¿Conduce o se traslada por carretera o terreno irregular como parte del trabajo?", "traslados por carretera o en campo", "operaciones", 4, "Accidentes de tránsito y fatiga",
+      "Vehículos en buen estado, plan de viaje, pausas en traslados largos y manejo defensivo."),
+  ] },
+];
+const TODOS_OTROS = OTROS.flatMap((c) => c.items);
+
+// Mediciones ambientales en el puesto (opcionales): fuera del rango de referencia = alerta
+export const MEDICIONES: (Pregunta & { fuera: (v: number) => boolean; corto: string; medida: string; departamento: Departamento; s: number; consecuencia: string; referencia: string })[] = [
+  { clave: "m_temp", texto: "Temperatura del aire", opciones: [], numero: { min: -10, max: 60, unidad: "°C", paso: 0.1 }, referencia: "17 a 26 °C en trabajo sedentario (COVENIN 2254)",
+    fuera: (v) => v < 17 || v > 26, corto: "temperatura fuera de 17–26 °C", departamento: "ingenieria", s: 3, consecuencia: "Disconfort térmico y fatiga",
+    medida: "Climatizar o ventilar el área y medir el estrés térmico si hay calor (COVENIN 2254)." },
+  { clave: "m_humedad", texto: "Humedad relativa", opciones: [], numero: { min: 0, max: 100, unidad: "%" }, referencia: "30 a 70 %",
+    fuera: (v) => v < 30 || v > 70, corto: "humedad fuera de 30–70 %", departamento: "ingenieria", s: 2, consecuencia: "Disconfort térmico e irritación de mucosas",
+    medida: "Ajustar ventilación, deshumidificación o humidificación del área." },
+  { clave: "m_lux", texto: "Iluminancia en el plano de trabajo", opciones: [], numero: { min: 0, max: 5000, unidad: "lux" }, referencia: "300 lux o más en oficinas; según la tarea (COVENIN 2249)",
+    fuera: (v) => v < 300, corto: "iluminancia de menos de 300 lux", departamento: "ingenieria", s: 2, consecuencia: "Fatiga visual y posturas forzadas del cuello",
+    medida: "Aumentar o reubicar luminarias hasta el nivel de la tarea (COVENIN 2249)." },
+  { clave: "m_ruido", texto: "Nivel de ruido", opciones: [], numero: { min: 30, max: 140, unidad: "dBA" }, referencia: "menos de 85 dBA en 8 horas (COVENIN 1565)",
+    fuera: (v) => v >= 85, corto: "ruido de 85 dBA o más", departamento: "ingenieria", s: 4, consecuencia: "Pérdida auditiva inducida por ruido",
+    medida: "Controlar el ruido en la fuente, protectores auditivos y audiometría de los expuestos (COVENIN 1565)." },
+];
+
+/** Otros riesgos y mediciones fuera de rango marcados en la evaluación, por categoría */
+export function otrosRiesgos(r: Respuestas): { categoria: string; items: { clave: string; texto: string }[] }[] {
+  const res = OTROS.map((c) => ({ categoria: c.nombre, items: c.items.filter((p) => r[p.clave] === 1).map((p) => ({ clave: p.clave, texto: p.corto ?? p.texto })) }));
+  const med = MEDICIONES.filter((m) => Number.isFinite(r[m.clave]) && m.fuera(r[m.clave]))
+    .map((m) => ({ clave: m.clave, texto: `${m.corto} (medido ${String(r[m.clave]).replace(".", ",")} ${m.numero!.unidad})` }));
+  return [...res, { categoria: "Mediciones ambientales", items: med }].filter((c) => c.items.length);
+}
+export const otroPorClave = (clave: string) => TODOS_OTROS.find((p) => p.clave === clave) ?? MEDICIONES.find((m) => m.clave === clave);
+
 // ── Respuestas ──
 const val = (r: Respuestas, k: string) => (Number.isFinite(r[k]) ? r[k] : null);
 const respondidas = (r: Respuestas, ps: P[]) => ps.every((p) => val(r, p.clave) !== null);
@@ -233,6 +311,8 @@ function secciones(): Seccion[] {
       s.push({ titulo: f === "tra" ? "Levantamiento y transporte: aspectos adicionales" : "Empuje y tracción: aspectos adicionales", zona: ZONA_SECCION[f], preguntas: adicionalesDe(f), grupo: f, opcional: true,
         si: (r) => (f === "tra" ? presente("lev", r) === true || presente("tra", r) === true : presente("emp", r) === true) });
   }
+  for (const c of OTROS) s.push({ titulo: c.nombre, zona: "actividad", preguntas: c.items, grupo: "otros", opcional: true });
+  s.push({ titulo: "Mediciones ambientales (si las tomaste)", zona: "actividad", preguntas: MEDICIONES.map((m) => ({ ...m, ayuda: `Referencia: ${m.referencia}.` })), grupo: "otros", opcional: true });
   return s;
 }
 
@@ -255,11 +335,13 @@ export const DEB: Metodo = {
     const amarillos = factores.filter((f) => f.zona === "amarillo").length;
     const conAdicionales = factores.filter((f) => f.zona === "verde" && f.adicionales.length).length;
     const presentes = factores.filter((f) => f.zona && f.zona !== "no").length;
-    const alertas = new Set(factores.flatMap((f) => f.adicionales)).size;
+    const otros = otrosRiesgos(r);
+    const nOtros = otros.reduce((n, c) => n + c.items.length, 0);
+    const alertas = new Set(factores.flatMap((f) => f.adicionales)).size + nOtros;
     const [urgencia, nivel, accion] =
       rojos ? [4, "Zona roja", "Riesgo inaceptable: intervenir de inmediato y hacer la evaluación específica para definir la medida"] as const
       : amarillos ? [2, "Zona amarilla", "No se puede descartar el riesgo: hacer la evaluación específica de cada factor en amarillo"] as const
-      : conAdicionales ? [1, "Zona verde con alertas", "Riesgo aceptable, pero hay factores adicionales que se deben corregir"] as const
+      : conAdicionales || nOtros ? [1, presentes ? "Zona verde con alertas" : "Sin peligros biomecánicos, con alertas", "Hay otros factores de riesgo del puesto que se deben corregir"] as const
       : [0, presentes ? "Zona verde" : "Sin peligros", presentes ? "Riesgo aceptable: mantener las condiciones y reevaluar si cambia la tarea" : "No se identificaron peligros ergonómicos biomecánicos"] as const;
     return {
       puntaje: rojos * 10 + amarillos, maximo: 5, urgencia, nivel, accion, completo,
@@ -268,6 +350,7 @@ export const DEB: Metodo = {
       parciales: factores.map((f) => ({ etiqueta: f.nombre, valor: f.zona ? TEXTO_ZONA[f.zona] : "falta responder" })),
       zonas: {},
       factores: ordenarFactores(factores),
+      otros,
     };
   },
 };

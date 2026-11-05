@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { hoyCaracas } from "@/lib/fecha";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { listarAtenciones, listarCobros, listarServicios, tasaVigente } from "@/lib/facturacion";
+import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, tasaVigente } from "@/lib/facturacion";
 import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
@@ -59,7 +59,7 @@ export default async function Facturacion({ searchParams }: Props) {
         ))}
       </div>
 
-      {vista === "servicios" && <Servicios servicios={await listarServicios()} editable={editable} />}
+      {vista === "servicios" && <Servicios servicios={await listarServicios()} motivos={await listarMotivosCobro()} editable={editable} />}
 
       {vista === "cuentas" && (async () => {
         // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad

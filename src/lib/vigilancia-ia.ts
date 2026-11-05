@@ -18,6 +18,8 @@ const lista = (l: { nombre: string; n: number }[], max = 6, sumarOtras = 0) => {
 // Nunca salen por su nombre, sea cual sea la cifra: VIH, salud mental, embarazo y parto (y sus códigos Z)
 const CONFIDENCIAL = /^(B2[0-4]|Z21|F\d|O\d|Z3[2-6])/i;
 export const confidencial = (cie10: string) => CONFIDENCIAL.test(cie10.trim());
+// Grupos (sistemas, capítulos) que por su nombre delatan un diagnóstico confidencial
+export const sensible = (nombre: string) => /mental|comportamiento|embarazo|parto|puerperio|vih|inmunodeficiencia/i.test(nombre);
 // La razón social, el RIF y sus variantes sin guiones se borran del texto libre de riesgos
 function sinIdentidad(texto: string, quitar: string[]) {
   let t = texto;
@@ -43,7 +45,7 @@ export function pedidoIA(d: DatosAnalisis, riesgos: string, quitar: string[] = [
   const aptitud = Object.entries(r.aptitud).map(([k, x]) => ({ nombre: (d.aptitudes[k] ?? k).toLowerCase(), n: x }));
   const causas = r.morbilidad.primeras_causas.filter((c) => !confidencial(c.cie10)).map((c) => ({ nombre: `${c.descripcion} (${c.cie10})`, n: c.n }));
   const ocultas = r.morbilidad.primeras_causas.filter((c) => confidencial(c.cie10)).reduce((t, c) => t + c.n, 0);
-  const sensible = (nombre: string) => /mental|comportamiento|embarazo|parto|puerperio|vih|inmunodeficiencia/i.test(nombre);
+
   const sistemas = r.morbilidad.por_sistema.filter((x) => !sensible(x.nombre));
   const sistemasOcultos = r.morbilidad.por_sistema.filter((x) => sensible(x.nombre)).reduce((t, x) => t + x.n, 0);
   const pocos = r.poblacion.femenino < MINIMO || r.poblacion.masculino < MINIMO;

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
-import { copiaDeUrl, faltantesRecipe, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
+import { copiaDeUrl, datosCompletarRecipe, faltantesRecipe, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
+import { CompletarRecipe } from "../../completar-recipe";
 import { opcionesDe } from "@/lib/documentos-opciones";
 import { OpcionesImpresion } from "../../opciones";
 import { BarraImpresion } from "../../barra";
@@ -34,12 +34,7 @@ export default async function Imprimir({ params, searchParams }: Props) {
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       <BarraImpresion volver={`/atencion/${id}`} titulo={`${t.titulo} · ${d.trabajador.nombre}`} bloqueado={faltan.length > 0} />
       {faltan.length > 0 ? (
-        <div className="mx-auto max-w-2xl rounded-lg border border-alerta/30 bg-white p-6">
-          <p className="mb-2 flex items-center gap-2 font-medium text-alerta-texto">
-            <AlertTriangle className="size-5" /> El récipe no se puede imprimir: faltan datos que exige la Res. MPPS 028 (reformada por la Res. 031 de 2013)
-          </p>
-          <ul className="list-disc space-y-1 pl-6 text-sm">{faltan.map((f) => <li key={f}>{f}</li>)}</ul>
-        </div>
+        <CompletarRecipe {...await datosCompletarRecipe(d)} />
       ) : (
         <>
           <OpcionesImpresion disponibles={opcionesDe(tipo)} copia={tipo === "constancia" ? d.copia : undefined} />

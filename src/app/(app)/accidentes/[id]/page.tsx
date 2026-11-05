@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { obtenerEvento } from "@/lib/eventos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { EditorEvento } from "./editor-evento";
 
 export const metadata: Metadata = { title: "Evento" };
@@ -19,13 +20,21 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
     opciones(sesion.orgId, ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente", "acto_inseguro", "condicion_insegura"]),
   ]);
   if (!evento) notFound();
+  const admin = !sesion.demo && sesion.rol === "administrador" && sesion.clinico;
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link href="/accidentes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Accidentes y enfermedades
         </Link>
+        <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="outline" asChild><Link href={`/imprimir/evento/${id}`} target="_blank"><Printer /> Imprimir declaración</Link></Button>
+        {admin && (
+          <div className="flex basis-full justify-end sm:basis-auto">
+            <BotonEliminar tipo="evento" id={id} nombre={`el registro #${evento.numero}${evento.trabajador ? ` de ${evento.trabajador}` : ""}`} destino="/accidentes" volver={`/accidentes/${id}`} />
+          </div>
+        )}
+        </div>
       </div>
       <EditorEvento inicial={evento} listas={listas} />
     </div>

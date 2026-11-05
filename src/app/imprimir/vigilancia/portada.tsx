@@ -104,10 +104,11 @@ export function Portada({ logoEmpresa, orgLogo, empresa, firmantes, fechaEmision
   return (
     <Hoja>
       {/* Logos: la empresa a la izquierda; a la derecha, el servicio que elabora */}
-      <header className="flex items-center justify-between gap-6 border-b border-doc-linea pb-3">
+      <header className={`flex items-center gap-6 border-b border-doc-linea pb-3 ${logoEmpresa ? "justify-between" : "justify-start"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {logoEmpresa ? <img src={logoEmpresa} alt="" className="h-14 max-w-44 object-contain" /> : <Marca logo={orgLogo} nombre={org ?? ""} />}
-        <div className="flex items-center gap-3 text-right">
+        {/* Sin logo de la empresa: el texto del servicio va junto a su marca, alineado a la izquierda */}
+        <div className={`flex items-center gap-3 ${logoEmpresa ? "text-right" : "text-left"}`}>
           <div>
             <div className="text-[8.5px] font-bold uppercase tracking-[.16em] text-doc-tenue">Elaborado por el servicio médico</div>
             <div className="text-[11px] font-semibold">{org}</div>

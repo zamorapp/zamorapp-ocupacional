@@ -295,6 +295,8 @@ export default async function FichaPaciente({ params }: Props) {
               <CardHeader><CardTitle className="text-base">Notificación de riesgos (LOPCYMAT art. 56.3)</CardTitle></CardHeader>
               <CardContent>
                 <NotificacionesRiesgo
+                  key={notificaciones.map((n) => n.id).join()}
+                  elimina={!sesion.demo && sesion.rol === "administrador" && Boolean(sesion.clinico)}
                   trabajadorId={t.id}
                   puesto={{ id: puestoActual?.puesto_id ?? null, nombre: puestoActual?.puestos?.nombre ?? "", evaluadoEn: puestoActual?.puestos?.evaluado_en ?? null }}
                   iniciales={notificaciones}
