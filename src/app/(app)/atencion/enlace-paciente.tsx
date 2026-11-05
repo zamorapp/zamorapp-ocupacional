@@ -14,7 +14,6 @@ import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, de
 
 type Opcion = { id: string; nombre: string };
 const PARTICULAR = "particular";
-const esParticular = (nombre: string) => /particular/i.test(nombre);
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const telefonoVisible = (t: string) => (t.startsWith("58") && t.length === 12 ? `0${t.slice(2, 5)}-${t.slice(5)}` : `+${t}`);
 
@@ -27,7 +26,7 @@ export function EnlacePaciente({ habilitado, empresas }: { habilitado: boolean; 
   const [r, setR] = useState<EnlaceNuevo | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [ocupado, iniciar] = useTransition();
-  const lista = empresas.filter((e) => !esParticular(e.nombre));
+  const lista = empresas;
   const puedeCompartir = typeof navigator !== "undefined" && "share" in navigator;
 
   const cerrar = (v: boolean) => { setAbierto(v); if (!v) { setR(null); setNombre(""); setTelefono(""); setEmpresa(""); setCopiado(false); } };
@@ -156,7 +155,7 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
           <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} aria-label="Empresa del paciente nuevo" className={cn("h-9 rounded-md border bg-background px-2 text-sm text-foreground", !empresa && "border-aviso")}>
             <option value="">Elige…</option>
             <option value={PARTICULAR}>Particular (sin empresa)</option>
-            {empresas.filter((e) => !esParticular(e.nombre)).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </select>
         </label>
       )}

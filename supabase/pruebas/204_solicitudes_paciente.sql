@@ -61,6 +61,11 @@ select 'avisa al servicio en la campana (debe 1): ' || (count(*) > 0)::int from 
 select 'RR. HH. no recibe el aviso (debe 0): ' || count(*) from public.notificaciones
  where usuario_id = '00000000-0000-0000-0000-0000000000a3' and titulo = 'Paciente envió sus datos';
 
+select 'la bitácora no guarda los datos del paciente ni el token (debe 0): ' || count(*) from public.bitacora
+ where tabla = 'public.solicitudes_paciente' and (coalesce(despues, '{}') ?| array['datos','token_hash','nombre','telefono'] or coalesce(antes, '{}') ?| array['datos','token_hash','nombre','telefono']);
+select 'la bitácora sí anota los cambios (debe 1): ' || (count(*) > 0)::int from public.bitacora where tabla = 'public.solicitudes_paciente';
+select 'un anónimo no ejecuta la purga (debe 0): ' || has_function_privilege('anon','public.purgar_solicitudes_paciente()','execute')::int;
+
 -- El servicio revisa
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
@@ -113,5 +118,6 @@ reset role;
 alter table public.solicitudes_paciente disable trigger user;
 delete from public.solicitudes_paciente where id in ('5f000000-0000-0000-0000-000000000001','5f000000-0000-0000-0000-000000000002');
 alter table public.solicitudes_paciente enable trigger user;
+delete from public.bitacora where tabla = 'public.solicitudes_paciente';
 delete from public.notificaciones where titulo = 'Paciente envió sus datos';
 delete from public.lista_items where id = '5f000000-0000-0000-0000-0000000000f1';

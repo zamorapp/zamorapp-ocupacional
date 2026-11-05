@@ -108,19 +108,39 @@ end $$;
 drop trigger if exists validar_solicitud_paciente on public.solicitudes_paciente;
 create trigger validar_solicitud_paciente before insert or update on public.solicitudes_paciente
   for each row execute function public.validar_solicitud_paciente();
+-- Bitácora propia, SIN los datos del paciente ni el token: la bitácora general la lee también el auditor de una
+-- empresa (bitacora_leer) y no se purga. Queda quién creó, anuló, aceptó o descartó, y cuándo.
+create or replace function public.bitacora_solicitud_paciente()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare quitar text[] := array['datos', 'token_hash', 'nombre', 'telefono'];
+begin
+  insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+  values (new.org_id, 'public.solicitudes_paciente', new.id, tg_op,
+          case when tg_op = 'UPDATE' then to_jsonb(old) - quitar end, to_jsonb(new) - quitar);
+  return new;
+end $$;
+revoke execute on function public.bitacora_solicitud_paciente() from public, anon, authenticated;
 drop trigger if exists bit_solicitudes_paciente on public.solicitudes_paciente;
 create trigger bit_solicitudes_paciente after insert or update on public.solicitudes_paciente
-  for each row execute function public.registrar_bitacora();
+  for each row execute function public.bitacora_solicitud_paciente();
+
+-- Borra los datos de los descartados hace más de 30 días (solo de las organizaciones de quien la llama; la llama la
+-- bandeja del servicio, nunca un anónimo).
+create or replace function public.purgar_solicitudes_paciente()
+returns void language sql security definer set search_path = public as $$
+  update public.solicitudes_paciente set datos = '{}'::jsonb
+   where org_id = any (public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion}', p_sin_limite => true))
+     and resultado = 'descartada' and revisado_en < now() - interval '30 days' and datos <> '{}'::jsonb
+$$;
+revoke execute on function public.purgar_solicitudes_paciente() from public, anon;
+grant execute on function public.purgar_solicitudes_paciente() to authenticated;
 
 -- Lo que ve el paciente al abrir el enlace (sin sesión). estado: vigente | usado | vencido | anulado; sin fila = no existe.
--- De paso borra los datos de los descartados hace más de 30 días.
 create or replace function public.ver_solicitud_paciente(p_token text)
 returns table (estado text, servicio text, telefono_servicio text, nombre text, empresa text, motivos jsonb)
 language plpgsql security definer set search_path = public as $$
 declare v public.solicitudes_paciente;
 begin
-  update public.solicitudes_paciente set datos = '{}'::jsonb
-   where resultado = 'descartada' and revisado_en < now() - interval '30 days' and datos <> '{}'::jsonb;
   if p_token is null or length(p_token) < 40 or length(p_token) > 60 then return; end if;
   select * into v from public.solicitudes_paciente where token_hash = sha256(convert_to(p_token, 'UTF8'));
   if v.id is null then return; end if;

@@ -72,6 +72,7 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
     supabase.from("solicitudes_paciente").select(campos).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
     supabase.from("solicitudes_paciente").select(campos).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
+    supabase.rpc("purgar_solicitudes_paciente" as never).abortSignal(AbortSignal.timeout(4000)),
   ]);
   // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
   if (error) return vacio;
@@ -98,12 +99,11 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   return { porRevisar, enviados: ((ultimos ?? []) as unknown as Fila[]).map(mapa), coincidencias };
 }
 
-// Empresa de los pacientes particulares: la RPC del hilo de particulares si ya existe; si no, la empresa «Particular»
+// Empresa de los pacientes particulares: solo la marcada por la RPC de «Pacientes particulares» (#262). Nunca se busca
+// por nombre: podría fichar al paciente en una empresa real.
 async function empresaParticular(supabase: Awaited<ReturnType<typeof crearClienteServidor>>): Promise<string | null> {
   const { data, error } = await supabase.rpc("empresa_particulares" as never);
-  if (!error && typeof data === "string") return data;
-  const { data: e } = await supabase.from("empresas").select("id").ilike("razon_social", "%particular%").order("creado_en").limit(1).maybeSingle();
-  return e?.id ?? null;
+  return !error && typeof data === "string" ? data : null;
 }
 
 export type Aceptar = { id: string; empresa: string; motivoId: string | null; fecha: string; hora: string | null; actualizarContacto: boolean };
@@ -139,7 +139,7 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
   } else {
     const empresaId = a.empresa === "particular" ? await empresaParticular(supabase) : a.empresa;
     if (!empresaId || !/^[0-9a-f-]{36}$/i.test(empresaId))
-      return { ok: false, mensaje: a.empresa === "particular" ? "No encontré la empresa de pacientes particulares: créala en Empresas." : "Elige la empresa del paciente." };
+      return { ok: false, mensaje: a.empresa === "particular" ? "Todavía no está activa la opción de pacientes particulares: elige una empresa o actualiza zamorApp." : "Elige la empresa del paciente." };
     const cat = d.cargo && a.empresa !== "particular" ? await resolverCatalogos(supabase, sesion.orgId!, empresaId, [], [d.cargo]) : null;
     // El id se crea aquí y no se pide la fila de vuelta (columnas de salud ocultas, ver crearPaciente)
     const id = crypto.randomUUID();
