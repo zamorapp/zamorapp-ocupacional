@@ -104,3 +104,15 @@ export function servicioParaMotivo(servicios: Servicio[], motivoCodigo: string |
   const c = motivoCodigo.toUpperCase();
   return servicios.find((s) => s.activo && s.motivos.split(",").map((x) => x.trim().toUpperCase()).includes(c)) ?? null;
 }
+
+// 000123 → 000124 conservando ceros y prefijo (00-000123 → 00-000124)
+export function siguienteNumero(previos: string[]): string {
+  let mejor: { valor: number; texto: string } | null = null;
+  for (const p of previos) {
+    const m = /^(.*?)(\d+)$/.exec(p?.trim() ?? "");
+    if (!m) continue;
+    const valor = Number(m[2]);
+    if (!mejor || valor > mejor.valor) mejor = { valor, texto: m[1] + String(valor + 1).padStart(m[2].length, "0") };
+  }
+  return mejor?.texto ?? "";
+}

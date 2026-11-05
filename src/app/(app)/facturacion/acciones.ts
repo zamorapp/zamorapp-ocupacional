@@ -160,3 +160,23 @@ export async function convertirPresupuesto(id: string): Promise<Resultado> {
   revalidatePath("/facturacion");
   redirect(`/facturacion/${nuevo.id}`);
 }
+
+// Nº de la factura de forma libre (talonario de imprenta autorizada): se escribe al imprimir y queda en la nota de cobro.
+// Solo dígitos y guiones (p. ej. 000123 o 00-000123); vacío lo quita. Avisa si ese número ya está en otra nota.
+export async function guardarNumeroFactura(id: string, numero: string): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const n = numero.trim();
+  if (n && !/^[0-9A-Za-z-]{1,20}$/.test(n)) return { ok: false, mensaje: "Usa solo números (y guiones si tu talonario los lleva)." };
+  if (n) {
+    const { data: otra } = await c.supabase.from("cobros").select("numero").eq("numero_factura_fiscal", n).neq("id", id).limit(1).maybeSingle();
+    if (otra) return { ok: false, mensaje: `La factura Nº ${n} ya está en la nota de cobro #${otra.numero}.` };
+  }
+  // El cambio (número anterior y nuevo) queda en la bitácora por el disparador bit_cobros (antes/despues completos)
+  const { data: filas, error } = await c.supabase.from("cobros").update({ numero_factura_fiscal: n || null }).eq("id", id).eq("tipo", "cobro").select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  // Con RLS un update sin permiso no falla: simplemente no toca filas
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó el número: la nota no existe o tu rol no puede cambiarla." };
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado." };
+}

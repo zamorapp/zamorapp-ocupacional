@@ -9,8 +9,10 @@ import { fechaCorta, Hoja, Marca, Titular } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
 
-export default async function ImprimirCobro({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+// ?doc=entrega → nota de entrega / recibo de evaluaciones (con membrete, sin montos, con «Recibido por»).
+// Si la nota ya está pagada sale como «Recibo de pago». La factura del talonario va aparte: /imprimir/factura/[id].
+export default async function ImprimirCobro({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ doc?: string }> }) {
+  const [{ id }, { doc }] = await Promise.all([params, searchParams]);
   const [c, sesion] = await Promise.all([obtenerCobro(id), obtenerSesion()]);
   if (!c || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
@@ -19,10 +21,12 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
   ]);
   const t = totales(c);
+  const entrega = doc === "entrega";
+  const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro";
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/facturacion/${id}`} titulo={`${c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"} #${c.numero}`} />
+      <BarraImpresion volver={`/facturacion/${id}`} titulo={`${nombre} #${c.numero}`} />
       <Hoja>
         <header className="mb-5 flex items-start justify-between border-b-2 border-teal-700 pb-3">
           <div className="flex items-center gap-3">
@@ -34,9 +38,12 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
             </div>
           </div>
           <div className="text-right">
-            <div className="text-base font-bold uppercase">{c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"}</div>
+            <div className="text-base font-bold uppercase">{nombre}</div>
+            {entrega && <div className="text-[11px] font-medium uppercase text-neutral-600">Recibo de evaluaciones</div>}
             <div className="text-sm">Nº {String(c.numero).padStart(5, "0")}</div>
             <div className="text-[11px] text-neutral-600">Fecha: {fechaCorta(c.fecha)}</div>
+            {!entrega && c.estado === "pagada" && c.fechaPago && <div className="text-[11px] text-neutral-600">Pagado el {fechaCorta(c.fechaPago)}</div>}
+            {c.numeroFacturaFiscal && <div className="text-[11px] text-neutral-600">Factura Nº {c.numeroFacturaFiscal}</div>}
           </div>
         </header>
 
@@ -48,38 +55,70 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
           {c.vence && <div className="col-span-2"><b>Válido hasta:</b> {fechaCorta(c.vence)}</div>}
         </div>
 
-        <table className="mb-4 w-full border-collapse text-[11.5px]">
-          <thead>
-            <tr className="bg-teal-50">
-              <th className="border border-neutral-300 px-2 py-1 text-left">Descripción</th>
-              <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
-              <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Precio $</th>
-              <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Importe $</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.items.map((i, k) => (
-              <tr key={k} className="break-inside-avoid">
-                <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}{i.detalle && <span className="text-neutral-600"> · {i.detalle}</span>}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.precioUsd.toFixed(2)}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{(i.cantidad * i.precioUsd).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {entrega ? (
+          <>
+            <table className="mb-4 w-full border-collapse text-[11.5px]">
+              <thead>
+                <tr className="bg-teal-50">
+                  <th className="w-10 border border-neutral-300 px-2 py-1 text-right">Nº</th>
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Servicio o evaluación</th>
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Trabajador · cédula · fecha</th>
+                  <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.items.map((i, k) => (
+                  <tr key={k} className="break-inside-avoid">
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{k + 1}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-neutral-700">{i.detalle || "—"}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-sm">Total entregado: <b>{c.items.reduce((s, i) => s + i.cantidad, 0)}</b>.</p>
+            <div className="mt-16 grid grid-cols-2 gap-12 text-center text-[11px] break-inside-avoid">
+              <div className="border-t border-neutral-700 pt-1">Entregado por</div>
+              <div className="border-t border-neutral-700 pt-1">Recibido por (nombre, C.I., firma y fecha)</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <table className="mb-4 w-full border-collapse text-[11.5px]">
+              <thead>
+                <tr className="bg-teal-50">
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Descripción</th>
+                  <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
+                  <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Precio $</th>
+                  <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Importe $</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.items.map((i, k) => (
+                  <tr key={k} className="break-inside-avoid">
+                    <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}{i.detalle && <span className="text-neutral-600"> · {i.detalle}</span>}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.precioUsd.toFixed(2)}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{(i.cantidad * i.precioUsd).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-        <div className="ml-auto w-72 space-y-0.5 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span>{usd(t.subtotal)}</span></div>
-          {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span>{usd(t.iva)}</span></div>}
-          {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span>{usd(t.igtf)}</span></div>}
-          <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
-          {t.totalBs !== null && <div className="flex justify-between"><span>Equivalente a tasa BCV {c.tasaBcv}</span><span>{bs(t.totalBs)}</span></div>}
-        </div>
+            <div className="ml-auto w-72 space-y-0.5 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{usd(t.subtotal)}</span></div>
+              {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span>{usd(t.iva)}</span></div>}
+              {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span>{usd(t.igtf)}</span></div>}
+              <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
+              {t.totalBs !== null && <div className="flex justify-between"><span>Equivalente a tasa BCV {c.tasaBcv}</span><span>{bs(t.totalBs)}</span></div>}
+            </div>
+          </>
+        )}
 
         {c.observacion && <p className="mt-4"><b>Observación:</b> {c.observacion}</p>}
         <p className="mt-10 border-t pt-2 text-[10.5px] italic text-neutral-600">
-          Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.
+          {entrega ? "Constancia de los servicios entregados. No sustituye la factura." : <>Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.</>}
         </p>
       </Hoja>
     </div>
