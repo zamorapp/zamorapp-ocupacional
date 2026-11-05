@@ -30,6 +30,45 @@ revoke execute on function public.papelera_tabla(text) from public, anon, authen
 -- Búsqueda de la papelera de un trabajador
 create index if not exists papelera_adjunto_trabajador on public.papelera ((filas -> 0 -> 'f' ->> 'trabajador_id')) where tipo = 'adjunto';
 
+-- eliminar_documento (20261030883000) acepta solo sus 5 tipos: un adjunto se borra con eliminar_adjunto, que revisa
+-- la consulta firmada y la copia local. Lista cerrada para que un tipo nuevo no entre por aquí sin sus reglas.
+create or replace function public.eliminar_documento(p_tipo text, p_id uuid, p_motivo text)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare
+  v_tabla regclass := public.papelera_tabla(p_tipo);
+  v_org uuid;
+  v_titulo text;
+begin
+  if v_tabla is null or p_tipo not in ('evento', 'investigacion', 'ergonomia', 'informe_vigilancia', 'notificacion_riesgo') then raise exception 'Tipo desconocido'; end if;
+  execute format('select org_id from %s where id = $1', v_tabla) into v_org using p_id;
+  if v_org is null then raise exception 'Ya no existe (puede que ya se haya eliminado).'; end if;
+  if not (public.es_admin(v_org) and public.es_clinico(v_org)) then
+    raise exception 'Solo el administrador con acceso clínico puede eliminar.' using errcode = '42501';
+  end if;
+  if length(btrim(coalesce(p_motivo, ''))) < 5 then raise exception 'Escribe el motivo (al menos 5 letras).'; end if;
+
+  if p_tipo = 'evento' then
+    select format('%s del %s%s', initcap(replace(e.tipo::text, '_', ' ')), to_char(e.fecha_hora at time zone 'America/Caracas', 'DD/MM/YYYY'),
+                  coalesce(' · ' || t.nombres || ' ' || t.apellidos, ''))
+      into v_titulo from public.eventos e left join public.trabajadores t on t.id = e.trabajador_id where e.id = p_id;
+  elsif p_tipo = 'investigacion' then
+    select format('Investigación%s%s', coalesce(' del evento ' || e.numero::text, ''), coalesce(' · ' || t.nombres || ' ' || t.apellidos, ''))
+      into v_titulo from clinico.investigaciones i left join public.eventos e on e.id = i.evento_id
+      left join public.trabajadores t on t.id = coalesce(i.trabajador_id, e.trabajador_id) where i.id = p_id;
+  elsif p_tipo = 'ergonomia' then
+    select format('Ergonomía %s · %s%s', upper(x.metodo::text), coalesce(x.puesto, 'sin puesto'), coalesce(' · ' || to_char(x.fecha, 'DD/MM/YYYY'), ''))
+      into v_titulo from public.evaluaciones_ergonomicas x where x.id = p_id;
+  elsif p_tipo = 'informe_vigilancia' then
+    select format('Informe de vigilancia %s al %s%s', to_char(i.desde, 'DD/MM/YYYY'), to_char(i.hasta, 'DD/MM/YYYY'), coalesce(' · ' || em.razon_social, ' · todas las empresas'))
+      into v_titulo from public.informes_vigilancia i left join public.empresas em on em.id = i.empresa_id where i.id = p_id;
+  elsif p_tipo = 'notificacion_riesgo' then
+    select format('Notificación de riesgos · %s %s%s', t.nombres, t.apellidos, coalesce(' · ' || n.puesto, ''))
+      into v_titulo from public.notificaciones_riesgo n left join public.trabajadores t on t.id = n.trabajador_id where n.id = p_id;
+  end if;
+
+  return public.papelera_eliminar(v_org, p_tipo, v_tabla, p_id, coalesce(v_titulo, 'Documento'), p_motivo);
+end $$;
+
 -- Permiso común: personal clínico de la organización que ve a ese trabajador (lo mismo que para ver el archivo)
 create or replace function public.puede_papelera_adjunto(p_org uuid, p_trabajador uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
