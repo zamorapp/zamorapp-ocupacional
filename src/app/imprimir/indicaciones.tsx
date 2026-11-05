@@ -122,8 +122,8 @@ function Columna({ titulo, items, tono }: { titulo: string; items: string[]; ton
   const color = { ok: "border-[#1d7a46] text-[#1d7a46]", aviso: "border-[#9a6a00] text-[#7a5300]", alerta: "border-[#b42318] text-[#b42318]" }[tono];
   return (
     <div className={`rounded-lg border-t-[3px] bg-[#f7faf9] px-2.5 py-1.5 ${color}`}>
-      <div className="mb-0.5 text-[9.5px] font-extrabold uppercase tracking-[.12em]">{titulo}</div>
-      <ul className="space-y-0.5 text-[9.5px] leading-[1.3] text-[#15201e]">
+      <div className="mb-0.5 text-[10.5px] font-extrabold uppercase tracking-[.12em]">{titulo}</div>
+      <ul className="space-y-0.5 text-[12px] leading-[1.3] text-[#15201e]">
         {items.map((x) => <li key={x} className="break-inside-avoid pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
       </ul>
     </div>
@@ -134,9 +134,10 @@ function Columna({ titulo, items, tono }: { titulo: string; items: string[]; ton
 export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes?: string[] }) {
   const elegidos = PLANES.filter((p) => planes.includes(p.clave));
   const b = PLAN_BASE;
-  // Con un esquema cabe en una carta y la firma va al pie; con más, la hoja fluye a una segunda página
+  // Letra de 9 pt como mínimo (Diseño, 05-nov): ya no cabe en una carta. Fluye en dos hojas; con 0 o 1 esquema el
+  // «Día de ejemplo» abre la segunda hoja, para que la firma no quede sola arriba de una hoja en blanco
   return (
-    <Hoja className={elegidos.length > 1 ? "print:block" : ""}>
+    <Hoja className="print:block">
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="PA" compacto sub={elegidos.length ? `Tipo mediterráneo · ${elegidos.map((p) => p.boton.toLowerCase()).join(", ")}` : "Tipo mediterráneo"}>
         Plan de alimentación saludable
@@ -151,9 +152,9 @@ export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes
         <Plato />
         <div className="flex-1">
           <div className="mb-0.5 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento">El plato de cada comida</div>
-          <p className="mb-1 text-[10px] leading-snug text-doc-tenue" {...editable}>{b.intro}</p>
+          <p className="mb-1 text-[12px] leading-snug text-doc-tenue" {...editable}>{b.intro}</p>
           {b.plato.map((p) => (
-            <div key={p.texto} className="flex gap-2 text-[10.5px] leading-snug">
+            <div key={p.texto} className="flex gap-2 text-[12px] leading-snug">
               <span aria-hidden className="mt-[3px] size-2.5 shrink-0 rounded-[2px]" style={{ background: p.color }} />
               <b className="w-7 shrink-0">{p.parte}</b>
               <span><b>{p.texto}:</b> <span {...editable}>{p.ejemplo}</span></span>
@@ -171,21 +172,21 @@ export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes
       {elegidos.map((p) => (
         <div key={p.clave} data-prueba={`plan-${p.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
           <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{p.titulo}</div>
-          <ul className="columns-2 gap-5 text-[9.5px] leading-[1.3]">
+          <ul className="columns-2 gap-5 text-[12px] leading-[1.3]">
             {p.items.map((x) => <li key={x} className="mb-0.5 break-inside-avoid pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
           </ul>
           <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {p.fuente}</p>
         </div>
       ))}
 
-      <div className="mb-1 grid grid-cols-2 gap-4 break-inside-avoid">
+      <div className={`mb-1 grid grid-cols-2 gap-4 break-inside-avoid ${elegidos.length <= 1 ? "print:break-before-page print:pt-[4mm]" : ""}`}>
         <Bloque titulo="Un día de ejemplo">
-          <div className="space-y-0.5 text-[9.5px] leading-[1.3]">
+          <div className="space-y-0.5 text-[12px] leading-[1.3]">
             {b.ejemplo.map((e, i) => <p key={i}><b>{e.comida}:</b> <span {...editable}>{e.texto}</span></p>)}
           </div>
         </Bloque>
         <Bloque titulo="Hábitos">
-          <ul className="space-y-0.5 text-[9.5px] leading-[1.3]">
+          <ul className="space-y-0.5 text-[12px] leading-[1.3]">
             {b.habitos.map((x) => <li key={x} className="pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
           </ul>
         </Bloque>
@@ -196,7 +197,7 @@ export function PlanAlimentacion({ d, planes = [] }: { d: DatosDocumento; planes
         <div className="min-w-0 flex-1 self-stretch">
           <Bloque titulo="Indicaciones del médico">
             {/* Vacío: en pantalla invita a escribir; al imprimir quedan 2 líneas para escribir a mano */}
-            <p className="min-h-[9mm] rounded border border-dashed border-doc-linea px-2 py-1 text-[10.5px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" {...editable} />
+            <p className="min-h-[9mm] rounded border border-dashed border-doc-linea px-2 py-1 text-[12px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" {...editable} />
           </Bloque>
           <Fuentes texto={`${b.fuentes} Este plan no reemplaza la evaluación por nutricionista cuando el médico la indique.`} />
         </div>

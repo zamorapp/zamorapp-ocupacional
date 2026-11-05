@@ -6,83 +6,58 @@ export type EjercicioPausa = { hacer: string; dosis: string };
 export type ZonaPausa = { zona: string; ejercicios: EjercicioPausa[] };
 
 export const PAUSAS = {
-  intro:
-    "Pausas cortas de movimiento durante la jornada para prevenir dolores de cuello, espalda, hombros, manos y piernas, la fatiga visual y el cansancio. Se hacen de pie o sentado, con ropa de trabajo y sin equipo.",
+  intro: "Pausas cortas de movimiento para prevenir dolores, fatiga visual y cansancio. De pie o sentado, sin equipo.",
   frecuencia: [
-    { cifra: "Cada 2 h", texto: "una pausa de 5 a 10 minutos (3 a 4 por jornada)" },
-    { cifra: "Cada hora", texto: "una micro-pausa de 30 a 60 segundos si la tarea es repetitiva o de pie o sentado sin moverse" },
-    { cifra: "20-20-20", texto: "frente a pantallas: cada 20 minutos, mirar a 6 metros durante 20 segundos" },
+    { cifra: "Cada 2 h", texto: "pausa de 5 a 10 min (3 a 4 por jornada)" },
+    { cifra: "Cada hora", texto: "micro-pausa de 30 a 60 s en tareas repetitivas" },
+    { cifra: "20-20-20", texto: "en pantallas: cada 20 min, mirar a 6 m por 20 s" },
   ],
+  // Textos cortos (una línea con letra de 9 pt): la rutina completa tiene que caber en una carta
   zonas: [
-    {
-      zona: "Cuello",
-      ejercicios: [
-        { hacer: "Inclinar la cabeza hacia un hombro, sin subirlo; luego al otro", dosis: "10 s por lado" },
-        { hacer: "Llevar el mentón al pecho y volver despacio al centro", dosis: "5 veces" },
-        { hacer: "Girar la cabeza para mirar sobre un hombro y luego sobre el otro", dosis: "5 por lado" },
-      ],
-    },
-    {
-      zona: "Hombros",
-      ejercicios: [
-        { hacer: "Subir los hombros hacia las orejas y soltarlos de golpe", dosis: "10 veces" },
-        { hacer: "Hacer círculos con los hombros hacia atrás", dosis: "10 veces" },
-        { hacer: "Cruzar un brazo por delante del pecho y sostenerlo con el otro", dosis: "15 s por lado" },
-      ],
-    },
-    {
-      zona: "Brazos y muñecas",
-      ejercicios: [
-        { hacer: "Brazo al frente, palma arriba: bajar los dedos con la otra mano", dosis: "15 s por lado" },
-        { hacer: "Brazo al frente, palma abajo: bajar el dorso de la mano con la otra", dosis: "15 s por lado" },
-        { hacer: "Círculos lentos con las muñecas, hacia un lado y hacia el otro", dosis: "10 veces" },
-      ],
-    },
-    {
-      zona: "Manos y dedos",
-      ejercicios: [
-        { hacer: "Abrir la mano separando bien los dedos y cerrar el puño sin apretar", dosis: "10 veces" },
-        { hacer: "Tocar con el pulgar la punta de cada dedo, ida y vuelta", dosis: "3 rondas" },
-        { hacer: "Sacudir las manos sueltas", dosis: "10 s" },
-      ],
-    },
-    {
-      zona: "Espalda alta y pecho",
-      ejercicios: [
-        { hacer: "Entrelazar las manos detrás de la espalda y abrir el pecho", dosis: "15 s" },
-        { hacer: "Entrelazar las manos al frente y redondear la espalda, como abrazando un barril", dosis: "15 s" },
-        { hacer: "Juntar los omóplatos llevando los codos hacia atrás", dosis: "10 veces" },
-      ],
-    },
-    {
-      zona: "Cintura y espalda baja",
-      ejercicios: [
-        { hacer: "De pie, manos en la cintura: inclinarse hacia atrás con suavidad", dosis: "5 veces" },
-        { hacer: "Un brazo arriba: inclinar el tronco hacia el lado contrario", dosis: "10 s por lado" },
-        { hacer: "Sentado, girar el tronco tomándose del espaldar de la silla", dosis: "10 s por lado" },
-      ],
-    },
-    {
-      zona: "Piernas",
-      ejercicios: [
-        { hacer: "Subir en puntas de pie y bajar despacio, apoyado en una silla o pared", dosis: "15 veces" },
-        { hacer: "Llevar el talón a la nalga tomándose el tobillo, de pie y apoyado", dosis: "15 s por pierna" },
-        { hacer: "Sentado, estirar una pierna y llevar la punta del pie hacia usted", dosis: "15 s por pierna" },
-      ],
-    },
-    {
-      zona: "Ojos",
-      ejercicios: [
-        { hacer: "Mirar un punto lejano por la ventana o el pasillo", dosis: "20 s" },
-        { hacer: "Parpadear despacio, cerrando bien los ojos", dosis: "10 veces" },
-        { hacer: "Mover la mirada arriba y abajo, y a un lado y al otro, sin mover la cabeza", dosis: "5 por lado" },
-      ],
-    },
+    { zona: "Cuello", ejercicios: [
+      { hacer: "Oreja al hombro, sin subirlo", dosis: "10 s c/lado" },
+      { hacer: "Mentón al pecho y volver despacio", dosis: "5 veces" },
+      { hacer: "Girar y mirar sobre cada hombro", dosis: "5 c/lado" },
+    ] },
+    { zona: "Hombros", ejercicios: [
+      { hacer: "Subir los hombros y soltarlos", dosis: "10 veces" },
+      { hacer: "Círculos de hombros hacia atrás", dosis: "10 veces" },
+      { hacer: "Brazo cruzado sobre el pecho", dosis: "15 s c/lado" },
+    ] },
+    { zona: "Brazos y muñecas", ejercicios: [
+      { hacer: "Palma arriba: bajar los dedos", dosis: "15 s c/lado" },
+      { hacer: "Palma abajo: bajar el dorso", dosis: "15 s c/lado" },
+      { hacer: "Círculos lentos de muñecas", dosis: "10 veces" },
+    ] },
+    { zona: "Manos y dedos", ejercicios: [
+      { hacer: "Abrir la mano y cerrar el puño suave", dosis: "10 veces" },
+      { hacer: "Pulgar a la punta de cada dedo", dosis: "3 rondas" },
+      { hacer: "Sacudir las manos sueltas", dosis: "10 s" },
+    ] },
+    { zona: "Espalda alta y pecho", ejercicios: [
+      { hacer: "Manos atrás entrelazadas: abrir el pecho", dosis: "15 s" },
+      { hacer: "Manos al frente: redondear la espalda", dosis: "15 s" },
+      { hacer: "Juntar los omóplatos, codos atrás", dosis: "10 veces" },
+    ] },
+    { zona: "Cintura y espalda baja", ejercicios: [
+      { hacer: "Manos en la cintura: inclinarse atrás", dosis: "5 veces" },
+      { hacer: "Brazo arriba: inclinarse al otro lado", dosis: "10 s c/lado" },
+      { hacer: "Sentado: girar el tronco", dosis: "10 s c/lado" },
+    ] },
+    { zona: "Piernas", ejercicios: [
+      { hacer: "Puntas de pie, apoyado en una silla", dosis: "15 veces" },
+      { hacer: "Talón a la nalga, apoyado", dosis: "15 s c/pierna" },
+      { hacer: "Sentado: estirar la pierna, punta arriba", dosis: "15 s c/pierna" },
+    ] },
+    { zona: "Ojos", ejercicios: [
+      { hacer: "Mirar un punto lejano", dosis: "20 s" },
+      { hacer: "Parpadear despacio", dosis: "10 veces" },
+      { hacer: "Mirar arriba, abajo y a los lados", dosis: "5 c/lado" },
+    ] },
   ] as ZonaPausa[],
   reglas: [
-    "Movimientos lentos, sin rebotes y sin llegar al dolor; respirar normal, sin aguantar el aire.",
-    "Terminar con 3 respiraciones profundas: inhalar por la nariz y botar el aire lento por la boca.",
-    "Si un ejercicio duele, no lo haga y avise al servicio médico. Con lesión, hernia o cirugía reciente, haga solo los que le indique el médico.",
+    "Lento, sin rebotes ni dolor; respire normal y termine con 3 respiraciones profundas.",
+    "Si un ejercicio duele, no lo haga y avise al servicio médico. Con lesión, hernia o cirugía reciente, solo los que indique el médico.",
   ],
   fuente:
     "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). Centro Canadiense de Salud y Seguridad Ocupacional (CCOHS), Office Ergonomics: Stretching (2023). Academia Americana de Oftalmología, regla 20-20-20 (2024).",

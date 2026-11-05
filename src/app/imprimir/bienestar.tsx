@@ -11,13 +11,13 @@ function PausasActivas() {
   const r = REGISTRO_PAUSAS;
   return (
     <div data-prueba="tema-pausas" className="mb-2">
-      <p className="mb-1.5 text-[10px] leading-snug text-doc-tenue" {...editable}>{p.intro}</p>
+      <p className="mb-1.5 text-[12px] leading-snug text-doc-tenue" {...editable}>{p.intro}</p>
       {/* Cuándo: tres reglas de frecuencia en franja */}
       <div className="mb-2 grid grid-cols-3 gap-2 break-inside-avoid">
         {p.frecuencia.map((f) => (
           <div key={f.cifra} className="rounded-lg border border-doc-linea bg-doc-suave/60 px-2.5 py-1.5">
             <div className="font-cifra text-[15px] font-bold leading-none text-doc-acento" {...editable}>{f.cifra}</div>
-            <div className="mt-0.5 text-[9.5px] leading-[1.3]" {...editable}>{f.texto}</div>
+            <div className="mt-0.5 text-[12px] leading-[1.3]" {...editable}>{f.texto}</div>
           </div>
         ))}
       </div>
@@ -26,11 +26,11 @@ function PausasActivas() {
       <div className="mb-2 grid grid-cols-2 gap-x-2.5 gap-y-1.5">
         {p.zonas.map((z, i) => (
           <div key={z.zona} className="break-inside-avoid rounded-lg border border-doc-linea px-2.5 py-1">
-            <div className="mb-0.5 flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-[.1em]">
+            <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[.1em]">
               <span className="inline-flex size-4 items-center justify-center rounded-full bg-doc-acento text-[8.5px] text-white">{i + 1}</span>
               {z.zona}
             </div>
-            <ol className="space-y-px text-[9.5px] leading-[1.3]">
+            <ol className="space-y-px text-[12px] leading-[1.3]">
               {z.ejercicios.map((e) => (
                 <li key={e.hacer} className="flex gap-2">
                   <span className="flex-1" {...editable}>{e.hacer}</span>
@@ -42,7 +42,7 @@ function PausasActivas() {
         ))}
       </div>
       <div className="grid grid-cols-[1fr_auto] gap-3 break-inside-avoid">
-        <ul className="space-y-0.5 text-[9.5px] leading-[1.3]">
+        <ul className="space-y-0.5 text-[12px] leading-[1.3]">
           {p.reglas.map((x) => <li key={x} className="pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
         </ul>
         {/* Registro: el trabajador marca cada pausa hecha y trae la hoja al control */}
@@ -96,7 +96,7 @@ export function Bienestar({ d, temas }: { d: DatosDocumento; temas?: string[] })
             {t.grupos.map((g, i) => (
               <div key={g.titulo ?? i}>
                 {g.titulo && <div className="mb-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-doc-tenue">{g.titulo}</div>}
-                <ul className={`${t.grupos.length > 1 ? "" : "columns-2 gap-5"} text-[9.5px] leading-[1.3]`}>
+                <ul className={`${t.grupos.length > 1 ? "" : "columns-2 gap-5"} text-[12px] leading-[1.3]`}>
                   {g.items.map((x) => <li key={x} className="mb-0.5 break-inside-avoid pl-2.5 -indent-2.5" {...editable}>• {x}</li>)}
                 </ul>
               </div>
@@ -110,7 +110,7 @@ export function Bienestar({ d, temas }: { d: DatosDocumento; temas?: string[] })
         <div className="min-w-0 flex-1 self-stretch">
           <Bloque titulo="Indicaciones del médico">
             {/* Vacío: en pantalla invita a escribir; al imprimir quedan 2 líneas para escribir a mano */}
-            <p className="min-h-[9mm] rounded border border-dashed border-doc-linea px-2 py-1 text-[10.5px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" {...editable} />
+            <p className="min-h-[9mm] rounded border border-dashed border-doc-linea px-2 py-1 text-[12px] print:rounded-none print:border-0 print:bg-[linear-gradient(transparent_calc(4.5mm-1px),#9aa7a4_calc(4.5mm-1px),#9aa7a4_4.5mm,transparent_4.5mm)] print:bg-[length:100%_4.5mm] print:px-0" {...editable} />
           </Bloque>
           <p className="text-[7pt] leading-tight text-doc-tenue">Indicado con fines preventivos. Estas recomendaciones no reemplazan la evaluación por el especialista cuando el médico la indique.</p>
         </div>
