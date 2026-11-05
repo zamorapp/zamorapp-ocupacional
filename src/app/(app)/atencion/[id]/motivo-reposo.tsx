@@ -2,7 +2,8 @@
 
 // Motivo clínico del reposo (Cesar, 05-nov): «se indica reposo por presentar…». Vacío = la hoja imprime la propuesta
 // armada con el motivo de consulta y los hallazgos positivos del examen físico, y aquí se ve completa antes de imprimir.
-import { Pencil, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { Pencil, RotateCcw, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { DatosConsulta } from "@/lib/consultas-tipos";
@@ -12,21 +13,32 @@ export function MotivoReposo({ d, onCambio }: { d: DatosConsulta; onCambio: (tex
   const propio = d.reposo.motivoClinico ?? "";
   const propuesta = proponerMotivoReposo(d);
   const escrito = propio.trim().length > 0;
+  // «Usar el automático» borra lo escrito: queda «Deshacer» hasta que el médico vuelva a escribir
+  const [anterior, setAnterior] = useState("");
   return (
     <div className="col-span-2 sm:col-span-4" data-prueba="motivo-reposo">
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="reposo-motivo" className="text-sm font-medium">
-          Motivo clínico <span className="text-xs font-normal text-muted-foreground">· sale en la hoja de reposo</span>
+          Motivo clínico <span className="text-xs font-normal text-muted-foreground">· sale en la copia del servicio médico, no en la de RR. HH.</span>
         </label>
         {escrito ? (
-          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onCambio("")}
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setAnterior(propio); onCambio(""); }}
             title="Borra tu texto y vuelve al que se arma solo con el motivo y el examen">
             <RotateCcw className="size-3.5" /> Usar el automático
           </Button>
-        ) : propuesta && (
-          <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => onCambio(propuesta)}>
-            <Pencil className="size-3.5" /> Editar
-          </Button>
+        ) : (
+          <div className="flex gap-1.5">
+            {anterior && (
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { onCambio(anterior); setAnterior(""); }}>
+                <Undo2 className="size-3.5" /> Deshacer
+              </Button>
+            )}
+            {propuesta && (
+              <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => { setAnterior(""); onCambio(propuesta); }}>
+                <Pencil className="size-3.5" /> Editar
+              </Button>
+            )}
+          </div>
         )}
       </div>
       {escrito ? (
