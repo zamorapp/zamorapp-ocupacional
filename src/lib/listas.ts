@@ -21,6 +21,7 @@ export const SECCIONES_LISTAS: { titulo: string; codigos: string[] }[] = [
   { titulo: "Consulta", codigos: ["motivo_consulta", "diagnostico", "antecedente_medico", "habito", "examen_funcional", "perfil_examen_funcional", "examen_fisico", "perfil_examen_fisico", "paraclinico", "grupo_paraclinicos", "sistema_organico", "especialidad", "diagnostico_declarable", "declaracion_ocupacional"] },
   { titulo: "Aptitud y reposo", codigos: ["clasificacion_aptitud", "recomendacion_aptitud", "limitacion_ocupacional", "resultado_reubicacion", "causa_reposo", "ente_emisor_reposo"] },
   { titulo: "Recomendaciones y conclusiones", codigos: ["recomendacion_empresa", "recomendacion_paciente", "conclusion_consulta"] },
+  { titulo: "Mensajes al trabajador", codigos: ["frase_trabajador"] },
   { titulo: "Accidentes (COVENIN 474)", codigos: ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente"] },
   { titulo: "Tratamiento", codigos: ["medicina", "presentacion_medicina", "via_administracion", "frecuencia_dosis", "duracion_tratamiento"] },
 ];

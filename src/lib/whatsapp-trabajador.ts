@@ -56,6 +56,21 @@ export function mensajeTrabajador(nombre: string, servicio: string, doc: DocTrab
   return `Hola ${primerNombre}, ${servicio} te envía tu ${DOCS_TRABAJADOR[doc].nombre}. Ábrelo y guárdalo en tu teléfono (el enlace dura ${DIAS_ENLACE_TRABAJADOR} días):`;
 }
 
+// Frases que rotan al pie del mensaje (Configuración › Listas › «Frases para el trabajador», migración 20261030892000).
+// Cada envío de la organización toma la siguiente en orden; el médico la cambia («Otra frase»), la edita o la quita.
+export const LISTA_FRASES = "frase_trabajador";
+export const MAX_FRASE = 300;
+export const FRASES_POR_TANDA = 12;
+export type Frase = { texto: string; autor: string | null };
+export const textoFrase = (f: Frase) => `✨ ${f.texto.trim()}${f.autor ? ` (${f.autor.trim()})` : ""}`;
+// Posición de la primera frase de la tanda: avanza con cada envío y da la vuelta al llegar al final
+export const inicioFrases = (enviados: number, total: number) => (total > 0 ? ((enviados % total) + total) % total : 0);
+// Texto final de WhatsApp: saludo, enlace y, si hay, la frase en un párrafo aparte
+export function textoWhatsApp(saludo: string, enlace: string, frase?: string) {
+  const f = frase?.trim().slice(0, MAX_FRASE);
+  return f ? `${saludo} ${enlace}\n\n${f}` : `${saludo} ${enlace}`;
+}
+
 export type EnlaceEnviado = {
   id: string;
   documento: DocTrabajador;

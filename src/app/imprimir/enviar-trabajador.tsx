@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2, Eye, Loader2, MessageCircle, Smartphone, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, MessageCircle, RefreshCw, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ahora } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 import { confirmar } from "@/components/app/confirmar";
-import { DIAS_ENLACE_TRABAJADOR, DOCS_TRABAJADOR, mensajeTrabajador, mostrarTelefono, telefonoTrabajador, type DocTrabajador } from "@/lib/whatsapp-trabajador";
+import { DIAS_ENLACE_TRABAJADOR, DOCS_TRABAJADOR, MAX_FRASE, mensajeTrabajador, mostrarTelefono, telefonoTrabajador, textoFrase, type DocTrabajador } from "@/lib/whatsapp-trabajador";
 import { anularEnlaceTrabajador, datosWhatsAppTrabajador, enviarAlTrabajador, type DatosWhatsAppTrabajador, type ResultadoWhatsAppTrabajador } from "./trabajador-acciones";
 
 const fechaCorta = (iso: string) =>
@@ -24,6 +24,8 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const [guardar, setGuardar] = useState(false);
   const [revisar, setRevisar] = useState(false); // el aviso del celular sale al salir del campo o al enviar, no mientras escribe
   const [mensaje, setMensaje] = useState("");
+  const [frase, setFrase] = useState<string | null>(null); // null = aún no se eligió; "" = sin frase
+  const [iFrase, setIFrase] = useState(0);
   const [resultado, setResultado] = useState<ResultadoWhatsAppTrabajador | null>(null);
   const [cargando, iniciarCarga] = useTransition();
   const [enviando, iniciar] = useTransition();
@@ -37,7 +39,14 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
       setTelefono((t) => t || (d.telefono ? mostrarTelefono(d.telefono) : ""));
       setGuardar((g) => g || !d.telefono);
       setMensaje((m) => m || mensajeTrabajador(d.nombre, servicio, tipo));
+      setFrase((f) => (f === null ? (d.frases[0] ? textoFrase(d.frases[0]) : "") : f));
     });
+  const otraFrase = () => {
+    if (!listo || !datos.frases.length) return;
+    const i = (iFrase + 1) % datos.frases.length;
+    setIFrase(i);
+    setFrase(textoFrase(datos.frases[i]));
+  };
   const abrir = (v: boolean) => {
     setAbierto(v);
     if (v) { setResultado(null); recargar(); }
@@ -52,9 +61,12 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
     setRevisar(true);
     if (!valido) return;
     iniciar(async () => {
-      const r = await enviarAlTrabajador({ consultaId, tipo, busqueda: window.location.search, telefono, guardarTelefono: guardar && Boolean(distinto), mensaje });
+      const r = await enviarAlTrabajador({ consultaId, tipo, busqueda: window.location.search, telefono, guardarTelefono: guardar && Boolean(distinto), mensaje, frase: frase ?? "" });
       setResultado(r);
       if (r.ok) {
+        // El próximo envío trae la frase siguiente
+        setFrase(null);
+        setIFrase(0);
         window.open(r.whatsapp, "_blank", "noopener,noreferrer");
         recargar();
       }
@@ -114,6 +126,18 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <Textarea id="msg-trabajador" rows={3} maxLength={500} value={mensaje} onChange={(e) => setMensaje(e.target.value)} />
               <p className="mt-1 text-xs text-muted-foreground">El enlace se agrega al final.</p>
             </div>
+            {(datos.frases.length > 0 || frase) && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <Label htmlFor="frase-trabajador" className="flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> Frase del mensaje</Label>
+                  {datos.frases.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={otraFrase}><RefreshCw /> Otra frase</Button>
+                  )}
+                </div>
+                <Textarea id="frase-trabajador" rows={2} maxLength={MAX_FRASE} value={frase ?? ""} onChange={(e) => setFrase(e.target.value)} placeholder="Sin frase" />
+                <p className="mt-1 text-xs text-muted-foreground">Va después del enlace. Cámbiala, edítala o bórrala; cada envío trae otra distinta.</p>
+              </div>
+            )}
             <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || Boolean(falta)} onClick={mandar}>
               {enviando ? <Loader2 className="animate-spin" /> : <MessageCircle />} {enviando ? "Preparando el PDF…" : "Preparar y abrir WhatsApp"}
             </Button>

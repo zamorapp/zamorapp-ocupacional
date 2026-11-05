@@ -11,9 +11,14 @@ import {
   consultaSegura,
   DOCS_TRABAJADOR,
   esDocTrabajador,
+  FRASES_POR_TANDA,
+  inicioFrases,
+  LISTA_FRASES,
   mensajeTrabajador,
   telefonoTrabajador,
+  textoWhatsApp,
   type EnlaceEnviado,
+  type Frase,
 } from "@/lib/whatsapp-trabajador";
 
 // «WhatsApp al trabajador» en la barra de impresión: el PDF de esta misma página (con las opciones elegidas) se guarda
@@ -42,17 +47,39 @@ async function cargar(consultaId: string) {
   return { sesion, supabase, consulta, trabajador: consulta.trabajadores } as const;
 }
 
-export type DatosWhatsAppTrabajador = { telefono: string | null; nombre: string; firmada: boolean; enviados: EnlaceEnviado[] } | { error: string };
+export type DatosWhatsAppTrabajador = { telefono: string | null; nombre: string; firmada: boolean; enviados: EnlaceEnviado[]; frases: Frase[] } | { error: string };
+
+// Tanda de frases que toca ahora: la posición avanza con los enlaces que la organización ya creó (sin escribir nada
+// al elegir). Si la lista está vacía o apagada, el mensaje sale sin frase.
+async function frasesQueTocan(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, orgId: string): Promise<Frase[]> {
+  const activas = () => supabase.from("lista_items").select("nombre, datos").eq("org_id", orgId).eq("lista", LISTA_FRASES).eq("activo", true);
+  const [{ count: total }, { count: enviados }] = await Promise.all([
+    supabase.from("lista_items").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("lista", LISTA_FRASES).eq("activo", true),
+    supabase.from("enlaces_trabajador").select("id", { count: "exact", head: true }),
+  ]);
+  if (!total) return [];
+  const desde = inicioFrases(enviados ?? 0, total);
+  const tanda = async (de: number, hasta: number) => (await activas().order("orden").order("id").range(de, hasta)).data ?? [];
+  let filas = await tanda(desde, desde + FRASES_POR_TANDA - 1);
+  if (filas.length < FRASES_POR_TANDA && total > filas.length) filas = filas.concat(await tanda(0, Math.min(FRASES_POR_TANDA - filas.length, total - filas.length) - 1));
+  return filas.map((f) => {
+    const autor = (f.datos as { autor?: unknown } | null)?.autor;
+    return { texto: f.nombre, autor: typeof autor === "string" && autor.trim() ? autor : null };
+  });
+}
 
 export async function datosWhatsAppTrabajador(consultaId: string): Promise<DatosWhatsAppTrabajador> {
   const c = await cargar(consultaId);
   if ("error" in c) return { error: c.error! };
-  const { data } = await c.supabase
-    .from("enlaces_trabajador")
-    .select("id, documento, telefono, con_cambios, creado_en, vence, revocado_en, enlaces_trabajador_aperturas(count)")
-    .eq("consulta_id", consultaId)
-    .order("creado_en", { ascending: false })
-    .limit(20);
+  const [{ data }, frases] = await Promise.all([
+    c.supabase
+      .from("enlaces_trabajador")
+      .select("id, documento, telefono, con_cambios, creado_en, vence, revocado_en, enlaces_trabajador_aperturas(count)")
+      .eq("consulta_id", consultaId)
+      .order("creado_en", { ascending: false })
+      .limit(20),
+    frasesQueTocan(c.supabase, c.consulta.org_id).catch(() => [] as Frase[]),
+  ]);
   return {
     telefono: telefonoTrabajador(c.trabajador.telefono),
     nombre: `${c.trabajador.nombres} ${c.trabajador.apellidos}`,
@@ -67,10 +94,11 @@ export async function datosWhatsAppTrabajador(consultaId: string): Promise<Datos
       conCambios: Boolean(e.con_cambios),
       aperturas: (e.enlaces_trabajador_aperturas as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
     })),
+    frases,
   };
 }
 
-export type EntradaWhatsAppTrabajador = { consultaId: string; tipo: string; busqueda: string; telefono: string; guardarTelefono: boolean; mensaje?: string };
+export type EntradaWhatsAppTrabajador = { consultaId: string; tipo: string; busqueda: string; telefono: string; guardarTelefono: boolean; mensaje?: string; frase?: string };
 export type ResultadoWhatsAppTrabajador = { ok: true; whatsapp: string; aviso?: string } | { ok: false; mensaje: string };
 
 export async function enviarAlTrabajador(e: EntradaWhatsAppTrabajador): Promise<ResultadoWhatsAppTrabajador> {
@@ -131,7 +159,7 @@ export async function enviarAlTrabajador(e: EntradaWhatsAppTrabajador): Promise<
   }
 
   const saludo = e.mensaje?.trim().slice(0, 500) || mensajeTrabajador(trabajador.nombres, sesion.organizacion, e.tipo);
-  const texto = `${saludo} ${URL_PUBLICA}/t/${token}`;
+  const texto = textoWhatsApp(saludo, `${URL_PUBLICA}/t/${token}`, e.frase);
   return { ok: true, whatsapp: `https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`, aviso };
 }
 
