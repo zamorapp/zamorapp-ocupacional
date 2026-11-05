@@ -59,8 +59,8 @@ export function EnlacePaciente({ habilitado, empresas }: { habilitado: boolean; 
         ) : (
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); crear(); }}>
             <div>
-              <Label htmlFor="ep-nombre" className="mb-1.5">Nombre del paciente</Label>
-              <Input id="ep-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} placeholder="Opcional, para saludarlo" className="h-10" />
+              <Label htmlFor="ep-nombre" className="mb-1.5">Nombre del paciente (opcional)</Label>
+              <Input id="ep-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} placeholder="Para saludarlo" className="h-10" />
             </div>
             <div>
               <Label htmlFor="ep-telefono" className="mb-1.5">Celular (opcional)</Label>
@@ -126,7 +126,7 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
     <li className="space-y-3 px-5 py-4 text-sm">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
         <div className="min-w-48 flex-1">
-          <p className="font-medium">{d.nombres} {d.apellidos} <span className="font-normal text-muted-foreground">· {d.cedula} · {edad(d.fecha_nacimiento, hoy)} años{d.sexo ? ` · ${d.sexo === "F" ? "F" : "M"}` : ""}</span></p>
+          <p className="font-medium">{d.nombres} {d.apellidos} <span className="font-normal text-muted-foreground">· <span className="whitespace-nowrap">{d.cedula}</span> · <span className="whitespace-nowrap">{edad(d.fecha_nacimiento, hoy)} años{d.sexo ? ` · ${d.sexo}` : ""}</span></span></p>
           <p className="text-xs text-muted-foreground">
             {[telefonoVisible(d.telefono), d.correo, d.direccion].filter(Boolean).join(" · ")}
           </p>
@@ -177,6 +177,7 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
           </Button>
         </div>
       </div>
+      {!hora && <p className="flex items-center gap-1 text-xs text-aviso-texto"><AlertTriangle className="size-3.5 shrink-0" /> Sin hora: la cita queda para el día, sin hora fija.</p>}
       {msg && !msg.ok && <p role="alert" className="flex items-start gap-1 text-xs text-destructive"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {msg.texto}</p>}
     </li>
   );
@@ -234,7 +235,7 @@ export function PorRevisar({ porRevisar, enviados, coincidencias, empresas, moti
       <CardHeader className={cn("flex flex-row flex-wrap items-center gap-2 py-3", visibles.length > 0 && "border-b bg-primary/5")}>
         <UserPlus className="size-5 text-primary" />
         <CardTitle className="text-base">{visibles.length ? `Pacientes por revisar (${visibles.length})` : "Pacientes por enlace"}</CardTitle>
-        <span className="text-xs text-muted-foreground">· llenaron el enlace que les enviaste</span>
+        <span className="text-xs text-muted-foreground"><span className="hidden sm:inline">· </span>llenaron el enlace que les enviaste</span>
       </CardHeader>
       <CardContent className="px-0">
         {visibles.length > 0 && (

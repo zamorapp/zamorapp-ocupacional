@@ -78,7 +78,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
       <Seccion titulo="Tus datos">
         <div>
           <Label htmlFor="cedula" className="mb-1.5">Cédula *</Label>
-          <Input id="cedula" name="cedula" required inputMode="text" autoComplete="off" placeholder="V-12345678" maxLength={14} className="h-11 text-base" />
+          <Input id="cedula" name="cedula" required inputMode="text" autoComplete="off" placeholder="Ej.: V-12345678" maxLength={14} className="h-11 text-base" />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -106,7 +106,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="telefono" className="mb-1.5">Celular (WhatsApp) *</Label>
-            <Input id="telefono" name="telefono" type="tel" required inputMode="tel" autoComplete="tel" placeholder="0414-1234567" maxLength={20} className="h-11 text-base" />
+            <Input id="telefono" name="telefono" type="tel" required inputMode="tel" autoComplete="tel" placeholder="Ej.: 0414-1234567" maxLength={20} className="h-11 text-base" />
           </div>
           <div>
             <Label htmlFor="correo" className="mb-1.5">Correo</Label>
