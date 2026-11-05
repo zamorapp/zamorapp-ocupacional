@@ -1,16 +1,11 @@
 {
-  "etiqueta": "migraciones-20261104-19",
-  "aprobado": "Cesar, sí del 2026-11-04 22:30 UTC (firma y sello en el escritorio; OCRA y KIM)",
+  "etiqueta": "migraciones-20261105-20",
+  "aprobado": "Cesar, sí del 2026-11-05 02:32 UTC (sí eliminar)",
   "migraciones": [
     {
-      "archivo": "20261030880000_firma_copia_y_membrete.sql",
-      "sha256": "32a321d4e5e5e072107a22b0be8bbfdd6f546e680aea52603af6d7628301320d",
-      "descripcion": "Firma y sello en la copia del escritorio y titular del membrete"
-    },
-    {
-      "archivo": "20261030881000_ergonomia_ocra_kim.sql",
-      "sha256": "9cc13d87ec211254e5dc17620c7e6dadda960d52431296b5b174c76638523f7c",
-      "descripcion": "Ergonomía: métodos OCRA y KIM"
+      "archivo": "20261030883000_papelera_delete_con_where.sql",
+      "sha256": "204a42e577207eafcca6955d93d77f08b2ed24db1f41474ed5f881ee49a14630",
+      "descripcion": "Papelera: arregla «DELETE requires a WHERE clause» y elimina documentos con Deshacer"
     }
   ]
 }
