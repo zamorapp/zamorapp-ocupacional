@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { obtenerCobro } from "@/lib/facturacion";
+import { obtenerCobro, tasasBcv } from "@/lib/facturacion";
+import { sumarDias } from "@/lib/fecha";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
 import { bs, totales, usd } from "@/lib/facturacion-tipos";
 import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
@@ -18,11 +20,17 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
   const [c, sesion] = await Promise.all([obtenerCobro(id), obtenerSesion()]);
   if (!c || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
-  const [{ data: org }, { data: emp }] = await Promise.all([
+  // Fecha que manda para la tasa: la del pago en el recibo; la de la nota en los demás
+  const fechaTasa = c.estado === "pagada" && c.fechaPago ? c.fechaPago : c.fecha;
+  const [{ data: org }, { data: emp }, tasas] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single(),
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
+    c.tasaBcv ? Promise.resolve([]) : tasasBcv(sumarDias(fechaTasa, -10)),
   ]);
-  const t = totales(c);
+  // Sin tasa anotada en la nota: la del BCV de esa fecha (se carga sola cada tarde)
+  const auto = c.tasaBcv ? null : tasaParaFecha(tasas, fechaTasa);
+  const t = totales({ ...c, tasaBcv: c.tasaBcv ?? auto?.tasa ?? null });
+  const tasaUsada = c.tasaBcv ?? auto?.tasa ?? null;
   const entrega = doc === "entrega";
   const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro";
 
@@ -113,7 +121,12 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
               {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span>{usd(t.iva)}</span></div>}
               {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span>{usd(t.igtf)}</span></div>}
               <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
-              {t.totalBs !== null && <div className="flex justify-between"><span>Equivalente a tasa BCV {c.tasaBcv}</span><span>{bs(t.totalBs)}</span></div>}
+              {t.totalBs !== null && tasaUsada && (
+                <>
+                  <div className="flex justify-between font-semibold"><span>Total en bolívares</span><span>{bs(t.totalBs)}</span></div>
+                  <div className="text-right text-[11px] text-neutral-600">Tasa BCV{auto ? ` del ${fechaCorta(auto.fecha)}` : ""}: Bs. {tasaUsada.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} por dólar</div>
+                </>
+              )}
             </div>
           </>
         )}

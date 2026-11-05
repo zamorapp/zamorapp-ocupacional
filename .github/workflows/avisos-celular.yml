@@ -26,3 +26,8 @@ jobs:
       - name: Correo diario de constancias
         run: |
           curl -sS --max-time 70 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/envios/constancias-dia"
+      # Tasa BCV del día siguiente (el BCV la publica a las 4–5 p. m.): solo va al BCV si falta; el resto de las veces
+      # responde «al día» sin salir de Vercel. Si falla, la tasa se puede escribir a mano en Facturación.
+      - name: Tasa BCV
+        run: |
+          curl -sS --max-time 45 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/tasa-bcv" || true

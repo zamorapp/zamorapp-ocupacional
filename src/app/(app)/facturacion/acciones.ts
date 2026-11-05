@@ -41,7 +41,9 @@ export async function guardarTasa(fecha: string, tasa: number): Promise<Resultad
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
   if (!(tasa > 0)) return { ok: false, mensaje: "Escribe una tasa válida." };
-  const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa }, { onConflict: "org_id,fecha" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Fecha no válida." };
+  // Escrita a mano: manda sobre la automática (el latido nunca pisa una tasa «manual»)
+  const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa, fuente: "manual" }, { onConflict: "org_id,fecha" });
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/facturacion");
   return { ok: true, mensaje: "Tasa guardada." };
@@ -163,6 +165,19 @@ export async function convertirPresupuesto(id: string): Promise<Resultado> {
 
 // Nº de la factura de forma libre (talonario de imprenta autorizada): se escribe al imprimir y queda en la nota de cobro.
 // Solo dígitos y guiones (p. ej. 000123 o 00-000123); vacío lo quita. Avisa si ese número ya está en otra nota.
+// La factura se imprime con la tasa BCV de su fecha de emisión: se anota en la nota de cobro para que el registro y lo
+// impreso digan lo mismo (el cambio queda en la bitácora por bit_cobros).
+export async function guardarTasaCobro(id: string, tasa: number): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (!(tasa > 0)) return { ok: false, mensaje: "Escribe una tasa válida." };
+  const { data: filas, error } = await c.supabase.from("cobros").update({ tasa_bcv: tasa }).eq("id", id).neq("estado", "anulada").select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó la tasa: la nota no existe, está anulada o tu rol no puede cambiarla." };
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: "Tasa anotada en la nota de cobro." };
+}
+
 export async function guardarNumeroFactura(id: string, numero: string): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
