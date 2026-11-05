@@ -99,9 +99,9 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
         org={doc.org.nombre}
         textos={{
           serie: "Ergonomía · evaluación de puestos de trabajo",
-          documento: depto ? `Informe ergonómico del puesto para ${depto.nombre}` : "Informe de evaluación ergonómica del puesto de trabajo",
-          // RR. HH. no recibe el método (sin fotos ni detalle del método)
-          norma: `${depto?.clave === "rrhh" ? "" : `Método ${corto} · `}LOPCYMAT art. 56 y 59 · NT-04-2023${borrador ? " · BORRADOR" : ""}`,
+          documento: depto ? `Informe ergonómico del puesto para ${depto.nombre}` : `Evaluación ergonómica del puesto · ${corto}`,
+          // El nombre del estudio aplicado va en todas las versiones (Cesar, 05-nov); RR. HH. sigue sin puntajes, fotos ni detalle
+          norma: `Estudio aplicado: ${NOMBRE_METODO[ev.metodo]} · LOPCYMAT art. 56 y 59 · NT-04-2023${borrador ? " · BORRADOR" : ""}`,
           control: "Evaluación ergonómica de puestos de trabajo",
           rango: `Evaluado el ${fechaCorta(ev.fecha)}`,
           elaborado: "Elaborado por · evaluador del puesto",
@@ -148,7 +148,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
           <Bloque titulo={`Resultado del método ${metodo.corto}`}>
             {r.factores ? (
               <div className="grid grid-cols-[1fr_1.2fr] gap-5">
-                <GraficaDeb factores={r.factores} impreso />
+                <GraficaDeb factores={r.factores} otros={r.otros} impreso />
                 <div>
                   <div className="text-[13px] font-bold">{r.nivel} · {r.texto}</div>
                   <div>{r.accion}.</div>

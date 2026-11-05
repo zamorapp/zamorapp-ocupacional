@@ -7,7 +7,7 @@
 //   REBA: Hignett S, McAtamney L. Rapid Entire Body Assessment (REBA). Applied Ergonomics 2000;31(2):201-205.
 //   Prioridad: matriz 5×5 probabilidad × severidad del puesto (lib/puestos-tipos), la misma de la LOPCYMAT en la app.
 import { nivelRiesgo } from "@/lib/puestos-tipos";
-import { ADICIONALES, DEB, type ResultadoFactor } from "@/lib/ergonomia-deb";
+import { ADICIONALES, DEB, otroPorClave, type ResultadoFactor } from "@/lib/ergonomia-deb";
 import { KIM } from "@/lib/ergonomia-kim";
 import { OCRA } from "@/lib/ergonomia-ocra";
 import { esRolEmpresa, type Rol } from "@/lib/sesion-roles";
@@ -54,6 +54,8 @@ export type Resultado = {
   subtexto?: string;
   /** DEB: zona de cada peligro, ordenados por prioridad */
   factores?: ResultadoFactor[];
+  /** DEB: otros riesgos del puesto (físicos, químicos, biológicos, psicosociales) y mediciones fuera de rango */
+  otros?: { categoria: string; items: { clave: string; texto: string }[] }[];
 };
 
 export type Metodo = {
@@ -845,6 +847,12 @@ function proponerDeb(resultado: Resultado, ya: Hallazgo[], nuevoId: () => string
     const factor = (a as { corto?: string }).corto ?? a.texto;
     agregar({ factor: factor[0].toUpperCase() + factor.slice(1), detalle: `DEB · aspecto adicional (${f.nombre.toLowerCase()})`, p: 2, s: 3,
       consecuencia: "Aumenta el riesgo de sobreesfuerzo, caídas o lesiones durante la manipulación", medida: a.medida, departamento: a.departamento, origen: "checklist" });
+  }
+  // Otros riesgos del puesto y mediciones fuera de rango: una alerta con su medida cada uno
+  for (const c of resultado.otros ?? []) for (const it of c.items) {
+    const o = otroPorClave(it.clave);
+    if (!o) continue;
+    agregar({ factor: it.texto[0].toUpperCase() + it.texto.slice(1), detalle: `DEB · ${c.categoria.toLowerCase()}`, p: 3, s: o.s, consecuencia: o.consecuencia, medida: o.medida, departamento: o.departamento, origen: "checklist" });
   }
   if (factores.some((f) => f.zona === "rojo" || f.zona === "amarillo")) {
     const p = factores.some((f) => f.zona === "rojo") ? 5 : 3;

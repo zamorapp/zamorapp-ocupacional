@@ -66,6 +66,8 @@ function demoDeb(): Evaluacion {
     ...si("v_tra_c"), ...no("v_tra_a r_tra_a r_tra_b"), ...si("a_lt_suelo a_lt_8h"),
     ...si("v_emp_a v_emp_b v_emp_c v_emp_d a_e_ruedas"),
     ...si("v_pe_b v_pe_c v_pe_d v_pe_e v_pe_f v_pe_g v_pe_h v_pe_i v_pe_j v_pe_k v_pd_b v_pd_c v_pd_d v_pd_e v_pd_f"), ...no("v_pe_a v_pd_a"),
+    // Otros riesgos del puesto: patio de carga al sol, polvo y metas por pedido; mediciones del almacén
+    ...si("o_sol o_calor o_polvo o_destajo"), ...no("o_ruido o_quim o_turnos"), m_temp: 31.5, m_lux: 220, m_ruido: 78,
   };
   const resultado = DEB.calcular(datos);
   let n = 0;
