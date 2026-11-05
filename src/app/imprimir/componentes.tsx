@@ -75,7 +75,7 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
         {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
         <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px] leading-tight"}`}>{d.org.nombre}</div>
         {titular && (
-          <div data-prueba="membrete-titular" className={`leading-snug ${compacto ? "text-[9.5px]" : "text-[11.5px]"}`}>
+          <div data-prueba="membrete-titular" className={compacto ? "text-[9px] leading-tight" : "text-[11.5px] leading-snug"}>
             <b className="font-bold">{titular}</b>
             {a.membrete_credenciales?.trim() && <span className="font-medium text-doc-acento"> · {a.membrete_credenciales.trim()}</span>}
           </div>
