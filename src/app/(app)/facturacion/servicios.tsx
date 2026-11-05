@@ -97,7 +97,16 @@ function Editor({ inicial, motivos, otros, alCerrar }: { inicial: Servicio; moti
             })}
           </div>
         )}
-        {sueltos.length > 0 && <p className="text-xs text-muted-foreground">Además conserva estos códigos que ya no están en la lista de motivos: {sueltos.join(", ")}.</p>}
+        {sueltos.length > 0 && (
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {sueltos.map((c) => (
+              <label key={c} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/60">
+                <input type="checkbox" checked onChange={() => alternar(c, false)} className="size-4 accent-[var(--primary)]" />
+                {c} (ya no está en la lista)
+              </label>
+            ))}
+          </div>
+        )}
       </section>
 
       {error && <p className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
@@ -112,14 +121,23 @@ function Editor({ inicial, motivos, otros, alCerrar }: { inicial: Servicio; moti
 function Fila({ s, motivos, editable, abierto, alAbrir, alCerrar, todos }: {
   s: Servicio; motivos: Motivo[]; editable: boolean; abierto: boolean; alAbrir: () => void; alCerrar: () => void; todos: Servicio[];
 }) {
-  const nombres = codigos(s.motivos).map((c) => motivos.find((m) => m.codigo === c)?.nombre ?? c);
+  const lista = codigos(s.motivos).map((c) => ({ c, nombre: motivos.find((m) => m.codigo === c)?.nombre }));
+  const NoSeOfrece = ({ className }: { className?: string }) => <span className={cn("whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground", className)}>No se ofrece</span>;
   return (
     <li className={cn(!s.activo && !abierto && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
         <div className="min-w-0 flex-1 basis-56">
-          <p className="font-medium [overflow-wrap:anywhere]">{s.nombre}{!s.activo && <span className="ml-2 whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">No se ofrece</span>}</p>
+          <p className="font-medium [overflow-wrap:anywhere]">{s.nombre}{!s.activo && <NoSeOfrece className="ml-2 hidden sm:inline-block" />}</p>
           <p className="line-clamp-2 text-xs text-muted-foreground">
-            {nombres.length ? <><Zap className="mr-1 inline size-3 text-primary" />Se cobra solo en: {nombres.join(", ")}</> : "Se agrega a mano en la nota de cobro"}
+            {lista.length ? (
+              <>
+                <Zap className="mr-1 inline size-3 text-primary" />Se cobra solo en:{" "}
+                {lista.map(({ c, nombre }, i) => (
+                  <span key={c}>{i > 0 && ", "}{nombre ?? <span className="text-muted-foreground/70">{c} (ya no está en la lista)</span>}</span>
+                ))}
+              </>
+            ) : "Se agrega a mano en la nota de cobro"}
+            {!s.activo && <NoSeOfrece className="ml-2 sm:hidden" />}
           </p>
         </div>
         <p className="text-right"><span className="text-base font-semibold tabular-nums">{usd(s.precioUsd)}</span><span className="block text-xs text-muted-foreground">por {ETIQUETA_UNIDAD[s.unidad]}</span></p>
