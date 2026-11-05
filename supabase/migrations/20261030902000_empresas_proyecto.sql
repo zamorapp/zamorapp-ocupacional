@@ -4,3 +4,6 @@
 -- Tabla real (no vista espejo): no hay vistas que rehacer. RR. HH. ya lee su empresa por RLS; el dato no es clínico.
 alter table public.empresas add column if not exists proyecto text;
 comment on column public.empresas.proyecto is 'Nombre del proyecto u obra; se imprime en el membrete de los documentos de sus trabajadores';
+alter table public.empresas drop constraint if exists empresas_proyecto_largo;
+alter table public.empresas add constraint empresas_proyecto_largo check (proyecto is null or char_length(proyecto) <= 300);
+select public.vistas_al_dia();
