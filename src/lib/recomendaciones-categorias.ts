@@ -76,16 +76,75 @@ export function agruparPorCategoria<T extends ItemConCategoria>(items: T[]): { c
 }
 
 // ── Recomendaciones repetidas entre la empresa y el trabajador (un mismo documento) ──
-const clave = (l: string) => sinTildes(l).replace(/^\s*(\d{1,2}[.)]|[-•*])\s*/, "").replace(/[.;:,\s]+$/, "").replace(/\s+/g, " ").trim();
+// Las frases traídas del SAME dicen lo mismo con otras palabras («Uso de EPP» / «1. Uso de los EPP»), con viñetas,
+// numeración corrida («1. … 2. …» en un solo párrafo) o erratas. Se comparan por sus palabras con sentido; si cambia
+// cualquier número (kg, meses, mg/dl) o una palabra de sentido (no, sin, con, evitar, solo…) nunca cuentan como
+// iguales, para no perder ni invertir una indicación clínica.
+const VACIAS = new Set("a al de del el en la las lo los o para por que se su sus un una y e u".split(" "));
+// Palabras que cambian el sentido («Puede…» / «No puede…», «con» / «sin ventilación»): si difieren, nunca son iguales
+const POLARIDAD = new Set("no ni sin con nunca jamas evitar evite evitando solo solamente unicamente excepto salvo prohibido prohibida contraindicado contraindicada".split(" "));
+
+/** Parte un texto en sus puntos: uno por línea o «1. … 2. …» corrido; sin viñetas ni numeración */
+export function partirPuntos(texto: string): string[] {
+  return texto
+    .replace(/\r\n?/g, "\n")
+    .split(/\n|(?:^|\s)(?=\d{1,2}(?:\.{1,2}|\))\s)/)
+    .map((x) => x.replace(/^\s*(\d{1,2}(?:\.{1,2}|\))|[-•*]+)\s*/, "").trim())
+    .filter(Boolean);
+}
+
+const palabras = (l: string) => sinTildes(l).replace(/(\d)[.,](\d)/g, "$1_$2").split(/[^a-z0-9_]+/).filter((w) => w && !VACIAS.has(w));
+const numeros = (ws: string[]) => ws.filter((w) => /\d/.test(w)).sort().join(" ");
+const polaridad = (ws: string[]) => [...new Set(ws.filter((w) => POLARIDAD.has(w)))].sort().join(" ");
+
+// ¿Difieren en una sola letra (sobra, falta o cambia)?
+function unaLetra(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i);
+}
+
+/** ¿Dos puntos dicen lo mismo? Iguales sin tildes/viñetas/artículos, o casi iguales (≥85 % de sus palabras) y largos */
+export function dicenLoMismo(a: string, b: string): boolean {
+  const wa = palabras(a), wb = palabras(b);
+  if (!wa.length || !wb.length) return false;
+  if (numeros(wa) !== numeros(wb)) return false;
+  if (polaridad(wa) !== polaridad(wb)) return false;
+  if (wa.join(" ") === wb.join(" ")) return true;
+  const A = new Set(wa), B = new Set(wb);
+  if (A.size < 5 || B.size < 5) return false;
+  // Una errata («incurir») no separa dos frases: palabras largas que difieren en una letra cuentan como la misma
+  const igual = (w: string) => B.has(w) || (w.length >= 6 && [...B].some((x) => x.length >= 6 && unaLetra(w, x)));
+  let comunes = 0;
+  for (const w of A) if (igual(w)) comunes++;
+  return comunes / (A.size + B.size - comunes) >= 0.85;
+}
+
+/** Los puntos de un texto sin los que repiten a uno anterior (dos frases elegidas que comparten una indicación) */
+export function puntosUnicos(texto: string): string[] {
+  const vistos: string[] = [];
+  for (const p of partirPuntos(texto)) if (!vistos.some((v) => dicenLoMismo(v, p))) vistos.push(p);
+  return vistos;
+}
 
 /**
- * Quita de `texto` las líneas que ya están en `otro` (misma frase, sin contar numeración, tildes, mayúsculas ni el
- * punto final). Así una recomendación elegida para la empresa y para el trabajador sale una sola vez en el documento.
+ * Quita de `texto` los puntos que ya están en `otro` (misma indicación, aunque cambien numeración, viñetas, tildes,
+ * artículos o una errata). Así una recomendación elegida para la empresa y para el trabajador sale una sola vez.
  */
 export function sinRepetidas(texto: string | null | undefined, otro: string | null | undefined): string {
   if (!texto?.trim() || !otro?.trim()) return texto ?? "";
-  const ya = new Set(otro.replace(/\r\n?/g, "\n").split("\n").map(clave).filter(Boolean));
-  return texto.replace(/\r\n?/g, "\n").split("\n").filter((l) => !ya.has(clave(l))).join("\n");
+  const ya = partirPuntos(otro);
+  const repetido = (p: string) => ya.some((o) => dicenLoMismo(o, p));
+  const lineas = texto.replace(/\r\n?/g, "\n").split("\n");
+  // Un punto por línea: se quitan las líneas repetidas y el resto queda como lo escribió el médico
+  if (lineas.every((l) => partirPuntos(l).length <= 1)) {
+    const quedan = lineas.filter((l) => !partirPuntos(l).some(repetido));
+    return quedan.length === lineas.length ? texto : quedan.join("\n");
+  }
+  const puntos = partirPuntos(texto);
+  const quedan = puntos.filter((p) => !repetido(p));
+  return quedan.length === puntos.length ? texto : quedan.join("\n");
 }
 
 // «Hernia Umbilical» (nombres del SAME en Mayúscula Cada Palabra) → «Hernia umbilical» al mostrarlos; siglas
