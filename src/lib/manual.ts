@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-05", texto: "Agregar usuario en pasos: correo, rol (cada rol dice qué ve y qué no ve, separados en servicio médico y empresa cliente), empresa (solo para roles de empresa) y revisar antes de «Agregar usuario»", tema: "configuracion" },
   { fecha: "2026-11-05", texto: "Nueva empresa en 4 pasos (Identificación, Ubicación y dependencias, Registros legales, Exámenes y avisos) y una revisión final antes de «Crear empresa». No deja avanzar sin razón social ni RIF. Al editar una empresa, los mismos pasos se abren en cualquier orden", tema: "empresas" },
   { fecha: "2026-11-05", texto: "Organización y documentos en 5 pasos: Datos del servicio, Documentos impresos (cada documento se despliega aparte), Plazos y avisos, Seguridad y privacidad, y Mensajes. Cerrado, cada paso resume lo que tiene hoy; abajo te avisa si hay cambios sin guardar. El buscador te lleva directo al paso (escribe «pie del reposo» o «mensaje de cita»)", tema: "configuracion" },
   { fecha: "2026-11-05", texto: "Últimos atendidos: en Inicio y al abrir el buscador (Ctrl+K) sin escribir ves las últimas consultas de todas las empresas, con hora y estado; un toque abre la consulta y «Ficha» abre al trabajador. «Ver 30 días» muestra todas las empresas aunque tengas una elegida arriba", tema: "atencion" },
