@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-05", texto: "WhatsApp al trabajador: en el récipe, la orden, la referencia, el informe para el trabajador, la constancia de atención y las hojas de tensión, dieta y bienestar, el botón «WhatsApp al trabajador» le manda a su celular un enlace a ese documento tal como lo ves (con tus cambios). Dura 7 días; ves si lo abrió y puedes anularlo. Requiere internet. RR. HH. nunca lo ve", tema: "documentos" },
   { fecha: "2026-11-05", texto: "Servicios y precios más claro: agrupados por tipo (consulta, evaluación, informe…), con el precio grande y «Cambiar» en cada uno. Al cambiar, tres bloques: qué es, cuánto cuesta y con qué consultas se cobra solo, marcando los motivos con casillas en vez de escribir códigos. Si dos servicios cobran el mismo motivo, te avisa", tema: "facturacion" },
   { fecha: "2026-11-05", texto: "Agregar usuario en pasos: correo, rol (cada rol dice qué ve y qué no ve, separados en servicio médico y empresa cliente), empresa (solo para roles de empresa) y revisar antes de «Agregar usuario»", tema: "configuracion" },
   { fecha: "2026-11-05", texto: "Nueva empresa en 4 pasos (Identificación, Ubicación y dependencias, Registros legales, Exámenes y avisos) y una revisión final antes de «Crear empresa». No deja avanzar sin razón social ni RIF. Al editar una empresa, los mismos pasos se abren en cualquier orden", tema: "empresas" },
@@ -306,6 +307,7 @@ export const MANUAL: TemaManual[] = [
       "Tu especialidad y tu correo salen bajo tu firma: complétalos en Configuración › Mi perfil profesional.",
       "La orden de exámenes agrupa los paraclínicos con casillas y tu firma.",
       "Al imprimir, desmarca «Encabezados y pies de página» del navegador para que no salga la dirección web; el número de página lo pone zamorApp.",
+      "«WhatsApp al trabajador» (arriba del récipe, la orden, la referencia, el informe para el trabajador, la constancia de atención y las hojas de tensión, dieta y bienestar): escribe o confirma su celular (puedes guardarlo en la ficha), ajusta el mensaje y toca «Preparar y abrir WhatsApp». Se abre WhatsApp con el mensaje y un enlace que abre solo ese PDF, tal como lo ves en pantalla con las opciones y cambios que hiciste. El enlace dura 7 días; abajo ves lo enviado, si lo abrió y «Anular». Récipe, orden, referencia, informe y constancia piden la consulta firmada; si la reabres para corregirla, sus enlaces se anulan solos. Requiere internet. Solo el personal de salud lo envía; RR. HH. y la empresa no lo ven.",
       "Títulos, lema del membrete, texto de certificación del trabajador, pies de página y la nota de la orden se cambian en Configuración › Organización. Ahí también eliges si la firma y el sello del médico van en casillas separadas (como en el Integral) o en una sola línea.",
     ],
   },

@@ -50,6 +50,8 @@ export async function middleware(request: NextRequest) {
   const enLogin = request.nextUrl.pathname.startsWith("/login");
   // Enlaces seguros de documentos enviados por WhatsApp: los abre la empresa sin cuenta (valida el token)
   if (request.nextUrl.pathname.startsWith("/e/")) return conTiempo(respuesta);
+  // Lo mismo para los documentos personales que se le envían al trabajador (récipe, indicaciones, dieta…)
+  if (request.nextUrl.pathname.startsWith("/t/")) return conTiempo(respuesta);
   // Latido del workflow «Calentar» (C4): sin sesión, responde como anónimo; no se manda a /login
   if (request.nextUrl.pathname === "/api/salud") return conTiempo(respuesta);
   // Hora de la nube para el reloj del celular sin internet: sin datos, también sin sesión
