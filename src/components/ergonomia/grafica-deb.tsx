@@ -7,8 +7,11 @@ const NIVEL: Record<ZonaDeb, number> = { no: 0, verde: 1, amarillo: 2, rojo: 3 }
 const COLOR: Record<ZonaDeb, string> = { no: "bg-muted", verde: "bg-emerald-500", amarillo: "bg-amber-400", rojo: "bg-red-600" };
 const TEXTO: Record<ZonaDeb, string> = { no: "text-muted-foreground", verde: "text-emerald-700 dark:text-emerald-400", amarillo: "text-amber-700 dark:text-amber-400", rojo: "text-red-700 dark:text-red-400" };
 
-export function GraficaDeb({ factores, impreso }: { factores: ResultadoFactor[]; impreso?: boolean }) {
+type Otros = { categoria: string; items: { clave: string; texto: string }[] }[];
+
+export function GraficaDeb({ factores, otros, impreso }: { factores: ResultadoFactor[]; otros?: Otros; impreso?: boolean }) {
   return (
+    <>
     <ol className={cn("space-y-2", impreso && "space-y-1.5")} aria-label="Peligros del puesto por prioridad">
       {factores.map((f) => {
         const z = f.zona ?? "no";
@@ -25,6 +28,17 @@ export function GraficaDeb({ factores, impreso }: { factores: ResultadoFactor[];
           </li>
         );
       })}
-    </ol>
+        </ol>
+    {otros && otros.length > 0 && (
+      <div className={cn("mt-3 border-t pt-2", impreso ? "border-doc-linea text-[9.5px]" : "text-xs")}>
+        <div className="font-semibold">Otros riesgos del puesto</div>
+        {otros.map((c) => (
+          <div key={c.categoria} className="mt-0.5 break-inside-avoid">
+            <span className={cn("font-semibold", impreso ? "text-[#15201e]" : "text-foreground")}>{c.categoria}:</span> {c.items.map((i) => i.texto).join("; ")}
+          </div>
+        ))}
+      </div>
+    )}
+    </>
   );
 }
