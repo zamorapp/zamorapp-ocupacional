@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { guardarOrganizacion } from "../acciones";
-import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH, NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
+import { CERTIFICACION_TRABAJADOR, CONDICION_PAGO_BCV, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH, NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
 
 type Ajustes = {
   palabra_aptitud?: string;
@@ -35,6 +35,9 @@ type Ajustes = {
   dias_equipo_confianza?: number;
   celda_minima_empresa?: number;
   membrete_lema?: string | null;
+  cobro_condiciones?: string | null;
+  cobro_datos_pago?: string | null;
+  factura_datos_pago?: string | null;
   membrete_titular?: string | null;
   membrete_credenciales?: string | null;
   invita_como?: string | null;
@@ -240,6 +243,12 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
         <Grupo titulo="Certificado de salud">
           <Campo id="certificado_titulo" etiqueta="Título" ayuda="Vacío: se usa «Certificado de salud»." defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
           <CampoTexto id="certificado_nota" etiqueta="Nota legal al pie (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.certificado_nota ?? NOTA_CERTIFICADO_SACS} />
+        </Grupo>
+        <Grupo titulo="Nota de cobro y recibo">
+          <CampoTexto id="cobro_condiciones" etiqueta="Condiciones de pago (vacío para no imprimirlas)" rows={2} className="sm:col-span-2" defaultValue={a.cobro_condiciones ?? CONDICION_PAGO_BCV} />
+          <CampoTexto id="cobro_datos_pago" etiqueta="Datos para el pago (cuentas y pago móvil; una por línea)" rows={6} className="sm:col-span-2" defaultValue={a.cobro_datos_pago ?? ""}
+            placeholder={"Mercantil, cuenta corriente 0105-…, V-…, Nombre\nPago móvil: 0102 (Venezuela) · cédula · teléfono"} />
+          <CampoTexto id="factura_datos_pago" etiqueta="Datos para el pago en la factura del talonario (vacío = no salen)" rows={3} className="sm:col-span-2" defaultValue={a.factura_datos_pago ?? ""} />
         </Grupo>
         <Grupo titulo="Informe de vigilancia epidemiológica">
           <CampoSelect id="vigilancia_poblacion" etiqueta="Población que cuenta" defaultValue={a.vigilancia_poblacion ?? "efectivos"}
