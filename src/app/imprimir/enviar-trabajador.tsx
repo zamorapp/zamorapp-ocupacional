@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ahora } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
+import { confirmar } from "@/components/app/confirmar";
 import { DIAS_ENLACE_TRABAJADOR, DOCS_TRABAJADOR, mensajeTrabajador, mostrarTelefono, telefonoTrabajador, type DocTrabajador } from "@/lib/whatsapp-trabajador";
 import { anularEnlaceTrabajador, datosWhatsAppTrabajador, enviarAlTrabajador, type DatosWhatsAppTrabajador, type ResultadoWhatsAppTrabajador } from "./trabajador-acciones";
 
@@ -21,6 +22,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const [datos, setDatos] = useState<DatosWhatsAppTrabajador | null>(null);
   const [telefono, setTelefono] = useState("");
   const [guardar, setGuardar] = useState(false);
+  const [revisar, setRevisar] = useState(false); // el aviso del celular sale al salir del campo o al enviar, no mientras escribe
   const [mensaje, setMensaje] = useState("");
   const [resultado, setResultado] = useState<ResultadoWhatsAppTrabajador | null>(null);
   const [cargando, iniciarCarga] = useTransition();
@@ -46,7 +48,9 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const falta = listo && doc.firmada && !datos.firmada;
   const distinto = listo && valido && valido !== datos.telefono;
 
-  const mandar = () =>
+  const mandar = () => {
+    setRevisar(true);
+    if (!valido) return;
     iniciar(async () => {
       const r = await enviarAlTrabajador({ consultaId, tipo, busqueda: window.location.search, telefono, guardarTelefono: guardar && Boolean(distinto), mensaje });
       setResultado(r);
@@ -55,13 +59,16 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
         recargar();
       }
     });
+  };
 
-  const anular = (id: string) =>
+  const anular = async (id: string) => {
+    if (!(await confirmar({ titulo: "¿Anular el enlace?", texto: "El trabajador ya no podrá abrir el documento.", accion: "Anular enlace", peligro: true }))) return;
     iniciar(async () => {
       const r = await anularEnlaceTrabajador(id);
       if (!r.ok) setResultado({ ok: false, mensaje: r.mensaje ?? "No se pudo anular." });
       recargar();
     });
+  };
 
   return (
     <Dialog open={abierto} onOpenChange={abrir}>
@@ -78,7 +85,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
         {!datos && cargando ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin" /> Cargando…</p>
         ) : datos && "error" in datos ? (
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{datos.error}</p>
+          <p className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto" role="alert">{datos.error}</p>
         ) : listo ? (
           <div className="grid gap-4">
             {falta && (
@@ -90,10 +97,10 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <Label htmlFor="tel-trabajador" className="mb-1.5">Celular del trabajador</Label>
               <div className="relative">
                 <Smartphone className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input id="tel-trabajador" inputMode="tel" autoComplete="off" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567"
-                  className={cn("h-11 w-full rounded-md border bg-transparent pr-3 pl-9 text-base", telefono && !valido && "border-destructive")} />
+                <input id="tel-trabajador" inputMode="tel" autoComplete="off" value={telefono} onChange={(e) => setTelefono(e.target.value)} onBlur={() => setRevisar(true)} placeholder="0414-1234567"
+                  className={cn("h-11 w-full rounded-md border bg-transparent pr-3 pl-9 text-base", revisar && telefono && !valido && "border-alerta")} />
               </div>
-              {telefono && !valido && <p className="mt-1 text-xs text-destructive">Celular no válido. Ejemplos: 0414-1234567 o +57 300 1234567.</p>}
+              {revisar && !valido && <p className="mt-1 text-xs text-alerta-texto">Revisa el número. Ejemplos: 0414-1234567 o +57 300 1234567.</p>}
               {!datos.telefono && !telefono && <p className="mt-1 text-xs text-muted-foreground">La ficha no tiene celular: escríbelo aquí.</p>}
               {distinto && (
                 <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
@@ -107,11 +114,11 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <Textarea id="msg-trabajador" rows={3} maxLength={500} value={mensaje} onChange={(e) => setMensaje(e.target.value)} />
               <p className="mt-1 text-xs text-muted-foreground">El enlace se agrega al final.</p>
             </div>
-            <Button size="lg" className="bg-[#1f8f4e] text-white hover:bg-[#19773f]" disabled={enviando || !valido || Boolean(falta)} onClick={mandar}>
+            <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || Boolean(falta)} onClick={mandar}>
               {enviando ? <Loader2 className="animate-spin" /> : <MessageCircle />} {enviando ? "Preparando el PDF…" : "Preparar y abrir WhatsApp"}
             </Button>
             {resultado && (
-              <div className={cn("space-y-2 rounded-md px-3 py-3 text-sm", resultado.ok ? "bg-ok/10" : "bg-destructive/10")} role="status">
+              <div className={cn("space-y-2 rounded-md px-3 py-3 text-sm", resultado.ok ? "bg-ok/10" : "bg-alerta/10")} role="status">
                 {resultado.ok ? (
                   <>
                     <p className="flex items-center gap-1.5 font-medium text-ok-texto"><CheckCircle2 className="size-4" /> Enlace listo. Si WhatsApp no se abrió, tócalo aquí:</p>
@@ -119,7 +126,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
                     {resultado.aviso && <p className="text-xs text-aviso-texto">{resultado.aviso}</p>}
                   </>
                 ) : (
-                  <p className="flex gap-1.5 text-destructive"><XCircle className="mt-0.5 size-4 shrink-0" /> {resultado.mensaje}</p>
+                  <p className="flex gap-1.5 text-alerta-texto"><XCircle className="mt-0.5 size-4 shrink-0" /> {resultado.mensaje}</p>
                 )}
               </div>
             )}
