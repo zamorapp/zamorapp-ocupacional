@@ -563,7 +563,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">
           {/* Cesar (05-nov, «sí cifras exactas»): el resumen del art. 34 sale con cifras exactas también para la empresa; no nombra diagnósticos */}
-          <div className="max-w-[62%]"><T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} minimo={0} cerosTenues /></div>
+          <div className="max-w-[62%] break-inside-avoid"><T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} minimo={0} cerosTenues /></div>
           <Analisis texto={a.art34} />
           <p className="text-[9.5px] italic text-doc-tenue">La versión para cartelera de este cuadro va en la última hoja del informe.</p>
         </Seccion>
