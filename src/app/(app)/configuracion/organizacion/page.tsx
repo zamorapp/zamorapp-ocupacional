@@ -5,7 +5,6 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { Volver } from "../volver";
 import { FormOrganizacion } from "./form-organizacion";
 import { CargarLogo } from "@/components/app/cargar-logo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guardarLogoOrganizacion } from "../acciones";
 
 export const metadata: Metadata = { title: "Organización" };
@@ -27,20 +26,18 @@ export default async function Organizacion() {
       <Volver />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Organización y documentos</h1>
-        <p className="text-muted-foreground">Datos del servicio de salud que aparecen en membretes, constancias y reposos.</p>
+        <p className="text-muted-foreground">Cinco pasos. Abre el que necesites, cambia lo que quieras y pulsa «Guardar cambios» abajo.</p>
       </div>
-      <Card>
-        <CardHeader><CardTitle className="text-base">Logo del servicio</CardTitle></CardHeader>
-        <CardContent className="max-w-md">
+      <FormOrganizacion org={org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, ajustes: {} }} editable={!sesion.demo && sesion.rol === "administrador"}
+        logo={
           <CargarLogo
             inicial={(org as { logo?: string | null } | null)?.logo ?? null}
             editable={!sesion.demo && sesion.rol === "administrador"}
             guardar={guardarLogoOrganizacion}
             ayuda="Sube la insignia o el ícono (cuadrado); el nombre lo escribe zamorApp. Va a la izquierda del membrete en todos los documentos. El logo de cada empresa cliente se carga en su ficha (Empresas) y sale a la derecha."
           />
-        </CardContent>
-      </Card>
-      <FormOrganizacion org={org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, ajustes: {} }} editable={!sesion.demo && sesion.rol === "administrador"} />
+        }
+      />
     </div>
   );
 }

@@ -205,7 +205,11 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
     const { sesion, supabase } = await contexto(["administrador"]);
     const nombre = texto(datos, "nombre");
     if (!nombre) return { ok: false, mensaje: "Escribe el nombre." };
+    // Se parte de lo guardado: un ajuste que no esté en esta pantalla (o que agregue una migración) no se pierde
+    const { data: actual, error: e0 } = await supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle();
+    if (e0) throw e0;
     const ajustes = {
+      ...((actual?.ajustes ?? {}) as Record<string, unknown>),
       palabra_aptitud: texto(datos, "palabra_aptitud") ?? "Elegible",
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
       // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
@@ -245,11 +249,13 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       vigilancia_poblacion: texto(datos, "vigilancia_poblacion") === "todos" ? "todos" : "efectivos",
       vigilancia_horas: texto(datos, "vigilancia_horas") === "nomina" ? "nomina" : "same",
     };
-    const { error } = await supabase
+    const { data: hecho, error } = await supabase
       .from("organizaciones")
       .update({ nombre, rif: texto(datos, "rif"), direccion: texto(datos, "direccion"), telefono: texto(datos, "telefono"), correo: texto(datos, "correo"), ajustes })
-      .eq("id", sesion.orgId!);
+      .eq("id", sesion.orgId!)
+      .select("id");
     if (error) throw error;
+    if (!hecho?.length) return { ok: false, mensaje: "No se guardó: tu usuario no tiene permiso para cambiar la organización. Entra como administrador." };
     invalidarSesion();
     revalidatePath("/", "layout");
     return { ok: true, mensaje: "Datos de la organización guardados." };
