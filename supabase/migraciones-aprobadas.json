@@ -1,11 +1,21 @@
 {
-  "etiqueta": "migraciones-20261105-21",
-  "aprobado": "Cesar, sí del 2026-11-05 03:30 UTC (sí whatsapp trabajador)",
+  "etiqueta": "migraciones-20261105-22",
+  "aprobado": "Cesar, sí del 2026-11-05 (si indice 04:15, sí particulares 17:16, sí enlace paciente 17:16 UTC)",
   "migraciones": [
     {
-      "archivo": "20261030891000_enlaces_trabajador.sql",
-      "sha256": "157f2ea64b097751c4faabc699ce1a80199e965ccb39859189a37d8a0db7b88d",
-      "descripcion": "Enlace por WhatsApp para que el trabajador abra su documento (vence en 7 días, se puede anular)"
+      "archivo": "20261030893000_quitar_indice_repetido.sql",
+      "sha256": "090ae8467c2b610ef467ef635b45f895100ba86f9a7fd7b6cdd9b938a5855672",
+      "descripcion": "Quita el índice repetido de consultas (más rápido al guardar)"
+    },
+    {
+      "archivo": "20261030894000_pacientes_particulares.sql",
+      "sha256": "1a46b60fe785e4e18be96353395c69370b6520ea423b0300066d6fe8e5c2fb74",
+      "descripcion": "Pacientes particulares sin empresa"
+    },
+    {
+      "archivo": "20261030895000_solicitudes_paciente.sql",
+      "sha256": "c572fab75c200ca04fd5d38a966acee784a4f9d705b084e48e681aecb6898bd1",
+      "descripcion": "Enlace para que el paciente envíe sus datos de registro"
     }
   ]
 }
