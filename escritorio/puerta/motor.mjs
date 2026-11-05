@@ -70,10 +70,12 @@ export class Motor {
     }
     // Si quedó viva una base de una sesión anterior (el programa se cerró a la fuerza, se apagó la PC o se instaló
     // una versión nueva encima), se detiene con calma antes de arrancar: dos servidores no pueden usar los mismos datos.
+    let paradaPrevia = false;
     const previa = spawnSync(exe("pg_ctl"), ["status", "-D", this.carpetaBase], { stdio: "ignore", windowsHide: true, timeout: 30_000 });
     if (previa.status === 0) {
       this.registro?.("[base] había una base local abierta de una sesión anterior; se detiene antes de arrancar");
       spawnSync(exe("pg_ctl"), ["stop", "-D", this.carpetaBase, "-m", "fast", "-w", "-t", "60"], { stdio: "ignore", windowsHide: true, timeout: 90_000 });
+      paradaPrevia = true;
     }
     // pg_ctl (y no postgres.exe directo): en Windows arranca con permisos reducidos aunque el usuario sea administrador.
     // Sin tuberías: en Windows el servidor hereda las de pg_ctl y la espera no terminaría nunca.
@@ -82,10 +84,18 @@ export class Motor {
     // la segunda base no arrancó con el registro de la primera abierto (la «PC nueva» de las pruebas).
     const log = path.join(path.dirname(this.carpetaBase), "base.log");
     rotarSiPasa(log); // con la base apagada: PostgreSQL lo tiene abierto mientras corre
-    const r = spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
+    const arrancar = () => spawnSync(exe("pg_ctl"), ["start", "-D", this.carpetaBase, "-w", "-t", "60", "-l", log,
       // En Linux (pruebas) el socket local va en la carpeta de datos: el /var/run/postgresql del sistema no es nuestro
       "-o", `-p ${this.puertoBase} -c listen_addresses=127.0.0.1 -c max_connections=40 -c shared_buffers=64MB${process.platform === "win32" ? "" : ` -c unix_socket_directories=${JSON.stringify(this.carpetaBase)}`}`],
       { stdio: "ignore", windowsHide: true, timeout: 90_000 });
+    // Recién detenida una base anterior, Windows puede tardar unos segundos en soltar sus archivos (base.log, el puerto):
+    // el primer «start» falla sin escribir nada en el registro (CI Windows 311, 04-nov). Se reintenta con espera creciente.
+    let r = arrancar();
+    for (let intento = 1; r.status !== 0 && paradaPrevia && intento <= 3; intento++) {
+      this.registro?.(`[base] no arrancó tras detener la anterior; reintento ${intento} de 3`);
+      await new Promise((ok) => setTimeout(ok, 2000 * intento));
+      r = arrancar();
+    }
     if (r.status !== 0) {
       const cola = fs.existsSync(log) ? fs.readFileSync(log, "utf8").slice(-800) : String(r.error || "");
       throw new Error(`No arrancó la base local: ${cola}`);
