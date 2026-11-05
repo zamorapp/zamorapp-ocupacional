@@ -31,6 +31,13 @@ test("un número distinto nunca es repetido (8 kg ≠ 12,5 kg; audiometría ≠ 
   assert.equal(dicenLoMismo("Repetir audiometría en 6 meses", "Repetir espirometría a los 6 meses"), false);
   assert.equal(dicenLoMismo("Evaluación con urología", "Evaluación con nefrología"), false);
 });
+test("instrucciones opuestas nunca son repetidas (no / sin / con / evitar / solo)", () => {
+  assert.equal(dicenLoMismo("Puede realizar trabajos en altura con arnés y línea de vida", "No puede realizar trabajos en altura con arnés y línea de vida"), false);
+  assert.equal(dicenLoMismo("Trabajar en espacios confinados sin ventilación forzada ni monitoreo", "Trabajar en espacios confinados con ventilación forzada y monitoreo"), false);
+  assert.equal(dicenLoMismo("Evitar el levantamiento manual de cargas pesadas durante la jornada", "Levantamiento manual de cargas pesadas durante la jornada"), false);
+  assert.equal(dicenLoMismo("Realizar solo tareas administrativas durante la jornada laboral", "Realizar tareas administrativas durante la jornada laboral completa"), false);
+  assert.equal(sinRepetidas("No puede realizar trabajos en altura con arnés y línea de vida", "Puede realizar trabajos en altura con arnés y línea de vida"), "No puede realizar trabajos en altura con arnés y línea de vida");
+});
 test("misma frase con una errata cuenta como repetida", () => {
   assert.ok(dicenLoMismo("Ser preventivos en el caso de realizar algunas actividades de entretenimiento que puedan incurrir en ocasionar alguna lesión.", "Ser preventivos en el caso de realizar algunas actividades de entretenimiento que puedan incurir en ocasionar alguna lesión"));
 });

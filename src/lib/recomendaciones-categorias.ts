@@ -78,8 +78,11 @@ export function agruparPorCategoria<T extends ItemConCategoria>(items: T[]): { c
 // ── Recomendaciones repetidas entre la empresa y el trabajador (un mismo documento) ──
 // Las frases traídas del SAME dicen lo mismo con otras palabras («Uso de EPP» / «1. Uso de los EPP»), con viñetas,
 // numeración corrida («1. … 2. …» en un solo párrafo) o erratas. Se comparan por sus palabras con sentido; si cambia
-// cualquier número (kg, meses, mg/dl) nunca cuentan como iguales, para no perder una indicación clínica distinta.
-const VACIAS = new Set("a al con de del el en la las lo los o para por que se su sus un una y e u".split(" "));
+// cualquier número (kg, meses, mg/dl) o una palabra de sentido (no, sin, con, evitar, solo…) nunca cuentan como
+// iguales, para no perder ni invertir una indicación clínica.
+const VACIAS = new Set("a al de del el en la las lo los o para por que se su sus un una y e u".split(" "));
+// Palabras que cambian el sentido («Puede…» / «No puede…», «con» / «sin ventilación»): si difieren, nunca son iguales
+const POLARIDAD = new Set("no ni sin con nunca jamas evitar evite evitando solo solamente unicamente excepto salvo prohibido prohibida contraindicado contraindicada".split(" "));
 
 /** Parte un texto en sus puntos: uno por línea o «1. … 2. …» corrido; sin viñetas ni numeración */
 export function partirPuntos(texto: string): string[] {
@@ -92,6 +95,7 @@ export function partirPuntos(texto: string): string[] {
 
 const palabras = (l: string) => sinTildes(l).replace(/(\d)[.,](\d)/g, "$1_$2").split(/[^a-z0-9_]+/).filter((w) => w && !VACIAS.has(w));
 const numeros = (ws: string[]) => ws.filter((w) => /\d/.test(w)).sort().join(" ");
+const polaridad = (ws: string[]) => [...new Set(ws.filter((w) => POLARIDAD.has(w)))].sort().join(" ");
 
 // ¿Difieren en una sola letra (sobra, falta o cambia)?
 function unaLetra(a: string, b: string) {
@@ -106,6 +110,7 @@ export function dicenLoMismo(a: string, b: string): boolean {
   const wa = palabras(a), wb = palabras(b);
   if (!wa.length || !wb.length) return false;
   if (numeros(wa) !== numeros(wb)) return false;
+  if (polaridad(wa) !== polaridad(wb)) return false;
   if (wa.join(" ") === wb.join(" ")) return true;
   const A = new Set(wa), B = new Set(wb);
   if (A.size < 5 || B.size < 5) return false;
