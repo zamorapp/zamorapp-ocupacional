@@ -22,7 +22,7 @@ export default async function Organizacion() {
     org = data;
   }
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 pb-24 lg:pb-6">
       <Volver />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Organización y documentos</h1>

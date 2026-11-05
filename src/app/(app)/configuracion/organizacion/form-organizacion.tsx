@@ -2,10 +2,11 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { PLANTILLA_APTITUD, PLANTILLA_CITA } from "@/lib/mensajes";
-import { ChevronRight, CircleDot, Loader2 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { BarraGuardar } from "@/components/app/barra-guardar";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
+import { Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { guardarOrganizacion } from "../acciones";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH, NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
@@ -177,18 +178,7 @@ export function FormOrganizacion({ org, editable, logo }: { org: Org; editable: 
           })}
         </ol>
 
-      <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-xl border bg-background/95 px-4 py-3 shadow-sm backdrop-blur">
-        {sinGuardar && !enviando ? (
-          <p className="flex items-center gap-2 text-sm text-aviso-texto"><CircleDot className="size-4" /> Hay cambios sin guardar</p>
-        ) : (
-          <Aviso resultado={estado} />
-        )}
-        {editable ? (
-          <Button type="submit" className="ml-auto" disabled={enviando}>{enviando && <Loader2 className="animate-spin" />} Guardar cambios</Button>
-        ) : (
-          <p className="ml-auto text-sm text-muted-foreground">Solo el administrador puede cambiar estos datos.</p>
-        )}
-      </div>
+      <BarraGuardar sinGuardar={sinGuardar} enviando={enviando} resultado={estado} editable={editable} />
     </form>
   );
 }
