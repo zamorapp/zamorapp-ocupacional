@@ -37,13 +37,15 @@ const ESTILO_ESTADO = {
   firmada: "bg-primary/15 text-primary",
 };
 
-export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
-  const [{ dia: diaParam }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
+export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string; empresas?: string }> }) {
+  const [{ dia: diaParam, empresas: verEmpresas }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
   const hoy = hoyCaracas();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = sumarDias(hoy, -30);
+  // «Ver 30 días» desde Últimos atendidos (Inicio): las consultas de todas las empresas, sin la empresa activa
+  const todas = verEmpresas === "todas";
   const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
-    sesion.demo ? [] : listarConsultas({ desde }),
+    sesion.demo ? [] : listarConsultas({ desde, todas }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta"]),
     sesion.demo ? [] : listarSolicitudes(),
@@ -117,7 +119,13 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
 
       {/* Consultas recientes */}
       <section id="consultas" className="scroll-mt-20 space-y-3">
-        <h2 className="text-lg font-semibold">Consultas de los últimos 30 días</h2>
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h2 className="text-lg font-semibold">Consultas de los últimos 30 días</h2>
+          {activa && (todas
+            ? <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Solo la empresa elegida</Link>
+            : <Link href="/atencion?empresas=todas#consultas" className="text-sm text-primary hover:underline">Ver todas las empresas</Link>)}
+          {todas && <span className="text-sm text-muted-foreground">De todas las empresas</span>}
+        </div>
         <Card className="overflow-hidden py-0">
           {consultas.length === 0 ? (
             <div className="grid place-items-center gap-2 py-12 text-center text-muted-foreground">

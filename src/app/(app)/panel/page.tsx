@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { barrerConstancias } from "@/lib/constancias-listas";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,8 @@ import { estadoRespaldo } from "@/lib/respaldo";
 import { ahora } from "@/lib/fecha";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { OfertaAvisosCelular } from "@/components/app/avisos-celular";
+import { ultimosAtendidos } from "@/lib/ultimos-atendidos";
+import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -67,6 +69,9 @@ export default async function Panel() {
       </Suspense>
 
       <Suspense fallback={<Esqueleto filas={1} alto="h-[4.5rem]" columnas="sm:grid-cols-3" titulo />}><Tareas sesion={sesion} /></Suspense>
+
+      {/* Últimos atendidos de todas las empresas: a un toque, sin buscar (solo personal de salud) */}
+      {sesion.clinico && !sesion.demo && <Suspense fallback={<div role="status" aria-label="Cargando los últimos atendidos" className="h-48 animate-pulse rounded-xl border bg-muted/40" />}><UltimosAtendidos /></Suspense>}
 
       <Suspense fallback={null}><PrimerosPasos /></Suspense>
 
@@ -188,6 +193,49 @@ async function Tareas({ sesion }: { sesion: Sesion }) {
           ))}
         </div>
       </section>
+  );
+}
+
+const ESTILO_ESTADO: Record<string, string> = {
+  borrador: "bg-aviso/20 text-aviso-texto",
+  cerrada: "bg-ok/15 text-ok-texto",
+  firmada: "bg-primary/15 text-primary",
+};
+
+async function UltimosAtendidos() {
+  let atendidos;
+  try {
+    atendidos = await ultimosAtendidos(8);
+  } catch (e) {
+    // Visible, con la causa: el resto del Inicio sigue funcionando
+    return <p className="rounded-xl border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">No se pudieron cargar los últimos atendidos: {e instanceof Error ? e.message : String(e)}</p>;
+  }
+  if (atendidos.length === 0) return null;
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-center gap-2 border-b px-5 py-3">
+        <History className="size-5 text-primary" />
+        <CardTitle className="text-base">Últimos atendidos</CardTitle>
+        <span className="hidden text-xs text-muted-foreground sm:inline">· todas las empresas</span>
+        <Button variant="ghost" size="sm" className="-my-1 ml-auto" asChild><Link href="/atencion?empresas=todas#consultas">Ver 30 días</Link></Button>
+      </CardHeader>
+      <ul className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x">
+        {[atendidos.slice(0, 4), atendidos.slice(4)].map((columna, n) => (
+          <li key={n} className="divide-y">
+            {columna.map((a) => (
+              <Link key={a.id} href={`/atencion/${a.id}`} className="group flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/50">
+                <span className="hidden w-[6.5rem] shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:block">{a.cuando}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium group-hover:text-primary">{a.paciente}</span>
+                  <span className="block truncate text-xs text-muted-foreground"><span className="sm:hidden">{a.cuando} · </span>{[a.empresa, a.motivo].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ESTILO_ESTADO[a.estado])}>{ETIQUETA_ESTADO_CONSULTA[a.estado]}</span>
+              </Link>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

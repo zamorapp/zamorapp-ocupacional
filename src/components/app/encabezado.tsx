@@ -94,7 +94,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, tit
         className="ml-auto hidden h-10 w-full max-w-sm items-center gap-2 rounded-lg border bg-card px-3 text-sm text-muted-foreground transition hover:border-primary/50 md:flex"
       >
         <Search className="size-4" />
-        <span className="flex-1 text-left">Buscar trabajador, pantalla o ajuste…</span>
+        <span className="flex-1 text-left">Buscar paciente, empresa o función…</span>
         <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[11px]">Ctrl K</kbd>
       </button>
       <Button variant="ghost" size="icon" className="ml-auto md:hidden" aria-label="Buscar" onClick={abrirBuscador}>

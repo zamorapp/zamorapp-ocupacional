@@ -14,6 +14,8 @@ export const MANUAL_ACTUALIZADO = "2026-11-04";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-05", texto: "Últimos atendidos: en Inicio y al abrir el buscador (Ctrl+K) sin escribir ves las últimas consultas de todas las empresas, con hora y estado; un toque abre la consulta y «Ficha» abre al trabajador. «Ver 30 días» muestra todas las empresas aunque tengas una elegida arriba", tema: "atencion" },
+  { fecha: "2026-11-05", texto: "El buscador encuentra también empresas por su nombre y funciones por lo que quieres hacer: «nueva cita», «registrar trabajador», «reportar accidente», «rula», «vacaciones», «papelera», «respaldar ahora»", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Menú más ordenado: la barra de la izquierda tiene tres grupos (Día a día, Gestión y Ajustes) y Configuración se agrupa por tarea: Consulta, Cobros, Documentos, Seguridad y equipos, y Mantenimiento. «Servicios y precios» y la Tasa BCV se abren también desde Configuración › Cobros", tema: "atajos" },
   { fecha: "2026-11-04", texto: "Ajustes clínicos en 3 pasos: empresa, evaluación y qué se pide. «Ninguno» quita los paraclínicos de una empresa sin borrar el perfil; borrar del sistema queda aparte y con «Deshacer»", tema: "configuracion" },
   { fecha: "2026-11-04", texto: "El buscador (Ctrl+K o «Buscar») ahora encuentra pantallas, pestañas y ajustes, no solo trabajadores. Escribe «precios», «membrete», «vademécum», «respaldo» o una frase como «dónde coloco los precios» y te lleva allí", tema: "atajos" },
@@ -141,7 +143,7 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Arriba eliges la empresa activa o «Todas las empresas»; todo lo que ves se filtra por esa elección.",
       "La campanita muestra avisos nuevos (solicitudes de cita del portal, aptitudes emitidas, etc.).",
-      "El buscador de arriba (o Ctrl+K, o la tecla /) encuentra trabajadores por cédula o nombre y también te lleva a cualquier sección.",
+      "El buscador de arriba (o Ctrl+K, o la tecla /) encuentra trabajadores por cédula o nombre, empresas, funciones («nueva cita», «reportar accidente») y cualquier sección o ajuste. Sin escribir nada muestra los últimos atendidos de todas las empresas.",
       "Arriba ves lo que te toca hoy según tu rol: el médico, quiénes esperan, sus consultas por firmar y las abiertas; recepción, quiénes faltan por llegar, quiénes esperan y las solicitudes del portal; el coordinador SST, los eventos abiertos; administración, las notas por cobrar. Toca cualquier recuadro para ir directo. Los accesos rápidos también cambian según el rol.",
       "Recepción, SST y administración ven además «Exámenes por programar»: los vencidos y los que vencen pronto en todas sus empresas.",
       "En Alertas sale cada empresa con exámenes periódicos vencidos o por vencer; al tocarla se abre el reporte de Vencimientos de esa empresa, listo para agendar las citas.",

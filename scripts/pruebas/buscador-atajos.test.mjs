@@ -44,3 +44,31 @@ test("recepción no ve las pantallas de gerencia", () => {
   const admin = todo({ clinico: true, rol: "administrador" });
   for (const h of ["/configuracion/usuarios", "/configuracion/equipos", "/configuracion/clinica", "/reportes/morbilidad"]) assert.ok(admin.has(h), `admin no ve ${h}`);
 });
+
+test("encuentra funciones por lo que se hace, no solo pantallas", () => {
+  const medico = { clinico: true, rol: "administrador" };
+  assert.equal(buscarSecciones("nueva cita", medico)[0].titulo, "Nueva cita");
+  assert.equal(buscarSecciones("agendar", medico)[0].titulo, "Nueva cita");
+  assert.equal(buscarSecciones("registrar trabajador", medico)[0].titulo, "Registrar trabajador");
+  assert.equal(buscarSecciones("reportar accidente", medico)[0].titulo, "Reportar accidente");
+  assert.equal(buscarSecciones("rula", medico)[0].href, "/ergonomia");
+  assert.equal(buscarSecciones("ultimos atendidos", medico)[0].href, "/atencion?empresas=todas#consultas");
+  assert.equal(buscarSecciones("vacaciones", medico)[0].href, "/configuracion/horario");
+  assert.equal(buscarSecciones("papelera", medico)[0].href, "/configuracion/papelera");
+});
+
+test("las funciones respetan los permisos de su pantalla", () => {
+  const recepcion = todo({ clinico: false, rol: "recepcion" });
+  for (const h of ["/configuracion/papelera", "/atencion?empresas=todas#consultas"]) assert.ok(!recepcion.has(h), `recepción ve ${h}`);
+  // Ergonomía se puede mirar, pero «Nueva evaluación» es solo de quien evalúa
+  assert.ok(!buscarSecciones("rula", { clinico: false, rol: "recepcion" }).some((d) => d.titulo === "Nueva evaluación ergonómica"));
+  // La papelera es del administrador clínico; Conflictos solo existe en el escritorio
+  assert.ok(!todo({ clinico: false, rol: "administrador" }).has("/configuracion/papelera"));
+  assert.ok(!todo({ clinico: true, rol: "administrador" }).has("/conflictos"), "Conflictos aparece en la web");
+});
+
+test("los roles de ergonomía del buscador son los de la pantalla", async () => {
+  const { ROLES_ERGONOMIA } = await jiti.import("../../src/lib/ergonomia.ts");
+  const { ERGONOMIA } = await jiti.import("../../src/lib/atajos.ts");
+  assert.deepEqual([...ERGONOMIA].sort(), [...ROLES_ERGONOMIA].sort());
+});
