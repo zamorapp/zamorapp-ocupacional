@@ -126,8 +126,8 @@ export async function enviarAlTrabajador(e: EntradaWhatsAppTrabajador): Promise<
   // El número queda en la ficha solo si el médico lo pide (no bloquea el envío si falla)
   let aviso: string | undefined;
   if (e.guardarTelefono && telefonoTrabajador(trabajador.telefono) !== telefono) {
-    const { error } = await supabase.from("trabajadores").update({ telefono: e.telefono.trim() }).eq("id", trabajador.id);
-    if (error) aviso = `Enviado. El número no se guardó en la ficha: ${error.message}`;
+    const { data: guardado, error } = await supabase.from("trabajadores").update({ telefono: e.telefono.trim() }).eq("id", trabajador.id).select("id");
+    if (error || !guardado?.length) aviso = `Enviado. El número no se guardó en la ficha${error ? `: ${error.message}` : " (sin permiso para editarla)."}`;
   }
 
   const saludo = e.mensaje?.trim().slice(0, 500) || mensajeTrabajador(trabajador.nombres, sesion.organizacion, e.tipo);

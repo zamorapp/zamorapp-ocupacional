@@ -124,18 +124,25 @@ create trigger bit_enlaces_trabajador after insert or update on public.enlaces_t
   for each row execute function public.registrar_bitacora();
 
 -- Abre un enlace sin sesión (ruta /t/<token>): devuelve el PDF solo si está vigente y anota la apertura.
--- De paso borra los PDF de enlaces vencidos.
+-- Si el enlace existe pero venció o se anuló, devuelve solo el nombre y el teléfono del servicio (sin PDF) para que el
+-- trabajador sepa a quién pedírselo de nuevo. De paso borra los PDF de enlaces vencidos.
 create or replace function public.abrir_enlace_trabajador(p_token text, p_agente text default null)
-returns table (nombre text, contenido_base64 text)
+returns table (nombre text, contenido_base64 text, servicio text, telefono_servicio text)
 language plpgsql security definer set search_path = public as $$
 declare v_enlace public.enlaces_trabajador;
 begin
   delete from public.enlaces_trabajador_archivos a using public.enlaces_trabajador l where l.id = a.enlace_id and l.vence < now();
   if p_token is null or length(p_token) < 40 then return; end if;
   select * into v_enlace from public.enlaces_trabajador where token_hash = sha256(convert_to(p_token, 'UTF8'));
-  if v_enlace.id is null or v_enlace.revocado_en is not null or v_enlace.vence < now() then return; end if;
+  if v_enlace.id is null then return; end if;
+  if v_enlace.revocado_en is not null or v_enlace.vence < now() then
+    return query select null::text, null::text, o.nombre, o.telefono from public.organizaciones o where o.id = v_enlace.org_id;
+    return;
+  end if;
   insert into public.enlaces_trabajador_aperturas (enlace_id, agente) values (v_enlace.id, left(p_agente, 300));
-  return query select a.nombre, encode(a.contenido, 'base64') from public.enlaces_trabajador_archivos a where a.enlace_id = v_enlace.id;
+  return query select a.nombre, encode(a.contenido, 'base64'), o.nombre, o.telefono
+    from public.enlaces_trabajador_archivos a join public.organizaciones o on o.id = v_enlace.org_id
+   where a.enlace_id = v_enlace.id;
 end $$;
 revoke execute on function public.abrir_enlace_trabajador(text, text) from public;
 -- Pública a propósito (como abrir_enlace): el token de 32 bytes es la llave; está en la línea base del guardián

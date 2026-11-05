@@ -98,7 +98,8 @@ end $$;
 update public.enlaces_trabajador set revocado_en = now() where id = '5e000000-0000-0000-0000-000000000001';
 reset role;
 select 'anular borra el PDF de la dieta (debe 0): ' || count(*) from public.enlaces_trabajador_archivos where enlace_id = '5e000000-0000-0000-0000-000000000001';
-select 'enlace anulado ya no abre (debe 0): ' || count(*) from public.abrir_enlace_trabajador('trab-0123456789-0123456789-0123456789-dieta', null);
+select 'enlace anulado ya no abre (debe 0): ' || count(*) from public.abrir_enlace_trabajador('trab-0123456789-0123456789-0123456789-dieta', null) where contenido_base64 is not null;
+select 'pero dice a qué servicio pedírselo (debe 1): ' || count(*) from public.abrir_enlace_trabajador('trab-0123456789-0123456789-0123456789-dieta', null) where servicio = 'Org';
 -- La consulta firmada se reabre: el récipe enviado se anula solo
 update clinico.consultas set estado = 'cerrada' where id = '4c000000-0000-0000-0000-00000000000a';
 select 'reabrir la consulta anula el récipe enviado (debe 1): ' || count(*) from public.enlaces_trabajador where id = '5e000000-0000-0000-0000-000000000002' and revocado_en is not null;

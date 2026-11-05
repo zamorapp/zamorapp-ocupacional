@@ -73,7 +73,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   return (
     <Dialog open={abierto} onOpenChange={abrir}>
       <DialogTrigger asChild>
-        <Button variant="outline" data-accion="whatsapp-trabajador"><MessageCircle /> WhatsApp al trabajador</Button>
+        <Button variant="outline" data-accion="whatsapp-trabajador" aria-label="WhatsApp al trabajador" title="WhatsApp al trabajador"><MessageCircle /> <span className="hidden sm:inline">WhatsApp al trabajador</span></Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
