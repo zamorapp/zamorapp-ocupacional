@@ -88,6 +88,11 @@ for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
   const cargo = /Gerente general/.test(html), prenatal = />Prenatal<\/td><td[^>]*>2</.test(html); // fila de Almacén en dependencia × motivo (2 consultas)
   filas.push(`${"vigilancia cargo".padEnd(20)} ${caso.padEnd(7)} ${cargo ? "nombra cargo chico" : "no nombra cargo chico"} · ${prenatal ? "nombra prenatal" : "no nombra prenatal"}`);
   if (cargo !== debe || prenatal !== debe) fallas.push(`vigilancia (${caso}): cargo de 1 caso o motivo prenatal ${debe ? "deben salir en la copia del médico" : "no deben salir en la copia de la empresa"}`);
+  // Art. 34 con cifras exactas en ambas copias (Cesar, 05-nov): 2 enfermedades ocupacionales nunca salen como «<3»
+  const art34 = html.replace(/<!-- -->/g, "").match(/id="s-art34"[\s\S]*?<\/table>/)?.[0] ?? "";
+  const exacto = />Enfermedades ocupacionales<\/td><td[^>]*>2</.test(art34) && !/&lt;3/.test(art34);
+  filas.push(`${"vigilancia art. 34".padEnd(20)} ${caso.padEnd(7)} ${exacto ? "cifras exactas" : "cifras ocultas"}`);
+  if (!exacto) fallas.push(`vigilancia (${caso}): el resumen del art. 34 debe ir con cifras exactas`);
   for (const cuadro of ["Morbilidad por dependencia y motivo de consulta", "Consultas por motivo · todos los motivos", "Morbilidad por aparatos y sistemas · todos", "Diez primeras causas de morbilidad por cargo"]) {
     if (!html.replace(/<!-- -->/g, "").includes(cuadro)) fallas.push(`vigilancia (${caso}): falta el cuadro «${cuadro}»`);
   }

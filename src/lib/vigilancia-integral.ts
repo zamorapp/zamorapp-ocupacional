@@ -225,8 +225,8 @@ export function analisisCuadros(d: DatosAnalisis, h: Herramientas) {
     const ceros = filas.filter(([, n]) => !n).map(([k]) => minus(k));
     const mayor = [...filas].sort((a, b) => b[1] - a[1])[0];
     const f = [elige([
-      `En el resumen del artículo 34 destaca «${mayor[0].toLowerCase()}» con ${cuenta(mayor[1])}.`,
-      `El concepto con más eventos del artículo 34 es «${mayor[0].toLowerCase()}» (${cuenta(mayor[1])}).`,
+      `En el resumen del artículo 34 destaca «${mayor[0].toLowerCase()}» con ${n0(mayor[1])}.`,
+      `El concepto con más eventos del artículo 34 es «${mayor[0].toLowerCase()}» (${n0(mayor[1])}).`,
     ])];
     if (ceros.length) f.push(`Sin registros en: ${unir(ceros)}.`);
     const laborales = (filas[1][1] ?? 0) + (filas[3][1] ?? 0);
