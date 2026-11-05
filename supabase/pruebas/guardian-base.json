@@ -5,6 +5,7 @@
   ],
   "anon": [
     "public.abrir_enlace(p_token text, p_agente text)",
+    "public.abrir_enlace_trabajador(p_token text, p_agente text)",
     "public.ahora()",
     "public.ahora_de_la_puerta()",
     "public.ahora_verificada()",
@@ -14,7 +15,6 @@
     "public.consulta_abierta(p_consulta uuid)",
     "public.correo_para_ingreso(p_usuario text, p_clave text)",
     "public.correos_propuestas_por_enviar(p_clave text)",
-    "public.resultado_correo_propuesta(p_clave text, p_citas uuid[], p_ok boolean, p_error text, p_definitivo boolean)",
     "public.depurar_nomina(p_empresa uuid, p_desde date, p_aplicar boolean)",
     "public.dias_equipo_confianza()",
     "public.dos_pasos_cumplido()",
@@ -35,6 +35,7 @@
     "public.puede_enviar(p_org uuid)",
     "public.quitar_suscripcion_vencida_clave(p_endpoint text, p_clave text)",
     "public.requiere_dos_pasos()",
+    "public.resultado_correo_propuesta(p_clave text, p_citas uuid[], p_ok boolean, p_error text, p_definitivo boolean)",
     "public.resumen_panel(p_empresa uuid)",
     "public.rol_centinela(p_rol rol_usuario)",
     "public.ruta_solicitud_visible(p_ruta text, p_servicio boolean)",
