@@ -25,6 +25,9 @@ function useGuardarCambio() {
   };
 }
 
+// Las señales de urgencia («Urgencia: …», «Acudir de inmediato…») se leen de un vistazo: en rojo, negrita y con «!»
+const esUrgencia = (texto: string) => /^(urgencia\b|acudir de inmediato)/i.test(texto.trim());
+
 const vacio = "outline-none focus:bg-amber-50 empty:before:text-[#9aa7a4] empty:before:content-['Escriba_aquí…'] print:empty:before:content-none";
 
 // Texto suelto de la hoja que el médico puede cambiar tocándolo
@@ -63,8 +66,8 @@ export function ListaEditable({ id, items, className = "", columnas }: { id: str
     <div data-lista={id}>
       <ul className={`${columnas ? "columns-2 gap-5" : "space-y-0.5"} ${className}`}>
         {lista.map((x) => (
-          <li key={x.n} className="group relative mb-0.5 break-inside-avoid pl-2.5 pr-4 -indent-2.5 print:pr-0">
-            •{" "}
+          <li key={x.n} className={`group relative mb-0.5 break-inside-avoid pl-2.5 pr-4 -indent-2.5 print:pr-0 ${esUrgencia(x.texto) ? "font-bold text-[#b42318]" : ""}`}>
+            {esUrgencia(x.texto) ? "!" : "•"}{" "}
             {/* key con el texto: al guardarse se vuelve a montar limpio (React no pelea con lo que el navegador editó) */}
             <span
               key={x.texto}
