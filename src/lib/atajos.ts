@@ -58,6 +58,10 @@ const FACTURACION: Atajo[] = [
 
 const CONFIGURACION: Atajo[] = [
   { href: "/configuracion/organizacion", titulo: "Organización y documentos", donde: "Configuración", icono: Settings, palabras: "membrete rif direccion telefono logo encabezado datos del servicio titulos notas palabra aptitud", roles: GERENCIA },
+  { href: "/configuracion/organizacion?paso=documentos", titulo: "Textos de los documentos impresos", donde: "Configuración › Organización", icono: Settings, palabras: "titulo constancia nota idoneidad pie reposo original copia certificado de salud orden de examenes ayuno firma sello trabajador copia constancia vih riesgos del puesto", roles: GERENCIA },
+  { href: "/configuracion/organizacion?paso=plazos", titulo: "Plazos y avisos", donde: "Configuración › Organización", icono: Settings, palabras: "vigencia examen periodico meses recordatorio resultados pendientes plazos legales inpsasel correo centinela fecha futura", roles: GERENCIA },
+  { href: "/configuracion/organizacion?paso=privacidad", titulo: "Seguridad y privacidad", donde: "Configuración › Organización", icono: Settings, palabras: "codigo dos pasos equipo de confianza cifras pequenas ocultar vigilancia empresa privacidad", roles: GERENCIA },
+  { href: "/configuracion/organizacion?paso=mensajes", titulo: "Mensajes de WhatsApp y correo", donde: "Configuración › Organización", icono: Settings, palabras: "mensaje whatsapp recordatorio de cita resultado aptitud invitacion rrhh quien invita plantilla texto", roles: GERENCIA },
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", donde: "Configuración", icono: Settings, palabras: "firma sello cedula mpps colegio medicos inpsasel avisos celular notificaciones" },
   { href: "/configuracion/ingreso", titulo: "Ingreso y seguridad", donde: "Configuración", icono: Settings, palabras: "huella windows hello dos pasos codigo clave contraseña pin" },
   { href: "/configuracion/usuarios", titulo: "Usuarios y roles", donde: "Configuración", icono: Settings, palabras: "permisos acceso enfermera secretaria recepcion invitar rrhh", roles: GERENCIA },
