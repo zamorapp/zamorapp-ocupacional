@@ -262,7 +262,7 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
           <CondicionesPago defecto={a.cobro_condiciones ?? CONDICION_PAGO_BCV} />
           <CampoTexto id="cobro_datos_pago" etiqueta="Datos para el pago (cuentas y pago móvil; una por línea)" rows={12} className="sm:col-span-2" defaultValue={a.cobro_datos_pago ?? ""}
             placeholder={"Titular: Nombre · C.I. V-…\nCuentas bancarias:\nMercantil · Cta. corriente 0105-…\nPago móvil:\nC.I. … · Tel. …\n0102 · Venezuela\nBinance:\nID · …"} />
-          <p className="-mt-1 text-xs text-muted-foreground sm:col-span-2">Una línea que termina en «:» abre un recuadro (Cuentas bancarias:, Pago móvil:, Binance:). Lo que va antes de « · » sale en negrita.</p>
+          <p className="-mt-1 text-xs text-muted-foreground sm:col-span-2">Una línea que termina en «:» abre un recuadro (Cuentas bancarias:, Pago móvil:, Binance:). Lo que va antes de « · » sale en negrita. «- Bancos:» pone un subtítulo dentro del recuadro.</p>
           <p className="pt-1 text-sm font-medium sm:col-span-2">Factura del talonario</p>
           <div className="sm:col-span-2">
             <CampoTexto id="factura_datos_pago" etiqueta="Datos para el pago en la factura (una cuenta por línea)" rows={3} defaultValue={a.factura_datos_pago ?? ""} />
