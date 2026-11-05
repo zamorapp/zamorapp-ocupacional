@@ -4,8 +4,8 @@ import { Marca } from "../componentes";
 // Cifras grandes en tres bloques (accidentes, enfermedades y atención, reposos), todo en el color de la marca:
 // es información para los trabajadores, no una alarma. Sin fondos sólidos (rinde el tóner, se lee en blanco y negro).
 // Solo cifras agregadas: nada identifica a nadie. Logo: el de la organización (Configuración), o sus iniciales.
-// minimo: en la versión que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo», igual que en el cuadro
-export function Cartelera({ id, filas, empresa, rif, titulo, subtitulo, desde, hasta, poblacion, org, logo, minimo = 0 }: {
+// Cifras exactas siempre, también en la copia de la empresa (Cesar, 05-nov: «sí cifras exactas»); no nombra diagnósticos
+export function Cartelera({ id, filas, empresa, rif, titulo, subtitulo, desde, hasta, poblacion, org, logo }: {
   id: string;
   filas: [string, number][];
   empresa: string;
@@ -17,7 +17,6 @@ export function Cartelera({ id, filas, empresa, rif, titulo, subtitulo, desde, h
   poblacion: number;
   org: string | null;
   logo: string | null;
-  minimo?: number;
 }) {
   // filasArt34: 0-1 accidentes, 2-3 enfermedades, 4 referencias, 5-8 reposos
   const bloques: [string, [string, number][]][] = [
@@ -55,7 +54,7 @@ export function Cartelera({ id, filas, empresa, rif, titulo, subtitulo, desde, h
             <div className={`grid gap-3 ${lista.length === 4 ? "grid-cols-4" : lista.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
               {lista.map(([concepto, n]) => (
                 <div key={concepto} className="flex flex-col items-center justify-center rounded-[10px] border border-doc-linea px-2 py-3 text-center">
-                  <div className={`font-cifra text-[50px] font-semibold leading-none tabular-nums ${n ? "text-doc-acento" : "text-doc-tenue"}`}>{minimo && n > 0 && n < minimo ? `<${minimo}` : n.toLocaleString("es-VE")}</div>
+                  <div className={`font-cifra text-[50px] font-semibold leading-none tabular-nums ${n ? "text-doc-acento" : "text-doc-tenue"}`}>{n.toLocaleString("es-VE")}</div>
                   <div className="mt-2 text-[13px] font-bold leading-tight">{concepto.replace(/^Reposos por /, "Por ")}</div>
                 </div>
               ))}
