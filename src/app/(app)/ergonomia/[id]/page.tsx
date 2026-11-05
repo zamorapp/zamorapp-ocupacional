@@ -26,7 +26,9 @@ export default async function EvaluacionErgonomica({ params }: { params: Promise
         <p className="text-sm text-muted-foreground">{ev.empresa} · {NOMBRE_METODO[ev.metodo]}</p>
       </div>
       {!sesion.demo && sesion.rol === "administrador" && sesion.clinico && (
-        <BotonEliminar tipo="ergonomia" id={ev.id} nombre={`la evaluación de «${ev.puesto}»`} destino="/ergonomia" volver={`/ergonomia/${ev.id}`} />
+        <div className="flex basis-full justify-end sm:ml-auto sm:basis-auto">
+          <BotonEliminar tipo="ergonomia" id={ev.id} nombre={`la evaluación de «${ev.puesto}»`} destino="/ergonomia" volver={`/ergonomia/${ev.id}`} />
+        </div>
       )}
       </div>
       <EditorErgonomia ev={ev} orgId={sesion.orgId ?? ""} demo={sesion.demo} puedeEditar={puedeEditar} puedeReabrir={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />

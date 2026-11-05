@@ -66,7 +66,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita, e
                 </label>
               ) : n.firmadaEn && <span className="flex items-center gap-1 text-xs text-ok-texto"><CheckCircle2 className="size-3.5" /> Firmada</span>}
               <Button variant="ghost" size="sm" onClick={() => imprimir([n.id])}><Printer /> Imprimir</Button>
-              {elimina && <BotonEliminar tipo="notificacion_riesgo" id={n.id} nombre={`la notificación del ${fecha(n.entregadaEn)} (${n.puesto})`} variant="ghost" size="icon" className="size-8" />}
+              {elimina && <BotonEliminar tipo="notificacion_riesgo" id={n.id} nombre={`la notificación del ${fecha(n.entregadaEn)} (${n.puesto})`} size="icon" className="ml-auto size-10 sm:ml-0 sm:size-8" />}
             </li>
           ))}
         </ul>

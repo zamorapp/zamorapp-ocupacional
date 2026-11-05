@@ -34,9 +34,8 @@ export default async function Papelera() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Papelera</h1>
         <p className="text-muted-foreground">
-          Consultas, trabajadores, accidentes, investigaciones, ergonomía, informes y notificaciones eliminados por el administrador,
-          con el motivo. «Restaurar» los devuelve idénticos: misma firma, mismo número de historia y unidos otra vez a sus reposos,
-          citas y cobros. Nada se borra de aquí por sí solo.
+          Todo lo que el administrador eliminó, con su motivo. «Restaurar» lo devuelve idéntico y unido otra vez a lo que tenía.
+          Nada se borra de aquí por sí solo.
         </p>
       </div>
       {!puede ? (

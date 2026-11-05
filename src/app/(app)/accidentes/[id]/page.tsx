@@ -27,9 +27,13 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
         <Link href="/accidentes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Accidentes y enfermedades
         </Link>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild><Link href={`/imprimir/evento/${id}`} target="_blank"><Printer /> Imprimir declaración</Link></Button>
-          {admin && <BotonEliminar tipo="evento" id={id} nombre={`el registro #${evento.numero}${evento.trabajador ? ` de ${evento.trabajador}` : ""}`} destino="/accidentes" volver={`/accidentes/${id}`} size="default" />}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" asChild><Link href={`/imprimir/evento/${id}`} target="_blank"><Printer /> Imprimir declaración</Link></Button>
+        {admin && (
+          <div className="flex basis-full justify-end sm:basis-auto">
+            <BotonEliminar tipo="evento" id={id} nombre={`el registro #${evento.numero}${evento.trabajador ? ` de ${evento.trabajador}` : ""}`} destino="/accidentes" volver={`/accidentes/${id}`} />
+          </div>
+        )}
         </div>
       </div>
       <EditorEvento inicial={evento} listas={listas} />
