@@ -1,17 +1,21 @@
 // Documentos personales que el servicio médico manda al teléfono del trabajador por WhatsApp (enlace /t/<token>, 7 días).
 // Lo usan la barra de impresión (cliente) y la acción del servidor; la base repite las mismas reglas
-// (migración 20261030891000_enlaces_trabajador.sql).
+// (migraciones 20261030891000_enlaces_trabajador.sql y 20261030896000_enlaces_trabajador_paquete.sql).
+// Un envío = un enlace con los documentos que el médico marca. Los clínicos (clinico: true) exigen la consulta firmada y
+// piden al abrirlos los 4 últimos dígitos de la cédula; las hojas educativas no.
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
 
 export const DOCS_TRABAJADOR = {
-  recipe: { nombre: "récipe e indicaciones", firmada: true },
-  orden: { nombre: "orden de exámenes", firmada: true },
-  referencia: { nombre: "referencia médica", firmada: true },
-  "informe-trabajador": { nombre: "informe médico", firmada: true },
-  atencion: { nombre: "constancia de atención médica", firmada: true },
-  "control-ta": { nombre: "hoja de control de la tensión arterial", firmada: false },
-  dieta: { nombre: "plan de alimentación", firmada: false },
-  bienestar: { nombre: "hoja de bienestar y pausas activas", firmada: false },
+  recipe: { nombre: "récipe e indicaciones", corto: "Tratamiento (récipe)", clinico: true },
+  "informe-trabajador": { nombre: "informe médico", corto: "Informe médico", clinico: true },
+  constancia: { nombre: "constancia de aptitud", corto: "Constancia de aptitud", clinico: true },
+  atencion: { nombre: "constancia de atención médica", corto: "Constancia de atención", clinico: true },
+  reposo: { nombre: "reposo médico", corto: "Reposo médico", clinico: true },
+  orden: { nombre: "orden de exámenes", corto: "Orden de exámenes", clinico: true },
+  referencia: { nombre: "referencia médica", corto: "Referencia", clinico: true },
+  "control-ta": { nombre: "hoja de control de la tensión arterial", corto: "Control de tensión", clinico: false },
+  dieta: { nombre: "plan de alimentación", corto: "Plan de alimentación", clinico: false },
+  bienestar: { nombre: "hoja de bienestar y pausas activas", corto: "Bienestar y pausas activas", clinico: false },
 } as const;
 export type DocTrabajador = keyof typeof DOCS_TRABAJADOR;
 export const esDocTrabajador = (t: string): t is DocTrabajador => Object.hasOwn(DOCS_TRABAJADOR, t);
@@ -51,13 +55,22 @@ export function telefonoTrabajador(t: string | null | undefined): string | null 
 
 export const mostrarTelefono = (d: string) => (d.startsWith("58") && d.length === 12 ? `0${d.slice(2, 5)}-${d.slice(5)}` : `+${d}`);
 
-export function mensajeTrabajador(nombre: string, servicio: string, doc: DocTrabajador) {
+const enLista = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+export function mensajeTrabajador(nombre: string, servicio: string, docs: DocTrabajador[]) {
   const primerNombre = nombre.trim().split(/\s+/)[0] ?? "";
-  return `Hola ${primerNombre}, ${servicio} te envía tu ${DOCS_TRABAJADOR[doc].nombre}. Ábrelo y guárdalo en tu teléfono (el enlace dura ${DIAS_ENLACE_TRABAJADOR} días):`;
+  const cedula = docs.some((d) => DOCS_TRABAJADOR[d].clinico) ? " Para abrir los documentos médicos te pedirá los 4 últimos dígitos de tu cédula." : "";
+  const que = docs.length === 1 ? `tu ${DOCS_TRABAJADOR[docs[0]].nombre}` : `tus documentos: ${enLista(docs.map((d) => DOCS_TRABAJADOR[d].nombre))}`;
+  return `Hola ${primerNombre}, ${servicio} te envía ${que}. Ábrelos y guárdalos en tu teléfono (el enlace dura ${DIAS_ENLACE_TRABAJADOR} días).${cedula}`;
 }
+
+// Opciones que el médico eligió en cada hoja de esta consulta (esquemas de dieta, temas, cambios ?c=…): la página de
+// impresión las recuerda en este navegador para que, al enviar varios documentos juntos, cada uno salga como lo dejó.
+export const claveOpciones = (consultaId: string, tipo: string) => `zamorapp:hoja:${consultaId}:${tipo}`;
 
 export type EnlaceEnviado = {
   id: string;
+  paquete: string | null;
   documento: DocTrabajador;
   telefono: string;
   creado: string;
@@ -65,4 +78,8 @@ export type EnlaceEnviado = {
   anulado: boolean;
   aperturas: number;
   conCambios: boolean;
+  fallos: number;
 };
+
+// Envío agrupado (un enlace con uno o más documentos)
+export type EnvioTrabajador = { paquete: string; telefono: string; creado: string; vence: string; docs: EnlaceEnviado[] };
