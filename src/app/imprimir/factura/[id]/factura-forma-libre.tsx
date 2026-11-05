@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, Loader2, Ruler, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Loader2, Ruler, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Cobro, totales } from "@/lib/facturacion-tipos";
@@ -19,6 +19,7 @@ type Ajuste = { arriba: number; izquierda: number };
 
 const num = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fecha = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-VE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
 
 type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
 
@@ -79,7 +80,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   }, [renglones, numero, emision, direccion]);
 
   const guardarNumero = () => {
-    if (!editable || numero.trim() === guardado) return;
+    if (!editable || !numero.trim() || numero.trim() === guardado) return;
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, numero);
       setAviso(r);
@@ -87,7 +88,17 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     });
   };
 
+  // Al imprimir (navegador o escritorio) se guarda el número aunque no se haya salido del campo
+  const guardarAntes = useRef(guardarNumero);
+  guardarAntes.current = guardarNumero;
+  useEffect(() => {
+    const antes = () => guardarAntes.current();
+    window.addEventListener("beforeprint", antes);
+    return () => window.removeEventListener("beforeprint", antes);
+  }, []);
+
   const sinNumero = !numero.trim();
+  const propuesto = !guardado && numero.trim() === sugerido && !!sugerido;
   return (
     <div className="min-h-dvh bg-neutral-100 print:min-h-0 print:bg-white">
       <BarraImpresion
@@ -99,26 +110,39 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_minmax(0,1fr)]">
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Nº de factura (talonario)</span>
-            <Input value={numero} inputMode="numeric" placeholder="000123" disabled={!editable} onChange={(e) => setNumero(e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} className="font-mono" />
+            <Input value={numero} inputMode="numeric" placeholder="000123" disabled={!editable} onChange={(e) => setNumero(e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} className="font-mono text-foreground disabled:opacity-100" />
+            <span className="block text-xs text-muted-foreground">{propuesto ? "Propuesto: el siguiente del talonario" : guardado && numero.trim() === guardado ? "Guardado en la nota de cobro" : numero.trim() ? "Se guarda al salir del campo o al imprimir" : "\u00a0"}</span>
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Fecha de emisión</span>
             <Input type="date" value={emision} onChange={(e) => setEmision(e.target.value || c.fecha)} />
+            <span className="block text-xs text-muted-foreground">{fechaEnLetras(emision)}</span>
           </label>
-          <div className="flex flex-col justify-end gap-1.5">
+          <div className="flex flex-col justify-start gap-1.5 pt-5">
             <label className="flex items-center gap-2"><input type="checkbox" checked={detallar} onChange={(e) => setDetallar(e.target.checked)} /> Un renglón por trabajador (sin agrupar)</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={guia} onChange={(e) => setGuia(e.target.checked)} /> <Ruler className="size-4 text-muted-foreground" /> Hoja de prueba: imprime la franja en papel blanco para calibrar</label>
           </div>
+          <details className="group sm:col-span-3" open={ajuste.arriba !== 0 || ajuste.izquierda !== 0 || guia}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              <Ruler className="size-4" /> Ajustar a mi impresora (mm)
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-1.5">Bajar <Input type="number" step="0.5" min={-20} max={20} value={ajuste.arriba} onChange={(e) => mover("arriba", Number(e.target.value))} className="h-8 w-20" /> mm</label>
+                <label className="flex items-center gap-1.5">A la derecha <Input type="number" step="0.5" min={-20} max={20} value={ajuste.izquierda} onChange={(e) => mover("izquierda", Number(e.target.value))} className="h-8 w-20" /> mm</label>
+                {(ajuste.arriba !== 0 || ajuste.izquierda !== 0) && <Button size="sm" variant="ghost" onClick={() => { setAjuste({ arriba: 0, izquierda: 0 }); try { localStorage.removeItem(CLAVE); } catch {} }}>Volver a 0</Button>}
+              </div>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={guia} onChange={(e) => setGuia(e.target.checked)} /> Hoja de prueba: imprime la franja en papel blanco para calibrar</label>
+              <p className="text-xs text-muted-foreground">Se guarda en este equipo. Papel «Media carta» u hoja personalizada de 20,6 × 14,6 cm, horizontal, escala 100 % y sin encabezados. Pon la hoja de prueba sobre una del talonario a contraluz y corrige aquí si quedó corrida.</p>
+            </div>
+          </details>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <span className="text-muted-foreground">Corrimiento de esta impresora (mm):</span>
-          <label className="flex items-center gap-1.5">Bajar <Input type="number" step="0.5" min={-20} max={20} value={ajuste.arriba} onChange={(e) => mover("arriba", Number(e.target.value))} className="h-8 w-20" /></label>
-          <label className="flex items-center gap-1.5">A la derecha <Input type="number" step="0.5" min={-20} max={20} value={ajuste.izquierda} onChange={(e) => mover("izquierda", Number(e.target.value))} className="h-8 w-20" /></label>
-          {(ajuste.arriba !== 0 || ajuste.izquierda !== 0) && <Button size="sm" variant="ghost" onClick={() => { setAjuste({ arriba: 0, izquierda: 0 }); try { localStorage.removeItem(CLAVE); } catch {} }}>Volver a 0</Button>}
-          {ocupado && <Loader2 className="size-4 animate-spin" />}
-          {aviso && <span className={aviso.ok ? "inline-flex items-center gap-1 text-ok-texto" : "text-destructive"}>{aviso.ok && <Check className="size-4" />}{aviso.mensaje}</span>}
-        </div>
-        <p className="text-xs text-muted-foreground">Al imprimir: papel «Media carta» u hoja personalizada de 20,6 × 14,6 cm, horizontal, escala 100 % y sin encabezados. La primera vez usa «Hoja de prueba» en papel blanco, ponla sobre una hoja del talonario a contraluz y corrige aquí si hace falta.</p>
+        {(ocupado || aviso) && (
+          <p className="flex items-center gap-1.5 text-sm">
+            {ocupado && <Loader2 className="size-4 animate-spin" />}
+            {aviso && <span className={aviso.ok ? "inline-flex items-center gap-1 text-ok-texto" : "text-destructive"}>{aviso.ok && <Check className="size-4" />}{aviso.mensaje}</span>}
+          </p>
+        )}
         {sinNumero && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Escribe el número de la factura del talonario para poder imprimir.</p>}
         {desborde && (
           <p className="flex items-start gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
@@ -130,6 +154,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
       </div>
 
       {/* La hoja del talonario: en pantalla se dibujan en gris el membrete y la leyenda preimpresos (no se imprimen) */}
+      <div className="overflow-x-auto px-4 print:overflow-visible print:px-0">
       <section className="relative mx-auto mb-8 h-[146mm] w-[206mm] overflow-hidden bg-white font-doc text-[#111] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] [page:formalibre] print:m-0 print:h-[145.5mm] print:shadow-none">
         <div aria-hidden className="pointer-events-none absolute inset-x-[10mm] top-0 h-[30mm] border-b-2 border-dashed border-sky-300 print:hidden">
           <span className="absolute bottom-1 left-0 text-[10px] uppercase tracking-wide text-sky-400">Membrete preimpreso</span>
@@ -147,12 +172,12 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               <div className="text-[13px] font-bold tracking-wide">FACTURA</div>
               <div className="flex items-baseline gap-5">
                 <span>Nº <b className="font-mono text-[13px]">{numero || "______"}</b></span>
-                <span>Fecha de emisión: <b className="font-mono">{fecha(emision)}</b></span>
+                <span>Fecha de emisión: <b>{fecha(emision)}</b></span>
               </div>
             </div>
             <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 border-y border-neutral-500 py-1">
               <div className="truncate"><span className="text-neutral-600">Nombre o razón social:</span> <b>{c.empresa}</b></div>
-              <div><span className="text-neutral-600">RIF:</span> <b className="font-mono">{c.rif}</b></div>
+              <div><span className="text-neutral-600">RIF:</span> <b>{c.rif}</b></div>
               <div className="truncate"><span className="text-neutral-600">Domicilio fiscal:</span> {direccion || "—"}</div>
               <div>{telefono && <><span className="text-neutral-600">Teléfono:</span> {telefono}</>}</div>
               {c.desde && <div className="col-span-2"><span className="text-neutral-600">Periodo:</span> del {fecha(c.desde)} al {fecha(c.hasta ?? c.desde)}</div>}
@@ -169,7 +194,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               <tbody>
                 {renglones.map((r, k) => (
                   <tr key={k} className="border-b border-neutral-200 align-top">
-                    <td className="py-[1px] pr-2 text-right font-mono tabular-nums">{r.cantidad}</td>
+                    <td className="py-[1px] pr-2 text-right tabular-nums">{r.cantidad}</td>
                     <td className="py-[1px]">{r.descripcion}{r.detalle && <span className="text-neutral-600"> · {r.detalle}</span>}{c.ivaPct === 0 && " (E)"}</td>
                     <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.precio))}</td>
                     <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.cantidad * r.precio))}</td>
@@ -193,6 +218,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 }

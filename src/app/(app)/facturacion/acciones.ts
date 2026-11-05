@@ -172,8 +172,11 @@ export async function guardarNumeroFactura(id: string, numero: string): Promise<
     const { data: otra } = await c.supabase.from("cobros").select("numero").eq("numero_factura_fiscal", n).neq("id", id).limit(1).maybeSingle();
     if (otra) return { ok: false, mensaje: `La factura Nº ${n} ya está en la nota de cobro #${otra.numero}.` };
   }
-  const { error } = await c.supabase.from("cobros").update({ numero_factura_fiscal: n || null }).eq("id", id).eq("tipo", "cobro");
+  // El cambio (número anterior y nuevo) queda en la bitácora por el disparador bit_cobros (antes/despues completos)
+  const { data: filas, error } = await c.supabase.from("cobros").update({ numero_factura_fiscal: n || null }).eq("id", id).eq("tipo", "cobro").select("id");
   if (error) return { ok: false, mensaje: error.message };
+  // Con RLS un update sin permiso no falla: simplemente no toca filas
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó el número: la nota no existe o tu rol no puede cambiarla." };
   revalidatePath("/facturacion");
   return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado." };
 }
