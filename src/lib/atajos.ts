@@ -50,6 +50,7 @@ const CONFIGURACION: Atajo[] = [
   { href: "/configuracion/perfil", titulo: "Mi perfil profesional", donde: "Configuración", icono: Settings, palabras: "firma sello cedula mpps colegio medicos inpsasel avisos celular notificaciones" },
   { href: "/configuracion/ingreso", titulo: "Ingreso y seguridad", donde: "Configuración", icono: Settings, palabras: "huella windows hello dos pasos codigo clave contraseña pin" },
   { href: "/configuracion/usuarios", titulo: "Usuarios y roles", donde: "Configuración", icono: Settings, palabras: "permisos acceso enfermera secretaria recepcion invitar rrhh", roles: GERENCIA },
+  { href: "/configuracion/papelera", titulo: "Papelera (eliminados)", donde: "Configuración", icono: Settings, palabras: "borrar eliminar eliminados restaurar recuperar deshacer duplicada duplicado consulta informe", puede: (o) => o.rol === "administrador" && Boolean(o.clinico) },
   { href: "/configuracion/listas", titulo: "Listas configurables", donde: "Configuración", icono: Settings, palabras: "maestros catalogos opciones valores" },
   { href: "/configuracion/clinica", titulo: "Ajustes clínicos", donde: "Configuración", icono: Settings, palabras: "precarga plantilla motivo perfil paraclinicos empresa recomendaciones examenes", puede: (o) => Boolean(o.clinico) || GERENCIA.includes(o.rol ?? "") },
   { href: "/configuracion/plantillas", titulo: "Plantillas de examen", donde: "Configuración", icono: Settings, palabras: "examen fisico normal texto predeterminado", clinico: true },

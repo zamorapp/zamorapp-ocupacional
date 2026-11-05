@@ -15,6 +15,7 @@ import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
 import { datosPortada } from "@/lib/firmantes";
 import { EditorInforme } from "./editor-informe";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { ExploradorCausas } from "./explorador-causas";
 import { SelectorPeriodo } from "./selector-periodo";
 
@@ -220,6 +221,11 @@ export default async function Reportes({ searchParams }: Props) {
                   hoy={hoyCaracas()}
                   empresa={v.empresa && { id: v.empresa.id, datos: datosPortada(v.empresa, r.poblacion) }}
                 />
+                {v.informe?.id && !sesion.demo && sesion.rol === "administrador" && sesion.clinico && (
+                  <div className="mt-4 flex justify-end border-t pt-3">
+                    <BotonEliminar tipo="informe_vigilancia" id={v.informe.id} nombre={`el informe guardado de ${periodo.etiqueta}`} variant="ghost">Eliminar informe guardado</BotonEliminar>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

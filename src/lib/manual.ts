@@ -448,6 +448,7 @@ export const MANUAL: TemaManual[] = [
       "Mis diagnósticos: agrega tus diagnósticos con su código CIE-10 (ej. «Hernia umbilical mínima» → K42.9). Salen primero en el buscador de la consulta, marcados «Mío».",
       "Medicinas: al agregar o editar una, escribe su indicación una línea por campo (concentracion, presentacion, via, dosis, frecuencia, duracion, observacion); se llena sola al elegirla en la consulta.",
       "En las listas largas usa el buscador de arriba para encontrar un elemento.",
+      "Eliminar y Papelera (solo el administrador con acceso clínico): consultas, trabajadores, accidentes y enfermedades, investigaciones, evaluaciones de ergonomía (aunque estén cerradas), informes de vigilancia guardados y notificaciones de riesgos tienen «Eliminar». Antes de confirmar dice qué se va con él; pide el motivo (queda en la auditoría) y, si está firmado o cerrado, que escribas ELIMINAR. Nada se pierde: «Deshacer» aparece arriba al momento y Configuración › Papelera lo «Restaura» idéntico. Para corregir algo firmado o cerrado usa «Corregir» o «Reabrir», no Eliminar. Necesita internet.",
       "Auditoría (administrador, gerente médico y auditor): día por día, quién abrió cada historia clínica y qué se creó, cambió o borró, y desde qué equipo. Filtra por Accesos o Cambios. No se puede editar ni borrar.",
       "Equipos (administrador): las PC con zamorApp para escritorio, su serie y su última sincronía. «Revocar» corta a una PC perdida o dada de baja; «Reactivar» la devuelve.",
     ],
