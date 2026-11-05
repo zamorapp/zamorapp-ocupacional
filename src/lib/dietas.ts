@@ -6,7 +6,7 @@ import { PLAN_BASE } from "./indicaciones-preventivas";
 
 export type Icono =
   | "verduras" | "pescado" | "fruta" | "agua" | "sal" | "refresco" | "arepa" | "huevo"
-  | "rinon" | "reloj" | "balanza" | "aceite" | "granos" | "leche" | "caminar" | "azucar";
+  | "rinon" | "reloj" | "balanza" | "aceite" | "granos" | "leche" | "caminar" | "azucar" | "corazon";
 
 export type Destacado = { icono: Icono; texto: string; no?: boolean };
 export type ParteDelPlato = { parte: string; color: string; texto: string; ejemplo: string };
@@ -25,6 +25,8 @@ export type Dieta = {
   ejemplo: Comida[];
   habitos: string[];
   fuentes: string;
+  // Indicaciones sumables (PLANES) que esta dieta ya trae completas: no se ofrecen ni se imprimen dos veces
+  incluye?: string[];
 };
 
 const VERDE = "#cfe7d6";
@@ -95,6 +97,60 @@ export const DIETAS: Dieta[] = [
       "No suspender los medicamentos aunque la tensión esté normal.",
     ],
     fuentes: "NHLBI, plan de alimentación DASH. McEvoy JW y cols., Guía ESC 2024 de presión arterial elevada e hipertensión, Eur Heart J 2024;45:3912. OMS, Directriz sobre la ingesta de sodio (2012, actualizada 2023).",
+  },
+  {
+    clave: "cardio",
+    boton: "Cardiopatía",
+    incluye: ["lipidos"],
+    titulo: "Dieta para el corazón (cardiopatías)",
+    intro: "Plan para cuidar el corazón (enfermedad coronaria, insuficiencia cardíaca, arritmias): poca sal, grasas buenas en lugar de saturadas y líquidos medidos si el médico lo indica.",
+    plato: [
+      { parte: "1/2", color: VERDE, texto: "Verduras y hortalizas", ejemplo: "ensalada, brócoli, auyama, berenjena, vainitas, tomate" },
+      { parte: "1/4", color: NARANJA, texto: "Proteínas", ejemplo: "pescado azul, pollo sin piel, clara de huevo, granos" },
+      { parte: "1/4", color: AMARILLO, texto: "Carbohidratos integrales", ejemplo: "avena, arroz integral, granos, víveres hervidos" },
+    ],
+    destacados: [
+      { icono: "sal", texto: "Menos de 5 g de sal al día", no: true },
+      { icono: "pescado", texto: "Pescado azul 2 veces por semana" },
+      { icono: "aceite", texto: "Aceite de oliva, no manteca" },
+      { icono: "corazon", texto: "Medicinas todos los días" },
+    ],
+    preferir: [
+      "Pescado azul (sardina, atún, jurel) al menos 2 veces por semana.",
+      "Aceite de oliva, aguacate, maní y merey sin sal como grasa principal.",
+      "Avena, granos y vegetales: su fibra ayuda a bajar el colesterol.",
+      "Frutas y vegetales de todos los colores, 5 porciones al día.",
+      "Pollo sin piel, clara de huevo y granos como proteína.",
+      "Lácteos descremados.",
+    ],
+    moderar: [
+      "Huevo entero: hasta uno al día.",
+      "Carne roja magra: como máximo una vez por semana, sin grasa visible.",
+      "Café: 1 a 2 tazas; menos si tiene palpitaciones o arritmia.",
+      "Líquidos: si tiene insuficiencia cardíaca, la cantidad que indique el médico (por lo general 1,5 a 2 litros al día).",
+      "Porciones pequeñas: las comidas grandes cansan el corazón.",
+    ],
+    evitar: [
+      "Sal, cubitos, embutidos, enlatados y comida rápida.",
+      "Manteca, mantequilla, aceite de coco, piel del pollo, chicharrón y frituras.",
+      "Margarina, galletas y panadería industrial (grasas trans).",
+      "Alcohol y bebidas energéticas.",
+      "Azúcar y refrescos.",
+      "Cigarrillo y vapeador.",
+    ],
+    ejemplo: [
+      { comida: "Desayuno", texto: "Avena con leche descremada y fresas; 2 claras revueltas con tomate; café pequeño sin azúcar." },
+      { comida: "Merienda", texto: "1 fruta y un puñado de merey sin sal." },
+      { comida: "Almuerzo", texto: "Sardinas o jurel al horno, ensalada con aceite de oliva y media taza de lentejas." },
+      { comida: "Cena", texto: "Pollo a la plancha con vegetales al vapor y un trozo pequeño de batata." },
+    ],
+    habitos: [
+      "Tomar los medicamentos todos los días a la misma hora, aunque se sienta bien.",
+      "Con insuficiencia cardíaca: pesarse cada mañana y avisar si sube 2 kg en 3 días o se le hinchan los pies.",
+      "Actividad física que indique el cardiólogo; caminar a paso cómodo.",
+      "Acudir de inmediato si tiene dolor de pecho, falta de aire en reposo o desmayo.",
+    ],
+    fuentes: "Visseren FLJ y cols., Guía ESC 2021 de prevención cardiovascular, Eur Heart J 2021;42:3227. McDonagh TA y cols., Guía ESC 2021 de insuficiencia cardíaca, Eur Heart J 2021;42:3599. AHA, Dietary Guidance, Circulation 2021.",
   },
   {
     clave: "diabetes",
@@ -301,5 +357,7 @@ export const DIETAS: Dieta[] = [
     fuentes: "Jensen MD y cols., Guía AHA/ACC/TOS 2013 para el manejo del sobrepeso y la obesidad, Circulation 2014;129:S102. OMS, Obesidad y sobrepeso (2024). OMS, Directrices sobre actividad física (2020).",
   },
 ];
+
+export const sumables = (d: Dieta, clave: string) => clave !== d.clave && !d.incluye?.includes(clave);
 
 export const dietaDe = (texto: string | undefined) => DIETAS.find((x) => x.clave === texto) ?? DIETAS[0];

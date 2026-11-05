@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import type { DatosDocumento } from "@/lib/documentos";
 import { CONTROL_TA, PLANES } from "@/lib/indicaciones-preventivas";
-import { dietaDe } from "@/lib/dietas";
+import { dietaDe, sumables } from "@/lib/dietas";
 import { IconoSalud } from "./iconos-salud";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
@@ -136,7 +136,7 @@ function Columna({ id, titulo, items, tono }: { id: string; titulo: string; item
 // de otras condiciones que quiera sumar (?plan=). Cada renglón se cambia, se quita o se agrega antes de imprimir.
 export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosDocumento; dieta?: string; planes?: string[]; cambios?: Cambios }) {
   const b = dietaDe(dieta);
-  const extras = PLANES.filter((p) => planes.includes(p.clave) && p.clave !== b.clave);
+  const extras = PLANES.filter((p) => planes.includes(p.clave) && sumables(b, p.clave));
   // Letra de 9 pt como mínimo: fluye en dos hojas; con 0 o 1 indicación sumada, el «Día de ejemplo» abre la segunda
   // hoja para que la firma no quede sola arriba de una hoja en blanco
   return (

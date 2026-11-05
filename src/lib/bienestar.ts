@@ -1,6 +1,6 @@
 // Contenido de la hoja de recomendaciones de bienestar que el médico entrega al trabajador: pausas activas (rutina
-// por zona del cuerpo y frecuencia), meditación, manejo del estrés, inteligencia emocional y recomendaciones para
-// gerentes. Cada tema lleva su fuente. Antes de imprimir, el médico puede tocar cualquier texto y cambiarlo.
+// por zona del cuerpo y frecuencia), cuidados ocupacionales (lumbalgia, cuello, várices, hernias) y salud mental
+// (higiene mental, estrés, sobrecarga, acoso, inteligencia emocional, meditación, gerentes). Cada tema lleva su fuente. Antes de imprimir, el médico puede tocar cualquier texto y cambiarlo.
 
 export type EjercicioPausa = { hacer: string; dosis: string };
 export type ZonaPausa = { zona: string; ejercicios: EjercicioPausa[] };
@@ -70,6 +70,95 @@ export type TemaBienestar = { clave: string; boton: string; titulo: string; grup
 
 // Temas que el médico agrega con un botón. «pausas» tiene su propio diseño (rutina por zona y registro)
 export const TEMAS: TemaBienestar[] = [
+  {
+    clave: "lumbalgia",
+    boton: "Lumbalgia",
+    titulo: "Lumbalgia: cuidar la espalda baja en el trabajo",
+    grupos: [
+      {
+        items: [
+          "Mantenerse activo: el reposo en cama prolongado retrasa la mejoría.",
+          "Al levantar una carga: pies separados, rodillas dobladas, espalda recta y la carga pegada al cuerpo; para girar, mover los pies, nunca torcer el tronco con peso.",
+          "Empujar es mejor que halar; usar carretilla, transpaleta o pedir ayuda para lo pesado.",
+          "Sentado: espalda apoyada con soporte en la cintura, pies en el piso y levantarse cada hora.",
+          "De pie mucho tiempo: apoyar un pie en un escalón o barra baja y alternar.",
+          "Al manejar: asiento cerca del volante y parar a caminar cada 2 horas.",
+          "Fortalecer abdomen y espalda con los ejercicios que le indiquen, y caminar a diario.",
+          "Bajar de peso si hay sobrepeso: descarga la columna.",
+          "Urgencia: dolor con pérdida de fuerza en las piernas, adormecimiento entre las piernas o problemas para orinar o defecar.",
+        ],
+      },
+    ],
+    fuente: "NICE NG59, Low back pain and sciatica in over 16s (2016, actualizada 2020). Qaseem A y cols., Guía ACP 2017 de dolor lumbar, Ann Intern Med 2017;166:514. NIOSH, ecuación revisada de levantamiento de cargas (1994).",
+  },
+  {
+    clave: "cuello",
+    boton: "Cervicalgia",
+    titulo: "Cervicalgia y cervicobraquialgia: cuidar el cuello y los brazos",
+    grupos: [
+      {
+        items: [
+          "Pantalla a la altura de los ojos y a un brazo de distancia; los papeles en un atril al lado de la pantalla.",
+          "Teléfono con audífonos o altavoz; nunca sostenerlo entre la oreja y el hombro.",
+          "Hombros relajados y codos apoyados en ángulo recto; teclado y ratón cerca del cuerpo.",
+          "Evitar trabajar mucho tiempo con los brazos por encima de los hombros: usar escalera o plataforma.",
+          "Cada 30 a 60 minutos, los ejercicios de cuello y hombros de las pausas activas.",
+          "Calor local 15 minutos en la noche si hay contractura.",
+          "Dormir de lado o boca arriba, con una almohada que mantenga el cuello recto; no dormir boca abajo.",
+          "Consultar si el dolor baja al brazo con hormigueo o pérdida de fuerza, o si dura más de 6 semanas.",
+        ],
+      },
+    ],
+    fuente: "Blanpied PR y cols., Guía de práctica clínica de dolor de cuello, J Orthop Sports Phys Ther 2017;47:A1. INSST (España), Guía técnica de pantallas de visualización de datos (2021).",
+  },
+  {
+    clave: "venas",
+    boton: "Insuficiencia venosa",
+    titulo: "Insuficiencia venosa de miembros inferiores (várices)",
+    grupos: [
+      {
+        titulo: "En el trabajo",
+        items: [
+          "No pasar más de 1 hora de pie o sentado sin moverse: caminar o mover los tobillos 2 a 3 minutos.",
+          "De pie: pasar el peso de una pierna a la otra y subir en puntas de pie 15 veces cada hora.",
+          "Sentado: no cruzar las piernas; mover los pies en círculos y de punta a talón.",
+          "Medias de compresión graduada durante la jornada, puestas al levantarse (la presión la indica el médico).",
+          "Alejar las piernas de fuentes de calor (hornos, calderas) y evitar ropa ajustada en la cintura.",
+        ],
+      },
+      {
+        titulo: "En casa",
+        items: [
+          "Elevar las piernas por encima del corazón 15 a 20 minutos al llegar.",
+          "Caminar 30 minutos diarios; nadar o montar bicicleta también ayudan.",
+          "Bajar de peso si hay sobrepeso: alivia la presión en las venas. No fumar.",
+          "Calzado cómodo con tacón bajo (2 a 4 cm).",
+          "Consultar pronto si una sola pierna se pone hinchada, caliente, roja o dolorosa, o si aparece una úlcera.",
+        ],
+      },
+    ],
+    fuente: "De Maeseneer MG y cols., Guía ESVS 2022 de enfermedad venosa crónica de miembros inferiores, Eur J Vasc Endovasc Surg 2022;63:184.",
+  },
+  {
+    clave: "hernias",
+    boton: "Hernia umbilical o inguinal",
+    titulo: "Hernia umbilical o inguinal: cuidados en el trabajo",
+    grupos: [
+      {
+        items: [
+          "Evitar levantar cargas pesadas y los esfuerzos bruscos; el peso máximo lo indica el médico.",
+          "Al levantar algo: exhalar al hacer la fuerza y no aguantar el aire (no pujar).",
+          "Pedir ayuda o usar carretilla para las cargas pesadas.",
+          "Evitar el estreñimiento con fibra y agua, y tratar la tos crónica: ambos aumentan la presión del abdomen.",
+          "Bajar de peso si hay sobrepeso: reduce la presión sobre la pared del abdomen.",
+          "La faja o el braguero no curan la hernia: usarlos solo si el médico lo indica.",
+          "Después de la operación: volver al trabajo y a las cargas poco a poco, según indique el cirujano.",
+          "Urgencia: si la hernia no se mete, se pone dura, muy dolorosa o morada, o hay vómitos.",
+        ],
+      },
+    ],
+    fuente: "HerniaSurge Group, International guidelines for groin hernia management, Hernia 2018;22:1. Henriksen NA y cols., Guía EHS/AHS de hernias umbilicales y epigástricas, Br J Surg 2020;107:171.",
+  },
   {
     clave: "higiene",
     boton: "Higiene mental",

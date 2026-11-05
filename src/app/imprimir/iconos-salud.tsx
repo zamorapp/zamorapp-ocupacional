@@ -107,6 +107,12 @@ const DIBUJOS: Record<Icono, React.ReactNode> = {
       <path d="M15 16c3 2 6-2 9 0s6 2 9 0" stroke="#9cc3df" strokeWidth="1.5" fill="none" />
     </>
   ),
+  corazon: (
+    <>
+      <path d="M24 42S6 31 6 18a9 9 0 0118-3 9 9 0 0118 3c0 13-18 24-18 24z" fill="#e0483e" />
+      <path d="M10 24h8l3-6 4 12 3-6h10" stroke="#fff" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+    </>
+  ),
   caminar: (
     <>
       <circle cx="27" cy="8" r="4" fill="#2f7d6a" />

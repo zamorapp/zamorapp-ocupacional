@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Pencil, Plus } from "lucide-react";
 import { DIAS_TA, PLANES, clavesPlan, diasTa } from "@/lib/indicaciones-preventivas";
 import { BOTONES_BIENESTAR, temasBienestar } from "@/lib/bienestar";
-import { DIETAS, dietaDe } from "@/lib/dietas";
+import { DIETAS, dietaDe, sumables } from "@/lib/dietas";
 import { confirmar } from "@/components/app/confirmar";
 import { cn } from "@/lib/utils";
 
@@ -80,7 +80,7 @@ export function OpcionesIndicaciones({ tipo }: { tipo: "control-ta" | "dieta" | 
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-muted-foreground">Sumar indicaciones de:</span>
-          {PLANES.filter((p) => p.clave !== dieta).map((p) => {
+          {PLANES.filter((p) => sumables(dietaDe(dieta), p.clave)).map((p) => {
             const activo = planes.includes(p.clave);
             return (
               <button
