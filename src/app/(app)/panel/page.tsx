@@ -20,7 +20,6 @@ import { ahora } from "@/lib/fecha";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { OfertaAvisosCelular } from "@/components/app/avisos-celular";
 import { ultimosAtendidos } from "@/lib/ultimos-atendidos";
-import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -196,10 +195,11 @@ async function Tareas({ sesion }: { sesion: Sesion }) {
   );
 }
 
-const ESTILO_ESTADO: Record<string, string> = {
-  borrador: "bg-aviso/20 text-aviso-texto",
-  cerrada: "bg-ok/15 text-ok-texto",
-  firmada: "bg-primary/15 text-primary",
+// Lo que importa al médico de un vistazo: «Por firmar» resalta; en curso es neutro; firmada, lista
+const ESTADO_ATENDIDO: Record<string, [string, string]> = {
+  borrador: ["En curso", "bg-muted text-muted-foreground"],
+  cerrada: ["Por firmar", "bg-aviso/15 text-aviso-texto"],
+  firmada: ["Firmada", "bg-ok/15 text-ok-texto"],
 };
 
 async function UltimosAtendidos() {
@@ -212,7 +212,8 @@ async function UltimosAtendidos() {
   }
   if (atendidos.length === 0) return null;
   return (
-    <Card className="gap-0 py-0">
+    // En el celular salen 4 y «Ver los 8» despliega el resto (casilla oculta, sin JavaScript); en PC, 2 columnas de 4
+    <Card className="group/atendidos gap-0 py-0">
       <CardHeader className="flex flex-row items-center gap-2 border-b px-5 py-3">
         <History className="size-5 text-primary" />
         <CardTitle className="text-base">Últimos atendidos</CardTitle>
@@ -221,7 +222,7 @@ async function UltimosAtendidos() {
       </CardHeader>
       <ul className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x">
         {[atendidos.slice(0, 4), atendidos.slice(4)].map((columna, n) => (
-          <li key={n} className="divide-y">
+          <li key={n} className={cn("divide-y", n === 1 && "hidden border-t group-has-[:checked]/atendidos:block lg:block lg:border-t-0")}>
             {columna.map((a) => (
               <Link key={a.id} href={`/atencion/${a.id}`} className="group flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/50">
                 <span className="hidden w-[6.5rem] shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:block">{a.cuando}</span>
@@ -229,12 +230,17 @@ async function UltimosAtendidos() {
                   <span className="block truncate text-sm font-medium group-hover:text-primary">{a.paciente}</span>
                   <span className="block truncate text-xs text-muted-foreground"><span className="sm:hidden">{a.cuando} · </span>{[a.empresa, a.motivo].filter(Boolean).join(" · ")}</span>
                 </span>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ESTILO_ESTADO[a.estado])}>{ETIQUETA_ESTADO_CONSULTA[a.estado]}</span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ESTADO_ATENDIDO[a.estado][1])}>{ESTADO_ATENDIDO[a.estado][0]}</span>
               </Link>
             ))}
           </li>
         ))}
       </ul>
+      {atendidos.length > 4 && (
+        <label className="block cursor-pointer border-t px-5 py-2.5 text-center text-sm font-medium text-primary group-has-[:checked]/atendidos:hidden lg:hidden">
+          <input type="checkbox" className="sr-only" /> Ver los {atendidos.length}
+        </label>
+      )}
     </Card>
   );
 }

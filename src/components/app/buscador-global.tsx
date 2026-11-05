@@ -39,6 +39,15 @@ export function BuscadorGlobal({ portal = false, clinico = false, rol = null, em
   const [texto, setTexto] = useState("");
   const [pacientes, setPacientes] = useState<Encontrado[]>([]);
   const [recientes, setRecientes] = useState<Atendido[]>([]);
+  // Celular (< sm): texto de ayuda corto para que quepa
+  const [ancho, setAncho] = useState(true);
+  useEffect(() => {
+    const m = window.matchMedia("(min-width: 640px)");
+    const ver = () => setAncho(m.matches);
+    ver();
+    m.addEventListener("change", ver);
+    return () => m.removeEventListener("change", ver);
+  }, []);
   const [activo, setActivo] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // Trabajador de una empresa inactiva al que se quiso atender: se ofrece pasarlo a una empresa activa
@@ -175,7 +184,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, rol = null, em
               if (e.key === "ArrowUp") { e.preventDefault(); setActivo((i) => Math.max(i - 1, 0)); }
               if (e.key === "Enter" && opciones[activo]) { e.preventDefault(); elegir(opciones[activo], e.ctrlKey || e.metaKey); }
             }}
-            placeholder={portal ? "Buscar trabajador o sección…" : "Paciente, empresa o función (ej.: nueva cita)…"}
+            placeholder={portal ? "Buscar trabajador o sección…" : ancho ? "Paciente, empresa o función (ej.: nueva cita)…" : "Paciente, empresa o función"}
             aria-label="Buscar"
             role="combobox"
             aria-expanded="true"
@@ -209,7 +218,7 @@ export function BuscadorGlobal({ portal = false, clinico = false, rol = null, em
                     <span className="block truncate font-medium">{titulo(o)}</span>
                     <span className="block truncate text-xs text-muted-foreground">{detalle(o)}</span>
                   </span>
-                  {o.tipo === "atendido" && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{o.a.cuando}</span>}
+                  {o.tipo === "atendido" && <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:block">{o.a.cuando}</span>}
                 </button>
                 {o.tipo === "paciente" && clinico ? (
                   <button
@@ -266,7 +275,8 @@ const titulo = (o: Opcion) => (o.tipo === "paciente" ? o.p.nombre : o.tipo === "
 
 function detalle(o: Opcion) {
   if (o.tipo === "paciente") return [o.p.cedula, o.p.empresa, o.p.inactivo && "inactivo", o.p.inactiva && "empresa inactiva"].filter(Boolean).join(" · ");
-  if (o.tipo === "atendido") return [o.a.cedula, o.a.empresa, o.a.motivo].filter(Boolean).join(" · ");
+  // En el celular la hora baja a esta línea, junto a la cédula: el nombre usa todo el ancho
+  if (o.tipo === "atendido") return <><span className="sm:hidden">{o.a.cuando} · </span>{[o.a.cedula, o.a.empresa, o.a.motivo].filter(Boolean).join(" · ")}</>;
   if (o.tipo === "empresa") return "Empresa · ficha, sedes y puestos";
   return o.descripcion;
 }
