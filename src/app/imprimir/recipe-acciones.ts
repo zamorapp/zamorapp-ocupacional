@@ -2,7 +2,7 @@
 
 import { obtenerConsulta } from "@/lib/consultas";
 import { ES_CAMPO_RECIPE, faltantesMedicinas } from "@/lib/recipe";
-import { guardarConsulta, reabrirConsulta, type Resultado } from "@/app/(app)/atencion/acciones";
+import { guardarConsulta, type Resultado } from "@/app/(app)/atencion/acciones";
 
 export type CambioRecipe = { indice: number; medicina: string; campo: string; valor: string };
 
@@ -28,17 +28,10 @@ export async function completarRecipe(consultaId: string, cambios: CambioRecipe[
     m[c.campo] = valor;
   }
 
-  const datos = { ...d, tratamiento };
-  if (d.estado === "cerrada") {
-    // Cerrada: se reabre, se guarda y se vuelve a cerrar en el mismo paso
-    const r = await reabrirConsulta(consultaId);
-    if (!r.ok) return r;
-    const g = await guardarConsulta(datos, true);
-    if (!g.ok) return { ok: false, mensaje: `${g.mensaje} La consulta quedó abierta: ciérrala desde la consulta.` };
-  } else {
-    const g = await guardarConsulta(datos, false);
-    if (!g.ok) return g;
-  }
+  // Cerrada o borrador: se guarda sin cerrar (p_cerrar = false), así guardar_consulta conserva el estado y la
+  // hora de cierre (no se reabre: volver a cerrar cambiaría hora_cierre y repetiría avisos a RR. HH.)
+  const g = await guardarConsulta({ ...d, tratamiento }, false);
+  if (!g.ok) return g;
   const quedan = faltantesMedicinas(tratamiento).length;
   return quedan ? { ok: true, mensaje: "Guardado. Todavía faltan datos." } : { ok: true, mensaje: "Guardado. El récipe ya se puede imprimir." };
 }

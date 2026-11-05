@@ -43,8 +43,8 @@ export function CompletarRecipe({
   });
 
   return (
-    <section data-estado="recipe-incompleto" className="mx-auto mb-6 max-w-3xl rounded-xl border border-red-200 bg-white p-5 text-neutral-900 shadow-sm print:hidden sm:p-6">
-      <h2 className="flex items-start gap-2 text-base font-semibold text-red-700">
+    <section data-estado="recipe-incompleto" className="mx-auto mb-6 max-w-3xl rounded-xl border border-amber-300 bg-amber-50 p-5 text-neutral-900 shadow-sm print:hidden sm:p-6">
+      <h2 className="flex items-start gap-2 text-base font-semibold text-amber-800">
         <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />
         {enPaquete ? "El récipe quedó fuera de esta impresión" : "El récipe todavía no se puede imprimir"}
       </h2>
@@ -113,9 +113,9 @@ export function CompletarRecipe({
               {pendiente ? <Loader2 className="animate-spin" /> : <Check />} Guardar y preparar el récipe
             </Button>
             <Link href={`/atencion/${consultaId}?paso=tratamiento`} className="text-sm font-medium text-teal-800 underline-offset-2 hover:underline">Abrir la consulta</Link>
-            {vacios.length > 0 && <span className="text-xs text-neutral-500">Faltan {vacios.length} dato{vacios.length === 1 ? "" : "s"}</span>}
+            {vacios.length > 0 && <span className="text-xs font-medium text-amber-800">{vacios.length === 1 ? "Falta 1 dato" : `Faltan ${vacios.length} datos`}</span>}
           </div>
-          {estado === "cerrada" && <p className="text-xs text-neutral-500">La consulta está cerrada: se guarda y queda cerrada igual.</p>}
+          {estado === "cerrada" && <p className="text-xs text-neutral-600">La consulta está cerrada: se guarda y queda cerrada igual.</p>}
         </form>
       ))}
 

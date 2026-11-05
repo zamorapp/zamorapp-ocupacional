@@ -517,9 +517,9 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     // Antes de firmar: si el récipe no saldría por datos que faltan, se completa ahora (después habría que corregir la firmada)
     if (faltaRecipe.size > 0 && !(await confirmar({
       titulo: "El récipe no saldrá en la impresión",
-      texto: `Falta: ${[...faltaRecipe.entries()].map(([i, f]) => `${d.tratamiento[i].medicina} (${f})`).join("; ")}. Complétalo antes de firmar; después habría que corregir la consulta firmada.`,
+      texto: `Falta: ${[...faltaRecipe.entries()].map(([i, f]) => `${d.tratamiento[i].medicina} (${f})`).join("; ")}. «Completar ahora» te lleva a la medicina. «Firmar sin récipe» firma e imprime lo demás; el récipe queda fuera hasta corregir la consulta firmada.`,
       accion: "Firmar sin récipe",
-      cancelar: "Completar primero",
+      cancelar: "Completar ahora",
     }))) {
       const i = pasos.findIndex((p) => p.id === "tratamiento");
       if (i >= 0) irA(i);
