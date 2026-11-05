@@ -5,6 +5,7 @@ import { antiguedad } from "@/lib/fecha";
 import { NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
 import { puntosUnicos } from "@/lib/recomendaciones-categorias";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
+import { esParticular } from "@/lib/particulares";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
 // Los colores son fijos (papel), no siguen el tema oscuro de la app.
@@ -89,9 +90,10 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
       </div>
       <div className="flex items-center gap-3 text-right">
         <div>
-          <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Empresa</div>
+          {/* Particular (sin empresa): nunca «Empresa: PARTICULAR» (Cesar, 05-nov) */}
+          <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">{esParticular(d.empresa) ? "Atención" : "Empresa"}</div>
           {/* La razón social es dato legal: nunca se corta; en el compacto baja la letra para que no crezca el membrete */}
-          <div className={`font-semibold leading-tight ${compacto ? "max-w-52 text-[10px]" : "max-w-44 text-[11px]"}`}>{d.empresa.razon_social}</div>
+          <div className={`font-semibold leading-tight ${compacto ? "max-w-52 text-[10px]" : "max-w-44 text-[11px]"}`}>{esParticular(d.empresa) ? "Paciente particular" : d.empresa.razon_social}</div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
@@ -280,7 +282,7 @@ export function FirmaTrabajador({ d }: { d: DatosDocumento }) {
     <div className="w-56 text-center text-[10.5px]">
       <div className="mb-1 h-14 border-b border-[#15201e]" />
       <div className="text-[11.5px] font-bold">{d.trabajador.nombre}</div>
-      <div className="text-doc-tenue">C.I. {d.trabajador.cedula} · Trabajador</div>
+      <div className="text-doc-tenue">C.I. {d.trabajador.cedula} · {esParticular(d.empresa) ? "Paciente" : "Trabajador"}</div>
     </div>
   );
 }
