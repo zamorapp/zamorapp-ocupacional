@@ -23,15 +23,18 @@ main{width:100%;max-width:440px}h1{font-size:20px;margin:0 0 4px}p{color:var(--s
 .doc{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;margin:0 0 10px;border:1px solid var(--b);border-radius:12px;background:var(--c);color:var(--t);font:inherit;font-size:16px;text-align:left;cursor:pointer}
 .doc:hover{border-color:var(--p)}.doc span{flex:1}.doc small{color:var(--s)}.doc[disabled]{opacity:.55;cursor:not-allowed}
 label{display:block;font-weight:600;margin:0 0 6px}input{width:100%;height:48px;font-size:22px;letter-spacing:.4em;text-align:center;border:1px solid var(--b);border-radius:10px;background:var(--c);color:var(--t);margin:0 0 6px}
-.nota{font-size:13px;margin:0 0 16px}.error{color:var(--a);font-weight:600}a{color:var(--p)}
+.nota{font-size:13px;margin:0 0 16px}.marca{color:var(--p);font-weight:700;font-size:14px;margin:0 0 8px}.error{color:var(--a);font-weight:600}a{color:var(--p)}
 </style></head><body><main>${cuerpo}</main></body></html>`,
     { status: estado, headers: { ...CABECERAS, "Content-Type": "text/html; charset=utf-8" } },
   );
 
+const llamar = (telefono?: string | null) => {
+  const tel = telefono?.replace(/[^\d+]/g, "");
+  return tel ? `<p><a href="tel:${tel}">Llamar</a></p>` : "";
+};
 const noDisponible = (servicio?: string | null, telefono?: string | null) => {
   const a = servicio ? `a ${html(servicio)}${telefono ? `, ${html(telefono)}` : ""}` : "al servicio médico";
-  const tel = telefono?.replace(/[^\d+]/g, "");
-  return pagina("Enlace no disponible", `<h1>Este enlace ya no está disponible</h1><p>Venció (dura 7 días) o el servicio médico lo anuló. Pídeselo de nuevo ${a}.</p>${tel ? `<p><a href="tel:${tel}">Llamar</a></p>` : ""}`, 404);
+  return pagina("Enlace no disponible", `<h1>Este enlace ya no está disponible</h1><p>Venció (dura 7 días) o el servicio médico lo anuló. Pídeselo de nuevo ${a}.</p>${llamar(telefono)}`, 404);
 };
 
 function cliente() {
@@ -63,12 +66,12 @@ function lista(filas: Fila[], error = "") {
     .join("");
   const campo = cedula
     ? bloqueado
-      ? `<p class="error">Se escribió mal la cédula 5 veces. Pídele al servicio que te lo envíe de nuevo${telefono_servicio ? ` (${html(telefono_servicio)})` : ""}.</p>`
+      ? `<p class="error">Se escribió mal la cédula 5 veces. Pídele al servicio que te lo envíe de nuevo${telefono_servicio ? ` (${html(telefono_servicio)})` : ""}.</p>${llamar(telefono_servicio)}`
       : `<label for="cedula">4 últimos dígitos de tu cédula</label><input id="cedula" name="cedula" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" placeholder="••••"><p class="nota">Solo para los documentos médicos.</p>`
     : "";
   return pagina(
     "Tus documentos",
-    `<h1>Tus documentos</h1><p>${servicio ? `De ${html(servicio)}. ` : ""}Toca cada uno para abrirlo y guárdalo en tu teléfono. El enlace dura 7 días.</p>${error ? `<p class="error" role="alert">${html(error)}</p>` : ""}<form method="post">${campo}${botones}</form>`,
+    `${servicio ? `<p class="marca">&#10010; ${html(servicio)}</p>` : ""}<h1>Tus documentos</h1><p>${servicio ? `De ${html(servicio)}. ` : ""}Toca cada uno para abrirlo y guárdalo en tu teléfono. El enlace dura 7 días.</p>${error ? `<p class="error" role="alert">${html(error)}</p>` : ""}<form method="post">${campo}${botones}</form>`,
   );
 }
 

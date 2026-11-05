@@ -38,6 +38,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const [revisar, setRevisar] = useState(false); // el aviso del celular sale al salir del campo o al enviar, no mientras escribe
   const [mensaje, setMensaje] = useState("");
   const [editado, setEditado] = useState(false);
+  const [vistas, setVistas] = useState<Set<string>>(new Set()); // hojas abiertas en pantalla (tienen opciones guardadas)
   const [resultado, setResultado] = useState<ResultadoWhatsAppTrabajador | null>(null);
   const [cargando, iniciarCarga] = useTransition();
   const [enviando, iniciar] = useTransition();
@@ -67,7 +68,11 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
     });
   const abrir = (v: boolean) => {
     setAbierto(v);
-    if (v) { setResultado(null); recargar(); }
+    if (v) {
+      setResultado(null);
+      setVistas(new Set(TODOS.filter((d) => d === tipo || leer(claveOpciones(consultaId, d)))));
+      recargar();
+    }
   };
   const alternar = (d: DocTrabajador) => setMarcados((s) => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; });
 
@@ -129,9 +134,11 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
                       <input type="checkbox" className="size-4 accent-primary" checked={activo && !bloqueado} disabled={bloqueado} onChange={() => alternar(d)} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{DOCS_TRABAJADOR[d].corto}</span>
-                        {(motivo || (DOCS_TRABAJADOR[d].clinico && !listo.firmada)) && (
+                        {motivo || (DOCS_TRABAJADOR[d].clinico && !listo.firmada) ? (
                           <span className="block text-xs text-muted-foreground">{motivo ?? "firma la consulta"}</span>
-                        )}
+                        ) : activo && !DOCS_TRABAJADOR[d].clinico && !vistas.has(d) ? (
+                          <span className="block text-xs text-muted-foreground">sale con lo predeterminado</span>
+                        ) : null}
                       </span>
                       {DOCS_TRABAJADOR[d].clinico && !bloqueado && <KeyRound className="size-3.5 shrink-0 text-muted-foreground" aria-label="pide cédula" />}
                     </label>
