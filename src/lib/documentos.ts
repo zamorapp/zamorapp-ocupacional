@@ -56,7 +56,7 @@ const datosMedico = cache(async (id: string) => {
   return { data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null };
 });
 const datosMotivo = cache(async (id: string) => (await crearClienteServidor()).from("lista_items").select("nombre, codigo, grupo").eq("id", id).maybeSingle());
-const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo").eq("id", id).single());
+const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo, proyecto").eq("id", id).single());
 const datosDependencia = cache(async (id: string) => (await crearClienteServidor()).from("dependencias").select("nombre").eq("id", id).maybeSingle());
 
 // Reúne todo lo que necesita cualquier documento de una consulta
@@ -88,7 +88,7 @@ export async function obtenerDocumento(consultaId: string) {
       firma_url: string | null; sello_url: string | null; mostrar_firma: boolean; mostrar_sello: boolean;
     } | null,
     motivo: motivo as { nombre: string; codigo: string | null; grupo: string | null } | null,
-    empresa: empresa as { razon_social: string; rif: string; logo: string | null },
+    empresa: empresa as { razon_social: string; rif: string; logo: string | null; proyecto?: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
     extra: trab as unknown as {
       fecha_nacimiento: string | null; fecha_ingreso: string | null; fecha_ingreso_cargo: string | null; turno: string | null; numero_historia: number;

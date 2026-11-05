@@ -160,6 +160,7 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
           <Campo id="nil" etiqueta="NIL" placeholder="Número de identificación laboral" defaultValue={e?.nil ?? ""} />
           <Campo id="actividad" etiqueta="Actividad económica" defaultValue={e?.actividad ?? ""} className="sm:col-span-2" />
           <Campo id="sector" etiqueta="Sector económico" defaultValue={e?.sector ?? ""} />
+          <Campo id="proyecto" etiqueta="Proyecto u obra (opcional)" placeholder="Sale en la constancia y el informe de sus trabajadores" defaultValue={e?.proyecto ?? ""} className="sm:col-span-2" />
           </div>
           <div data-paso="1" hidden={paso !== 1} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Campo id="estado" etiqueta="Estado" defaultValue={e?.estado ?? ""} />
