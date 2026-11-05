@@ -8,8 +8,25 @@
 --  4. «Restaurar» desde la ficha del paciente (adjuntos_en_papelera).
 -- Sin internet (copia local del escritorio) no se borra: la papelera vive en la nube.
 
+-- Va después de 20261030883000 (papelera de documentos): conserva sus 7 tipos y suma «adjunto»
 alter table public.papelera drop constraint if exists papelera_tipo_check;
-alter table public.papelera add constraint papelera_tipo_check check (tipo in ('consulta', 'trabajador', 'adjunto'));
+alter table public.papelera add constraint papelera_tipo_check check (tipo in
+  ('consulta', 'trabajador', 'evento', 'investigacion', 'ergonomia', 'informe_vigilancia', 'notificacion_riesgo', 'adjunto'));
+
+create or replace function public.papelera_tabla(p_tipo text)
+returns regclass language sql immutable set search_path = '' as $$
+  select case p_tipo
+    when 'consulta' then 'clinico.consultas'::regclass
+    when 'trabajador' then 'public.trabajadores'::regclass
+    when 'evento' then 'public.eventos'::regclass
+    when 'investigacion' then 'clinico.investigaciones'::regclass
+    when 'ergonomia' then 'public.evaluaciones_ergonomicas'::regclass
+    when 'informe_vigilancia' then 'public.informes_vigilancia'::regclass
+    when 'notificacion_riesgo' then 'public.notificaciones_riesgo'::regclass
+    when 'adjunto' then 'clinico.adjuntos'::regclass
+  end
+$$;
+revoke execute on function public.papelera_tabla(text) from public, anon, authenticated;
 -- Búsqueda de la papelera de un trabajador
 create index if not exists papelera_adjunto_trabajador on public.papelera ((filas -> 0 -> 'f' ->> 'trabajador_id')) where tipo = 'adjunto';
 
@@ -80,7 +97,7 @@ begin
   return n;
 end $$;
 
--- Restaurar (misma función de la papelera general; cambia quién puede y las reglas de los adjuntos)
+-- Restaurar (la de 20261030883000; se suman quién puede y las reglas de los adjuntos)
 create or replace function public.restaurar_papelera(p_id uuid)
 returns text language plpgsql security definer set search_path = '' as $$
 declare
@@ -131,11 +148,11 @@ begin
           v_resto := v_resto || jsonb_build_array(e);
           get stacked diagnostics v_falla = message_text;
         when unique_violation then
-          raise exception 'No se puede restaurar: ya existe otro registro igual (%). Si registraste de nuevo a este trabajador con la misma cédula, elimina o corrige ese registro primero.', e ->> 't';
+          raise exception 'No se puede restaurar: ya existe otro registro igual (%). Si registraste de nuevo lo mismo, elimina o corrige ese registro primero.', e ->> 't';
       end;
     end loop;
     if jsonb_array_length(v_resto) = jsonb_array_length(v_pend) then
-      raise exception 'No se puede restaurar: falta un dato del que depende (%). Si es una consulta de un trabajador eliminado, restaura primero al trabajador.', v_falla;
+      raise exception 'No se puede restaurar: falta un dato del que depende (%). Si pertenece a un trabajador o un accidente eliminado, restaura ese primero.', v_falla;
     end if;
     v_pend := v_resto;
   end loop;
@@ -155,7 +172,7 @@ begin
   perform public.papelera_disparadores(v_tablas, true);
   update public.papelera set restaurado_en = public.ahora(), restaurado_por = auth.uid() where id = p_id;
   insert into public.bitacora (org_id, usuario_id, tabla, registro_id, accion, antes, despues)
-  values (p.org_id, auth.uid(), case p.tipo when 'consulta' then 'clinico.consultas' when 'adjunto' then 'clinico.adjuntos' else 'public.trabajadores' end, p.objeto_id,
+  values (p.org_id, auth.uid(), public.papelera_tabla(p.tipo)::text, p.objeto_id,
           'RESTAURAR_DE_PAPELERA', null, jsonb_build_object('papelera_id', p.id, 'titulo', p.titulo));
   return p.titulo;
 end $$;
