@@ -188,7 +188,7 @@ export const rango = (r: [number, number]) => `${r[0]} a ${r[1]}`;
 export type Dimension = { apartado: number; verde: number; amarillo: number; rojo: number; media: number };
 export type GrupoResultado = { id: string; nombre: string; n: number; dimensiones: Dimension[] };
 export type Resultados = {
-  total: number; codigos: number; usados: number; minimo: number; suficiente: boolean;
+  total: number; codigos: number; usados: number; minimo: number; suficiente: boolean; abierta?: boolean;
   sin_grupo?: number; dimensiones?: Dimension[]; grupos?: GrupoResultado[];
 };
 

@@ -141,13 +141,13 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
             <Button size="sm" variant="outline" disabled={ocupado} onClick={async () => {
               if (!(await confirmar({
                 titulo: "¿Cerrar y entregar la evaluación?",
-                texto: `${resultados?.suficiente ? "" : `Todavía no hay ${ev.minimo} respuestas: el informe saldrá sin resultados. `}Los códigos que falten dejan de servir y RR. HH. podrá ver el informe agregado. Puedes seguir editando conclusiones y medidas.`,
+                texto: `${participacion >= ev.minimo ? "Al cerrar aparecen los resultados. " : `Todavía no hay ${ev.minimo} respuestas: el informe saldrá sin resultados. `}Después no se reabre si ya hay respuestas. Los códigos que falten dejan de servir y RR. HH. podrá ver el informe agregado. Puedes seguir editando conclusiones y medidas.`,
                 accion: "Cerrar",
               }))) return;
               correr(() => cambiarEstadoPsicosocial(ev.id, "cerrada"));
             }}><Lock /> Cerrar y entregar</Button>
           )}
-          {cerrada && puedeReabrir && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => correr(() => cambiarEstadoPsicosocial(ev.id, "abierta"))}><LockOpen /> Reabrir</Button>}
+          {cerrada && puedeReabrir && participacion === 0 && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => correr(() => cambiarEstadoPsicosocial(ev.id, "abierta"))}><LockOpen /> Reabrir</Button>}
           {puedeEditar && !cerrada && participacion === 0 && codigos.usados === 0 && (
             <Button size="sm" variant="ghost" className="text-alerta-texto" disabled={ocupado} onClick={async () => {
               if (!(await confirmar({ titulo: "¿Borrar esta evaluación?", texto: "Todavía nadie respondió. Se borran también sus códigos.", accion: "Borrar", peligro: true }))) return;
@@ -163,21 +163,21 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
           <p className="text-sm text-muted-foreground">
             La licencia del método exige acordarlo con el Comité de Seguridad y Salud Laboral (o los delegados de prevención) y garantizar el anonimato. Sin la fecha del acuerdo no se generan códigos.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr]">
+          <div className="space-y-1.5">
+            <Label htmlFor="ev-titulo">Nombre</Label>
+            <Input id="ev-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} disabled={!editable} maxLength={160} />
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="ac-fecha">Fecha del acuerdo</Label>
-              <Input id="ac-fecha" type="date" value={acuerdoFecha} onChange={(e) => setAcuerdoFecha(e.target.value)} disabled={!editable} />
+              <Input id="ac-fecha" type="date" className="max-w-[12rem]" value={acuerdoFecha} onChange={(e) => setAcuerdoFecha(e.target.value)} disabled={!editable} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ac-nota">Cómo consta</Label>
               <Input id="ac-nota" value={acuerdoNota} onChange={(e) => setAcuerdoNota(e.target.value)} disabled={!editable} maxLength={1000} placeholder="Ej. Acta n.º 14 del Comité SSL" />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem_8rem]">
-            <div className="space-y-1.5">
-              <Label htmlFor="ev-titulo">Nombre</Label>
-              <Input id="ev-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} disabled={!editable} maxLength={160} />
-            </div>
+          <div className="grid grid-cols-2 gap-3 sm:max-w-[20rem]">
             <div className="space-y-1.5">
               <Label htmlFor="ev-trab">Trabajadores</Label>
               <Input id="ev-trab" inputMode="numeric" value={trabajadores} onChange={(e) => setTrabajadores(e.target.value.replace(/\D/g, "").slice(0, 6))} disabled={!editable} />
@@ -275,7 +275,10 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
           <p className="text-sm text-muted-foreground">No se pudieron leer los resultados. Revisa la conexión y recarga.</p>
         ) : !resultados.suficiente ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Van <strong className="text-foreground">{resultados.total}</strong> respuestas. Los resultados aparecen a partir de {resultados.minimo}, para que nadie pueda ser reconocido.
+            Van <strong className="text-foreground">{resultados.total}</strong> respuestas.{" "}
+            {resultados.abierta
+              ? `Los resultados aparecen al cerrar la evaluación (con ${resultados.minimo} respuestas o más): así nadie puede saber qué contestó la última persona que respondió.`
+              : `Hacían falta ${resultados.minimo} para mostrar resultados sin que nadie pueda ser reconocido.`}
           </div>
         ) : (
           <div className="space-y-6">
@@ -300,21 +303,26 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
               <span>Prioritario = la mitad o más en rojo · A vigilar = más de un tercio (la referencia es un tercio).</span>
             </div>
 
+            {(resultados.grupos ?? []).length === 0 && !!resultados.sin_grupo && (
+              <p className="rounded-xl bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
+                Los puestos tienen pocas respuestas: para que nadie pueda ser reconocido (ni restando), los resultados salen solo para toda la empresa.
+              </p>
+            )}
             {(resultados.grupos ?? []).length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold">Por puesto o área · % en rojo</h3>
                 <div className="overflow-x-auto rounded-xl border">
                   <table className="w-full min-w-[640px] text-sm">
-                    <thead className="bg-muted/50 text-xs text-muted-foreground">
+                    <thead className="bg-muted text-xs text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2 text-left font-medium">Grupo</th>
+                        <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left font-medium shadow-[1px_0_0_var(--border),4px_0_8px_-4px_rgb(0_0_0/0.15)]">Grupo</th>
                         {APARTADOS.map((a) => <th key={a.n} className="px-1 py-2 text-center font-medium">{a.corto}</th>)}
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {resultados.grupos!.map((g) => (
                         <tr key={g.id}>
-                          <td className="px-3 py-2"><div className="font-medium">{g.nombre}</div><div className="text-xs text-muted-foreground">{g.n} respuestas</div></td>
+                          <td className="sticky left-0 z-10 max-w-[9rem] bg-card px-3 py-2 shadow-[1px_0_0_var(--border),4px_0_8px_-4px_rgb(0_0_0/0.15)] sm:max-w-none"><div className="font-medium break-words">{g.nombre}</div><div className="text-xs text-muted-foreground">{g.n} respuestas</div></td>
                           {APARTADOS.map((a) => <CeldaRojo key={a.n} d={g.dimensiones.find((x) => x.apartado === a.n)} n={g.n} />)}
                         </tr>
                       ))}

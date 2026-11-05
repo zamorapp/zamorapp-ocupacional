@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EyeOff, Clock, ShieldCheck } from "lucide-react";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { CODIGO_DEMO, CODIGO_PSICOSOCIAL, normalizarCodigo } from "@/lib/psicosocial";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
@@ -51,20 +50,7 @@ export default async function CuestionarioPsicosocial({ params }: { params: Prom
             <p className="mt-1 text-sm text-muted-foreground">{AVISO[v.estado].texto}</p>
           </section>
         ) : (
-          <>
-            <section className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm">
-              <h1 className="text-2xl font-semibold tracking-tight">¿Cómo es tu trabajo?</h1>
-              <p className="mt-1 text-sm opacity-90">
-                38 preguntas sobre la organización del trabajo: ritmo, apoyo, reconocimiento, estabilidad. Sirven para mejorar las condiciones, no para evaluarte a ti.
-              </p>
-              <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-                <li className="flex items-center gap-2"><EyeOff className="size-4 shrink-0" /> Anónimo: sin nombre ni cédula</li>
-                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> Unos 10 minutos</li>
-                <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Voluntario</li>
-              </ul>
-            </section>
-            <Cuestionario codigo={codigo} grupos={v.grupos ?? []} />
-          </>
+          <Cuestionario codigo={codigo} grupos={v.grupos ?? []} />
         )}
       </div>
     </main>

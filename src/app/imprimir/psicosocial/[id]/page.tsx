@@ -10,7 +10,9 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { documentoBase } from "../../base";
 import { BarraImpresion } from "../../barra";
-import { Bloque, fechaCorta, Ficha, folio, Hoja, Membrete, Pie } from "../../componentes";
+import type { DatosDocumento } from "@/lib/documentos";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { Bloque, fechaCorta, Ficha, FirmaMedico, Firmas, folio, Hoja, Membrete, Pie } from "../../componentes";
 
 export const metadata: Metadata = { title: "Riesgos psicosociales" };
 export const dynamic = "force-dynamic";
@@ -33,6 +35,18 @@ function BarraPapel({ d, n }: { d: Dimension; n: number }) {
       ))}
     </div>
   );
+}
+
+type Medico = NonNullable<DatosDocumento["medicoDatos"]>;
+async function datosMedico(usuario: string | null, conImagenes: boolean): Promise<Medico | null> {
+  if (!usuario) return null;
+  const supabase = await crearClienteServidor();
+  const [{ data: p }, img] = await Promise.all([
+    supabase.from("perfiles").select("nombre_completo, cedula, especialidad, mpps, colegio_medicos, registro_inpsasel, correo, mostrar_firma, mostrar_sello").eq("id", usuario).maybeSingle(),
+    conImagenes ? supabase.rpc("firma_sello", { p_usuario: usuario }).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  if (!p) return null;
+  return { ...(p as Omit<Medico, "firma_url" | "sello_url">), ...((img.data as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) };
 }
 
 // Informe de la evaluación psicosocial: solo resultados agregados (la base no entrega otra cosa). Lo mismo para el
@@ -66,9 +80,11 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
                   <div className="min-w-0 text-[10px] leading-snug">
                     <div className="text-[11px] font-bold">Cuestionario anónimo de condiciones de trabajo</div>
                     <div className="text-doc-tenue">{ev.empresa}</div>
-                    <div className="mt-1">Escanea el código o entra a <b>{dominio}/c</b> y escribe:</div>
+                    <div className="mt-1">Escanea el código o entra a</div>
+                    <div className="font-bold whitespace-nowrap">{dominio}/c</div>
+                    <div>y escribe:</div>
                     <div className="mt-0.5 font-cifra text-[17px] font-bold tracking-[.12em]">{codigoLegible(c)}</div>
-                    <div className="mt-1 text-[8.5px] text-doc-tenue">Sin nombre ni cédula. Sirve una sola vez. Unos 10 minutos.</div>
+                    <div className="mt-1 text-[9pt] leading-tight text-doc-tenue">Sin nombre ni cédula. Sirve una sola vez. Unos 10 minutos. No hay respuestas buenas ni malas.</div>
                   </div>
                 </div>
               ))}
@@ -79,12 +95,22 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
     );
   }
 
-  const [res, base] = await Promise.all([resultadosPsicosociales(id), sesion.demo ? Promise.resolve(null) : documentoBase(sesion)]);
+  const [res, base, medico] = await Promise.all([
+    resultadosPsicosociales(id),
+    sesion.demo ? Promise.resolve(null) : documentoBase(sesion),
+    datosMedico(ev.creadoPor, !empresaRol && !sesion.demo),
+  ]);
   const doc = {
     org: base?.org ?? { nombre: sesion.organizacion || "Servicio de salud ocupacional", rif: null, direccion: null, telefono: null, correo: null, logo: null, ajustes: {} },
-    empresa: { razon_social: ev.empresa, rif: "", logo: null },
+    // La empresa va una sola vez, en la ficha (el membrete la repetía)
+    empresa: { razon_social: "", rif: "", logo: null },
     impreso: base?.impreso ?? { por: sesion.nombre, el: "" },
   };
+  // Firma y sello de quien hizo la evaluación; la empresa no lee las imágenes de firma: su copia sale con el nombre
+  const firma = {
+    org: doc.org, medicoDatos: medico, medico: medico?.nombre_completo ?? null, firmadaEnSame: null,
+    sin: empresaRol || sesion.demo ? ["firma"] : [],
+  } as unknown as DatosDocumento;
   const n = res?.total ?? 0;
   const borrador = ev.estado !== "cerrada";
   const orden = res?.dimensiones ? ordenarPorRojo(res.dimensiones) : [];
@@ -94,7 +120,7 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
       <BarraImpresion volver={empresaRol ? "/portal" : `/psicosocial/${ev.id}`} titulo={`Informe · ${ev.titulo}`} />
       <Hoja className="relative print:block">
         {borrador && <div className="pointer-events-none absolute top-[40%] left-1/2 -translate-x-1/2 -rotate-12 text-[64px] font-extrabold tracking-widest text-[#b42318]/10">BORRADOR</div>}
-        <Membrete d={doc} />
+        <Membrete d={doc} sinEmpresa />
         <div className="mt-5 mb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl leading-tight font-extrabold tracking-tight text-balance">Evaluación de riesgos psicosociales</h1>
@@ -131,7 +157,7 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
                 <thead>
                   <tr className="text-left text-[9px] tracking-wide text-doc-tenue uppercase">
                     <th className="py-1 pr-2 font-bold">Apartado</th>
-                    <th className="w-[46%] py-1 pr-2 font-bold">Verde · amarillo · rojo</th>
+                    <th className="w-[36%] py-1 pr-2 font-bold">Verde · amarillo · rojo</th>
                     <th className="py-1 pr-2 text-right font-bold">Media</th>
                     <th className="py-1 text-right font-bold">Situación</th>
                   </tr>
@@ -142,16 +168,16 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
                     const a = APARTADOS[d.apartado - 1];
                     return (
                       <tr key={d.apartado} className="border-t border-doc-linea align-middle">
-                        <td className="py-1.5 pr-2"><b>{a.nombre}</b><div className="text-[9px] text-doc-tenue">{a.que}</div></td>
-                        <td className="py-1.5 pr-2"><BarraPapel d={d} n={n} /></td>
-                        <td className="py-1.5 pr-2 text-right font-cifra">{String(d.media).replace(".", ",")}/{a.maximo}</td>
-                        <td className="py-1.5 text-right"><span className={`rounded px-1.5 py-0.5 text-[9px] font-bold [print-color-adjust:exact] ${PAPEL[pr.orden]}`}>{pr.texto}</span></td>
+                        <td className="py-1 pr-2"><b>{a.nombre}</b><div className="text-[9pt] leading-tight text-doc-tenue">{a.que}</div></td>
+                        <td className="py-1 pr-2"><BarraPapel d={d} n={n} /></td>
+                        <td className="py-1 pr-2 text-right font-cifra">{String(d.media).replace(".", ",")}/{a.maximo}</td>
+                        <td className="py-1 text-right"><span className={`rounded px-1.5 py-0.5 text-[9px] font-bold [print-color-adjust:exact] ${PAPEL[pr.orden]}`}>{pr.texto}</span></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              <div className="mt-1 text-[9px] text-doc-tenue">Prioritario: la mitad o más de los trabajadores en rojo. A vigilar: más de un tercio (en la población de referencia es un tercio).</div>
+              <div className="mt-1 text-[9pt] text-doc-tenue">Prioritario: la mitad o más de los trabajadores en rojo. A vigilar: más de un tercio (en la población de referencia es un tercio).</div>
             </Bloque>
 
             {(res.grupos ?? []).length > 0 && (
@@ -171,14 +197,17 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
                           const d = g.dimensiones.find((x) => x.apartado === a.n);
                           if (!d) return <td key={a.n} className="text-center">—</td>;
                           const pr = prioridadDimension(d);
-                          return <td key={a.n} className="px-0.5 py-0.5 text-center"><span className={`block rounded px-1 py-0.5 font-cifra font-bold [print-color-adjust:exact] ${PAPEL[pr.orden]}`}>{porcentaje(d.rojo, g.n)} %</span></td>;
+                          return <td key={a.n} className="px-0.5 py-0.5 text-center"><span className={`block rounded px-1 py-0.5 font-cifra [print-color-adjust:exact] ${PAPEL[pr.orden]} ${pr.orden === 2 ? "border-2 font-extrabold underline" : pr.orden === 1 ? "font-bold" : "font-normal"}`}>{pr.orden === 2 ? "▲ " : ""}{porcentaje(d.rojo, g.n)} %</span></td>;
                         })}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {!!res.sin_grupo && <div className="mt-1 text-[9px] text-doc-tenue">{res.sin_grupo} respuestas de grupos pequeños cuentan solo en el total de la empresa.</div>}
+                <div className="mt-1 text-[9pt] text-doc-tenue">▲ y subrayado: la mitad o más del grupo en rojo (prioritario). En negrita: más de un tercio (a vigilar).</div>
               </Bloque>
+            )}
+            {(res.grupos ?? []).length === 0 && !!res.sin_grupo && (
+              <div className="mt-1 text-[9pt] text-doc-tenue">Los puestos tuvieron pocas respuestas: para que nadie pueda ser reconocido, los resultados se presentan solo para toda la empresa.</div>
             )}
           </>
         )}
@@ -210,14 +239,15 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
         </Bloque>
 
         <Bloque titulo="Intervalos de referencia (puntos por apartado)">
-          <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-[9.5px]">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 text-[9pt] leading-tight">
             {APARTADOS.map((a) => (
-              <div key={a.n}><b>{a.corto}:</b> <span className="[print-color-adjust:exact]">{NIVELES[0].nombre} {rango(a.verde)} · {NIVELES[1].nombre} {rango(a.amarillo)} · {NIVELES[2].nombre} {rango(a.rojo)}</span></div>
+              <div key={a.n}><b>{a.corto}</b><br />{NIVELES[0].nombre} {rango(a.verde)} · {NIVELES[1].nombre} {rango(a.amarillo)} · {NIVELES[2].nombre} {rango(a.rojo)}</div>
             ))}
           </div>
         </Bloque>
 
-        <div className="mt-auto pt-3 text-[8.5px] leading-snug text-doc-tenue">{METODO_PSICOSOCIAL.cita} {METODO_PSICOSOCIAL.licencia}</div>
+        <Firmas compacto><FirmaMedico d={firma} etiqueta="Médico ocupacional" compacto /></Firmas>
+        <div className="pt-2 text-[7pt] leading-snug text-doc-tenue">{METODO_PSICOSOCIAL.cita} {METODO_PSICOSOCIAL.licencia}</div>
         <Pie d={doc} derecha="Sin datos personales: solo resultados agregados" />
       </Hoja>
     </div>

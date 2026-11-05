@@ -96,20 +96,17 @@ do $$ begin
   raise notice 'anónimo ve resultados: FALLA';
 exception when insufficient_privilege then null; end $$;
 
--- Resultados: Cajeras (4) no llega a 5 y Gerencia (2) tampoco: van juntas a «Otros puestos» (6)
+-- Abierta: solo la participación, ni niveles ni grupos (comparar lecturas revelaría al último que respondió)
 reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 select 'total de respuestas (debe 6): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'total');
 select 'códigos usados (debe 2): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'usados');
-select 'grupos pequeños juntos en uno solo (debe 1): ' || jsonb_array_length(public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') -> 'grupos');
-select 'ese grupo es «Otros puestos» con 6 (debe 6): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') #>> '{grupos,0,n}')
- || case when public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') #>> '{grupos,0,id}' = '_otros' then '' else ' (no es otros)' end;
--- Un 5.º de Cajeras: Cajeras sale sola (5) y Gerencia (2) queda sin mostrarse
+select 'abierta con 6 respuestas: sin niveles ni grupos (debe 1): '
+ || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ?| array['dimensiones','grupos'] = false
+     and (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'abierta')::boolean)::int;
+-- Un 5.º de Cajeras: Cajeras 5, Gerencia 2
 select 'papel 5 (debe 1): ' || (public.cargar_respuesta_psicosocial('20700000-0000-0000-0000-0000000000e1','g1', array_fill(3, array[38])) = 'ok')::int;
-select 'solo Cajeras se muestra (debe 1): ' || jsonb_array_length(public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') -> 'grupos');
-select 'Gerencia (2) no se muestra: cuenta solo en el total (debe 2): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'sin_grupo');
-select 'exigencias psicológicas en rojo en el total (debe 4): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') #>> '{dimensiones,0,rojo}');
 do $$ begin
   update public.evaluaciones_psicosociales set grupos = '[{"id":"g1","nombre":"Cajeras"}]' where id='20700000-0000-0000-0000-0000000000e1';
   raise notice 'quitar un puesto con respuestas: FALLA';
@@ -118,6 +115,11 @@ update public.evaluaciones_psicosociales set grupos = '[{"id":"g1","nombre":"Caj
 select 'renombrar un puesto sí (debe 1): ' || count(*) from public.evaluaciones_psicosociales where grupos @> '[{"nombre":"Cajeras y taquilla"}]';
 update public.evaluaciones_psicosociales set estado = 'cerrada' where id='20700000-0000-0000-0000-0000000000e1';
 select 'cerrada con fecha (debe 1): ' || count(*) from public.evaluaciones_psicosociales where cerrada_en is not null;
+select 'cerrada: salen los niveles (debe 1): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'suficiente')::boolean::int;
+select 'exigencias psicológicas en rojo en el total (debe 4): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') #>> '{dimensiones,0,rojo}');
+-- Cajeras (5) se vería sola y Gerencia (2) no: total − Cajeras despejaría a Gerencia. Se junta todo: sin grupos.
+select 'Cajeras 5 + Gerencia 2: no se muestra ningún grupo (debe 0): ' || jsonb_array_length(public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') -> 'grupos');
+select 'las 7 cuentan solo en el total (debe 7): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e1') ->> 'sin_grupo');
 do $$ begin
   update public.evaluaciones_psicosociales set titulo = 'Cambiado' where id='20700000-0000-0000-0000-0000000000e1';
   raise notice 'cambiar el título de una cerrada: FALLA';
@@ -140,9 +142,23 @@ select 'RR. HH. ve el informe agregado de la cerrada (debe 7): ' || (public.resu
 select 'RR. HH. la ve en su lista (debe 1): ' || count(*) from public.evaluaciones_psicosociales_rrhh;
 select 'RR. HH. sigue sin la tabla ni los códigos (debe 0): ' || (select count(*) from public.evaluaciones_psicosociales) + (select count(*) from public.codigos_psicosociales);
 
--- El administrador reabre
+-- Ni el administrador reabre una con respuestas (antes/después revelaría a quien respondió en medio)
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-update public.evaluaciones_psicosociales set estado = 'abierta' where id='20700000-0000-0000-0000-0000000000e1';
-select 'el administrador reabre (debe 1): ' || count(*) from public.evaluaciones_psicosociales where estado='abierta' and cerrada_en is null;
+do $$ begin
+  update public.evaluaciones_psicosociales set estado = 'abierta' where id='20700000-0000-0000-0000-0000000000e1';
+  raise notice 'reabrir con respuestas: FALLA';
+exception when check_violation then null; end $$;
+
+-- Sin despeje por resta con 3 grupos: A 5, B 6, C 2. C (2) no llega; se le suma el visible más chico (A) → Otros 7.
+insert into public.evaluaciones_psicosociales (id, org_id, empresa_id, titulo, grupos, minimo_grupo, acuerdo_fecha) values
+ ('20700000-0000-0000-0000-0000000000e2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Psicosocial 3 grupos',
+  '[{"id":"a","nombre":"A"},{"id":"b","nombre":"B"},{"id":"c","nombre":"C"}]', 5, '2026-11-05');
+select '13 cuestionarios en papel: A 5, B 6, C 2 (debe 13): ' || count(*) filter (where x = 'ok') from (
+  select public.cargar_respuesta_psicosocial('20700000-0000-0000-0000-0000000000e2', g, array_fill(i % 5, array[38])) x
+    from (select 'a' g, i from generate_series(1,5) i union all select 'b', i from generate_series(1,6) i union all select 'c', i from generate_series(1,2) i) z) y;
+update public.evaluaciones_psicosociales set estado = 'cerrada' where id='20700000-0000-0000-0000-0000000000e2';
+select 'se ven B y Otros, nunca A sola (debe 1): ' || ((select string_agg(x->>'id', ',' order by x->>'id') from jsonb_array_elements(public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e2') -> 'grupos') x) = '_otros,b')::int;
+select 'Otros = A + C = 7 (debe 7): ' || (select x->>'n' from jsonb_array_elements(public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e2') -> 'grupos') x where x->>'id' = '_otros');
+select 'total = suma de grupos: nada se despeja restando (debe 0): ' || (public.resultados_psicosociales('20700000-0000-0000-0000-0000000000e2') ->> 'sin_grupo');
 reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null

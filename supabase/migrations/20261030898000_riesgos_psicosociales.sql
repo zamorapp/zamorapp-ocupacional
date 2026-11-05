@@ -130,7 +130,7 @@ create trigger preparar_respuesta_psicosocial before insert or update on public.
   for each row execute function public.preparar_respuesta_psicosocial();
 
 -- Reglas de la evaluación: empresa de la misma organización; quien la crea no cambia; grupos con id corto y nombre;
--- cerrada = solo se reabre (administrador o gerente médico) o se cambian conclusiones y medidas; con respuestas no se
+-- cerrada = solo se reabre (administrador o gerente médico, y sin respuestas) o se cambian conclusiones y medidas; con respuestas no se
 -- borra (se cierra).
 create or replace function public.validar_evaluacion_psicosocial()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -169,6 +169,10 @@ begin
     if new.estado = 'abierta' then
       if auth.uid() is not null and public.mi_rol(old.org_id) not in ('administrador', 'gerente_medico') then
         raise exception 'Solo un administrador o el gerente médico pueden reabrir una evaluación cerrada.' using errcode = '42501';
+      end if;
+      -- Con respuestas no se reabre: comparar el informe de antes y el de después revelaría a quien respondió en medio
+      if exists (select 1 from public.respuestas_psicosociales r where r.evaluacion_id = old.id) then
+        raise exception 'Esta evaluación ya tiene cuestionarios respondidos: no se reabre (protege el anonimato). Para más respuestas, crea una evaluación nueva.' using errcode = '23514';
       end if;
       new.cerrada_en := null;
     else
@@ -313,9 +317,16 @@ grant execute on function public.enviar_cuestionario_psicosocial(text, text, int
 --   · cada puesto con menos de «mínimo» se junta en «Otros puestos»; si esa suma tampoco llega, no se muestra
 --     (sus respuestas cuentan solo en el total).
 -- Por apartado: cuántos en verde / amarillo / rojo y el puntaje medio.
+-- Resultados agregados. Dos candados más (Analizar, 05-nov):
+--   · Con la evaluación ABIERTA nadie ve niveles, solo la participación: si el servicio viera las cifras después de
+--     cada respuesta, comparando dos lecturas sabría qué contestó quien acaba de responder.
+--   · Nada se despeja restando: si los grupos pequeños juntos («Otros puestos») no llegan al mínimo, se les suman
+--     los grupos visibles más chicos hasta llegar; si al final solo queda «Otros», no se muestran grupos. Así, total
+--     = suma de los grupos que se ven, y total − grupos nunca revela a nadie.
 create or replace function public.resultados_psicosociales(p_evaluacion uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare e public.evaluaciones_psicosociales; total int; usados int; codigos int; rol public.rol_usuario;
+        a_otros text[] := '{}'; n_otros int; f record; con_grupos boolean;
 begin
   select * into e from public.evaluaciones_psicosociales where id = p_evaluacion;
   if e.id is null or not public.puede_ver_empresa(e.org_id, e.empresa_id) then return null; end if;
@@ -326,8 +337,22 @@ begin
   end if;
   select count(*) into total from public.respuestas_psicosociales where evaluacion_id = e.id;
   select count(*), count(*) filter (where usado) into codigos, usados from public.codigos_psicosociales where evaluacion_id = e.id;
-  if total < e.minimo_grupo then
-    return jsonb_build_object('total', total, 'codigos', codigos, 'usados', usados, 'minimo', e.minimo_grupo, 'suficiente', false);
+  if e.estado <> 'cerrada' or total < e.minimo_grupo then
+    return jsonb_build_object('total', total, 'codigos', codigos, 'usados', usados, 'minimo', e.minimo_grupo,
+                              'suficiente', false, 'abierta', e.estado <> 'cerrada');
+  end if;
+  -- Cuántos caen en «Otros» (sin puesto o de grupos con menos del mínimo); si no llegan, se les suman los más chicos
+  select total - coalesce(sum(x.n), 0) into n_otros
+    from (select count(*) as n from public.respuestas_psicosociales
+           where evaluacion_id = e.id and grupo is not null group by grupo having count(*) >= e.minimo_grupo) x;
+  if n_otros between 1 and e.minimo_grupo - 1 then
+    for f in select grupo, count(*) as n from public.respuestas_psicosociales
+              where evaluacion_id = e.id and grupo is not null group by grupo having count(*) >= e.minimo_grupo
+              order by count(*), grupo loop
+      a_otros := a_otros || f.grupo;
+      n_otros := n_otros + f.n;
+      exit when n_otros >= e.minimo_grupo;
+    end loop;
   end if;
   return (
     with r as (
@@ -335,18 +360,22 @@ begin
     ), n_g as (
       select g, count(*) as n from r group by g
     ), r2 as (
-      -- grupo visible: el suyo si tiene el mínimo; si no, «otros»
-      select case when n.n >= e.minimo_grupo and r.g <> '' then r.g else '_otros' end as g, r.puntajes
+      -- grupo visible: el suyo si tiene el mínimo y no se fue a completar «Otros»; si no, «Otros»
+      select case when n.n >= e.minimo_grupo and r.g <> '' and not (r.g = any (a_otros)) then r.g else '_otros' end as g, r.puntajes
         from r join n_g n using (g)
     ), visibles as (
       select g, count(*) as n from r2 group by g having count(*) >= e.minimo_grupo
+    ), mostrar as (
+      -- con un solo grupo «Otros» que es toda la empresa no hay nada que mostrar por grupo
+      select v.* from visibles v
+       where jsonb_array_length(e.grupos) > 0 and exists (select 1 from visibles w where w.g <> '_otros')
     ), dims as (
       select r2.g, a as apartado,
              count(*) filter (where public.nivel_istas21_corta(a, r2.puntajes[a]) = 0) as verde,
              count(*) filter (where public.nivel_istas21_corta(a, r2.puntajes[a]) = 1) as amarillo,
              count(*) filter (where public.nivel_istas21_corta(a, r2.puntajes[a]) = 2) as rojo,
              round(avg(r2.puntajes[a]), 1) as media
-        from r2 join visibles v using (g) cross join generate_series(1, 6) a
+        from r2 join mostrar v using (g) cross join generate_series(1, 6) a
        group by r2.g, a
     ), todos as (
       select a as apartado,
@@ -357,8 +386,8 @@ begin
         from r cross join generate_series(1, 6) a group by a
     )
     select jsonb_build_object(
-      'total', total, 'codigos', codigos, 'usados', usados, 'minimo', e.minimo_grupo, 'suficiente', true,
-      'sin_grupo', total - coalesce((select sum(n) from visibles), 0),
+      'total', total, 'codigos', codigos, 'usados', usados, 'minimo', e.minimo_grupo, 'suficiente', true, 'abierta', false,
+      'sin_grupo', case when jsonb_array_length(e.grupos) = 0 then 0 else total - coalesce((select sum(n) from mostrar), 0) end,
       'dimensiones', (select jsonb_agg(jsonb_build_object('apartado', apartado, 'verde', verde, 'amarillo', amarillo, 'rojo', rojo, 'media', media) order by apartado) from todos),
       'grupos', coalesce((
         select jsonb_agg(jsonb_build_object(
@@ -369,8 +398,7 @@ begin
                  'dimensiones', (select jsonb_agg(jsonb_build_object('apartado', d.apartado, 'verde', d.verde, 'amarillo', d.amarillo, 'rojo', d.rojo, 'media', d.media) order by d.apartado)
                                    from dims d where d.g = v.g))
                order by (v.g = '_otros'), v.n desc)
-          from visibles v
-         where jsonb_array_length(e.grupos) > 0), '[]'::jsonb))
+          from mostrar v), '[]'::jsonb))
   );
 end $$;
 revoke execute on function public.resultados_psicosociales(uuid) from public, anon;
@@ -380,7 +408,7 @@ grant execute on function public.resultados_psicosociales(uuid) to authenticated
 -- respuestas. El servicio usa la tabla.
 create or replace view public.evaluaciones_psicosociales_rrhh with (security_barrier = true) as
   select e.id, e.org_id, e.empresa_id, e.titulo, e.metodo, e.inicio, e.cerrada_en, e.trabajadores, e.acuerdo_fecha,
-         e.conclusiones, e.medidas
+         e.conclusiones, e.medidas, e.creado_por
   from public.evaluaciones_psicosociales e
   where e.estado = 'cerrada'
     and (e.org_id = any ((select public.orgs_con('{gerente_empresa,supervisor,delegado_prevencion,auditor}', p_sin_limite => true))::uuid[])
