@@ -54,6 +54,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/api/salud") return conTiempo(respuesta);
   // Hora de la nube para el reloj del celular sin internet: sin datos, también sin sesión
   if (request.nextUrl.pathname === "/api/hora") return conTiempo(respuesta);
+  // Cuestionario psicosocial anónimo (/c/<código>): sin cuenta; la base valida el código de un solo uso
+  if (request.nextUrl.pathname === "/c" || request.nextUrl.pathname.startsWith("/c/")) return conTiempo(respuesta);
   // Latido de los avisos de la campana al celular: sin sesión; la base exige la clave del servidor
   if (request.nextUrl.pathname === "/api/avisos/campana") return conTiempo(respuesta);
   // Correo diario de constancias a RR. HH.: mismo latido, sin sesión; la base exige la clave del servidor
