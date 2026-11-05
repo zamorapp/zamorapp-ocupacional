@@ -7,19 +7,22 @@ import { HistoriaClinica } from "../../historia/hoja-historia";
 import { TIPOS } from "../../tipos";
 import { ControlTension, PlanAlimentacion } from "../../indicaciones";
 import { PLANES } from "@/lib/indicaciones-preventivas";
+import { Bienestar } from "../../bienestar";
+import { BOTONES_BIENESTAR, temasBienestar } from "@/lib/bienestar";
+import { leerCambios } from "@/lib/cambios-hoja";
 import { InformeVigilancia } from "../../vigilancia/informe";
 import { Portada } from "../../vigilancia/portada";
 
 // Solo para la prueba automática de impresión (scripts/pruebas/impresion.mjs): sin la variable no existe
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ tipo: string }>; searchParams: Promise<{ caso?: string }> };
+type Props = { params: Promise<{ tipo: string }>; searchParams: Promise<{ caso?: string; c?: string; dieta?: string; tema?: string }> };
 
 export default async function PruebaImpresion({ params, searchParams }: Props) {
   // ZAMORAPP_PRUEBA_IMPRESION solo se pone en el CI (impresion.yml) o en el banco local: NUNCA en Vercel ni en el
   // escritorio, porque esta página arma documentos con datos de ejemplo sin pedir sesión
   if (process.env.ZAMORAPP_PRUEBA_IMPRESION !== "1") notFound();
-  const [{ tipo }, { caso }] = await Promise.all([params, searchParams]);
+  const [{ tipo }, { caso, c, dieta, tema }] = await Promise.all([params, searchParams]);
   // El editor de Reportes con los mismos datos: prueba que «Otra redacción» y «Regenerar todo» cambien algo visible
   if (tipo === "vigilancia-editor") {
     const v = armarVigilancia(vigilanciaDePrueba());
@@ -47,6 +50,9 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   if (!t) notFound();
   // Peor caso de las indicaciones: 14 días de tensión (dos hojas) y el plan con todos los esquemas
   if (tipo === "control-ta") return <ControlTension d={documentoDePrueba("normal")} dias={largo === "largo" ? 14 : 7} />;
-  if (tipo === "dieta") return <PlanAlimentacion d={documentoDePrueba("normal")} planes={largo === "largo" ? PLANES.map((p) => p.clave) : ["hta"]} />;
+  // Dieta: una dieta completa con una indicación sumada; en el peor caso, nefropatía con todas las demás sumadas
+  if (tipo === "dieta") return <PlanAlimentacion d={documentoDePrueba("normal")} dieta={dieta ?? (largo === "largo" ? "renal" : "hta")} planes={largo === "largo" ? PLANES.map((p) => p.clave) : ["lipidos"]} cambios={leerCambios(c)} />;
+  // Bienestar: las pausas activas solas caben en una carta; con todos los temas fluye
+  if (tipo === "bienestar") return <Bienestar d={documentoDePrueba("normal")} temas={tema ? temasBienestar(tema) : largo === "largo" ? BOTONES_BIENESTAR.map((t) => t.clave) : ["pausas"]} cambios={leerCambios(c)} />;
   return <t.Componente d={documentoDePrueba(caso === "largo" || caso === "same" ? caso : "normal")} />;
 }

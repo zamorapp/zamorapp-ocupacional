@@ -6,6 +6,9 @@ import type { DatosDocumento } from "@/lib/documentos";
 const logo = (texto: string, color: string) =>
   `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="90"><rect width="240" height="90" rx="12" fill="${color}"/><text x="120" y="56" font-size="28" text-anchor="middle" fill="#fff" font-family="sans-serif">${texto}</text></svg>`).toString("base64")}`;
 
+// Firma de prueba parecida a una real: trazo a mano sobre fondo blanco (como un escaneo), para ver que no tape nada
+const firma = `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#fff"/><path d="M18 88c22-50 40-70 48-62s-22 66-8 66 30-58 46-56-8 42 6 40 22-34 34-30-4 26 10 24 30-20 44-18c18 3 40 8 86-6" fill="none" stroke="#1b2a6b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M70 104c60-6 120-10 200-14" fill="none" stroke="#1b2a6b" stroke-width="3" stroke-linecap="round"/></svg>`).toString("base64")}`;
+
 const repetir = (frase: string, n: number) => Array.from({ length: n }, () => frase).join(" ");
 
 // «same»: consulta importada del SAME, firmada y emitida allá (leyenda junto a la firma)
@@ -71,7 +74,7 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same"): DatosDocum
     },
     medicoDatos: {
       nombre_completo: "Dr. Médico de Prueba", cedula: "V-9.999.999", mpps: "12345", colegio_medicos: "6789", registro_inpsasel: "INP-001",
-      especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: logo("Firma", "#15201e"), sello_url: logo("Sello", "#1d4ed8"), mostrar_firma: true, mostrar_sello: true,
+      especialidad: "Medicina Ocupacional", correo: "medico@ejemplo.com", firma_url: firma, sello_url: logo("Sello", "#1d4ed8"), mostrar_firma: true, mostrar_sello: true,
     },
     motivo: { nombre: "Periódico", codigo: "PER", grupo: "preventivo" },
     empresa: { razon_social: largo ? "Corporación Industrial de Alimentos y Bebidas del Oriente, C.A." : "Alimentos del Centro, C.A.", rif: "J-11111111-1", logo: logo("Empresa", "#1d4ed8") },

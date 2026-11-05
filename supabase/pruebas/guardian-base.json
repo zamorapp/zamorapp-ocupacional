@@ -5,7 +5,7 @@
   ],
   "anon": [
     "public.abrir_enlace(p_token text, p_agente text)",
-    "public.abrir_enlace_trabajador(p_token text, p_agente text)",
+    "public.abrir_enlace_trabajador(p_token text, p_documento text, p_cedula text, p_agente text)",
     "public.ahora()",
     "public.ahora_de_la_puerta()",
     "public.ahora_verificada()",
@@ -27,6 +27,7 @@
     "public.firmar_consulta(p_id uuid)",
     "public.hoy_caracas()",
     "public.lista_clinica(p_lista text)",
+    "public.listar_enlace_trabajador(p_token text)",
     "public.marcar_constancias_enviadas(p_clave text, p_empresa uuid, p_consultas uuid[], p_destinatarios text[])",
     "public.mis_equipos_confianza()",
     "public.normalizar_usuario(p text)",
