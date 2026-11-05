@@ -13,7 +13,7 @@
 -- 1. Columna + una sola bolsa por organización.
 -- 2. Marca la fila existente (coincidencia exacta del nombre, solo en la nube; a la PC llega por la réplica).
 -- 3. empresa_particulares(): id de la bolsa (la crea si falta) para el registro rápido.
--- 4. RR. HH. nunca entra a la bolsa: ni invitaciones ni empresas_permitidas de roles de empresa.
+-- 4. RR. HH. nunca entra a la bolsa: limpia lo existente; rol de empresa siempre con empresas y sin la bolsa.
 -- 5. Vigilancia, Inicio y alertas por empresa: «todas las empresas» = sin particulares.
 -- 6. vistas_al_dia (columna nueva en empresas).
 
@@ -95,6 +95,54 @@ revoke execute on function public.quitar_particulares(uuid) from public, anon;
 grant execute on function public.quitar_particulares(uuid) to authenticated;
 
 -- ─── 4. RR. HH. nunca entra a la bolsa ───
+-- puede_ver_empresa y las políticas toman empresas_permitidas NULL como «todas»: un rol de empresa con NULL vería a los
+-- particulares. Por eso los roles de empresa SIEMPRE llevan empresas (no vacías) y nunca la bolsa (Analizar, 05-nov).
+-- 4a. Limpieza de lo que ya existe (solo en la nube; a la PC llega por la réplica). Antes del disparador.
+-- Función (sin permiso para usuarios) para que la prueba 203 la ejercite; devuelve cuántos quedan con «todas».
+create or replace function public.limpiar_particulares_rrhh()
+returns integer language plpgsql security definer set search_path = public as $$
+declare r record; v_nulos int;
+begin
+  -- Roles de empresa que tienen la bolsa: se les quita; si no les queda empresa, se desactivan
+  for r in
+    select m.id, m.org_id, m.empresas_permitidas as antes,
+           array(select x from unnest(m.empresas_permitidas) x where not exists (select 1 from public.empresas e where e.id = x and e.es_particular)) as despues
+      from public.miembros m
+     where m.rol in ('gerente_empresa', 'supervisor', 'delegado_prevencion', 'trabajador', 'auditor')
+       and exists (select 1 from public.empresas e where e.id = any (coalesce(m.empresas_permitidas, '{}')) and e.es_particular)
+  loop
+    update public.miembros
+       set empresas_permitidas = case when cardinality(r.despues) > 0 then r.despues else empresas_permitidas end,
+           activo = activo and cardinality(r.despues) > 0
+     where id = r.id;
+    insert into public.bitacora (org_id, accion, tabla, registro_id, antes, despues)
+    values (r.org_id, 'quitar_particulares_rrhh', 'miembros', r.id, jsonb_build_object('empresas', r.antes),
+            jsonb_build_object('empresas', r.despues, 'desactivado', cardinality(r.despues) = 0));
+  end loop;
+  -- Invitaciones pendientes a la bolsa: se anulan
+  for r in
+    select i.id, i.org_id from public.invitaciones i join public.empresas e on e.id = i.empresa_id
+     where e.es_particular and i.usada_en is null and i.revocada_en is null
+  loop
+    update public.invitaciones set revocada_en = now() where id = r.id;
+    insert into public.bitacora (org_id, accion, tabla, registro_id, despues)
+    values (r.org_id, 'anular_invitacion_particulares', 'invitaciones', r.id, '{"motivo":"los particulares no tienen RR. HH."}');
+  end loop;
+  -- Roles de empresa con «todas las empresas» (NULL o vacío): no se adivina su empresa; se avisa con el conteo
+  select count(*) into v_nulos from public.miembros
+   where rol in ('gerente_empresa', 'supervisor', 'delegado_prevencion', 'trabajador', 'auditor')
+     and activo and coalesce(cardinality(empresas_permitidas), 0) = 0;
+  if v_nulos > 0 then
+    raise warning 'pacientes_particulares: % usuario(s) de empresa sin empresa asignada ven todas las empresas; asignarles su empresa en Configuración › Usuarios', v_nulos;
+  end if;
+  return v_nulos;
+end $$;
+revoke execute on function public.limpiar_particulares_rrhh() from public, anon, authenticated;
+do $$ begin
+  if not public.es_base_local() then perform public.limpiar_particulares_rrhh(); end if;
+end $$;
+
+-- 4b. Desde ahora: rol de empresa = con empresas y sin la bolsa; invitaciones nunca a la bolsa
 create or replace function public.particulares_sin_rrhh()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -102,9 +150,13 @@ begin
     if exists (select 1 from public.empresas e where e.id = new.empresa_id and e.es_particular) then
       raise exception 'Los pacientes particulares no tienen RR. HH.: no se puede invitar a esa «empresa»' using errcode = '23514';
     end if;
-  elsif new.rol in ('gerente_empresa', 'supervisor', 'delegado_prevencion', 'trabajador', 'auditor')
-        and exists (select 1 from public.empresas e where e.id = any (coalesce(new.empresas_permitidas, '{}')) and e.es_particular) then
-    raise exception 'Los pacientes particulares no tienen RR. HH.: quita «Pacientes particulares» de sus empresas' using errcode = '23514';
+  elsif new.rol in ('gerente_empresa', 'supervisor', 'delegado_prevencion', 'trabajador', 'auditor') then
+    if coalesce(cardinality(new.empresas_permitidas), 0) = 0 then
+      raise exception 'Un usuario de empresa debe tener su empresa asignada' using errcode = '23514';
+    end if;
+    if exists (select 1 from public.empresas e where e.id = any (new.empresas_permitidas) and e.es_particular) then
+      raise exception 'Los pacientes particulares no tienen RR. HH.: quita «Pacientes particulares» de sus empresas' using errcode = '23514';
+    end if;
   end if;
   return new;
 end $$;

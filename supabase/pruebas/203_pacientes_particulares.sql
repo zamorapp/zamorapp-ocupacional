@@ -49,6 +49,35 @@ with u as (update public.miembros set empresas_permitidas = empresas_permitidas 
 select 'el médico sí puede tenerla (debe 1): ' || count(*) from u;
 update public.miembros set empresas_permitidas = '{20000000-0000-0000-0000-00000000000a}' where usuario_id = '00000000-0000-0000-0000-0000000000a2';
 
+-- Rol de empresa con «todas» (NULL o vacío): rechazado (vería a los particulares)
+reset role;
+do $$ begin
+  begin
+    update public.miembros set empresas_permitidas = null where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+    raise notice 'FALLA: RR. HH. quedó con todas las empresas';
+  exception when check_violation then null; end;
+end $$;
+select 'RR. HH. con NULL rechazado, sigue con A (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000a3' and empresas_permitidas = '{20000000-0000-0000-0000-00000000000a}';
+
+-- Limpieza de lo existente: RR. HH. que ya tenía la bolsa la pierde; invitación pendiente a la bolsa se anula
+alter table public.miembros disable trigger particulares_sin_rrhh;
+alter table public.invitaciones disable trigger particulares_sin_rrhh;
+update public.miembros set empresas_permitidas = '{20000000-0000-0000-0000-00000000000a,20000000-0000-0000-0000-000000000203}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+insert into public.invitaciones (id, org_id, empresa_id, nombre, token_hash, vence) values
+  ('50000000-0000-0000-0000-000000000203', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000203', 'RR. HH. prueba', sha256('203'::bytea), now() + interval '1 day');
+alter table public.miembros enable trigger particulares_sin_rrhh;
+alter table public.invitaciones enable trigger particulares_sin_rrhh;
+select 'limpieza: sin roles de empresa con todas (debe 0): ' || public.limpiar_particulares_rrhh();
+select 'limpieza: RR. HH. sin la bolsa (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000a3' and empresas_permitidas = '{20000000-0000-0000-0000-00000000000a}' and activo;
+select 'limpieza: invitación anulada (debe 1): ' || count(*) from public.invitaciones where id = '50000000-0000-0000-0000-000000000203' and revocada_en is not null;
+select 'limpieza: quedó en la bitácora (debe 2): ' || count(*) from public.bitacora where accion in ('quitar_particulares_rrhh', 'anular_invitacion_particulares');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+select 'RR. HH. no ve a los particulares (debe 0): ' || count(*) from public.trabajadores where id = '30000000-0000-0000-0000-000000000203';
+select 'nadie de afuera corre la limpieza (debe 0): ' || has_function_privilege('public.limpiar_particulares_rrhh()', 'execute')::int;
+reset role;
+delete from public.invitaciones where id = '50000000-0000-0000-0000-000000000203';
+
 -- Deshacer: solo el administrador; vuelve el nombre anterior
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null

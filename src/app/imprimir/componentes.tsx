@@ -143,13 +143,18 @@ export function Datos({ filas, columnas = 2 }: { filas: [string, React.ReactNode
 export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; completo?: boolean }) {
   const t = d.trabajador;
   const sexo = t.sexo === "F" ? "F" : t.sexo === "M" ? "M" : null;
+  const particular = esParticular(d.empresa);
   const celdas: { k: string; v: React.ReactNode; ancho?: 2 | 4; destacada?: boolean }[] = [
-    { k: "Trabajador", v: t.nombre, ancho: 2, destacada: true },
+    { k: particular ? "Paciente" : "Trabajador", v: t.nombre, ancho: 2, destacada: true },
     { k: "Cédula", v: t.cedula },
     { k: "Edad · Sexo", v: [t.edad !== null && `${t.edad} años`, sexo].filter(Boolean).join(" · ") },
-    { k: "Cargo · Dependencia", v: [t.cargo, d.dependencia].filter(Boolean).join(" · "), ancho: 2 },
+    particular
+      ? { k: "Ocupación", v: t.cargo ?? "", ancho: 2 }
+      : { k: "Cargo · Dependencia", v: [t.cargo, d.dependencia].filter(Boolean).join(" · "), ancho: 2 },
   ];
-  if (completo) {
+  // Particular (sin empresa): sin ingreso, turno, antigüedad en el cargo ni ficha (Diseño, 05-nov)
+  if (particular) celdas[3] = { ...celdas[3], ancho: 4 };
+  else if (completo) {
     celdas.push(
       { k: "Ingreso · Turno", v: [d.extra.fecha_ingreso && fechaCorta(d.extra.fecha_ingreso), d.extra.turno].filter(Boolean).join(" · ") },
       // Antigüedad en el cargo a la fecha de la consulta (no a la de impresión), como en el SAME

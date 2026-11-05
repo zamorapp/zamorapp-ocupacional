@@ -77,9 +77,9 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
       </Bloque>
       {apt.limitaciones.length > 0 && !d.sin.includes("limitaciones") && <Bloque titulo="Restricciones">{apt.limitaciones.join(" · ")}</Bloque>}
       {!d.sin.includes("riesgos") && <BloqueRiesgos riesgos={d.trabajador.riesgos} ajustes={a} />}
-      {apt.observacion && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={apt.observacion} /></Bloque>}
+      {apt.observacion && <Bloque titulo={esParticular(d.empresa) ? "Recomendaciones al paciente" : "Recomendaciones al trabajador"}><Lista texto={apt.observacion} /></Bloque>}
       {/* Una recomendación elegida para los dos sale una sola vez (en la del trabajador, que va primero) */}
-      {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
+      {sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion).trim() && <Bloque titulo={esParticular(d.empresa) ? "Recomendaciones" : "Recomendaciones a la empresa"}><Lista texto={sinRepetidas(d.datos.recomendacionesEmpresa, apt.observacion)} /></Bloque>}
       {(a.observacion_idoneidad ?? NOTA_IDONEIDAD) && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue">{a.observacion_idoneidad ?? NOTA_IDONEIDAD}</p>}
       <Firmas>
         {a.firma_paciente_constancia ? <FirmaTrabajador d={d} /> : <span />}
@@ -188,7 +188,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       <Membrete d={d} />
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
-      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} />
+      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
       {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
       <Firmas>
         {certificacion ? <FirmaTrabajador d={d} /> : <span />}
@@ -201,8 +201,8 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
 
 // Contenido clínico de una consulta, igual en el informe y en cada consulta de la historia clínica.
 // antecedentes=false: la historia los omite cuando no cambiaron desde la consulta anterior.
-export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", antecedentes = true }: {
-  c: DatosConsulta; sin: OpcionImpresion[]; ajustes: AjustesDocumentos; variante?: VarianteInforme; antecedentes?: boolean;
+export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", antecedentes = true, particular = false }: {
+  c: DatosConsulta; sin: OpcionImpresion[]; ajustes: AjustesDocumentos; variante?: VarianteInforme; antecedentes?: boolean; particular?: boolean;
 }) {
   const laboral = variante === "completo";
   const sv = c.signos;
@@ -297,7 +297,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
       {c.conclusiones && !sin.includes("conclusiones") && <Bloque titulo={variante === "preoperatorio" ? "Riesgo quirúrgico y conclusión" : "Conclusiones"}><Lista texto={c.conclusiones} /></Bloque>}
       {(c.recomendacionesTrabajador || c.aptitud.observacion) && <Bloque titulo="Recomendaciones al trabajador"><Lista texto={c.recomendacionesTrabajador || c.aptitud.observacion} /></Bloque>}
       {laboral && sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion).trim() && (
-        <Bloque titulo="Recomendaciones a la empresa"><Lista texto={sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion)} /></Bloque>
+        <Bloque titulo={particular ? "Recomendaciones" : "Recomendaciones a la empresa"}><Lista texto={sinRepetidas(c.recomendacionesEmpresa, c.recomendacionesTrabajador || c.aptitud.observacion)} /></Bloque>
       )}
     </>
   );
@@ -641,8 +641,11 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
         filas={[
           ["Nombre", t.nombre], ["Cédula", t.cedula],
           ["Nacimiento", d.extra.fecha_nacimiento ? `${fechaCorta(d.extra.fecha_nacimiento)}${t.edad !== null ? ` (${t.edad} años)` : ""}` : null], ["Sexo", t.sexo === "F" ? "Femenino" : t.sexo === "M" ? "Masculino" : null],
-          ["Ingreso", d.extra.fecha_ingreso ? fechaCorta(d.extra.fecha_ingreso) : null], ["Turno", d.extra.turno],
-          ["Tipo", d.extra.tipo?.nombre], ["Ficha", d.extra.ficha],
+          // Un particular no tiene ingreso, turno, ficha ni tipo de trabajador (Diseño, 05-nov)
+          ...(esParticular(d.empresa) ? [] : [
+            ["Ingreso", d.extra.fecha_ingreso ? fechaCorta(d.extra.fecha_ingreso) : null], ["Turno", d.extra.turno],
+            ["Tipo", d.extra.tipo?.nombre], ["Ficha", d.extra.ficha],
+          ] as [string, React.ReactNode][]),
         ]}
       />
       <TablaOrden
