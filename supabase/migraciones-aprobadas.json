@@ -1,11 +1,21 @@
 {
   "etiqueta": "migraciones-20261105-20",
-  "aprobado": "Cesar, sí del 2026-11-05 02:32 UTC (sí eliminar)",
+  "aprobado": "Cesar, sí del 2026-11-05 02:32-02:37 UTC (sí eliminar, sí vigilancia, sí papelera)",
   "migraciones": [
+    {
+      "archivo": "20261030882000_vigilancia_complemento.sql",
+      "sha256": "d67353372957a26543a12615c1c6ac0d58b75561039dc86a5eb0cb829b4c5cbf",
+      "descripcion": "Vigilancia: morbilidad por motivo de consulta y diez primeras causas por cargo (como el SAME)"
+    },
     {
       "archivo": "20261030883000_papelera_delete_con_where.sql",
       "sha256": "204a42e577207eafcca6955d93d77f08b2ed24db1f41474ed5f881ee49a14630",
       "descripcion": "Papelera: arregla «DELETE requires a WHERE clause» y elimina documentos con Deshacer"
+    },
+    {
+      "archivo": "20261030890000_papelera_adjuntos.sql",
+      "sha256": "4be9d35a96a97ba7a70ce6b5fa198dc3c913a421f10a3057857acc83657331fe",
+      "descripcion": "Papelera: adjuntos y escaneados con Deshacer"
     }
   ]
 }
