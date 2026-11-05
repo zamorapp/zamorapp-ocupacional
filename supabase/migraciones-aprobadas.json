@@ -1,11 +1,11 @@
 {
-  "etiqueta": "migraciones-20261105-21",
-  "aprobado": "Cesar, sí del 2026-11-05 03:30 UTC (sí whatsapp trabajador)",
+  "etiqueta": "migraciones-20261105-22",
+  "aprobado": "Cesar, sí del 2026-11-05 04:15 UTC (si indice)",
   "migraciones": [
     {
-      "archivo": "20261030891000_enlaces_trabajador.sql",
-      "sha256": "157f2ea64b097751c4faabc699ce1a80199e965ccb39859189a37d8a0db7b88d",
-      "descripcion": "Enlace por WhatsApp para que el trabajador abra su documento (vence en 7 días, se puede anular)"
+      "archivo": "20261030893000_quitar_indice_repetido.sql",
+      "sha256": "090ae8467c2b610ef467ef635b45f895100ba86f9a7fd7b6cdd9b938a5855672",
+      "descripcion": "Quita el índice repetido de consultas (más rápido al guardar)"
     }
   ]
 }
