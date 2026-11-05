@@ -1,5 +1,14 @@
 import {
   BarChart3,
+  CalendarCog,
+  ClipboardPlus,
+  DatabaseBackup,
+  HardHat,
+  History,
+  PersonStanding,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
   BookOpen,
   Building2,
   Settings,
@@ -35,6 +44,8 @@ const GERENCIA = ["administrador", "gerente_medico"];
 const ADMIN = ["administrador"];
 // Configuración › Respaldos solo muestra su contenido a estos roles
 const RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"];
+// = ROLES_ERGONOMIA de lib/ergonomia (no se importa: arrastraría sus tablas al buscador); la prueba vigila que coincidan
+export const ERGONOMIA = ["administrador", "gerente_medico", "medico", "coordinador_sst"];
 
 const FACTURACION: Atajo[] = [
   { href: "/facturacion?vista=servicios", titulo: "Servicios y precios", donde: "Facturación", icono: Receipt, palabras: "precio tarifa costo arancel baremo valor monto catalogo lista de precios cobrar" },
@@ -99,7 +110,26 @@ const OTROS: Atajo[] = [
   { href: "/ayuda", titulo: "Lo nuevo y manual de uso", donde: "Manual de uso", icono: BookOpen, palabras: "ayuda como se usa instrucciones novedades" },
 ];
 
+// Funciones (lo que se hace, no dónde está): «atender», «nueva cita», «reportar accidente»… Abren la pantalla
+// donde está el botón. Sus permisos son los de esa pantalla.
+const FUNCIONES: Atajo[] = [
+  { href: "/atencion", titulo: "Nueva consulta", donde: "Atención médica", icono: ClipboardPlus, palabras: "atender consultar evaluar examinar registrar consulta pre empleo preempleo periodico egreso reintegro", clinico: true },
+  { href: "/atencion", titulo: "Nueva cita", donde: "Atención médica", icono: ClipboardPlus, palabras: "agendar citar programar cita reservar turno", clinico: true },
+  { href: "/atencion?empresas=todas#consultas", titulo: "Últimos atendidos", donde: "Atención médica · todas las empresas", icono: History, palabras: "ultimas consultas recientes atendidos hoy ayer semana historial pacientes vistos", clinico: true },
+  { href: "/pacientes", titulo: "Registrar trabajador", donde: "Pacientes", icono: UserPlus, palabras: "nuevo paciente agregar crear ficha alta trabajador ingresar" },
+  { href: "/facturacion/nuevo", titulo: "Nueva nota de cobro", donde: "Facturación", icono: Receipt, palabras: "facturar cobrar emitir factura nueva recibo" },
+  { href: "/accidentes", titulo: "Reportar accidente", donde: "Accidentes", icono: HardHat, palabras: "nuevo accidente incidente lesion declarar notificar inpsasel enfermedad ocupacional investigacion" },
+  { href: "/ergonomia", titulo: "Nueva evaluación ergonómica", donde: "Ergonomía", icono: PersonStanding, palabras: "rula reba niosh rosa ocra kim deb puesto postura carga levantamiento silla pantalla evaluar", roles: ERGONOMIA },
+  { href: "/inspeccion", titulo: "Paquete para el inspector", donde: "Cumplimiento INPSASEL", icono: ShieldCheck, palabras: "inspeccion inspector imprimir cumplimiento lopcymat delegados comite programa sst" },
+  { href: "/configuracion/respaldo", titulo: "Respaldar ahora", donde: "Configuración › Respaldos", icono: DatabaseBackup, palabras: "respaldo copia guardar drive backup", roles: RESPALDO },
+  { href: "/configuracion/horario", titulo: "Disponibilidad y horario", donde: "Configuración", icono: CalendarCog, palabras: "horario disponibilidad bloquear bloqueo vacaciones feriado cupos agenda dias libres" },
+  { href: "/configuracion/papelera", titulo: "Papelera", donde: "Configuración", icono: Trash2, palabras: "borrados eliminados recuperar restaurar deshacer", puede: (o) => o.rol === "administrador" && Boolean(o.clinico) },
+  // Solo en el programa de escritorio: la lista vive en esa PC
+  { href: "/conflictos", titulo: "Conflictos y rechazados", donde: "Escritorio", icono: Settings, palabras: "sincronia conflicto rechazado nube no acepto", puede: () => process.env.NEXT_PUBLIC_ESCRITORIO === "1" },
+];
+
 export const ATAJOS: Atajo[] = [
+  ...FUNCIONES,
   ...FACTURACION,
   ...CONFIGURACION,
   ...LISTAS.map(([codigo, titulo, palabras, clinico]): Atajo => ({ href: `/configuracion/listas?l=${codigo}`, titulo, donde: "Configuración › Listas", icono: Settings, palabras, clinico })),

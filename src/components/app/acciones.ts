@@ -8,6 +8,7 @@ import { COOKIE_EMPRESA } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { TRABAJADORES_DEMO } from "@/lib/pacientes";
 import { buscarPacientes } from "@/app/(app)/atencion/acciones";
+import { ultimosAtendidos, type Atendido } from "@/lib/ultimos-atendidos";
 
 export async function salir() {
   if (supabaseConfigurado) {
@@ -64,4 +65,14 @@ export async function buscarGlobal(texto: string): Promise<Encontrado[]> {
     ).slice(0, 8).map((t) => ({ id: t.id, nombre: `${t.nombres} ${t.apellidos}`, cedula: t.cedula, empresa: t.empresa }));
   }
   return buscarPacientes(q);
+}
+
+// Al abrir el buscador sin escribir nada: las últimas consultas de todas las empresas (solo personal de salud)
+export async function ultimosParaBuscador(): Promise<Atendido[]> {
+  if (!supabaseConfigurado) return [];
+  try {
+    return await ultimosAtendidos(6);
+  } catch {
+    return [];
+  }
 }
