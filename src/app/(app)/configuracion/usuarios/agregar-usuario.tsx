@@ -20,7 +20,7 @@ const ROLES_SERVICIO: { rol: Rol; ve: string; nove?: string }[] = [
   { rol: "administrador", ve: "Todo: configuración, usuarios y cobros.", nove: "Historias clínicas solo si le marcas «Clínico»." },
 ];
 const ROLES_CLIENTE: { rol: Rol; ve: string; nove?: string }[] = [
-  { rol: "gerente_empresa", ve: "RR. HH.: pide citas, carga la nómina y ve las aptitudes de su empresa.", nove: "Nunca ve diagnósticos, grupo sanguíneo ni discapacidad." },
+  { rol: "gerente_empresa", ve: "Pide citas, carga la nómina y ve las aptitudes de su empresa.", nove: "Nunca ve diagnósticos, grupo sanguíneo ni discapacidad." },
   { rol: "supervisor", ve: "Consulta trabajadores y accidentes de su empresa.", nove: "Solo lectura; sin datos clínicos." },
   { rol: "delegado_prevencion", ve: "Consulta trabajadores y accidentes de su empresa.", nove: "Solo lectura; sin datos clínicos." },
   { rol: "auditor", ve: "Revisa la auditoría de su empresa.", nove: "Solo lectura; sin datos clínicos." },
@@ -120,17 +120,32 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
             </div>
           )}
 
-          {paso === 3 && rol && (
-            <ul className="divide-y rounded-lg border text-sm">
-              <li className="flex items-center gap-3 px-3 py-2.5"><span className="w-20 shrink-0 text-muted-foreground">Correo</span><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{correo}</span><Button type="button" variant="ghost" size="sm" onClick={() => setPaso(0)}>Cambiar</Button></li>
-              <li className="flex items-center gap-3 px-3 py-2.5"><span className="w-20 shrink-0 text-muted-foreground">Rol</span><span className="min-w-0 flex-1">{rol === "gerente_empresa" ? "RR. HH. de la empresa" : ETIQUETA_ROL[rol]}</span><Button type="button" variant="ghost" size="sm" onClick={() => setPaso(1)}>Cambiar</Button></li>
-              {deEmpresa && <li className="flex items-center gap-3 px-3 py-2.5"><span className="w-20 shrink-0 text-muted-foreground">Empresa</span><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{nombres}</span><Button type="button" variant="ghost" size="sm" onClick={() => setPaso(2)}>Cambiar</Button></li>}
-            </ul>
-          )}
+          {paso === 3 && rol && (() => {
+            const info = [...ROLES_SERVICIO, ...ROLES_CLIENTE].find((r) => r.rol === rol);
+            const Fila = ({ etiqueta, n, children }: { etiqueta: string; n: number; children: React.ReactNode }) => (
+              <li className="grid grid-cols-1 items-center gap-x-3 gap-y-0.5 px-3 py-2.5 sm:grid-cols-[5rem_minmax(0,1fr)_auto]">
+                <span className="text-xs text-muted-foreground sm:text-sm">{etiqueta}</span>
+                <span className="min-w-0">{children}</span>
+                <Button type="button" variant="ghost" size="sm" className="-ml-3 justify-self-start sm:ml-0 sm:justify-self-auto" onClick={() => setPaso(n)}>Cambiar</Button>
+              </li>
+            );
+            return (
+              <ul className="divide-y rounded-lg border text-sm">
+                <Fila etiqueta="Correo" n={0}><span className="break-all">{correo}</span></Fila>
+                <Fila etiqueta="Rol" n={1}>
+                  <span className="block">{rol === "gerente_empresa" ? "RR. HH. de la empresa" : ETIQUETA_ROL[rol]}</span>
+                  {info?.nove && <span className="block text-xs text-aviso-texto">{info.nove}</span>}
+                </Fila>
+                {deEmpresa && <Fila etiqueta="Empresa" n={2}><span className="[overflow-wrap:anywhere]">{nombres}</span></Fila>}
+              </ul>
+            );
+          })()}
 
           <Aviso resultado={estado} />
           <div className="flex flex-wrap items-center justify-end gap-2">
             {paso > 0 && <Button type="button" variant="ghost" className="mr-auto" onClick={atras}><ChevronLeft /> Atrás</Button>}
+            {paso === 1 && !rol && <p className="text-xs text-muted-foreground">Elige un rol para seguir.</p>}
+            {paso === 2 && !elegidas.length && <p className="text-xs text-muted-foreground">Marca al menos una empresa para seguir.</p>}
             {paso < 3 ? (
               // Claves distintas: si React reusara el mismo botón, al pasar a «Revisar» el clic de «Siguiente» enviaría el formulario
               <Button key="siguiente" type="button" onClick={siguiente} disabled={(paso === 1 && !rol) || (paso === 2 && !elegidas.length)}>Siguiente <ChevronRight /></Button>
