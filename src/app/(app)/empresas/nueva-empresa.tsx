@@ -42,6 +42,14 @@ function leer(f: HTMLFormElement | null, nombre: string): string {
 function Revision({ f, ir }: { f: HTMLFormElement | null; ir: (n: number) => void }) {
   const v = (n: string) => leer(f, n);
   const deps = v("dependencias").split("\n").map((d) => d.trim()).filter(Boolean);
+  // Datos opcionales que faltan por paso: se avisan en ámbar, nunca impiden crear
+  const falta = (campos: [string, string][]) => campos.filter(([n]) => !v(n) || v(n) === "Sin definir").map(([, t]) => t);
+  const faltan: string[][] = [
+    falta([["nil", "NIL"], ["actividad", "actividad económica"]]),
+    falta([["estado", "estado"], ["municipio", "municipio"], ["direccion", "dirección"], ["telefono", "teléfono"]]),
+    falta([["servicio_sst", "servicio de SST"], ["servicio_sst_registro", "registro del servicio de SST"], ["psst_registro", "registro del PSST"]]),
+    [],
+  ];
   const filas: [number, string, string][] = [
     [0, "Identificación", [v("razon_social"), v("rif") && `RIF ${v("rif")}`, v("actividad")].filter(Boolean).join(" · ")],
     [1, "Ubicación", [v("estado"), v("municipio"), v("telefono"), deps.length ? `${deps.length} dependencia${deps.length === 1 ? "" : "s"}` : "sin dependencias"].filter(Boolean).join(" · ")],
@@ -50,12 +58,16 @@ function Revision({ f, ir }: { f: HTMLFormElement | null; ir: (n: number) => voi
   ];
   return (
     <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">Revisa y pulsa «Crear empresa». Todo se puede cambiar después con «Editar».</p>
+      <p className="text-sm text-muted-foreground">Revisa y pulsa «Crear empresa». Lo que falta se puede completar después con «Editar».</p>
       <ul className="divide-y rounded-lg border">
         {filas.map(([n, t, d]) => (
           <li key={t} className="flex items-center gap-3 px-3 py-2.5">
-            <Check className="size-4 shrink-0 text-ok-texto" />
-            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{t}</span><span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{d || "Sin datos"}</span></span>
+            {faltan[n].length ? <span aria-hidden className="mx-1 size-2 shrink-0 rounded-full bg-aviso" /> : <Check className="size-4 shrink-0 text-ok-texto" />}
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{t}</span>
+              <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{d || "Sin datos"}</span>
+              {faltan[n].length > 0 && <span className="block text-xs text-aviso-texto">Falta: {faltan[n].join(", ")}</span>}
+            </span>
             <Button type="button" variant="ghost" size="sm" onClick={() => ir(n)}>Cambiar</Button>
           </li>
         ))}
@@ -102,8 +114,13 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
           <DialogDescription>{paso < PASOS.length ? PASOS[paso].ayuda : "Último paso: revisar."}</DialogDescription>
         </DialogHeader>
 
+        {/* Celular: «Paso N de M» con barra fina; desde sm, los chips */}
+        <div className="space-y-1.5 sm:hidden" aria-hidden>
+          <p className="text-xs font-medium text-muted-foreground">Paso {paso + 1} de {ultimo + 1} · {paso < PASOS.length ? PASOS[paso].titulo : "Revisar"}</p>
+          <div className="h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${((paso + 1) / (ultimo + 1)) * 100}%` }} /></div>
+        </div>
         {/* Pasos: al crear se avanzan en orden; al editar se puede saltar a cualquiera */}
-        <ol className="flex flex-wrap gap-1.5" aria-label="Pasos">
+        <ol className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Pasos">
           {[...PASOS.map((p) => p.titulo), ...(crear ? ["Revisar"] : [])].map((t, i) => {
             const libre = !crear || i < paso;
             return (
