@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Palmtree, Pencil, Trash2, Undo2 } from "lucide-react";
+import { Loader2, Palmtree, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/app/confirmar";
+import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 import { sumarDias } from "@/lib/fecha";
 import { editarVacaciones, guardarVacaciones, quitarVacaciones, reponerVacaciones, type Vacacion } from "./vacaciones-acciones";
 
@@ -79,13 +80,9 @@ export function Vacaciones({ trabajadorId, iniciales, diasPost, hoy, editable, f
         </div>
       )}
       {quitada && (
-        <div role="status" className="flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground">Se quitaron las vacaciones del {corta(quitada.desde).slice(0, 5)} al {corta(quitada.regreso).slice(0, 5)}.</span>
-          <Button type="button" size="sm" variant="outline" className="h-7" disabled={ocupado}
-            onClick={() => iniciar(async () => { const r = await reponerVacaciones(trabajadorId, quitada); setMensaje({ ok: r.ok, texto: r.mensaje }); if (r.ok) setQuitada(null); })}>
-            <Undo2 /> Deshacer
-          </Button>
-        </div>
+        <FranjaDeshacerLocal texto={`Se quitaron las vacaciones del ${corta(quitada.desde).slice(0, 5)} al ${corta(quitada.regreso).slice(0, 5)}.`} ocupado={ocupado}
+          onDeshacer={() => iniciar(async () => { const r = await reponerVacaciones(trabajadorId, quitada); setMensaje({ ok: r.ok, texto: r.mensaje }); if (r.ok) setQuitada(null); })}
+          onCerrar={() => setQuitada(null)} />
       )}
       {mensaje && <p role="status" className={mensaje.ok ? "text-ok-texto" : "text-alerta-texto"}>{mensaje.texto}</p>}
       <p className="text-xs text-muted-foreground">Te avisamos 2 días antes del regreso y el plazo es de {diasPost} días (se cambia en la empresa). El aviso se quita solo al hacer la consulta «Post vacacional».</p>

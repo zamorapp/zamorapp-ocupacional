@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Undo2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { confirmar } from "@/components/app/confirmar";
+import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 import { COLUMNAS_ADJUNTO, TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
 import type { Paraclinico } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
@@ -288,11 +289,8 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
             </div>
           )}
           {borrado && (
-            <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
-              <span className="min-w-0 flex-1">Se borró «{borrado.adjunto.nombre}». Queda 30 días en la papelera de la ficha del paciente.</span>
-              <Button size="sm" variant="outline" disabled={ocupado} onClick={deshacerBorrado}><Undo2 /> Deshacer</Button>
-              <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
-            </div>
+            <FranjaDeshacerLocal texto={`Se borró «${borrado.adjunto.nombre}». Queda 30 días en la papelera de la ficha del paciente.`} ocupado={ocupado}
+              onDeshacer={deshacerBorrado} onCerrar={() => setBorrado(null)} />
           )}
           {error && <p role="alert" className="rounded-lg bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
 

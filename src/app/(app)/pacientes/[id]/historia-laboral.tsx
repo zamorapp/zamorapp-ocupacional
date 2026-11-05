@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { BriefcaseBusiness, Loader2, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
+import { BriefcaseBusiness, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Aviso, Campo, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { CONDICIONES, type EmpleoAnterior } from "@/lib/historia-laboral";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
 import { eliminarEmpleo, guardarEmpleo, restaurarEmpleo, type EmpleoBorrado } from "./historia-acciones";
 import { confirmar } from "@/components/app/confirmar";
+import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 
 function Formulario({ trabajadorId, e, alTerminar }: { trabajadorId: string; e: EmpleoAnterior | null; alTerminar: () => void }) {
   const [estado, accion, enviando] = useActionState(guardarEmpleo, null);
@@ -62,11 +63,7 @@ export function HistoriaLaboral({ trabajadorId, empleos }: { trabajadorId: strin
   return (
     <div className="space-y-3">
       {borrado && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Se borró el empleo en {borrado.empresa}.</span>
-          <Button size="sm" variant="outline" onClick={deshacer} disabled={ocupado}><Undo2 /> Deshacer</Button>
-          <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
-        </div>
+        <FranjaDeshacerLocal texto={`Se borró el empleo en ${borrado.empresa}.`} ocupado={ocupado} onDeshacer={deshacer} onCerrar={() => setBorrado(null)} />
       )}
       {error && <p role="alert" className="text-sm text-alerta-texto">{error}</p>}
       <div className="flex items-center gap-2">

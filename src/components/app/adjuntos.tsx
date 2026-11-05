@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, FileImage, FileText, Loader2, Paperclip, RotateCcw, Trash2, Undo2, X } from "lucide-react";
+import { ChevronDown, FileImage, FileText, Loader2, Paperclip, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { TIPOS_ADJUNTO, type Adjunto } from "@/lib/adjuntos-tipos";
 import { subirAdjunto } from "@/lib/preparar-archivo";
 import { confirmar } from "@/components/app/confirmar";
+import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 import { borrarAdjunto, papeleraDe, purgarVencidos, restaurarAdjunto, TEXTO_BORRAR, type EnPapelera } from "@/lib/papelera-adjuntos";
 import { CLASES, clasificarAdjunto, familiaDe, NOMBRE_FAMILIA, type Familia } from "@/lib/estudios";
 import type { Item } from "@/lib/listas";
+import { hoyCaracas } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 
 // Con catálogo (expediente): historial de estudios por familia y elección del estudio al digitalizar
@@ -20,6 +22,8 @@ const FAMILIAS: Familia[] = ["imagen", "funcional", "laboratorio"];
 
 const tamano = (b: number) => (b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`);
 const fecha = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+// Días que faltan para una fecha AAAA-MM-DD (fecha de Caracas que da la base), contra el día de hoy en Caracas
+const diasPara = (iso: string) => (Date.parse(iso.slice(0, 10)) - Date.parse(hoyCaracas())) / 86_400_000;
 
 /** Resultados de laboratorio, Rx o informes externos (PDF o fotos) guardados en la historia del trabajador. */
 export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo, consultas }: Props) {
@@ -132,11 +136,8 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
         </div>
       )}
       {borrado && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-aviso/40 bg-aviso/10 px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Se borró «{borrado.adjunto.nombre}». Queda 30 días en la papelera.</span>
-          <Button size="sm" variant="outline" disabled={ocupado} onClick={() => restaurar(borrado.papeleraId, borrado.adjunto.id)}><Undo2 /> Deshacer</Button>
-          <Button size="sm" variant="ghost" onClick={() => setBorrado(null)} aria-label="Cerrar aviso"><X /></Button>
-        </div>
+        <FranjaDeshacerLocal texto={`Se borró «${borrado.adjunto.nombre}». Queda 30 días en la papelera de archivos, aquí abajo.`} ocupado={ocupado}
+          onDeshacer={() => restaurar(borrado.papeleraId, borrado.adjunto.id)} onCerrar={() => setBorrado(null)} />
       )}
       {error && <p role="alert" className="text-sm text-alerta-texto">{error}</p>}
       {lista.length === 0 ? (
@@ -188,7 +189,7 @@ export function Adjuntos({ orgId, trabajadorId, consultaId, iniciales, catalogo,
                   <div className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{p.nombre}</span>
                     <span className="block text-xs text-muted-foreground">
-                      Borrado el {fecha(p.eliminado_en)}{p.eliminado_por ? ` por ${p.eliminado_por}` : ""} · se elimina para siempre el {fecha(p.vence)}
+                      Borrado el {fecha(p.eliminado_en)}{p.eliminado_por ? ` por ${p.eliminado_por}` : ""} · <span className={cn(diasPara(p.vence) <= 3 && "font-medium text-aviso-texto")}>se elimina para siempre el {fecha(p.vence)}</span>
                     </span>
                   </div>
                   <Button size="sm" variant="outline" disabled={ocupado} onClick={() => restaurar(p.id, p.adjunto_id)} aria-label={`Restaurar ${p.nombre}`}><RotateCcw /> Restaurar</Button>
