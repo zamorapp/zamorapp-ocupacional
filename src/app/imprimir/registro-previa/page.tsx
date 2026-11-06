@@ -74,6 +74,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
         <p className="mx-auto max-w-md rounded-lg border bg-card p-5 text-center text-sm">{error ?? "No se pudo armar la vista previa."}</p>
       ) : (
         <>
+          {/* La marca de agua se repite en cada hoja impresa: una muestra impresa nunca parece una orden real */}
           {/* Pantalla del celular del paciente al terminar */}
           <section className="mx-auto mb-8 w-full max-w-sm space-y-4 rounded-[2rem] border-8 border-neutral-800 bg-card p-5 shadow-lg print:hidden" aria-label="Pantalla del paciente">
             <div className="space-y-1 text-center">
@@ -93,7 +94,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
           </section>
           <div className="relative">
             <div aria-hidden className="pointer-events-none fixed inset-0 z-[5] flex items-center justify-center">
-              <span className="-rotate-30 select-none text-[12vw] font-black tracking-widest text-neutral-900/[.06]">VISTA PREVIA</span>
+              <span className="-rotate-30 select-none text-center text-[12vw] font-black leading-none tracking-widest text-neutral-900/[.12] print:text-[96px]">MUESTRA<span className="block text-[4vw] print:text-[28px]">vista previa · sin validez</span></span>
             </div>
             {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} />)}
           </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, ArrowLeft, Eye, FlaskConical, Gauge, Salad } from "lucide-react";
+import { Activity, ArrowLeft, ExternalLink, Eye, FlaskConical, Gauge, Salad } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DIETAS } from "@/lib/dietas";
@@ -18,7 +18,7 @@ function Ver({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" className="flex min-h-12 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm transition hover:border-primary">
       <span className="min-w-0 flex-1">{children}</span>
-      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary"><Eye className="size-3.5" /> Ver</span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary"><Eye className="size-3.5" /> Ver <ExternalLink className="size-3" aria-hidden /></span>
     </a>
   );
 }

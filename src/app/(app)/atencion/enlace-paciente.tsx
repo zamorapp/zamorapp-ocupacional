@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, Eye, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -178,7 +178,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
             {r && !r.ok && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{r.mensaje}</p>}
             {marcados > 0 && (
               <Button variant="outline" className="w-full" asChild>
-                <a href={previa()} target="_blank" rel="noreferrer"><Eye /> Ver cómo lo verá el paciente</a>
+                <a href={previa()} target="_blank" rel="noreferrer"><Eye /> Ver cómo lo verá el paciente <ExternalLink className="size-3.5" aria-hidden /></a>
               </Button>
             )}
             <Button type="submit" className="w-full" disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" /> : <Link2 />} {marcados ? `Crear enlace con ${marcados} documento${marcados > 1 ? "s" : ""}` : "Crear enlace"}</Button>
