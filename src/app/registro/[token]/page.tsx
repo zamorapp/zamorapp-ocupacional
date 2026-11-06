@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Clock, FileText, ShieldCheck, Stethoscope } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, ShieldCheck, Stethoscope, Upload } from "lucide-react";
 import { APP_NOMBRE } from "@/lib/config";
-import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
+import { aQuien, TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { filasRegistro, fraseIndicaciones, remitente, type VistaRegistro } from "@/lib/registro-documentos";
@@ -13,6 +13,8 @@ export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: 
 export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
+
+const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 
 const AVISO: Record<Exclude<Vista["estado"], "vigente">, { titulo: string; texto: string }> = {
   usado: { titulo: "Tus datos ya se enviaron", texto: "El servicio médico los está revisando y te confirmará la cita por WhatsApp." },
@@ -30,11 +32,14 @@ export default async function Registro({ params }: { params: Promise<{ token: st
   const hoy = hoyCaracas();
   // Ya llenó sus datos: si el servicio le dejó documentos, se los muestra para descargar (7 días)
   // y, por 30 días desde que llenó, la opción de subir sus resultados
-  const [docs, resultados, catalogo] = supabase && v ? await Promise.all([
+  const [docs, resultados, catalogo, descargados] = supabase && v ? await Promise.all([
     v.estado === "usado" ? supabase.rpc("documentos_registro_paciente", { p_token: token }).then((r) => r.data as VistaRegistro | null) : null,
     v.estado === "usado" ? supabase.rpc("resultados_registro_paciente", { p_token: token }).then((r) => r.data as EstadoResultados | null) : null,
     v.estado === "vigente" ? supabase.rpc("catalogo_registro_paciente", { p_token: token }).then((r) => r.data as CatalogoRegistro | null) : null,
-  ]) : [null, null, null];
+    // Ya bajó sus hojas y pasó la ventana: el enlace queda solo para subir resultados (20261030915000)
+    v.estado === "usado" ? supabase.rpc("descarga_cerrada_registro", { p_token: token }).then((r) => r.data === true) : false,
+  ]) : [null, null, null, false];
+  const quien = resultados?.remitente ?? v?.servicio ?? "";
 
   return (
     <main className="min-h-dvh bg-muted/30 px-4 py-6 sm:py-10">
@@ -71,8 +76,23 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 </li>
               ))}
             </ul>
-            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF». Este enlace los guarda por 7 días.</p>
+            <p className="text-center text-xs text-muted-foreground">
+              {docs.descarga_hasta
+                ? <>Puedes descargarlos hasta las {horaCaracas(docs.descarga_hasta)}. Después, este enlace queda solo para enviar tus resultados.</>
+                : <>Ábrelos y toca «Descargar PDF». Desde la primera descarga tienes 30 minutos para bajarlos todos; después, este enlace queda solo para enviar tus resultados.</>}
+            </p>
             <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
+          </section>
+          {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
+          </>
+        ) : descargados ? (
+          <>
+          {/* Ya descargó: no se vuelven a bajar; para otra copia, el servicio manda un enlace nuevo */}
+          <section role="status" className="space-y-3 rounded-2xl border bg-card p-6 text-center shadow-sm">
+            <FileCheck2 className="mx-auto size-12 text-ok" />
+            <h1 className="text-xl font-semibold">Tus documentos ya fueron descargados</h1>
+            <p className="text-sm text-muted-foreground">Si necesitas descargarlos de nuevo, pídele un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
+            {resultados && <a href="#resultados" className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-base font-medium text-primary-foreground"><Upload className="size-5" /> Subir mis resultados</a>}
           </section>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
