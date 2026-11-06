@@ -9,7 +9,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
-import { cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
+import { cambiarPermisosPortal, cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
+import { CasillasPermisos } from "@/components/app/permisos-portal";
+import { PERMISOS_PORTAL } from "@/lib/permisos-portal";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
@@ -49,6 +51,12 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
                 <div className="truncate text-sm text-muted-foreground">{m.correo}{ROLES_EMPRESA.includes(m.rol) && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
                 {(esAdmin || m.usuario) && <UsuarioCorto miembro={m} editable={esAdmin} alGuardar={setAviso} />}
+                {ROLES_EMPRESA.includes(m.rol) && m.rol !== "trabajador" && (
+                  esAdmin
+                    ? <div className="mt-2"><CasillasPermisos compacto valor={m.permisos_portal ?? null} deshabilitado={ocupado}
+                        onChange={(v) => iniciar(async () => setAviso(await cambiarPermisosPortal(m.id, v)))} /></div>
+                    : m.permisos_portal && <div className="mt-1 text-xs text-muted-foreground">Puede: {PERMISOS_PORTAL.filter((p) => m.permisos_portal!.includes(p.clave)).map((p) => p.titulo.toLowerCase()).join(", ") || "solo ver y pedir informes"}</div>
+                )}
               </div>
               {esAdmin ? (
                 <>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { normalizarCedula } from "@/lib/importar";
+import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
@@ -23,6 +24,7 @@ const TOPE_LOTE = 200;
 export async function solicitarCita(_: Resultado | null, datos: FormData): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  if (!puedePortal(sesion, "citas")) return { ok: false, mensaje: "Tu usuario no tiene permiso para solicitar consultas. Pídeselo al servicio médico." };
   const ids = [...new Set(datos.getAll("trabajador_id").map(String).filter(Boolean))];
   const nuevos = leerNuevos(datos);
   const fecha = texto(datos, "fecha");

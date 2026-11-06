@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { listarEmpresas } from "@/lib/empresas";
 import { rangoMes, relacionMensual, resumenRelacion } from "@/lib/ordenes";
+import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { BarraImpresion } from "../barra";
 import { fechaCorta, Ficha, Firmas, Hoja, Membrete, Pie } from "../componentes";
@@ -17,6 +18,7 @@ const MES = (m: string) => new Intl.DateTimeFormat("es-VE", { month: "long", yea
 export default async function ImprimirRelacion({ searchParams }: { searchParams: Promise<{ empresa?: string; mes?: string }> }) {
   const q = await searchParams;
   const sesion = await obtenerSesion();
+  if (!puedePortal(sesion, "relacion")) notFound();
   const empresas = await listarEmpresas(true);
   const empresaId = q.empresa ?? (empresas.length === 1 ? empresas[0].id : null) ?? (sesion.demo ? "demo" : null);
   if (!empresaId) notFound();

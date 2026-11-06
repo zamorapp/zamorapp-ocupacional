@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText, Printer, Receipt, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { sumarMeses } from "@/lib/fecha";
 import { listarOrdenes, rangoMes, relacionMensual, resumenRelacion } from "@/lib/ordenes";
 import { fecha } from "@/lib/pacientes";
+import { puedePortal } from "@/lib/permisos-portal";
+import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Órdenes y relación del mes" };
@@ -23,6 +26,8 @@ const nOrden = (n: number) => String(n).padStart(5, "0");
 // factura. Sin datos médicos (la base solo entrega fecha, trabajador, tipo de evaluación, orden y cobro).
 export default async function OrdenesYRelacion({ searchParams }: { searchParams: Promise<{ empresa?: string; mes?: string }> }) {
   const q = await searchParams;
+  // RR. HH. sin el permiso «Ver los atendidos del mes» (Usuarios y roles) no entra aquí
+  if (!puedePortal(await obtenerSesion(), "relacion")) notFound();
   const [todas, activa] = await Promise.all([listarEmpresas(true), empresaActivaId()]);
   const empresas = soloEmpresas(todas);
   const empresa = empresas.find((e) => e.id === q.empresa) ?? empresas.find((e) => e.id === activa) ?? empresas[0] ?? null;

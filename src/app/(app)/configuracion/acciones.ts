@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizarPermisos } from "@/lib/permisos-portal";
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
@@ -351,6 +352,8 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
       nombre,
       telefono,
       token_hash: "\\x" + createHash("sha256").update(token).digest("hex"),
+      // Qué podrá hacer en el portal; sin casillas en el formulario (otra pantalla) = todo
+      permisos_portal: datos.get("permisos_enviados") ? normalizarPermisos(datos.getAll("permisos")) : null,
     });
     if (error) return { ok: false, mensaje: error.message };
     revalidatePath("/configuracion/usuarios");
@@ -386,6 +389,20 @@ export async function anularInvitacion(id: string): Promise<Resultado> {
     if (error) throw error;
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Invitación anulada." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Qué puede hacer una persona de la empresa en el portal (consultas, atendidos del mes, descargas). Todo = null.
+export async function cambiarPermisosPortal(miembroId: string, permisos: string[]): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.from("miembros").update({ permisos_portal: normalizarPermisos(permisos) }).eq("id", miembroId);
+    if (error) throw error;
+    invalidarSesion();
+    revalidatePath("/configuracion/usuarios");
+    return { ok: true, mensaje: "Permisos guardados. Los verá la próxima vez que abra el portal." };
   } catch (e) {
     return fallo(e);
   }

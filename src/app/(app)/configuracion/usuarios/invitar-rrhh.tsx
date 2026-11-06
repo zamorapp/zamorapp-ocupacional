@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Link2, Link2Off, Loader2, MessageCircle } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
+import { CasillasPermisos } from "@/components/app/permisos-portal";
 import { confirmar } from "@/components/app/confirmar";
 import { RequiereInternet, useSinInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Invitacion } from "@/lib/invitaciones";
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import { cn } from "@/lib/utils";
 import { anularInvitacion, crearInvitacion } from "../acciones";
 
@@ -29,6 +31,7 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [permisos, setPermisos] = useState<PermisoPortal[] | null>(null);
   const [, iniciar] = useTransition();
   const sinInternet = useSinInternet();
   const contactos = empresas.find((e) => e.id === empresaId)?.contactos ?? [];
@@ -58,6 +61,11 @@ export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empres
           <Campo id="nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} />
           <Campo id="telefono" etiqueta="WhatsApp" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" />
           <Button type="submit" disabled={creando || !empresaId || sinInternet} className="h-10">{creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+            <p className="text-sm font-medium">Qué podrá hacer en el portal</p>
+            <CasillasPermisos nombre="permisos" valor={permisos} onChange={setPermisos} />
+            <p className="text-xs text-muted-foreground">Siempre podrá ver a sus trabajadores y pedir informes o copias. Lo cambias después en «Usuarios».</p>
+          </div>
           {contactos.length > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
               Contactos de la empresa:

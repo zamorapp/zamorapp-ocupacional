@@ -106,6 +106,54 @@ select 'por trabajador: dos órdenes para dos citas (debe 2): ' || jsonb_array_l
 select 'cada orden con un solo trabajador y la de las 8:00 primero (debe 2): ' || count(*) from public.ordenes_evaluacion
  where (numero = 3 and citas = array['6c000000-0000-0000-0000-000000000236']::uuid[]) or (numero = 4 and citas = array['6c000000-0000-0000-0000-000000000235']::uuid[]);
 reset role;
+-- Permisos por persona: RR. HH. sin «relacion» ni «citas» (pedido de Cesar, 06-nov)
+update public.miembros set permisos_portal = '{descargas}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+select 'sin permiso «relacion» no ve los atendidos (debe 0): ' || count(*) from public.relacion_mensual('20000000-0000-0000-0000-00000000000a','2026-11-01','2026-11-30');
+select 'conserva «descargas» (debe 1): ' || public.permiso_portal('10000000-0000-0000-0000-000000000001','descargas')::int;
+do $$ begin
+  insert into public.citas (org_id,empresa_id,trabajador_id,fecha,estado,origen,solicitada_por) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000231','2026-11-20','solicitada','portal','00000000-0000-0000-0000-0000000000a3');
+  raise notice 'FALLA: pidió cita sin permiso';
+exception when others then raise notice 'sin permiso «citas» no pide consultas (debe 1): 1';
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'el servicio (sin lista) conserva todo (debe 1): ' || public.permiso_portal('10000000-0000-0000-0000-000000000001','relacion')::int;
+reset role;
+do $$ begin
+  update public.miembros set permisos_portal = '{ver_diagnosticos}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+  raise notice 'FALLA: aceptó un permiso inventado';
+exception when check_violation then raise notice 'solo permisos conocidos (debe 1): 1';
+end $$;
+update public.miembros set permisos_portal = null where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+-- Quién cambia los permisos: el administrador sí, RR. HH. no se los da a sí misma
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+do $$ declare n int; begin
+  update public.miembros set permisos_portal = '{citas}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+  get diagnostics n = row_count;
+  raise notice 'RR. HH. no cambia sus propios permisos (debe 0): %', n;
+exception when insufficient_privilege then raise notice 'RR. HH. no cambia sus propios permisos (debe 0): 0';
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+update public.miembros set permisos_portal = '{citas}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+select 'el administrador sí los cambia (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000a3' and permisos_portal = '{citas}';
+-- La invitación lleva los permisos a la cuenta nueva
+reset role;
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000d3','rrhh-permisos@x');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+insert into public.invitaciones (id,org_id,empresa_id,token_hash,permisos_portal) values
+ ('7a000000-0000-0000-0000-000000000223','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',sha256(convert_to('token-permisos','UTF8')),'{relacion}');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000d3',false) \g /dev/null
+select 'acepta la invitación con permisos (debe 1): ' || count(*) from public.aceptar_invitacion('token-permisos');
+select 'entra solo con «relacion» (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000d3' and permisos_portal = '{relacion}';
+reset role;
+update public.miembros set permisos_portal = null where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+delete from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000d3';
+delete from public.invitaciones where id = '7a000000-0000-0000-0000-000000000223';
+delete from auth.users where id = '00000000-0000-0000-0000-0000000000d3';
 delete from public.cobros where id = '7c000000-0000-0000-0000-000000000231';
 delete from public.ordenes_evaluacion where solicitante in ('rrhhA', 'RR. HH. B');
 delete from public.citas where id::text like '6c000000-0000-0000-0000-00000000023%';

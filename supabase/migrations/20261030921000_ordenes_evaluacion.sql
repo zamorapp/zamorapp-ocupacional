@@ -92,6 +92,27 @@ end $$;
 revoke execute on function public.crear_orden_evaluacion(uuid[], boolean) from public, anon;
 grant execute on function public.crear_orden_evaluacion(uuid[], boolean) to authenticated;
 
+-- ─── Permisos por persona de RR. HH. (pedido de Cesar, 06-nov-2026) ─────────────────────────────────────────────
+-- El administrador elige qué puede hacer cada persona del portal: «citas» (solicitar consultas, y con ellas las
+-- órdenes), «relacion» (ver los atendidos del mes) y «descargas» (bajar documentos). Las solicitudes de informes o
+-- copias siempre quedan. null = todo (así siguen quienes ya están y todo el personal del servicio).
+alter table public.miembros add column if not exists permisos_portal text[];
+alter table public.miembros drop constraint if exists miembros_permisos_portal_validos;
+alter table public.miembros add constraint miembros_permisos_portal_validos
+  check (permisos_portal is null or permisos_portal <@ array['citas', 'relacion', 'descargas']::text[]);
+alter table public.invitaciones add column if not exists permisos_portal text[];
+alter table public.invitaciones drop constraint if exists invitaciones_permisos_portal_validos;
+alter table public.invitaciones add constraint invitaciones_permisos_portal_validos
+  check (permisos_portal is null or permisos_portal <@ array['citas', 'relacion', 'descargas']::text[]);
+
+create or replace function public.permiso_portal(p_org uuid, p_permiso text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select m.permisos_portal is null or p_permiso = any (m.permisos_portal)
+                     from public.miembros m where m.usuario_id = auth.uid() and m.org_id = p_org and m.activo), false)
+$$;
+revoke execute on function public.permiso_portal(uuid, text) from public, anon;
+grant execute on function public.permiso_portal(uuid, text) to authenticated;
+
 -- Relación de lo realizado en un período (máx. 92 días) para una empresa: RR. HH. y auditor de esa empresa, y el
 -- servicio. Solo datos administrativos: fecha, trabajador, cargo, tipo de evaluación, orden, nota de cobro y factura.
 create or replace function public.relacion_mensual(p_empresa uuid, p_desde date, p_hasta date)
@@ -122,7 +143,98 @@ language sql stable security definer set search_path = public as $$
      and public.puede_ver_empresa(c.org_id, c.empresa_id)
      and coalesce(public.mi_rol(c.org_id) in ('gerente_empresa', 'auditor', 'administrador', 'gerente_medico', 'medico',
                                               'enfermeria', 'recepcion', 'coordinador_sst'), false)
+     -- RR. HH. sin el permiso «relacion» no ve los atendidos del mes (permiso_portal, arriba)
+     and public.permiso_portal(c.org_id, 'relacion')
    order by c.fecha, 3
 $$;
 revoke execute on function public.relacion_mensual(uuid, date, date) from public, anon;
 grant execute on function public.relacion_mensual(uuid, date, date) to authenticated;
+
+
+
+-- Solicitar consultas
+drop policy if exists citas_empresa_solicitar on public.citas;
+create policy citas_empresa_solicitar on public.citas for insert
+  with check (public.es_empresa(org_id) and public.puede_ver_empresa(org_id, empresa_id) and estado = 'solicitada' and origen = 'portal'
+              and public.permiso_portal(org_id, 'citas'));
+
+-- Descargar documentos de las solicitudes (archivo subido o constancia lista)
+create or replace function public.ruta_solicitud_visible(p_ruta text, p_servicio boolean)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare v_partes text[] := string_to_array(p_ruta, '/'); v_org uuid; v_emp uuid; v_sol uuid;
+begin
+  if cardinality(v_partes) <> 4 then return false; end if;
+  begin
+    v_org := v_partes[1]::uuid; v_emp := v_partes[2]::uuid; v_sol := v_partes[3]::uuid;
+  exception when others then return false;
+  end;
+  if not exists (select 1 from public.solicitudes where id = v_sol and org_id = v_org and empresa_id = v_emp) then return false; end if;
+  if not public.puede_ver_empresa(v_org, v_emp) then return false; end if;
+  -- Documento solo_salud: solo clínico o administrador (ni recepción ni RR. HH.)
+  if exists (select 1 from public.solicitudes where id = v_sol and solo_salud) then
+    return public.es_clinico(v_org) or public.mi_rol(v_org) = 'administrador';
+  end if;
+  if public.es_servicio(v_org) then return true; end if;
+  return not p_servicio and public.es_empresa(v_org) and public.permiso_portal(v_org, 'descargas')
+     and exists (select 1 from public.solicitudes where id = v_sol and documento_ruta = p_ruta);
+end $$;
+
+create or replace function public.constancia_de_solicitud(p_solicitud uuid)
+returns table (nombre text, contenido_base64 text)
+language plpgsql stable security definer set search_path = public as $$
+declare v_s record;
+begin
+  select s.org_id, s.empresa_id, s.constancia_consulta_id, s.solo_salud into v_s from public.solicitudes s where s.id = p_solicitud;
+  if v_s.constancia_consulta_id is null or v_s.solo_salud then return; end if;
+  if not ((public.es_servicio(v_s.org_id) or (public.es_empresa(v_s.org_id) and public.permiso_portal(v_s.org_id, 'descargas')))
+          and public.puede_ver_empresa(v_s.org_id, v_s.empresa_id)) then
+    return;
+  end if;
+  return query select l.nombre, encode(l.contenido, 'base64') from public.constancias_listas l
+                where l.consulta_id = v_s.constancia_consulta_id and l.empresa_id = v_s.empresa_id;
+end $$;
+revoke execute on function public.constancia_de_solicitud(uuid) from public, anon;
+grant execute on function public.constancia_de_solicitud(uuid) to authenticated;
+
+-- La invitación lleva los permisos que eligió el administrador; quien ya era RR. HH. conserva los suyos
+create or replace function public.aceptar_invitacion(p_token text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare i public.invitaciones; m public.miembros;
+begin
+  if auth.uid() is null then raise exception 'Ingresa con tu cuenta para aceptar la invitación'; end if;
+  select * into i from public.invitaciones
+  where token_hash = sha256(convert_to(p_token, 'UTF8')) for update;
+  if i.id is null then raise exception 'El enlace no es válido'; end if;
+  if i.revocada_en is not null then raise exception 'Esta invitación fue anulada. Pide un enlace nuevo.'; end if;
+  if i.usada_en is not null then
+    if i.usada_por = auth.uid() then return i.empresa_id; end if;
+    raise exception 'Esta invitación ya se usó. Pide un enlace nuevo.';
+  end if;
+  if i.vence < now() then raise exception 'Esta invitación venció. Pide un enlace nuevo.'; end if;
+
+  select * into m from public.miembros where org_id = i.org_id and usuario_id = auth.uid();
+  if m.id is null then
+    insert into public.miembros (org_id, usuario_id, rol, empresas_permitidas, permisos_portal)
+    values (i.org_id, auth.uid(), 'gerente_empresa', array[i.empresa_id], i.permisos_portal);
+  elsif m.rol = 'gerente_empresa' then
+    -- Un RR. HH. desactivado por el administrador no se reactiva con un enlace
+    if not m.activo then raise exception 'Tu cuenta está desactivada. Pide al administrador que la reactive.'; end if;
+    update public.miembros
+    set empresas_permitidas = (select array_agg(distinct x) from unnest(coalesce(m.empresas_permitidas, '{}') || i.empresa_id) x)
+    where id = m.id;
+  else
+    -- Nunca cambia el rol de alguien del servicio médico ni de otro rol de empresa
+    raise exception 'Tu cuenta ya tiene otro rol en este servicio médico. Pide al administrador que te agregue la empresa.';
+  end if;
+
+  perform set_config('zamorapp.aceptando_invitacion', i.id::text, true);
+  update public.invitaciones set usada_por = auth.uid(), usada_en = now() where id = i.id;
+  perform set_config('zamorapp.aceptando_invitacion', '', true);
+  perform public.notificar(i.org_id, i.empresa_id, 'servicio', 'RR. HH. aceptó la invitación',
+    coalesce(i.nombre, 'Una persona') || ' ya entra al portal de la empresa.', '/configuracion/usuarios');
+  return i.empresa_id;
+end $$;
+revoke execute on function public.aceptar_invitacion(text) from public, anon;
+grant execute on function public.aceptar_invitacion(text) to authenticated;
+
+select public.vistas_al_dia();

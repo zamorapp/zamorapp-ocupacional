@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import { type Rol } from "@/lib/sesion-roles";
 
 export { ETIQUETA_ROL, type Rol } from "@/lib/sesion-roles";
@@ -18,6 +19,7 @@ export type Sesion = {
   titular: string | null;
   rol: Rol | null;
   clinico: boolean; // mismo criterio que es_clinico() en la base: rol de salud o acceso clínico activado
+  permisos: PermisoPortal[] | null; // portal de empresa: qué puede hacer (null = todo); ver lib/permisos-portal
 };
 
 const SESION_DEMO: Sesion = {
@@ -30,6 +32,7 @@ const SESION_DEMO: Sesion = {
   titular: "Dr. César Zamora",
   rol: "gerente_medico",
   clinico: true,
+  permisos: null,
 };
 
 // Perfil, organización y rol cambian muy poco: se guardan en memoria del servidor 2 minutos
@@ -61,7 +64,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
       .from("miembros")
-      .select("org_id, rol, acceso_clinico, organizaciones(nombre, ajustes)")
+      .select("org_id, rol, acceso_clinico, permisos_portal, organizaciones(nombre, ajustes)")
       .eq("usuario_id", usuarioId)
       .eq("activo", true)
       .limit(1)
@@ -76,6 +79,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     titular: org?.ajustes?.membrete_titular?.trim() || null,
     rol: (miembro?.rol as Rol) ?? null,
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
+    permisos: (miembro?.permisos_portal as PermisoPortal[] | null) ?? null,
   };
   MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
   return { demo: false, usuarioId, correo, ...datos };

@@ -1,6 +1,8 @@
 import writeXlsxFile, { type Row } from "write-excel-file/node";
 import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { datosOrganizacion } from "@/lib/organizacion";
+import { puedePortal } from "@/lib/permisos-portal";
+import { obtenerSesion } from "@/lib/sesion";
 import { rangoMes, relacionMensual, resumenRelacion } from "@/lib/ordenes";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,7 @@ const nombreArchivo = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").
 
 // Excel de la relación del mes: mismas filas que la pantalla, con fechas reales para filtrar y cruzar con la factura
 export async function GET(req: Request) {
+  if (!puedePortal(await obtenerSesion(), "relacion")) return new Response("Sin permiso para ver los atendidos del mes", { status: 403 });
   const q = Object.fromEntries(new URL(req.url).searchParams);
   const empresas = soloEmpresas(await listarEmpresas(true));
   const empresa = empresas.find((e) => e.id === q.empresa) ?? (empresas.length === 1 ? empresas[0] : null);

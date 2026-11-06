@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CancelarSolicitud } from "./cancelar";
 import { Refrescar } from "./refrescar";
 import { SolicitarCita } from "./solicitar-cita";
+import { puedePortal } from "@/lib/permisos-portal";
 import { AnotarVacaciones } from "./anotar-vacaciones";
 import { Propuestas, type GrupoPropuesta } from "./propuestas";
 import { Bienvenida } from "@/components/app/bienvenida-portal";
@@ -74,7 +75,10 @@ export default async function Portal() {
   // Supervisor, delegado, auditor y trabajador solo consultan: pedir citas, cargar nómina y solicitudes es de RR. HH.
   const gestiona = !empresaSoloLectura(sesion.rol);
   // Órdenes y relación del mes: RR. HH., auditor y el servicio (supervisor, delegado y trabajador no la ven)
-  const veRelacion = !["supervisor", "delegado_prevencion", "trabajador"].includes(sesion.rol ?? "");
+  // y el administrador puede quitárselas a cada persona (Usuarios y roles): consultas, relación del mes y descargas
+  const veRelacion = !["supervisor", "delegado_prevencion", "trabajador"].includes(sesion.rol ?? "") && puedePortal(sesion, "relacion");
+  const pideCitas = gestiona && puedePortal(sesion, "citas");
+  const descarga = puedePortal(sesion, "descargas");
   const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
   const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
   const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
@@ -92,7 +96,7 @@ export default async function Portal() {
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
           {gestiona && <AnotarVacaciones />}
-          {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
+          {pideCitas && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
       </div>
 
@@ -189,7 +193,7 @@ export default async function Portal() {
                 <li key={p.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                   <span className="w-24 font-mono text-muted-foreground">{fecha(p.cerradaEn ?? p.inicio)}</span>
                   <span className="min-w-0 flex-1 font-medium">{p.titulo}<span className="block text-xs font-normal text-muted-foreground">{p.empresa}</span></span>
-                  <Button variant="outline" size="sm" asChild><a href={`/imprimir/psicosocial/${p.id}`}><Download /> Informe</a></Button>
+                  {descarga && <Button variant="outline" size="sm" asChild><a href={`/imprimir/psicosocial/${p.id}`}><Download /> Informe</a></Button>}
                 </li>
               ))}
             </ul>
@@ -214,7 +218,7 @@ export default async function Portal() {
                     <div className="line-clamp-2 text-xs text-muted-foreground">{s.soloSalud ? "Respuesta con datos médicos: la recibe el personal de salud de la empresa." : s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
                     <Pasos pasos={pasosSolicitud(s)} className="mt-0.5" />
                   </div>
-                  {s.documento && !s.soloSalud && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  {s.documento && !s.soloSalud && descarga && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
                   <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
                 </li>
               ))}

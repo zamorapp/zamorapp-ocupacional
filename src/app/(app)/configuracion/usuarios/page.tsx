@@ -1,3 +1,4 @@
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import type { Metadata } from "next";
 import { supabaseConfigurado } from "@/lib/config";
 import { obtenerSesion, type Rol } from "@/lib/sesion";
@@ -10,7 +11,7 @@ import { InvitarRrhh } from "./invitar-rrhh";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
-export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null; usuario?: string | null };
+export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null; usuario?: string | null; permisos_portal?: PermisoPortal[] | null };
 
 export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
   const { empresa: empresaInicial } = await searchParams;
@@ -21,12 +22,15 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
   let contactos: { empresa_id: string; nombre: string; telefono: string }[] = [];
   if (supabaseConfigurado && !sesion.demo) {
     const supabase = await crearClienteServidor();
-    const [{ data }, inv, { data: cts }] = await Promise.all([
+    const [{ data }, { data: perms }, inv, { data: cts }] = await Promise.all([
       supabase.rpc("miembros_con_correo"),
+      // Permisos del portal de cada persona de empresa (miembros_con_correo devuelve columnas fijas)
+      supabase.from("miembros").select("id, permisos_portal").not("permisos_portal", "is", null),
       esAdmin ? listarInvitaciones() : Promise.resolve([]),
       esAdmin ? supabase.from("empresa_contactos").select("empresa_id, nombre, telefono").eq("activo", true).not("telefono", "is", null) : Promise.resolve({ data: [] }),
     ]);
-    miembros = (data ?? []) as Miembro[];
+    const permisos = new Map((perms ?? []).map((p) => [p.id as string, p.permisos_portal as PermisoPortal[]]));
+    miembros = ((data ?? []) as Miembro[]).map((m) => ({ ...m, permisos_portal: permisos.get(m.id) ?? null }));
     invitaciones = inv;
     contactos = (cts ?? []) as typeof contactos;
   }
