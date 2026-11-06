@@ -648,6 +648,7 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   let hv;
   try {
     await bandejaObj.enCurso; await bandejaObj.otraVez; // una subida en curso (o encadenada) no se lleva la fila nueva
+    pedidas = 0; // desde aquí solo cuenta lo que pide la puerta al guardar
     const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
     assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
     [hv] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
