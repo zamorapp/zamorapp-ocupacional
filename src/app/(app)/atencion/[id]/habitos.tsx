@@ -69,7 +69,8 @@ function FilaHabito({ habito, onChange }: { habito: Habito; onChange: (h: Habito
         {forma.opcional && <span className="block text-[11px] text-muted-foreground">Opcional</span>}
       </div>
       <div className="min-w-0 space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-start gap-1.5">
+          <div className="flex flex-1 flex-wrap items-center gap-1.5">
           {forma.estados.map((e) => {
             const activo = d.estado === e.valor;
             return (
@@ -79,7 +80,7 @@ function FilaHabito({ habito, onChange }: { habito: Habito; onChange: (h: Habito
                 aria-pressed={activo}
                 onClick={() => poner({ estado: activo ? undefined : e.valor })}
                 className={cn(
-                  "h-7 rounded-full border px-3 text-xs transition-colors",
+                  "h-11 rounded-full border px-3 text-xs sm:h-7",
                   activo ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
                 )}
               >
@@ -87,13 +88,14 @@ function FilaHabito({ habito, onChange }: { habito: Habito; onChange: (h: Habito
               </button>
             );
           })}
+          </div>
           <button
             type="button"
             title="Agregar una nota"
             aria-label={`Nota de ${habito.nombre}`}
             aria-pressed={verNota}
             onClick={() => setVerNota((v) => !v)}
-            className={cn("ml-auto inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted", (verNota || d.nota) && "text-primary")}
+            className={cn("inline-flex size-11 shrink-0 items-center sm:size-7 justify-center rounded-full text-muted-foreground hover:bg-muted", (verNota || d.nota) && "text-primary")}
           >
             <StickyNote className="size-4" />
           </button>

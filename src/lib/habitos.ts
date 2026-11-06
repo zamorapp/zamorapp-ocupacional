@@ -126,7 +126,7 @@ export function textoHabito(clave: string, d: DetalleHabito): string {
       const que = [v("tipo") && minus(v("tipo")), v("cantidad") && minus(v("cantidad")), v("frecuencia") && minus(v("frecuencia"))].filter(Boolean).join(", ");
       if (d.estado === "niega") base = "Niega";
       else if (d.estado === "si") base = `Consume${que ? ` ${que}` : ""}`;
-      else if (d.estado === "ex") base = `Exconsumidor${que ? ` (${que})` : ""}${v("desde") ? `, dejó hace ${v("desde")}` : ""}`;
+      else if (d.estado === "ex") base = `Exconsumidor${que ? ` de ${que}` : ""}${v("desde") ? `, lo dejó hace ${v("desde")}` : ""}`;
       break;
     }
     case "cafe":
