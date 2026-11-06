@@ -19,6 +19,8 @@ export type AjustesDocumentos = {
   firma_medico_ocupacional?: boolean;
   reposo_pie_copia?: string | null;
   reposo_pie_original?: string | null;
+  // Diagnóstico en el original del reposo que va a RR. HH. (Cesar, 06-nov: por defecto NO; la copia del servicio sí lo lleva)
+  reposo_diagnostico_original?: boolean;
   orden_nota?: string | null;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;

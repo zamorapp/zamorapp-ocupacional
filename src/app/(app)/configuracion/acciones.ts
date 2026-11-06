@@ -219,6 +219,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
       reposo_pie_original: texto(datos, "reposo_pie_original"),
+      reposo_diagnostico_original: datos.get("reposo_diagnostico_original") === "on",
       orden_nota: texto(datos, "orden_nota"),
       orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
       nota_riesgos_puesto: String(datos.get("nota_riesgos_puesto") ?? "").trim(),

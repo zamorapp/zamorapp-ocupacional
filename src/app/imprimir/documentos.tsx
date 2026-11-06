@@ -102,7 +102,10 @@ function CuerpoReposo({ d, copia, original }: { d: DatosDocumento; copia: string
   const r = d.datos.reposo;
   const dias = Math.round((Date.parse(r.hasta) - Date.parse(r.desde)) / 864e5) + 1;
   const reintegro = sumarDias(r.hasta, 1);
-  const diag = d.datos.diagnosticos.find((x) => x.cie10 === r.cie10) ?? d.datos.diagnosticos[0];
+  // RR. HH. no ve diagnósticos (Cesar, 06-nov): el original solo lo lleva si la organización lo activa en
+  // Configuración › Documentos impresos › Reposo médico. La copia del servicio médico siempre lo lleva.
+  const conDiagnostico = !original || d.org.ajustes.reposo_diagnostico_original === true;
+  const diag = conDiagnostico ? d.datos.diagnosticos.find((x) => x.cie10 === r.cie10) ?? d.datos.diagnosticos[0] : undefined;
   const t = d.trabajador;
   // El motivo es dato clínico (síntomas y examen): nunca en el original que va a RR. HH. ni por correo a la empresa
   // (Analizar, 05-nov). Sale en la copia del servicio médico.
