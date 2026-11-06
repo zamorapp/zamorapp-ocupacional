@@ -76,8 +76,8 @@ export function Confirmador() {
         {actual?.alternativa ? (
           // Con alternativa: de lo seguro a lo grave, arriba-abajo en el celular e izquierda-derecha en la PC
           <DialogFooter className="flex-col sm:flex-row sm:flex-wrap">
-            <Button variant="secondary" onClick={() => { const a = actual.alternativa!; responder(false); a.alElegir(); }}>{actual.alternativa.texto}</Button>
             <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual.cancelar ?? "Cancelar"}</Button>
+            <Button variant="outline" onClick={() => { const a = actual.alternativa!; responder(false); a.alElegir(); }}>{actual.alternativa.texto}</Button>
             <Button variant={actual.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual.accion ?? "Aceptar"}</Button>
           </DialogFooter>
         ) : (

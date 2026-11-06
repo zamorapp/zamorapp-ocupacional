@@ -409,7 +409,7 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                 {(estado === "esperando" || (estado === "aceptada" && !vencidoResultados(e, ahora))) && (
                   <button type="button" disabled={ocupado} onClick={() => anular(e, estado === "aceptada")}
                     title={estado === "aceptada" ? "Ya no podrá descargar ni enviar resultados con este enlace" : "El enlace deja de servir"}
-                    className="inline-flex items-center gap-1 font-medium text-destructive hover:underline disabled:opacity-60"><Ban className="size-3" /> Anular</button>
+                    className="inline-flex items-center gap-1 font-medium text-alerta-texto hover:underline disabled:opacity-60"><Ban className="size-3" /> Anular</button>
                 )}
                 {TERMINADO.has(estado) && (
                   <button type="button" disabled={ocupado} onClick={() => quitar(e)} title="Lo saca de esta lista. Se puede deshacer."
@@ -418,7 +418,7 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                   </button>
                 )}
                 <button type="button" disabled={ocupado} onClick={() => eliminar(e, estado)} title="Borra el enlace. Su ficha y sus resultados se quedan."
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-destructive hover:underline disabled:opacity-60">
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-alerta-texto hover:underline disabled:opacity-60">
                   <Trash2 className="size-3" /> Eliminar
                 </button>
               </li>
