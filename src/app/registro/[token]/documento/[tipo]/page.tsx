@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
@@ -6,7 +7,9 @@ import { hoyCaracas } from "@/lib/fecha";
 import { DOCS_REGISTRO, docsElegidos, esDocRegistro, esParteOrden, PARTES_ORDEN, type VistaRegistro } from "@/lib/registro-documentos";
 import { HojasRegistro } from "../../../hojas";
 import { limpiarVersiones } from "@/lib/hojas-version-servidor";
+import { CABECERA_PDF, esChromiumDelServidor, imagenesFirmaRegistro, pdfRegistroDisponible } from "@/lib/registro-pdf";
 import { BarraPaciente } from "./barra";
+import { MarcarFirmas } from "./marcar-firmas";
 
 export const metadata: Metadata = { title: "Tu documento", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -24,11 +27,18 @@ export default async function DocumentoRegistro({ params, searchParams }: { para
   const v = data as VistaRegistro | null;
   if (!v || !docsElegidos(v.documentos).includes(tipo)) redirect(`/registro/${token}`);
   const unaParte = tipo === "orden" && esParteOrden(parte) ? parte : undefined;
+  // Firma y sello: solo cuando esta página la abre el Chromium del servidor para armar el PDF aplanado (registro-pdf.ts)
+  const servidor = v.firmado && esChromiumDelServidor((await headers()).get(CABECERA_PDF));
+  const imagenes = servidor ? await imagenesFirmaRegistro(token) : null;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraPaciente token={token} volver={`/registro/${token}`} titulo={unaParte ? `Orden de ${PARTES_ORDEN[unaParte]}` : DOCS_REGISTRO[tipo].nombre} />
-      <HojasRegistro v={v} tipo={tipo} parte={unaParte} hoy={hoyCaracas()} versiones={limpiarVersiones(hojas as Record<string, unknown> | null)} />
+      {!servidor && (
+        <BarraPaciente token={token} volver={`/registro/${token}`} titulo={unaParte ? `Orden de ${PARTES_ORDEN[unaParte]}` : DOCS_REGISTRO[tipo].nombre}
+          pdf={v.firmado && pdfRegistroDisponible() ? { tipo, parte: unaParte } : null} telefono={v.org.telefono} />
+      )}
+      {servidor && <MarcarFirmas texto={`Folio ${v.folio.slice(0, 8).toUpperCase()} · ${v.persona.cedula}`} />}
+      <HojasRegistro v={v} tipo={tipo} parte={unaParte} hoy={hoyCaracas()} versiones={limpiarVersiones(hojas as Record<string, unknown> | null)} imagenes={imagenes} />
     </div>
   );
 }

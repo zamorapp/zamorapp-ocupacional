@@ -73,3 +73,44 @@ export async function pdfConNavegador(rutas: string[], sesion: { name: string; v
     await navegador.close();
   }
 }
+
+// PDF aplanado de una hoja del enlace del paciente (/registro/<token>/documento/…), sin sesión. La cabecera secreta va
+// SOLO en la carga de esa página de la propia app (nunca a otro sitio ni a las imágenes): con ella la página incrusta la
+// firma y el sello (registro-pdf.ts). Una sola hoja por llamada.
+export async function pdfRegistroConNavegador(ruta: string, cabecera: Record<string, string>): Promise<Buffer> {
+  const base = urlInterna();
+  let destino: URL;
+  try {
+    destino = new URL(ruta, base);
+  } catch {
+    throw new Error("Ruta no válida");
+  }
+  if (destino.origin !== new URL(base).origin || !/^\/registro\/[A-Za-z0-9_-]{40,60}\/documento\/[a-z-]+$/.test(destino.pathname)) {
+    throw new Error("Solo se convierten hojas del enlace del paciente");
+  }
+  const navegador = await abrirNavegador();
+  try {
+    const pagina = await navegador.newPage();
+    await pagina.setRequestInterception(true);
+    pagina.on("request", (r) => {
+      const propia = r.isNavigationRequest() && r.frame() === pagina.mainFrame() && new URL(r.url()).origin === destino.origin
+        && new URL(r.url()).pathname === destino.pathname;
+      void (propia ? r.continue({ headers: { ...r.headers(), ...cabecera } }) : r.continue());
+    });
+    await pagina.emulateMediaType("print");
+    const respuesta = await pagina.goto(destino.href, { waitUntil: "networkidle0", timeout: 45_000 });
+    if (!respuesta?.ok() || new URL(pagina.url()).pathname !== destino.pathname) throw new Error("Tus documentos ya no están disponibles en este enlace.");
+    await pagina.evaluate(() => document.fonts.ready);
+    // La firma y el sello se redibujan con marca de agua (marcar-firmas.tsx): sin esa marca no se imprime nada
+    await pagina.waitForFunction(() => document.documentElement.getAttribute("data-firmas") !== null, { timeout: 10_000 });
+    const estado = await pagina.evaluate(() => ({
+      marca: document.documentElement.getAttribute("data-firmas"),
+      originales: Array.from(document.querySelectorAll<HTMLImageElement>('[data-prueba="firma-medico"] img')).some((i) => i.naturalWidth > 300),
+      sinCargar: Array.from(document.querySelectorAll<HTMLImageElement>('[data-prueba="firma-medico"] img')).some((i) => !i.complete || !i.naturalWidth),
+    }));
+    if (estado.marca !== "listas" || estado.originales || estado.sinCargar) throw new Error("No se pudo preparar la firma del documento.");
+    return Buffer.from(await pagina.pdf({ preferCSSPageSize: true, printBackground: true }));
+  } finally {
+    await navegador.close();
+  }
+}
