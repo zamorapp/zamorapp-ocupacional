@@ -13,16 +13,19 @@ import { cn } from "@/lib/utils";
 import { actualizarCobro, convertirPresupuesto, eliminarCobro } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
 import { hoyCaracas } from "@/lib/fecha";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
 
 const f = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
-export function EditorCobro({ inicial, editable, servicios, precios }: { inicial: Cobro; editable: boolean; servicios: Servicio[]; precios: Record<string, number> }) {
+export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] }: { inicial: Cobro; editable: boolean; servicios: Servicio[]; precios: Record<string, number>; tasas?: { fecha: string; tasa: number }[] }) {
   const [c, setC] = useState(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
   const set = <K extends keyof Cobro>(k: K, v: Cobro[K]) => setC((x) => ({ ...x, [k]: v }));
   const t = totales(c);
+  // Tasa BCV que rige en la fecha de la nota (la de ese día o la anterior más cercana): se ofrece con un toque
+  const tasaDelDia = tasaParaFecha(tasas, c.fecha);
   const borrador = c.estado === "borrador";
   const cambios = JSON.stringify(c) !== guardado;
   const presupuesto = c.tipo === "presupuesto";
@@ -101,7 +104,15 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div><Label className="mb-1.5">Tasa BCV (Bs/$)</Label><Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} /></div>
+            <div>
+              <Label className="mb-1.5">Tasa BCV (Bs/$)</Label>
+              <Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} />
+              {tasaDelDia && tasaDelDia.tasa !== c.tasaBcv && editable && c.estado !== "pagada" && (
+                <button type="button" className="mt-1 text-xs text-primary hover:underline" onClick={() => set("tasaBcv", tasaDelDia.tasa)}>
+                  Usar la del BCV del {f(tasaDelDia.fecha)}: {tasaDelDia.tasa.toLocaleString("es-VE", { maximumFractionDigits: 4 })}
+                </button>
+              )}
+            </div>
             <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
             <div><Label className="mb-1.5">IGTF % (pago en divisas)</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.igtfPct} onChange={(e) => set("igtfPct", Number(e.target.value))} /></div>

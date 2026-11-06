@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { obtenerCobro } from "@/lib/facturacion";
+import { obtenerCobro, tasasBcv } from "@/lib/facturacion";
+import { sumarDias } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteNumero } from "@/lib/facturacion-tipos";
@@ -15,12 +16,14 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
   const [c, sesion] = await Promise.all([obtenerCobro(id), obtenerSesion()]);
   if (!c || !sesion.orgId || c.tipo !== "cobro") notFound();
   const supabase = await crearClienteServidor();
-  const [{ data: emp }, { data: previas }, { data: org }] = await Promise.all([
+  const [{ data: emp }, { data: previas }, { data: org }, tasas] = await Promise.all([
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
     // Para proponer el siguiente número del talonario
     supabase.from("cobros").select("numero_factura_fiscal").not("numero_factura_fiscal", "is", null).order("numero", { ascending: false }).limit(200),
     // Datos para el pago propios de la factura (Configuración › Organización › Documentos)
     supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId).maybeSingle(),
+    // Tasas BCV para que la factura tome la de su fecha de emisión (aunque se mueva la fecha unas semanas)
+    tasasBcv(sumarDias(c.fecha, -40)),
   ]);
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   return (
@@ -30,6 +33,7 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
       telefono={(emp?.telefono as string | null) ?? ""}
       sugerido={c.numeroFacturaFiscal ? "" : siguienteNumero((previas ?? []).map((p) => p.numero_factura_fiscal as string))}
       editable={editable}
+      tasas={tasas}
       datosPago={String((org?.ajustes as { factura_datos_pago?: string | null } | null)?.factura_datos_pago ?? "").trim()}
     />
   );

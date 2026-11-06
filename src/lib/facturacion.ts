@@ -2,6 +2,8 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { Atencion, Cobro, Servicio } from "@/lib/facturacion-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { hoyCaracas } from "@/lib/fecha";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
 
 export async function listarServicios(soloActivos = false): Promise<Servicio[]> {
   if (!supabaseConfigurado) return [];
@@ -29,11 +31,29 @@ export async function preciosEmpresa(empresaId: string): Promise<Record<string, 
   return Object.fromEntries((data ?? []).map((p) => [p.servicio_id, Number(p.precio_usd)]));
 }
 
-export async function tasaVigente(): Promise<{ fecha: string; tasa: number } | null> {
-  if (!supabaseConfigurado) return null;
+export type TasaGuardada = { fecha: string; tasa: number; fuente: "manual" | "bcv" | "respaldo" };
+
+// Historial de tasas BCV desde una fecha (la que rige en un día es la de esa fecha o la anterior más cercana)
+export async function tasasBcv(desde: string): Promise<TasaGuardada[]> {
+  if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("tasas_bcv").select("fecha, tasa").order("fecha", { ascending: false }).limit(1).maybeSingle();
-  return data ? { fecha: data.fecha, tasa: Number(data.tasa) } : null;
+  // Una antes de «desde» para cubrir el primer día (fin de semana o feriado)
+  const [{ data: previa }, { data }] = await Promise.all([
+    supabase.from("tasas_bcv").select("fecha, tasa, fuente").lt("fecha", desde).order("fecha", { ascending: false }).limit(1),
+    supabase.from("tasas_bcv").select("fecha, tasa, fuente").gte("fecha", desde).order("fecha"),
+  ]);
+  return [...(previa ?? []), ...(data ?? [])].map((t) => ({ fecha: t.fecha, tasa: Number(t.tasa), fuente: (t.fuente ?? "manual") as TasaGuardada["fuente"] }));
+}
+
+// La tasa que rige HOY (nunca la de mañana, que el BCV publica en la tarde) y, si ya está, la de mañana
+export async function tasaVigente(): Promise<TasaGuardada | null> {
+  return (await tasasDeHoy()).hoy;
+}
+
+export async function tasasDeHoy(): Promise<{ hoy: TasaGuardada | null; proxima: TasaGuardada | null }> {
+  const hoy = hoyCaracas();
+  const tasas = await tasasBcv(hoy);
+  return { hoy: tasaParaFecha(tasas, hoy), proxima: tasas.find((t) => t.fecha > hoy) ?? null };
 }
 
 export async function listarAtenciones(empresaId: string | null, desde: string, hasta: string): Promise<Atencion[]> {
