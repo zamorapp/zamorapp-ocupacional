@@ -132,6 +132,7 @@ const FUNCIONES: Atajo[] = [
   { href: "/configuracion/respaldo", titulo: "Respaldar ahora", donde: "Configuración › Respaldos", icono: DatabaseBackup, palabras: "respaldo copia guardar drive backup", roles: RESPALDO },
   { href: "/configuracion/horario", titulo: "Disponibilidad y horario", donde: "Configuración", icono: CalendarCog, palabras: "horario disponibilidad bloquear bloqueo vacaciones feriado cupos agenda dias libres" },
   { href: "/configuracion/papelera", titulo: "Papelera", donde: "Configuración", icono: Trash2, palabras: "borrados eliminados recuperar restaurar deshacer", puede: (o) => o.rol === "administrador" && Boolean(o.clinico) },
+  { href: "/configuracion/limpieza", titulo: "Limpieza", donde: "Configuración", icono: Trash2, palabras: "limpieza limpiar mantenimiento espacio basura acumulado enlaces vencidos anulados correos avisos plazos", puede: (o) => o.rol === "administrador" },
   // Solo en el programa de escritorio: la lista vive en esa PC
   { href: "/conflictos", titulo: "Conflictos y rechazados", donde: "Escritorio", icono: Settings, palabras: "sincronia conflicto rechazado nube no acepto", puede: () => process.env.NEXT_PUBLIC_ESCRITORIO === "1" },
 ];

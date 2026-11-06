@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Briefcase, CalendarCog, Building, ClipboardList, DatabaseBackup, Fingerprint, FolderInput, Landmark, Laptop, ListChecks, type LucideIcon, ShieldCheck, Tags, Trash2, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, CalendarCog, Building, ClipboardList, DatabaseBackup, Fingerprint, FolderInput, Landmark, Laptop, ListChecks, type LucideIcon, ShieldCheck, Sparkles, Tags, Trash2, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -60,13 +60,14 @@ const CARGOS: Opcion = { href: "/configuracion/cargos", titulo: "Unir cargos", t
 const ESCANEADOS: Opcion = { href: "/configuracion/escaneados-same", titulo: "Escaneados del SAME", texto: "Sube a cada historia los exámenes escaneados que tenía el SAME (una sola vez).", icono: FolderInput };
 
 // Papelera de consultas y trabajadores: solo administrador con acceso clínico
+const LIMPIEZA: Opcion = { href: "/configuracion/limpieza", titulo: "Limpieza", texto: "Lo temporal (PDF de enlaces vencidos, avisos leídos, enlaces sin llenar…) se borra solo cada madrugada. Plazos, espacio usado y «Limpiar ahora».", icono: Sparkles };
 const PAPELERA: Opcion = { href: "/configuracion/papelera", titulo: "Papelera", texto: "Consultas y trabajadores eliminados por error o duplicados, con el motivo. «Restaurar» los devuelve idénticos.", icono: Trash2 };
 
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
   const gerencia = sesion.rol === "administrador" || sesion.rol === "gerente_medico";
-  const mantenimiento = [...(sesion.rol === "administrador" ? [CARGOS] : []), ...(sesion.rol === "administrador" && sesion.clinico ? [PAPELERA] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
-  const bloques: Bloque[] = [...BLOQUES, ...(mantenimiento.length ? [{ titulo: "Mantenimiento", texto: "Arreglos de una vez, solo para la gerencia", opciones: mantenimiento }] : [])];
+  const mantenimiento = [...(sesion.rol === "administrador" ? [CARGOS] : []), ...(sesion.rol === "administrador" ? [LIMPIEZA] : []), ...(sesion.rol === "administrador" && sesion.clinico ? [PAPELERA] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
+  const bloques: Bloque[] = [...BLOQUES, ...(mantenimiento.length ? [{ titulo: "Mantenimiento", texto: "Limpieza, papelera y arreglos, solo para la gerencia", opciones: mantenimiento }] : [])];
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div>

@@ -98,7 +98,7 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   const campos = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social)";
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
     supabase.from("solicitudes_paciente").select(campos).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
-    supabase.from("solicitudes_paciente").select(campos).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
+    supabase.from("solicitudes_paciente").select(campos).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
     supabase.rpc("purgar_solicitudes_paciente" as never).abortSignal(AbortSignal.timeout(4000)),
   ]);
   // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
@@ -210,13 +210,16 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
   return { ok: true, mensaje: aviso ?? (previos?.length ? "Cita agendada en su ficha." : "Ficha creada y cita agendada."), trabajadorId: trabajador.id };
 }
 
-async function cambiar(id: string, accion: "descartar" | "deshacer" | "anular"): Promise<R> {
+async function cambiar(id: string, accion: "descartar" | "deshacer" | "anular" | "quitar" | "volver"): Promise<R> {
   const s = await servicio();
   if ("error" in s) return { ok: false, mensaje: s.error! };
   const tabla = s.supabase.from("solicitudes_paciente");
   const q = accion === "descartar" ? tabla.update({ resultado: "descartada" }).eq("id", id).is("resultado", null)
     : accion === "deshacer" ? tabla.update({ resultado: null }).eq("id", id).eq("resultado", "descartada")
-    : tabla.update({ anulado_en: new Date(ahora()).toISOString() }).eq("id", id).is("anulado_en", null).is("recibido_en", null);
+    : accion === "anular" ? tabla.update({ anulado_en: new Date(ahora()).toISOString() }).eq("id", id).is("anulado_en", null).is("recibido_en", null)
+    // Quitar de la lista solo lo esconde (con Deshacer); la base decide si ya terminó y pone la hora
+    : accion === "quitar" ? tabla.update({ oculto_en: new Date(ahora()).toISOString() } as never).eq("id", id).is("oculto_en", null)
+    : tabla.update({ oculto_en: null } as never).eq("id", id).not("oculto_en", "is", null);
   const { data, error } = await q.select("id");
   if (error) return { ok: false, mensaje: errorNube(error.message) };
   revalidatePath("/atencion");
@@ -226,3 +229,5 @@ async function cambiar(id: string, accion: "descartar" | "deshacer" | "anular"):
 export async function descartarSolicitudPaciente(id: string) { return cambiar(id, "descartar"); }
 export async function deshacerDescarte(id: string) { return cambiar(id, "deshacer"); }
 export async function anularEnlacePaciente(id: string) { return cambiar(id, "anular"); }
+export async function quitarEnlacePaciente(id: string) { return cambiar(id, "quitar"); }
+export async function volverEnlacePaciente(id: string) { return cambiar(id, "volver"); }
