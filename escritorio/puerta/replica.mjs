@@ -65,6 +65,15 @@ export class Replica {
     return this.enCurso;
   }
 
+  // Tras guardar algo en la nube: un ciclo que EMPIECE después de la escritura (si ya había uno en curso, empezó
+  // antes y no la trae: se encadena otro apenas termine). Antes se esperaba ese mismo y la PC leía de la nube hasta
+  // la sincronía siguiente, hasta 30 s más. Varias escrituras seguidas comparten la misma vuelta extra.
+  cicloTrasEscritura() {
+    if (!this.enCurso) return this.ciclo().catch(() => {});
+    this.otraVuelta ??= this.enCurso.catch(() => {}).then(() => { this.otraVuelta = null; return this.ciclo(); }).catch(() => {});
+    return this.otraVuelta;
+  }
+
   async #ciclo() {
     const eq = this.estado.d.equipo;
     if (!this.nube.enLinea) return;
@@ -87,6 +96,9 @@ export class Replica {
       await this.#reintentarApartadas(uid);
       this.ultima = this.nube.reloj.iso();
       this.ultimaMs = performance.now();
+      this.duracionMs = Math.round(this.ultimaMs - inicio);
+      // Mientras dura un ciclo, lo recién guardado en la nube se lee de la nube: si se alarga, que quede anotado
+      if (this.duracionMs > 5000) this.registro(`[réplica] ciclo lento: ${this.duracionMs} ms`);
       this.inicioCiclo = inicio;
       this.error = null;
       this.motivo = null;
