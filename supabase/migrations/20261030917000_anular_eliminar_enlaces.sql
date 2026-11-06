@@ -5,6 +5,7 @@
 -- 2. Eliminar (no si está «por revisar») borra el enlace y lo que el paciente escribió en él (datos, hojas elegidas, reservas de subida). NO toca la
 --    ficha, la cita ni los resultados que subió (viven en clinico.adjuntos, aparte) ni los respaldos.
 -- 3. La limpieza vacía al momento las hojas elegidas de un enlace anulado.
+-- 4. La bitácora de estos enlaces deja de guardar «documentos» (datos de salud) y se le retiran a las filas que ya había.
 
 -- ===== 1. Anular también un enlace ya aceptado =====
 do $$
@@ -41,10 +42,11 @@ begin
   return 'ok';
 end $$;
 
--- La bitácora también anota quién eliminó, sin los datos del paciente ni el token (misma lista «quitar»)
+-- La bitácora también anota quién eliminó, sin los datos del paciente ni el token. Y desde ahora tampoco guarda
+-- «documentos» (exámenes pedidos, dieta, temas de bienestar): la lee el auditor de la empresa (Analizar, 06-nov).
 create or replace function public.bitacora_solicitud_paciente()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare quitar text[] := array['datos', 'token_hash', 'nombre', 'telefono'];
+declare quitar text[] := array['datos', 'documentos', 'token_hash', 'nombre', 'telefono'];
 begin
   if tg_op = 'DELETE' then
     insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
@@ -76,3 +78,9 @@ begin
 end $$;
 revoke execute on function public.purgar_solicitudes_paciente() from public, anon;
 grant execute on function public.purgar_solicitudes_paciente() to authenticated;
+
+-- ===== 4. Retiro de datos de salud de la bitácora =====
+-- No es una purga: las filas se quedan (quién, qué y cuándo); solo se les quita «documentos», que nunca debió verlo el
+-- auditor de la empresa. public.bitacora no tiene triggers ni reglas que bloqueen el update (revisado 06-nov).
+update public.bitacora set antes = antes - 'documentos', despues = despues - 'documentos'
+ where tabla = 'public.solicitudes_paciente' and (antes ? 'documentos' or despues ? 'documentos');

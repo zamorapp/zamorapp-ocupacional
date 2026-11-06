@@ -76,6 +76,9 @@ select 'la bitácora anota quién eliminó (debe 2): ' || count(*) from public.b
    and registro_id in ('5f000000-0000-0000-0000-000000000219','5f000000-0000-0000-0000-000000000220');
 select 'sin datos del paciente ni token (debe 0): ' || count(*) from public.bitacora
  where tabla = 'public.solicitudes_paciente' and accion = 'DELETE' and (antes ? 'datos' or antes ? 'token_hash' or antes ? 'telefono');
+select 'la bitácora de enlaces no guarda documentos (debe 0): ' || count(*) from public.bitacora
+ where tabla = 'public.solicitudes_paciente' and (antes ? 'documentos' or despues ? 'documentos');
+select 'pero sí anota los enlaces (debe 1): ' || (count(*) > 0)::int from public.bitacora where tabla = 'public.solicitudes_paciente';
 delete from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000221';
 select 'la ficha sigue (debe 1): ' || count(*) from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a';
 delete from public.notificaciones where titulo = 'Paciente envió sus datos';
