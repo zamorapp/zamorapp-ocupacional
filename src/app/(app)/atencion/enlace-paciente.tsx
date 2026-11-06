@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -19,7 +19,8 @@ const PARTICULAR = "particular";
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const telefonoVisible = (t: string) => (t.startsWith("58") && t.length === 12 ? `0${t.slice(2, 5)}-${t.slice(5)}` : `+${t}`);
 
-type Perfil = Opcion & { examenes: number };
+// ordenes: lo que sale del perfil, ya separado por clase de estudio (laboratorio, rayos X, eco…)
+type Perfil = Opcion & { examenes: number; ordenes: { nombre: string; examenes: string[] }[] };
 const SIN_DOCS = { orden: false, ta: false, dieta: false, bienestar: false };
 const campo = "h-9 w-full rounded-md border bg-background px-2 text-sm";
 
@@ -50,7 +51,15 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const [diasTa, setDiasTa] = useState<7 | 14>(7);
   const [dieta, setDieta] = useState("general");
   const [firma, setFirma] = useState(true);
-  const marcados = Object.values(docs).filter(Boolean).length;
+  const elegido = perfiles.find((p) => p.id === perfil);
+  // Cada orden cuenta como un documento: el paciente ve una fila por cada una
+  const marcados = Object.values(docs).filter(Boolean).length + (docs.orden && elegido ? Math.max(elegido.ordenes.length - 1, 0) : 0);
+  const previa = () => {
+    const q = new URLSearchParams({ nombre, ...(empresa ? { empresa } : {}),
+      ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
+      ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1" } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}) });
+    return `/imprimir/registro-previa?${q}`;
+  };
   const marcar = (k: keyof typeof SIN_DOCS) => (v: boolean) => setDocs((d) => ({ ...d, [k]: v }));
   const [r, setR] = useState<EnlaceNuevo | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -125,6 +134,14 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                       <option value="">Perfil de exámenes…</option>
                       {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.examenes})</option>)}
                     </select>
+                    {elegido && (
+                      <div className="space-y-1.5 rounded-md bg-background/70 p-2 text-xs" aria-live="polite">
+                        <p className="font-medium">{elegido.ordenes.length === 1 ? "Sale 1 orden:" : `Salen ${elegido.ordenes.length} órdenes separadas:`}</p>
+                        {elegido.ordenes.map((o) => (
+                          <p key={o.nombre}><b>{o.nombre}</b> <span className="text-muted-foreground">({o.examenes.length}): {o.examenes.join(", ")}</span></p>
+                        ))}
+                      </div>
+                    )}
                     {motivos.length > 0 && (
                       <select value={motivo} onChange={(e) => setMotivo(e.target.value)} aria-label="Tipo de examen" className={campo}>
                         <option value="">Tipo de examen (opcional)</option>
@@ -153,12 +170,17 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
               {marcados > 0 && puedeFirmar && (
                 <label className="flex items-start gap-2 px-1 pt-1 text-sm">
                   <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />
-                  <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», sin que lo hayas visto todavía</span></span>
+                  <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», antes de ver al paciente</span></span>
                 </label>
               )}
               {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}
             </fieldset>
             {r && !r.ok && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{r.mensaje}</p>}
+            {marcados > 0 && (
+              <Button variant="outline" className="w-full" asChild>
+                <a href={previa()} target="_blank" rel="noreferrer"><Eye /> Ver cómo lo verá el paciente <ExternalLink className="size-3.5" aria-hidden /></a>
+              </Button>
+            )}
             <Button type="submit" className="w-full" disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" /> : <Link2 />} {marcados ? `Crear enlace con ${marcados} documento${marcados > 1 ? "s" : ""}` : "Crear enlace"}</Button>
           </form>
         )}

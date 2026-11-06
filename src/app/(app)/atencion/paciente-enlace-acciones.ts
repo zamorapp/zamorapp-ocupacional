@@ -12,9 +12,8 @@ import { numeroWhatsApp } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { mensajePaciente, soloDigitosCedula, type Coincidencia, type DatosPaciente, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
-import { docsElegidos, type DocumentosRegistro, type EleccionRegistro } from "@/lib/registro-documentos";
-import { aplicarPerfilParaclinicos } from "./[id]/perfiles";
-import type { Item } from "@/lib/listas";
+import { docsElegidos, type EleccionRegistro } from "@/lib/registro-documentos";
+import { armarDocumentosRegistro } from "@/lib/registro-documentos-servidor";
 
 // Enlace para que el paciente llene sus datos (20261030895000). Todo con la sesión del servicio: la RLS deja crear, ver
 // y revisar solo al personal del servicio sin límite de empresas; el trigger impide tocar lo que escribió el paciente.
@@ -37,38 +36,10 @@ const telefonoFicha = (t: string | undefined) => (t && t.startsWith("58") && t.l
 
 export type EnlaceNuevo = { ok: true; enlace: string; whatsapp: string; texto: string } | { ok: false; mensaje: string };
 
-const FIRMANTES = new Set(["administrador", "gerente_medico", "medico"]);
-
-// Lo que el paciente descarga al terminar (20261030906000): la orden lleva los exámenes del perfil elegido, copiados
-// al crear el enlace (si después cambia el perfil, este enlace no cambia).
-async function documentosElegidos(s: Exclude<Awaited<ReturnType<typeof servicio>>, { error: string }>, el: EleccionRegistro): Promise<DocumentosRegistro | string> {
-  const d: DocumentosRegistro = {};
-  if (el.orden) {
-    if (!/^[0-9a-f-]{36}$/i.test(el.orden.perfilId)) return "Elige el perfil de exámenes de la orden.";
-    const { data } = await s.supabase.from("lista_items").select("id, lista, codigo, nombre, grupo, texto, orden, activo, datos")
-      .eq("org_id", s.sesion.orgId!).in("lista", ["grupo_paraclinicos", "paraclinico"]).eq("activo", true);
-    const items = (data ?? []) as (Item & { lista: string })[];
-    const perfil = items.find((i) => i.id === el.orden!.perfilId && i.lista === "grupo_paraclinicos");
-    if (!perfil) return "Ese perfil de exámenes ya no existe. Elige otro.";
-    const examenes = aplicarPerfilParaclinicos([], perfil.texto ?? "", items.filter((i) => i.lista === "paraclinico"))
-      .map((x) => (x.grupo ? { nombre: x.nombre, grupo: x.grupo } : { nombre: x.nombre }));
-    if (!examenes.length) return `El perfil «${perfil.nombre}» no tiene exámenes.`;
-    d.orden = { examenes, perfil: perfil.nombre, ...(el.orden.motivoId && /^[0-9a-f-]{36}$/i.test(el.orden.motivoId) ? { motivo_id: el.orden.motivoId } : {}) };
-  }
-  if (el.controlTa) d.control_ta = { dias: el.controlTa === 14 ? 14 : 7 };
-  if (el.dieta) d.dieta = { dieta: el.dieta, plan: [] };
-  if (el.bienestar) d.bienestar = { tema: [] };
-  if (el.firma && docsElegidos(d).length) {
-    if (!s.sesion.clinico || !FIRMANTES.has(s.sesion.rol ?? "")) return "Solo un médico envía documentos con su firma y sello.";
-    d.firma = true;
-  }
-  return d;
-}
-
 export async function crearEnlacePaciente(e: { nombre: string; telefono: string; empresaId: string | null; documentos?: EleccionRegistro }): Promise<EnlaceNuevo> {
   const s = await servicio();
   if ("error" in s) return { ok: false, mensaje: s.error! };
-  const documentos = e.documentos ? await documentosElegidos(s, e.documentos) : {};
+  const documentos = e.documentos ? await armarDocumentosRegistro(s.supabase, s.sesion, e.documentos) : {};
   if (typeof documentos === "string") return { ok: false, mensaje: documentos };
   const telefono = e.telefono.trim() ? numeroWhatsApp(e.telefono) : null;
   if (e.telefono.trim() && !telefono) return { ok: false, mensaje: "Revisa el celular (ejemplo: 0414-1234567) o déjalo vacío para elegir el contacto en WhatsApp." };
