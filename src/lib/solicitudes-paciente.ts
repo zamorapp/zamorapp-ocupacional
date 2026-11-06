@@ -82,7 +82,9 @@ export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" |
 export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false) {
   const primero = nombre?.trim().split(/\s+/)[0];
   const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
-  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días):`;
+  // Descarga única (20261030915000): el trabajador sabe desde el mensaje que tiene 30 minutos tras la primera descarga
+  const plazo = conDocumentos ? " Ojo: desde que descargues el primer documento tendrás 30 minutos para bajarlos todos; después, el enlace queda solo para enviar tus resultados." : "";
+  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar
