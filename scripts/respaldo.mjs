@@ -102,7 +102,9 @@ async function leerBase() {
   const { rows: tablas } = await c.query(
     `select table_schema || '.' || table_name as nombre from information_schema.tables
      where table_type = 'BASE TABLE' and (table_schema in ('public', 'clinico')
-       or (table_schema = 'auth' and table_name in ('users', 'identities')))
+       or (table_schema = 'auth' and table_name in ('users', 'identities'))
+       -- Bloques de números de historia de cada equipo: sin ellos, una PC restaurada podría repetir números
+       or (table_schema = 'sync' and table_name = 'bloques'))
      order by 1`,
   );
   const datos = { fecha: new Date().toISOString(), tablas: {} };

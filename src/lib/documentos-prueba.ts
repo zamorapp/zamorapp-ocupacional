@@ -89,6 +89,7 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same" | "particula
     cierre: "2026-10-28T14:05:00+00:00",
     sin: [],
     copia: false,
+    firmaEnlace: null,
   };
 }
 

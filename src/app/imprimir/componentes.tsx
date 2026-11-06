@@ -271,6 +271,7 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
         </div>
         {!compacto && m?.registro_inpsasel && <div className="text-doc-tenue">INPSASEL {m.registro_inpsasel}</div>}
         {!compacto && m?.correo && <div className="text-doc-tenue">{m.correo}</div>}
+        {d.firmaEnlace && <div data-prueba="firma-enlace" className="mt-1 font-medium text-doc-tenue">{d.firmaEnlace}</div>}
         {/* Importada del SAME: la firma y la emisión ocurrieron allá; esta hoja es una copia desde zamorApp */}
         {d.firmadaEnSame && (
           <div data-prueba="firmada-same" className="mt-1 font-medium text-doc-tenue">

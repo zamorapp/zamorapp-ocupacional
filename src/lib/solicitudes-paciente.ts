@@ -47,9 +47,10 @@ export type Coincidencia = { id: string; nombre: string; empresa: string; estado
 export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" | "vence" | "resultado">, ahora: number) =>
   s.anulado ? "anulado" : s.resultado ?? (s.recibido ? "por revisar" : Date.parse(s.vence) < ahora ? "vencido" : "esperando");
 
-export function mensajePaciente(nombre: string | null, servicio: string) {
+export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false) {
   const primero = nombre?.trim().split(/\s+/)[0];
-  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que llenes tus datos y pidas tu consulta. Toma 2 minutos (vale ${DIAS_ENLACE_PACIENTE} días):`;
+  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
+  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 2 minutos (vale ${DIAS_ENLACE_PACIENTE} días):`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar
