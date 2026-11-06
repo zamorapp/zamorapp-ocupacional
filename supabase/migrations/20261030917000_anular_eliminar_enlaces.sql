@@ -10,7 +10,9 @@
 -- ===== 1. Anular también un enlace ya aceptado =====
 do $$
 declare
-  v_def text := pg_get_functiondef('public.validar_solicitud_paciente()'::regprocedure);
+  -- Sin \r: en producción la función quedó con saltos de Windows (se aplicó pegada en el editor SQL) y el texto exacto
+  -- con saltos de Unix no aparecía; quitarlos no cambia lo que hace la función
+  v_def text := replace(pg_get_functiondef('public.validar_solicitud_paciente()'::regprocedure), chr(13), '');
   v_viejo text := 'if old.anulado_en is not null or old.recibido_en is not null or new.resultado is distinct from old.resultado then
       raise exception ''Solo se anula un enlace que el paciente todavía no llenó'';';
 begin
