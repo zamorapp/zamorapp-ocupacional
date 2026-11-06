@@ -4,7 +4,7 @@
 // revisado el 05-nov-2026. Versión española del CoPsoQ © ISTAS 2002, 2010; CoPsoQ original danés © NRCWE 2005.
 // Licencia: uso gratuito con finalidad preventiva, participación (acuerdo con el Comité), anonimato y SIN MODIFICAR el
 // cuestionario: por eso las preguntas, opciones y cortes son fijos aquí (no se editan en Configuración) y la base
-// (20261030898000) calcula lo mismo en puntajes_istas21_corta() y nivel_istas21_corta().
+// (20261030904000) calcula lo mismo en puntajes_istas21_corta() y nivel_istas21_corta().
 
 export const METODO_PSICOSOCIAL = {
   nombre: "CoPsoQ-istas21 · versión corta",

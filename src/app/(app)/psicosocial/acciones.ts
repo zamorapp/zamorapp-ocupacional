@@ -7,7 +7,7 @@ import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-// Evaluación de riesgos psicosociales (20261030898000). Todo con la sesión del servicio: la RLS y las funciones de la
+// Evaluación de riesgos psicosociales (20261030904000). Todo con la sesión del servicio: la RLS y las funciones de la
 // base deciden. Las respuestas no se leen nunca una por una: solo resultados_psicosociales() agregados.
 
 export type Resultado = { ok: boolean; mensaje: string; id?: string };
