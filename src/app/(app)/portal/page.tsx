@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Brain, CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
+import { Brain, CalendarClock, CheckCircle2, ClipboardList, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
 import { Pasos, pasosCita, pasosSolicitud } from "@/components/app/pasos";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Propuestas, type GrupoPropuesta } from "./propuestas";
 import { Bienvenida } from "@/components/app/bienvenida-portal";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { listarPsicosocialesEmpresa } from "@/lib/psicosocial-datos";
+import { ordenesDeCitas } from "@/lib/ordenes";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
 
 export default async function Portal() {
   const hoy = hoyCaracas();
-  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes, psicosociales] = await Promise.all([
+  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes, psicosociales, ordenes] = await Promise.all([
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),
     listarTrabajadores(),
@@ -50,6 +51,7 @@ export default async function Portal() {
     obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
     listarSolicitudes({ limite: 20 }),
     listarPsicosocialesEmpresa(),
+    ordenesDeCitas(),
   ]);
   // Otra hora propuesta por el servicio: una tarjeta para responder (varios trabajadores de la misma propuesta juntos)
   const grupos = new Map<string, GrupoPropuesta>();
@@ -71,6 +73,8 @@ export default async function Portal() {
     .slice(0, 8);
   // Supervisor, delegado, auditor y trabajador solo consultan: pedir citas, cargar nómina y solicitudes es de RR. HH.
   const gestiona = !empresaSoloLectura(sesion.rol);
+  // Órdenes y relación del mes: RR. HH., auditor y el servicio (supervisor, delegado y trabajador no la ven)
+  const veRelacion = !["supervisor", "delegado_prevencion", "trabajador"].includes(sesion.rol ?? "");
   const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
   const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
   const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
@@ -87,6 +91,7 @@ export default async function Portal() {
         <div className="flex flex-wrap gap-2">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
+          {veRelacion && <Button variant="outline" asChild><Link href="/portal/ordenes"><ClipboardList /> Órdenes y relación del mes</Link></Button>}
           {gestiona && <AnotarVacaciones />}
           {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
@@ -141,6 +146,7 @@ export default async function Portal() {
                   <li key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-24 font-mono text-muted-foreground">{fecha(c.fecha)}{c.hora && ` ${c.hora}`}</span>
                     <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
+                    {ordenes.get(c.id) && <a href={`/imprimir/orden/${ordenes.get(c.id)!.id}`} className="rounded-full border border-primary/40 px-2.5 py-0.5 font-mono text-xs font-medium text-primary hover:bg-primary/10" title="Ver e imprimir la orden de evaluación">Orden {String(ordenes.get(c.id)!.numero).padStart(5, "0")}</a>}
                     {c.estado === "solicitada" && c.propuesta
                       ? <a href="#propuestas" className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">Responder hora propuesta</a>
                       : <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>}

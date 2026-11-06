@@ -9,8 +9,9 @@ import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { supabaseConfigurado } from "@/lib/config";
 import { avisarAlServicio } from "@/lib/aviso-servicio";
 import { hora12 } from "@/lib/propuesta";
+import { crearOrdenes } from "@/lib/ordenes";
 
-export type Resultado = { ok: boolean; mensaje: string };
+export type Resultado = { ok: boolean; mensaje: string; ordenes?: { id: string; numero: number }[] };
 
 const texto = (d: FormData, k: string) => String(d.get(k) ?? "").trim() || null;
 
@@ -85,9 +86,16 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
     origen: "portal" as const,
     solicitada_por: sesion.usuarioId,
   };
-  const { error } = await supabase.from("citas").insert(validos.map((t, i) => ({ ...comun, ...(horas ? { hora: horas[i] } : {}), empresa_id: t.empresa_id, trabajador_id: t.id })));
+  // Ids creados aquí: la orden de evaluación los agrupa sin pedir las filas de vuelta
+  const filas = validos.map((t, i) => ({ ...comun, ...(horas ? { hora: horas[i] } : {}), id: crypto.randomUUID(), empresa_id: t.empresa_id, trabajador_id: t.id }));
+  const { error } = await supabase.from("citas").insert(filas);
   // 23514: la base rechazó una hora (otro la tomó en ese instante); el mensaje ya viene claro para RR. HH.
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede solicitar citas para esta empresa." : error.message };
+  // Orden de evaluación numerada (20261030921000): si fallara, las citas ya quedaron pedidas y se dice claro
+  let ordenes: { id: string; numero: number }[] = [];
+  let sinOrden = "";
+  try { ordenes = await crearOrdenes(filas.map((f) => f.id)); }
+  catch (e) { sinOrden = ` No se pudo crear la orden de evaluación (${(e as Error).message}); las citas sí quedaron pedidas.`; }
   const reparto = horas && new Set(horas).size > 1
     ? ` Se repartieron por turnos: ${[...new Set(horas)].map((h) => `${hora12(h!)} (${horas!.filter((x) => x === h).length})`).join(", ")}.`
     : "";
@@ -103,13 +111,15 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
     lineas: [
       `${sesion.nombre} (RR. HH. de ${nombres}) pidió ${n === 1 ? "una cita" : `${n} citas`} para el ${fecha.split("-").reverse().join("/")}${hora ? ` a las ${hora}` : ""}.`,
       ...(nuevos.length ? [`Registró ${nuevos.length === 1 ? "un trabajador nuevo" : `${nuevos.length} trabajadores nuevos`}: ${nuevos.map((x) => `${x.nombres} ${x.apellidos} (${x.cedula})`).join(", ")}.`] : []),
+      ...(ordenes.length ? [`Orden de evaluación ${ordenes.map((o) => `Nº ${o.numero}`).join(", ")}.`] : []),
       "Confírmala o propón otra hora en Atención médica.",
     ],
     ruta: "/atencion",
   });
   return {
     ok: true,
-    mensaje: `${n === 1 ? "Solicitud enviada" : `${n} solicitudes enviadas`} al servicio médico.${reparto}${rechazados ? ` ${rechazados} no se enviaron: no pertenecen a tus empresas.` : ""}`,
+    mensaje: `${n === 1 ? "Solicitud enviada" : `${n} solicitudes enviadas`} al servicio médico.${reparto}${rechazados ? ` ${rechazados} no se enviaron: no pertenecen a tus empresas.` : ""}${sinOrden}`,
+    ordenes,
   };
 }
 

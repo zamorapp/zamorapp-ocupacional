@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { CalendarPlus, CheckCircle2, Loader2, Search, UserPlus, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, FileText, Loader2, Search, UserPlus, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -137,7 +137,13 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </form>
       </DialogContent>
     </Dialog>
-    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4" /> {estado.mensaje}</p>}
+    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4 shrink-0" /> {estado.mensaje}</p>}
+    {/* La orden de evaluación queda lista al pedir: un toque para verla, imprimirla o guardarla en PDF */}
+    {estado?.ok && estado.ordenes?.map((o) => (
+      <a key={o.id} href={`/imprimir/orden/${o.id}`} className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/10">
+        <FileText className="size-4" /> Orden de evaluación Nº {o.numero}: ver e imprimir
+      </a>
+    ))}
     </div>
   );
 }

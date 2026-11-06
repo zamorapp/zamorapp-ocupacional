@@ -3,6 +3,7 @@ import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
+import { ordenesDeCitas } from "@/lib/ordenes";
 import type { EstadoCorreoPropuesta, ModoPropuesta, Propuesta } from "@/lib/propuesta";
 
 export type { EstadoCorreoPropuesta, ModoPropuesta, Propuesta } from "@/lib/propuesta";
@@ -34,6 +35,8 @@ export type Cita = {
   empresaId: string;
   propuesta: Propuesta | null;
   respuestaEmpresa: "aceptada" | "pidio_otra" | null;
+  // Orden de evaluación del portal (20261030921000), solo en las solicitudes
+  orden?: { id: string; numero: number } | null;
 };
 
 
@@ -112,7 +115,9 @@ export async function listarSolicitudes(): Promise<Cita[]> {
     .order("fecha")
     .order("hora", { nullsFirst: false })
     .limit(200);
+  const ordenes = data?.length ? await ordenesDeCitas() : new Map<string, { id: string; numero: number }>();
   return ((data ?? []) as unknown as (Fila & { nota_empresa: string | null })[]).map((c) => ({ ...horas(c), ...propuesta(c),
+    orden: ordenes.get(c.id) ?? null,
     id: c.id,
     fecha: c.fecha,
     hora: c.hora?.slice(0, 5) ?? null,
