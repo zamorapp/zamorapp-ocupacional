@@ -51,7 +51,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-12 text-ok" />
               <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
-              <p className="text-sm text-muted-foreground">Puede descargar la información que le envía <b className="text-foreground">{remitente(docs)}</b>.</p>
+              <p className="text-sm text-muted-foreground">Puedes descargar lo que te envía <b className="text-foreground">{remitente(docs)}</b>.</p>
             </div>
             <ul className="space-y-2">
               {docsElegidos(docs.documentos).map((t) => (
