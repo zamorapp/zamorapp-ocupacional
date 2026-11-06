@@ -392,6 +392,12 @@ export function Recipe({ d }: { d: DatosDocumento }) {
 // Pre-empleo: sale como «Autorización de exámenes pre-empleo», con la nota del VIH y la autorización firmada por el aspirante
 const esPreempleo = (d: DatosDocumento) => /pre.?empleo|ingreso/i.test(d.motivo?.nombre ?? "");
 
+// Cada examen de la orden está pedido: sale con su casilla marcada (Cesar, 06-nov: la casilla vacía parecía que faltaba
+// marcarla para que la orden valiera)
+function Pedido() {
+  return <span aria-hidden className="grid size-3 shrink-0 place-items-center rounded-[2px] border border-[#15201e] text-[9px] font-bold leading-none text-[#15201e]">✓</span>;
+}
+
 // parte: orden de una sola clase de estudio («rayos X», «laboratorio»…), como las del enlace de registro
 export function Orden({ d, parte }: { d: DatosDocumento; parte?: string }) {
   const a = d.org.ajustes;
@@ -415,7 +421,7 @@ export function Orden({ d, parte }: { d: DatosDocumento; parte?: string }) {
           {[...grupos].map(([grupo, nombres]) => (
             <div key={grupo} className="break-inside-avoid">
               <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{grupo}</div>
-              {nombres.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><span className="size-3 rounded-[2px] border border-[#15201e]" />{n}</div>)}
+              {nombres.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><Pedido />{n}</div>)}
             </div>
           ))}
         </div>
@@ -680,7 +686,7 @@ export function OrdenAtencion({ d }: { d: DatosDocumento }) {
       <Bloque titulo="Evaluaciones a practicar">
         {/* Muchas evaluaciones (pre-empleo completo): tres columnas para que la orden quepa en una hoja */}
         <div className={`grid gap-x-8 ${evaluaciones.length > 12 ? "grid-cols-3 text-[11px]" : "grid-cols-2"}`}>
-          {evaluaciones.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><span className="size-3 shrink-0 rounded-[2px] border border-[#15201e]" />{n}</div>)}
+          {evaluaciones.map((n) => <div key={n} className="flex items-center gap-2 py-0.5"><Pedido />{n}</div>)}
         </div>
       </Bloque>
       {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
