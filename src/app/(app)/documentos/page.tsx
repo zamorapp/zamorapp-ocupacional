@@ -25,19 +25,23 @@ export default async function Documentos() {
     if (g) g.items.push(c);
     else grupos.push({ clave, fecha: c.fecha, empresa: c.empresa, items: [c] });
   }
-  // Si un grupo pasa de MAX_LOTE, se parte en tramos para no dejar consultas fuera sin aviso
-  const tramos = (items: typeof consultas) =>
-    Array.from({ length: Math.ceil(items.length / MAX_LOTE) }, (_, i) => ({
-      ids: items.slice(i * MAX_LOTE, (i + 1) * MAX_LOTE).map((c) => c.id).join(","),
-      rotulo: items.length > MAX_LOTE ? ` (${i * MAX_LOTE + 1}–${Math.min((i + 1) * MAX_LOTE, items.length)})` : "",
+  // Botones de lote con su cantidad. Si un grupo pasa de MAX_LOTE se parte en tramos, nunca se corta sin aviso
+  const botonesLote = (items: typeof consultas, total: number, nombre: string) => {
+    if (items.length === 0) return [];
+    const deTotal = items.length < total ? ` (de ${total})` : "";
+    if (items.length <= MAX_LOTE) return [{ ids: items.map((c) => c.id).join(","), texto: `Imprimir ${items.length} ${items.length === 1 ? nombre.slice(0, -1) : nombre}${deTotal}` }];
+    return Array.from({ length: Math.ceil(items.length / MAX_LOTE) }, (_, k) => ({
+      ids: items.slice(k * MAX_LOTE, (k + 1) * MAX_LOTE).map((c) => c.id).join(","),
+      texto: `Imprimir ${nombre} ${k * MAX_LOTE + 1}–${Math.min((k + 1) * MAX_LOTE, items.length)}${deTotal || ` (de ${items.length})`}`,
     }));
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Documentos</h1>
         <p className="text-muted-foreground">
-          Constancias, reposos, informes y récipes de las consultas cerradas en los últimos 90 días. Se abren listos para imprimir o guardar en PDF. Con «Imprimir lote» sacas todas las de un día y una empresa en un solo documento.
+          Constancias, reposos, informes y récipes de las consultas cerradas en los últimos 90 días. Se abren listos para imprimir o guardar en PDF. Con los botones de cada grupo sacas todas las de un día y una empresa en un solo documento.
         </p>
       </div>
 
@@ -59,11 +63,11 @@ export default async function Documentos() {
                   </div>
                   {g.items.length > 1 && (
                     <div className="flex flex-wrap gap-2">
-                      {tramos(g.items.filter((c) => c.aptitud)).map((t) => (
-                        <Button key={`c${t.rotulo}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=constancia&ids=${t.ids}`} target="_blank"><Printer /> Imprimir lote: constancias{t.rotulo}</Link></Button>
+                      {botonesLote(g.items.filter((c) => c.aptitud), g.items.length, "constancias").map((t) => (
+                        <Button key={`c${t.texto}`} size="sm" asChild><Link href={`/imprimir/lote?doc=constancia&ids=${t.ids}`} target="_blank"><Printer /> {t.texto}</Link></Button>
                       ))}
-                      {tramos(g.items).map((t) => (
-                        <Button key={`i${t.rotulo}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=consulta&ids=${t.ids}`} target="_blank"><Printer /> Imprimir lote: informes{t.rotulo}</Link></Button>
+                      {botonesLote(g.items, g.items.length, "informes").map((t) => (
+                        <Button key={`i${t.texto}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=consulta&ids=${t.ids}`} target="_blank"><Printer /> {t.texto}</Link></Button>
                       ))}
                     </div>
                   )}
@@ -71,10 +75,9 @@ export default async function Documentos() {
                 <ul className="divide-y">
                   {g.items.map((c) => (
                     <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
-                      <span className="w-24 font-mono text-sm text-muted-foreground">{fecha(c.fecha)}</span>
                       <div className="min-w-48 flex-1">
                         <Link href={`/atencion/${c.id}`} className="font-medium hover:text-primary">{c.paciente}</Link>
-                        <div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"} · {c.empresa}</div>
+                        <div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div>
                       </div>
                       <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} preoperatoria={/preoper/i.test(c.motivo ?? "")} />
                     </li>
