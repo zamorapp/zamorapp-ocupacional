@@ -115,6 +115,7 @@ const OTROS: Atajo[] = [
   { href: "/envios/plantillas", titulo: "Plantillas de correo", donde: "Envíos", icono: Send, palabras: "texto mensaje correo whatsapp", clinico: true },
   { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh" },
   { href: "/ayuda", titulo: "Lo nuevo y manual de uso", donde: "Manual de uso", icono: BookOpen, palabras: "ayuda como se usa instrucciones novedades" },
+  { href: "/ayuda#evaluaciones", titulo: "Guía de evaluaciones: cómo se hace cada una", donde: "Manual de uso", icono: BookOpen, palabras: "como se hace guia guía manual instrucciones rula reba rosa niosh ocra kim deb istas psicosocial mapa de riesgos interpretar", roles: ERGONOMIA },
 ];
 
 // Funciones (lo que se hace, no dónde está): «atender», «nueva cita», «reportar accidente»… Abren la pantalla
