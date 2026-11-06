@@ -21,6 +21,14 @@ export function leerHtmlBcv(html: string): { fecha: string; tasa: number } | nul
   return Number.isFinite(tasa) && tasa > 0 ? { fecha: f[1], tasa } : null;
 }
 
+// Tasa escrita a mano: «896,1225» (coma decimal, punto de miles) o «896.1225» (punto decimal, sin coma). Antes el
+// punto se tomaba siempre como de miles y «896.1225» quedaba en 8.961.225 (06-nov-2026).
+export function leerTasaEscrita(s: string): number {
+  const t = s.trim().replace(/\s/g, "").replace(/^Bs\.?/i, "");
+  if (!/^[\d.,]+$/.test(t)) return NaN;
+  return t.includes(",") ? numeroVe(t) : Number(t);
+}
+
 // De ve.dolarapi.com/v1/dolares/oficial: { promedio: 894.8876, fechaActualizacion: "2026-11-05T00:00:00-04:00" }
 export function leerJsonRespaldo(j: unknown): { fecha: string; tasa: number } | null {
   const o = j as { promedio?: unknown; fechaActualizacion?: unknown } | null;
