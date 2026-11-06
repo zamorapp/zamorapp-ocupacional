@@ -74,7 +74,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
             <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF». Este enlace los guarda por 7 días.</p>
             <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
           </section>
-          {resultados && <EnviarResultados token={token} servicio={v.servicio} estado={resultados} />}
+          {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : v.estado !== "vigente" ? (
           <>
@@ -83,7 +83,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
             <p className="mt-1 text-sm text-muted-foreground">{AVISO[v.estado].texto}</p>
             {v.telefono_servicio && <p className="mt-3 text-sm">Teléfono del servicio: <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></p>}
           </section>
-          {resultados && <EnviarResultados token={token} servicio={v.servicio} estado={resultados} />}
+          {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : (
           <>

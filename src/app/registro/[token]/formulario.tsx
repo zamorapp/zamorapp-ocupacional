@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, CheckCircle2, Loader2, Send, User } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, Send, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ export type CatalogoRegistro = { remitente: string; antecedentes: { id: string; 
 type Props = { token: string; servicio: string; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
 
 const GRUPO_ANTECEDENTE: Record<string, string> = { personal: "¿Tienes o has tenido alguna de estas?", familiar: "¿Alguien de tu familia (padres, hermanos, abuelos) tiene o tuvo…?" };
+const PRIVADO = "Esto solo lo ve tu médico; tu empresa no ve tus antecedentes ni diagnósticos.";
 const tituloGrupo = (g: string) => GRUPO_ANTECEDENTE[g] ?? g.charAt(0).toUpperCase() + g.slice(1);
 
 // Botones de una sola opción (más rápidos que una lista en el celular)
@@ -219,6 +220,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
 
       {catalogo && catalogo.antecedentes.length > 0 && (
         <Seccion titulo="Tu salud" ayuda="Marca solo lo que aplica. Si no sabes, déjalo en blanco: lo conversas en la consulta.">
+          <p className="flex items-start gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs"><ShieldCheck className="mt-px size-4 shrink-0 text-primary" /> {PRIVADO}</p>
           {grupos.map((g) => (
             <div key={g} className="space-y-2">
               <span className="block text-sm font-medium">{tituloGrupo(g)}</span>
@@ -249,7 +251,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
       )}
 
       {catalogo && catalogo.habitos.length > 0 && (
-        <Seccion titulo="Tus hábitos">
+        <Seccion titulo="Tus hábitos" ayuda={catalogo.antecedentes.length ? undefined : PRIVADO}>
           {catalogo.habitos.map((h) => {
             const q = PREGUNTA_HABITO[h.clave];
             const r = habitos[h.clave] ?? { si: null, detalle: "" };
@@ -277,7 +279,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
         <span>Autorizo a {servicio} a guardar estos datos para atenderme. Solo los ve su personal de salud.</span>
       </label>
 
-      {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
       <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={enviando}>
         {enviando ? <Loader2 className="animate-spin" /> : <Send />} Enviar mis datos
       </Button>

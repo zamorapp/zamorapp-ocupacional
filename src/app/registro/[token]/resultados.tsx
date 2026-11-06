@@ -12,13 +12,14 @@ import { confirmarResultado, reservarResultado } from "./acciones";
 export type EstadoResultados = { remitente: string; puede: boolean; motivo: "vencido" | "por_confirmar" | null; hasta: string; archivos: { nombre: string; subido: string }[] };
 
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
-const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+// «Él» para el Dr., «Ella» para la Dra.; si es el servicio, su nombre
+const pronombre = (r: string) => (/^dra\.?\s/i.test(r) ? "Ella" : /^dr\.?\s/i.test(r) ? "Él" : conArticulo(r));
 const diaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
 
 // «Enviar mis resultados»: el paciente vuelve al mismo enlace con sus exámenes hechos y los sube (fotos o PDF).
 // Cada archivo: se prepara en el teléfono (fotos sin datos de ubicación y achicadas), la base reserva su ruta, se sube
 // con la llave pública y la base lo confirma y lo pasa a su historia. El médico recibe el aviso.
-export function EnviarResultados({ token, servicio, estado }: { token: string; servicio: string; estado: EstadoResultados }) {
+export function EnviarResultados({ token, servicio, telefono, estado }: { token: string; servicio: string; telefono?: string | null; estado: EstadoResultados }) {
   const remitente = estado.remitente;
   const router = useRouter();
   const archivos = useRef<HTMLInputElement>(null);
@@ -77,7 +78,8 @@ export function EnviarResultados({ token, servicio, estado }: { token: string; s
       {listos.length > 0 && (
         <div role="status" className="space-y-1 rounded-xl border border-ok/40 bg-ok/10 p-4 text-sm">
           <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 shrink-0 text-ok" /> ¡Recibidos!</p>
-          <p>Tus resultados ya fueron cargados en la plataforma y se le avisó {aQuien(remitente)}. {mayuscula(conArticulo(remitente))} te contactará para una nueva cita o para darte las recomendaciones directamente.</p>
+          <p>Tus resultados ya fueron cargados en tu historia y se le avisó {aQuien(remitente)}. {pronombre(remitente)} te contactará para una nueva cita o para darte las recomendaciones directamente.</p>
+          <p className="pt-1 text-xs">Si te sientes mal o es urgente, no esperes: {telefono ? <>llama al <a className="font-medium text-primary" href={`tel:${telefono}`}>{telefono}</a></> : <>llama a {servicio}</>}.</p>
         </div>
       )}
 
@@ -93,7 +95,7 @@ export function EnviarResultados({ token, servicio, estado }: { token: string; s
               <Camera /> Tomar foto
             </Button>
           </div>
-          {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
           <p className="text-xs text-muted-foreground">Hasta 10 MB por archivo. Puedes enviar hasta el {fechaCorta(estado.hasta)}.</p>
         </>
       )}
