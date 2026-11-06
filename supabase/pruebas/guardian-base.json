@@ -17,6 +17,7 @@
     "public.correos_propuestas_por_enviar(p_clave text)",
     "public.depurar_nomina(p_empresa uuid, p_desde date, p_aplicar boolean)",
     "public.dias_equipo_confianza()",
+    "public.documentos_registro_paciente(p_token text)",
     "public.dos_pasos_cumplido()",
     "public.enviar_solicitud_paciente(p_token text, p_datos jsonb)",
     "public.equipo_de_confianza()",

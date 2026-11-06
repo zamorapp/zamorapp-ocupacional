@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Clock, ShieldCheck, Stethoscope } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronRight, Clock, FileText, ShieldCheck, Stethoscope } from "lucide-react";
 import { APP_NOMBRE } from "@/lib/config";
 import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { DOCS_REGISTRO, docsElegidos, remitente, type VistaRegistro } from "@/lib/registro-documentos";
 import { FormularioRegistro } from "./formulario";
 
 export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -25,6 +27,8 @@ export default async function Registro({ params }: { params: Promise<{ token: st
   const { data } = supabase ? await supabase.rpc("ver_solicitud_paciente", { p_token: token }) : { data: null };
   const v = (data as Vista[] | null)?.[0];
   const hoy = hoyCaracas();
+  // Ya llenó sus datos: si el servicio le dejó documentos, se los muestra para descargar (7 días)
+  const docs = supabase && v?.estado === "usado" ? ((await supabase.rpc("documentos_registro_paciente", { p_token: token })).data as VistaRegistro | null) : null;
 
   return (
     <main className="min-h-dvh bg-muted/30 px-4 py-6 sm:py-10">
@@ -41,6 +45,26 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           <section className="rounded-2xl border bg-card p-6 shadow-sm">
             <h1 className="text-xl font-semibold">Enlace no válido</h1>
             <p className="mt-1 text-sm text-muted-foreground">Revisa que lo abriste completo o pide uno nuevo al servicio médico.</p>
+          </section>
+        ) : docs ? (
+          <section role="status" className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+            <div className="space-y-1 text-center">
+              <CheckCircle2 className="mx-auto size-12 text-ok" />
+              <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
+              <p className="text-sm text-muted-foreground">Puede descargar la información que le envía <b className="text-foreground">{remitente(docs)}</b>.</p>
+            </div>
+            <ul className="space-y-2">
+              {docsElegidos(docs.documentos).map((t) => (
+                <li key={t}>
+                  <Link href={`/registro/${token}/documento/${t}`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-background px-4 py-3 font-medium transition hover:border-primary">
+                    <FileText className="size-5 shrink-0 text-primary" />
+                    <span className="flex-1">{DOCS_REGISTRO[t].nombre}{t === "orden" && docs.documentos.orden?.perfil && <span className="block text-xs font-normal text-muted-foreground">{docs.documentos.orden.perfil}</span>}</span>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF». Este enlace los guarda por 7 días. Te confirmaremos tu cita por WhatsApp.</p>
           </section>
         ) : v.estado !== "vigente" ? (
           <section className="rounded-2xl border bg-card p-6 shadow-sm">
