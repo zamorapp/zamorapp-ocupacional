@@ -40,6 +40,7 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     rif,
     nil: texto(datos, "nil"),
     actividad_economica: texto(datos, "actividad"),
+    proyecto: texto(datos, "proyecto"),
     estado: texto(datos, "estado"),
     municipio: texto(datos, "municipio"),
     direccion: texto(datos, "direccion"),

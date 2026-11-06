@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { supabaseConfigurado } from "@/lib/config";
 import { obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { listarEmpresas } from "@/lib/empresas";
+import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { listarInvitaciones, type Invitacion } from "@/lib/invitaciones";
 import { Volver } from "../volver";
 import { GestionUsuarios } from "./gestion-usuarios";
@@ -14,7 +14,7 @@ export type Miembro = { id: string; usuario_id: string; correo: string; nombre: 
 
 export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
   const { empresa: empresaInicial } = await searchParams;
-  const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas(true)]);
+  const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas(true).then(soloEmpresas)]);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
   let miembros: Miembro[] = [];
   let invitaciones: Invitacion[] = [];

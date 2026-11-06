@@ -60,6 +60,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/api/envios/constancias-dia") return conTiempo(respuesta);
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
+  // Enlace para que el paciente llene sus datos y pida su consulta: sin cuenta; la base valida el token
+  if (request.nextUrl.pathname.startsWith("/registro/")) return conTiempo(respuesta);
   // Cola de envíos del escritorio: la llama la puerta local con la sesión de nube (Bearer), sin cookies; valida ella misma
   if (request.nextUrl.pathname === "/api/envios/correo") return conTiempo(respuesta);
 

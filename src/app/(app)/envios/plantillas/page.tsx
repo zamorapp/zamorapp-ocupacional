@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { listarEmpresas } from "@/lib/empresas";
+import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { contarPendientes, listarPlantillas } from "@/lib/envios";
 import { obtenerSesion } from "@/lib/sesion";
 import { PestanasEnvios } from "../pestanas";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function Plantillas() {
   const sesion = await obtenerSesion();
   if (!sesion.clinico) notFound();
-  const [empresas, plantillas, pendientes] = await Promise.all([listarEmpresas(), listarPlantillas(), contarPendientes()]);
+  const [empresas, plantillas, pendientes] = await Promise.all([listarEmpresas().then(soloEmpresas), listarPlantillas(), contarPendientes()]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

@@ -111,9 +111,14 @@ test("entrar con internet y registrar la PC", { skip: omitir }, async () => {
   assert.equal(r.status, 200);
   tokenAdmin = r.json.access_token;
   assert.equal((await pedir("/auth/v1/user", { token: tokenAdmin })).json.id, "00000000-0000-0000-0000-0000000000a1");
-  // Dos letras al azar: el banco local conserva los equipos de corridas anteriores y una sola letra chocaba
-  const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
-  const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
+  // Dos letras al azar: la base de prueba conserva los equipos de las pruebas anteriores (día de Cesar, restauración…)
+  // y, con ~570 series posibles, a veces sale una ya usada (CI #263: «equipos_org_id_serie_key»). Si choca, otra serie.
+  let eq;
+  for (let intento = 0; intento < 8; intento++) {
+    const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
+    eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
+    if (eq.status !== 500) break; // la puerta responde 500 genérico; el choque de serie queda en su registro
+  }
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   assert.ok(estado.d.equipo.secreto.length === 64);
 });
