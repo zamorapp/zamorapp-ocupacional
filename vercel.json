@@ -9,5 +9,11 @@
       "*": false,
       "**": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/tasa-bcv",
+      "schedule": "30 22 * * *"
+    }
+  ]
 }

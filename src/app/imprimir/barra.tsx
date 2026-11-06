@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
 import { ANEXOS_LISTOS } from "./anexos";
 import { EnviarInforme, type EnvioInforme } from "./enviar-informe";
+import { EnviarTrabajador } from "./enviar-trabajador";
+import type { DocTrabajador } from "@/lib/whatsapp-trabajador";
 import { ahora } from "@/lib/fecha";
 
 const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
@@ -15,7 +17,8 @@ const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit"
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).
 // esperarAnexos: los botones se habilitan cuando los exámenes escaneados terminan de dibujarse (si no, saldrían en blanco).
-export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio, siguiente }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null; siguiente?: React.ReactNode }) {
+// trabajador: documento personal que también sale al celular del trabajador por WhatsApp (enlace de 7 días)
+export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio, trabajador, siguiente }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null; trabajador?: { consultaId: string; tipo: DocTrabajador; servicio: string } | null; siguiente?: React.ReactNode }) {
   const [escritorio, setEscritorio] = useState(false);
   const [ocupado, setOcupado] = useState<"imprimir" | "pdf" | null>(null);
   const [guardado, setGuardado] = useState<string | null>(null);
@@ -53,6 +56,7 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio
         <Button variant="ghost" asChild><Link href={volver}><ArrowLeft /> Volver</Link></Button>
         <span className="min-w-0 flex-1 truncate font-medium">{titulo}</span>
         {envio && <EnviarInforme {...envio} />}
+        {trabajador && !bloqueado && <EnviarTrabajador {...trabajador} />}
         {escritorio ? (
           <div className="flex gap-2">
             <Button variant="outline" disabled={inactivo} onClick={() => hacer("pdf")} data-accion="guardar-pdf">

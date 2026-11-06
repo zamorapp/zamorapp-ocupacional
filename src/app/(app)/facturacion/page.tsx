@@ -5,7 +5,9 @@ import { NuevoPresupuesto } from "./nuevo-presupuesto";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { after } from "next/server";
 import { hoyCaracas } from "@/lib/fecha";
+import { actualizarTasaBcv } from "@/lib/tasa-bcv-actualizar";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, tasasDeHoy } from "@/lib/facturacion";
@@ -37,7 +39,16 @@ const dias = (iso: string, hoy: string) => Math.round((Date.parse(hoy) - Date.pa
 type Props = { searchParams: Promise<{ vista?: string; p?: string; desde?: string; hasta?: string }> };
 
 export default async function Facturacion({ searchParams }: Props) {
-  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasasDeHoy()]);
+  const [q, sesion, empresaId, empresas, tasa0] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasasDeHoy()]);
+  // Tasa BCV: si falta la de hoy se busca ya (máx. 8 s) para facturar con ella; si solo falta la de mañana, después de
+  // responder. Respaldo del cron diario, porque GitHub corre su latido cada varias horas.
+  let tasa = tasa0;
+  if (!sesion.demo && tasa0.hoy?.fecha !== hoyCaracas()) {
+    const listo = await Promise.race([actualizarTasaBcv().then((r) => r.guardada), new Promise<boolean>((ok) => setTimeout(() => ok(false), 8000))]);
+    if (listo) tasa = await tasasDeHoy();
+  } else if (!sesion.demo && !tasa0.proxima) {
+    after(() => actualizarTasaBcv());
+  }
   const vista = VISTAS.some(([k]) => k === q.vista) ? q.vista! : "cobros";
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   const periodo = resolverPeriodo(q.p ?? "mes", q.desde, q.hasta);
