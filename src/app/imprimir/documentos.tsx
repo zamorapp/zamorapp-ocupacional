@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { sinRepetidas } from "@/lib/recomendaciones-categorias";
 import { motivoReposoImpreso } from "@/lib/reposo-motivo";
 import { Fragment } from "react";
@@ -395,7 +396,8 @@ const esPreempleo = (d: DatosDocumento) => /pre.?empleo|ingreso/i.test(d.motivo?
 // Cada examen de la orden está pedido: sale con su casilla marcada (Cesar, 06-nov: la casilla vacía parecía que faltaba
 // marcarla para que la orden valiera)
 function Pedido() {
-  return <span aria-hidden className="grid size-3 shrink-0 place-items-center rounded-[2px] border border-[#15201e] text-[9px] font-bold leading-none text-[#15201e]">✓</span>;
+  // SVG y no el carácter ✓: con fuentes que no lo traen, el texto se imprimía como un cuadro vacío
+  return <span aria-hidden className="grid size-3 shrink-0 place-items-center rounded-[2px] border border-[#15201e] text-[#15201e]"><Check className="size-2.5" strokeWidth={3} /></span>;
 }
 
 // parte: orden de una sola clase de estudio («rayos X», «laboratorio»…), como las del enlace de registro
