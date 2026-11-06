@@ -10,6 +10,7 @@ import { buscarActualizacion, ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { type Seccion, SECCIONES, SECCIONES_EMPRESA, seccionesPorGrupo } from "@/lib/navegacion";
 import { cn } from "@/lib/utils";
 import { alPasar, IconoEnlace } from "./icono-enlace";
+import { CambiarVistaMenu } from "./boton-vista-menu";
 
 type Props = { organizacion: string; titular?: string | null; portal?: boolean; alNavegar?: () => void };
 
@@ -59,6 +60,9 @@ export function BarraLateral({ organizacion, titular, portal = false, alNavegar 
           </div>
         ))}
       </nav>
+      <div className="mx-3 mt-1">
+        <CambiarVistaMenu alCambiar={alNavegar} className="w-full px-3 py-2" />
+      </div>
       {ESCRITORIO && (
         <div className="mx-3">
           {!portal && (

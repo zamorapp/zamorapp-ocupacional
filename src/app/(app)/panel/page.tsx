@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { barrerConstancias } from "@/lib/constancias-listas";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, DatabaseBackup, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { accidentabilidadInicio, agendaInicio, alertasInicio, aptitudInicio, ind
 import { accionesDelRol } from "@/lib/panel-rol";
 import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
 import { AjustarAlerta } from "./ajustar-alerta";
+import { FranjaRespaldo } from "./franja-respaldo";
 import { cn } from "@/lib/utils";
 import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
@@ -146,24 +147,8 @@ function Lineas() {
 async function Respaldo({ sesion }: { sesion: Sesion }) {
   const respaldo = await estadoRespaldo(sesion);
   if (!respaldo) return null;
-  // Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no
-  return (
-        <Link
-          href="/configuracion/respaldo"
-          className={cn(
-            "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm transition hover:border-primary/50",
-            respaldo.estado === "ok" && "bg-card",
-            respaldo.estado === "aviso" && "border-aviso/60 bg-aviso/10",
-            respaldo.estado === "alerta" && "border-alerta/60 bg-alerta/10",
-          )}
-        >
-          <DatabaseBackup className={cn("mt-0.5 size-4 shrink-0", respaldo.estado === "ok" ? "text-ok-texto" : respaldo.estado === "aviso" ? "text-aviso-texto" : "text-alerta-texto")} />
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2 font-medium"><Semaforo estado={respaldo.estado} /> {respaldo.titulo}</span>
-            <span className="block break-words text-xs text-muted-foreground">{respaldo.detalle}</span>
-          </span>
-        </Link>
-  );
+  // Respaldo diario (administrador y gerente médico): discreto si está al día, destacado si no; «Ignorar» por 3 días
+  return <FranjaRespaldo respaldo={respaldo} />;
 }
 
 async function Tareas({ sesion }: { sesion: Sesion }) {
