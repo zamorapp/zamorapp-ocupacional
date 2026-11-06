@@ -1,6 +1,7 @@
 "use server";
 
 import { normalizarPermisos } from "@/lib/permisos-portal";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
@@ -415,7 +416,8 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     if (m?.usuario_id === sesion.usuarioId && (rol !== "administrador" || !activo)) {
       return { ok: false, mensaje: "No puedes quitarte a ti mismo el rol de administrador." };
     }
-    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
+    // Roles de empresa nunca son clínicos (la base lo exige: miembros_empresa_sin_clinico)
+    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: esRolEmpresa(rol) ? false : accesoClinico }).eq("id", miembroId);
     if (error) throw error;
     invalidarEmpresas();
     invalidarSesion();

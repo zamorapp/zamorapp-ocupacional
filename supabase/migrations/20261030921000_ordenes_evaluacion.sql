@@ -237,4 +237,21 @@ end $$;
 revoke execute on function public.aceptar_invitacion(text) from public, anon;
 grant execute on function public.aceptar_invitacion(text) to authenticated;
 
+-- RR. HH. y demás roles de empresa nunca tienen acceso clínico (revisión de Diseño, 06-nov): antes bastaba marcar
+-- «Clínico» en Usuarios y roles para que un gerente de empresa abriera historias. Se limpia, se prohíbe y es_clinico()
+-- lo ignora aunque alguien lo cuele.
+update public.miembros set acceso_clinico = false
+ where acceso_clinico and rol in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor');
+alter table public.miembros drop constraint if exists miembros_empresa_sin_clinico;
+alter table public.miembros add constraint miembros_empresa_sin_clinico
+  check (not (acceso_clinico and rol in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor')));
+create or replace function public.es_clinico(p_org uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select rol in ('gerente_medico', 'medico', 'enfermeria')
+        or (acceso_clinico and rol not in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor'))
+    from public.miembros where usuario_id = auth.uid() and org_id = p_org and activo
+  ), false)
+$$;
+
 select public.vistas_al_dia();

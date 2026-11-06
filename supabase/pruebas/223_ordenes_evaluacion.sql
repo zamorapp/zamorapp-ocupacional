@@ -139,6 +139,12 @@ end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 update public.miembros set permisos_portal = '{citas}' where usuario_id = '00000000-0000-0000-0000-0000000000a3';
 select 'el administrador sí los cambia (debe 1): ' || count(*) from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000a3' and permisos_portal = '{citas}';
+-- Un rol de empresa nunca recibe acceso clínico
+do $$ begin
+  update public.miembros set acceso_clinico = true where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+  raise notice 'FALLA: RR. HH. quedó con acceso clínico';
+exception when check_violation then raise notice 'RR. HH. no recibe acceso clínico (debe 1): 1';
+end $$;
 -- La invitación lleva los permisos a la cuenta nueva
 reset role;
 insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000d3','rrhh-permisos@x');

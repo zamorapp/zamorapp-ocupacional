@@ -19,8 +19,8 @@ export function CasillasPermisos({ valor, onChange, nombre, compacto, deshabilit
         return (
           <label key={p.clave} className={cn(
             "flex cursor-pointer items-start border text-left transition-colors has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
-            compacto ? "items-center gap-1.5 rounded-full px-2.5 py-1" : "gap-2.5 rounded-lg px-3 py-2.5",
-            si ? "border-primary/50 bg-primary/5" : "bg-transparent text-muted-foreground",
+            compacto ? "min-h-11 items-center gap-1.5 rounded-full px-3 py-1 sm:min-h-0" : "gap-2.5 rounded-lg px-3 py-2.5",
+            si ? "border-primary/50 bg-primary/5" : "border-transparent bg-muted text-muted-foreground",
           )}>
             <input type="checkbox" name={nombre} value={p.clave} checked={si} className="sr-only"
               onChange={(e) => onChange(e.target.checked ? [...marcados, p.clave] : marcados.filter((c) => c !== p.clave))} />
@@ -28,7 +28,7 @@ export function CasillasPermisos({ valor, onChange, nombre, compacto, deshabilit
               {si && <Check className="size-3" strokeWidth={3} />}
             </span>
             <span className="min-w-0">
-              <span className={cn("block font-medium", compacto ? "whitespace-nowrap text-xs" : "text-sm", si ? "text-foreground" : "line-through decoration-muted-foreground/60")}>{compacto ? p.corto : p.titulo}</span>
+              <span className={cn("block font-medium", compacto ? "whitespace-nowrap text-xs" : "text-sm", si ? "text-foreground" : "text-muted-foreground")}>{compacto ? p.corto : p.titulo}</span>
               {!compacto && <span className="block text-xs text-muted-foreground">{p.detalle}</span>}
             </span>
           </label>

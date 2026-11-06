@@ -67,10 +67,10 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
                   >
                     {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                  <label className="flex items-center gap-1.5 text-sm" title="Puede abrir historias clínicas">
+{ROLES_EMPRESA.includes(m.rol) ? <span className="text-xs text-muted-foreground" title="Las personas de la empresa nunca ven diagnósticos">Sin acceso clínico</span> : (                  <label className="flex items-center gap-1.5 text-sm" title="Puede abrir historias clínicas">
                     <input type="checkbox" checked={m.acceso_clinico || ["medico", "enfermeria", "gerente_medico"].includes(m.rol)} disabled={["medico", "enfermeria", "gerente_medico"].includes(m.rol)} onChange={(e) => actualizar(m, { acceso_clinico: e.target.checked })} className="size-4 accent-[var(--primary)]" />
                     Clínico
-                  </label>
+                  </label>)}
                   <Button variant="ghost" size="sm" onClick={() => actualizar(m, { activo: !m.activo })}>
                     {m.activo ? "Desactivar" : "Activar"}
                   </Button>
