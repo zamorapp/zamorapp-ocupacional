@@ -84,11 +84,11 @@ export function MenuBotones({ nombre, portal, clinico, rol }: Props) {
                 const conflictos = b.href === "/conflictos" && casos > 0;
                 return (
                   <li key={b.href} className="motion-safe:animate-aparecer" style={{ animationDelay: `${retraso}ms` }}>
-                    <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[color-mix(in_oklch,var(--cat)_45%,transparent)] hover:shadow-lg motion-reduce:hover:translate-y-0">
+                    <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-[transform,box-shadow,border-color] duration-200 hover:border-[color-mix(in_oklch,var(--cat)_45%,transparent)] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg">
                       {/* Brillo de la categoría en la esquina: solo color, sin imágenes */}
-                      <span aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-[var(--cat)] opacity-[.08] transition-opacity duration-300 group-hover:opacity-[.16]" />
+                      <span aria-hidden className="pointer-events-none absolute -right-14 -top-14 hidden size-28 rounded-full bg-[var(--cat)] opacity-[.05] transition-opacity duration-300 group-hover:opacity-[.1] sm:block" />
                       <Link href={b.href} {...alPasar(b.href)} className="relative flex flex-1 items-start gap-4 p-4 outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-ring">
-                        <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[color-mix(in_oklch,var(--cat)_14%,transparent)] text-[color-mix(in_oklch,var(--cat)_75%,var(--foreground))] transition-transform duration-200 group-hover:scale-105 motion-reduce:group-hover:scale-100">
+                        <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[color-mix(in_oklch,var(--cat)_14%,transparent)] text-[color-mix(in_oklch,var(--cat)_75%,var(--foreground))] transition-transform duration-200 motion-safe:group-hover:scale-105">
                           <IconoEnlace icono={b.icono} className="size-6" />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -98,17 +98,23 @@ export function MenuBotones({ nombre, portal, clinico, rol }: Props) {
                           </span>
                           <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">{b.descripcion}</span>
                         </span>
-                        <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden />
+                        <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover:opacity-100 motion-safe:group-hover:translate-x-0.5" aria-hidden />
                       </Link>
+                      {/* Sin atajos, el pie dice «Abrir»: todas las tarjetas cierran igual */}
+                      {b.atajos.length === 0 && (
+                        <Link href={b.href} tabIndex={-1} aria-hidden className="relative flex min-h-11 items-center gap-1 border-t px-4 py-2.5 text-xs font-medium sm:min-h-0 text-[color-mix(in_oklch,var(--cat)_75%,var(--foreground))]">
+                          Abrir <ArrowRight className="size-3.5 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" />
+                        </Link>
+                      )}
                       {b.atajos.length > 0 && (
                         <div className="relative flex flex-wrap gap-1.5 border-t px-4 py-2.5">
                           {b.atajos.map((a) => (
-                            <Link key={a.titulo} href={a.href} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color-mix(in_oklch,var(--cat)_16%,transparent)] hover:text-foreground">
+                            <Link key={a.titulo} href={a.href} className="inline-flex min-h-11 items-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color-mix(in_oklch,var(--cat)_16%,transparent)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:px-2.5">
                               {a.titulo}
                             </Link>
                           ))}
                           {b.mas > 0 && (
-                            <Link href={b.href} className="rounded-full px-2 py-1 text-xs font-medium text-primary hover:underline">
+                            <Link href={b.href} className="inline-flex min-h-11 items-center rounded-full px-2 py-1 text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0">
                               +{b.mas} más
                             </Link>
                           )}

@@ -27,14 +27,15 @@ export function BotonMenu() {
       aria-current={aqui ? "page" : undefined}
       title="Menú de botones"
       className={cn(
-        "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors",
+        // Solo en pantallas anchas: en el celular ya están ☰ y la barra inferior
+        "hidden h-10 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors lg:inline-flex",
         vista === "botones"
           ? aqui ? "bg-primary/10 text-primary" : "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
-          : "hidden text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex", // en el celular ya están ☰ y la barra inferior
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <LayoutGrid className="size-[18px]" aria-hidden />
-      <span className={cn(vista === "botones" ? "hidden sm:inline" : "sr-only")}>Menú</span>
+      <span className={cn(vista === "botones" ? "" : "sr-only")}>Menú</span>
     </Link>
   );
 }
