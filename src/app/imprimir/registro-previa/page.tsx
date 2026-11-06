@@ -14,7 +14,7 @@ import { HojasRegistro } from "@/app/registro/hojas";
 export const metadata: Metadata = { title: "Vista previa del enlace" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string; conversadas?: string }> };
+type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; sin?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string; conversadas?: string }> };
 const uuid = (v?: string) => (v && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
 
 // Vista previa de «Enlace al paciente»: la pantalla final que verá el paciente y cada hoja, con un paciente de ejemplo.
@@ -25,7 +25,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
   if (sesion.demo || !sesion.orgId || !sesion.rol) notFound();
   const supabase = await crearClienteServidor();
   const eleccion: EleccionRegistro = {
-    orden: uuid(q.perfil) ? { perfilId: q.perfil!, motivoId: uuid(q.motivo) } : null,
+    orden: uuid(q.perfil) ? { perfilId: q.perfil!, motivoId: uuid(q.motivo), sin: (q.sin ?? "").split("|").filter(Boolean) } : null,
     controlTa: q.ta === "14" ? 14 : q.ta === "7" ? 7 : null,
     dieta: q.dieta && /^[a-z_-]{1,30}$/.test(q.dieta) ? q.dieta : null,
     bienestar: q.bienestar === "1",
