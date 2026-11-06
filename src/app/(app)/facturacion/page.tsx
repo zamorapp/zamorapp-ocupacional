@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { hoyCaracas } from "@/lib/fecha";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, tasaVigente } from "@/lib/facturacion";
+import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, tasasDeHoy } from "@/lib/facturacion";
 import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
@@ -37,7 +37,7 @@ const dias = (iso: string, hoy: string) => Math.round((Date.parse(hoy) - Date.pa
 type Props = { searchParams: Promise<{ vista?: string; p?: string; desde?: string; hasta?: string }> };
 
 export default async function Facturacion({ searchParams }: Props) {
-  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasaVigente()]);
+  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasasDeHoy()]);
   const vista = VISTAS.some(([k]) => k === q.vista) ? q.vista! : "cobros";
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   const periodo = resolverPeriodo(q.p ?? "mes", q.desde, q.hasta);
@@ -50,7 +50,7 @@ export default async function Facturacion({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Facturación</h1>
           <p className="text-muted-foreground">Servicios, pacientes atendidos y notas de cobro a las empresas clientes.</p>
         </div>
-        <TasaBcv actual={tasa} hoy={hoyCaracas()} editable={editable} />
+        <TasaBcv actual={tasa.hoy} proxima={tasa.proxima} hoy={hoyCaracas()} editable={editable} />
       </div>
 
       <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">

@@ -1,4 +1,5 @@
 import { sinRepetidas } from "@/lib/recomendaciones-categorias";
+import { motivoReposoImpreso } from "@/lib/reposo-motivo";
 import { Fragment } from "react";
 import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
@@ -90,36 +91,53 @@ function CuerpoConstancia({ d, copia }: { d: DatosDocumento; copia?: string }) {
   );
 }
 
-function CuerpoReposo({ d, copia }: { d: DatosDocumento; copia: string }) {
+// Nombre con tildes de la causa y del ente (los de la lista base); un código propio de la organización sale tal cual
+const NOMBRES_REPOSO: Record<string, string> = {
+  enfermedad_comun: "Enfermedad común", enfermedad_ocupacional: "Enfermedad ocupacional", accidente_comun: "Accidente común",
+  accidente_laboral: "Accidente laboral", servicio_medico: "servicio médico", ivss: "IVSS", cdi: "CDI",
+};
+const nombreReposo = (codigo: string) => NOMBRES_REPOSO[codigo] ?? codigo.replace(/_/g, " ");
+
+function CuerpoReposo({ d, copia, original }: { d: DatosDocumento; copia: string; original?: boolean }) {
   const r = d.datos.reposo;
   const dias = Math.round((Date.parse(r.hasta) - Date.parse(r.desde)) / 864e5) + 1;
   const reintegro = sumarDias(r.hasta, 1);
   const diag = d.datos.diagnosticos.find((x) => x.cie10 === r.cie10) ?? d.datos.diagnosticos[0];
   const t = d.trabajador;
+  // El motivo es dato clínico (síntomas y examen): nunca en el original que va a RR. HH. ni por correo a la empresa
+  // (Analizar, 05-nov). Sale en la copia del servicio médico.
+  const conMotivo = d.sin.includes("motivo") ? "" : motivoReposoImpreso(d.datos);
+  const motivo = original ? "" : conMotivo;
+  // Si la copia lleva motivo, las dos mitades se compactan igual: así caben en una carta y quedan parejas
+  const compacto = !!conMotivo;
   return (
     <Hoja media corte={false}>
       <Membrete d={d} compacto />
-      <Titulo d={d} prefijo="RP" compacto copia={copia} sub={r.causa.replace(/_/g, " ")}>Reposo médico</Titulo>
+      <Titulo d={d} prefijo="RP" compacto copia={copia} sub={nombreReposo(r.causa)}>Reposo médico</Titulo>
       <Ficha celdas={[{ k: "Trabajador", v: t.nombre, ancho: 2, destacada: true }, { k: "Cédula", v: t.cedula }, { k: "Cargo", v: t.cargo }]} />
-      <div className="mb-3 grid grid-cols-4 gap-2.5">
+      {/* Con motivo clínico las fechas se compactan un poco: original y copia siguen en una carta */}
+      <div className={`grid grid-cols-4 gap-2.5 ${compacto ? "mb-2" : "mb-3"}`}>
         {[["Desde", fechaCorta(r.desde)], ["Hasta", fechaCorta(r.hasta)], ["Días", String(dias)], ["Reintegro", fechaCorta(reintegro)]].map(([k, v]) => (
-          <div key={k} className={`rounded-lg px-3 py-2 ${k === "Días" ? "border-2 border-doc-acento bg-doc-suave" : "border border-doc-linea"}`}>
+          <div key={k} className={`rounded-lg px-3 ${compacto ? "py-1" : "py-2"} ${k === "Días" ? "border-2 border-doc-acento bg-doc-suave" : "border border-doc-linea"}`}>
             <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">{k}</div>
-            <div className="font-cifra text-[17px] font-medium">{v}</div>
+            <div className={`font-cifra font-medium ${compacto ? "text-[15px] leading-tight" : "text-[17px]"}`}>{v}</div>
           </div>
         ))}
       </div>
       {/* Diagnóstico al lado de la firma: así original y copia caben en una hoja aun con nombres largos */}
       <Firmas compacto>
         <div data-prueba="texto-reposo" className="min-w-0 flex-1 self-start">
+          {/* Por qué se indica (Cesar, 05-nov): junto al diagnóstico, al lado de la firma, donde sobra alto; con el tope
+              de MAXIMO_MOTIVO_REPOSO son 3 líneas a lo sumo y original y copia siguen en una carta */}
+          {motivo && <p data-prueba="motivo-reposo" className="mb-0.5 text-[12px] leading-tight"><b>Motivo:</b> {motivo}</p>}
           {diag && <p><b>Diagnóstico:</b> {textoDiagnostico(diag.cie10, diag.descripcion)}</p>}
           <p className="text-[10.5px] text-doc-tenue">
-            {[`Emitido por: ${r.ente.replace(/_/g, " ")}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
+            {[`Emitido por: ${nombreReposo(r.ente)}`, r.medicoExterno && `Médico: ${r.medicoExterno}`, r.centroIvss && `Centro IVSS: ${r.centroIvss}`, r.validadoIvss && "Validado por el IVSS"].filter(Boolean).join(" · ")}
           </p>
         </div>
         <FirmaMedico d={d} compacto />
       </Firmas>
-      <Pie d={d} derecha={`Folio ${folio("RP", d.datos.id)}`} />
+      <Pie d={d} compacto={compacto} derecha={`Folio ${folio("RP", d.datos.id)}`} />
     </Hoja>
   );
 }
@@ -130,8 +148,8 @@ export function Reposo({ d }: { d: DatosDocumento }) {
   // Original y copia en la misma hoja carta, con línea de corte
   return (
     <div className="hoja print:break-after-page">
-      <CuerpoReposo d={d} copia={a.reposo_pie_original ?? "Original · RR. HH."} />
-      <div className="mx-auto -mt-4 mb-4 flex max-w-[216mm] items-center gap-2 text-[10px] text-neutral-400 before:flex-1 before:border-t before:border-dashed before:border-neutral-400 after:flex-1 after:border-t after:border-dashed after:border-neutral-400 print:my-[3mm]">
+      <CuerpoReposo d={d} original copia={a.reposo_pie_original ?? "Original · RR. HH."} />
+      <div className="mx-auto -mt-4 mb-4 flex max-w-[216mm] items-center gap-2 text-[10px] text-neutral-400 before:flex-1 before:border-t before:border-dashed before:border-neutral-400 after:flex-1 after:border-t after:border-dashed after:border-neutral-400 print:my-[2mm]">
         cortar aquí
       </div>
       <CuerpoReposo d={d} copia={a.reposo_pie_copia ?? "Copia · Servicio médico"} />

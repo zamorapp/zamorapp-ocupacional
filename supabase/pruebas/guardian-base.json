@@ -1,4 +1,7 @@
 {
+  "migracionesAplicadasFueraDeOrden": [
+    "20261030899000"
+  ],
   "pruebasRepetidas": [
     "80",
     "85"
@@ -18,6 +21,7 @@
     "public.depurar_nomina(p_empresa uuid, p_desde date, p_aplicar boolean)",
     "public.dias_equipo_confianza()",
     "public.dos_pasos_cumplido()",
+    "public.enviar_cuestionario_psicosocial(p_codigo text, p_grupo text, p_respuestas integer[])",
     "public.enviar_solicitud_paciente(p_token text, p_datos jsonb)",
     "public.equipo_de_confianza()",
     "public.equipo_desactivado(p_equipo uuid)",
@@ -26,6 +30,7 @@
     "public.falta_segundo_paso()",
     "public.fecha_caracas(p_momento timestamp with time zone)",
     "public.firmar_consulta(p_id uuid)",
+    "public.guardar_tasa_bcv_auto(p_clave text, p_fecha date, p_tasa numeric, p_fuente text)",
     "public.hoy_caracas()",
     "public.lista_clinica(p_lista text)",
     "public.marcar_constancias_enviadas(p_clave text, p_empresa uuid, p_consultas uuid[], p_destinatarios text[])",
@@ -40,8 +45,11 @@
     "public.resumen_panel(p_empresa uuid)",
     "public.rol_centinela(p_rol rol_usuario)",
     "public.ruta_solicitud_visible(p_ruta text, p_servicio boolean)",
+    "public.tasa_bcv_reservar_intento(p_clave text)",
+    "public.tasa_bcv_ultima_fecha(p_clave text)",
     "public.ve_consulta(p_org uuid, p_consulta uuid)",
     "public.ve_trabajador(p_org uuid, p_trabajador uuid)",
+    "public.ver_cuestionario_psicosocial(p_codigo text)",
     "public.ver_invitacion(p_token text)",
     "public.ver_solicitud_paciente(p_token text)",
     "public.verificar_dos_pasos()"
