@@ -28,6 +28,7 @@ type Ajustes = {
   certificado_nota?: string | null;
   firma_sello_separados?: boolean;
   reposo_pie_original?: string | null;
+  reposo_diagnostico_original?: boolean;
   meses_examen_periodico?: number;
   dias_aviso_fecha_futura?: number;
   recordatorio_resultados_dias?: number;
@@ -253,6 +254,7 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
         <Grupo titulo="Reposo médico">
           <Campo id="reposo_pie_original" etiqueta="Pie del original" ayuda="Vacío: se usa «Original · RR. HH.»." defaultValue={a.reposo_pie_original ?? "ORIGINAL RECURSOS HUMANOS"} />
           <Campo id="reposo_pie_copia" etiqueta="Pie de la copia" ayuda="Vacío: se usa «Copia · Servicio médico»." defaultValue={a.reposo_pie_copia ?? "COPIA SERVICIO MÉDICO"} />
+          <Casilla id="reposo_diagnostico_original" etiqueta="Diagnóstico también en el original de RR. HH. (la copia del servicio siempre lo lleva)" defecto={a.reposo_diagnostico_original ?? false} />
         </Grupo>
         <Grupo titulo="Certificado de salud">
           <Campo id="certificado_titulo" etiqueta="Título" ayuda="Vacío: se usa «Certificado de salud»." defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
