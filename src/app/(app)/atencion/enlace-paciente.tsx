@@ -374,9 +374,7 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
   const eliminar = async (e: SolicitudPaciente, estado: string) => {
     const si = await confirmar({
       titulo: `¿Eliminar el enlace de ${nombreDe(e)}?`,
-      texto: (estado === "por revisar"
-        ? "Se borran los datos que el paciente envió y todavía no revisaste. "
-        : estado === "esperando" ? "El enlace deja de servir y se borra. " : "Se borra el enlace. ")
+      texto: (estado === "esperando" ? "El enlace deja de servir y se borra. " : "Se borra el enlace. ")
         + (estado === "aceptada" ? "Su ficha, su cita y los resultados que subió se quedan en su historia. " : "")
         + "No se puede deshacer.",
       accion: "Eliminar",
@@ -417,10 +415,10 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                     <X className="size-3" /> Quitar de la lista
                   </button>
                 )}
-                <button type="button" disabled={ocupado} onClick={() => eliminar(e, estado)} title="Borra el enlace. Su ficha y sus resultados se quedan."
+                {estado !== "por revisar" && <button type="button" disabled={ocupado} onClick={() => eliminar(e, estado)} title="Borra el enlace. Su ficha y sus resultados se quedan."
                   className="inline-flex items-center gap-1 text-muted-foreground hover:text-alerta-texto hover:underline disabled:opacity-60">
                   <Trash2 className="size-3" /> Eliminar
-                </button>
+                </button>}
               </li>
             );
           })}

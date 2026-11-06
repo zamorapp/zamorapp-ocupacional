@@ -53,11 +53,29 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RR. HH. no elimina (debe 1): ' || (public.eliminar_solicitud_paciente('5f000000-0000-0000-0000-000000000220') <> 'ok')::int;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+-- Uno «por revisar» no se elimina: se descarta
+reset role;
+insert into public.solicitudes_paciente (id,org_id,token_hash,creado_por) values
+ ('5f000000-0000-0000-0000-000000000221','10000000-0000-0000-0000-000000000001',sha256('anu-0123456789-0123456789-0123456789-tre'),'00000000-0000-0000-0000-0000000000a1');
+set role anon;
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+select public.enviar_solicitud_paciente('anu-0123456789-0123456789-0123456789-tre',
+  '{"cedula":"V-11223377","nombres":"Leo","apellidos":"Sol","fecha_nacimiento":"1985-01-01","telefono":"04141234567","motivo":"Control"}') \g /dev/null
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'por revisar no se elimina (debe 1): ' || (public.eliminar_solicitud_paciente('5f000000-0000-0000-0000-000000000221') like 'Ese paciente está por revisar%')::int;
+select 'y sigue ahí (debe 1): ' || count(*) from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000221';
 select 'el servicio elimina uno sin llenar (debe ok): ' || public.eliminar_solicitud_paciente('5f000000-0000-0000-0000-000000000220');
 select 'el servicio elimina uno aceptado (debe ok): ' || public.eliminar_solicitud_paciente('5f000000-0000-0000-0000-000000000219');
 select 'eliminar dos veces avisa (debe 1): ' || (public.eliminar_solicitud_paciente('5f000000-0000-0000-0000-000000000219') <> 'ok')::int;
 reset role;
 select 'ya no existen (debe 0): ' || count(*) from public.solicitudes_paciente where id in ('5f000000-0000-0000-0000-000000000219','5f000000-0000-0000-0000-000000000220');
 select 'se van sus reservas de subida (debe 0): ' || count(*) from public.subidas_paciente where solicitud_id = '5f000000-0000-0000-0000-000000000219';
+select 'la bitácora anota quién eliminó (debe 2): ' || count(*) from public.bitacora
+ where tabla = 'public.solicitudes_paciente' and accion = 'DELETE' and usuario_id = '00000000-0000-0000-0000-0000000000a1'
+   and registro_id in ('5f000000-0000-0000-0000-000000000219','5f000000-0000-0000-0000-000000000220');
+select 'sin datos del paciente ni token (debe 0): ' || count(*) from public.bitacora
+ where tabla = 'public.solicitudes_paciente' and accion = 'DELETE' and (antes ? 'datos' or antes ? 'token_hash' or antes ? 'telefono');
+delete from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000221';
 select 'la ficha sigue (debe 1): ' || count(*) from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a';
 delete from public.notificaciones where titulo = 'Paciente envió sus datos';

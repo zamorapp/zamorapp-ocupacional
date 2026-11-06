@@ -2,7 +2,7 @@
 -- 1. Anular ya no exige que el paciente no lo haya llenado: un enlace ACEPTADO sigue sirviendo 30 días para descargar
 --    hojas y subir resultados, y Cesar puede cortarlo al instante. Lo que ya llegó a la ficha no se toca. Un enlace
 --    «por revisar» no se anula: se acepta o se descarta (descartar ya lo corta).
--- 2. Eliminar borra el enlace y lo que el paciente escribió en él (datos, hojas elegidas, reservas de subida). NO toca la
+-- 2. Eliminar (no si está «por revisar») borra el enlace y lo que el paciente escribió en él (datos, hojas elegidas, reservas de subida). NO toca la
 --    ficha, la cita ni los resultados que subió (viven en clinico.adjuntos, aparte) ni los respaldos.
 -- 3. La limpieza vacía al momento las hojas elegidas de un enlace anulado.
 
@@ -24,16 +24,42 @@ begin
 end $$;
 
 -- ===== 2. Eliminar =====
+-- Un enlace «por revisar» no se elimina: se descarta (Descartar tiene Deshacer y los datos se vacían solos a los 30 días)
 create or replace function public.eliminar_solicitud_paciente(p_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
-declare n int;
+declare v public.solicitudes_paciente;
 begin
-  delete from public.solicitudes_paciente
+  select * into v from public.solicitudes_paciente
    where id = p_id
-     and org_id = any (public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion}', p_sin_limite => true));
-  get diagnostics n = row_count;
-  return case when n = 1 then 'ok' else 'Ese enlace ya no está. Recarga la pantalla.' end;
+     and org_id = any (public.orgs_con(p_roles => '{administrador,gerente_medico,medico,enfermeria,recepcion}', p_sin_limite => true))
+   for update;
+  if v.id is null then return 'Ese enlace ya no está. Recarga la pantalla.'; end if;
+  if v.recibido_en is not null and v.resultado is null then
+    return 'Ese paciente está por revisar: acéptalo o descártalo primero.';
+  end if;
+  delete from public.solicitudes_paciente where id = v.id;
+  return 'ok';
 end $$;
+
+-- La bitácora también anota quién eliminó, sin los datos del paciente ni el token (misma lista «quitar»)
+create or replace function public.bitacora_solicitud_paciente()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare quitar text[] := array['datos', 'token_hash', 'nombre', 'telefono'];
+begin
+  if tg_op = 'DELETE' then
+    insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+    values (old.org_id, 'public.solicitudes_paciente', old.id, tg_op, to_jsonb(old) - quitar, null);
+    return old;
+  end if;
+  insert into public.bitacora (org_id, tabla, registro_id, accion, antes, despues)
+  values (new.org_id, 'public.solicitudes_paciente', new.id, tg_op,
+          case when tg_op = 'UPDATE' then to_jsonb(old) - quitar end, to_jsonb(new) - quitar);
+  return new;
+end $$;
+revoke execute on function public.bitacora_solicitud_paciente() from public, anon, authenticated;
+drop trigger if exists bit_solicitudes_paciente on public.solicitudes_paciente;
+create trigger bit_solicitudes_paciente after insert or update or delete on public.solicitudes_paciente
+  for each row execute function public.bitacora_solicitud_paciente();
 revoke execute on function public.eliminar_solicitud_paciente(uuid) from public, anon;
 grant execute on function public.eliminar_solicitud_paciente(uuid) to authenticated;
 
