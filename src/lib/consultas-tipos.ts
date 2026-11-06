@@ -1,5 +1,6 @@
 // Tipos y utilidades de la consulta, compartidos entre servidor y cliente.
 import type { Aptitud } from "@/lib/pacientes";
+import type { Medicion } from "@/lib/mediciones";
 
 export type FilaExamen = { clave: string; nombre: string; valor: string; normal: string };
 // estado: semáforo del resultado ("" = sin clasificar); manual = el médico lo cambió a mano; unidad y referencia quedan
@@ -7,6 +8,8 @@ export type FilaExamen = { clave: string; nombre: string; valor: string; normal:
 export type Paraclinico = {
   id: string; nombre: string; grupo: string | null; resultado: string;
   estado?: "" | "normal" | "fuera" | "alterado"; manual?: boolean; unidad?: string; referencia?: string;
+  // Goniometría o espirometría con valores (opcional, lib/mediciones.ts)
+  medicion?: Medicion;
 };
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
 export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string; notaFarmacia?: string };
