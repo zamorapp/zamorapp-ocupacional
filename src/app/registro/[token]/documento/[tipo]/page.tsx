@@ -27,7 +27,7 @@ export default async function DocumentoRegistro({ params, searchParams }: { para
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraPaciente volver={`/registro/${token}`} titulo={unaParte ? `Orden de ${PARTES_ORDEN[unaParte]}` : DOCS_REGISTRO[tipo].nombre} />
+      <BarraPaciente token={token} volver={`/registro/${token}`} titulo={unaParte ? `Orden de ${PARTES_ORDEN[unaParte]}` : DOCS_REGISTRO[tipo].nombre} />
       <HojasRegistro v={v} tipo={tipo} parte={unaParte} hoy={hoyCaracas()} versiones={limpiarVersiones(hojas as Record<string, unknown> | null)} />
     </div>
   );
