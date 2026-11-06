@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { docsElegidos, filasRegistro, remitente, type EleccionRegistro, type VistaRegistro } from "@/lib/registro-documentos";
+import { versionesHojas } from "@/lib/hojas-version-servidor";
+import { docsElegidos, filasRegistro, fraseIndicaciones, remitente, type EleccionRegistro, type VistaRegistro } from "@/lib/registro-documentos";
 import { armarDocumentosRegistro, puedeFirmarRegistro } from "@/lib/registro-documentos-servidor";
 import { HojasRegistro } from "@/app/registro/hojas";
 
 export const metadata: Metadata = { title: "Vista previa del enlace" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string }> };
+type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string; conversadas?: string }> };
 const uuid = (v?: string) => (v && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
 
 // Vista previa de «Enlace al paciente»: la pantalla final que verá el paciente y cada hoja, con un paciente de ejemplo.
@@ -28,7 +29,9 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
     controlTa: q.ta === "14" ? 14 : q.ta === "7" ? 7 : null,
     dieta: q.dieta && /^[a-z_-]{1,30}$/.test(q.dieta) ? q.dieta : null,
     bienestar: q.bienestar === "1",
+    temas: q.tema?.split(","),
     firma: q.firma === "1",
+    conversadas: q.conversadas === "1",
   };
   const documentos = await armarDocumentosRegistro(supabase, sesion, eleccion);
   const firma = typeof documentos !== "string" && Boolean(documentos.firma);
@@ -57,9 +60,8 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
     medico: medico as VistaRegistro["medico"],
     firmado: Boolean(medico),
   };
-  // Un tema de bienestar suelto (desde «Hojas para el paciente»)
-  if (v?.documentos.bienestar && q.tema && /^[a-z_-]{1,30}$/.test(q.tema)) v.documentos.bienestar = { tema: [q.tema] };
   const hoy = hoyCaracas();
+  const versiones = v ? await versionesHojas(supabase) : null;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
@@ -80,7 +82,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-10 text-ok" />
               <p className="text-lg font-semibold">¡Listo, {nombres}!</p>
-              <p className="text-sm text-muted-foreground">Puedes descargar lo que te envía <b className="text-foreground">{remitente(v)}</b>.</p>
+              <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(v), v.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
             </div>
             <ul className="space-y-2">
               {filasRegistro(v.documentos).map((f) => (
@@ -96,7 +98,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
             <div aria-hidden className="pointer-events-none fixed inset-0 z-[5] flex items-center justify-center">
               <span className="-rotate-30 select-none text-center text-[12vw] font-black leading-none tracking-widest text-neutral-900/[.12] print:text-[96px]">MUESTRA<span className="block text-[4vw] print:text-[28px]">vista previa · sin validez</span></span>
             </div>
-            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} />)}
+            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} versiones={versiones} />)}
           </div>
         </>
       )}

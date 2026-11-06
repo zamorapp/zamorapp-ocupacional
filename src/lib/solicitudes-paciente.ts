@@ -22,7 +22,39 @@ export type DatosPaciente = {
   motivo?: string;
   fecha?: string;
   turno?: "manana" | "tarde";
+  // Para la consulta (migración 20261030912000): pasan tal cual a la ficha y a la consulta nueva
+  estado_civil?: keyof typeof ESTADO_CIVIL;
+  lugar_nacimiento?: string;
+  nivel_educativo?: keyof typeof NIVEL_EDUCATIVO;
+  lateralidad?: keyof typeof LATERALIDAD;
+  profesion?: string;
+  fecha_ingreso?: string;
+  antecedentes?: { id: string; nombre: string; grupo: string; observacion: string }[];
+  habitos?: { clave: string; nombre: string; valor: string }[];
 };
+
+export const ESTADO_CIVIL = { soltero: "Soltero(a)", casado: "Casado(a)", concubino: "Unión estable", divorciado: "Divorciado(a)", viudo: "Viudo(a)" } as const;
+export const NIVEL_EDUCATIVO = { primaria: "Primaria", bachiller: "Bachiller", tecnico: "Técnico", universitario: "Universitario", postgrado: "Postgrado" } as const;
+export const LATERALIDAD = { diestro: "Derecha", zurdo: "Izquierda", ambidiestro: "Las dos" } as const;
+
+// Hábitos del catálogo en preguntas que entiende el paciente. «No» guarda «Niega» (como en la consulta); «Sí» guarda el
+// detalle que escribió. Un hábito que no está aquí sale con su nombre y una casilla para escribir.
+export const PREGUNTA_HABITO: Record<string, { pregunta: string; detalle: string; no?: string }> = {
+  alcohol: { pregunta: "¿Tomas alcohol?", detalle: "¿Qué y cada cuánto?" },
+  tabaco: { pregunta: "¿Fumas?", detalle: "¿Cuántos al día y desde cuándo?" },
+  cafe: { pregunta: "¿Tomas café?", detalle: "¿Cuántas tazas al día?" },
+  medicamentos: { pregunta: "¿Tomas algún medicamento?", detalle: "¿Cuál y cómo lo tomas?" },
+  estupefacientes: { pregunta: "¿Consumes alguna droga?", detalle: "¿Cuál?" },
+  actividad_fisica: { pregunta: "¿Haces ejercicio?", detalle: "¿Cuál y cuántas veces por semana?", no: "No realiza" },
+};
+export const valorHabito = (clave: string, si: boolean, detalle: string) =>
+  si ? (detalle.trim() ? `Sí: ${detalle.trim()}` : "Sí") : (PREGUNTA_HABITO[clave]?.no ?? "Niega");
+
+export const DIAS_RESULTADOS_PACIENTE = 30;
+
+// «el Dr. César Zamora», «la Dra. …» o el nombre del servicio tal cual (para «consultar con…», «avisarle a…»)
+export const conArticulo = (r: string) => (/^dra\.?\s/i.test(r) ? `la ${r}` : /^dr\.?\s/i.test(r) ? `el ${r}` : r);
+export const aQuien = (r: string) => conArticulo(r).replace(/^el /, "al ").replace(/^(?!al |la )/, "a ").replace(/^la /, "a la ");
 
 export const TURNOS = { manana: "En la mañana", tarde: "En la tarde" } as const;
 
@@ -50,7 +82,7 @@ export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" |
 export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false) {
   const primero = nombre?.trim().split(/\s+/)[0];
   const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
-  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 2 minutos (vale ${DIAS_ENLACE_PACIENTE} días):`;
+  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días):`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar
