@@ -79,9 +79,10 @@ select 'firmada rechazada (debe 1): ' || count(*) from jsonb_array_elements(publ
  where x->>'estado' in ('rechazado','conflicto');
 select 'firmada intacta (debe 1): ' || count(*) from clinico.consultas where id='40000000-0000-0000-0000-0000000000c3' and conclusiones='uno';
 -- bajada: solo lo visible
-select 'baja su trabajador (debe 1): ' || least(count(*),1) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,2000)->'cambios') x
+-- El cursor arranca justo antes de la fila buscada: desde 0 con tope de 2.000, las siembras de catálogos (frases, vademécum…) la dejaban fuera
+select 'baja su trabajador (debe 1): ' || least(count(*),1) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',(select min(seq) - 1 from sync.registro where fila_id = '30000000-0000-0000-0000-0000000000c3'),2000)->'cambios') x
  where x->>'fila_id'='30000000-0000-0000-0000-0000000000c3' and x->'fila'->>'nombres'='Carla María';
-select 'no baja empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,2000)->'cambios') x
+select 'no baja empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',(select min(seq) - 1 from sync.registro where fila_id in ('30000000-0000-0000-0000-00000000000b','40000000-0000-0000-0000-00000000000b')),2000)->'cambios') x
  where x->>'fila_id' in ('30000000-0000-0000-0000-00000000000b','40000000-0000-0000-0000-00000000000b');
 select 'cursor avanza (debe 1): ' || count(*) where (public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,5)->>'hasta')::bigint >= 5;
 -- primera descarga: por páginas, solo lo visible, sin columnas privadas

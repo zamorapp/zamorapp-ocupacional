@@ -12,9 +12,14 @@ import {
   consultaSegura,
   DOCS_TRABAJADOR,
   esDocTrabajador,
+  FRASES_POR_TANDA,
+  inicioFrases,
+  LISTA_FRASES,
   mensajeTrabajador,
   telefonoTrabajador,
+  textoWhatsApp,
   type DocTrabajador,
+  type Frase,
   type EnlaceEnviado,
   type EnvioTrabajador,
 } from "@/lib/whatsapp-trabajador";
@@ -61,14 +66,33 @@ async function disponibles(consultaId: string): Promise<Partial<Record<DocTrabaj
   return faltan;
 }
 
+// Tanda de frases que toca ahora: la posición avanza con los enlaces que la organización ya creó (sin escribir nada
+// al elegir). Si la lista está vacía o apagada, el mensaje sale sin frase.
+async function frasesQueTocan(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, orgId: string): Promise<Frase[]> {
+  const activas = () => supabase.from("lista_items").select("nombre, datos").eq("org_id", orgId).eq("lista", LISTA_FRASES).eq("activo", true);
+  const [{ count: total }, { count: enviados }] = await Promise.all([
+    supabase.from("lista_items").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("lista", LISTA_FRASES).eq("activo", true),
+    supabase.from("enlaces_trabajador").select("id", { count: "exact", head: true }),
+  ]);
+  if (!total) return [];
+  const desde = inicioFrases(enviados ?? 0, total);
+  const tanda = async (de: number, hasta: number) => (await activas().order("orden").order("id").range(de, hasta)).data ?? [];
+  let filas = await tanda(desde, desde + FRASES_POR_TANDA - 1);
+  if (filas.length < FRASES_POR_TANDA && total > filas.length) filas = filas.concat(await tanda(0, Math.min(FRASES_POR_TANDA - filas.length, total - filas.length) - 1));
+  return filas.map((f) => {
+    const autor = (f.datos as { autor?: unknown } | null)?.autor;
+    return { texto: f.nombre, autor: typeof autor === "string" && autor.trim() ? autor : null };
+  });
+}
+
 export type DatosWhatsAppTrabajador =
-  | { telefono: string | null; nombre: string; firmada: boolean; noDisponibles: Partial<Record<DocTrabajador, string>>; envios: EnvioTrabajador[] }
+  | { telefono: string | null; nombre: string; firmada: boolean; noDisponibles: Partial<Record<DocTrabajador, string>>; envios: EnvioTrabajador[]; frases: Frase[] }
   | { error: string };
 
 export async function datosWhatsAppTrabajador(consultaId: string): Promise<DatosWhatsAppTrabajador> {
   const c = await cargar(consultaId);
   if ("error" in c) return { error: c.error! };
-  const [{ data }, noDisponibles] = await Promise.all([
+  const [{ data }, noDisponibles, frases] = await Promise.all([
     c.supabase
       .from("enlaces_trabajador")
       .select("id, paquete, documento, telefono, con_cambios, creado_en, vence, revocado_en, enlaces_trabajador_aperturas(exito)")
@@ -76,6 +100,7 @@ export async function datosWhatsAppTrabajador(consultaId: string): Promise<Datos
       .order("creado_en", { ascending: false })
       .limit(60),
     disponibles(consultaId),
+    frasesQueTocan(c.supabase, c.consulta.org_id).catch(() => [] as Frase[]),
   ]);
   const docs: EnlaceEnviado[] = (data ?? []).map((e) => {
     const ap = (e.enlaces_trabajador_aperturas as unknown as { exito: boolean }[] | null) ?? [];
@@ -105,6 +130,7 @@ export async function datosWhatsAppTrabajador(consultaId: string): Promise<Datos
     firmada: c.consulta.estado === "firmada",
     noDisponibles,
     envios: [...envios.values()].slice(0, 10),
+    frases,
   };
 }
 
@@ -114,6 +140,7 @@ export type EntradaWhatsAppTrabajador = {
   telefono: string;
   guardarTelefono: boolean;
   mensaje?: string;
+  frase?: string;
 };
 export type ResultadoWhatsAppTrabajador = { ok: true; whatsapp: string; aviso?: string } | { ok: false; mensaje: string };
 
@@ -193,7 +220,7 @@ export async function enviarAlTrabajador(e: EntradaWhatsAppTrabajador): Promise<
   }
 
   const saludo = e.mensaje?.trim().slice(0, 600) || mensajeTrabajador(trabajador.nombres, sesion.organizacion, elegidos.map(([t]) => t));
-  const texto = `${saludo} ${URL_PUBLICA}/t/${token}`;
+  const texto = textoWhatsApp(saludo, `${URL_PUBLICA}/t/${token}`, e.frase);
   return { ok: true, whatsapp: `https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`, aviso };
 }
 

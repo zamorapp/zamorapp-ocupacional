@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { CheckCircle2, Eye, KeyRound, Loader2, MessageCircle, Smartphone, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, KeyRound, Loader2, MessageCircle, RefreshCw, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,11 @@ import {
   claveOpciones,
   DIAS_ENLACE_TRABAJADOR,
   DOCS_TRABAJADOR,
+  MAX_FRASE,
   mensajeTrabajador,
   mostrarTelefono,
   telefonoTrabajador,
+  textoFrase,
   type DocTrabajador,
   type EnvioTrabajador,
 } from "@/lib/whatsapp-trabajador";
@@ -38,6 +40,8 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   const [revisar, setRevisar] = useState(false); // el aviso del celular sale al salir del campo o al enviar, no mientras escribe
   const [mensaje, setMensaje] = useState("");
   const [editado, setEditado] = useState(false);
+  const [frase, setFrase] = useState<string | null>(null); // null = aún no se eligió; "" = sin frase
+  const [iFrase, setIFrase] = useState(0);
   const [vistas, setVistas] = useState<Set<string>>(new Set()); // hojas abiertas en pantalla (tienen opciones guardadas)
   const [resultado, setResultado] = useState<ResultadoWhatsAppTrabajador | null>(null);
   const [cargando, iniciarCarga] = useTransition();
@@ -65,7 +69,14 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
       if ("error" in d) return;
       setTelefono((t) => t || (d.telefono ? mostrarTelefono(d.telefono) : ""));
       setGuardar((g) => g || !d.telefono);
+      setFrase((f) => (f === null ? (d.frases[0] ? textoFrase(d.frases[0]) : "") : f));
     });
+  const otraFrase = () => {
+    if (!listo || !listo.frases.length) return;
+    const i = (iFrase + 1) % listo.frases.length;
+    setIFrase(i);
+    setFrase(textoFrase(listo.frases[i]));
+  };
   const abrir = (v: boolean) => {
     setAbierto(v);
     if (v) {
@@ -86,9 +97,12 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
     if (!valido || !lista.length) return;
     iniciar(async () => {
       const documentos = lista.map((d) => ({ tipo: d, busqueda: d === tipo ? window.location.search : leer(claveOpciones(consultaId, d)) }));
-      const r = await enviarAlTrabajador({ consultaId, documentos, telefono, guardarTelefono: guardar && distinto, mensaje });
+      const r = await enviarAlTrabajador({ consultaId, documentos, telefono, guardarTelefono: guardar && distinto, mensaje, frase: frase ?? "" });
       setResultado(r);
       if (r.ok) {
+        // El próximo envío trae la frase siguiente
+        setFrase(null);
+        setIFrase(0);
         window.open(r.whatsapp, "_blank", "noopener,noreferrer");
         recargar();
       }
@@ -171,6 +185,23 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
               <Textarea id="msg-trabajador" rows={4} maxLength={600} value={mensaje} onChange={(e) => { setMensaje(e.target.value); setEditado(true); }} />
               <p className="mt-1 text-xs text-muted-foreground">El enlace se agrega al final.{editado && <> <button type="button" className="text-primary hover:underline" onClick={() => setEditado(false)}>Volver al mensaje sugerido</button></>}</p>
             </div>
+            {(listo.frases.length > 0 || frase) && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <Label htmlFor="frase-trabajador" className="flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> Frase del mensaje</Label>
+                  <div className="flex items-center gap-1">
+                    {listo.frases.length > 1 && (
+                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={otraFrase}><RefreshCw /> Otra frase</Button>
+                    )}
+                    {frase && (
+                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground" onClick={() => setFrase("")}><X /> Sin frase</Button>
+                    )}
+                  </div>
+                </div>
+                <Textarea id="frase-trabajador" rows={2} maxLength={MAX_FRASE} value={frase ?? ""} onChange={(e) => setFrase(e.target.value)} placeholder="Sin frase" />
+                <p className="mt-1 text-xs text-muted-foreground">Va después del enlace. Cámbiala, edítala o quítala; cada envío trae otra distinta.</p>
+              </div>
+            )}
             <Button size="lg" className="bg-[#1a7f45] text-white hover:bg-[#166b3a]" disabled={enviando || !lista.length} onClick={mandar}>
               {enviando ? <Loader2 className="animate-spin" /> : <MessageCircle />}{" "}
               {enviando ? "Preparando los PDF…" : lista.length ? `Enviar ${lista.length} documento${lista.length === 1 ? "" : "s"} por WhatsApp` : "Marca al menos un documento"}
