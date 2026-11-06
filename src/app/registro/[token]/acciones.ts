@@ -50,3 +50,11 @@ export async function confirmarResultado(token: string, ruta: string, nombre: st
   revalidatePath(`/registro/${token}`);
   return data === "ok" ? { ok: true, mensaje: "" } : { ok: false, mensaje: String(data) };
 }
+
+// Primer «Descargar PDF»: abre la ventana de 30 minutos para bajar las hojas; después el enlace queda solo para subir
+// resultados (20261030915000). Si falla, igual se deja descargar: la base vuelve a marcar en el próximo intento.
+export async function marcarDescarga(token: string): Promise<void> {
+  if (!TOKEN_REGISTRO.test(token)) return;
+  const supabase = clienteAnonimo();
+  if (supabase) await supabase.rpc("marcar_descarga_registro", { p_token: token });
+}

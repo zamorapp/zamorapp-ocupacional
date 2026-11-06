@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,7 +13,7 @@ import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NI
 import { DIETAS } from "@/lib/dietas";
 import { BOTONES_BIENESTAR } from "@/lib/bienestar";
 import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
-import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, type EnlaceNuevo } from "./paciente-enlace-acciones";
+import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, quitarEnlacePaciente, volverEnlacePaciente, type EnlaceNuevo } from "./paciente-enlace-acciones";
 
 type Opcion = { id: string; nombre: string };
 const PARTICULAR = "particular";
@@ -329,6 +329,8 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
   );
 }
 
+// Los que ya terminaron se pueden quitar de la lista (los vencidos o anulados sin llenar se borran solos a los 30 días)
+const TERMINADO = new Set(["vencido", "anulado", "descartada", "aceptada"]);
 const ETIQUETA: Record<string, string> = { esperando: "Esperando", "por revisar": "Por revisar", aceptada: "Aceptado", descartada: "Descartado", vencido: "Vencido", anulado: "Anulado" };
 const COLOR: Record<string, string> = {
   esperando: "bg-muted text-muted-foreground", "por revisar": "bg-aviso/20 text-aviso-texto", aceptada: "bg-ok/15 text-ok-texto",
@@ -339,15 +341,31 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
   const [abierto, setAbierto] = useState(false);
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [quitados, setQuitados] = useState<SolicitudPaciente[]>([]);
+  const [ocultarDeshacer, setOcultarDeshacer] = useState<string[]>([]);
+  const lista = enviados.filter((e) => !quitados.some((q) => q.id === e.id));
   if (!enviados.length) return null;
+  const quitar = (e: SolicitudPaciente) => iniciar(async () => {
+    const r = await quitarEnlacePaciente(e.id);
+    if (r.ok) {
+      setQuitados((v) => [...v, e]);
+      setError(null);
+      // El Deshacer se va solo a los 10 s; el enlace sigue fuera de la lista
+      setTimeout(() => setOcultarDeshacer((v) => [...v, e.id]), 10_000);
+    } else setError(r.mensaje);
+  });
+  const volver = (e: SolicitudPaciente) => iniciar(async () => {
+    const r = await volverEnlacePaciente(e.id);
+    if (r.ok) { setQuitados((v) => v.filter((q) => q.id !== e.id)); setOcultarDeshacer((v) => v.filter((id) => id !== e.id)); } else setError(r.mensaje);
+  });
   return (
     <div className="border-t px-5 py-2">
       <button type="button" onClick={() => setAbierto((v) => !v)} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-        Enlaces enviados ({enviados.length}) <ChevronDown className={cn("size-3 transition", abierto && "rotate-180")} />
+        Enlaces enviados ({lista.length}) <ChevronDown className={cn("size-3 transition", abierto && "rotate-180")} />
       </button>
       {abierto && (
         <ul className="mt-2 space-y-1.5 text-xs">
-          {enviados.map((e) => {
+          {lista.map((e) => {
             const estado = estadoEnlace(e, ahora);
             return (
               <li key={e.id} className="flex flex-wrap items-center gap-2">
@@ -358,9 +376,23 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                   <button type="button" disabled={ocupado} onClick={() => iniciar(async () => { const r = await anularEnlacePaciente(e.id); setError(r.ok ? null : r.mensaje); })}
                     className="font-medium text-destructive hover:underline disabled:opacity-60">Anular</button>
                 )}
+                {TERMINADO.has(estado) && (
+                  <button type="button" disabled={ocupado} onClick={() => quitar(e)} title="Lo saca de esta lista. Se puede deshacer."
+                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline disabled:opacity-60">
+                    <X className="size-3" /> Quitar de la lista
+                  </button>
+                )}
               </li>
             );
           })}
+          {quitados.filter((e) => !ocultarDeshacer.includes(e.id)).map((e) => (
+            <li key={`q-${e.id}`} className="flex items-center gap-2 text-muted-foreground">
+              Quitaste el enlace de {e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "sin nombre"}.
+              <button type="button" disabled={ocupado} onClick={() => volver(e)} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                <Undo2 className="size-3" /> Deshacer
+              </button>
+            </li>
+          ))}
           {error && <li className="text-destructive">{error}</li>}
         </ul>
       )}

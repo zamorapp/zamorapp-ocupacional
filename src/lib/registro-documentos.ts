@@ -76,6 +76,8 @@ type Medico = NonNullable<DatosDocumento["medicoDatos"]>;
 export type VistaRegistro = {
   folio: string;
   recibido: string;
+  // Fin de la ventana de 30 minutos que abre el primer «Descargar PDF» (null = aún no descarga)
+  descarga_hasta?: string | null;
   documentos: Omit<DocumentosRegistro, "firma">;
   persona: { cedula: string; nombres: string; apellidos: string; fecha_nacimiento?: string; sexo?: string; empresa?: string; cargo?: string; tipo?: string };
   org: { nombre: string; rif: string | null; direccion: string | null; telefono: string | null; correo: string | null; logo: string | null; ajustes: DatosDocumento["org"]["ajustes"] };
