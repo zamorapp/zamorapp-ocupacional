@@ -44,6 +44,7 @@ function Resaltado({ texto, palabras }: { texto: string; palabras: string[] }) {
 // Manual con buscador: filtra secciones, partes y pasos por palabras (sin importar acentos), las resalta y muestra lo nuevo.
 export function ManualBuscable({ temas, novedades }: { temas: TemaManual[]; novedades: { fecha: string; texto: string; tema: string }[] }) {
   const [q, setQ] = useState("");
+  const [todasNuevas, setTodasNuevas] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
   const palabras = sinAcentos(q.trim()).split(/\s+/).filter(Boolean);
   const coincide = (t: string) => { const x = sinAcentos(t); return palabras.every((p) => empiezaEn(x, p) >= 0); };
@@ -139,12 +140,22 @@ export function ManualBuscable({ temas, novedades }: { temas: TemaManual[]; nove
           <CardContent className="space-y-2">
             <p className="flex items-center gap-2 font-medium"><Sparkles className="size-4 text-primary" /> Lo nuevo</p>
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-              {nuevas.map((x) => (
-                <li key={x.texto} className="min-w-0">
-                  <a href={`#${x.tema}`} className="hover:text-primary hover:underline">{x.texto}</a>
-                </li>
-              ))}
+              {(todasNuevas ? nuevas : nuevas.slice(0, 6)).map((x) => {
+                const dos = x.texto.indexOf(": ");
+                return (
+                  <li key={x.texto} className="min-w-0">
+                    <a href={`#${x.tema}`} className="hover:text-primary hover:underline">
+                      {dos > 0 && dos < 90 ? <><b className="font-semibold">{x.texto.slice(0, dos)}</b>{x.texto.slice(dos)}</> : x.texto}
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
+            {nuevas.length > 6 && (
+              <button type="button" onClick={() => setTodasNuevas((v) => !v)} className="text-sm font-medium text-primary hover:underline">
+                {todasNuevas ? "Ver menos" : `Ver todas las novedades (${nuevas.length})`}
+              </button>
+            )}
           </CardContent>
         </Card>
       )}
