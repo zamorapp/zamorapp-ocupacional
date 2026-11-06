@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import http from "node:http";
 import pg from "./pg-local.mjs";
-import { CATALOGOS, CONFIG, RPC_CONSTANCIA, RPC_ESCRITURA_LOCAL, RPC_LECTURA } from "./config.mjs";
+import { CATALOGOS, CONFIG, RPC_CONSTANCIA, RPC_ESCRITURA_LOCAL, RPC_LECTURA, RPC_SIN_ESPERA } from "./config.mjs";
 import { claveCorrecta, huellaClave } from "./estado.mjs";
 import { firmar, tokenDeCabecera, verificar } from "./jwt.mjs";
 import { PAGINA_INICIO } from "./inicio.mjs";
@@ -44,8 +44,15 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   let ultimaEscritura = 0;
   let modoLectura = "nube";
   // Todo con performance.now(): nunca con la fecha de la PC (Cesar la atrasa para abrir el SAME)
+  // Al abrir el programa, mientras corre la primera sincronía (unos segundos), las lecturas salen de la copia que
+  // quedó en disco, igual que sin internet: antes el Inicio, que es lo primero que se abre, iba entero a la nube
+  // (medido 6-nov en la PC de Cesar: 0,6-3,5 s). Lo guardado en la PC ya está en ella, y la primera sincronía trae
+  // lo de la web. Si esa primera sincronía no termina bien en ARRANQUE_MS, vuelve la regla de siempre.
+  const arrancando = () => replica.ultimaMs === null && performance.now() - inicioPuerta < CONFIG.lecturaAlAbrirMs && !replica.error;
+  const inicioPuerta = performance.now();
   const copiaAlDia = () => Boolean(
-    CONFIG.lecturaLocal && d().copiaCompleta && replica.ultimaMs !== null && !replica.error
+    CONFIG.lecturaLocal && d().copiaCompleta && ultimaEscritura === 0 && arrancando()
+      || CONFIG.lecturaLocal && d().copiaCompleta && replica.ultimaMs !== null && !replica.error
       && performance.now() - replica.ultimaMs < CONFIG.frescuraLectura
       && replica.inicioCiclo > ultimaEscritura,
   );
@@ -85,7 +92,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     const u = new URL(req.url, "http://x");
     const m = /^\/rest\/v1\/(rpc\/)?([a-z_0-9]+)/.exec(u.pathname);
     if (!m || m[1]) return true;
-    const perfil = String(req.headers["accept-profile"] || "public");
+    const perfil = String(req.headers["content-profile"] || req.headers["accept-profile"] || "public");
     const nombres = await nombresEnCopia();
     if (!nombres.has(`${perfil}.${m[2]}`)) return false;
     // select=a,empresa:empresas(nombre),consultas!inner(...) → empresas, consultas
@@ -893,17 +900,24 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           if (res.statusCode < 400 && nube.enLinea) bandeja.subir().catch(() => {});
           return;
         }
-        const enLinea = await nube.confirmar();
-        if (enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && copiaAlDia() && await lecturaEnCopia(req)) {
-          anotarModo("local", `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
+        // Una lectura sin internet no espera a volver a preguntarle a la nube (hasta 10 s con la red caída cada 15 s):
+        // sale de la copia ya y la pregunta corre aparte. Lo que necesita la nube (guardar) sí espera la respuesta.
+        const enLinea = lectura && !nube.enLinea ? (nube.confirmar().catch(() => {}), false) : await nube.confirmar();
+        const enLaCopia = enLinea && lectura && !faltaSegundoPaso(quien) && !SIEMPRE_NUBE.includes(ruta) && await lecturaEnCopia(req);
+        if (enLaCopia && copiaAlDia()) {
+          anotarModo("local", replica.ultimaMs === null ? "al abrir, mientras corre la primera sincronía" : `copia sincronizada hace ${Math.round((performance.now() - replica.ultimaMs) / 1000)} s`);
           return await aLaCopia(req, res, crudo);
         }
-        if (enLinea && lectura) anotarModo("nube", ultimaEscritura > replica.inicioCiclo ? "hay una escritura que aún no bajó" : !d().copiaCompleta ? "la copia no está completa" : replica.error ? `la sincronía falló: ${replica.error}` : "la copia no está al día");
+        if (enLinea && lectura && enLaCopia) anotarModo("nube", ultimaEscritura > replica.inicioCiclo ? "hay una escritura que aún no bajó" : !d().copiaCompleta ? "la copia no está completa" : replica.error ? `la sincronía falló: ${replica.error}` : "la copia no está al día");
+        const rpcNube = /^\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(ruta)?.[1];
+        // Una escritura en la nube solo obliga a leer de la nube si toca algo que la copia trae (una función se
+        // supone que sí, salvo los avisos y limpiezas de RPC_SIN_ESPERA)
+        const tocaLaCopia = !lectura && ruta.startsWith("/rest/v1/") && (rpcNube ? !RPC_SIN_ESPERA.has(rpcNube) : await lecturaEnCopia(req));
         if (enLinea && await aLaNube(req, res, crudo, quien.uid)) {
-          if (ruta.startsWith("/rest/v1/") && !lectura) {
+          if (tocaLaCopia) {
             ultimaEscritura = performance.now();
             replica.revisarCatalogos?.(); // si tocó un catálogo (ajustes, firma y sello, listas), que la copia lo traiga ya
-            replica.ciclo().catch(() => {}); // que lo guardado baje a la copia cuanto antes
+            replica.cicloTrasEscritura(); // que lo guardado baje a la copia cuanto antes (otra vuelta si ya había una en curso)
           }
           await adjuntos.alBorrar(req, crudo, res.statusCode);
           return;

@@ -37,7 +37,13 @@ export class Nube {
 
   // Pregunta a la nube si responde. Cada cambio (en línea ⇄ sin conexión) queda en puerta.log con el motivo,
   // para que un «sin conexión» se pueda explicar después. 10 s: el internet de Venezuela a veces tarda.
-  async comprobar() {
+  // Una sola pregunta a la vez: varias pantallas que piden a la vez con la red caída comparten la misma espera
+  comprobar() {
+    this.comprobando ??= this.#comprobar().finally(() => { this.comprobando = null; });
+    return this.comprobando;
+  }
+
+  async #comprobar() {
     const antes = this.enLinea;
     let motivo = "sin dirección de la nube";
     if (CONFIG.nube) {
