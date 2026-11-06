@@ -444,12 +444,22 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     // local lo nota (ahora_de_la_puerta() es null: firmar espera a internet). Nunca la fecha de Windows.
     const cab = { Authorization: req.headers.authorization, ...(nube.reloj.verificada ? { "X-Zamorapp-Ahora": nube.reloj.iso() } : {}) };
     for (const h of PASAR) if (req.headers[h]) cab[h] = req.headers[h];
-    const r = await fetch(`http://127.0.0.1:${motor.puertoPostgrest}${req.url.replace(/^\/rest\/v1/, "")}`, {
-      method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo,
-    });
+    // Red de seguridad (06-nov-2026): si la base local deshizo el guardado por un bloqueo mutuo (40P01) o un choque de
+    // serialización (40001), no se guardó nada (PostgREST usa una transacción por pedido) y se repite solo, hasta 3
+    // veces. El candado de escrituras (pg-local.mjs) evita la causa; esto cubre cualquier otro cruce que aparezca.
+    let r, datos;
+    for (let intento = 1; ; intento++) {
+      r = await fetch(`http://127.0.0.1:${motor.puertoPostgrest}${req.url.replace(/^\/rest\/v1/, "")}`, {
+        method: req.method, headers: cab, body: ["GET", "HEAD"].includes(req.method) ? undefined : cuerpo,
+      });
+      datos = Buffer.from(await r.arrayBuffer());
+      const codigo = r.status >= 400 ? /"code"\s*:\s*"(40P01|40001)"/.exec(datos.toString("utf8", 0, 300))?.[1] : null;
+      if (!codigo || intento >= 3) break;
+      registro(`[puerta] bloqueo mutuo en la base local (${codigo}) en ${req.method} ${req.url.split("?")[0]}: se repite (intento ${intento + 1} de 3)`);
+      await new Promise((ok) => setTimeout(ok, 50 * intento + Math.floor(Math.random() * 50)));
+    }
     const salida = {};
     for (const h of DEVOLVER) if (r.headers.get(h)) salida[h] = r.headers.get(h);
-    const datos = Buffer.from(await r.arrayBuffer());
     if (antes) await antes(r.status);
     res.writeHead(r.status, salida);
     res.end(datos);
