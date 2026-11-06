@@ -116,6 +116,25 @@ function resumenEspiro(v: ValoresEspiro): { estado: Estado; texto: string } {
 }
 
 // ── Común ────────────────────────────────────────────────────
+/** Resultado corto, sin cifras, para la lista de paraclínicos de los impresos (el detalle va en su tabla). */
+export function resultadoCorto(med: Medicion): string {
+  if (med.tipo === "espirometria") {
+    const i = interpretarEspiro(med.valores);
+    return i.patron ? `${i.patron}${i.gravedad ? ` ${i.gravedad}` : ""}` : "";
+  }
+  if (!med.filas.length) return "";
+  let estado: Estado = "normal";
+  const zonas: string[] = [];
+  for (const f of ordenarFilas(med.filas)) {
+    const e = estadoFila(f).estado;
+    estado = peor(estado, e);
+    const mv = MOV.get(f.clave);
+    const zona = mv ? `${mv.articulacion.toLowerCase()}${LADO[f.lado] ? ` ${LADO[f.lado]}` : ""}` : "";
+    if (e !== "normal" && zona && !zonas.includes(zona)) zonas.push(zona);
+  }
+  return zonas.length ? `${estado === "alterado" ? "Limitación marcada" : "Limitación leve"}: ${zonas.join(", ")}` : "Arcos de movimiento conservados";
+}
+
 export function resumenMedicion(med: Medicion): { estado: Estado; texto: string } {
   const r = med.tipo === "goniometria" ? resumenGonio(med.filas) : resumenEspiro(med.valores);
   const nota = med.nota?.trim();

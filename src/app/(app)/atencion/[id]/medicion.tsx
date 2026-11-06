@@ -30,13 +30,13 @@ export function PanelMedicion(props: Props) {
   return props.tipo === "goniometria" ? <Goniometria {...props} /> : <Espirometria {...props} />;
 }
 
-function Nota({ valor, editable, onChange }: { valor: string; editable: boolean; onChange: (v: string) => void }) {
+function Nota({ valor, editable, onChange, ejemplo }: { valor: string; editable: boolean; onChange: (v: string) => void; ejemplo: string }) {
   return (
     <input
       value={valor}
       disabled={!editable}
       maxLength={300}
-      placeholder="Nota (opcional): técnica, colaboración, dolor al movimiento…"
+      placeholder={`Nota: ${ejemplo}`}
       aria-label="Nota"
       onChange={(e) => onChange(e.target.value)}
       className="h-9 w-full rounded-md border border-input bg-card px-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"
@@ -93,11 +93,10 @@ function Goniometria({ medicion, editable, onChange }: Props) {
                   const f = valor(mv.clave, lado);
                   const e = f ? estadoFila(f) : null;
                   return (
+                    <div key={lado} className={cn("grid gap-0.5", lado === "U" && "col-span-2")}>
                     <label
-                      key={lado}
                       className={cn(
                         "flex h-8 items-center overflow-hidden rounded-md border bg-card focus-within:border-primary focus-within:ring-[3px] focus-within:ring-primary/20",
-                        lado === "U" && "col-span-2",
                         e ? BORDE[e.estado] : "border-input",
                       )}
                       title={e?.pct != null ? `${e.pct} % de lo normal` : undefined}
@@ -113,6 +112,13 @@ function Goniometria({ medicion, editable, onChange }: Props) {
                       />
                       <span className={cn("pr-1.5 text-xs", e ? TEXTO[e.estado] : "text-muted-foreground")}>°</span>
                     </label>
+                    {/* El estado también en texto, no solo por el color del borde */}
+                    {e && (
+                      <span className={cn("text-center text-[10px] leading-none font-semibold", TEXTO[e.estado])}>
+                        {e.estado === "normal" ? "✓" : `${e.estado === "fuera" ? "Leve" : "Marcada"}${e.pct !== null ? ` ${e.pct} %` : ""}`}
+                      </span>
+                    )}
+                    </div>
                   );
                 })}
               </div>
@@ -121,7 +127,7 @@ function Goniometria({ medicion, editable, onChange }: Props) {
         ))}
       </div>
       {abiertas.size === 0 && <p className="text-sm text-muted-foreground">Toca la articulación que mediste. Solo se guarda lo que escribas.</p>}
-      <Nota valor={med.nota ?? ""} editable={editable} onChange={(nota) => onChange({ ...med, nota })} />
+      <Nota valor={med.nota ?? ""} editable={editable} ejemplo="dolor, colaboración, lado dominante…" onChange={(nota) => onChange({ ...med, nota })} />
       <p className="text-xs text-muted-foreground">{FUENTE_GONIOMETRIA}</p>
     </div>
   );
@@ -158,7 +164,7 @@ function Espirometria({ medicion, editable, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {CAMPOS.map((c) => (
           <label key={c.clave} className="grid gap-1 text-xs text-muted-foreground">
-            <span>{c.nombre}</span>
+            <span>{c.clave === "relacion" && v.relacion === null ? "FEV1/FVC (calculado)" : c.nombre}</span>
             <span className="flex h-9 items-center overflow-hidden rounded-md border border-input bg-card focus-within:border-primary focus-within:ring-[3px] focus-within:ring-primary/20">
               <input
                 value={borrador[c.clave] ?? ver(v[c.clave])}
@@ -183,7 +189,7 @@ function Espirometria({ medicion, editable, onChange }: Props) {
       ) : (
         <p className="text-sm text-muted-foreground">Escribe al menos FVC y FEV1 (o sus % del previsto) para ver la interpretación.</p>
       )}
-      <Nota valor={med.nota ?? ""} editable={editable} onChange={(nota) => onChange({ ...med, nota })} />
+      <Nota valor={med.nota ?? ""} editable={editable} ejemplo="técnica, colaboración, broncodilatador…" onChange={(nota) => onChange({ ...med, nota })} />
       <p className="text-xs text-muted-foreground">{FUENTE_ESPIROMETRIA}</p>
     </div>
   );

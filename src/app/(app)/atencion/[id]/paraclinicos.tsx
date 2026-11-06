@@ -231,7 +231,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
             </span>
           )}
           {conteo.pendientes > 0
-            ? <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-semibold text-aviso-texto">Faltan {plural(conteo.pendientes, "resultado", "resultados")}</span>
+            ? <span className="rounded-full bg-aviso/20 px-2.5 py-0.5 text-xs font-semibold text-aviso-texto">{conteo.pendientes === 1 ? "Falta" : "Faltan"} {plural(conteo.pendientes, "resultado", "resultados")}</span>
             : <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok-texto">Resultados completos</span>}
           {resultados && (
             <Button size="sm" className="ml-auto" onClick={resultados.guardar} disabled={!resultados.sinGuardar || resultados.guardando}>

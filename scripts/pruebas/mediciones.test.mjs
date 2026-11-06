@@ -70,3 +70,12 @@ test("normalizar descarta basura, movimientos desconocidos y repetidos", () => {
   const e = M.normalizarMedicion({ tipo: "espirometria", valores: { fvc: "3,5", fev1: -1, relacion: 300 } });
   assert.deepEqual(e.valores, { fvc: 3.5, fvcPct: null, fev1: null, fev1Pct: null, relacion: null, pef: null });
 });
+
+test("resultado corto para impresos: sin cifras", () => {
+  const g = { tipo: "goniometria", filas: [
+    { clave: "rodilla.ext", lado: "I", grados: 20, normal: 0 }, { clave: "hombro.abd", lado: "D", grados: 140, normal: 180 }, { clave: "hombro.flex", lado: "D", grados: 140, normal: 180 },
+  ] };
+  assert.equal(M.resultadoCorto(g), "Limitación marcada: hombro der., rodilla izq.");
+  assert.equal(M.resultadoCorto({ tipo: "goniometria", filas: [{ clave: "codo.flex", lado: "D", grados: 150, normal: 150 }] }), "Arcos de movimiento conservados");
+  assert.equal(M.resultadoCorto({ tipo: "espirometria", valores: { fvc: 4, fvcPct: 90, fev1: 2.4, fev1Pct: 65, relacion: null, pef: null } }), "Patrón obstructivo moderado");
+});

@@ -516,8 +516,9 @@ export function Certificado({ d }: { d: DatosDocumento }) {
       <Bloque titulo="Examen funcional y físico">
         {alterados.length ? alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n") : "Dentro de límites normales."}
       </Bloque>
-      {c.paraclinicos.length > 0 && (
-        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.map((p) => `• ${p.nombre}: ${textoResultado(p)}`).join("\n")}</Bloque>
+      {/* Espirometría y goniometría no salen en el certificado (puede ir a la empresa): solo en el informe médico */}
+      {c.paraclinicos.some((p) => !p.medicion) && (
+        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.filter((p) => !p.medicion).map((p) => `• ${p.nombre}: ${textoResultado(p)}`).join("\n")}</Bloque>
       )}
       <Bloque titulo="Conclusión">
         {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}
