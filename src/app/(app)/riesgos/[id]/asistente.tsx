@@ -171,7 +171,10 @@ export function Asistente({ ev, preguntas, motivos, agentes, puestosEmpresa, pla
       {/* Lo que falta para seguir: siempre a la vista, nunca bloquea volver atrás */}
       {faltas[paso].length > 0 && (intento || paso === 4) && !cerrada && (
         <div role="alert" className="rounded-xl border border-aviso/50 bg-aviso/10 px-4 py-3 text-sm">
-          <b>Para {paso === 4 ? "cerrar" : "seguir"} falta:</b> {faltas[paso].join("; ")}.
+          <b>Para {paso === 4 ? "cerrar" : "seguir"} falta:</b>{" "}
+          {paso === 4 && faltas[4].includes("la conclusión")
+            ? <button type="button" className="font-medium text-primary underline underline-offset-2" onClick={() => { const c = document.getElementById("conclusion"); c?.scrollIntoView({ behavior: "smooth", block: "center" }); c?.focus(); }}>la conclusión</button>
+            : faltas[paso].join("; ")}.
         </div>
       )}
 
@@ -579,8 +582,8 @@ function FilaEditor({ f, editable, cambiar, quitar }: { f: FilaRiesgo; editable:
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><Label className="mb-1 text-xs">Medida recomendada</Label><Textarea rows={2} disabled={!editable} value={f.medida} onChange={(e) => cambiar({ medida: e.target.value })} /></div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="col-span-2"><Label className="mb-1 text-xs">Responsable</Label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="sm:col-span-2"><Label className="mb-1 text-xs">Responsable</Label>
             <select className={SELECT} disabled={!editable} value={f.responsable} onChange={(e) => cambiar({ responsable: e.target.value as FilaRiesgo["responsable"] })}>{DEPARTAMENTOS.map((d) => <option key={d.clave} value={d.clave}>{d.nombre}</option>)}</select>
           </div>
           <div><Label className="mb-1 text-xs">Plazo</Label>
@@ -738,7 +741,7 @@ function PasoResultados({ x, set, editable, cerrada, puedeEditar, ev }: ConSet &
       <Tarjeta titulo="Riesgos por puesto y nivel" ayuda="Los puestos con más riesgo arriba."><BarrasPuestos filas={x.filas} /></Tarjeta>
       <Tarjeta titulo="Cada grupo de riesgo"><FichasGrupo filas={x.filas} /></Tarjeta>
       <Tarjeta titulo="5. Conclusión" ayuda="Sale en el informe. Puedes partir de la propuesta y ajustarla.">
-        <Textarea rows={6} disabled={!editable} value={x.conclusion} onChange={(e) => set("conclusion", e.target.value)} placeholder="Qué se encontró, qué es lo más urgente y qué se recomienda." />
+        <Textarea id="conclusion" rows={6} disabled={!editable} value={x.conclusion} onChange={(e) => set("conclusion", e.target.value)} placeholder="Qué se encontró, qué es lo más urgente y qué se recomienda." />
         {editable && <Button variant="outline" size="sm" className="mt-2" onClick={() => set("conclusion", propuesta())}><Sparkles /> Proponer conclusión</Button>}
       </Tarjeta>
       {cerrada && puedeEditar && (

@@ -36,7 +36,7 @@ export default async function Evaluaciones() {
   ].filter((t) => ve(t.roles));
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
+    <div className="mx-auto max-w-7xl space-y-8 pb-24 lg:pb-0">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Evaluaciones de riesgos y puestos de trabajo</h1>
         <p className="text-muted-foreground">Todo lo que identifica, mide y valora los riesgos de cada puesto, en un solo lugar{empresa ? ` · ${empresa.razonSocial}` : ""}.</p>

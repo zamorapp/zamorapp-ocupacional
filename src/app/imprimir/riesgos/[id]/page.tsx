@@ -142,15 +142,16 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
         {marcaAgua}
         <Membrete d={doc} />
         <h2 className="mt-5 mb-1 text-xl font-extrabold tracking-tight">Mapa de riesgos</h2>
-        <p className="mb-3 text-[10px] text-doc-tenue">Cada símbolo lleva la letra del grupo y el número del riesgo en la tabla; el anillo indica su nivel. Sirve para informar a los trabajadores expuestos por área (NT-04-2023, art. 14.1.5).</p>
+        <p className="mb-3 text-[12px] text-doc-tenue">Cada símbolo lleva la letra del grupo y el número del riesgo en la tabla; el anillo indica su nivel. Sirve para informar a los trabajadores expuestos por área (NT-04-2023, art. 14.1.5).</p>
         <MapaRiesgos mapa={ev.mapa} filas={ev.filas} planoUrl={plano} impreso />
         <div className="mt-2"><LeyendaMapa impreso /></div>
         <Bloque titulo="Cada grupo de riesgo"><FichasGrupo filas={ev.filas} impreso /></Bloque>
         <Pie d={doc} derecha={`Folio ${folio("IR", ev.id)}`} />
       </Hoja>
 
-      {/* Hoja 3 en adelante: tabla por puesto, mediciones y firmas */}
-      <Hoja className="relative print:block">
+      {/* Hoja 3 en adelante: tabla por puesto, mediciones y firmas. Puede ocupar varias hojas: no se achica (mismo ancho
+          y márgenes que las demás); empieza en hoja nueva y las filas no se parten */}
+      <Hoja corte={false} className="relative break-before-page print:block">
         {marcaAgua}
         <Membrete d={doc} />
         <h2 className="mt-5 mb-3 text-xl font-extrabold tracking-tight">Riesgos y medidas por puesto de trabajo</h2>
@@ -159,9 +160,9 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
           const filas = [...g.filas].sort((a, b) => (nivelFila(b)?.n ?? 0) - (nivelFila(a)?.n ?? 0));
           return (
             <Bloque key={g.clave} titulo={`${g.puesto}${p?.area ? ` · ${p.area}` : ""}${p?.expuestos != null ? ` · ${p.expuestos} expuestos` : ""}`}>
-              <table className="w-full border-collapse text-[10px]">
+              <table className="w-full border-collapse text-[12px]">
                 <thead>
-                  <tr className="border-b border-doc-linea text-left text-[8px] uppercase tracking-[.1em] text-doc-tenue">
+                  <tr className="border-b border-doc-linea text-left text-[9.5px] uppercase tracking-[.08em] text-doc-tenue">
                     <th className="py-1 pr-1.5 font-semibold">N.º</th>
                     <th className="py-1 pr-1.5 font-semibold">Riesgo y posible daño</th>
                     <th className="py-1 pr-1.5 font-semibold">Nivel</th>
@@ -179,10 +180,10 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
                         <td className="py-1 pr-1.5">
                           <div className="font-semibold">{f.agente} <span className="font-normal text-doc-tenue">· {NOMBRE_GRUPO[f.grupo]}</span></div>
                           {f.efecto && <div className="text-doc-tenue">{f.efecto}</div>}
-                          {f.controles && <div className="text-[9px] text-doc-tenue">Ya existe: {f.controles}</div>}
+                          {f.controles && <div className="text-[11px] text-doc-tenue">Ya existe: {f.controles}</div>}
                         </td>
                         <td className="py-1 pr-1.5">{n ? <span className={`whitespace-nowrap rounded px-1 py-[1px] ${NIVEL[n.texto]}`}>{n.texto} {n.n}</span> : "—"}</td>
-                        <td className="py-1 pr-1.5">{f.medida || "—"}{f.tipoMedida && <div className="text-[9px] text-doc-tenue">{TIPOS_MEDIDA.find((t) => t.clave === f.tipoMedida)?.nombre}</div>}</td>
+                        <td className="py-1 pr-1.5">{f.medida || "—"}{f.tipoMedida && <div className="text-[11px] text-doc-tenue">{TIPOS_MEDIDA.find((t) => t.clave === f.tipoMedida)?.nombre}</div>}</td>
                         <td className="py-1 pr-1.5">{DEPARTAMENTOS.find((d) => d.clave === f.responsable)?.nombre ?? "—"}</td>
                         <td className="py-1 whitespace-nowrap">{f.plazo || n?.plazo || "—"}</td>
                       </tr>
@@ -198,7 +199,7 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={urlFoto.get(f.ruta) ?? undefined} alt={f.nota} className="aspect-[4/3] w-full rounded border border-doc-linea object-cover" />
                         : <div className="grid aspect-[4/3] place-items-center rounded border border-doc-linea text-doc-tenue">Foto {i + 1}</div>}
-                      <figcaption className="mt-0.5 text-[8.5px] text-doc-tenue">{f.nota}</figcaption>
+                      <figcaption className="mt-0.5 text-[11px] text-doc-tenue">{f.nota}</figcaption>
                     </figure>
                   ))}
                 </div>
@@ -206,13 +207,13 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
             </Bloque>
           );
         })}
-        <p className="mt-1 text-[9px] text-doc-tenue">Nivel = probabilidad × severidad (1 a 5). Bajo 1–4 · Medio 5–9 · Alto 10–16 · Crítico 20–25. Las medidas siguen el orden: eliminar, sustituir, ingeniería, administrativas y equipo de protección personal.</p>
+        <p className="mt-1 text-[12px] text-doc-tenue">Nivel = probabilidad × severidad (1 a 5). Bajo 1–4 · Medio 5–9 · Alto 10–16 · Crítico 20–25. Las medidas siguen el orden: eliminar, sustituir, ingeniería, administrativas y equipo de protección personal.</p>
 
         {conMediciones && (
           <Bloque titulo="Mediciones del ambiente de trabajo">
-            <table className="w-full border-collapse text-[10px]">
+            <table className="w-full border-collapse text-[12px]">
               <thead>
-                <tr className="border-b border-doc-linea text-left text-[8px] uppercase tracking-[.1em] text-doc-tenue">
+                <tr className="border-b border-doc-linea text-left text-[9.5px] uppercase tracking-[.08em] text-doc-tenue">
                   <th className="py-1 pr-2 font-semibold">Puesto</th>
                   {MEDICIONES.map((m) => <th key={m.clave} className="py-1 pr-2 font-semibold">{m.nombre} ({m.unidad})<div className="normal-case tracking-normal">Ref. {m.ref}</div></th>)}
                 </tr>

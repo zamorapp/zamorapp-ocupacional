@@ -7,6 +7,9 @@ import { claveRiesgo, ESCALA_P, ESCALA_S, GRUPOS, type GrupoRiesgo } from "@/lib
 import { COLOR_NIVEL, NIVELES, NOMBRE_GRUPO, nivelFila, porPuesto, SIMBOLO, type FilaRiesgo } from "@/lib/riesgos-puesto";
 import { cn } from "@/lib/utils";
 
+// Etiqueta corta para gráficas y leyendas (el nombre completo va en las tablas)
+const CORTO = (g: GrupoRiesgo) => (g === "disergonomico" ? "Ergonómico" : g === "mecanico" ? "Mecánico o seguridad" : NOMBRE_GRUPO[g]);
+
 type Base = { filas: FilaRiesgo[]; impreso?: boolean; className?: string };
 
 // Brillo y sombra compartidos: un degradado de luz arriba-izquierda y una sombra suave abajo
@@ -105,11 +108,11 @@ export function DonaGrupos({ filas, impreso, className }: Base) {
         <text x={C} y={C - 2} textAnchor="middle" className="fill-current font-cifra" fontSize={30} fontWeight={600}>{total}</text>
         <text x={C} y={C + 16} textAnchor="middle" className="fill-current opacity-60" fontSize={10}>riesgos</text>
       </svg>
-      <ul className={cn("min-w-40 flex-1 space-y-1.5 text-sm", impreso && "space-y-0.5 text-[10px]")}>
+      <ul className={cn("min-w-40 flex-1 space-y-1.5 text-sm", impreso && "space-y-0.5 text-[12px]")}>
         {datos.map((d) => (
           <li key={d.g} className="flex items-center gap-2">
             <Letra g={d.g} chico={impreso} />
-            <span className="min-w-0 flex-1 truncate">{NOMBRE_GRUPO[d.g]}</span>
+            <span className="min-w-0 flex-1 truncate">{CORTO(d.g)}</span>
             <span className="font-cifra font-semibold tabular-nums">{d.n}</span>
             <span className="w-10 text-right text-xs text-muted-foreground tabular-nums">{Math.round((d.n / total) * 100)} %</span>
           </li>
@@ -132,15 +135,15 @@ export function BarrasPuestos({ filas, impreso, className }: Base) {
   const superficie = impreso ? "#ffffff" : "var(--card)";
   return (
     <figure className={className} aria-label="Riesgos por puesto y nivel">
-      <div className={cn("grid items-center gap-x-3", impreso ? "grid-cols-[7.5rem_1fr_1.5rem] gap-y-1.5 text-[9px]" : "grid-cols-[minmax(6rem,11rem)_1fr_2rem] gap-y-2.5 text-sm")}>
+      <div className={cn("grid items-center gap-x-3", impreso ? "grid-cols-[9rem_1fr_1.5rem] gap-y-1.5 text-[12px]" : "grid-cols-[minmax(6rem,11rem)_1fr_2rem] gap-y-2.5 text-sm")}>
         {puestos.map((p) => (
           <div key={p.clave} className="contents">
             <div className="truncate text-right" title={p.puesto}>{p.puesto}</div>
-            <div className={cn("relative overflow-hidden rounded-full bg-muted", impreso ? "h-3" : "h-5")}>
+            <div className={cn("relative overflow-hidden rounded-full bg-muted", impreso ? "h-4" : "h-6")}>
               <div className="flex h-full drop-shadow-[0_2px_2px_rgba(0,0,0,.25)]" style={{ width: `${(p.filas.length / max) * 100}%` }}>
                 {NIVELES.map((t) => p.cuenta[t] ? (
-                  <div key={t} title={`${p.puesto} · ${t}: ${p.cuenta[t]}`} className="h-full first:rounded-l-full last:rounded-r-full"
-                    style={{ flexGrow: p.cuenta[t], background: `linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0) 55%, rgba(0,0,0,.12)), ${COLOR_NIVEL[t]}`, boxShadow: `2px 0 0 ${superficie}` }} />
+                  <div key={t} title={`${p.puesto} · ${t}: ${p.cuenta[t]}`} className={cn("grid h-full place-items-center font-cifra font-bold first:rounded-l-full last:rounded-r-full", impreso ? "text-[9.5px]" : "text-xs")}
+                    style={{ flexGrow: p.cuenta[t], color: t === "Crítico" ? "#ffffff" : "#0b0b0b", background: `linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0) 55%, rgba(0,0,0,.12)), ${COLOR_NIVEL[t]}`, boxShadow: `2px 0 0 ${superficie}` }}>{p.cuenta[t]}</div>
                 ) : null)}
               </div>
             </div>
@@ -160,32 +163,44 @@ export function MatrizRiesgos({ filas, impreso, className }: Base) {
   const cuenta = new Map<string, FilaRiesgo[]>();
   for (const f of filas) if (f.p && f.s) cuenta.set(`${f.p}-${f.s}`, [...(cuenta.get(`${f.p}-${f.s}`) ?? []), f]);
   const tinte = (n: number) => (n <= 4 ? "#0ca30c" : n <= 9 ? "#fab219" : n <= 16 ? "#ec835a" : "#d03b3b");
-  const L = 28, c = 46;
+  const letra = (n: number) => (n <= 4 ? "B" : n <= 9 ? "M" : n <= 16 ? "A" : "C");
+  // Ejes con su título y la palabra en cada extremo; en cada celda la letra del nivel (se lee en blanco y negro)
+  const L = 46, c = 46, A = c * 5, Y = 4;
   return (
     <figure className={className}>
-      <svg viewBox={`0 0 ${L + c * 5 + 4} ${c * 5 + L + 14}`} className={cn("w-full", impreso ? "max-w-[230px]" : "max-w-[330px]")} role="img" aria-label="Matriz de riesgos probabilidad por severidad">
+      <svg viewBox={`0 0 ${L + A + 6} ${Y + A + 44}`} className={cn("w-full", impreso ? "max-w-[250px]" : "max-w-[360px]")} role="img" aria-label="Matriz de riesgos: probabilidad (vertical) por severidad (horizontal)">
         <Defs id="matriz" impreso={impreso} />
         {[5, 4, 3, 2, 1].map((p, fila) => [1, 2, 3, 4, 5].map((s, col) => {
           const n = p * s, lista = cuenta.get(`${p}-${s}`) ?? [];
-          const x = L + col * c, y = fila * c;
+          const x = L + col * c, y = Y + fila * c;
           return (
             <g key={`${p}-${s}`}>
               <title>{`${ESCALA_P[p]} × ${ESCALA_S[s]} = ${n}${lista.length ? `: ${lista.map((f) => f.agente).join(", ")}` : ""}`}</title>
-              <rect x={x + 1} y={y + 1} width={c - 2} height={c - 2} rx={6} fill={tinte(n)} opacity={lista.length ? 0.32 : 0.14} />
+              <rect x={x + 1} y={y + 1} width={c - 2} height={c - 2} rx={6} fill={tinte(n)} fillOpacity={lista.length ? 0.32 : 0.14}
+                stroke={tinte(n)} strokeOpacity={n >= 10 ? 0.9 : 0.35} strokeWidth={n >= 20 ? 2 : n >= 10 ? 1.5 : 0.75} />
+              <text x={x + c - 6} y={y + 11} textAnchor="end" fontSize={8} fontWeight={700} className="fill-current" opacity={0.45}>{letra(n)}</text>
               {lista.length > 0 && (
                 <g filter="url(#matriz-sombra)">
-                  <circle cx={x + c / 2} cy={y + c / 2} r={10 + Math.min(lista.length, 6) * 1.6} fill={tinte(n)} />
-                  <circle cx={x + c / 2} cy={y + c / 2} r={10 + Math.min(lista.length, 6) * 1.6} fill="url(#matriz-luz)" />
-                  <text x={x + c / 2} y={y + c / 2 + 4} textAnchor="middle" fontSize={12} fontWeight={700} fill={n > 9 && n <= 16 ? "#0b0b0b" : n <= 9 && n > 4 ? "#0b0b0b" : "#ffffff"}>{lista.length}</text>
+                  <circle cx={x + c / 2} cy={y + c / 2 + 2} r={9 + Math.min(lista.length, 6) * 1.5} fill={tinte(n)} />
+                  <circle cx={x + c / 2} cy={y + c / 2 + 2} r={9 + Math.min(lista.length, 6) * 1.5} fill="url(#matriz-luz)" />
+                  <text x={x + c / 2} y={y + c / 2 + 6} textAnchor="middle" fontSize={12} fontWeight={700} fill={n > 4 && n <= 16 ? "#0b0b0b" : "#ffffff"}>{lista.length}</text>
                 </g>
               )}
             </g>
           );
         }))}
-        {[1, 2, 3, 4, 5].map((s, i) => <text key={s} x={L + i * c + c / 2} y={c * 5 + 12} textAnchor="middle" fontSize={10} className="fill-current opacity-70">{s}</text>)}
-        {[5, 4, 3, 2, 1].map((p, i) => <text key={p} x={L - 8} y={i * c + c / 2 + 4} textAnchor="end" fontSize={10} className="fill-current opacity-70">{p}</text>)}
+        {[1, 2, 3, 4, 5].map((s, i) => <text key={s} x={L + i * c + c / 2} y={Y + A + 12} textAnchor="middle" fontSize={10} className="fill-current opacity-70">{s}</text>)}
+        {[5, 4, 3, 2, 1].map((p, i) => <text key={p} x={L - 7} y={Y + i * c + c / 2 + 4} textAnchor="end" fontSize={10} className="fill-current opacity-70">{p}</text>)}
+        <text x={L} y={Y + A + 25} fontSize={8.5} className="fill-current opacity-60">Insignificante</text>
+        <text x={L + A} y={Y + A + 25} textAnchor="end" fontSize={8.5} className="fill-current opacity-60">Catastrófica</text>
+        <text x={L + A / 2} y={Y + A + 39} textAnchor="middle" fontSize={11} fontWeight={700} className="fill-current">Severidad →</text>
+        <g transform={`translate(12 ${Y + A / 2}) rotate(-90)`}>
+          <text textAnchor="middle" fontSize={11} fontWeight={700} className="fill-current">Probabilidad →</text>
+        </g>
+        <g transform={`translate(25 ${Y + A}) rotate(-90)`}><text fontSize={8.5} className="fill-current opacity-60">Rara vez</text></g>
+        <g transform={`translate(25 ${Y}) rotate(-90)`}><text textAnchor="end" fontSize={8.5} className="fill-current opacity-60">Casi seguro</text></g>
       </svg>
-      <figcaption className={cn("mt-0.5 text-xs text-muted-foreground", impreso && "text-[9px] text-doc-tenue")}>Arriba: probabilidad (1 rara vez → 5 casi seguro) · Abajo: severidad (1 insignificante → 5 catastrófica)</figcaption>
+      <figcaption className={cn("mt-0.5 text-xs text-muted-foreground", impreso && "text-[12px] text-doc-tenue")}>Letra de cada celda: B bajo · M medio · A alto · C crítico.</figcaption>
     </figure>
   );
 }
@@ -201,7 +216,7 @@ export function FichasGrupo({ filas, impreso, className }: Base) {
           <div key={g} className={cn("rounded-xl border p-3 shadow-[0_6px_18px_-12px_rgba(15,40,60,.45)]", impreso && "rounded-lg border-doc-linea p-2 shadow-none", !del.length && "opacity-60")}>
             <div className="flex items-center gap-2">
               <Letra g={g} chico={impreso} />
-              <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", impreso && "text-[10px]")}>{NOMBRE_GRUPO[g]}</span>
+              <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", impreso && "text-[12px]")}>{CORTO(g)}</span>
               <span className={cn("font-cifra text-lg font-semibold tabular-nums", impreso && "text-[12px]")}>{del.length}</span>
             </div>
             <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-muted shadow-[inset_0_1px_2px_rgba(0,0,0,.18)]" aria-hidden>
@@ -210,7 +225,7 @@ export function FichasGrupo({ filas, impreso, className }: Base) {
                 return n ? <span key={t} title={`${t}: ${n}`} style={{ width: `${(n / del.length) * 100}%`, background: `linear-gradient(180deg, rgba(255,255,255,.35), rgba(0,0,0,.08)), ${COLOR_NIVEL[t]}` }} className="border-r-2 border-card last:border-r-0" /> : null;
               })}
             </div>
-            <div className={cn("mt-1 text-[11px] text-muted-foreground", impreso && "text-[8.5px] text-doc-tenue")}>
+            <div className={cn("mt-1 text-[11px] text-muted-foreground", impreso && "text-[10px] text-doc-tenue")}>
               {del.length ? `Máximo: ${max?.texto ?? "sin valorar"} · ${del.slice(0, 2).map((f) => f.agente).join(", ")}${del.length > 2 ? "…" : ""}` : "No presente"}
             </div>
           </div>
