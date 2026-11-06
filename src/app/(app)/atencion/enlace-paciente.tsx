@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Ban, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
+import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,7 +14,7 @@ import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NI
 import { DIETAS } from "@/lib/dietas";
 import { BOTONES_BIENESTAR } from "@/lib/bienestar";
 import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
-import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, quitarEnlacePaciente, volverEnlacePaciente, type EnlaceNuevo } from "./paciente-enlace-acciones";
+import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, eliminarEnlacePaciente, quitarEnlacePaciente, volverEnlacePaciente, type EnlaceNuevo } from "./paciente-enlace-acciones";
 
 type Opcion = { id: string; nombre: string };
 const PARTICULAR = "particular";
@@ -331,6 +332,8 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
 
 // Los que ya terminaron se pueden quitar de la lista (los vencidos o anulados sin llenar se borran solos a los 30 días)
 const TERMINADO = new Set(["vencido", "anulado", "descartada", "aceptada"]);
+// Un enlace aceptado sirve 30 días desde que lo llenó (subir resultados); pasado eso ya no hay nada que anular
+const vencidoResultados = (e: SolicitudPaciente, ahora: number) => !e.recibido || Date.parse(e.recibido) + 30 * 86_400_000 < ahora;
 const ETIQUETA: Record<string, string> = { esperando: "Esperando", "por revisar": "Por revisar", aceptada: "Aceptado", descartada: "Descartado", vencido: "Vencido", anulado: "Anulado" };
 const COLOR: Record<string, string> = {
   esperando: "bg-muted text-muted-foreground", "por revisar": "bg-aviso/20 text-aviso-texto", aceptada: "bg-ok/15 text-ok-texto",
@@ -354,6 +357,35 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
       setTimeout(() => setOcultarDeshacer((v) => [...v, e.id]), 10_000);
     } else setError(r.mensaje);
   });
+  const nombreDe = (e: SolicitudPaciente) => e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "sin nombre";
+  // Anular: el enlace deja de servir al instante (llenar, descargar y subir resultados); lo ya recibido se queda
+  const anular = async (e: SolicitudPaciente, aceptado: boolean) => {
+    const si = await confirmar({
+      titulo: `¿Anular el enlace de ${nombreDe(e)}?`,
+      texto: aceptado
+        ? "Desde ya no podrá descargar sus documentos ni enviar resultados. Lo que ya está en su ficha no cambia."
+        : "Desde ya no podrá llenar sus datos con ese enlace. Si lo necesita, envíale uno nuevo.",
+      accion: "Anular enlace",
+      peligro: true,
+    });
+    if (si) iniciar(async () => { const r = await anularEnlacePaciente(e.id); setError(r.ok ? null : r.mensaje); });
+  };
+  // Eliminar: borra el enlace y lo que el paciente escribió en él. Ficha, cita y resultados subidos se quedan
+  const eliminar = async (e: SolicitudPaciente, estado: string) => {
+    const si = await confirmar({
+      titulo: `¿Eliminar el enlace de ${nombreDe(e)}?`,
+      texto: (estado === "esperando" ? "El enlace deja de servir y se borra. " : "Se borra el enlace. ")
+        + (estado === "aceptada" ? "Su ficha, su cita y los resultados que subió se quedan en su historia. " : "")
+        + "No se puede deshacer.",
+      accion: "Eliminar",
+      peligro: true,
+      ...(TERMINADO.has(estado) ? { alternativa: { texto: "Solo quitar de la lista", alElegir: () => quitar(e) } } : {}),
+    });
+    if (si) iniciar(async () => {
+      const r = await eliminarEnlacePaciente(e.id);
+      if (r.ok) { setQuitados((v) => [...v, e]); setOcultarDeshacer((v) => [...v, e.id]); setError(null); } else setError(r.mensaje);
+    });
+  };
   const volver = (e: SolicitudPaciente) => iniciar(async () => {
     const r = await volverEnlacePaciente(e.id);
     if (r.ok) { setQuitados((v) => v.filter((q) => q.id !== e.id)); setOcultarDeshacer((v) => v.filter((id) => id !== e.id)); } else setError(r.mensaje);
@@ -372,9 +404,10 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                 <span className={cn("rounded-full px-2 py-0.5 font-medium", COLOR[estado])}>{ETIQUETA[estado]}</span>
                 <span>{e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "Sin nombre"}{e.telefono && <span className="text-muted-foreground"> · {telefonoVisible(e.telefono)}</span>}</span>
                 <span className="text-muted-foreground">· enviado {fechaCorta(e.creado)}</span>
-                {estado === "esperando" && (
-                  <button type="button" disabled={ocupado} onClick={() => iniciar(async () => { const r = await anularEnlacePaciente(e.id); setError(r.ok ? null : r.mensaje); })}
-                    className="font-medium text-destructive hover:underline disabled:opacity-60">Anular</button>
+                {(estado === "esperando" || (estado === "aceptada" && !vencidoResultados(e, ahora))) && (
+                  <button type="button" disabled={ocupado} onClick={() => anular(e, estado === "aceptada")}
+                    title={estado === "aceptada" ? "Ya no podrá descargar ni enviar resultados con este enlace" : "El enlace deja de servir"}
+                    className="inline-flex items-center gap-1 font-medium text-alerta-texto hover:underline disabled:opacity-60"><Ban className="size-3" /> Anular</button>
                 )}
                 {TERMINADO.has(estado) && (
                   <button type="button" disabled={ocupado} onClick={() => quitar(e)} title="Lo saca de esta lista. Se puede deshacer."
@@ -382,6 +415,10 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                     <X className="size-3" /> Quitar de la lista
                   </button>
                 )}
+                {estado !== "por revisar" && <button type="button" disabled={ocupado} onClick={() => eliminar(e, estado)} title="Borra el enlace. Su ficha y sus resultados se quedan."
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-alerta-texto hover:underline disabled:opacity-60">
+                  <Trash2 className="size-3" /> Eliminar
+                </button>}
               </li>
             );
           })}

@@ -216,7 +216,8 @@ async function cambiar(id: string, accion: "descartar" | "deshacer" | "anular" |
   const tabla = s.supabase.from("solicitudes_paciente");
   const q = accion === "descartar" ? tabla.update({ resultado: "descartada" }).eq("id", id).is("resultado", null)
     : accion === "deshacer" ? tabla.update({ resultado: null }).eq("id", id).eq("resultado", "descartada")
-    : accion === "anular" ? tabla.update({ anulado_en: new Date(ahora()).toISOString() }).eq("id", id).is("anulado_en", null).is("recibido_en", null)
+    // Anular corta al instante el llenado, las descargas y la subida de resultados (también si ya se aceptó)
+    : accion === "anular" ? tabla.update({ anulado_en: new Date(ahora()).toISOString() }).eq("id", id).is("anulado_en", null)
     // Quitar de la lista solo lo esconde (con Deshacer); la base decide si ya terminó y pone la hora
     : accion === "quitar" ? tabla.update({ oculto_en: new Date(ahora()).toISOString() } as never).eq("id", id).is("oculto_en", null)
     : tabla.update({ oculto_en: null } as never).eq("id", id).not("oculto_en", "is", null);
@@ -231,3 +232,13 @@ export async function deshacerDescarte(id: string) { return cambiar(id, "deshace
 export async function anularEnlacePaciente(id: string) { return cambiar(id, "anular"); }
 export async function quitarEnlacePaciente(id: string) { return cambiar(id, "quitar"); }
 export async function volverEnlacePaciente(id: string) { return cambiar(id, "volver"); }
+
+// Eliminar borra el enlace y lo que el paciente escribió en él; su ficha, la cita y los resultados que subió no se tocan
+export async function eliminarEnlacePaciente(id: string): Promise<R> {
+  const s = await servicio();
+  if ("error" in s) return { ok: false, mensaje: s.error! };
+  const { data, error } = await s.supabase.rpc("eliminar_solicitud_paciente" as never, { p_id: id } as never);
+  if (error) return { ok: false, mensaje: errorNube(error.message) };
+  revalidatePath("/atencion");
+  return data === "ok" ? { ok: true } : { ok: false, mensaje: String(data) };
+}

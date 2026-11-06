@@ -563,6 +563,14 @@ jobs:
           foreach ($a in $archivos) { if (-not (Test-Path -LiteralPath $a -PathType Leaf)) { throw "Falta $a para publicar" }; Write-Host "publica: $a ($((Get-Item -LiteralPath $a).Length) bytes)" }
           gh release create "v$v" @archivos --repo $repo --title "zamorApp Escritorio $v" --notes "Versión $v" --latest
           if ($LASTEXITCODE) { throw "No se pudo publicar la versión" }
+          # Solo quedan las 3 versiones más nuevas (la vigente y 2 para volver atrás): cada una pesa ~240 MB y las PC
+          # solo bajan la última (latest.json). Cesar, 06-nov: 30 versiones acumuladas. Si falla, no tumba la publicación.
+          $viejas = gh release list --repo $repo --limit 200 --exclude-drafts --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[3:] | .[].tagName'
+          foreach ($t in @($viejas | Where-Object { $_ -match '^v0\.1\.\d+$' -and $_ -ne "v$v" })) {
+            gh release delete $t --repo $repo --yes --cleanup-tag
+            Write-Host "Versión vieja borrada: $t"
+          }
+          $global:LASTEXITCODE = 0
 
       - uses: actions/upload-artifact@v4
         with:
