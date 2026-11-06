@@ -16,14 +16,16 @@ declare
   v_viejo text := 'if old.anulado_en is not null or old.recibido_en is not null or new.resultado is distinct from old.resultado then
       raise exception ''Solo se anula un enlace que el paciente todavía no llenó'';';
 begin
+  -- El texto buscado también sin \r: pegado en el editor SQL desde Windows, este archivo llega con saltos \r\n
+  v_viejo := replace(v_viejo, chr(13), '');
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
     raise exception 'validar_solicitud_paciente cambió: revisar 20261030917000 antes de aplicarla';
   end if;
-  execute replace(v_def, v_viejo, 'if old.anulado_en is not null or new.resultado is distinct from old.resultado then
+  execute replace(replace(v_def, v_viejo, 'if old.anulado_en is not null or new.resultado is distinct from old.resultado then
       raise exception ''Ese enlace ya estaba anulado'';
     end if;
     if old.recibido_en is not null and old.resultado is null then
-      raise exception ''Ese paciente está por revisar: acéptalo o descártalo'';');
+      raise exception ''Ese paciente está por revisar: acéptalo o descártalo'';'), chr(13), '');
 end $$;
 
 -- ===== 2. Eliminar =====
