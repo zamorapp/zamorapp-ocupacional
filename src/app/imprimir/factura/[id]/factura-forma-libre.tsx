@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Cobro, totales } from "@/lib/facturacion-tipos";
 import { guardarNumeroFactura, guardarTasaCobro } from "@/app/(app)/facturacion/acciones";
-import { tasaParaFecha } from "@/lib/tasa-bcv";
+import { leerTasaEscrita, tasaParaFecha } from "@/lib/tasa-bcv";
 import { BarraImpresion } from "../../barra";
 
 // Medidas del talonario de Cesar (20,6 × 14,6 cm apaisado, 04-nov-2026). El membrete preimpreso llega a ~3 cm y la
@@ -20,22 +20,23 @@ type Ajuste = { arriba: number; izquierda: number };
 
 const num = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cifraTasa = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-const leerCifra = (s: string) => Number(s.trim().replace(/\./g, "").replace(",", "."));
 const fecha = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-VE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
 
 type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
 
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [] }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[] }) {
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
-  const [emision, setEmision] = useState(c.fecha);
+  // Una factura que todavía no tiene número se emite hoy (con la tasa de hoy); una ya numerada conserva su fecha
+  const emisionInicial = !c.numeroFacturaFiscal && hoy && hoy > c.fecha ? hoy : c.fecha;
+  const [emision, setEmision] = useState(emisionInicial);
   // Tasa BCV de la fecha de emisión (la de ese día o la anterior más cercana); si no hay, la de la nota de cobro.
   // Se puede corregir a mano. Al imprimir se anota en la nota para que el registro diga lo mismo que el papel.
   // En una nota pagada la tasa queda fija: la anotada en la nota (la del pago); nunca se cambia desde aquí.
   const tasaFija = c.estado === "pagada" && !!c.tasaBcv;
   const tasaAuto = (d: string) => tasaParaFecha(tasas, d);
-  const [tasaTxt, setTasaTxt] = useState(() => { const a = tasaFija ? c.tasaBcv : (tasaAuto(c.fecha)?.tasa ?? c.tasaBcv); return a ? cifraTasa(a) : ""; });
+  const [tasaTxt, setTasaTxt] = useState(() => { const a = tasaFija ? c.tasaBcv : (tasaAuto(emisionInicial)?.tasa ?? c.tasaBcv); return a ? cifraTasa(a) : ""; });
   const cambiarEmision = (d: string) => {
     setEmision(d);
     const a = tasaAuto(d);
@@ -63,7 +64,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   };
 
   // En bolívares y en dólares si hay tasa BCV (la factura en Venezuela va en bolívares); si no, solo en dólares
-  const tasaLeida = leerCifra(tasaTxt);
+  const tasaLeida = leerTasaEscrita(tasaTxt);
   const tasa = Number.isFinite(tasaLeida) && tasaLeida > 0 ? tasaLeida : null;
   const auto = tasaAuto(emision);
   const origenTasa = !tasa ? "" : auto && auto.tasa === tasa ? `BCV, fecha valor ${fecha(auto.fecha)}` : c.tasaBcv === tasa ? "de la nota de cobro" : "escrita aquí";
@@ -134,7 +135,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Fecha de emisión</span>
-            <Input type="date" value={emision} onChange={(e) => cambiarEmision(e.target.value || c.fecha)} />
+            <Input type="date" value={emision} onChange={(e) => cambiarEmision(e.target.value || emisionInicial)} />
             <span className="block text-xs text-muted-foreground">{fechaEnLetras(emision)}</span>
           </label>
           <label className="space-y-1">

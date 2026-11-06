@@ -62,6 +62,9 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/api/avisos/campana") return conTiempo(respuesta);
   // Correo diario de constancias a RR. HH.: mismo latido, sin sesión; la base exige la clave del servidor
   if (request.nextUrl.pathname === "/api/envios/constancias-dia") return conTiempo(respuesta);
+  // Tasa BCV automática (pg_cron, cron de Vercel y GitHub): sin sesión; la base exige la clave del servidor. Sin esta
+  // línea el latido recibía la pantalla de ingreso y la tasa nunca se guardaba (06-nov-2026).
+  if (request.nextUrl.pathname === "/api/tasa-bcv") return conTiempo(respuesta);
   // Invitación de RR. HH.: se abre sin cuenta (ahí mismo la crea o ingresa) y también con sesión (para aceptarla)
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
   // Enlace para que el paciente llene sus datos y pida su consulta: sin cuenta; la base valida el token
