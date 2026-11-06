@@ -16,6 +16,7 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
+import { BotonMenu } from "./boton-vista-menu";
 import { abrirBuscador } from "./buscador-global";
 import { SelectorTema } from "./selector-tema";
 import { InstalarApp } from "./instalar-app";
@@ -61,6 +62,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, tit
           <BarraLateral organizacion={organizacion} titular={titular} portal={portal} alNavegar={() => setMenuAbierto(false)} />
         </SheetContent>
       </Sheet>
+      <BotonMenu />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

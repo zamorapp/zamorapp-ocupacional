@@ -4,6 +4,7 @@ import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 import { type Rol } from "@/lib/sesion-roles";
+import { esVistaMenu, type VistaMenu } from "@/lib/vista-menu";
 
 export { ETIQUETA_ROL, type Rol } from "@/lib/sesion-roles";
 
@@ -18,6 +19,8 @@ export type Sesion = {
   titular: string | null;
   rol: Rol | null;
   clinico: boolean; // mismo criterio que es_clinico() en la base: rol de salud o acceso clínico activado
+  // Vista del menú guardada en la cuenta (user_metadata.vista_menu, lib/vista-menu.ts); null = nunca se eligió
+  vistaMenu: VistaMenu | null;
 };
 
 const SESION_DEMO: Sesion = {
@@ -30,11 +33,12 @@ const SESION_DEMO: Sesion = {
   titular: "Dr. César Zamora",
   rol: "gerente_medico",
   clinico: true,
+  vistaMenu: null,
 };
 
 // Perfil, organización y rol cambian muy poco: se guardan en memoria del servidor 2 minutos
 // para no consultar Supabase en cada pantalla. Se invalidan al editar perfil, rol u organización.
-type Datos = Omit<Sesion, "demo" | "usuarioId" | "correo">;
+type Datos = Omit<Sesion, "demo" | "usuarioId" | "correo" | "vistaMenu">;
 const MEMORIA = new Map<string, { datos: Datos; vence: number }>();
 const DURACION = 2 * 60 * 1000;
 
@@ -53,9 +57,11 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
   if (!claims?.sub) redirect("/login");
   const usuarioId = claims.sub;
   const correo = (claims.email as string | undefined) ?? "";
+  const vista = (claims.user_metadata as { vista_menu?: unknown } | undefined)?.vista_menu;
+  const vistaMenu = esVistaMenu(vista) ? vista : null;
 
   const guardado = MEMORIA.get(usuarioId);
-  if (guardado && guardado.vence > performance.now()) return { demo: false, usuarioId, correo, ...guardado.datos };
+  if (guardado && guardado.vence > performance.now()) return { demo: false, usuarioId, correo, vistaMenu, ...guardado.datos };
 
   const [{ data: perfil }, { data: miembro }] = await Promise.all([
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
@@ -78,7 +84,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
   };
   MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
-  return { demo: false, usuarioId, correo, ...datos };
+  return { demo: false, usuarioId, correo, vistaMenu, ...datos };
 });
 
 export function primerNombre(nombre: string) {
