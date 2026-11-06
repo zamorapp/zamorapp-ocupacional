@@ -2,6 +2,8 @@ import "server-only";
 import { request } from "node:https";
 import { connect, rootCertificates, type PeerCertificate } from "node:tls";
 import { X509Certificate } from "node:crypto";
+import { isIP } from "node:net";
+import { ahora } from "@/lib/fecha";
 import { leerHtmlBcv, leerJsonRespaldo, type TasaLeida } from "@/lib/tasa-bcv";
 
 // Fuentes de la tasa BCV (solo servidor). El portal del BCV no envía el certificado intermedio de su cadena: los
@@ -12,6 +14,8 @@ import { leerHtmlBcv, leerJsonRespaldo, type TasaLeida } from "@/lib/tasa-bcv";
 
 const ESPERA_MS = 15_000;
 const UA = "Mozilla/5.0 (compatible; zamorApp-Ocupacional/1.0)";
+const TOPE_AIA = 64 * 1024;
+const TOPE_HTML = 2 * 1024 * 1024;
 let intermedioBcv: string | null = null; // se guarda en memoria mientras viva la función
 
 const motivo = (e: unknown) => {
@@ -38,25 +42,84 @@ function certificadoDe(host: string): Promise<PeerCertificate | null> {
   });
 }
 
-async function intermedioPorAia(host: string): Promise<string | null> {
-  const c = await certificadoDe(host);
-  const uri = (c?.infoAccess as Record<string, string[]> | undefined)?.["CA Issuers - URI"]?.[0];
-  if (!uri) return null;
-  const der = Buffer.from(await (await traer(uri)).arrayBuffer());
+// Lee un cuerpo con tope de tamaño (no se baja más de lo necesario)
+async function bytesConTope(r: Response, tope: number): Promise<Buffer> {
+  if (Number(r.headers.get("content-length") ?? 0) > tope) throw new Error("respuesta demasiado grande");
+  const partes: Uint8Array[] = [];
+  let n = 0;
+  const lector = r.body?.getReader();
+  if (!lector) return Buffer.alloc(0);
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    n += value.length;
+    if (n > tope) { await lector.cancel(); throw new Error("respuesta demasiado grande"); }
+    partes.push(value);
+  }
+  return Buffer.concat(partes);
+}
+
+// Solo direcciones públicas por nombre: nada de IP ni hosts internos
+function uriAiaValida(uri: string): boolean {
   try {
-    return new X509Certificate(der).toString(); // DER o PEM → PEM
+    const u = new URL(uri);
+    const h = u.hostname.toLowerCase();
+    return (u.protocol === "http:" || u.protocol === "https:") && !isIP(h.replace(/^\[|\]$/g, "")) && h.includes(".")
+      && !/(^|\.)(localhost|local|internal|lan|home|corp)$/.test(h);
   } catch {
-    return null;
+    return false;
   }
 }
 
-// GET con las raíces de Node más el intermedio del BCV; la verificación TLS sigue completa
-function getConIntermedio(url: string, intermedio: string): Promise<string> {
+let raices: X509Certificate[] | null = null;
+// El intermedio solo se acepta si es una CA vigente emitida Y firmada por una raíz de confianza de Node (Analizar,
+// 06-nov): así un intermediario no puede colar una CA propia.
+function intermedioConfiable(x: X509Certificate): boolean {
+  if (!x.ca) return false;
+  const t = ahora();
+  if (!(Date.parse(x.validFrom) <= t && t <= Date.parse(x.validTo))) return false;
+  raices ??= rootCertificates.flatMap((pem) => { try { return [new X509Certificate(pem)]; } catch { return []; } });
+  return raices.some((r) => x.checkIssued(r) && x.verify(r.publicKey));
+}
+
+async function intermedioPorAia(host: string, fallas: string[]): Promise<string | null> {
+  const c = await certificadoDe(host);
+  const uri = (c?.infoAccess as Record<string, string[]> | undefined)?.["CA Issuers - URI"]?.[0];
+  if (!uri) { fallas.push("bcv: sin dirección AIA"); return null; }
+  if (!uriAiaValida(uri)) { fallas.push("bcv: dirección AIA no válida"); return null; }
+  const der = await bytesConTope(await traer(uri), TOPE_AIA);
+  let x: X509Certificate;
+  try {
+    x = new X509Certificate(der); // DER o PEM
+  } catch {
+    fallas.push("bcv: intermedio ilegible");
+    return null;
+  }
+  if (!intermedioConfiable(x)) { fallas.push("bcv: intermedio no confiable"); return null; }
+  return x.toString();
+}
+
+// GET con las raíces de Node más el intermedio ya verificado; la verificación TLS sigue completa. Sigue hasta 3
+// redirecciones solo dentro del mismo host; cuerpo con tope de 2 MB.
+function getConIntermedio(url: string, intermedio: string, saltos = 3): Promise<string> {
   return new Promise((ok, mal) => {
     const req = request(url, { method: "GET", ca: [...rootCertificates, intermedio], headers: { "User-Agent": UA }, timeout: ESPERA_MS }, (res) => {
-      if ((res.statusCode ?? 0) >= 400) { res.resume(); mal(new Error(`HTTP ${res.statusCode}`)); return; }
+      const st = res.statusCode ?? 0;
+      if (st >= 300 && st < 400) {
+        res.resume();
+        const destino = res.headers.location ? new URL(res.headers.location, url) : null;
+        if (!destino || destino.protocol !== "https:" || destino.host !== new URL(url).host || saltos <= 0) { mal(new Error(`redirección ${st}`)); return; }
+        getConIntermedio(destino.toString(), intermedio, saltos - 1).then(ok, mal);
+        return;
+      }
+      if (st >= 400) { res.resume(); mal(new Error(`HTTP ${st}`)); return; }
       const partes: Buffer[] = [];
-      res.on("data", (d: Buffer) => partes.push(d));
+      let n = 0;
+      res.on("data", (d: Buffer) => {
+        n += d.length;
+        if (n > TOPE_HTML) { req.destroy(new Error("respuesta demasiado grande")); return; }
+        partes.push(d);
+      });
       res.on("end", () => ok(Buffer.concat(partes).toString("utf8")));
       res.on("error", mal);
     });
@@ -69,13 +132,13 @@ function getConIntermedio(url: string, intermedio: string): Promise<string> {
 async function htmlBcv(fallas: string[]): Promise<string | null> {
   const url = "https://www.bcv.org.ve/";
   try {
-    return await (await traer(url)).text();
+    return (await bytesConTope(await traer(url), TOPE_HTML)).toString("utf8");
   } catch (e) {
     fallas.push(`bcv directo: ${motivo(e)}`);
   }
   try {
-    intermedioBcv ??= await intermedioPorAia("www.bcv.org.ve");
-    if (!intermedioBcv) { fallas.push("bcv: sin intermedio AIA"); return null; }
+    intermedioBcv ??= await intermedioPorAia("www.bcv.org.ve", fallas);
+    if (!intermedioBcv) return null;
     return await getConIntermedio(url, intermedioBcv);
   } catch (e) {
     intermedioBcv = null;
