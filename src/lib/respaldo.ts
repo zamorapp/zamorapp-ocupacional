@@ -7,7 +7,7 @@ import { ahora } from "@/lib/fecha";
 
 type Registro = { fecha: string; estado: "ok" | "aviso" | "fallo"; archivo: string | null; tamano_kb: number | null; destinos: number | null; detalle: string | null };
 
-// urgente: de verdad hay riesgo (más de 3 días sin respaldo correcto); entonces la franja no se puede ignorar.
+// urgente: de verdad hay riesgo (más de 3 días sin respaldo correcto); «Ignorar» lo esconde solo hasta la próxima apertura.
 // ahora: hora fiable (no la de Windows) para que «Ignorar» cuente sus días aunque Cesar cambie la fecha por el SAME.
 export type EstadoRespaldo = { estado: Estado; titulo: string; detalle: string; urgente?: boolean; ahora?: number };
 const URGENTE_HORAS = 72;
@@ -32,12 +32,14 @@ const tamano = (kb: number | null) => (kb == null ? "" : kb >= 1024 ? `${(kb / 1
 
 // En el escritorio este Next corre en la PC, con la fecha de Windows (Cesar la cambia por el SAME): se usa la hora
 // anclada que manda la puerta. En la web (Vercel) la hora del servidor es fiable.
-async function ahoraFiable(): Promise<number> {
-  if (!ESCRITORIO) return ahora();
+// enCopia: sin internet la puerta responde con la copia de la PC, que no trae el historial de respaldos de la nube.
+async function relojYFuente(): Promise<{ ahora: number; enCopia: boolean }> {
+  if (!ESCRITORIO) return { ahora: ahora(), enCopia: false };
   const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/zamorapp/estado`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
   const hora = Date.parse(r?.hora ?? "");
-  return Number.isFinite(hora) ? hora : ahora();
+  return { ahora: Number.isFinite(hora) ? hora : ahora(), enCopia: r?.enLinea !== true };
 }
+const ahoraFiable = async () => (await relojYFuente()).ahora;
 
 // Solo administrador y gerente médico (la función de la base devuelve null a los demás)
 export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | null> {
@@ -45,7 +47,7 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("estado_respaldo");
   if (error || !data) return null;
-  const ahora = await ahoraFiable();
+  const { ahora, enCopia } = await relojYFuente();
   const { ultimo, ultimo_ok, ultima_restauracion: prueba, ultimo_archivos: archivos } = data as {
     ultimo: Registro | null; ultimo_ok: Registro | null; ultima_restauracion?: Registro | null; ultimo_archivos?: Registro | null;
   };
@@ -59,9 +61,9 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
       : ` · Restauración probada ${hace(prueba.fecha, ahora)}${pruebaMala ? " (toca repetirla)" : ""}`;
 
   if (!ultimo_ok) {
-    // En el escritorio sin internet esto se lee de la copia de la PC, que no trae el historial de respaldos de la nube:
-    // no es que falte el respaldo (Cesar 06-nov: «me aparece en rojo cada vez que abro»). El de la PC está en Respaldos.
-    if (ESCRITORIO) return null;
+    // Leído de la copia de la PC (escritorio sin internet): no trae el historial de la nube, así que no prueba que falte
+    // el respaldo (Cesar 06-nov: «me aparece en rojo cada vez que abro»). Con internet la puerta lo pide a la nube.
+    if (enCopia) return null;
     return { estado: "alerta", titulo: "Aún no hay respaldos registrados", detalle: "Programa el respaldo diario en la PC con «programar-respaldo.cmd».", urgente: true, ahora };
   }
   const horas = (ahora - new Date(ultimo_ok.fecha).getTime()) / 36e5;
