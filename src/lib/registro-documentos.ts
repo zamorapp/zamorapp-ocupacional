@@ -5,6 +5,7 @@ import type { DatosDocumento } from "@/lib/documentos";
 import type { Paraclinico } from "@/lib/consultas-tipos";
 import { edad } from "@/lib/solicitudes-paciente";
 import { sumarDias } from "@/lib/fecha";
+import { CLASES, claseDeducida, FAMILIA, type Clase } from "@/lib/estudios";
 
 export const DOCS_REGISTRO = {
   orden: { nombre: "Orden de exámenes", ruta: "orden" },
@@ -15,9 +16,32 @@ export const DOCS_REGISTRO = {
 export type DocRegistro = keyof typeof DOCS_REGISTRO;
 export const esDocRegistro = (t: string): t is DocRegistro => t in DOCS_REGISTRO;
 
+// Examen de la orden con su clase (laboratorio, rayos X, eco…), fijada al crear el enlace con el catálogo
+export type ExamenOrden = { nombre: string; grupo?: string; clase?: Clase };
+
+// Cada clase sale en su propia orden (Cesar, 06-nov): sangre aparte; rayos X, eco, tomografía y resonancia cada uno en
+// la suya (se hacen en sitios distintos); los estudios funcionales (espirometría, audiometría, ECG) juntos.
+export type ParteOrden = "laboratorio" | "eco" | "rayos_x" | "tomografia" | "resonancia" | "imagen" | "funcional";
+export const PARTES_ORDEN: Record<ParteOrden, string> = {
+  laboratorio: "laboratorio", rayos_x: "rayos X", eco: "ecografía", tomografia: "tomografía", resonancia: "resonancia magnética",
+  imagen: "otros estudios de imagen", funcional: "estudios funcionales",
+};
+export const esParteOrden = (t: string | undefined): t is ParteOrden => Boolean(t && t in PARTES_ORDEN);
+const parteDe = (e: ExamenOrden): ParteOrden => {
+  const c = e.clase && e.clase in CLASES ? e.clase : claseDeducida(e.nombre, e.grupo);
+  return FAMILIA[c] === "funcional" ? "funcional" : (c as ParteOrden);
+};
+// Las órdenes que salen de una lista de exámenes, en orden fijo (laboratorio primero)
+export function partesOrden(examenes: ExamenOrden[]): { parte: ParteOrden; nombre: string; examenes: ExamenOrden[] }[] {
+  return (Object.keys(PARTES_ORDEN) as ParteOrden[])
+    .sort((a, b) => (a === "laboratorio" ? -1 : b === "laboratorio" ? 1 : 0))
+    .map((parte) => ({ parte, nombre: `Orden de ${PARTES_ORDEN[parte]}`, examenes: examenes.filter((e) => parteDe(e) === parte) }))
+    .filter((x) => x.examenes.length > 0);
+}
+
 // Lo que guarda la base (claves de la columna «documentos»)
 export type DocumentosRegistro = {
-  orden?: { examenes: { nombre: string; grupo?: string }[]; motivo_id?: string; perfil?: string };
+  orden?: { examenes: ExamenOrden[]; motivo_id?: string; perfil?: string };
   control_ta?: { dias: 7 | 14 };
   dieta?: { dieta: string; plan: string[] };
   bienestar?: { tema: string[] };
@@ -35,6 +59,14 @@ export type EleccionRegistro = {
 
 export const docsElegidos = (d: DocumentosRegistro | null | undefined): DocRegistro[] =>
   d ? (["orden", "control-ta", "dieta", "bienestar"] as const).filter((t) => (t === "control-ta" ? d.control_ta : d[t])) : [];
+
+// Lo que ve el paciente al terminar: una fila por documento y una por cada orden (laboratorio, rayos X…)
+export type FilaRegistro = { tipo: DocRegistro; parte?: ParteOrden; nombre: string; detalle: string };
+export function filasRegistro(d: DocumentosRegistro): FilaRegistro[] {
+  return docsElegidos(d).flatMap((tipo): FilaRegistro[] => tipo === "orden"
+    ? partesOrden(d.orden?.examenes ?? []).map((x) => ({ tipo, parte: x.parte, nombre: x.nombre, detalle: x.examenes.map((e) => e.nombre).join(", ") }))
+    : [{ tipo, nombre: DOCS_REGISTRO[tipo].nombre, detalle: tipo === "control-ta" ? `${d.control_ta?.dias ?? 7} días` : "" }]);
+}
 
 type Medico = NonNullable<DatosDocumento["medicoDatos"]>;
 export type VistaRegistro = {
@@ -60,10 +92,13 @@ const fechaCaracas = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZon
 
 // Arma los datos de una hoja como si fuera una consulta vacía del paciente: solo nombre, cédula, empresa, cargo y la
 // lista de exámenes elegida. Las hojas (Orden, ControlTension, PlanAlimentacion, Bienestar) no saben la diferencia.
-export function documentoDeRegistro(v: VistaRegistro, hoy: string): DatosDocumento {
+// parte: solo los exámenes de esa orden (laboratorio, rayos X…); sin parte, todos
+export function documentoDeRegistro(v: VistaRegistro, hoy: string, parte?: ParteOrden): DatosDocumento {
   const p = v.persona;
   const fecha = fechaCaracas(v.recibido);
-  const paraclinicos: Paraclinico[] = (v.documentos.orden?.examenes ?? []).map((e, i) => ({ id: `registro-${i}`, nombre: e.nombre, grupo: e.grupo ?? null, resultado: "" }));
+  const examenes = v.documentos.orden?.examenes ?? [];
+  const elegidos = parte ? partesOrden(examenes).find((x) => x.parte === parte)?.examenes ?? [] : examenes;
+  const paraclinicos: Paraclinico[] = elegidos.map((e, i) => ({ id: `registro-${i}`, nombre: e.nombre, grupo: e.grupo ?? null, resultado: "" }));
   const empresa = v.empresa ?? { razon_social: p.tipo === "empresa" && p.empresa ? p.empresa : "Particular", rif: "", logo: null, proyecto: null };
   return {
     medico: v.medico?.nombre_completo ?? null,

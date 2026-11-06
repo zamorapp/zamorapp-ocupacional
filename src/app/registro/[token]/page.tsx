@@ -5,7 +5,7 @@ import { APP_NOMBRE } from "@/lib/config";
 import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import { DOCS_REGISTRO, docsElegidos, remitente, type VistaRegistro } from "@/lib/registro-documentos";
+import { filasRegistro, remitente, type VistaRegistro } from "@/lib/registro-documentos";
 import { FormularioRegistro } from "./formulario";
 
 export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -54,11 +54,11 @@ export default async function Registro({ params }: { params: Promise<{ token: st
               <p className="text-sm text-muted-foreground">Puedes descargar lo que te envía <b className="text-foreground">{remitente(docs)}</b>.</p>
             </div>
             <ul className="space-y-2">
-              {docsElegidos(docs.documentos).map((t) => (
-                <li key={t}>
-                  <Link href={`/registro/${token}/documento/${t}`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-background px-4 py-3 font-medium transition hover:border-primary">
+              {filasRegistro(docs.documentos).map((f) => (
+                <li key={f.parte ?? f.tipo}>
+                  <Link href={`/registro/${token}/documento/${f.tipo}${f.parte ? `?parte=${f.parte}` : ""}`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-background px-4 py-3 font-medium transition hover:border-primary">
                     <FileText className="size-5 shrink-0 text-primary" />
-                    <span className="flex-1">{DOCS_REGISTRO[t].nombre}{t === "orden" && docs.documentos.orden?.perfil && <span className="block text-xs font-normal text-muted-foreground">{docs.documentos.orden.perfil}</span>}</span>
+                    <span className="min-w-0 flex-1">{f.nombre}{f.detalle && <span className="block truncate text-xs font-normal text-muted-foreground">{f.detalle}</span>}</span>
                     <ChevronRight className="size-4 text-muted-foreground" />
                   </Link>
                 </li>
