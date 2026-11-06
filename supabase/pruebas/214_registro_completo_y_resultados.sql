@@ -64,6 +64,9 @@ select 'HTML disfrazado no entra (debe 1): ' || (public.confirmar_resultado_paci
 reset role;
 update storage.objects set metadata = '{"mimetype":"application/pdf","size":"52000"}' where name = current_setting('prueba.ruta');
 delete from public.notificaciones where titulo = 'Resultados enviados por el paciente';
+-- Un administrador sin acceso clínico no recibe el aviso
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000214e1','admin214@x') on conflict do nothing;
+insert into public.miembros (org_id,usuario_id,rol,acceso_clinico) values ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000214e1','administrador',false) on conflict do nothing;
 set role anon;
 select 'confirma el PDF real (debe 1): ' || (public.confirmar_resultado_paciente('res-0123456789-0123456789-0123456789-uno', current_setting('prueba.ruta'), 'Hematología') = 'ok')::int;
 select 'ya subida, Storage no acepta otra vez esa ruta (debe 0): ' || public.subida_paciente_permitida(current_setting('prueba.ruta'))::int;
@@ -72,7 +75,20 @@ select 'el paciente ve el nombre de lo que envió (debe 1): ' || count(*) from (
 reset role;
 select 'entra a la historia del trabajador (debe 1): ' || count(*) from clinico.adjuntos where ruta = current_setting('prueba.ruta')
  and trabajador_id = '30000000-0000-0000-0000-00000000000a' and descripcion like 'Enviado por el paciente%';
-select 'avisa a los médicos que ven la empresa, no a RR. HH. (debe 4): ' || count(*) from public.notificaciones where titulo = 'Resultados enviados por el paciente';
+select 'avisa a quien tiene acceso clínico y ve la empresa (debe 5): ' || count(*) from public.notificaciones where titulo = 'Resultados enviados por el paciente';
+select 'administrador sin acceso clínico no recibe el aviso (debe 0): ' || count(*) from public.notificaciones where titulo = 'Resultados enviados por el paciente' and usuario_id = '00000000-0000-0000-0000-0000000214e1';
+select 'recepción no recibe el aviso (debe 0): ' || count(*) from public.notificaciones n join public.miembros m on m.usuario_id = n.usuario_id
+ where n.titulo = 'Resultados enviados por el paciente' and m.rol = 'recepcion';
+
+-- Tope de por vida: 25 reservas (subidas o no); las sin confirmar no se borran
+insert into public.subidas_paciente (ruta, solicitud_id, creado_en)
+select '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000a/paciente-tope' || g || '.jpg', '5f000000-0000-0000-0000-000000000214', now() - interval '3 days'
+  from generate_series(1, 23) g;
+set role anon;
+select 'con 24 reservas aún reserva la 25.ª (debe 0): ' || (public.reservar_resultado_paciente('res-0123456789-0123456789-0123456789-uno','image/jpeg') ? 'error')::int;
+select 'la 26.ª se rechaza aunque las viejas no se subieron (debe 1): ' || (public.reservar_resultado_paciente('res-0123456789-0123456789-0123456789-uno','image/jpeg') ? 'error')::int;
+reset role;
+select 'las reservas viejas sin subir siguen contando (debe 25): ' || count(*) from public.subidas_paciente where solicitud_id = '5f000000-0000-0000-0000-000000000214';
 select 'RR. HH. no recibe el aviso (debe 0): ' || count(*) from public.notificaciones where titulo = 'Resultados enviados por el paciente' and usuario_id = '00000000-0000-0000-0000-0000000000a3';
 
 -- Seguridad
@@ -95,6 +111,7 @@ delete from clinico.adjuntos where ruta = current_setting('prueba.ruta');
 delete from storage.objects where name = current_setting('prueba.ruta');
 delete from public.notificaciones where titulo in ('Resultados enviados por el paciente', 'Paciente envió sus datos');
 delete from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000214';
+delete from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000214e1';
 delete from public.lista_items where id in ('5f000000-0000-0000-0000-0000000214a1','5f000000-0000-0000-0000-0000000214a2','5f000000-0000-0000-0000-0000000214a3','5f000000-0000-0000-0000-0000000214a4');
 
 -- «Indicaciones conversadas»: se guarda solo con documentos y como verdadero

@@ -8,7 +8,7 @@
 -- Seguridad de la subida sin sesión: el token (32 bytes, solo su huella sha256) es la llave; la base reserva cada
 -- ruta antes de subir (la política de Storage solo deja crear esa ruta exacta, por 30 minutos, sin leer, listar,
 -- reemplazar ni borrar); el tipo y el tamaño se toman de lo que guardó Storage, no del navegador; tope de 15
--- archivos por enlace y 30 reservas por día.
+-- archivos confirmados y 25 reservas en toda la vida del enlace.
 
 -- ===== 1. Datos completos =====
 alter table public.solicitudes_paciente drop constraint if exists solicitudes_paciente_datos_check;
@@ -189,11 +189,11 @@ begin
   if (select count(*) from public.subidas_paciente where solicitud_id = s.id and confirmado_en is not null) >= 15 then
     return jsonb_build_object('error', 'Ya enviaste 15 archivos con este enlace. Si falta alguno, escríbele al servicio médico.');
   end if;
-  if (select count(*) from public.subidas_paciente where solicitud_id = s.id and creado_en > now() - interval '1 day') >= 30 then
-    return jsonb_build_object('error', 'Demasiados intentos hoy. Prueba mañana.');
+  -- Tope de por vida del enlace (Analizar, 06-nov): cada reserva cuenta, subida o no. Las reservas sin confirmar NO se
+  -- borran: un archivo pudo quedar en Storage sin registrarse y su fila es la que lo cuenta para el tope
+  if (select count(*) from public.subidas_paciente where solicitud_id = s.id) >= 25 then
+    return jsonb_build_object('error', 'Este enlace ya no recibe más archivos. Si falta alguno, escríbele al servicio médico.');
   end if;
-  -- Reservas viejas sin subir: se limpian (la política de Storage ya no las acepta)
-  delete from public.subidas_paciente where confirmado_en is null and creado_en < now() - interval '1 day';
   v_ruta := s.org_id || '/' || s.trabajador_id || '/paciente-' || gen_random_uuid() || '.'
             || case p_tipo_mime when 'application/pdf' then 'pdf' when 'image/png' then 'png' else 'jpg' end;
   insert into public.subidas_paciente (ruta, solicitud_id) values (v_ruta, s.id);
@@ -244,12 +244,13 @@ begin
   values (s.org_id, s.trabajador_id, null, v_nombre, p_ruta, v_mime, v_tamano, 'Enviado por el paciente con su enlace', null);
   update public.subidas_paciente set confirmado_en = now() where ruta = p_ruta;
   if v_avisar then
-    -- Solo al personal clínico que ve esa empresa (nunca a la empresa ni a recepción: son resultados de salud)
+    -- Solo a quien tiene acceso clínico (mismo criterio que es_clinico: gerente médico, médico, enfermería o
+    -- acceso_clinico) y ve esa empresa. Nunca a la empresa, a recepción ni a un administrador sin acceso clínico
     insert into public.notificaciones (org_id, usuario_id, empresa_id, titulo, texto, enlace)
     select s.org_id, m.usuario_id, v_empresa, 'Resultados enviados por el paciente', coalesce(v_paciente, 'Un paciente') || ' subió sus resultados.',
            '/pacientes/' || s.trabajador_id
       from public.miembros m
-     where m.org_id = s.org_id and m.activo and m.rol in ('administrador', 'gerente_medico', 'medico')
+     where m.org_id = s.org_id and m.activo and (m.rol in ('gerente_medico', 'medico', 'enfermeria') or m.acceso_clinico)
        and (m.empresas_permitidas is null or v_empresa = any (m.empresas_permitidas));
   end if;
   return 'ok';
