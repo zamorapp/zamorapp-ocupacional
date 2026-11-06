@@ -27,6 +27,9 @@ test("el WhatsApp dice cuánto toma llenarlo", () => {
   assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /^Hola Gilberto, .*Toma 5 minutos/);
   assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /30 minutos para bajarlos todos.*enviar tus resultados/);
   assert.doesNotMatch(mensajePaciente("Gilberto Gómez", "OcupaVida", false), /30 minutos/);
+  // Trabajador ya registrado: no llena datos; el enlace es para sus documentos y resultados
+  assert.match(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /^Hola Rosa, OcupaVida te envía tus documentos\..*resultados.*30 minutos/);
+  assert.doesNotMatch(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /llenes tus datos/);
 });
 
 test("«conversaste en consulta» solo cuando ya lo atendió", async () => {

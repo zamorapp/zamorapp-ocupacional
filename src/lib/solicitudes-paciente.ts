@@ -71,6 +71,10 @@ export type SolicitudPaciente = {
   revisado: string | null;
   datos: DatosPaciente | null;
   trabajadorId: string | null;
+  // Seguimiento (20261030918000): cuándo lo abrió en su teléfono y cuándo descargó por primera vez
+  abierto?: string | null;
+  descargo?: string | null;
+  registrado?: boolean; // enlace enviado desde la ficha de un trabajador ya registrado
 };
 
 // Paciente que ya tiene ficha con esa cédula (cualquier letra: V, E o P)
@@ -79,12 +83,19 @@ export type Coincidencia = { id: string; nombre: string; empresa: string; estado
 export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" | "vence" | "resultado">, ahora: number) =>
   s.anulado ? "anulado" : s.resultado ?? (s.recibido ? "por revisar" : Date.parse(s.vence) < ahora ? "vencido" : "esperando");
 
-export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false) {
+// registrado: el trabajador ya tiene ficha; no escribe datos (salvo lo que le falte) y el enlace le sirve para sus
+// documentos y para enviar sus resultados (20261030918000)
+export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false, registrado = false) {
   const primero = nombre?.trim().split(/\s+/)[0];
-  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
+  const hola = primero ? `Hola ${primero}, ` : "Hola, ";
   // Descarga única (20261030915000): el trabajador sabe desde el mensaje que tiene 30 minutos tras la primera descarga
   const plazo = conDocumentos ? " Ojo: desde que descargues el primer documento tendrás 30 minutos para bajarlos todos; después, el enlace queda solo para enviar tus resultados." : "";
-  return `${primero ? `Hola ${primero}, ` : "Hola, "}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
+  if (registrado) {
+    const que = conDocumentos ? "te envía tus documentos. Ábrelos con este enlace y, cuando tengas tus resultados, envíalos por el mismo enlace" : "te envía este enlace para que nos envíes tus resultados";
+    return `${hola}${servicio} ${que} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
+  }
+  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
+  return `${hola}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar

@@ -22,8 +22,9 @@ export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: 
     const items = (data ?? []) as (Item & { lista: string })[];
     const perfil = items.find((i) => i.id === el.orden!.perfilId && i.lista === "grupo_paraclinicos");
     if (!perfil) return "Ese perfil de exámenes ya no existe. Elige otro.";
-    const examenes = examenesDePerfilConClase(perfil.texto ?? "", items.filter((i) => i.lista === "paraclinico"));
-    if (!examenes.length) return `El perfil «${perfil.nombre}» no tiene exámenes.`;
+    const sin = new Set((Array.isArray(el.orden.sin) ? el.orden.sin : []).filter((x): x is string => typeof x === "string").slice(0, 200));
+    const examenes = examenesDePerfilConClase(perfil.texto ?? "", items.filter((i) => i.lista === "paraclinico")).filter((x) => !sin.has(x.nombre));
+    if (!examenes.length) return sin.size ? "Deja marcado al menos un examen de la orden." : `El perfil «${perfil.nombre}» no tiene exámenes.`;
     d.orden = { examenes, perfil: perfil.nombre, ...(el.orden.motivoId && /^[0-9a-f-]{36}$/i.test(el.orden.motivoId) ? { motivo_id: el.orden.motivoId } : {}) };
   }
   if (el.controlTa) d.control_ta = { dias: el.controlTa === 14 ? 14 : 7 };
