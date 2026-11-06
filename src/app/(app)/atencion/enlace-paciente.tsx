@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, Link2, Loader2, MessageCircle, Share2, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { DIAS_ENLACE_PACIENTE, edad, estadoEnlace, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
+import { DIETAS } from "@/lib/dietas";
+import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
 import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, type EnlaceNuevo } from "./paciente-enlace-acciones";
 
 type Opcion = { id: string; nombre: string };
@@ -17,20 +19,58 @@ const PARTICULAR = "particular";
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const telefonoVisible = (t: string) => (t.startsWith("58") && t.length === 12 ? `0${t.slice(2, 5)}-${t.slice(5)}` : `+${t}`);
 
+type Perfil = Opcion & { examenes: number };
+const SIN_DOCS = { orden: false, ta: false, dieta: false, bienestar: false };
+const campo = "h-9 w-full rounded-md border bg-background px-2 text-sm";
+
+// Una fila con casilla: el documento y, si está marcado, sus opciones debajo
+function FilaDoc({ marcado, alCambiar, titulo, children }: { marcado: boolean; alCambiar: (v: boolean) => void; titulo: string; children?: React.ReactNode }) {
+  return (
+    <div className={cn("rounded-lg border px-3 py-2 transition", marcado && "border-primary/60 bg-primary/5")}>
+      <label className="flex min-h-7 cursor-pointer items-center gap-2 text-sm">
+        <input type="checkbox" checked={marcado} onChange={(e) => alCambiar(e.target.checked)} className="size-4 accent-primary" /> {titulo}
+      </label>
+      {marcado && children && <div className="mt-2 grid gap-2 pl-6">{children}</div>}
+    </div>
+  );
+}
+
 // ─── Botón «Enlace al paciente»: arma el enlace y lo manda por WhatsApp (a un número o eligiendo el contacto) ───
-export function EnlacePaciente({ habilitado, empresas }: { habilitado: boolean; empresas: Opcion[] }) {
+export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = [], puedeFirmar = false }: {
+  habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; motivos?: Opcion[]; puedeFirmar?: boolean;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [empresa, setEmpresa] = useState("");
+  // Documentos que descarga al terminar su registro
+  const [docs, setDocs] = useState(SIN_DOCS);
+  const [perfil, setPerfil] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [diasTa, setDiasTa] = useState<7 | 14>(7);
+  const [dieta, setDieta] = useState("general");
+  const [firma, setFirma] = useState(true);
+  const marcados = Object.values(docs).filter(Boolean).length;
+  const marcar = (k: keyof typeof SIN_DOCS) => (v: boolean) => setDocs((d) => ({ ...d, [k]: v }));
   const [r, setR] = useState<EnlaceNuevo | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [ocupado, iniciar] = useTransition();
   const lista = empresas;
   const puedeCompartir = typeof navigator !== "undefined" && "share" in navigator;
 
-  const cerrar = (v: boolean) => { setAbierto(v); if (!v) { setR(null); setNombre(""); setTelefono(""); setEmpresa(""); setCopiado(false); } };
-  const crear = () => iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null })));
+  const limpiar = () => { setR(null); setNombre(""); setTelefono(""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setMotivo(""); };
+  const cerrar = (v: boolean) => { setAbierto(v); if (!v) { limpiar(); setEmpresa(""); } };
+  const crear = () => {
+    if (docs.orden && !perfil) return setR({ ok: false, mensaje: "Elige el perfil de exámenes de la orden." });
+    const documentos: EleccionRegistro = {
+      orden: docs.orden ? { perfilId: perfil, motivoId: motivo || null } : null,
+      controlTa: docs.ta ? diasTa : null,
+      dieta: docs.dieta ? dieta : null,
+      bienestar: docs.bienestar,
+      firma: puedeFirmar && firma,
+    };
+    iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos })));
+  };
   const copiar = async (texto: string) => { try { await navigator.clipboard.writeText(texto); setCopiado(true); } catch { setCopiado(false); } };
 
   return (
@@ -53,7 +93,7 @@ export function EnlacePaciente({ habilitado, empresas }: { habilitado: boolean; 
               )}
               <Button variant="outline" onClick={() => copiar(r.texto)}>{copiado ? <ClipboardCheck /> : <Copy />} {copiado ? "Copiado" : "Copiar mensaje con el enlace"}</Button>
             </div>
-            <Button variant="ghost" className="w-full" onClick={() => { setR(null); setNombre(""); setTelefono(""); setCopiado(false); }}><Link2 /> Hacer otro enlace</Button>
+            <Button variant="ghost" className="w-full" onClick={limpiar}><Link2 /> Hacer otro enlace</Button>
           </div>
         ) : (
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); crear(); }}>
@@ -75,8 +115,51 @@ export function EnlacePaciente({ habilitado, empresas }: { habilitado: boolean; 
                 </select>
               </div>
             )}
+            <fieldset className="space-y-2">
+              <legend className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><FileDown className="size-4 text-primary" /> Al terminar, descarga (opcional)</legend>
+              <p className="-mt-1 text-xs text-muted-foreground">Salen llenos con su nombre, cédula y empresa apenas envíe sus datos.</p>
+              <FilaDoc marcado={docs.orden} alCambiar={marcar("orden")} titulo={DOCS_REGISTRO.orden.nombre}>
+                {perfiles.length ? (
+                  <>
+                    <select value={perfil} onChange={(e) => setPerfil(e.target.value)} aria-label="Perfil de exámenes" className={cn(campo, !perfil && "border-aviso")}>
+                      <option value="">Perfil de exámenes…</option>
+                      {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.examenes})</option>)}
+                    </select>
+                    {motivos.length > 0 && (
+                      <select value={motivo} onChange={(e) => setMotivo(e.target.value)} aria-label="Tipo de examen" className={campo}>
+                        <option value="">Tipo de examen (opcional)</option>
+                        {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                      </select>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-aviso-texto">Primero arma un perfil en <Link href="/configuracion/listas?l=grupo_paraclinicos" className="font-medium underline">Perfiles de paraclínicos</Link>.</p>
+                )}
+              </FilaDoc>
+              <FilaDoc marcado={docs.ta} alCambiar={marcar("ta")} titulo={DOCS_REGISTRO["control-ta"].nombre}>
+                <div role="radiogroup" aria-label="Días de control" className="flex gap-2">
+                  {([7, 14] as const).map((n) => (
+                    <button key={n} type="button" role="radio" aria-checked={diasTa === n} onClick={() => setDiasTa(n)}
+                      className={cn("h-8 rounded-full border px-3 text-xs", diasTa === n ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>{n} días</button>
+                  ))}
+                </div>
+              </FilaDoc>
+              <FilaDoc marcado={docs.dieta} alCambiar={marcar("dieta")} titulo={DOCS_REGISTRO.dieta.nombre}>
+                <select value={dieta} onChange={(e) => setDieta(e.target.value)} aria-label="Tipo de alimentación" className={campo}>
+                  {DIETAS.map((x) => <option key={x.clave} value={x.clave}>{x.boton}</option>)}
+                </select>
+              </FilaDoc>
+              <FilaDoc marcado={docs.bienestar} alCambiar={marcar("bienestar")} titulo={DOCS_REGISTRO.bienestar.nombre} />
+              {marcados > 0 && puedeFirmar && (
+                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
+                  <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />
+                  <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», sin que lo hayas visto todavía</span></span>
+                </label>
+              )}
+              {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}
+            </fieldset>
             {r && !r.ok && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{r.mensaje}</p>}
-            <Button type="submit" className="w-full" disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
+            <Button type="submit" className="w-full" disabled={ocupado}>{ocupado ? <Loader2 className="animate-spin" /> : <Link2 />} {marcados ? `Crear enlace con ${marcados} documento${marcados > 1 ? "s" : ""}` : "Crear enlace"}</Button>
           </form>
         )}
       </DialogContent>
