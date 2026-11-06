@@ -26,7 +26,7 @@ export async function guardarVersionHoja(codigo: string, c: string | null): Prom
   const cambios = soloDeLaHoja(x.h, leerCambios(c));
   if (!Object.keys(cambios).length) return borrarVersionHoja(codigo);
   const fila = { lista: "hoja_paciente", org_id: x.sesion.orgId!, codigo, nombre: x.h.nombre, datos: { cambios }, activo: true };
-  const { data: ya } = await x.supabase.from("lista_items").select("id").eq("lista", "hoja_paciente").eq("codigo", codigo).maybeSingle();
+  const { data: ya } = await x.supabase.from("lista_items").select("id").eq("org_id", x.sesion.orgId!).eq("lista", "hoja_paciente").eq("codigo", codigo).maybeSingle();
   const { error } = ya
     ? await x.supabase.from("lista_items").update({ datos: fila.datos, activo: true }).eq("id", ya.id)
     : await x.supabase.from("lista_items").insert(fila);
@@ -38,7 +38,7 @@ export async function guardarVersionHoja(codigo: string, c: string | null): Prom
 export async function borrarVersionHoja(codigo: string): Promise<R> {
   const x = await contexto(codigo);
   if ("error" in x) return { ok: false, mensaje: x.error! };
-  const { error } = await x.supabase.from("lista_items").delete().eq("lista", "hoja_paciente").eq("codigo", codigo);
+  const { error } = await x.supabase.from("lista_items").delete().eq("org_id", x.sesion.orgId!).eq("lista", "hoja_paciente").eq("codigo", codigo);
   if (error) return { ok: false, mensaje: `No se pudo volver al original: ${error.message}` };
   revalidatePath("/atencion/hojas");
   return { ok: true };

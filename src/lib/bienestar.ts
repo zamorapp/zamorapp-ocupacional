@@ -66,7 +66,7 @@ export const PAUSAS = {
 // Días de la semana para marcar cada pausa hecha (4 por jornada)
 export const REGISTRO_PAUSAS = { dias: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"], pausas: 4 };
 
-export type TemaBienestar = { clave: string; boton: string; titulo: string; grupos: { titulo?: string; items: string[] }[]; fuente: string };
+export type TemaBienestar = { clave: string; boton: string; titulo: string; grupos: { titulo?: string; alarma?: true; items: string[] }[]; fuente: string };
 
 // Temas que el médico agrega con un botón. «pausas» tiene su propio diseño (rutina por zona y registro)
 export const TEMAS: TemaBienestar[] = [
@@ -459,13 +459,21 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
       {
+        titulo: "Acuda a emergencia",
+        alarma: true,
+        items: [
+          "Sangra sin parar tras presionar 10 minutos, es profunda o es por mordedura.",
+        ],
+      },
+      {
         titulo: "Consulte pronto si",
+        alarma: true,
         items: [
           "La herida se pone más roja, caliente, hinchada o duele más cada día.",
           "Sale pus o mal olor, o tiene fiebre.",
-          "Se abre o sangra sin parar al presionar 10 minutos.",
+          "Los bordes de la herida se abren.",
           "La herida fue con un objeto oxidado o sucio y no tiene la vacuna antitetánica al día.",
-          "Es diabético: revisar la herida a diario y no esperar.",
+          "Si tiene diabetes: revisar la herida a diario y no esperar.",
         ],
       },
     ],
@@ -477,13 +485,24 @@ export const TEMAS: TemaBienestar[] = [
     titulo: "Quemaduras leves: primeros cuidados",
     grupos: [
       {
+        titulo: "Primeros cuidados",
         items: [
           "Enfriar de inmediato con agua corriente fresca (no helada) por 20 minutos.",
           "Quitar anillos, reloj o ropa cerca de la quemadura antes de que se hinche, si no está pegada a la piel.",
           "No poner hielo, pasta dental, aceite, mantequilla, café ni clara de huevo.",
           "No reventar las ampollas; cubrir con una gasa limpia, suelta, sin apretar.",
           "Para el dolor, el analgésico que le indique su médico.",
-          "Acudir de inmediato si la quemadura es más grande que la palma de la mano, es en cara, manos, pies, genitales o articulaciones, es por electricidad o químicos, o la piel se ve blanca o negra.",
+        ],
+      },
+      {
+        titulo: "Acuda a emergencia de inmediato si…",
+        alarma: true,
+        items: [
+          "La quemadura es más grande que la palma de la mano.",
+          "Es en cara, manos, pies, genitales o articulaciones.",
+          "Es por electricidad o por químicos.",
+          "La piel se ve blanca, negra o como cuero.",
+          "Respiró humo o tiene la voz ronca.",
         ],
       },
     ],
@@ -503,15 +522,16 @@ export const TEMAS: TemaBienestar[] = [
           "Escribir lo que le preocupa y, al lado, un pequeño paso posible para cada cosa.",
           "Moverse a diario: caminar 30 minutos baja la tensión del cuerpo.",
           "Bajar el café, las bebidas energéticas y el alcohol; dormir en horario fijo.",
-          "Hablarlo con alguien de confianza: no tiene que cargarlo solo.",
+          "Hablarlo con alguien de confianza: no tiene que cargarlo a solas.",
         ],
       },
       {
         titulo: "Busque ayuda",
+        alarma: true,
         items: [
-          "Si la ansiedad no le deja trabajar, dormir o estar con los suyos por más de 2 semanas, consulte: hay tratamiento eficaz.",
-          "Si tiene dolor en el pecho, falta de aire o palpitaciones fuertes, acuda a emergencia para descartar otras causas.",
           "Si piensa en hacerse daño, busque ayuda hoy mismo: acuda a emergencia o llame a su médico.",
+          "Si tiene dolor en el pecho, falta de aire o palpitaciones fuertes, acuda a emergencia para descartar otras causas.",
+          "Si la ansiedad no le deja trabajar, dormir o estar con los suyos por más de 2 semanas, consulte: hay tratamiento eficaz.",
         ],
       },
     ],
@@ -536,9 +556,10 @@ export const TEMAS: TemaBienestar[] = [
       },
       {
         titulo: "Busque ayuda",
+        alarma: true,
         items: [
-          "Si la tristeza, el desgano o el no disfrutar las cosas duran más de 2 semanas, consulte al servicio médico.",
           "Si piensa que no vale la pena vivir o en hacerse daño, busque ayuda hoy mismo: acuda a emergencia, llame a su médico o a alguien de confianza que lo acompañe.",
+          "Si la tristeza, el desgano o el no disfrutar las cosas duran más de 2 semanas, consulte al servicio médico.",
         ],
       },
     ],
