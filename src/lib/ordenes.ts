@@ -68,29 +68,35 @@ type FilaCita = {
   motivo: { nombre: string } | null;
 };
 
-export async function obtenerOrden(id: string): Promise<Orden | null> {
-  if (!supabaseConfigurado) return id === DEMO.id ? DEMO : null;
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+// Una o varias órdenes (las de «una por trabajador» se imprimen juntas): 1 lectura de órdenes + citas en tandas de 100
+export async function obtenerOrdenes(ids: string[]): Promise<Orden[]> {
+  if (!supabaseConfigurado) return ids.includes(DEMO.id) ? [DEMO] : [];
+  const validos = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!validos.length) return [];
   const supabase = await crearClienteServidor();
-  const { data: o } = await supabase.from("ordenes_evaluacion")
-    .select("id, numero, empresa_id, citas, solicitante, creado_en, empresas(razon_social, rif)").eq("id", id).maybeSingle();
-  if (!o) return null;
-  const { data: cs } = await supabase.from("citas")
-    .select("id, fecha, hora, estado, nota_empresa, trabajadores(nombres, apellidos, cedula, puestos(nombre)), motivo:lista_items(nombre)")
-    .in("id", o.citas as string[]);
-  const orden = new Map((o.citas as string[]).map((c, i) => [c, i]));
-  const emp = o.empresas as unknown as { razon_social: string; rif: string } | null;
-  return {
-    id: o.id, numero: o.numero, empresaId: o.empresa_id, empresa: emp?.razon_social ?? "", rif: emp?.rif ?? "",
-    creadoEn: o.creado_en, solicitante: o.solicitante,
-    citas: ((cs ?? []) as unknown as FilaCita[])
-      .sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0))
-      .map((c) => ({
+  const { data: os } = await supabase.from("ordenes_evaluacion")
+    .select("id, numero, empresa_id, citas, solicitante, creado_en, empresas(razon_social, rif)").in("id", validos);
+  const todas = [...new Set((os ?? []).flatMap((o) => o.citas as string[]))];
+  const filas = new Map<string, FilaCita>();
+  for (let i = 0; i < todas.length; i += 100) {
+    const { data: cs } = await supabase.from("citas")
+      .select("id, fecha, hora, estado, nota_empresa, trabajadores(nombres, apellidos, cedula, puestos(nombre)), motivo:lista_items(nombre)")
+      .in("id", todas.slice(i, i + 100));
+    for (const c of (cs ?? []) as unknown as FilaCita[]) filas.set(c.id, c);
+  }
+  const posicion = new Map(validos.map((id, i) => [id, i]));
+  return (os ?? []).sort((a, b) => (posicion.get(a.id) ?? 0) - (posicion.get(b.id) ?? 0)).map((o) => {
+    const emp = o.empresas as unknown as { razon_social: string; rif: string } | null;
+    return {
+      id: o.id, numero: o.numero, empresaId: o.empresa_id, empresa: emp?.razon_social ?? "", rif: emp?.rif ?? "",
+      creadoEn: o.creado_en, solicitante: o.solicitante,
+      citas: (o.citas as string[]).map((id) => filas.get(id)).filter((c): c is FilaCita => Boolean(c)).map((c) => ({
         id: c.id, fecha: c.fecha, hora: c.hora?.slice(0, 5) ?? null, estado: c.estado, nota: c.nota_empresa,
         paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
         cedula: c.trabajadores?.cedula ?? "", cargo: c.trabajadores?.puestos?.nombre ?? null, motivo: c.motivo?.nombre ?? null,
       })),
-  };
+    };
+  });
 }
 
 // Órdenes de una empresa creadas en el período, con cuántas ya se atendieron

@@ -44,6 +44,8 @@ create trigger sync_anotar after insert or update or delete on public.ordenes_ev
 -- Crea la orden de las citas recién pedidas por quien llama (una por empresa si el lote mezcla empresas).
 -- p_por_trabajador: una orden por cada trabajador (pedido de Cesar, 06-nov) en vez de una para todo el lote.
 -- Exige: citas del portal, aún «solicitada», pedidas por el mismo usuario, visibles para él y sin orden previa.
+-- Sin la firma vieja de una sola entrada (si alguna vez se aplicó, quedaría abierta y la llamada sería ambigua)
+drop function if exists public.crear_orden_evaluacion(uuid[]);
 create or replace function public.crear_orden_evaluacion(p_citas uuid[], p_por_trabajador boolean default false)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare

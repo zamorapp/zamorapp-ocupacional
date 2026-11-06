@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { esRolEmpresa } from "@/lib/sesion-roles";
-import { obtenerOrden, type Orden, type OrdenCita } from "@/lib/ordenes";
+import { obtenerOrdenes, type Orden, type OrdenCita } from "@/lib/ordenes";
 import { obtenerSesion } from "@/lib/sesion";
 import { hoyCaracas } from "@/lib/fecha";
 import { BarraImpresion } from "../../barra";
@@ -26,9 +26,11 @@ export default async function ImprimirOrden({ params, searchParams }: { params: 
   const [{ id }, { por }] = await Promise.all([params, searchParams]);
   const sesion = await obtenerSesion();
   const ids = [...new Set(decodeURIComponent(id).split(","))].slice(0, 200);
-  const ordenes = (await Promise.all(ids.map(obtenerOrden))).filter((o): o is Orden => Boolean(o));
+  const ordenes = await obtenerOrdenes(ids);
   if (!ordenes.length) notFound();
-  const d = await docEmpresa(sesion, ordenes[0].empresaId);
+  // Membrete por empresa: un lote puede traer órdenes de varias empresas (Analizar)
+  const empresasDoc = [...new Set(ordenes.map((o) => o.empresaId))];
+  const docs = new Map(await Promise.all(empresasDoc.map(async (e) => [e, await docEmpresa(sesion, e)] as const)));
   const porTrabajador = por === "trabajador";
   // Cada hoja: una orden completa o, con ?por=trabajador, un trabajador de la orden
   const hojas = ordenes.flatMap((o): { o: Orden; citas: OrdenCita[]; parte: string | null }[] => (porTrabajador && o.citas.length > 1 ? o.citas.map((c, i) => ({ o, citas: [c], parte: `${i + 1} de ${o.citas.length}` })) : [{ o, citas: o.citas, parte: null }]));
@@ -39,7 +41,7 @@ export default async function ImprimirOrden({ params, searchParams }: { params: 
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       <BarraImpresion volver={esRolEmpresa(sesion.rol) || sesion.demo ? "/portal/ordenes" : "/atencion"} titulo={titulo}
         siguiente={unica && <a href={porTrabajador ? `/imprimir/orden/${unica.id}` : `/imprimir/orden/${unica.id}?por=trabajador`} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">{porTrabajador ? "Una sola hoja" : "Una hoja por trabajador"}</a>} />
-      {hojas.map((h, k) => <HojaOrden key={k} o={h.o} citas={h.citas} parte={h.parte} d={d} />)}
+      {hojas.map((h, k) => <HojaOrden key={k} o={h.o} citas={h.citas} parte={h.parte} d={docs.get(h.o.empresaId)!} />)}
     </div>
   );
 }
