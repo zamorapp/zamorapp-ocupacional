@@ -72,10 +72,11 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
           <>
             <div className="space-y-2">
               {/* «Le invita el Dr. …» sale de Configuración › Organización; sin eso, el nombre del servicio */}
-              <p className="text-sm text-muted-foreground">
-                {inv.invita ? `${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita} al portal de` : `${inv.organizacion} le invita${inv.nombre ? `, ${inv.nombre.split(" ")[0]},` : ""} al portal de`}
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[.08em] text-primary">Portal de su empresa</p>
               <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><Building2 className="mt-1 size-6 shrink-0 text-primary" /> {inv.empresa}</h1>
+              <p className="text-sm text-muted-foreground">
+                {`${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita ?? inv.organizacion}.`}
+              </p>
             </div>
             <ul className="space-y-2 text-sm">
               {BENEFICIOS.map(([Icono, titulo, detalle], i) => (
@@ -114,7 +115,8 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
             )}
           </>
         )}
-        <p className="text-center text-xs text-muted-foreground"><Link href="/login" className="hover:underline">Ir al ingreso</Link></p>
+        {/* Con el formulario a la vista sobra: ya trae «¿Ya tiene cuenta? Ingresar» */}
+        {!(inv && !conSesion && inv.estado === "vigente") && <p className="text-center text-xs text-muted-foreground"><Link href="/login" className="hover:underline">Ir al ingreso</Link></p>}
       </TarjetaEnlace>
     </MarcoEnlace>
   );

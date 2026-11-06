@@ -26,7 +26,7 @@ function Opciones<T extends string>({ etiqueta, valor, opciones, alCambiar }: { 
     <div role="radiogroup" aria-label={etiqueta} className="flex flex-wrap gap-2">
       {opciones.map((o) => (
         <button key={o.v} type="button" role="radio" aria-checked={valor === o.v} onClick={() => alCambiar(valor === o.v ? "" : o.v)}
-          className={cn("flex min-h-10 items-center gap-1.5 rounded-full border px-4 text-sm transition",
+          className={cn("flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm transition sm:min-h-10",
             valor === o.v ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>
           {o.t}
         </button>
@@ -316,7 +316,7 @@ function FormularioCompleto({ token, servicio, empresa, motivos, hoy, maximo, ca
                   return (
                     <button key={a.id} type="button" role="checkbox" aria-checked={marcado}
                       onClick={() => setAntecedentes((x) => { const n = { ...x }; if (marcado) delete n[a.id]; else n[a.id] = ""; return n; })}
-                      className={cn("flex min-h-10 items-center gap-1.5 rounded-full border px-4 text-sm transition",
+                      className={cn("flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm transition sm:min-h-10",
                         marcado ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>
                       {marcado && <CheckCircle2 className="size-4" />} {a.nombre}
                     </button>

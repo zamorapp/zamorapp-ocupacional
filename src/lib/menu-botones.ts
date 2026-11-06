@@ -11,7 +11,7 @@ export type Categoria = { clave: string; titulo: string; descripcion: string; co
 // color = token de gráficos (globals.css), probado en claro y oscuro; nunca el rojo de alerta
 export const CATEGORIAS: Categoria[] = [
   { clave: "dia", titulo: "Atención del día", descripcion: "Pacientes, consultas, envíos y lo que piden las empresas", color: "var(--chart-1)", hrefs: ["/panel", "/portal", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
-  { clave: "enlaces", titulo: "Enlaces", descripcion: "Lo que mandas por WhatsApp a pacientes, trabajadores y RR. HH.", color: "oklch(0.6 0.16 300)", hrefs: [] },
+  { clave: "enlaces", titulo: "Enlaces", descripcion: "Lo que mandas por WhatsApp a pacientes, trabajadores y RR. HH.", color: "var(--enlace)", hrefs: [] },
   { clave: "sst", titulo: "Seguridad y salud en el trabajo", descripcion: "Riesgos, accidentes y cumplimiento legal", color: "var(--chart-2)", hrefs: ["/evaluaciones", "/ergonomia", "/psicosocial", "/accidentes", "/inspeccion"] },
   { clave: "gestion", titulo: "Gestión y empresas", descripcion: "Clientes, reportes, documentos y cobros", color: "var(--chart-4)", hrefs: ["/empresas", "/reportes", "/documentos", "/facturacion"] },
   { clave: "ajustes", titulo: "Ajustes y ayuda", descripcion: "Configuración, respaldos y manual", color: "var(--chart-3)", hrefs: ["/configuracion", "/ayuda", "/conflictos"] },
