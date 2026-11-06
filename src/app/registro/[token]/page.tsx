@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, FlaskConical, HeartPulse, Leaf, Salad, ShieldCheck, Stethoscope, Upload } from "lucide-react";
+import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, FlaskConical, HeartPulse, Leaf, Salad, ScanLine, ShieldCheck, Stethoscope, Upload } from "lucide-react";
 import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
 import { APP_NOMBRE } from "@/lib/config";
 import { aQuien, TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
 
-// Ícono de cada hoja que descarga (orden de exámenes, control de tensión, dieta, bienestar)
+// Ícono de cada hoja que descarga (orden de laboratorio; las de imagen llevan ScanLine), tensión, dieta, bienestar
 const ICONO_DOC: Record<string, typeof FileText> = { orden: FlaskConical, "control-ta": HeartPulse, dieta: Salad, bienestar: Leaf };
 
 const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
@@ -66,7 +66,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
               {filasRegistro(docs.documentos).map((f, i) => (
                 <li key={f.parte ?? f.tipo}>
                   <Link href={`/registro/${token}/documento/${f.tipo}${f.parte ? `?parte=${f.parte}` : ""}`} className="group flex min-h-16 items-center rounded-xl border bg-background px-3 py-2.5 shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:border-primary hover:shadow-md motion-safe:hover:-translate-y-0.5">
-                    <FichaBoton icono={ICONO_DOC[f.tipo] ?? FileText} titulo={f.nombre} detalle={f.detalle && <span className="block truncate">{f.detalle}</span>} indice={i}>
+                    <FichaBoton icono={f.parte && f.parte !== "laboratorio" ? ScanLine : ICONO_DOC[f.tipo] ?? FileText} titulo={f.nombre} detalle={f.detalle && <span className="block truncate">{f.detalle}</span>} indice={i}>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform motion-safe:group-hover:translate-x-0.5" />
                     </FichaBoton>
                   </Link>
