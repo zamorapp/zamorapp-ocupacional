@@ -28,3 +28,27 @@ revoke execute on function public.firma_registro_pdf(text, text) from public;
 grant execute on function public.firma_registro_pdf(text, text) to anon, authenticated;
 comment on function public.firma_registro_pdf(text, text) is
   'Firma y sello del médico para el PDF aplanado del enlace del paciente. Exige la clave del servidor de la organización.';
+
+-- ===== Límite de PDF por enlace (Analizar 06-nov): cada PDF lanza un Chromium en Vercel =====
+-- Antes de armar cada PDF el servidor reserva un turno; con 20 ya usados responde 429. Cuenta intentos (no solo
+-- descargas logradas): los 30 minutos los abre marcar_descarga_registro solo cuando el PDF salió.
+alter table public.solicitudes_paciente add column if not exists pdf_generados int not null default 0 check (pdf_generados >= 0);
+comment on column public.solicitudes_paciente.pdf_generados is
+  'PDF con firma armados en el servidor para este enlace (máximo 20): limita el costo de Chromium.';
+
+create or replace function public.reservar_pdf_registro(p_clave text, p_token text)
+returns boolean language plpgsql volatile security definer set search_path = public as $$
+declare
+  v_hash bytea := sha256(convert_to(coalesce(p_clave, ''), 'UTF8'));
+  v_n int;
+begin
+  if length(coalesce(p_clave, '')) < 32 or public.documentos_registro_paciente(p_token) is null then return false; end if;
+  update public.solicitudes_paciente s set pdf_generados = s.pdf_generados + 1
+   where s.token_hash = sha256(convert_to(p_token, 'UTF8')) and s.pdf_generados < 20
+     and exists (select 1 from public.avisos_push_clave k where k.org_id = s.org_id and k.clave_hash = v_hash);
+  get diagnostics v_n = row_count;
+  return v_n > 0;
+end $$;
+revoke execute on function public.reservar_pdf_registro(text, text) from public;
+-- anon a propósito: lo llama el servidor sin sesión con su clave (como firma_registro_pdf)
+grant execute on function public.reservar_pdf_registro(text, text) to anon, authenticated;

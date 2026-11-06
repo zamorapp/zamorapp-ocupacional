@@ -33,11 +33,25 @@ select 'respeta «no mostrar sello» del médico (debe 1): ' || (public.firma_re
 select 'enlace sin «Firmados a mi nombre»: sin imágenes (debe 1): ' || (public.firma_registro_pdf('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-dos') is null)::int;
 select 'token inventado: nada (debe 1): ' || (public.firma_registro_pdf('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-xxx') is null)::int;
 
+-- Límite de PDF por enlace: 20 turnos, sin la clave ninguno
+select 'sin la clave no reserva turno (debe 0): ' || public.reservar_pdf_registro('otra-clave-0123456789-0123456789-01234567', 'fir-0123456789-0123456789-0123456789-uno')::int;
+select 'el servidor reserva 20 turnos (debe 20): ' || count(*) from generate_series(1, 25) g
+ where public.reservar_pdf_registro('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-uno');
+select 'el turno 21 se niega (debe 0): ' || public.reservar_pdf_registro('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-uno')::int;
+select 'reservar turnos no abre la ventana de descarga (debe 1): ' || (public.documentos_registro_paciente('fir-0123456789-0123456789-0123456789-uno') -> 'descarga_hasta' = 'null'::jsonb)::int;
+do $$ begin
+  update public.solicitudes_paciente set pdf_generados = 0;
+  raise notice 'FALLA: el anónimo reinició el contador';
+exception when insufficient_privilege then raise notice 'el anónimo no reinicia el contador (debe 1): 1';
+end $$;
+
 -- Cerrada la ventana de descarga, tampoco
 reset role;
 update public.solicitudes_paciente set descarga_hasta = public.ahora() - interval '1 minute' where id = '5f000000-0000-0000-0000-000000000218';
 set role anon;
 select 'pasada la descarga ya no hay firma (debe 1): ' || (public.firma_registro_pdf('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-uno') is null)::int;
+select 'ni con clave errada (debe 1): ' || (public.firma_registro_pdf('otra-clave-0123456789-0123456789-01234567', 'fir-0123456789-0123456789-0123456789-uno') is null)::int;
+select 'ni turno de PDF (debe 0): ' || public.reservar_pdf_registro('clave-servidor-218-0123456789-0123456789', 'fir-0123456789-0123456789-0123456789-uno')::int;
 
 reset role;
 delete from public.solicitudes_paciente where id in ('5f000000-0000-0000-0000-000000000218','5f000000-0000-0000-0000-000000000219');

@@ -40,3 +40,11 @@ export async function imagenesFirmaRegistro(token: string): Promise<ImagenesFirm
   const r = { firma: imagen(d.firma), sello: imagen(d.sello) };
   return r.firma || r.sello ? r : null;
 }
+
+// Turno para armar un PDF (máximo 20 por enlace: cada uno lanza un Chromium). false = sin turno → 429.
+export async function reservarPdfRegistro(token: string): Promise<boolean> {
+  const supabase = clienteAnonimo();
+  if (!supabase || !pdfRegistroDisponible()) return false;
+  const { data, error } = await supabase.rpc("reservar_pdf_registro", { p_clave: claveAvisos(), p_token: token });
+  return !error && data === true;
+}

@@ -49,6 +49,7 @@
     "public.puede_enviar(p_org uuid)",
     "public.quitar_suscripcion_vencida_clave(p_endpoint text, p_clave text)",
     "public.requiere_dos_pasos()",
+    "public.reservar_pdf_registro(p_clave text, p_token text)",
     "public.reservar_resultado_paciente(p_token text, p_tipo_mime text)",
     "public.resultado_correo_propuesta(p_clave text, p_citas uuid[], p_ok boolean, p_error text, p_definitivo boolean)",
     "public.resultados_registro_paciente(p_token text)",

@@ -9,6 +9,7 @@ import { HojasRegistro } from "../../../hojas";
 import { limpiarVersiones } from "@/lib/hojas-version-servidor";
 import { CABECERA_PDF, esChromiumDelServidor, imagenesFirmaRegistro, pdfRegistroDisponible } from "@/lib/registro-pdf";
 import { BarraPaciente } from "./barra";
+import { MarcarFirmas } from "./marcar-firmas";
 
 export const metadata: Metadata = { title: "Tu documento", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -34,8 +35,9 @@ export default async function DocumentoRegistro({ params, searchParams }: { para
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       {!servidor && (
         <BarraPaciente token={token} volver={`/registro/${token}`} titulo={unaParte ? `Orden de ${PARTES_ORDEN[unaParte]}` : DOCS_REGISTRO[tipo].nombre}
-          pdf={v.firmado && pdfRegistroDisponible() ? { tipo, parte: unaParte } : null} />
+          pdf={v.firmado && pdfRegistroDisponible() ? { tipo, parte: unaParte } : null} telefono={v.org.telefono} />
       )}
+      {servidor && <MarcarFirmas texto={`Folio ${v.folio.slice(0, 8).toUpperCase()} · ${v.persona.cedula}`} />}
       <HojasRegistro v={v} tipo={tipo} parte={unaParte} hoy={hoyCaracas()} versiones={limpiarVersiones(hojas as Record<string, unknown> | null)} imagenes={imagenes} />
     </div>
   );

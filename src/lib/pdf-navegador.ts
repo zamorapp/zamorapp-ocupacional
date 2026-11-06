@@ -101,6 +101,14 @@ export async function pdfRegistroConNavegador(ruta: string, cabecera: Record<str
     const respuesta = await pagina.goto(destino.href, { waitUntil: "networkidle0", timeout: 45_000 });
     if (!respuesta?.ok() || new URL(pagina.url()).pathname !== destino.pathname) throw new Error("Tus documentos ya no están disponibles en este enlace.");
     await pagina.evaluate(() => document.fonts.ready);
+    // La firma y el sello se redibujan con marca de agua (marcar-firmas.tsx): sin esa marca no se imprime nada
+    await pagina.waitForFunction(() => document.documentElement.getAttribute("data-firmas") !== null, { timeout: 10_000 });
+    const estado = await pagina.evaluate(() => ({
+      marca: document.documentElement.getAttribute("data-firmas"),
+      originales: Array.from(document.querySelectorAll<HTMLImageElement>('[data-prueba="firma-medico"] img')).some((i) => i.naturalWidth > 300),
+      sinCargar: Array.from(document.querySelectorAll<HTMLImageElement>('[data-prueba="firma-medico"] img')).some((i) => !i.complete || !i.naturalWidth),
+    }));
+    if (estado.marca !== "listas" || estado.originales || estado.sinCargar) throw new Error("No se pudo preparar la firma del documento.");
     return Buffer.from(await pagina.pdf({ preferCSSPageSize: true, printBackground: true }));
   } finally {
     await navegador.close();
