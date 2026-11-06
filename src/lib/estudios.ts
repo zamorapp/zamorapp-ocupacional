@@ -1,5 +1,5 @@
 // Clase de cada examen del catálogo de paraclínicos: laboratorio, estudio de imagen (eco, rayos X, tomografía,
-// resonancia u otro) o estudio funcional (espirometría, audiometría, electrocardiograma u otro).
+// resonancia u otro) o estudio funcional (espirometría, audiometría, electrocardiograma, goniometría u otro).
 // Se guarda en lista_items.datos.clase; si no está, se deduce del nombre y del grupo (lo importado del SAME no la trae).
 // La usa la consulta: el perfil sugerido no pone el laboratorio por defecto (Cesar, 30-oct: casi no se pide; queda
 // como opción), y el expediente agrupa los estudios digitalizados por clase.
@@ -15,6 +15,7 @@ export const CLASES = {
   espirometria: "Espirometría",
   audiometria: "Audiometría",
   electrocardiograma: "Electrocardiograma",
+  goniometria: "Goniometría",
   funcional: "Otro estudio funcional",
 } as const;
 export type Clase = keyof typeof CLASES;
@@ -23,7 +24,7 @@ export type Familia = "laboratorio" | "imagen" | "funcional";
 export const FAMILIA: Record<Clase, Familia> = {
   laboratorio: "laboratorio",
   eco: "imagen", rayos_x: "imagen", tomografia: "imagen", resonancia: "imagen", imagen: "imagen",
-  espirometria: "funcional", audiometria: "funcional", electrocardiograma: "funcional", funcional: "funcional",
+  espirometria: "funcional", audiometria: "funcional", electrocardiograma: "funcional", goniometria: "funcional", funcional: "funcional",
 };
 export const NOMBRE_FAMILIA: Record<Familia, string> = { laboratorio: "Laboratorio", imagen: "Estudios de imagen", funcional: "Estudios funcionales" };
 
@@ -33,6 +34,7 @@ const PISTAS: [Clase, RegExp][] = [
   ["espirometria", /\bespirometr|\bfuncion(alismo)? pulmonar|\bspirometr/],
   ["audiometria", /\baudiometr|\baudiograma|\blogoaudiometr|\bimpedanciometr/],
   ["electrocardiograma", /\belectrocardiogra|\becg\b|\bekg\b/],
+  ["goniometria", /\bgoniometr|\brangos? de movimiento|\barcos? de (movimiento|movilidad)/],
   ["eco", /\beco(grafia|sonograma|cardiograma|doppler)?\b|\becograf|\bultrason|\bultrasonido|\bdoppler/],
   ["resonancia", /\bresonancia|\brmn?\b|\bresonancia magnetica/],
   ["tomografia", /\btomograf|\btac\b|\bangiotac/],

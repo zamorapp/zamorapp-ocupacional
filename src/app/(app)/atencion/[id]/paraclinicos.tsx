@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ExternalLink, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, ChevronDown, ExternalLink, Ruler, ScanText, FileImage, FileText, Loader2, Paperclip, RotateCcw, RotateCw, Save, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { confirmar } from "@/components/app/confirmar";
@@ -14,7 +14,9 @@ import { subirAdjunto } from "@/lib/preparar-archivo";
 import { borrarAdjunto, restaurarAdjunto, TEXTO_BORRAR } from "@/lib/papelera-adjuntos";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { medicionVacia, NOMBRE_MEDICION, resumenMedicion, tipoMedicion, type Medicion } from "@/lib/mediciones";
 import { LectorLaboratorio, type Registro } from "./lector-laboratorio";
+import { PanelMedicion } from "./medicion";
 
 // editar: consulta en curso (se agregan y quitan exámenes); resultados: cerrada (solo resultados y archivos);
 // lectura: firmada (resultados bloqueados; los archivos se pueden seguir ligando a sus exámenes)
@@ -90,6 +92,12 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
     return { ...p, estado, unidad: dx.unidad || p.unidad || "", referencia: textoReferencia(dx, sexo) || p.referencia || "" };
   };
   const cambiar = (id: string, cambio: Partial<Paraclinico>) => onChange(paraclinicos.map((x) => (x.id === id ? recalcular({ ...x, ...cambio }) : x)));
+  // Goniometría y espirometría: los valores arman el resultado y el color; en blanco, el examen queda sin resultado
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const conMedicion = (p: Paraclinico, med: Medicion) => {
+    const r = resumenMedicion(med);
+    cambiar(p.id, medicionVacia(med) ? { medicion: undefined, resultado: "", estado: "", manual: false } : { medicion: med, resultado: r.texto, estado: r.estado, manual: true });
+  };
   const cicloManual = (p: Paraclinico) => {
     const i = CICLO.indexOf(p.estado ?? "");
     cambiar(p.id, { estado: CICLO[(i + 1) % CICLO.length], manual: true });
@@ -305,6 +313,8 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                 <div className="bg-muted px-4 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{grupo}</div>
                 {items.map((p) => {
                   const dx = def(p.id);
+                  const tm = tipoMedicion(p, catalogo);
+                  const desplegado = tm !== null && abierto === p.id;
                   const st: EstadoResultado = p.estado ?? "";
                   const ref = textoReferencia(dx, sexo) || p.referencia;
                   const ligados = ligadosA(p.id);
@@ -324,11 +334,23 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                       <div className="min-w-0">
                         <b className="block leading-tight font-medium break-words">{p.nombre}</b>
                         <span className="text-xs text-muted-foreground">
-                          {dx.tipo === "informe" ? "Informe del especialista" : ref ? <>Ref. <span className="font-mono tabular-nums">{ref}</span> {dx.unidad || p.unidad}</> : "Sin rango en el catálogo"}
+                          {tm ? (p.resultado ? <span className={cn(st === "alterado" ? "text-alerta-texto" : st === "fuera" ? "text-aviso-texto" : "")}>{p.resultado}</span> : `Opcional: ${tm === "goniometria" ? "grados por articulación y lado" : "FVC, FEV1 y relación"}`) : dx.tipo === "informe" ? "Informe del especialista" : ref ? <>Ref. <span className="font-mono tabular-nums">{ref}</span> {dx.unidad || p.unidad}</> : "Sin rango en el catálogo"}
                         </span>
                       </div>
                       <div className="col-span-2 col-start-2 row-start-2 flex items-center gap-2 sm:col-span-1 sm:col-start-auto sm:row-start-auto">
-                        {dx.tipo === "informe" ? (
+                        {tm ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={desplegado ? "secondary" : p.medicion ? "outline" : "default"}
+                            className="h-8 w-full"
+                            aria-expanded={desplegado}
+                            onClick={() => setAbierto(desplegado ? null : p.id)}
+                          >
+                            <Ruler /> {p.medicion ? "Ver valores" : editableResultado ? "Registrar valores" : "Sin valores"}
+                            <ChevronDown className={cn("transition", desplegado && "rotate-180")} />
+                          </Button>
+                        ) : dx.tipo === "informe" ? (
                           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                             <div className="inline-flex overflow-hidden rounded-md border border-input" role="group" aria-label={`Resultado de ${p.nombre}`}>
                               {(["normal", "alterado"] as const).map((x) => (
@@ -401,6 +423,11 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                           </button>
                         )}
                       </span>
+                      {desplegado && tm && (
+                        <div className="col-span-full rounded-lg border bg-muted/30 p-3" aria-label={`Valores de ${NOMBRE_MEDICION[tm].toLowerCase()}`}>
+                          <PanelMedicion tipo={tm} medicion={p.medicion} editable={editableResultado} onChange={(med) => conMedicion(p, med)} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

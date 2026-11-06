@@ -92,6 +92,8 @@ export function textoResultado(p: Paraclinico) {
   const r = p.resultado?.trim();
   const marca = p.estado === "fuera" ? "fuera de rango" : p.estado === "alterado" ? "alterado" : "";
   if (!r) return p.estado ? ETIQUETA_RESULTADO[p.estado] : "pendiente";
+  // Goniometría y espirometría: el resumen ya dice si es normal, leve o marcado
+  if (p.medicion) return r;
   if (/^-?\d+([.,]\d+)?$/.test(r)) return `${r}${p.unidad ? ` ${p.unidad}` : ""}${marca ? ` (${marca})` : ""}`;
   return p.estado ? `${ETIQUETA_RESULTADO[p.estado]} · ${r}` : r;
 }
