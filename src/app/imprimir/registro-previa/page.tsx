@@ -37,14 +37,20 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
   const firma = typeof documentos !== "string" && Boolean(documentos.firma);
   const empresaId = uuid(q.empresa);
   const motivoId = typeof documentos !== "string" ? documentos.orden?.motivo_id : undefined;
-  const [{ data: org }, { data: empresa }, { data: motivo }, { data: medico }] = await Promise.all([
+  const firmante = firma && puedeFirmarRegistro(sesion);
+  const [{ data: org }, { data: empresa }, { data: motivo }, { data: medico }, { data: img }] = await Promise.all([
     supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single(),
     empresaId ? supabase.from("empresas").select("razon_social, rif, logo, proyecto").eq("id", empresaId).maybeSingle() : Promise.resolve({ data: null }),
     motivoId ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", motivoId).maybeSingle() : Promise.resolve({ data: null }),
-    firma && puedeFirmarRegistro(sesion)
-      ? supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad").eq("id", sesion.usuarioId).maybeSingle()
+    firmante
+      ? supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, mostrar_firma, mostrar_sello").eq("id", sesion.usuarioId).maybeSingle()
       : Promise.resolve({ data: null }),
+    // Sus propias imágenes: el PDF que baja el paciente las trae incrustadas (registro-pdf.ts); aquí se ve igual
+    firmante ? supabase.rpc("firma_sello", { p_usuario: sesion.usuarioId }).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const fs = img as { firma_url: string | null; sello_url: string | null } | null;
+  const m = medico as { mostrar_firma?: boolean; mostrar_sello?: boolean } | null;
+  const imagenes = fs && m ? { firma: m.mostrar_firma !== false ? fs.firma_url : null, sello: m.mostrar_sello !== false ? fs.sello_url : null } : null;
   const nombre = q.nombre?.trim().slice(0, 120) || "Nombre del paciente";
   const [nombres, ...resto] = nombre.split(/\s+/);
 
@@ -98,7 +104,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
             <div aria-hidden className="pointer-events-none fixed inset-0 z-[5] flex items-center justify-center">
               <span className="-rotate-30 select-none text-center text-[12vw] font-black leading-none tracking-widest text-neutral-900/[.12] print:text-[96px]">MUESTRA<span className="block text-[4vw] print:text-[28px]">vista previa · sin validez</span></span>
             </div>
-            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} versiones={versiones} />)}
+            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} versiones={versiones} imagenes={imagenes} />)}
           </div>
         </>
       )}

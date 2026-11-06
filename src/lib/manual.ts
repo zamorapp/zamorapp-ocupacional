@@ -14,6 +14,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-06";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-06", texto: "Enlace al paciente con la imagen de tu firma y tu sello: si lo creas con «Firmados a mi nombre», cada hoja que baja el paciente es un PDF que zamorApp arma en el servidor con tu firma y tu sello ya puestos (además de «Firmado digitalmente» con folio y cédula). La imagen original nunca viaja al teléfono del paciente: solo el PDF. «Ver cómo lo verá el paciente» la muestra igual. Requiere que tu organización tenga activados los avisos al celular (Configuración); si no, sale como antes, sin la imagen", tema: "enlace-paciente" },
   { fecha: "2026-11-06", texto: "Enlace al paciente: los documentos se descargan una sola vez. Desde su primer «Descargar PDF» tiene 30 minutos para bajarlos todos; después ve «Tus documentos ya fueron descargados», con el botón «Subir mis resultados», y lo que elegiste se borra de la plataforma. Para otra copia, mándale un enlace nuevo", tema: "enlace-paciente" },
   { fecha: "2026-11-06", texto: "Biblioteca de recomendaciones (Atención médica › Hojas para el paciente): 12 temas nuevos (escoliosis, rodilla, hombro, muñeca y túnel carpiano, codo, talón, cuidado de heridas, quemaduras leves, ansiedad, ánimo bajo, dormir mejor y estilo de vida saludable) ordenados por área. «Leer y editar» abre cada dieta o tema: cambia, quita o agrega renglones y «Guardar como mi versión» la deja así en todas las consultas y enlaces; «Volver al original» la regresa. En «Enlace al paciente» eliges qué temas de bienestar van", tema: "enlace-paciente" },
   { fecha: "2026-11-06", texto: "Enlace al paciente más completo: antes de descargar, el paciente llena todo lo de su ficha y su consulta (estado civil, instrucción, mano, profesión, antecedentes y hábitos de tu catálogo) y el motivo con sus palabras. Al aceptarlo se completa su ficha y, en su próxima consulta, el motivo, los antecedentes y los hábitos ya salen escritos. Con el mismo enlace, por 30 días, sube sus resultados (fotos o PDF): llegan a su historia y te avisan en la campana y el celular", tema: "enlace-paciente" },
@@ -240,7 +241,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Las señales de alarma («Busque ayuda», «Consulte pronto si», «Acuda a emergencia») salen en un recuadro, no tienen ✕ y no se pueden dejar vacías al guardar tu versión.",
       "Si el paciente aún no puede subir resultados, ve «Podrás subirlos aquí apenas confirmen tu cita»: falta tocar «Aceptar y agendar».",
-      "La firma y el sello nunca salen por el enlace: las hojas dicen «Firmado digitalmente» con folio y cédula del paciente.",
+      "Con «Firmados a mi nombre», el PDF que baja el paciente trae la imagen de tu firma y tu sello: zamorApp lo arma en el servidor, así la imagen original nunca llega a su teléfono. Además dice «Firmado digitalmente» con folio y cédula del paciente. En pantalla el paciente ve la hoja sin la imagen; la firma aparece en el PDF.",
       "Crear el enlace y ver lo que llega necesita internet.",
     ],
   },
