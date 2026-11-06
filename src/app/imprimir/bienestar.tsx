@@ -88,20 +88,27 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
 
       {conPausas && <PausasActivas cambios={cambios} />}
 
-      {otros.map((t) => (
+      {otros.map((t) => {
+        const listas = t.grupos.map((g, i) => lista(cambios, `${t.clave}-${i}`, g.items));
+        // Si al editar todas las señales de alarma quedaron vacías, se avisa (solo en pantalla)
+        const sinAlarma = t.grupos.some((g) => g.alarma) && t.grupos.every((g, i) => !g.alarma || !listas[i].length);
+        return (
         <div key={t.clave} data-prueba={`tema-${t.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
           <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{t.titulo}</div>
           <div className={t.grupos.length > 1 ? "grid grid-cols-2 gap-4" : ""}>
             {t.grupos.map((g, i) => (
-              <div key={g.titulo ?? i}>
-                {g.titulo && <div className="mb-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-doc-tenue">{g.titulo}</div>}
-                <ListaEditable id={`${t.clave}-${i}`} items={lista(cambios, `${t.clave}-${i}`, g.items)} columnas={t.grupos.length === 1} className="text-[12px] leading-[1.3]" />
+              // Señales de alarma: recuadro con borde y en negrita, para que se vean de un vistazo
+              <div key={g.titulo ?? i} className={g.alarma ? "break-inside-avoid rounded-md border border-[#b42318]/50 bg-white/70 px-2 py-1 font-semibold" : ""}>
+                {g.titulo && <div className={`mb-0.5 text-[9px] font-bold uppercase tracking-[.1em] ${g.alarma ? "text-[#b42318]" : "text-doc-tenue"}`}>{g.titulo}</div>}
+                <ListaEditable id={`${t.clave}-${i}`} items={listas[i]} columnas={t.grupos.length === 1} fija={g.alarma} className="text-[12px] leading-[1.3]" />
               </div>
             ))}
           </div>
+          {sinAlarma && <p role="alert" className="mt-1 rounded bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-900 print:hidden">Esta hoja quedó sin señales de alarma</p>}
           <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {t.fuente}</p>
         </div>
-      ))}
+        );
+      })}
 
       <Firmas compacto>
         <div className="min-w-0 flex-1 self-stretch">
