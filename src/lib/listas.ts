@@ -22,6 +22,7 @@ export const SECCIONES_LISTAS: { titulo: string; codigos: string[] }[] = [
   { titulo: "Aptitud y reposo", codigos: ["clasificacion_aptitud", "recomendacion_aptitud", "limitacion_ocupacional", "resultado_reubicacion", "causa_reposo", "ente_emisor_reposo"] },
   { titulo: "Recomendaciones y conclusiones", codigos: ["recomendacion_empresa", "recomendacion_paciente", "conclusion_consulta"] },
   { titulo: "Mensajes al trabajador", codigos: ["frase_trabajador"] },
+  { titulo: "Evaluaciones de riesgos", codigos: ["pregunta_riesgo", "pregunta_riesgo_oficina", "motivo_identificacion_riesgo", "agente_riesgo"] },
   { titulo: "Accidentes (COVENIN 474)", codigos: ["parte_cuerpo", "naturaleza_lesion", "agente_lesion", "forma_accidente"] },
   { titulo: "Tratamiento", codigos: ["medicina", "presentacion_medicina", "via_administracion", "frecuencia_dosis", "duracion_tratamiento"] },
 ];

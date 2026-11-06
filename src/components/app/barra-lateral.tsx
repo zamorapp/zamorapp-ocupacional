@@ -20,8 +20,8 @@ export function BarraLateral({ organizacion, titular, portal = false, alNavegar 
   const casos = useCasosBandeja().length;
   // El servicio ve tres grupos con título; el portal de empresas, una lista corta sin títulos
   const grupos = portal ? [{ titulo: "", secciones }] : seccionesPorGrupo(secciones);
-  const enlace = ({ href, titulo, icono: Icono, descripcion }: Seccion) => {
-    const activa = ruta === href || ruta.startsWith(href + "/");
+  const enlace = ({ href, titulo, icono: Icono, descripcion, incluye }: Seccion) => {
+    const activa = [href, ...(incluye ?? [])].some((h) => ruta === h || ruta.startsWith(h + "/"));
     return (
       // En Inicio, Pacientes y Atención se pide la pantalla completa al pasar el mouse
       <Link
