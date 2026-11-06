@@ -58,3 +58,11 @@ export async function marcarDescarga(token: string): Promise<void> {
   const supabase = clienteAnonimo();
   if (supabase) await supabase.rpc("marcar_descarga_registro", { p_token: token });
 }
+
+// Primera vez que el paciente abre el enlace en su teléfono (la vista previa de WhatsApp no ejecuta código, así que no
+// cuenta como abierto). La base avisa al servicio una sola vez (20261030918000).
+export async function marcarAbierto(token: string): Promise<void> {
+  if (!TOKEN_REGISTRO.test(token)) return;
+  const supabase = clienteAnonimo();
+  if (supabase) await supabase.rpc("marcar_abierto_registro" as never, { p_token: token } as never);
+}

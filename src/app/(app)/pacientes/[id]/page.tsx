@@ -25,7 +25,9 @@ import { esRolEmpresa } from "@/lib/sesion-roles";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
 import { EnviarEstudio } from "@/components/app/enviar-estudio";
-import { itemsDeLista, type Item } from "@/lib/listas";
+import { itemsDeLista, opciones, type Item } from "@/lib/listas";
+import { EnlacePaciente } from "../../atencion/enlace-paciente";
+import { resumenPerfiles } from "@/lib/registro-documentos-servidor";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
@@ -98,6 +100,9 @@ export default async function FichaPaciente({ params }: Props) {
   // Empresa inactiva: la ficha y toda su historia se ven; para atenderlo de nuevo se pasa a una empresa activa
   // Inactivo o egresado: «Reingresar» (misma u otra empresa) reemplaza a «Pasar a otra empresa»
   const fuera = t.estado === "inactivo" || t.estado === "egresado";
+  // «Enviar enlace» (Cesar, 06-nov): al trabajador ya registrado, para que pida su consulta solo con su cédula y el motivo
+  const enviaEnlace = conBase && verSalud && !fuera;
+  const listasEnlace = enviaEnlace ? await opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico"]) : null;
   const empresasActivas = conBase && !esRolEmpresa(sesion.rol) && (t.empresaInactiva || fuera)
     ? (await listarEmpresas()).map((e) => ({ id: e.id, nombre: e.razonSocial }))
     : null;
@@ -171,6 +176,12 @@ export default async function FichaPaciente({ params }: Props) {
             {!esRolEmpresa(sesion.rol) && (
               <>
                 <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
+                {listasEnlace && (
+                  <EnlacePaciente habilitado empresas={[]} motivos={listasEnlace.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
+                    perfiles={resumenPerfiles(listasEnlace.grupo_paraclinicos, listasEnlace.paraclinico)}
+                    puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")}
+                    para={{ id: t.id, nombre: `${t.nombres} ${t.apellidos}`, telefono: t.telefono, empresaId: t.empresaId ?? null, empresa: t.empresa }} />
+                )}
                 {sesion.clinico && (
                   <Button variant="outline" asChild className="flex-1 xl:flex-none">
                     <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
