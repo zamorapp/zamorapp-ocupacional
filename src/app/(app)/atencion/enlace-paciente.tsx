@@ -153,7 +153,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
               {marcados > 0 && puedeFirmar && (
                 <label className="flex items-start gap-2 px-1 pt-1 text-sm">
                   <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />
-                  <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Con mi firma y sello <span className="text-xs text-muted-foreground">(salen firmados sin que lo hayas visto todavía)</span></span>
+                  <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», sin que lo hayas visto todavía</span></span>
                 </label>
               )}
               {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}

@@ -5,10 +5,12 @@
 -- información que le envía…» y cada documento sale lleno con su nombre, su cédula y su empresa.
 --   · Cesar decidió (06-nov) que la orden salga con su firma y sello sin consulta previa: solo si quien crea el enlace es
 --     médico (o administrador/gerente médico con acceso clínico); recepción y enfermería crean enlaces sin firma.
+--     Analizar (06-nov): la RPC anónima nunca entrega las imágenes de firma y sello ni el correo del médico; la hoja sale
+--     con su nombre, MPPS y «Firmado digitalmente · folio · válida solo para <cédula>».
 --   · Lo elegido se guarda al crear el enlace y no se cambia después (como los datos del paciente).
 --   · El paciente descarga durante 7 días desde que envió sus datos, salvo que el servicio descarte la solicitud.
 --   · documentos_registro_paciente devuelve solo lo que pintan esas hojas: sus propios datos, el membrete del servicio,
---     la empresa sugerida, el médico (firma y sello solo si se pidió) y lo elegido. Nada de la historia clínica.
+--     la empresa sugerida, nombre y registros del médico (si se pidió firma) y lo elegido. Nada de la historia clínica.
 
 alter table public.solicitudes_paciente
   add column if not exists documentos jsonb not null default '{}'::jsonb
@@ -144,10 +146,11 @@ begin
                     from public.empresas e where e.id = v.empresa_id),
       'motivo', (select jsonb_build_object('nombre', i.nombre, 'codigo', i.codigo, 'grupo', i.grupo)
                    from public.lista_items i where i.id = (v.documentos->'orden'->>'motivo_id')::uuid and i.org_id = v.org_id),
-      -- El médico solo cuando el enlace se creó con su firma (si lo creó recepción, las hojas salen sin médico)
-      'medico', case when firma then (select jsonb_build_object('nombre_completo', p.nombre_completo, 'cedula', p.cedula, 'mpps', p.mpps, 'colegio_medicos', p.colegio_medicos,
-                          'registro_inpsasel', p.registro_inpsasel, 'especialidad', p.especialidad, 'correo', p.correo,
-                          'firma_url', p.firma_url, 'sello_url', p.sello_url, 'mostrar_firma', p.mostrar_firma, 'mostrar_sello', p.mostrar_sello)
+      -- El médico solo cuando el enlace se creó con su firma (si lo creó recepción, las hojas salen sin médico). NUNCA las
+      -- imágenes de firma y sello ni el correo (firma privada, 20261026007000): la hoja dice «Firmado digitalmente» con el folio.
+      'firmado', firma,
+      'medico', case when firma then (select jsonb_build_object('nombre_completo', p.nombre_completo, 'cedula', p.cedula, 'mpps', p.mpps,
+                          'colegio_medicos', p.colegio_medicos, 'registro_inpsasel', p.registro_inpsasel, 'especialidad', p.especialidad)
                    from public.perfiles p where p.id = v.creado_por) end
     )
     from public.organizaciones o where o.id = v.org_id

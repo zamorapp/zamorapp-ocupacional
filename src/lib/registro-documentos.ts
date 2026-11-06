@@ -4,6 +4,7 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import type { Paraclinico } from "@/lib/consultas-tipos";
 import { edad } from "@/lib/solicitudes-paciente";
+import { sumarDias } from "@/lib/fecha";
 
 export const DOCS_REGISTRO = {
   orden: { nombre: "Orden de exámenes", ruta: "orden" },
@@ -44,10 +45,14 @@ export type VistaRegistro = {
   org: { nombre: string; rif: string | null; direccion: string | null; telefono: string | null; correo: string | null; logo: string | null; ajustes: DatosDocumento["org"]["ajustes"] };
   empresa: { razon_social: string; rif: string; logo: string | null; proyecto: string | null } | null;
   motivo: { nombre: string; codigo: string | null; grupo: string | null } | null;
-  medico: Medico | null;
+  // Sin imágenes de firma y sello ni correo (Analizar 06-nov): solo nombre y registros
+  medico: Pick<Medico, "nombre_completo" | "cedula" | "mpps" | "colegio_medicos" | "registro_inpsasel" | "especialidad"> | null;
+  firmado: boolean;
 };
 
 // Quién le envía la información: el titular del membrete («Dr. César Zamora») o el médico, si no el servicio
+const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
+
 export const remitente = (v: Pick<VistaRegistro, "org" | "medico">) =>
   v.org.ajustes.membrete_titular?.trim() || v.medico?.nombre_completo || v.org.nombre;
 
@@ -89,7 +94,7 @@ export function documentoDeRegistro(v: VistaRegistro, hoy: string): DatosDocumen
       autorizaPaciente: false, sano: false, potencialDiscapacidad: false, discapacidadNota: "", riesgos: null,
     },
     org: v.org,
-    medicoDatos: v.medico,
+    medicoDatos: v.medico ? { ...v.medico, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null,
     motivo: v.motivo,
     empresa,
     dependencia: null,
@@ -99,5 +104,8 @@ export function documentoDeRegistro(v: VistaRegistro, hoy: string): DatosDocumen
     cierre: null,
     sin: [],
     copia: false,
+    firmaEnlace: v.firmado && v.medico
+      ? `Firmado digitalmente · folio ${v.folio.slice(0, 8).toUpperCase()} · válida solo para ${p.cedula} hasta el ${fechaCorta(sumarDias(fecha, 7))}`
+      : null,
   };
 }

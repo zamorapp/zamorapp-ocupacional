@@ -49,10 +49,12 @@ select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'sin llenar no hay documentos (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') is null)::int;
 select 'llena sus datos (debe 1): ' || (public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno',
   '{"cedula":"V-24680135","nombres":"Gilberto","apellidos":"Gómez","fecha_nacimiento":"1991-02-03","telefono":"04141234567","tipo":"empresa","empresa":"Givaldo","cargo":"Soldador"}') = 'ok')::int;
-select 've sus documentos con sus datos, la empresa y la firma (debe 1): ' || count(*) from (select public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') j) x
+select 've sus documentos con sus datos, la empresa y el médico firmante (debe 1): ' || count(*) from (select public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') j) x
  where j->'persona'->>'cedula' = 'V-24680135' and j->'persona'->>'cargo' = 'Soldador' and j->'empresa'->>'razon_social' = 'A'
-   and j->'motivo'->>'nombre' = 'Pre-empleo prueba 211' and j->'medico'->>'firma_url' = 'data:image/png;base64,FIRMA211'
+   and j->'motivo'->>'nombre' = 'Pre-empleo prueba 211' and j->'medico'->>'nombre_completo' = 'Dr. Prueba 211' and (j->>'firmado')::boolean
    and not j->'documentos' ? 'firma' and j->'documentos'->'orden'->'examenes'->0->>'nombre' = 'Hematología completa';
+select 'nunca devuelve la firma, el sello ni el correo del médico (debe 0): ' || count(*) from (select public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') j) x
+ where j::text ~ 'FIRMA211|SELLO211|firma_url|sello_url' or j->'medico' ? 'correo';
 select 'no devuelve nada de la historia ni el teléfono (debe 0): ' || count(*) from (select public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') j) x
  where j::text ~ '04141234567|584141234567|token_hash|diagnost';
 select 'token inventado no devuelve nada (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-xxx') is null)::int;
