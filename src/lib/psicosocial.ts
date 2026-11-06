@@ -252,7 +252,7 @@ export type Medida = { id: string; apartado: number; medida: string; responsable
 export const CODIGO_PSICOSOCIAL = /^[2-9A-HJKMNP-Z]{8}$/;
 // Código de ejemplo del modo demo (sin base): abre el cuestionario sin guardar nada
 export const CODIGO_DEMO = "K7Q3M9TX";
-// Enlace único de la oficina (/c/o/<token>): 32 caracteres hexadecimales (migración 20261030920000)
+// Enlace único de la oficina (/c/o/<token>): 32 caracteres hexadecimales (migración 20261030924000)
 export const ENLACE_OFICINA = /^[0-9a-f]{32}$/;
 export const TOKEN_DEMO = "0123456789abcdef0123456789abcdef";
 export const codigoLegible = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;

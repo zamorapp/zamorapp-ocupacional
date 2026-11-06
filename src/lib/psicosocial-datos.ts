@@ -116,7 +116,7 @@ export async function codigosPsicosociales(id: string): Promise<CodigosPsicosoci
   type Fila = { codigo: string; usado: boolean; entregado?: boolean };
   const r = await supabase.from("codigos_psicosociales").select("codigo, usado, entregado").eq("evaluacion_id", id).order("codigo").limit(3000);
   let filas = (r.data ?? []) as Fila[];
-  // Sin la migración 20261030920000 todavía no existe «entregado»: se lee como antes
+  // Sin la migración 20261030924000 todavía no existe «entregado»: se lee como antes
   if (r.error) filas = ((await supabase.from("codigos_psicosociales").select("codigo, usado").eq("evaluacion_id", id).order("codigo").limit(3000)).data ?? []) as Fila[];
   return {
     libres: filas.filter((f) => !f.usado && !f.entregado).map((f) => f.codigo),

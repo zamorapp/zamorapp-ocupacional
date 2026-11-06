@@ -1,5 +1,5 @@
 -- Psicosocial: un enlace para toda la oficina (tope = plantilla) y perfiles anónimos solo para el servicio
--- (Cesar, 06-nov, migración 20261030920000).
+-- (Cesar, 06-nov, migración 20261030924000).
 \pset tuples_only on
 reset role;
 set role authenticated;
