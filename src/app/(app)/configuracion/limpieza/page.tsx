@@ -31,7 +31,7 @@ export default async function Limpieza() {
       {!puede ? (
         <p className="rounded-lg border bg-muted/40 p-4 text-sm">Solo el administrador ve la limpieza.</p>
       ) : error ? (
-        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{error}</p>
+        <p role="alert" className="rounded-lg border border-alerta/40 bg-alerta/5 p-4 text-sm text-alerta-texto">{error}</p>
       ) : estado ? (
         <PantallaLimpieza estado={estado} />
       ) : null}

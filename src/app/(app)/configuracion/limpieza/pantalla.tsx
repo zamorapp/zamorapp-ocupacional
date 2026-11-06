@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eraser, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { cambiarPlazo, limpiarAhora } from "./acciones";
-import { NUNCA, peso, TEXTOS, type EstadoLimpieza, type Regla } from "./reglas";
+import { borrados, NUNCA, peso, TEXTOS, type EstadoLimpieza, type Regla } from "./reglas";
 
 const OPCIONES = [0, 1, 3, 7, 15, 30, 60, 90, 180, 365, 730, 1095, 1825];
 const LIMITE_MB = 500;
@@ -32,7 +32,7 @@ export function PantallaLimpieza({ estado }: { estado: EstadoLimpieza }) {
     const r = await limpiarAhora();
     setConfirmar(false);
     if (!r.ok) { setResultado({ ok: false, texto: r.mensaje }); return; }
-    const total = Object.entries(r.resultado ?? {}).filter(([k]) => k in TEXTOS || k === "pdf_trabajador").reduce((s, [, v]) => s + (Number(v) || 0), 0);
+    const total = borrados(r.resultado ?? {});
     setResultado({ ok: true, texto: total ? `Listo: se borraron ${total} elemento${total === 1 ? "" : "s"} temporal${total === 1 ? "" : "es"}.` : "Listo: no había nada que borrar." });
   });
 
@@ -46,10 +46,10 @@ export function PantallaLimpieza({ estado }: { estado: EstadoLimpieza }) {
             <span className="tabular-nums text-muted-foreground">{estado.base_mb.toLocaleString("es-VE")} MB de {LIMITE_MB} MB</span>
           </div>
           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={LIMITE_MB} aria-valuenow={estado.base_mb} aria-label="Espacio usado">
-            <div className={cn("h-full rounded-full", uso > 80 ? "bg-destructive" : uso > 60 ? "bg-aviso" : "bg-primary")} style={{ width: `${uso}%` }} />
+            <div className={cn("h-full rounded-full", uso > 80 ? "bg-alerta" : uso > 60 ? "bg-aviso" : "bg-primary")} style={{ width: `${uso}%` }} />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {uso < 60 ? "Hay espacio de sobra." : uso < 80 ? "Más de la mitad usado: conviene revisar." : "Casi lleno: avísale a soporte."}
+            {uso < 60 ? "Hay espacio de sobra." : uso < 80 ? "Más de la mitad usado: conviene revisar." : "Casi lleno: revisa qué ocupa espacio o escríbenos."}
             {" "}La mayor parte son historias y consultas, que nunca se borran.
           </p>
         </div>
@@ -59,6 +59,21 @@ export function PantallaLimpieza({ estado }: { estado: EstadoLimpieza }) {
             <p className="mt-1 text-sm text-muted-foreground"><Clock className="mr-1 inline size-3.5" />{fechaHora(estado.ultima.en)} · {estado.ultima.automatica ? "automática" : "a mano"}</p>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">Todavía ninguna. La automática corre cada madrugada a las 5:27.</p>
+          )}
+          {(estado.historial?.length ?? 0) > 0 && (
+            <details className="group mt-2 text-xs">
+              <summary className="flex cursor-pointer list-none items-center gap-1 font-medium text-primary hover:underline">
+                Ver historial <ChevronDown className="size-3 transition group-open:rotate-180" />
+              </summary>
+              <ul className="mt-1.5 space-y-1 text-muted-foreground">
+                {estado.historial!.map((h) => (
+                  <li key={h.en} className="flex justify-between gap-2">
+                    <span>{fechaHora(h.en)} · {h.automatica ? "automática" : "a mano"}</span>
+                    <span className="tabular-nums">{borrados(h.resultado)}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </div>
       </section>
@@ -73,7 +88,7 @@ export function PantallaLimpieza({ estado }: { estado: EstadoLimpieza }) {
                 : <>Todo al día: no hay nada temporal para borrar.</>}
             </div>
             <Button disabled={ocupado || estado.local || !pendientes.length} onClick={() => { setResultado(null); setConfirmar(true); }}>
-              <Sparkles /> Limpiar ahora
+              <Eraser /> Limpiar ahora
             </Button>
           </div>
         ) : (
@@ -88,15 +103,15 @@ export function PantallaLimpieza({ estado }: { estado: EstadoLimpieza }) {
               ))}
             </ul>
             <p className="text-xs text-muted-foreground">No toca historias, consultas, trabajadores ni nada de la lista de abajo.</p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="destructive" disabled={ocupado} onClick={limpiar}>{ocupado ? <Loader2 className="animate-spin" /> : <Sparkles />} Sí, borrar</Button>
-              <Button variant="ghost" disabled={ocupado} onClick={() => setConfirmar(false)}>Cancelar</Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" disabled={ocupado} onClick={() => setConfirmar(false)}>Cancelar</Button>
+              <Button disabled={ocupado} onClick={limpiar} className="bg-alerta text-white hover:bg-alerta/90">{ocupado ? <Loader2 className="animate-spin" /> : <Eraser />} Sí, borrar</Button>
             </div>
           </div>
         )}
         {estado.local && <p className="mt-2 text-xs text-muted-foreground">Sin internet: la limpieza se hace en la nube cuando vuelva la conexión.</p>}
         {resultado && (
-          <p role="status" className={cn("mt-3 flex items-center gap-1.5 text-sm", resultado.ok ? "text-ok-texto" : "text-destructive")}>
+          <p role="status" className={cn("mt-3 flex items-center gap-1.5 text-sm", resultado.ok ? "text-ok-texto" : "text-alerta-texto")}>
             {resultado.ok ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />} {resultado.texto}
           </p>
         )}
@@ -145,7 +160,7 @@ function FilaRegla({ regla }: { regla: Regla }) {
           Se borra {t ? t.plazo(dias) : `a los ${dias} días`}.
           {regla.cantidad > 0 ? <> Ahora hay <b className="text-foreground">{regla.cantidad}</b>{regla.bytes ? ` (${peso(regla.bytes)})` : ""}.</> : " Ahora no hay ninguno."}
         </p>
-        {msg && <p className={cn("text-xs", msg.ok ? "text-ok-texto" : "text-destructive")}>{msg.texto}</p>}
+        {msg && <p className={cn("text-xs", msg.ok ? "text-ok-texto" : "text-alerta-texto")}>{msg.texto}</p>}
       </div>
       <label className="flex shrink-0 flex-col gap-0.5 text-xs text-muted-foreground">
         Plazo

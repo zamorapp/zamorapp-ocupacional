@@ -342,15 +342,21 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [quitados, setQuitados] = useState<SolicitudPaciente[]>([]);
+  const [ocultarDeshacer, setOcultarDeshacer] = useState<string[]>([]);
   const lista = enviados.filter((e) => !quitados.some((q) => q.id === e.id));
   if (!enviados.length) return null;
   const quitar = (e: SolicitudPaciente) => iniciar(async () => {
     const r = await quitarEnlacePaciente(e.id);
-    if (r.ok) { setQuitados((v) => [...v, e]); setError(null); } else setError(r.mensaje);
+    if (r.ok) {
+      setQuitados((v) => [...v, e]);
+      setError(null);
+      // El Deshacer se va solo a los 10 s; el enlace sigue fuera de la lista
+      setTimeout(() => setOcultarDeshacer((v) => [...v, e.id]), 10_000);
+    } else setError(r.mensaje);
   });
   const volver = (e: SolicitudPaciente) => iniciar(async () => {
     const r = await volverEnlacePaciente(e.id);
-    if (r.ok) setQuitados((v) => v.filter((q) => q.id !== e.id)); else setError(r.mensaje);
+    if (r.ok) { setQuitados((v) => v.filter((q) => q.id !== e.id)); setOcultarDeshacer((v) => v.filter((id) => id !== e.id)); } else setError(r.mensaje);
   });
   return (
     <div className="border-t px-5 py-2">
@@ -379,7 +385,7 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
               </li>
             );
           })}
-          {quitados.map((e) => (
+          {quitados.filter((e) => !ocultarDeshacer.includes(e.id)).map((e) => (
             <li key={`q-${e.id}`} className="flex items-center gap-2 text-muted-foreground">
               Quitaste el enlace de {e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "sin nombre"}.
               <button type="button" disabled={ocupado} onClick={() => volver(e)} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">

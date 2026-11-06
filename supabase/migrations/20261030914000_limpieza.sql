@@ -218,7 +218,9 @@ begin
     'base_mb', round(pg_database_size(current_database()) / 1048576.0, 1),
     'local', public.es_base_local(),
     'ultima', (select jsonb_build_object('en', h.en, 'automatica', h.automatica, 'resultado', h.resultado)
-               from public.limpieza_historial h order by h.en desc limit 1));
+               from public.limpieza_historial h order by h.en desc limit 1),
+    'historial', (select coalesce(jsonb_agg(jsonb_build_object('en', h.en, 'automatica', h.automatica, 'resultado', h.resultado) order by h.en desc), '[]'::jsonb)
+                  from (select * from public.limpieza_historial order by en desc limit 5) h));
 end $$;
 revoke execute on function public.limpieza_estado() from public, anon;
 grant execute on function public.limpieza_estado() to authenticated;

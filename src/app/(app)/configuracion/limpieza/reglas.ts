@@ -5,8 +5,15 @@ export type EstadoLimpieza = {
   pdf_trabajador: { cantidad: number; bytes: number | null } | null;
   base_mb: number;
   local: boolean;
-  ultima: { en: string; automatica: boolean; resultado: Record<string, number> } | null;
+  ultima: Corrida | null;
+  historial?: Corrida[];
 };
+export type Corrida = { en: string; automatica: boolean; resultado: Record<string, number> };
+
+// Elementos borrados en una corrida (sin las claves repetidas de antes: pdf_enlaces_vencidos, etc.)
+export function borrados(r: Record<string, number>): number {
+  return Object.entries(r ?? {}).filter(([k]) => k in TEXTOS || k === "pdf_trabajador").reduce((s, [, v]) => s + (Number(v) || 0), 0);
+}
 
 export const TEXTOS: Record<string, { titulo: string; que: string; plazo: (d: number) => string }> = {
   pdf_enlaces: {
