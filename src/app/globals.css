@@ -14,6 +14,8 @@
 }
 
 @theme inline {
+  /* Entrada suave de las tarjetas de la vista de botones (/menu); solo opacidad y desplazamiento, sin repintar */
+  --animate-aparecer: aparecer 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
@@ -268,4 +270,16 @@
   --g-pista: oklch(1 0 0 / 8%);
   --g-linea: oklch(1 0 0 / 14%);
   --g-tinta: oklch(0.74 0.012 200);
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Vista de botones (lib/vista-menu.ts): la barra lateral se esconde antes de pintar, sin parpadeo */
+html[data-menu="botones"] aside[data-barra-lateral] {
+  display: none;
 }

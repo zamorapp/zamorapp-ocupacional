@@ -159,19 +159,19 @@ export type Destino = Pick<Atajo, "href" | "titulo" | "icono"> & { descripcion: 
 
 type Opciones = { portal?: boolean; clinico?: boolean; rol?: string | null };
 
-const visible = (a: { clinico?: boolean; roles?: string[]; puede?: Atajo["puede"] }, o: Opciones) =>
+export const visibleAtajo = (a: { clinico?: boolean; roles?: string[]; puede?: Atajo["puede"] }, o: Opciones) =>
   a.puede ? a.puede(o) : (o.clinico || !a.clinico) && (!a.roles || a.roles.includes(o.rol ?? ""));
 
 // Cada palabra buscada debe estar (como inicio de palabra) en el título, la ruta o los sinónimos.
 // Puntúa más lo que coincide en el título. Sin texto: las secciones del menú.
 export function buscarSecciones(texto: string, o: Opciones = {}, limite = 8): Destino[] {
-  const menu: Seccion[] = (o.portal ? SECCIONES_EMPRESA : SECCIONES).filter((s) => visible(s, o));
+  const menu: Seccion[] = (o.portal ? SECCIONES_EMPRESA : SECCIONES).filter((s) => visibleAtajo(s, o));
   const consulta = palabrasDe(texto).filter((p) => !VACIAS.has(p)).map(raiz);
   if (consulta.length === 0) return menu.map((s) => ({ href: s.href, titulo: s.titulo, icono: s.icono, descripcion: s.descripcion }));
 
   const candidatos: (Destino & { pTitulo: string[]; pResto: string[] })[] = [
     ...menu.map((s) => ({ href: s.href, titulo: s.titulo, icono: s.icono, descripcion: s.descripcion, pTitulo: palabrasDe(s.titulo), pResto: palabrasDe(s.descripcion) })),
-    ...(o.portal ? [] : ATAJOS.filter((a) => visible(a, o))).map((a) => ({
+    ...(o.portal ? [] : ATAJOS.filter((a) => visibleAtajo(a, o))).map((a) => ({
       href: a.href,
       titulo: a.titulo,
       icono: a.icono,
