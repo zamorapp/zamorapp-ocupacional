@@ -5,7 +5,7 @@ import { APP_NOMBRE } from "@/lib/config";
 import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import { filasRegistro, remitente, type VistaRegistro } from "@/lib/registro-documentos";
+import { filasRegistro, fraseIndicaciones, remitente, type VistaRegistro } from "@/lib/registro-documentos";
 import { FormularioRegistro, type CatalogoRegistro } from "./formulario";
 import { EnviarResultados, type EstadoResultados } from "./resultados";
 
@@ -58,7 +58,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-12 text-ok" />
               <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
-              <p className="text-sm text-muted-foreground">Aquí tienes las indicaciones que te envía <b className="text-foreground">{remitente(docs)}</b>. Descárgalas y tenlas a mano.</p>
+              <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(docs), docs.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
             </div>
             <ul className="space-y-2">
               {filasRegistro(docs.documentos).map((f) => (

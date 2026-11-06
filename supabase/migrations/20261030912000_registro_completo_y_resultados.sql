@@ -256,3 +256,20 @@ begin
 end $$;
 revoke execute on function public.confirmar_resultado_paciente(text, text, text) from public;
 grant execute on function public.confirmar_resultado_paciente(text, text, text) to anon, authenticated;
+
+-- ===== 3. «Indicaciones conversadas» =====
+-- Si el enlace se manda después de atenderlo en consulta, el servicio lo marca y el paciente lee «Aquí tienes las
+-- indicaciones que conversaste con el Dr. …». Sin marca, «Aquí tienes las indicaciones que te envía…».
+-- Solo se agrega esa clave a la limpieza (texto exacto, una vez, como 20261030580000) para no pisar las demás reglas.
+do $$
+declare
+  v_def text := pg_get_functiondef('public.limpiar_documentos_registro(jsonb, uuid)'::regprocedure);
+  v_viejo text := 'if salida <> ''{}''::jsonb and p->>''firma'' = ''true'' then salida := salida || ''{"firma": true}''::jsonb; end if;';
+  v_n int := (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo);
+begin
+  if v_n <> 1 then
+    raise exception 'limpiar_documentos_registro: la regla de la firma aparece % veces (se esperaba 1)', v_n;
+  end if;
+  execute replace(v_def, v_viejo, v_viejo || '
+  if salida <> ''{}''::jsonb and p->>''conversadas'' = ''true'' then salida := salida || ''{"conversadas": true}''::jsonb; end if;');
+end $$;

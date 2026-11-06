@@ -96,3 +96,8 @@ delete from storage.objects where name = current_setting('prueba.ruta');
 delete from public.notificaciones where titulo in ('Resultados enviados por el paciente', 'Paciente envió sus datos');
 delete from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000214';
 delete from public.lista_items where id in ('5f000000-0000-0000-0000-0000000214a1','5f000000-0000-0000-0000-0000000214a2','5f000000-0000-0000-0000-0000000214a3','5f000000-0000-0000-0000-0000000214a4');
+
+-- «Indicaciones conversadas»: se guarda solo con documentos y como verdadero
+select 'guarda «conversadas» con documentos (debe 1): ' || (public.limpiar_documentos_registro('{"control_ta":{"dias":7},"conversadas":true}', '10000000-0000-0000-0000-000000000001') ->> 'conversadas' = 'true')::int;
+select 'sin documentos no guarda nada (debe 1): ' || (public.limpiar_documentos_registro('{"conversadas":true}', '10000000-0000-0000-0000-000000000001') = '{}'::jsonb)::int;
+select 'solo «true» cuenta (debe 0): ' || (public.limpiar_documentos_registro('{"control_ta":{"dias":7},"conversadas":"si"}', '10000000-0000-0000-0000-000000000001') ? 'conversadas')::int;

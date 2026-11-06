@@ -26,3 +26,9 @@ test("artículo correcto para el médico o el servicio", () => {
 test("el WhatsApp dice cuánto toma llenarlo", () => {
   assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /^Hola Gilberto, .*Toma 5 minutos/);
 });
+
+test("«conversaste en consulta» solo cuando ya lo atendió", async () => {
+  const { fraseIndicaciones } = await jiti.import("../../src/lib/registro-documentos.ts");
+  assert.equal(fraseIndicaciones("Dr. César Zamora", true), "Aquí tienes las indicaciones que conversaste en consulta con el Dr. César Zamora.");
+  assert.equal(fraseIndicaciones("Dr. César Zamora", false), "Aquí tienes las indicaciones que te envía el Dr. César Zamora.");
+});

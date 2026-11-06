@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { docsElegidos, filasRegistro, remitente, type EleccionRegistro, type VistaRegistro } from "@/lib/registro-documentos";
+import { docsElegidos, filasRegistro, fraseIndicaciones, remitente, type EleccionRegistro, type VistaRegistro } from "@/lib/registro-documentos";
 import { armarDocumentosRegistro, puedeFirmarRegistro } from "@/lib/registro-documentos-servidor";
 import { HojasRegistro } from "@/app/registro/hojas";
 
 export const metadata: Metadata = { title: "Vista previa del enlace" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string }> };
+type Props = { searchParams: Promise<{ nombre?: string; empresa?: string; perfil?: string; motivo?: string; ta?: string; dieta?: string; bienestar?: string; tema?: string; firma?: string; conversadas?: string }> };
 const uuid = (v?: string) => (v && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
 
 // Vista previa de «Enlace al paciente»: la pantalla final que verá el paciente y cada hoja, con un paciente de ejemplo.
@@ -29,6 +29,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
     dieta: q.dieta && /^[a-z_-]{1,30}$/.test(q.dieta) ? q.dieta : null,
     bienestar: q.bienestar === "1",
     firma: q.firma === "1",
+    conversadas: q.conversadas === "1",
   };
   const documentos = await armarDocumentosRegistro(supabase, sesion, eleccion);
   const firma = typeof documentos !== "string" && Boolean(documentos.firma);
@@ -80,7 +81,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-10 text-ok" />
               <p className="text-lg font-semibold">¡Listo, {nombres}!</p>
-              <p className="text-sm text-muted-foreground">Puedes descargar lo que te envía <b className="text-foreground">{remitente(v)}</b>.</p>
+              <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(v), v.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
             </div>
             <ul className="space-y-2">
               {filasRegistro(v.documentos).map((f) => (

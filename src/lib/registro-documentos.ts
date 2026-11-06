@@ -3,7 +3,7 @@
 // (migración 20261030906000_registro_documentos.sql). Sin consulta: las hojas se arman con los datos que escribió.
 import type { DatosDocumento } from "@/lib/documentos";
 import type { Paraclinico } from "@/lib/consultas-tipos";
-import { edad } from "@/lib/solicitudes-paciente";
+import { conArticulo, edad } from "@/lib/solicitudes-paciente";
 import { sumarDias } from "@/lib/fecha";
 import { CLASES, claseDeducida, FAMILIA, type Clase } from "@/lib/estudios";
 
@@ -46,6 +46,8 @@ export type DocumentosRegistro = {
   dieta?: { dieta: string; plan: string[] };
   bienestar?: { tema: string[] };
   firma?: boolean;
+  // Se mandó después de atenderlo: «las indicaciones que conversaste con…» (20261030912000)
+  conversadas?: boolean;
 };
 
 // Lo que el servicio marca en el diálogo «Enlace al paciente»
@@ -55,6 +57,7 @@ export type EleccionRegistro = {
   dieta: string | null;
   bienestar: boolean;
   firma: boolean;
+  conversadas?: boolean;
 };
 
 export const docsElegidos = (d: DocumentosRegistro | null | undefined): DocRegistro[] =>
@@ -87,6 +90,10 @@ const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
 
 export const remitente = (v: Pick<VistaRegistro, "org" | "medico">) =>
   v.org.ajustes.membrete_titular?.trim() || v.medico?.nombre_completo || v.org.nombre;
+
+// Frase de arriba de la lista: después de la consulta (Cesar, 06-nov) «conversaste con el Dr. …»; antes, «te envía»
+export const fraseIndicaciones = (quien: string, conversadas: boolean | undefined) =>
+  conversadas ? `Aquí tienes las indicaciones que conversaste en consulta con ${conArticulo(quien)}.` : `Aquí tienes las indicaciones que te envía ${conArticulo(quien)}.`;
 
 const fechaCaracas = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(iso));
 
