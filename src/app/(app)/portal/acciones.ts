@@ -94,7 +94,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   // Orden de evaluación numerada (20261030921000): si fallara, las citas ya quedaron pedidas y se dice claro
   let ordenes: { id: string; numero: number }[] = [];
   let sinOrden = "";
-  try { ordenes = await crearOrdenes(filas.map((f) => f.id)); }
+  try { ordenes = await crearOrdenes(filas.map((f) => f.id), datos.get("orden_por") === "trabajador"); }
   catch (e) { sinOrden = ` No se pudo crear la orden de evaluación (${(e as Error).message}); las citas sí quedaron pedidas.`; }
   const reparto = horas && new Set(horas).size > 1
     ? ` Se repartieron por turnos: ${[...new Set(horas)].map((h) => `${hora12(h!)} (${horas!.filter((x) => x === h).length})`).join(", ")}.`

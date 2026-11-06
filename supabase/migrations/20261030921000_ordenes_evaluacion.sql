@@ -42,8 +42,9 @@ drop trigger if exists sync_anotar on public.ordenes_evaluacion;
 create trigger sync_anotar after insert or update or delete on public.ordenes_evaluacion for each row execute function sync.anotar();
 
 -- Crea la orden de las citas recién pedidas por quien llama (una por empresa si el lote mezcla empresas).
+-- p_por_trabajador: una orden por cada trabajador (pedido de Cesar, 06-nov) en vez de una para todo el lote.
 -- Exige: citas del portal, aún «solicitada», pedidas por el mismo usuario, visibles para él y sin orden previa.
-create or replace function public.crear_orden_evaluacion(p_citas uuid[])
+create or replace function public.crear_orden_evaluacion(p_citas uuid[], p_por_trabajador boolean default false)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_ids uuid[] := array(select distinct x from unnest(coalesce(p_citas, '{}'::uuid[])) x where x is not null);
@@ -72,7 +73,9 @@ begin
 
   for v_grupo in
     select c.org_id, c.empresa_id, array_agg(c.id order by c.hora nulls last, c.id) as ids
-      from public.citas c where c.id = any (v_ids) group by c.org_id, c.empresa_id order by c.org_id, c.empresa_id
+      from public.citas c where c.id = any (v_ids)
+     group by c.org_id, c.empresa_id, case when coalesce(p_por_trabajador, false) then c.id end
+     order by c.org_id, c.empresa_id, min(c.hora) nulls last, min(c.id::text)
   loop
     -- Número correlativo por servicio, sin huecos por carreras entre dos RR. HH. a la vez
     perform pg_advisory_xact_lock(hashtextextended('ordenes_evaluacion:' || v_grupo.org_id::text, 0));
@@ -84,8 +87,8 @@ begin
   end loop;
   return v_salida;
 end $$;
-revoke execute on function public.crear_orden_evaluacion(uuid[]) from public, anon;
-grant execute on function public.crear_orden_evaluacion(uuid[]) to authenticated;
+revoke execute on function public.crear_orden_evaluacion(uuid[], boolean) from public, anon;
+grant execute on function public.crear_orden_evaluacion(uuid[], boolean) to authenticated;
 
 -- Relación de lo realizado en un período (máx. 92 días) para una empresa: RR. HH. y auditor de esa empresa, y el
 -- servicio. Solo datos administrativos: fecha, trabajador, cargo, tipo de evaluación, orden, nota de cobro y factura.

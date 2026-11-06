@@ -96,6 +96,15 @@ do $$ begin
   raise notice 'FALLA: anon pidió la relación';
 exception when others then raise notice 'anon no pide la relación (debe 1): 1';
 end $$;
+-- Una orden por trabajador: cada cita del lote recibe su propio número, en el orden de la hora
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+insert into public.citas (id,org_id,empresa_id,trabajador_id,fecha,hora,estado,origen,solicitada_por) values
+ ('6c000000-0000-0000-0000-000000000235','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000231','2026-11-12','09:00','solicitada','portal','00000000-0000-0000-0000-0000000000a3'),
+ ('6c000000-0000-0000-0000-000000000236','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000232','2026-11-12','08:00','solicitada','portal','00000000-0000-0000-0000-0000000000a3');
+select 'por trabajador: dos órdenes para dos citas (debe 2): ' || jsonb_array_length(public.crear_orden_evaluacion(array['6c000000-0000-0000-0000-000000000235','6c000000-0000-0000-0000-000000000236']::uuid[], true));
+select 'cada orden con un solo trabajador y la de las 8:00 primero (debe 2): ' || count(*) from public.ordenes_evaluacion
+ where (numero = 3 and citas = array['6c000000-0000-0000-0000-000000000236']::uuid[]) or (numero = 4 and citas = array['6c000000-0000-0000-0000-000000000235']::uuid[]);
 reset role;
 delete from public.cobros where id = '7c000000-0000-0000-0000-000000000231';
 delete from public.ordenes_evaluacion where solicitante in ('rrhhA', 'RR. HH. B');

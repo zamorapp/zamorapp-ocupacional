@@ -54,10 +54,10 @@ export function rangoMes(mes?: string | null) {
 }
 
 // La crea la base (solo con citas propias del portal, aún pendientes): una por empresa
-export async function crearOrdenes(citas: string[]): Promise<{ id: string; numero: number }[]> {
+export async function crearOrdenes(citas: string[], porTrabajador = false): Promise<{ id: string; numero: number }[]> {
   if (!supabaseConfigurado || !citas.length) return [];
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("crear_orden_evaluacion", { p_citas: citas });
+  const { data, error } = await supabase.rpc("crear_orden_evaluacion", { p_citas: citas, p_por_trabajador: porTrabajador });
   if (error) throw error;
   return ((data ?? []) as { id: string; numero: number }[]).map((o) => ({ id: o.id, numero: o.numero }));
 }
@@ -70,6 +70,7 @@ type FilaCita = {
 
 export async function obtenerOrden(id: string): Promise<Orden | null> {
   if (!supabaseConfigurado) return id === DEMO.id ? DEMO : null;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
   const { data: o } = await supabase.from("ordenes_evaluacion")
     .select("id, numero, empresa_id, citas, solicitante, creado_en, empresas(razon_social, rif)").eq("id", id).maybeSingle();
