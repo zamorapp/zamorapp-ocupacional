@@ -52,7 +52,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // El segundo paso lo decide la nube: estas funciones siempre van a ella, y una sesión aal1 de quien lo necesita no
   // lee la copia (con internet va a la nube, que responde 403 «dos_pasos»; sin internet se rechaza igual, Hello da aal2)
   // (miembros_con_correo lee correos de auth.users, que la copia no trae: con internet siempre va a la nube)
-  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo"];
+  // estado_respaldo y limpieza_estado leen tablas que la copia no trae (respaldos, limpieza): en local salían vacías y el
+  // Inicio decía «Aún no hay respaldos registrados» en rojo en cada apertura (Cesar 06-nov)
+  const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo",
+    "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado"];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
   // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía

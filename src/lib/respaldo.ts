@@ -7,7 +7,10 @@ import { ahora } from "@/lib/fecha";
 
 type Registro = { fecha: string; estado: "ok" | "aviso" | "fallo"; archivo: string | null; tamano_kb: number | null; destinos: number | null; detalle: string | null };
 
-export type EstadoRespaldo = { estado: Estado; titulo: string; detalle: string };
+// urgente: de verdad hay riesgo (más de 3 días sin respaldo correcto); «Ignorar» lo esconde solo hasta la próxima apertura.
+// ahora: hora fiable (no la de Windows) para que «Ignorar» cuente sus días aunque Cesar cambie la fecha por el SAME.
+export type EstadoRespaldo = { estado: Estado; titulo: string; detalle: string; urgente?: boolean; ahora?: number };
+const URGENTE_HORAS = 72;
 
 // Más de este tiempo sin respaldo correcto es aviso (el respaldo corre a diario a las 12:30 y al iniciar la PC)
 const LIMITE_HORAS = 25;
@@ -29,12 +32,14 @@ const tamano = (kb: number | null) => (kb == null ? "" : kb >= 1024 ? `${(kb / 1
 
 // En el escritorio este Next corre en la PC, con la fecha de Windows (Cesar la cambia por el SAME): se usa la hora
 // anclada que manda la puerta. En la web (Vercel) la hora del servidor es fiable.
-async function ahoraFiable(): Promise<number> {
-  if (!ESCRITORIO) return ahora();
+// enCopia: sin internet la puerta responde con la copia de la PC, que no trae el historial de respaldos de la nube.
+async function relojYFuente(): Promise<{ ahora: number; enCopia: boolean }> {
+  if (!ESCRITORIO) return { ahora: ahora(), enCopia: false };
   const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/zamorapp/estado`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
   const hora = Date.parse(r?.hora ?? "");
-  return Number.isFinite(hora) ? hora : ahora();
+  return { ahora: Number.isFinite(hora) ? hora : ahora(), enCopia: r?.enLinea !== true };
 }
+const ahoraFiable = async () => (await relojYFuente()).ahora;
 
 // Solo administrador y gerente médico (la función de la base devuelve null a los demás)
 export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | null> {
@@ -42,7 +47,7 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("estado_respaldo");
   if (error || !data) return null;
-  const ahora = await ahoraFiable();
+  const { ahora, enCopia } = await relojYFuente();
   const { ultimo, ultimo_ok, ultima_restauracion: prueba, ultimo_archivos: archivos } = data as {
     ultimo: Registro | null; ultimo_ok: Registro | null; ultima_restauracion?: Registro | null; ultimo_archivos?: Registro | null;
   };
@@ -56,7 +61,10 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
       : ` · Restauración probada ${hace(prueba.fecha, ahora)}${pruebaMala ? " (toca repetirla)" : ""}`;
 
   if (!ultimo_ok) {
-    return { estado: "alerta", titulo: "Aún no hay respaldos registrados", detalle: "Programa el respaldo diario en la PC con «programar-respaldo.cmd»." };
+    // Leído de la copia de la PC (escritorio sin internet): no trae el historial de la nube, así que no prueba que falte
+    // el respaldo (Cesar 06-nov: «me aparece en rojo cada vez que abro»). Con internet la puerta lo pide a la nube.
+    if (enCopia) return null;
+    return { estado: "alerta", titulo: "Aún no hay respaldos registrados", detalle: "Programa el respaldo diario en la PC con «programar-respaldo.cmd».", urgente: true, ahora };
   }
   const horas = (ahora - new Date(ultimo_ok.fecha).getTime()) / 36e5;
   const lugar = ultimo_ok.estado === "ok" ? "en la PC y en Google Drive" : "solo en la PC";
@@ -64,15 +72,15 @@ export async function estadoRespaldo(sesion: Sesion): Promise<EstadoRespaldo | n
   const fallo = ultimo && ultimo.estado === "fallo" && ultimo.fecha > ultimo_ok.fecha ? ` · Último intento falló ${hace(ultimo.fecha, ahora)}${ultimo.detalle ? `: ${ultimo.detalle}` : ""}` : "";
 
   if (horas > LIMITE_HORAS) {
-    return { estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha, ahora)}`, detalle: `${corto(`Último: ${base}${fallo}${falloArchivos}${restauracion}`)}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
+    return { urgente: horas > URGENTE_HORAS, ahora, estado: "alerta", titulo: `Sin respaldo correcto desde ${hace(ultimo_ok.fecha, ahora)}`, detalle: `${corto(`Último: ${base}${fallo}${falloArchivos}${restauracion}`)}. Enciende la PC con Google Drive abierto o corre scripts\\respaldo.ps1.` };
   }
   if (ultimo_ok.estado === "aviso" || fallo || falloArchivos) {
-    return { estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha, ahora)}, con aviso`, detalle: corto(`${base}${fallo}${falloArchivos}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}`) };
+    return { ahora, estado: "aviso", titulo: `Respaldo ${hace(ultimo_ok.fecha, ahora)}, con aviso`, detalle: corto(`${base}${fallo}${falloArchivos}${ultimo_ok.detalle && !fallo ? ` · ${ultimo_ok.detalle}` : ""}${restauracion}`) };
   }
   // El respaldo está bien y el aviso viene solo de la prueba de restauración: título propio
   if (pruebaMala) {
     const titulo = prueba?.estado === "fallo" ? "Respaldo al día, pero falló la prueba de restauración" : "Respaldo al día, pero la restauración no está probada";
-    return { estado: "aviso", titulo, detalle: corto(`${base}${restauracion}`) };
+    return { ahora, estado: "aviso", titulo, detalle: corto(`${base}${restauracion}`) };
   }
   return { estado: "ok", titulo: `Respaldo al día (${hace(ultimo_ok.fecha, ahora)})`, detalle: corto(`${base}${restauracion}`) };
 }
