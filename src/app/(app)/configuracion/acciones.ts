@@ -239,6 +239,10 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)
       celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
+      // Nota de cobro y recibo: condiciones (vacío = no imprimir) y datos bancarios / pago móvil
+      cobro_condiciones: String(datos.get("cobro_condiciones") ?? "").trim().slice(0, 400),
+      cobro_datos_pago: String(datos.get("cobro_datos_pago") ?? "").trim().slice(0, 1200),
+      factura_datos_pago: String(datos.get("factura_datos_pago") ?? "").trim().slice(0, 400),
       // Membrete: titular y su especialidad van antes del nombre del servicio en todos los impresos (vacío = no salen)
       membrete_titular: texto(datos, "membrete_titular")?.slice(0, 80) ?? null,
       membrete_credenciales: texto(datos, "membrete_credenciales")?.slice(0, 160) ?? null,

@@ -3,10 +3,12 @@ import { supabaseConfigurado } from "@/lib/config";
 import { EMPRESAS_DEMO } from "@/lib/demo";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { AvisoEmpresa } from "@/lib/empresas-avisos";
+import { esParticular } from "@/lib/particulares";
 
 export type Empresa = {
   id: string;
   razonSocial: string;
+  proyecto: string | null;
   rif: string;
   nil: string | null;
   actividad: string | null;
@@ -22,6 +24,7 @@ export type Empresa = {
   psstRegistro: string | null;
   trabajadores: number;
   activa: boolean;
+  esParticular: boolean; // bolsa de pacientes particulares: NO es una empresa (fuera de listas de empresas, RR. HH. y envíos)
   ignorarAlertaLegal: boolean;
   mesInicioGestion: number; // 1-12: los trimestres del informe de vigilancia se cuentan desde este mes
   periodicidadMeses: number; // examen periódico: si la constancia no trae vigencia, vence a los N meses del último
@@ -52,6 +55,11 @@ export const listarEmpresas = cache(async (incluirInactivas = false): Promise<Em
   return incluirInactivas ? todas : todas.filter((e) => e.activa);
 });
 
+// Solo empresas de verdad (sin la bolsa de particulares): Empresas, usuarios de RR. HH., envíos, portal.
+export const soloEmpresas = (lista: Empresa[]) => lista.filter((e) => !e.esParticular);
+// Id de la bolsa de particulares (o null si la organización aún no tiene)
+export const idParticulares = (lista: Empresa[]) => lista.find((e) => e.esParticular)?.id ?? null;
+
 const listarTodas = cache(async (): Promise<Empresa[]> => {
   if (!supabaseConfigurado) return empresasDemo();
   const supabase = await crearClienteServidor();
@@ -71,6 +79,7 @@ function empresasDemo(): Empresa[] {
     return EMPRESAS_DEMO.map((e) => ({
       id: e.rif,
       razonSocial: e.nombre,
+      proyecto: null,
       rif: e.rif,
       nil: null,
       actividad: null,
@@ -86,6 +95,7 @@ function empresasDemo(): Empresa[] {
       psstRegistro: null,
       trabajadores: e.trabajadores,
       activa: true,
+      esParticular: false,
       ignorarAlertaLegal: false,
       mesInicioGestion: 1,
       periodicidadMeses: 12,
@@ -102,7 +112,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
     supabase
       .from("empresas")
-      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
+      .select("id, razon_social, proyecto, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
       .order("razon_social"),
     supabase.rpc("trabajadores_por_empresa"),
   ]);
@@ -113,6 +123,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
   return (data ?? []).map((e) => ({
     id: e.id,
     razonSocial: e.razon_social,
+    proyecto: e.proyecto,
     rif: e.rif,
     nil: e.nil,
     actividad: e.actividad_economica,
@@ -128,6 +139,7 @@ async function consultarEmpresas(): Promise<Empresa[]> {
     psstRegistro: e.psst_fecha_registro,
     trabajadores: totales.get(e.id) ?? 0,
     activa: e.activa,
+    esParticular: esParticular(e),
     ignorarAlertaLegal: e.ignorar_alerta_legal,
     mesInicioGestion: e.mes_inicio_gestion ?? 1,
     periodicidadMeses: e.periodicidad_meses ?? 12,

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Briefcase, Building2, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { datosLegalesFaltantes, listarEmpresas } from "@/lib/empresas";
+import { datosLegalesFaltantes, listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { obtenerSesion } from "@/lib/sesion";
 import { AlertaLegal } from "./alerta-legal";
 import { PausarAvisos } from "./pausar-avisos";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = { title: "Empresas" };
 
 export default async function Empresas({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
-  const [{ ver }, sesion, todas] = await Promise.all([searchParams, obtenerSesion(), listarEmpresas(true)]);
+  const [{ ver }, sesion, todas] = await Promise.all([searchParams, obtenerSesion(), listarEmpresas(true).then(soloEmpresas)]);
   // Por omisión solo las activas; «Ver inactivas» muestra las que ya no se atienden (con sus datos intactos)
   const verInactivas = ver === "inactivas";
   const nInactivas = todas.filter((e) => !e.activa).length;

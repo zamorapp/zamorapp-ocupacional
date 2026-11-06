@@ -25,6 +25,8 @@ import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes, type Contacto } from "./solicitudes";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { EnlacePaciente, PorRevisar } from "./enlace-paciente";
+import { listarSolicitudesPaciente } from "./paciente-enlace-acciones";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { RefrescarAlVolver } from "@/components/app/refrescar-al-volver";
 
@@ -44,7 +46,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const desde = sumarDias(hoy, -30);
   // «Ver 30 días» desde Últimos atendidos (Inicio): las consultas de todas las empresas, sin la empresa activa
   const todas = verEmpresas === "todas";
-  const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
+  const [consultas, citas, listas, solicitudes, org, , , empresas, activa, porEnlace] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde, todas }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta"]),
@@ -54,6 +56,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     vigilarPlazos(sesion),
     listarEmpresas(),
     empresaActivaId(),
+    listarSolicitudesPaciente(),
   ]);
   // Campanita junto al nombre: trabajadores de la cola con una alerta para esta evaluación (solo personal clínico)
   const conAlerta = sesion.clinico ? [...await trabajadoresConAlerta([...new Set(citas.map((c) => c.trabajadorId))])] : [];
@@ -81,6 +84,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
+          <EnlacePaciente habilitado={!sesion.demo} empresas={opcionesEmpresa} />
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
           <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
         </div>
@@ -91,6 +95,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <ShieldAlert className="size-5 text-aviso-texto" /> Conecta Supabase para registrar citas y consultas.
         </div>
       )}
+
+      <PorRevisar {...porEnlace} empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} hoy={hoy} ahora={ahora()} />
 
       <Solicitudes solicitudes={solicitudes} contactos={contactos} servicio={org.nombre} url={URL_PUBLICA} />
 

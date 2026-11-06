@@ -16,6 +16,7 @@ import { RUTAS_EMPRESA } from "@/lib/navegacion";
 import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { resumenTiempos } from "@/lib/tiempos";
+import { ETIQUETA_PARTICULAR } from "@/lib/particulares";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const [sesion, empresas, activa, cabeceras] = await Promise.all([obtenerSesion(), listarEmpresas(true), empresaActivaId(), headers()]);
@@ -35,9 +36,11 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   };
   // Empresas inactivas: fuera del selector, salvo la que se abrió a propósito desde Empresas › Ver inactivas
   // (para consultar sus reportes o trabajadores); el portal de RR. HH. ve siempre las suyas
+  // Los particulares (sin empresa) no son una empresa: van al final con su propio nombre y nunca en el portal
   const opciones = empresas
-    .filter((e) => e.activa || portal || e.id === activa)
-    .map((e) => ({ id: e.id, nombre: e.activa ? e.razonSocial : `${e.razonSocial} (inactiva)`, trabajadores: e.trabajadores }));
+    .filter((e) => (e.activa || portal || e.id === activa) && !(portal && e.esParticular))
+    .sort((a, b) => Number(a.esParticular) - Number(b.esParticular))
+    .map((e) => ({ id: e.id, nombre: e.esParticular ? ETIQUETA_PARTICULAR : e.activa ? e.razonSocial : `${e.razonSocial} (inactiva)`, trabajadores: e.trabajadores }));
   // El registro rápido del buscador solo crea trabajadores en empresas activas
   const paraRegistrar = opciones.filter((o) => empresas.find((e) => e.id === o.id)?.activa);
 
