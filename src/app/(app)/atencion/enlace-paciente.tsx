@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { DIAS_ENLACE_PACIENTE, edad, estadoEnlace, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
+import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NIVEL_EDUCATIVO, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
 import { DIETAS } from "@/lib/dietas";
 import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
 import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, type EnlaceNuevo } from "./paciente-enlace-acciones";
@@ -239,6 +239,21 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
             {(d.fecha || d.turno) && ` · Prefiere ${[d.fecha && fechaCorta(d.fecha), d.turno && TURNOS[d.turno].toLowerCase()].filter(Boolean).join(", ")}`}
           </p>
           {d.motivo && <p className="mt-1 rounded-md bg-muted/60 px-2 py-1 text-xs">«{d.motivo}»</p>}
+          {(d.estado_civil || d.nivel_educativo || d.lateralidad || d.profesion || d.lugar_nacimiento) && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {[d.estado_civil && ESTADO_CIVIL[d.estado_civil], d.lugar_nacimiento && `nació en ${d.lugar_nacimiento}`, d.nivel_educativo && NIVEL_EDUCATIVO[d.nivel_educativo],
+                d.profesion, d.lateralidad && `mano ${LATERALIDAD[d.lateralidad].toLowerCase()}`, d.fecha_ingreso && `ingresó ${fechaCorta(d.fecha_ingreso)}`].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {((d.antecedentes?.length ?? 0) > 0 || (d.habitos?.length ?? 0) > 0) && (
+            <details className="mt-1 rounded-md border bg-background px-2 py-1 text-xs">
+              <summary className="cursor-pointer font-medium">Salud que marcó: {d.antecedentes?.length ?? 0} antecedentes, {d.habitos?.length ?? 0} hábitos · pasan a su consulta</summary>
+              <ul className="mt-1 space-y-0.5">
+                {d.antecedentes?.map((a) => <li key={a.id}>{a.grupo === "familiar" ? "Familiar: " : ""}<b>{a.nombre}</b>{a.observacion && ` · ${a.observacion}`}</li>)}
+                {d.habitos?.map((h) => <li key={h.clave}>{h.nombre}: {h.valor}</li>)}
+              </ul>
+            </details>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">Llegó {fechaCorta(s.recibido!)}</span>
       </div>
