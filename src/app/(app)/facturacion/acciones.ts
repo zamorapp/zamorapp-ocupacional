@@ -42,6 +42,16 @@ export async function guardarTasa(fecha: string, tasa: number): Promise<Resultad
   if ("error" in c) return { ok: false, mensaje: c.error! };
   if (!(tasa > 0) || tasa >= 10_000_000) return { ok: false, mensaje: "Escribe una tasa válida." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Fecha no válida." };
+  // Cordura: si se aleja más de 30 % de la tasa conocida más cercana, casi seguro está mal escrita (06-nov: «896.1225»
+  // quedó en 8.961.225). Se avisa con la cifra leída para que la corrija.
+  const [{ data: antes }, { data: despues }] = await Promise.all([
+    c.supabase.from("tasas_bcv").select("tasa").lt("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    c.supabase.from("tasas_bcv").select("tasa").gt("fecha", fecha).order("fecha").limit(1).maybeSingle(),
+  ]);
+  const ref = Number(antes?.tasa ?? despues?.tasa ?? 0);
+  const cifra = (n: number) => n.toLocaleString("es-VE", { maximumFractionDigits: 4 });
+  if (ref > 0 && (tasa > ref * 1.3 || tasa < ref * 0.7))
+    return { ok: false, mensaje: `Se leyó ${cifra(tasa)} y la tasa conocida más cercana es ${cifra(ref)}. Revisa la cifra (usa coma para los decimales: 896,1225).` };
   // Escrita a mano: manda sobre la automática (el latido nunca pisa una tasa «manual»)
   const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa, fuente: "manual" }, { onConflict: "org_id,fecha" });
   if (error) return { ok: false, mensaje: error.message };

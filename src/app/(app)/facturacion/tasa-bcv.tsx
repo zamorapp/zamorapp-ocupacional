@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Loader2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { leerTasaEscrita } from "@/lib/tasa-bcv";
 import { guardarTasa } from "./acciones";
 
 type Tasa = { fecha: string; tasa: number; fuente: "manual" | "bcv" | "respaldo" };
@@ -39,7 +40,7 @@ export function TasaBcv({ actual, proxima, hoy, editable }: { actual: Tasa | nul
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            iniciar(async () => { const r = await guardarTasa(fecha, Number(tasa.replace(/\./g, "").replace(",", "."))); setMsg(r.mensaje); if (r.ok) setAbierto(false); });
+            iniciar(async () => { const r = await guardarTasa(fecha, leerTasaEscrita(tasa)); setMsg(r.mensaje); if (r.ok) setAbierto(false); });
           }}
         >
           <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value || hoy)} className="h-8 w-36" aria-label="Fecha valor" />

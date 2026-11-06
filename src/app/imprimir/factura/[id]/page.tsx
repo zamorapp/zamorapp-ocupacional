@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { obtenerCobro, tasasBcv } from "@/lib/facturacion";
-import { sumarDias } from "@/lib/fecha";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteNumero } from "@/lib/facturacion-tipos";
@@ -34,6 +34,7 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
       sugerido={c.numeroFacturaFiscal ? "" : siguienteNumero((previas ?? []).map((p) => p.numero_factura_fiscal as string))}
       editable={editable}
       tasas={tasas}
+      hoy={hoyCaracas()}
       datosPago={String((org?.ajustes as { factura_datos_pago?: string | null } | null)?.factura_datos_pago ?? "").trim()}
     />
   );
