@@ -639,10 +639,23 @@ test("hora anclada: la puerta pone X-Zamorapp-Ahora con la hora de la nube y tir
   }
   await new Promise((r) => setTimeout(r, 3000)); // la puerta vuelve a mirar el catálogo
   const est = (await pedir("/zamorapp/estado")).json;
-  // Con ancla, un cambio guardado queda marcado con hora verificada
-  const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
-  assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
-  const [hv] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  // Con ancla, un cambio guardado queda marcado con hora verificada. La puerta dispara la subida al guardar (con
+  // internet) y esa subida borra la fila de la bandeja: si gana la carrera, el select no la encuentra (06-nov, Windows
+  // 42161940033). Se pausa la subida automática mientras se mira la fila y después se sube a mano.
+  const subirReal = bandejaObj.subir;
+  let pedidas = 0;
+  bandejaObj.subir = () => { pedidas++; return Promise.resolve(); };
+  let hv;
+  try {
+    await bandejaObj.enCurso; // una subida que ya venía en curso no se lleva la fila nueva
+    const g = await pedir(`/rest/v1/trabajadores?id=eq.${TRAB}`, { metodo: "PATCH", token: tokenAdmin, cuerpo: { telefono: "0414-0000013" } });
+    assert.ok([200, 204].includes(g.status), JSON.stringify(g.json));
+    [hv] = await enLocal("select hora_verificada from local.bandeja where fila_id = $1 and estado = 'pendiente'", [TRAB]);
+  } finally {
+    delete bandejaObj.subir; // vuelve el método de la clase
+  }
+  assert.equal(bandejaObj.subir, subirReal);
+  assert.ok(pedidas >= 1, "la puerta pidió subir al guardar con internet");
   assert.equal(hv?.hora_verificada, true);
   await bandejaObj.subir();
   assert.equal(est.horaSinAncla, false, "con internet la hora está verificada");
