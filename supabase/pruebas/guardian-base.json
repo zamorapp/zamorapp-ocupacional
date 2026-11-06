@@ -33,6 +33,7 @@
     "public.es_servicio(p_org uuid)",
     "public.falta_segundo_paso()",
     "public.fecha_caracas(p_momento timestamp with time zone)",
+    "public.firma_registro_pdf(p_clave text, p_token text)",
     "public.firmar_consulta(p_id uuid)",
     "public.guardar_tasa_bcv_auto(p_clave text, p_fecha date, p_tasa numeric, p_fuente text)",
     "public.hojas_registro_paciente(p_token text)",

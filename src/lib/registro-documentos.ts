@@ -103,7 +103,10 @@ const fechaCaracas = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZon
 // Arma los datos de una hoja como si fuera una consulta vacía del paciente: solo nombre, cédula, empresa, cargo y la
 // lista de exámenes elegida. Las hojas (Orden, ControlTension, PlanAlimentacion, Bienestar) no saben la diferencia.
 // parte: solo los exámenes de esa orden (laboratorio, rayos X…); sin parte, todos
-export function documentoDeRegistro(v: VistaRegistro, hoy: string, parte?: ParteOrden): DatosDocumento {
+// imagenes: firma y sello del médico, SOLO en el PDF aplanado que arma el servidor (registro-pdf.ts) y en la vista previa
+// del propio médico. En la página que abre el paciente nunca llegan.
+export type ImagenesHoja = { firma: string | null; sello: string | null };
+export function documentoDeRegistro(v: VistaRegistro, hoy: string, parte?: ParteOrden, imagenes?: ImagenesHoja | null): DatosDocumento {
   const p = v.persona;
   const fecha = fechaCaracas(v.recibido);
   const examenes = v.documentos.orden?.examenes ?? [];
@@ -139,7 +142,11 @@ export function documentoDeRegistro(v: VistaRegistro, hoy: string, parte?: Parte
       autorizaPaciente: false, sano: false, potencialDiscapacidad: false, discapacidadNota: "", riesgos: null,
     },
     org: v.org,
-    medicoDatos: v.medico ? { ...v.medico, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null,
+    medicoDatos: v.medico ? {
+      ...v.medico, correo: null,
+      firma_url: v.firmado ? imagenes?.firma ?? null : null, sello_url: v.firmado ? imagenes?.sello ?? null : null,
+      mostrar_firma: Boolean(v.firmado && imagenes?.firma), mostrar_sello: Boolean(v.firmado && imagenes?.sello),
+    } : null,
     motivo: v.motivo,
     empresa,
     dependencia: null,
