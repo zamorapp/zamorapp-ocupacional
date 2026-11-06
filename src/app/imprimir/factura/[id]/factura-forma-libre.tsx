@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } 
 import { Check, ChevronDown, Loader2, Ruler, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { type Cobro, totales } from "@/lib/facturacion-tipos";
+import { type Cobro, limpiarNumeroFactura, totales } from "@/lib/facturacion-tipos";
 import { guardarNumeroFactura, guardarTasaCobro } from "@/app/(app)/facturacion/acciones";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
 import { BarraImpresion } from "../../barra";
@@ -103,7 +103,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, numero);
       setAviso(r);
-      if (r.ok) setGuardado(numero.trim());
+      if (r.ok) { const n = r.numero ?? numero.trim(); setGuardado(n); setNumero(n); }
     });
   };
 
@@ -123,7 +123,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
       <BarraImpresion
         volver={`/facturacion/${c.id}`}
         titulo={`Factura ${numero ? `Nº ${numero}` : "(sin número)"} · ${c.empresa}`}
-        bloqueado={sinNumero || desborde || ocupado}
+        // Sin «ocupado»: al salir del campo Nº se guarda y, si eso apagaba el botón, el clic de imprimir se perdía (06-nov)
+        bloqueado={sinNumero || desborde}
       />
       <div className="mx-auto mb-4 max-w-[206mm] space-y-3 px-4 print:hidden">
         <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_9.5rem_minmax(0,1fr)]">
@@ -195,7 +196,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
             <div className="mb-1.5 flex items-baseline justify-between gap-4">
               <div className="text-[13px] font-bold tracking-wide">FACTURA</div>
               <div className="flex items-baseline gap-5">
-                <span>Nº <b className="font-mono text-[13px]">{numero || "______"}</b></span>
+                <span>Nº <b className="font-mono text-[13px]">{limpiarNumeroFactura(numero) || "______"}</b></span>
                 <span>Fecha de emisión: <b>{fecha(emision)}</b></span>
               </div>
             </div>

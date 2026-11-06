@@ -116,3 +116,8 @@ export function siguienteNumero(previos: string[]): string {
   }
   return mejor?.texto ?? "";
 }
+
+// Nº del talonario escrito a mano («Nº 000123», «N° 123», «000 123»): queda solo el número
+export function limpiarNumeroFactura(s: string) {
+  return s.trim().replace(/^n\s*[º°o]?\s*\.?\s*(?=\d)/i, "").replace(/\s+/g, "");
+}

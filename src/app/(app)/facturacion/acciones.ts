@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Cobro, ItemCobro, Servicio } from "@/lib/facturacion-tipos";
+import { limpiarNumeroFactura } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
@@ -179,10 +180,10 @@ export async function guardarTasaCobro(id: string, tasa: number): Promise<Result
   return { ok: true, mensaje: "Tasa anotada en la nota de cobro." };
 }
 
-export async function guardarNumeroFactura(id: string, numero: string): Promise<Resultado> {
+export async function guardarNumeroFactura(id: string, numero: string): Promise<Resultado & { numero?: string }> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  const n = numero.trim();
+  const n = limpiarNumeroFactura(numero);
   if (n && !/^[0-9A-Za-z-]{1,20}$/.test(n)) return { ok: false, mensaje: "Usa solo números (y guiones si tu talonario los lleva)." };
   if (n) {
     const { data: otra } = await c.supabase.from("cobros").select("numero").eq("numero_factura_fiscal", n).neq("id", id).limit(1).maybeSingle();
@@ -194,5 +195,5 @@ export async function guardarNumeroFactura(id: string, numero: string): Promise<
   // Con RLS un update sin permiso no falla: simplemente no toca filas
   if (!filas?.length) return { ok: false, mensaje: "No se guardó el número: la nota no existe o tu rol no puede cambiarla." };
   revalidatePath("/facturacion");
-  return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado." };
+  return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado.", numero: n };
 }

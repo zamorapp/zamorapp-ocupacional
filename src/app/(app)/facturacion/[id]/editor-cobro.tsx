@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { bs, type Cobro, type EstadoCobro, etiquetaEstado, type Servicio, totales, usd } from "@/lib/facturacion-tipos";
 import { cn } from "@/lib/utils";
-import { actualizarCobro, convertirPresupuesto, eliminarCobro } from "../acciones";
+import { actualizarCobro, convertirPresupuesto, eliminarCobro, guardarNumeroFactura } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
 import { hoyCaracas } from "@/lib/fecha";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
@@ -36,6 +36,22 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
     if (s) set("items", [...c.items, { id: "", servicioId: s.id, consultaId: null, descripcion: s.nombre, detalle: "", cantidad: 1, precioUsd: precios[s.id] ?? s.precioUsd }]);
   };
 
+  // El Nº del talonario se guarda solo al salir del campo: si esperaba a «Guardar», la factura abierta en otra
+  // pestaña salía sin número (06-nov-2026)
+  const guardarNumero = () => {
+    const previo = (JSON.parse(guardado) as Cobro).numeroFacturaFiscal;
+    if (!editable || presupuesto || c.numeroFacturaFiscal.trim() === previo) return;
+    iniciar(async () => {
+      const r = await guardarNumeroFactura(c.id, c.numeroFacturaFiscal);
+      setAviso(r);
+      if (r.ok) {
+        const n = r.numero ?? c.numeroFacturaFiscal.trim();
+        setC((x) => ({ ...x, numeroFacturaFiscal: n }));
+        setGuardado((g) => JSON.stringify({ ...(JSON.parse(g) as Cobro), numeroFacturaFiscal: n }));
+      }
+    });
+  };
+
   const guardar = (nuevoEstado?: EstadoCobro) =>
     iniciar(async () => {
       const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: hoyCaracas() } : {}) };
@@ -55,7 +71,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
         {presupuesto ? (
           <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
         ) : (
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={(abierto) => abierto && editable && cambios && !ocupado && guardar()}>
             <DropdownMenuTrigger asChild><Button variant="outline"><Printer /> Imprimir <ChevronDown className="opacity-60" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuItem asChild><Link href={`/imprimir/factura/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Factura en el talonario</span><span className="text-xs text-muted-foreground">Forma libre, sin membrete. Pide el Nº de factura.</span></Link></DropdownMenuItem>
@@ -113,7 +129,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
                 </button>
               )}
             </div>
-            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
+            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} /></div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
             <div><Label className="mb-1.5">IGTF % (pago en divisas)</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.igtfPct} onChange={(e) => set("igtfPct", Number(e.target.value))} /></div>
             <div className="sm:col-span-2"><Label className="mb-1.5">Observación</Label><Input disabled={!editable} value={c.observacion} onChange={(e) => set("observacion", e.target.value)} /></div>
