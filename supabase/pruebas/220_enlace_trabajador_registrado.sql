@@ -39,6 +39,8 @@ select 'registrado, con llave y sin nada que pedir aunque la cédula esté mal e
  where (j ->> 'registrado')::boolean and (j ->> 'verificar')::boolean and j -> 'faltan' = '[]'::jsonb;
 select 'sin la llave no entra (debe 1): ' || (public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno','{}') like 'Esos números no coinciden%')::int;
 select 'número equivocado no entra y dice cuántos quedan (debe 1): ' || (public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno','{"ultimos4":"5679"}') = 'Esos números no coinciden con tu cédula. Te quedan 3 intentos.')::int;
+select public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno','{"ultimos4":"5670"}') \g /dev/null
+select 'con 1 intento lo dice en singular (debe 1): ' || (public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno','{"ultimos4":"5672"}') = 'Esos números no coinciden con tu cédula. Te queda 1 intento.')::int;
 select 'tras fallar no hay documentos (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') is null)::int;
 select 'antes de entrar no hay datos de la ficha (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') is null)::int;
 select 'abre con los 4 números (debe ok): ' || public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno','{"ultimos4":"5678","cedula":"V-99999999","nombres":"Otro","fecha_nacimiento":"2000-01-01"}');

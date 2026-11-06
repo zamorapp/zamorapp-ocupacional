@@ -100,7 +100,8 @@ begin
       if v.intentos_cedula + 1 >= 5 then
         return 'Hiciste demasiados intentos. Escríbele al servicio médico para que te envíe un enlace nuevo.';
       end if;
-      return 'Esos números no coinciden con tu cédula. Te quedan ' || (5 - v.intentos_cedula - 1) || ' intentos.';
+      return case when v.intentos_cedula + 1 = 4 then 'Esos números no coinciden con tu cédula. Te queda 1 intento.'
+                  else 'Esos números no coinciden con tu cédula. Te quedan ' || (5 - v.intentos_cedula - 1) || ' intentos.' end;
     end if;
   end if;
   faltan := public.faltan_ficha_registro(t);

@@ -14,7 +14,7 @@ import { enviarRegistro } from "./acciones";
 // registrado: el enlace es para un trabajador que ya tiene ficha; faltan = lo que su ficha no tiene; verificar = pide los
 // 4 últimos números de su cédula antes de ver documentos (20261030918000)
 export type CatalogoRegistro = { remitente: string; registrado?: boolean; verificar?: boolean | null; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
-type Props = { token: string; servicio: string; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
+type Props = { token: string; servicio: string; telefono?: string | null; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
 
 const GRUPO_ANTECEDENTE: Record<string, string> = { personal: "¿Tienes o has tenido alguna de estas?", familiar: "¿Alguien de tu familia (padres, hermanos, abuelos) tiene o tuvo…?" };
 const PRIVADO = "Esto solo lo ve tu médico; tu empresa no ve tus antecedentes ni diagnósticos.";
@@ -51,7 +51,7 @@ function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; 
 const opcionesDe = <T extends string>(o: Record<T, string>) => (Object.entries(o) as [T, string][]).map(([v, t]) => ({ v, t }));
 
 // Trabajador ya registrado: no escribe nada si su ficha está completa; si falta algo, se le pide solo eso
-function FormularioRegistrado({ token, hoy, faltan, verificar }: { token: string; hoy: string; faltan: string[]; verificar: boolean }) {
+function FormularioRegistrado({ token, hoy, faltan, verificar, telefono }: { token: string; hoy: string; faltan: string[]; verificar: boolean; telefono?: string | null }) {
   const [sexo, setSexo] = useState<"F" | "M" | "">("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, iniciar] = useTransition();
@@ -115,7 +115,13 @@ function FormularioRegistrado({ token, hoy, faltan, verificar }: { token: string
           )}
         </Seccion>
       )}
-      {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
+      {error && (
+        <p role="alert" className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
+          {telefono && error.startsWith("Hiciste demasiados intentos")
+            ? <>{error.replace(/\.$/, "")}: <a className="font-medium underline" href={`tel:${telefono}`}>{telefono}</a>.</>
+            : error}
+        </p>
+      )}
       <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={enviando}>
         {enviando ? <Loader2 className="animate-spin" /> : <FileDown />} {faltan.length ? "Guardar y ver mis documentos" : "Ver mis documentos"}
       </Button>
@@ -123,8 +129,8 @@ function FormularioRegistrado({ token, hoy, faltan, verificar }: { token: string
   );
 }
 
-export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, maximo, catalogo }: Props) {
-  if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} verificar={Boolean(catalogo.verificar)} />;
+export function FormularioRegistro({ token, servicio, telefono, empresa, motivos, hoy, maximo, catalogo }: Props) {
+  if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} verificar={Boolean(catalogo.verificar)} telefono={telefono} />;
   return <FormularioCompleto token={token} servicio={servicio} empresa={empresa} motivos={motivos} hoy={hoy} maximo={maximo} catalogo={catalogo} />;
 }
 

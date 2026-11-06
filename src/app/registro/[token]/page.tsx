@@ -124,7 +124,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
             </section>
-            <FormularioRegistro token={token} servicio={v.servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} />
+            <FormularioRegistro token={token} servicio={v.servicio} telefono={v.telefono_servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} />
           </>
         )}
       </div>
