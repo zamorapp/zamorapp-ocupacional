@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { type Faltante, irACampo } from "@/lib/ir-a-campo";
 import type { DatosConsulta, FilaExamen } from "@/lib/consultas-tipos";
 
 // Evaluación preventiva en una sola pantalla (pre-empleo, periódico, egreso, reintegro…): lo que cambia en cada
@@ -56,12 +57,13 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
   perfilNormal?: React.ReactNode; // «Perfil normal» del motivo: examen, aptitud y recomendaciones en un clic
 }) {
   // Lo mínimo para cerrar una evaluación preventiva; solo orienta, nunca impide cerrar
+  // Cada dato lleva a su casilla, que está marcada en ámbar en esta misma pantalla
   const faltan = [
-    !d.signos.ta?.trim() && "tensión arterial",
-    !d.signos.peso?.trim() && "peso",
-    !d.sano && !d.diagnosticos.some((x) => x.descripcion.trim()) && "diagnóstico o «sano»",
-    !d.aptitud.clasificacion && "aptitud",
-  ].filter(Boolean) as string[];
+    !d.signos.ta?.trim() && { campo: "signo-ta", etiqueta: "tensión arterial" },
+    !d.signos.peso?.trim() && { campo: "signo-peso", etiqueta: "peso" },
+    !d.sano && !d.diagnosticos.some((x) => x.descripcion.trim()) && { campo: "sano", etiqueta: "diagnóstico o «sano»" },
+    !d.aptitud.clasificacion && { campo: "aptitud", etiqueta: "aptitud" },
+  ].filter(Boolean) as Faltante[];
   const recomendaciones = lineas(d.recomendacionesEmpresa) + lineas(d.recomendacionesTrabajador);
 
   return (
@@ -104,7 +106,16 @@ export function VistaRapida({ d, signos, paraclinicos, sano, aptitud, acciones, 
       <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border p-4", faltan.length ? "border-aviso/50 bg-aviso/5" : "border-ok/50 bg-ok/5")}>
         <span className="flex min-w-0 flex-1 basis-56 items-center gap-2 text-sm">
           {faltan.length
-            ? <><AlertTriangle className="size-4 shrink-0 text-aviso-texto" /> Falta: {faltan.join(", ")}. Puedes cerrar igual.</>
+            ? <span className="flex flex-wrap items-center gap-1.5">
+                <AlertTriangle className="size-4 shrink-0 text-aviso-texto" /> Falta:
+                {faltan.map((f) => (
+                  <button key={f.campo} type="button" title="Ir a la casilla" onClick={() => irACampo(f.campo)}
+                    className="inline-flex items-center gap-1 rounded-md border border-aviso/60 bg-aviso/15 px-2 py-0.5 font-medium text-aviso-texto hover:bg-aviso/25 hover:underline">
+                    {f.etiqueta} <ArrowRight className="size-3.5" aria-hidden />
+                  </button>
+                ))}
+                <span className="text-muted-foreground">Puedes cerrar igual.</span>
+              </span>
             : <><CheckCircle2 className="size-4 shrink-0 text-ok-texto" /> Lista para cerrar.</>}
         </span>
         <div className="flex flex-wrap gap-2">{acciones}</div>

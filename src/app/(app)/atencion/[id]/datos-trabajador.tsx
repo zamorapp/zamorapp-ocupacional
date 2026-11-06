@@ -13,6 +13,8 @@ import { LATERALIDADES, normalizarLateralidad } from "@/lib/lateralidad";
 import { escribirBorradorFicha, leerBorradorFicha } from "@/lib/borrador-ficha";
 import { confirmar } from "@/components/app/confirmar";
 import { cn } from "@/lib/utils";
+import { AvisoFaltantes } from "@/components/app/aviso-faltantes";
+import { irACampo } from "@/lib/ir-a-campo";
 import { actualizarDatosTrabajador, fichaDeTrabajador, type OpcionesFicha, type ResultadoFicha } from "../../pacientes/acciones";
 
 type Resultado = ResultadoFicha;
@@ -34,6 +36,8 @@ const anios = (nacimiento: string, hoy: string) => {
 const CLAVE = { cargo: "cargo", fecha_ingreso_cargo: "ingreso al cargo", dependencia: "dependencia", sexo: "sexo", fecha_nacimiento: "fecha de nacimiento" } as const;
 const IMPORTANTE: ReadonlySet<string> = new Set(["cargo", "sexo", "fecha_nacimiento"]);
 const colorFalta = (k: string) => (IMPORTANTE.has(k) ? "border-alerta bg-alerta/10 ring-1 ring-alerta/40" : "border-aviso bg-aviso/10 ring-1 ring-aviso/40");
+// Casilla de cada dato clave (el aviso lleva a ella)
+const CASILLA: Record<keyof typeof CLAVE, string> = { cargo: "dt-cargo", fecha_ingreso_cargo: "dt-ingreso-cargo", dependencia: "dt-dependencia", sexo: "dt-sexo", fecha_nacimiento: "dt-nacimiento" };
 const chipFalta = (k: string) => (IMPORTANTE.has(k) ? "bg-alerta/15 text-alerta-texto" : "bg-aviso/15 text-aviso-texto");
 
 function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
@@ -59,6 +63,7 @@ function Campo({ id, etiqueta, nota, children, ancho }: { id: string; etiqueta: 
 // Se guarda aparte de la consulta: cargo y dependencia nuevos se crean en la empresa del trabajador.
 // Se edita siempre: la ficha es del trabajador, no del acto médico firmado (Cesar, 31-oct).
 export function DatosTrabajador({ trabajadorId, consultaId, guardarPendiente, onPendiente }: Props) {
+  const [ignorarFaltan, setIgnorarFaltan] = useState(false); // «Ignorar» esconde el aviso; las casillas siguen marcadas
   const enCurso = consultaId !== null;
   const router = useRouter();
   const [op, setOp] = useState<OpcionesFicha | null>(null);
@@ -185,7 +190,11 @@ export function DatosTrabajador({ trabajadorId, consultaId, guardarPendiente, on
       <summary className="flex cursor-pointer list-none flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
           {resumen.map((x) => <span key={x} className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5">{x}</span>)}
-          {!abierto && faltan.map((k) => <span key={k} className={cn("whitespace-nowrap rounded-md px-2 py-0.5", chipFalta(k))}>Falta {CLAVE[k]}</span>)}
+          {/* Tocar «Falta …» abre la ficha y lleva a su casilla (que también está en rojo o ámbar) */}
+          {!abierto && faltan.map((k) => (
+            <button key={k} type="button" title="Ir a la casilla" className={cn("whitespace-nowrap rounded-md px-2 py-0.5 hover:underline", chipFalta(k))}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); irACampo(CASILLA[k]); }}>Falta {CLAVE[k]}</button>
+          ))}
                     {cambiado && <span className="whitespace-nowrap rounded-md bg-aviso/15 px-2 py-0.5 text-aviso-texto">Cambios sin guardar</span>}
         </div>
         <span className="flex shrink-0 items-center gap-1 self-end text-sm font-medium text-primary sm:self-auto">
@@ -211,11 +220,8 @@ export function DatosTrabajador({ trabajadorId, consultaId, guardarPendiente, on
             <Button type="button" variant="link" size="sm" className="h-auto p-0 text-aviso-texto underline" onClick={descartar}>Descartar cambios</Button>
           </div>
         )}
-        {faltan.length > 0 && (
-          <p id="dt-faltan" className={cn("rounded-md px-3 py-2 text-sm", faltan.some((k) => IMPORTANTE.has(k)) ? "bg-alerta/10 text-alerta-texto" : "bg-aviso/10 text-aviso-texto")}>
-            Falta: {faltan.map((k) => CLAVE[k]).join(", ")}. Salen en los informes, la constancia y la vigilancia.
-          </p>
-        )}
+        <AvisoFaltantes id="dt-faltan" onIgnorar={() => setIgnorarFaltan(true)} faltan={ignorarFaltan ? [] : faltan.map((k) => ({ campo: CASILLA[k], etiqueta: CLAVE[k], importante: IMPORTANTE.has(k) }))}
+          nota="Salen en los informes, la constancia y la vigilancia." />
         <fieldset className="space-y-5">
           <Grupo titulo="Trabajo">
             <Campo id="dt-cargo" etiqueta="Cargo" nota={cambioDeCargo ? `Cambio de cargo: «${op.ficha.cargo}» pasa al historial.` : null}>

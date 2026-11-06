@@ -205,6 +205,31 @@
     }
   }
 }
+/* Casilla donde falta un dato (marcaFalta en src/lib/ir-a-campo.ts): rojo si es importante, ámbar si no */
+[data-falta="rojo"] {
+  border-color: var(--alerta) !important;
+  background-color: color-mix(in oklab, var(--alerta) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--alerta) 40%, transparent);
+}
+[data-falta="ambar"] {
+  border-color: var(--aviso) !important;
+  background-color: color-mix(in oklab, var(--aviso) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--aviso) 40%, transparent);
+}
+/* Al tocar el aviso: la casilla parpadea para que el ojo la encuentre */
+.campo-senalado {
+  animation: campo-senalado 1.8s ease-out;
+}
+@keyframes campo-senalado {
+  0%,
+  45% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--alerta) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 /* Documentos impresos (constancia, reposo, informe, récipe) */
 @page {
   size: letter;
