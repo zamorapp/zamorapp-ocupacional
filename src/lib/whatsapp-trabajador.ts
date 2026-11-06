@@ -64,7 +64,7 @@ export function mensajeTrabajador(nombre: string, servicio: string, docs: DocTra
   return `Hola ${primerNombre}, ${servicio} te envía ${que}. Ábrelos y guárdalos en tu teléfono (el enlace dura ${DIAS_ENLACE_TRABAJADOR} días).${cedula}`;
 }
 
-// Frases que rotan al pie del mensaje (Configuración › Listas › «Frases para el trabajador», migración 20261030901000).
+// Frases que rotan al pie del mensaje (Configuración › Listas › «Frases para el trabajador», migración 20261030907000).
 // Cada envío de la organización toma la siguiente en orden; el médico la cambia («Otra frase»), la edita o la quita.
 export const LISTA_FRASES = "frase_trabajador";
 export const MAX_FRASE = 300;
