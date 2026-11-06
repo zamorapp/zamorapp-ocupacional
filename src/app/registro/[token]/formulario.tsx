@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Building2, CheckCircle2, Loader2, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState<string | null>(null);
   const [enviando, iniciar] = useTransition();
+  const router = useRouter();
 
   if (listo !== null) {
     return (
@@ -63,8 +65,10 @@ export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, max
     setError(null);
     iniciar(async () => {
       const r = await enviarRegistro(token, { ...f, sexo, tipo, motivo_id: motivo, turno, acepto: "" });
-      if (r.ok) setListo(f.nombres?.trim().split(/\s+/)[0] ?? "");
-      else setError(r.mensaje);
+      if (!r.ok) return setError(r.mensaje);
+      // Con documentos preparados: la página vuelve a pedirse y muestra «Puede descargar…»
+      if (r.documentos) router.refresh();
+      else setListo(f.nombres?.trim().split(/\s+/)[0] ?? "");
     });
   };
 

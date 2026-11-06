@@ -92,14 +92,19 @@ async function estructura(url) {
     const migraciones = path.join(raiz, "supabase", "migrations");
     const piezas = [path.join(raiz, "supabase", "pruebas", "00_stubs_supabase.sql"),
       ...fs.readdirSync(migraciones).filter((f) => f.endsWith(".sql")).sort().map((f) => path.join(migraciones, f))];
-    for (const pieza of piezas) {
+    // auth.identities viaja en el respaldo pero no está en los equivalentes de Supabase del escritorio: sin ella la
+    // prueba fallaba («relation auth.identities does not exist», 5-nov). Solo aquí, sin tocar la base del programa.
+    const identidades = `create table if not exists auth.identities (id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references auth.users on delete cascade, provider text, provider_id text, identity_data jsonb,
+      email text, last_sign_in_at timestamptz, created_at timestamptz default now(), updated_at timestamptz default now())`;
+    for (const pieza of [piezas[0], identidades, ...piezas.slice(1)]) {
       await c.query("begin");
       try {
-        await c.query(fs.readFileSync(pieza, "utf8"));
+        await c.query(pieza === identidades ? pieza : fs.readFileSync(pieza, "utf8"));
         await c.query("commit");
       } catch (e) {
         await c.query("rollback").catch(() => {});
-        throw new Error(`${path.basename(pieza)}: ${e.message}`);
+        throw new Error(`${pieza === identidades ? "auth.identities" : path.basename(pieza)}: ${e.message}`);
       }
     }
   } finally {

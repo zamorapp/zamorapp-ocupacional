@@ -12,6 +12,8 @@ import { ControlTension, PlanAlimentacion } from "../../indicaciones";
 import { Bienestar } from "../../bienestar";
 import { OpcionesIndicaciones } from "../../opciones-indicaciones";
 import { clavesPlan, diasTa } from "@/lib/indicaciones-preventivas";
+import { esDocTrabajador } from "@/lib/whatsapp-trabajador";
+import { obtenerSesion } from "@/lib/sesion";
 import { temasBienestar } from "@/lib/bienestar";
 import { leerCambios } from "@/lib/cambios-hoja";
 
@@ -32,10 +34,12 @@ export default async function Imprimir({ params, searchParams }: Props) {
   if (!base) notFound();
   const d = { ...base, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const faltan = tipo === "recipe" ? faltantesRecipe(d) : [];
+  const sesion = await obtenerSesion();
+  const trabajador = esDocTrabajador(tipo) && sesion.clinico && !sesion.demo ? { consultaId: id, tipo, servicio: d.org.nombre || sesion.organizacion } : null;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/atencion/${id}`} titulo={`${t.titulo} · ${d.trabajador.nombre}`} bloqueado={faltan.length > 0} />
+      <BarraImpresion volver={`/atencion/${id}`} titulo={`${t.titulo} · ${d.trabajador.nombre}`} bloqueado={faltan.length > 0} trabajador={trabajador} />
       {faltan.length > 0 ? (
         <CompletarRecipe {...await datosCompletarRecipe(d)} />
       ) : (

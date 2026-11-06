@@ -104,6 +104,8 @@ export async function obtenerDocumento(consultaId: string) {
     sin: [] as OpcionImpresion[],
     // Constancia con su copia para el servicio médico (?copia=1|0; sin parámetro, lo que diga Configuración)
     copia: false,
+    // Hojas del enlace de registro: van sin imágenes de firma y sello; esta línea dice que las firmó el médico
+    firmaEnlace: null as string | null,
   };
 }
 
