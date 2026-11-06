@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, ShieldCheck, Stethoscope, Upload } from "lucide-react";
+import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, ShieldCheck, Stethoscope, Upload } from "lucide-react";
 import { APP_NOMBRE } from "@/lib/config";
 import { aQuien, TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
 
-const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
 
 const AVISO: Record<Exclude<Vista["estado"], "vigente">, { titulo: string; texto: string }> = {
   usado: { titulo: "Tus datos ya se enviaron", texto: "El servicio médico los está revisando y te confirmará la cita por WhatsApp." },
@@ -76,10 +76,14 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 </li>
               ))}
             </ul>
-            <p className="text-center text-xs text-muted-foreground">
-              {docs.descarga_hasta
-                ? <>Puedes descargarlos hasta las {horaCaracas(docs.descarga_hasta)}. Después, este enlace queda solo para enviar tus resultados.</>
-                : <>Ábrelos y toca «Descargar PDF». Desde la primera descarga tienes 30 minutos para bajarlos todos; después, este enlace queda solo para enviar tus resultados.</>}
+            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF».</p>
+            <p className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+              <AlarmClock className="mt-0.5 size-5 shrink-0" />
+              <span>
+                {docs.descarga_hasta
+                  ? <>Puedes descargarlos hasta las <b>{horaCaracas(docs.descarga_hasta)}</b>. Después, este enlace queda solo para enviar tus resultados.</>
+                  : <>Tienes 30 minutos desde la primera descarga para bajarlos todos. Después, este enlace queda solo para enviar tus resultados.</>}
+              </span>
             </p>
             <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
           </section>
@@ -90,9 +94,9 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           {/* Ya descargó: no se vuelven a bajar; para otra copia, el servicio manda un enlace nuevo */}
           <section role="status" className="space-y-3 rounded-2xl border bg-card p-6 text-center shadow-sm">
             <FileCheck2 className="mx-auto size-12 text-ok" />
-            <h1 className="text-xl font-semibold">Tus documentos ya fueron descargados</h1>
-            <p className="text-sm text-muted-foreground">Si necesitas descargarlos de nuevo, pídele un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
-            {resultados && <a href="#resultados" className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-base font-medium text-primary-foreground"><Upload className="size-5" /> Subir mis resultados</a>}
+            <h1 className="text-xl font-semibold">El tiempo para descargar tus documentos terminó</h1>
+            <p className="text-sm text-muted-foreground">Tus documentos ya fueron descargados. Si necesitas descargarlos de nuevo, pídele un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
+            {resultados && <a href="#resultados" className="inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-base font-medium text-primary-foreground sm:w-auto"><Upload className="size-5" /> Subir mis resultados</a>}
           </section>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
