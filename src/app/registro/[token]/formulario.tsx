@@ -37,7 +37,7 @@ function Opciones<T extends string>({ etiqueta, valor, opciones, alCambiar }: { 
 
 function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
+    <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm motion-safe:animate-aparecer [animation-delay:120ms]">
       <div>
         <h2 className="font-semibold">{titulo}</h2>
         {ayuda && <p className="mt-0.5 text-xs text-muted-foreground">{ayuda}</p>}

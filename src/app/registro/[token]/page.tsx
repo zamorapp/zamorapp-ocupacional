@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, ShieldCheck, Stethoscope, Upload } from "lucide-react";
+import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, FlaskConical, HeartPulse, Leaf, Salad, ShieldCheck, Stethoscope, Upload } from "lucide-react";
+import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
 import { APP_NOMBRE } from "@/lib/config";
 import { aQuien, TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
@@ -14,6 +15,9 @@ export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: 
 export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
+
+// Ícono de cada hoja que descarga (orden de exámenes, control de tensión, dieta, bienestar)
+const ICONO_DOC: Record<string, typeof FileText> = { orden: FlaskConical, "control-ta": HeartPulse, dieta: Salad, bienestar: Leaf };
 
 const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
 
@@ -43,37 +47,28 @@ export default async function Registro({ params }: { params: Promise<{ token: st
   const quien = resultados?.remitente ?? v?.servicio ?? "";
 
   return (
-    <main className="min-h-dvh bg-muted/30 px-4 py-6 sm:py-10">
-      <div className="mx-auto w-full max-w-lg space-y-5">
+    <MarcoEnlace servicio={v?.servicio ?? APP_NOMBRE} subtitulo="Salud ocupacional">
         {v && supabase && <MarcarAbierto token={token} />}
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icono.svg" alt="" className="size-10 rounded-xl" />
-          <div className="min-w-0">
-            <p className="truncate font-semibold">{v?.servicio ?? APP_NOMBRE}</p>
-            <p className="text-xs text-muted-foreground">Salud ocupacional</p>
-          </div>
-        </div>
         {!v ? (
-          <section className="rounded-2xl border bg-card p-6 shadow-sm">
+          <TarjetaEnlace>
             <h1 className="text-xl font-semibold">Enlace no válido</h1>
             <p className="mt-1 text-sm text-muted-foreground">Revisa que lo abriste completo o pide uno nuevo al servicio médico.</p>
-          </section>
+          </TarjetaEnlace>
         ) : docs ? (
           <>
-          <section role="status" className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+          <TarjetaEnlace role="status" className="space-y-4">
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-12 text-ok" />
               <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
               <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(docs), docs.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
             </div>
             <ul className="space-y-2">
-              {filasRegistro(docs.documentos).map((f) => (
+              {filasRegistro(docs.documentos).map((f, i) => (
                 <li key={f.parte ?? f.tipo}>
-                  <Link href={`/registro/${token}/documento/${f.tipo}${f.parte ? `?parte=${f.parte}` : ""}`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-background px-4 py-3 font-medium transition hover:border-primary">
-                    <FileText className="size-5 shrink-0 text-primary" />
-                    <span className="min-w-0 flex-1">{f.nombre}{f.detalle && <span className="block truncate text-xs font-normal text-muted-foreground">{f.detalle}</span>}</span>
-                    <ChevronRight className="size-4 text-muted-foreground" />
+                  <Link href={`/registro/${token}/documento/${f.tipo}${f.parte ? `?parte=${f.parte}` : ""}`} className="group flex min-h-16 items-center rounded-xl border bg-background px-3 py-2.5 shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:border-primary hover:shadow-md motion-safe:hover:-translate-y-0.5">
+                    <FichaBoton icono={ICONO_DOC[f.tipo] ?? FileText} titulo={f.nombre} detalle={f.detalle && <span className="block truncate">{f.detalle}</span>} indice={i}>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform motion-safe:group-hover:translate-x-0.5" />
+                    </FichaBoton>
                   </Link>
                 </li>
               ))}
@@ -88,32 +83,33 @@ export default async function Registro({ params }: { params: Promise<{ token: st
               </span>
             </p>
             <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
-          </section>
+          </TarjetaEnlace>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : descargados ? (
           <>
           {/* Ya descargó: no se vuelven a bajar; para otra copia, el servicio manda un enlace nuevo */}
-          <section role="status" className="space-y-3 rounded-2xl border bg-card p-6 text-center shadow-sm">
+          <TarjetaEnlace role="status" className="space-y-3 text-center">
             <FileCheck2 className="mx-auto size-12 text-ok" />
             <h1 className="text-xl font-semibold">El tiempo para descargar tus documentos terminó</h1>
             <p className="text-sm text-muted-foreground">Tus documentos ya fueron descargados. Si necesitas descargarlos de nuevo, pídele un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
             {resultados && <a href="#resultados" className="inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-base font-medium text-primary-foreground sm:w-auto"><Upload className="size-5" /> Subir mis resultados</a>}
-          </section>
+          </TarjetaEnlace>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : v.estado !== "vigente" ? (
           <>
-          <section className="rounded-2xl border bg-card p-6 shadow-sm">
+          <TarjetaEnlace>
             <h1 className="text-xl font-semibold">{AVISO[v.estado].titulo}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{AVISO[v.estado].texto}</p>
             {v.telefono_servicio && <p className="mt-3 text-sm">Teléfono del servicio: <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></p>}
-          </section>
+          </TarjetaEnlace>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : (
           <>
-            <section className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm">
+            <TarjetaEnlace className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary)_70%,black)] p-5 text-primary-foreground">
+              <span aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-white/10" />
               <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : "pide tu consulta"}</h1>
               <p className="mt-1 text-sm opacity-90">{catalogo?.registrado
                 ? "Ábrelos y descárgalos. Cuando tengas tus resultados, vuelve a este mismo enlace para enviarlos."
@@ -123,11 +119,10 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
-            </section>
+            </TarjetaEnlace>
             <FormularioRegistro token={token} servicio={v.servicio} telefono={v.telefono_servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} />
           </>
         )}
-      </div>
-    </main>
+    </MarcoEnlace>
   );
 }

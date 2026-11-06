@@ -60,7 +60,7 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
   };
 
   return (
-    <section id="resultados" className="scroll-mt-4 space-y-4 rounded-2xl border bg-card p-6 shadow-sm" aria-labelledby="titulo-resultados">
+    <section id="resultados" className="scroll-mt-4 space-y-4 rounded-2xl border bg-card p-6 shadow-sm motion-safe:animate-aparecer [animation-delay:120ms]" aria-labelledby="titulo-resultados">
       <div className="flex items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="size-5" /></span>
         <div className="min-w-0">
