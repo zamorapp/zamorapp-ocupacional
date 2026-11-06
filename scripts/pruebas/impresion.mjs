@@ -101,7 +101,11 @@ for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
   const exacto = />Enfermedades ocupacionales<\/td><td[^>]*>2</.test(art34) && !/&lt;3/.test(art34);
   filas.push(`${"vigilancia art. 34".padEnd(20)} ${caso.padEnd(7)} ${exacto ? "cifras exactas" : "cifras ocultas"}`);
   if (!exacto) fallas.push(`vigilancia (${caso}): el resumen del art. 34 debe ir con cifras exactas`);
-  for (const cuadro of ["Morbilidad por dependencia y motivo de consulta", "Consultas por motivo · todos los motivos", "Morbilidad por aparatos y sistemas · todos", "Diez primeras causas de morbilidad por cargo"]) {
+  // Indicadores legales (05-nov): el grupo psicosocial del Anexo 1 (1 caso) no se nombra en la copia de la empresa
+  const psico = /i-eo-anexo1[\s\S]*?psicosocial[\s\S]*?<\/table>/.test(html.split("self.__next_f")[0]);
+  filas.push(`${"vigilancia Anexo 1".padEnd(20)} ${caso.padEnd(7)} ${psico ? "nombra psicosocial" : "no nombra psicosocial"}`);
+  if (psico !== debe) fallas.push(`vigilancia (${caso}): el grupo psicosocial ${debe ? "debe salir en la copia del médico" : "no debe salir en la copia de la empresa"}`);
+  for (const cuadro of ["Morbilidad por dependencia y motivo de consulta", "Consultas por motivo · todos los motivos", "Morbilidad por aparatos y sistemas · todos", "Diez primeras causas de morbilidad por cargo", "Cumplimiento de exámenes periódicos", "Enfermedades ocupacionales: declaración e investigación", "Audiometría y espirometría por exposición"]) {
     if (!html.replace(/<!-- -->/g, "").includes(cuadro)) fallas.push(`vigilancia (${caso}): falta el cuadro «${cuadro}»`);
   }
 }

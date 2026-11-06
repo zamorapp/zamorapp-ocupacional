@@ -10,13 +10,16 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-11-04";
+export const MANUAL_ACTUALIZADO = "2026-11-05";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-05", texto: "Riesgos psicosociales (menú Gestión › Psicosocial): cuestionario anónimo CoPsoQ-istas21 versión corta. Anotas el acuerdo con el Comité, repartes papelitos con QR o códigos por WhatsApp, cada trabajador responde en su celular (o en papel) y ves verde, amarillo y rojo por apartado y por puesto, con conclusiones y plan de medidas. Nadie ve respuestas individuales; RR. HH. ve el informe al cerrarla. Necesita internet", tema: "psicosocial" },
+  { fecha: "2026-11-05", texto: "Vigilancia con tres indicadores legales nuevos, cada uno con su análisis: cumplimiento de exámenes periódicos (previstos, evaluados y vencidos, por dependencia), enfermedades ocupacionales declaradas ante el INPSASEL en 24 horas con su informe NT-02 y su grupo del Anexo 1, y audiometrías y espirometrías normales o alteradas en expuestos y no expuestos a ruido o a polvos y químicos. RR. HH. nunca recibe los resultados de estudios", tema: "reportes" },
   { fecha: "2026-11-05", texto: "Vigilancia: el resumen del artículo 34 (cuadro y hoja de cartelera) sale con cifras exactas también en la copia para la empresa, aunque sean 1 o 2 casos. Los diagnósticos siguen sin nombrarse. Ojo: en empresas pequeñas, un 1 puede señalar a una persona; es un dato agregado que exige el art. 34, sin diagnóstico", tema: "reportes" },
   { fecha: "2026-11-05", texto: "Enlace al paciente (Atención médica): mándale por WhatsApp un enlace de 7 días, de un solo uso, para que llene sus datos y pida su consulta desde su teléfono. Llega a «Pacientes por revisar» con aviso en la campana y el celular; avisa si la cédula ya tiene ficha. Eliges la empresa o «Particular», el día y «Aceptar y agendar» crea la ficha y la cita. «Descartar» tiene Deshacer. Necesita internet para crear el enlace y ver las respuestas", tema: "atencion" },
   { fecha: "2026-11-05", texto: "Servicios y precios más claro: agrupados por tipo (consulta, evaluación, informe…), con el precio grande y «Cambiar» en cada uno. Al cambiar, tres bloques: qué es, cuánto cuesta y con qué consultas se cobra solo, marcando los motivos con casillas en vez de escribir códigos. Si dos servicios cobran el mismo motivo, te avisa", tema: "facturacion" },
+  { fecha: "2026-11-05", texto: "Tasa BCV automática: cada tarde se guarda sola la tasa oficial del día siguiente. La factura, la nota de cobro y el recibo suman los montos en dólares y muestran el equivalente en bolívares a la tasa de su fecha. Si un día no llega, se escribe a mano en Facturación", tema: "facturacion" },
   { fecha: "2026-11-05", texto: "Agregar usuario en pasos: correo, rol (cada rol dice qué ve y qué no ve, separados en servicio médico y empresa cliente), empresa (solo para roles de empresa) y revisar antes de «Agregar usuario»", tema: "configuracion" },
   { fecha: "2026-11-05", texto: "Nueva empresa en 4 pasos (Identificación, Ubicación y dependencias, Registros legales, Exámenes y avisos) y una revisión final antes de «Crear empresa». No deja avanzar sin razón social ni RIF. Al editar una empresa, los mismos pasos se abren en cualquier orden", tema: "empresas" },
   { fecha: "2026-11-06", texto: "El original del reposo que va a RR. HH. ya no lleva el diagnóstico (la copia del servicio médico sí). Si alguna empresa lo exige, actívalo en Configuración › Organización y documentos › Documentos impresos › Reposo médico", tema: "configuracion" },
@@ -347,6 +350,27 @@ export const MANUAL: TemaManual[] = [
     ],
   },
   {
+    id: "psicosocial",
+    titulo: "Riesgos psicosociales (CoPsoQ-istas21)",
+    para: "servicio",
+    resumen: "Evaluación anónima de la organización del trabajo con el cuestionario CoPsoQ-istas21 versión corta (ISTAS): 38 preguntas en 6 apartados, comparadas con la población trabajadora de referencia (verde, amarillo, rojo). Se usa sin modificar, con finalidad preventiva y con el acuerdo del Comité de Seguridad y Salud Laboral, como pide su licencia.",
+    pasos: [
+      "Menú Gestión › Psicosocial › «Nueva evaluación»: elige la empresa, cuántos trabajadores son y los puestos o áreas (mejor áreas amplias que cargos de una sola persona).",
+      "Paso 1: anota la fecha del acuerdo con el Comité (o los delegados de prevención) y cómo consta (por ejemplo, el número de acta). Sin esa fecha no se generan códigos. «Guardar».",
+      "Paso 2: «Generar» tantos códigos como trabajadores. «Imprimir papelitos con QR» saca 10 por hoja para recortar y repartir al azar (de una caja). Por WhatsApp, «WhatsApp» manda el siguiente código libre: uno distinto a cada trabajador.",
+      "El trabajador escanea el QR o entra a la dirección del papelito, elige su puesto y responde en unos 10 minutos. No pide nombre ni cédula. Al final ve su propio resultado en su teléfono. Cada código sirve una sola vez.",
+      "Quien prefiera papel: «Cargar un cuestionario en papel» y marca las 38 respuestas tal cual (S, MV, AV, SA, N). Luego destruye o entrega el papel al Comité.",
+      "Paso 3: los resultados salen desde 5 respuestas (cambia el «Mínimo por grupo» si hace falta). Por apartado ves el porcentaje en verde, amarillo y rojo: «Prioritario» si la mitad o más está en rojo, «A vigilar» si pasa de un tercio. Por puesto, el porcentaje en rojo; los grupos pequeños se juntan en «Otros puestos».",
+      "Paso 4: «Sugerir» arma las conclusiones con los datos; toca las medidas que propone el método para agregarlas al plan con responsable y plazo.",
+      "«Cerrar y entregar»: los códigos que falten dejan de servir y RR. HH. ve el informe en su portal. Conclusiones y medidas se siguen editando; reabrir solo lo hace el administrador o el gerente médico. «Informe» imprime la versión para la empresa.",
+    ],
+    consejos: [
+      "Nadie ve respuestas una por una, ni tú: la base guarda las respuestas sin nombre, sin código y sin hora, y solo entrega totales.",
+      "No se cobra por el cuestionario (condición de la licencia); sí por la evaluación, el análisis y la asesoría.",
+      "Necesita internet: el trabajador responde en línea y la pantalla del servicio lee la nube. Sin internet, usa papel y cárgalo después.",
+    ],
+  },
+  {
     id: "accidentes",
     titulo: "Accidentes, enfermedades ocupacionales e investigación",
     para: "todos",
@@ -440,7 +464,8 @@ export const MANUAL: TemaManual[] = [
     resumen: "Catálogo de servicios, precios por empresa, tasa BCV y notas de cobro de los pacientes atendidos.",
     pasos: [
       "En «Servicios» defines lo que cobras (consultas, evaluaciones, asesorías por hora, evaluaciones de puestos…) y sus precios por empresa.",
-      "Registra la tasa BCV del día para convertir a bolívares.",
+      "La tasa BCV se carga sola cada tarde, cuando el BCV publica la del día siguiente, y queda el historial por fecha. Si un día no llegó, «Escribir a mano» en Facturación (la escrita a mano manda sobre la automática).",
+      "La factura del talonario toma sola la tasa de su fecha de emisión y trae cada renglón en dólares y en bolívares, el total a pagar en bolívares y el total en dólares. La tasa se puede corregir ahí mismo antes de imprimir.",
       "«Nuevo cobro»: eliges empresa y período, marcas las atenciones y se arma la nota de cobro. Una atención no se puede cobrar dos veces.",
       "Desde el cobro lo imprimes y marcas cuando se pague. En el borrador puedes agregar servicios del catálogo (asesorías por hora, evaluaciones de puesto…).",
       "Presupuestos: elige la empresa arriba, crea el presupuesto, agrega servicios y cantidades, imprímelo y márcalo enviado. Si lo aprueban, «Convertir en nota de cobro».",

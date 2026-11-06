@@ -53,6 +53,23 @@ const reporte: Reporte = {
     motivos: ["Pre-empleo", "Periódico", "Pre vacacional", "Post vacacional", "Egreso", "Reintegro", "Anual", "Cambio de puesto", "Morbilidad", "Control", "Urgencia", "Prenatal"].map((nombre, i) => ({ nombre, grupo: i < 8 ? "preventivo" : "no_preventivo" })),
     sistemas: ["Osteomuscular", "Respiratorio", "Traumatismos", "Circulatorio", "Digestivo", "Piel", "Ojo y anexos", "Oído", "Nervioso", "Genitourinario", "Endocrino"],
   },
+  legal: {
+    examenes: { programados: 48, realizados: 37, vencidos: 11, evaluados_periodo: 52, por_vencer: 21, sin_evaluacion: 4,
+      por_dependencia: [
+        { dependencia: "Producción", programados: 24, realizados: 17, vencidos: 7 },
+        { dependencia: "Almacén", programados: 12, realizados: 9, vencidos: 3 },
+        { dependencia: "Mantenimiento", programados: 8, realizados: 7, vencidos: 1 },
+        { dependencia: "Administración", programados: 4, realizados: 4, vencidos: 0 },
+      ] },
+    enfermedades: { registradas: 2, declaradas: 2, a_tiempo: 1, por_declarar: 0, informe_nt02: 1, informe_a_tiempo: 1, informe_pendiente: 1, certificadas: 0, sospechas_sin_registro: 2,
+      por_grupo: [{ grupo: "010 Trastornos musculoesqueléticos", n: 1 }, { grupo: "070 Afecciones por factores psicosociales", n: 1 }] },
+    resultados: [
+      { estudio: "Audiometría", grupo: "Expuestos a ruido", expuesto: true, evaluados: 14, normales: 9, alterados: 4, sin_resultado: 1 },
+      { estudio: "Audiometría", grupo: "Sin exposición a ruido registrada", expuesto: false, evaluados: 6, normales: 6, alterados: 0, sin_resultado: 0 },
+      { estudio: "Espirometría", grupo: "Expuestos a polvos, humos o químicos", expuesto: true, evaluados: 9, normales: 8, alterados: 1, sin_resultado: 0 },
+    ],
+    expuestos_sin_estudio: { ruido: 5, respiratorio: 3 },
+  },
   morbilidad: {
     total: 99, pacientes: 71,
     por_sistema: [{ nombre: "Osteomuscular", n: 38 }, { nombre: "Respiratorio", n: 22 }, { nombre: "Traumatismos", n: 9 }, { nombre: "Circulatorio", n: 8 }, { nombre: "Digestivo", n: 7 }],

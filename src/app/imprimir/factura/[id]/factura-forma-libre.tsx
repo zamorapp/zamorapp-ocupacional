@@ -5,7 +5,8 @@ import { Check, ChevronDown, Loader2, Ruler, TriangleAlert } from "lucide-react"
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Cobro, totales } from "@/lib/facturacion-tipos";
-import { guardarNumeroFactura } from "@/app/(app)/facturacion/acciones";
+import { guardarNumeroFactura, guardarTasaCobro } from "@/app/(app)/facturacion/acciones";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
 import { BarraImpresion } from "../../barra";
 
 // Medidas del talonario de Cesar (20,6 × 14,6 cm apaisado, 04-nov-2026). El membrete preimpreso llega a ~3 cm y la
@@ -18,15 +19,28 @@ const CLAVE = "zamorapp.factura-forma-libre.ajuste";
 type Ajuste = { arriba: number; izquierda: number };
 
 const num = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cifraTasa = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+const leerCifra = (s: string) => Number(s.trim().replace(/\./g, "").replace(",", "."));
 const fecha = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-VE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
 
 type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
 
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "" }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string }) {
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [] }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[] }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   const [emision, setEmision] = useState(c.fecha);
+  // Tasa BCV de la fecha de emisión (la de ese día o la anterior más cercana); si no hay, la de la nota de cobro.
+  // Se puede corregir a mano. Al imprimir se anota en la nota para que el registro diga lo mismo que el papel.
+  // En una nota pagada la tasa queda fija: la anotada en la nota (la del pago); nunca se cambia desde aquí.
+  const tasaFija = c.estado === "pagada" && !!c.tasaBcv;
+  const tasaAuto = (d: string) => tasaParaFecha(tasas, d);
+  const [tasaTxt, setTasaTxt] = useState(() => { const a = tasaFija ? c.tasaBcv : (tasaAuto(c.fecha)?.tasa ?? c.tasaBcv); return a ? cifraTasa(a) : ""; });
+  const cambiarEmision = (d: string) => {
+    setEmision(d);
+    const a = tasaAuto(d);
+    if (a && !tasaFija) setTasaTxt(cifraTasa(a.tasa));
+  };
   const [detallar, setDetallar] = useState(false);
   const [guia, setGuia] = useState(false);
   const [ajuste, setAjuste] = useState<Ajuste>({ arriba: 0, izquierda: 0 });
@@ -48,8 +62,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     try { localStorage.setItem(CLAVE, JSON.stringify(a)); } catch {}
   };
 
-  // En bolívares si hay tasa BCV (lo que exige la factura en Venezuela); si no, en dólares
-  const tasa = c.tasaBcv && c.tasaBcv > 0 ? c.tasaBcv : null;
+  // En bolívares y en dólares si hay tasa BCV (la factura en Venezuela va en bolívares); si no, solo en dólares
+  const tasaLeida = leerCifra(tasaTxt);
+  const tasa = Number.isFinite(tasaLeida) && tasaLeida > 0 ? tasaLeida : null;
+  const auto = tasaAuto(emision);
+  const origenTasa = !tasa ? "" : auto && auto.tasa === tasa ? `BCV, fecha valor ${fecha(auto.fecha)}` : c.tasaBcv === tasa ? "de la nota de cobro" : "escrita aquí";
   const moneda = tasa ? "Bs." : "$";
   const enMoneda = (usd: number) => (tasa ? usd * tasa : usd);
   const t = totales(c);
@@ -77,9 +94,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     el.style.zoom = z < 1 ? String(z) : "";
     setEscala(z);
     setDesborde(mm * z > ALTO + 0.5);
-  }, [renglones, numero, emision, direccion]);
+  }, [renglones, numero, emision, direccion, tasa]);
 
   const guardarNumero = () => {
+    // La tasa impresa queda anotada en la nota de cobro (si cambió)
+    if (editable && tasa && tasa !== c.tasaBcv && c.estado !== "pagada" && c.estado !== "anulada") void guardarTasaCobro(c.id, tasa);
     if (!editable || !numero.trim() || numero.trim() === guardado) return;
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, numero);
@@ -107,7 +126,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         bloqueado={sinNumero || desborde || ocupado}
       />
       <div className="mx-auto mb-4 max-w-[206mm] space-y-3 px-4 print:hidden">
-        <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_9.5rem_minmax(0,1fr)]">
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Nº de factura (talonario)</span>
             <Input value={numero} inputMode="numeric" placeholder="000123" disabled={!editable} onChange={(e) => setNumero(e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} className="font-mono text-foreground disabled:opacity-100" />
@@ -115,13 +134,18 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Fecha de emisión</span>
-            <Input type="date" value={emision} onChange={(e) => setEmision(e.target.value || c.fecha)} />
+            <Input type="date" value={emision} onChange={(e) => cambiarEmision(e.target.value || c.fecha)} />
             <span className="block text-xs text-muted-foreground">{fechaEnLetras(emision)}</span>
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Tasa BCV (Bs/$)</span>
+            <Input value={tasaTxt} inputMode="decimal" placeholder="Ej. 896,1225" disabled={!editable || tasaFija} onChange={(e) => setTasaTxt(e.target.value)} className="font-mono text-foreground disabled:opacity-100" />
+            <span className="block text-xs text-muted-foreground">{tasaFija ? "La del pago (nota pagada)" : tasa ? origenTasa : "Sin tasa: sale solo en $"}</span>
           </label>
           <div className="flex flex-col justify-start gap-1.5 pt-5">
             <label className="flex items-center gap-2"><input type="checkbox" checked={detallar} onChange={(e) => setDetallar(e.target.checked)} /> Un renglón por trabajador (sin agrupar)</label>
           </div>
-          <details className="group sm:col-span-3" open={ajuste.arriba !== 0 || ajuste.izquierda !== 0 || guia}>
+          <details className="group sm:col-span-4" open={ajuste.arriba !== 0 || ajuste.izquierda !== 0 || guia}>
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
               <Ruler className="size-4" /> Ajustar a mi impresora (mm)
               <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
@@ -146,10 +170,10 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         {sinNumero && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Escribe el número de la factura del talonario para poder imprimir.</p>}
         {desborde && (
           <p className="flex items-start gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No cabe entre el membrete y la leyenda ni reducida al 80 %. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No cabe: {renglones.length} renglones. No cabe entre el membrete y la leyenda ni reducida al 80 %. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
           </p>
         )}
-        {!tasa && <p className="text-xs text-muted-foreground">Sin tasa BCV en la nota de cobro: los montos salen en dólares. Anota la tasa en la nota para facturar en bolívares.</p>}
+        {!tasa && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Sin tasa BCV para el {fecha(emision)}: los montos salen solo en dólares. Escribe la tasa arriba para facturar en bolívares.</p>}
         {escala < 1 && !desborde && <p className="text-xs text-muted-foreground">Letra reducida al {Math.round(escala * 100)} % para que quepa en la franja.</p>}
       </div>
 
@@ -187,8 +211,19 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                 <tr className="border-b border-neutral-500 text-left text-[9.5px] uppercase tracking-wide text-neutral-700">
                   <th className="w-[12mm] py-0.5 pr-2 text-right font-semibold">Cant.</th>
                   <th className="py-0.5 font-semibold">Descripción</th>
-                  <th className="w-[30mm] py-0.5 text-right font-semibold">Precio unit. {moneda}</th>
-                  <th className="w-[32mm] py-0.5 text-right font-semibold">Monto {moneda}</th>
+                  {tasa ? (
+                    <>
+                      <th className="w-[17mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio $</th>
+                      <th className="w-[25mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio Bs.</th>
+                      <th className="w-[20mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto $</th>
+                      <th className="w-[28mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto Bs.</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="w-[30mm] whitespace-nowrap py-0.5 text-right font-semibold">Precio unit. $</th>
+                      <th className="w-[32mm] whitespace-nowrap py-0.5 text-right font-semibold">Monto $</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -196,8 +231,10 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                   <tr key={k} className="border-b border-neutral-200 align-top">
                     <td className="py-[1px] pr-2 text-right tabular-nums">{r.cantidad}</td>
                     <td className="py-[1px]">{r.descripcion}{r.detalle && <span className="text-neutral-600"> · {r.detalle}</span>}{c.ivaPct === 0 && " (E)"}</td>
-                    <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.precio))}</td>
-                    <td className="py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.cantidad * r.precio))}</td>
+                    {tasa && <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(r.precio)}</td>}
+                    <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.precio))}</td>
+                    {tasa && <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(r.cantidad * r.precio)}</td>}
+                    <td className="whitespace-nowrap py-[1px] text-right font-mono tabular-nums">{num(enMoneda(r.cantidad * r.precio))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -205,7 +242,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
             <div className="mt-1.5 flex items-start justify-between gap-6">
               <div className="max-w-[95mm] text-[9px] text-neutral-700">
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
-                {tasa && <div>Equivale a $ {num(t.total)} a la tasa BCV de Bs. {num(tasa)} por dólar.</div>}
+                {tasa && <div>Tasa BCV: Bs. {cifraTasa(tasa)} por dólar{auto && auto.tasa === tasa ? ` (fecha valor ${fecha(auto.fecha)})` : ""}.</div>}
                 {c.observacion && <div>{c.observacion}</div>}
                 {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
               </div>
@@ -214,6 +251,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                 {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.iva))}</span></div>}
                 {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.igtf))}</span></div>}
                 <div className="flex justify-between border-t border-neutral-800 pt-0.5 text-[12px] font-bold"><span>TOTAL A PAGAR {moneda}</span><span className="font-mono tabular-nums">{num(enMoneda(t.total))}</span></div>
+                {tasa && <div className="flex justify-between text-[12px] font-bold"><span>TOTAL EN DÓLARES $</span><span className="font-mono tabular-nums">{num(t.total)}</span></div>}
               </div>
             </div>
           </div>

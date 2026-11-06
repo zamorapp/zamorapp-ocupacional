@@ -42,8 +42,12 @@ function revisarCambios(base) {
   for (const f of todas) vistos.set(prefijo(f), [...(vistos.get(prefijo(f)) ?? []), f]);
   for (const [p, fs_] of vistos) if (fs_.length > 1) error(`supabase/migrations/${fs_[1]}`, 1, `Prefijo de migración repetido ${p}: ${fs_.join(", ")}`);
   const ultimaBase = [...enBase].map((f) => prefijo(path.basename(f))).sort().pop() ?? "";
+  // Excepción: una migración que ya quedó aplicada y anotada en producción (schema_migrations) antes de unirse a main
+  // con un número viejo. Renumerarla la volvería a correr; se anota en guardian-base.json con el sí de Cesar y Analizar.
+  const yaAplicadas = new Set(leerBase().migracionesAplicadasFueraDeOrden ?? []);
   for (const [estado, archivo] of estados) {
-    if (estado === "A" && archivo.startsWith("supabase/migrations/") && prefijo(path.basename(archivo)) <= ultimaBase)
+    if (estado === "A" && archivo.startsWith("supabase/migrations/") && prefijo(path.basename(archivo)) <= ultimaBase
+      && !yaAplicadas.has(prefijo(path.basename(archivo))))
       error(archivo, 1, `Migración nueva más vieja que la última de la base (${ultimaBase}): ponle un número posterior`);
   }
   // Pruebas SQL: número único (correr.sh las ordena por número); las repetidas de antes quedan en la línea base

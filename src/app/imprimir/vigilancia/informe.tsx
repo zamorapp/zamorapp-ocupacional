@@ -75,14 +75,14 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
 // Índices con su fórmula, como pide el formato del INPSASEL
 function Indices({ filas }: { filas: [string, string, string][] }) {
   return (
-    <table className="w-full border-collapse text-[10.5px]">
+    <div className="break-inside-avoid rounded-[10px] border border-doc-linea p-3"><table className="w-full border-collapse text-[10.5px]">
       <thead><tr className="bg-doc-suave text-left text-[9.5px] uppercase tracking-wide text-doc-acento"><th className="px-2 py-1">Indicador</th><th className="w-20 px-2 py-1 text-right">Valor</th><th className="px-2 py-1">Definición</th></tr></thead>
       <tbody>
         {filas.map(([n, v, d]) => (
           <tr key={n}><td className="border-t border-doc-linea px-2 py-[3px] font-semibold">{n}</td><td className="border-t border-doc-linea px-2 py-[3px] text-right font-cifra tabular-nums">{v}</td><td className="border-t border-doc-linea px-2 py-[3px] text-doc-tenue">{d}</td></tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -264,6 +264,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
   const subtitulo = periodo.etiqueta.match(/\((.*)\)$/)?.[1] ?? null;
 
   const art34 = filasArt34(r, acc?.accidentes, causas);
+  const lg = r.legal;
 
   return (
     <div data-informe className="papel min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
@@ -476,7 +477,7 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           )}
           <Analisis texto={a.accidentes} />
           <Panel ancla="i-accidentes" titulo="Accidentes e incidentes laborales">
-            <Tabla columnas={["Fecha", "Tipo", "Lugar", "Lesión", "Estado", "Días perdidos"]} porcentaje={false} total={false} vacio="Sin accidentes ni incidentes en el período."
+            <Tabla columnas={["Fecha", "Tipo", "Lugar", "Lesión", "Estado", "Días perdidos"]} texto={[0, 1, 2, 3, 4]} porcentaje={false} total={false} vacio="Sin accidentes ni incidentes en el período."
               filas={(r.accidentes ?? []).map((x) => [new Date(x.fecha).toLocaleString("es-VE", { timeZone: "America/Caracas", dateStyle: "short", timeStyle: "short" }), x.tipo, x.lugar ?? "—", [x.lesion, x.parte].filter(Boolean).join(" · ") || "—", x.estado, x.dias])} />
           </Panel>
           {acc && ix && (
@@ -485,13 +486,35 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
               ["Índice de frecuencia neta (IFN)", num(ix.ifn), `IFN = lesiones con tiempo perdido (${acc.con_tiempo_perdido}) × 1.000.000 / HHT.`],
               ["Índice de frecuencia bruta (IFB)", num(ix.ifb), `IFB = lesiones totales (${acc.accidentes}) × 1.000.000 / HHT.`],
               ["Índice de severidad (IS)", num(ix.is), `IS = (días perdidos ${acc.dias_perdidos} + días cargados ${acc.dias_cargados}) × 1.000.000 / HHT.`],
-              ["Casos de enfermedad ocupacional", num(r.enfermedad_ocupacional?.casos ?? 0), `Diagnosticadas en el período · ${num(r.enfermedad_ocupacional?.casos_anteriores ?? 0)} de años anteriores.`],
+              ["Casos de enfermedad ocupacional (diagnósticos)", num(r.enfermedad_ocupacional?.casos ?? 0), `Diagnosticadas en el período · ${num(r.enfermedad_ocupacional?.casos_anteriores ?? 0)} de años anteriores.`],
               ["Días perdidos por EO", num(r.enfermedad_ocupacional?.dias ?? 0), `Del período · ${num(r.enfermedad_ocupacional?.dias_anteriores ?? 0)} por casos anteriores.`],
               ["Tasa de ausentismo por EO (TAEO)", num(eo.taeo, 4), "TAEO = días perdidos por EO × 100 / HHT."],
               ["Tasa de incidencia de EO (TIEO)", num(eo.tieo), "TIEO = casos de EO × 1.000.000 / HHT."],
             ]} />
           )}
           <Analisis texto={a.indices_accidentes} titulo="Índices de accidentalidad y enfermedad ocupacional" />
+          {lg && (
+            <div className="grid grid-cols-2 items-start gap-3">
+              <Panel ancla="i-eo-declaracion" titulo="Enfermedades ocupacionales: declaración e investigación" nota="Del libro de eventos (fecha del diagnóstico en el período) · LOPCYMAT art. 73 · NT-02-2008">
+                <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} cerosTenues filas={[
+                  ["Registradas en el libro de eventos", lg.enfermedades.registradas],
+                  ["Declaradas ante el INPSASEL", lg.enfermedades.declaradas],
+                  ["Declaradas dentro de 24 horas", lg.enfermedades.a_tiempo],
+                  ["Por declarar", lg.enfermedades.por_declarar],
+                  ["Con informe NT-02", lg.enfermedades.informe_nt02],
+                  ["Informe NT-02 a tiempo (15 o 30 días)", lg.enfermedades.informe_a_tiempo],
+                  ["Informe NT-02 pendiente", lg.enfermedades.informe_pendiente],
+                  ["Certificadas por el INPSASEL", lg.enfermedades.certificadas],
+                  ["Diagnósticos ocupacionales sin registrar", lg.enfermedades.sospechas_sin_registro],
+                ]} />
+              </Panel>
+              <Panel ancla="i-eo-anexo1" titulo="Enfermedades ocupacionales por grupo del Anexo 1">
+                <T columnas={["Grupo (NT-02-2008)", "Casos"]} vacio="Sin enfermedades ocupacionales registradas en el período."
+                  filas={completa([], lg.enfermedades.por_grupo.map((x) => ({ nombre: x.grupo, n: x.n })), minimo, (x) => /psicosocial/i.test(x))} />
+              </Panel>
+            </div>
+          )}
+          <Analisis texto={a.eo_declaracion} titulo="Enfermedades ocupacionales: declaración e investigación" />
         </Seccion>
 
         <Seccion ancla="s-referencias" n="6" titulo="Referencias y exámenes de salud">
@@ -509,11 +532,38 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
           <Analisis texto={a.aptitud} titulo="Aptitud" />
           <Analisis texto={a.externas} titulo="Consulta externa" />
           <Analisis texto={a.reubicaciones} titulo="Reubicaciones" />
+          {lg && (
+            <div className="grid grid-cols-2 items-start gap-3">
+              <Panel ancla="i-periodicos" titulo="Cumplimiento de exámenes periódicos" nota="LOPCYMAT art. 40 y 53 · NT-01-2008">
+                <T columnas={["Concepto", "Trabajadores"]} porcentaje={false} total={false} minimo={0} cerosTenues filas={[
+                  ["Con examen previsto hasta el cierre", lg.examenes.programados],
+                  ["Evaluados a tiempo", lg.examenes.realizados],
+                  ["Vencidos al cierre", lg.examenes.vencidos],
+                  ["Cumplimiento", lg.examenes.programados ? `${num((lg.examenes.realizados * 100) / lg.examenes.programados, 1)} %` : "—"],
+                  ["Vencen el próximo trimestre", lg.examenes.por_vencer],
+                  ["Activos sin ninguna evaluación", lg.examenes.sin_evaluacion],
+                ]} />
+              </Panel>
+              <Panel ancla="i-periodicos-dependencia" titulo="Exámenes periódicos por dependencia">
+                <T columnas={["Dependencia", "Previstos", "Evaluados", "Vencidos"]} porcentaje={false} minimo={0} cerosTenues vacio="Ningún examen periódico previsto en el período."
+                  filas={lg.examenes.por_dependencia.map((x) => [x.dependencia, x.programados, x.realizados, x.vencidos])} />
+              </Panel>
+            </div>
+          )}
+          <Analisis texto={a.examenes_periodicos} titulo="Cumplimiento de exámenes periódicos" />
+          {lg && (
+            <Panel ancla="i-resultados-exposicion" titulo="Audiometría y espirometría por exposición" nota="Último resultado de cada trabajador en el período">
+              <T columnas={["Estudio", "Grupo", "Evaluados", "Normales", "Alterados", "Sin resultado"]} texto={[1]} porcentaje={false} total={false} cerosTenues
+                vacio="Sin audiometrías ni espirometrías en el período."
+                filas={lg.resultados.map((x) => [x.estudio, x.grupo, x.evaluados, x.normales, x.alterados, x.sin_resultado])} />
+            </Panel>
+          )}
+          <Analisis texto={a.resultados_exposicion} titulo="Audiometría y espirometría por exposición" />
         </Seccion>
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">
           {/* Cesar (05-nov, «sí cifras exactas»): el resumen del art. 34 sale con cifras exactas también para la empresa; no nombra diagnósticos */}
-          <T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} minimo={0} />
+          <div className="max-w-[62%] break-inside-avoid"><T columnas={["Concepto", "Total"]} porcentaje={false} total={false} filas={art34} minimo={0} cerosTenues /></div>
           <Analisis texto={a.art34} />
           <p className="text-[9.5px] italic text-doc-tenue">La versión para cartelera de este cuadro va en la última hoja del informe.</p>
         </Seccion>
