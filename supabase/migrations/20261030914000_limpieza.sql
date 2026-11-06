@@ -52,6 +52,7 @@ end $$;
 drop trigger if exists quitar_solicitud_paciente on public.solicitudes_paciente;
 create trigger quitar_solicitud_paciente before update of oculto_en on public.solicitudes_paciente
   for each row execute function public.quitar_solicitud_paciente();
+revoke execute on function public.quitar_solicitud_paciente() from public, anon, authenticated;
 
 create table if not exists public.limpieza_historial (
   id bigint generated always as identity primary key,
@@ -199,6 +200,8 @@ create or replace function public.limpieza_soy_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.mis_orgs() o where public.es_admin(o))
 $$;
+-- Solo la usan las funciones de abajo (corren como dueño): nadie de la app la llama directo
+revoke execute on function public.limpieza_soy_admin() from public, anon, authenticated;
 
 -- Para la pantalla: reglas con su plazo y cuánto hay ahora para limpiar, espacio de la base y la última limpieza
 create or replace function public.limpieza_estado()
