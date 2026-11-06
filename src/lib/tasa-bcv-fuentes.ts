@@ -23,8 +23,8 @@ const motivo = (e: unknown) => {
   return (c?.code ?? c?.message ?? (e as Error)?.message ?? String(e)).slice(0, 80);
 };
 
-async function traer(url: string) {
-  const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(ESPERA_MS), headers: { "User-Agent": UA } });
+async function traer(url: string, redirect: RequestRedirect = "follow") {
+  const r = await fetch(url, { cache: "no-store", redirect, signal: AbortSignal.timeout(ESPERA_MS), headers: { "User-Agent": UA } });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r;
 }
@@ -87,7 +87,7 @@ async function intermedioPorAia(host: string, fallas: string[]): Promise<string 
   const uri = (c?.infoAccess as Record<string, string[]> | undefined)?.["CA Issuers - URI"]?.[0];
   if (!uri) { fallas.push("bcv: sin dirección AIA"); return null; }
   if (!uriAiaValida(uri)) { fallas.push("bcv: dirección AIA no válida"); return null; }
-  const der = await bytesConTope(await traer(uri), TOPE_AIA);
+  const der = await bytesConTope(await traer(uri, "error"), TOPE_AIA) // sin redirecciones: no puede saltar a un host interno;
   let x: X509Certificate;
   try {
     x = new X509Certificate(der); // DER o PEM
