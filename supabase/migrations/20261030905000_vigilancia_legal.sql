@@ -1,3 +1,4 @@
+-- (Renumerada desde 20261030897000: la nube ya tenía 20261030902000.)
 -- zamorApp Ocupacional · Vigilancia: tres indicadores que pide la legislación y el informe no mostraba (Cesar, 05-nov:
 -- «sí exámenes vencidos», «sí enfermedades declaradas», «sí resultados por exposición»)
 -- 1) Cumplimiento de exámenes periódicos (LOPCYMAT art. 40 y 53; NT-01-2008, programa de vigilancia de la salud):
