@@ -3,7 +3,7 @@ import { supabaseConfigurado } from "@/lib/config";
 import { hoyCaracas, sumarDias, sumarMeses } from "@/lib/fecha";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-// Orden de evaluación (20261030921000): cada «Solicitar cita» del portal deja una orden numerada con sus trabajadores.
+// Orden de evaluación (20261030925000): cada «Solicitar cita» del portal deja una orden numerada con sus trabajadores.
 // Relación mensual: lo realizado en el período con su Nº de orden y su nota de cobro/factura, sin datos clínicos.
 
 export type Orden = {

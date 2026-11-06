@@ -93,7 +93,7 @@ export async function solicitarCita(_: Resultado | null, datos: FormData): Promi
   const { error } = await supabase.from("citas").insert(filas);
   // 23514: la base rechazó una hora (otro la tomó en ese instante); el mensaje ya viene claro para RR. HH.
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu usuario no puede solicitar citas para esta empresa." : error.message };
-  // Orden de evaluación numerada (20261030921000): si fallara, las citas ya quedaron pedidas y se dice claro
+  // Orden de evaluación numerada (20261030925000): si fallara, las citas ya quedaron pedidas y se dice claro
   let ordenes: { id: string; numero: number }[] = [];
   let sinOrden = "";
   try { ordenes = await crearOrdenes(filas.map((f) => f.id), datos.get("orden_por") === "trabajador"); }

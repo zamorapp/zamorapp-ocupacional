@@ -35,7 +35,7 @@ export type Cita = {
   empresaId: string;
   propuesta: Propuesta | null;
   respuestaEmpresa: "aceptada" | "pidio_otra" | null;
-  // Orden de evaluación del portal (20261030921000), solo en las solicitudes
+  // Orden de evaluación del portal (20261030925000), solo en las solicitudes
   orden?: { id: string; numero: number } | null;
 };
 
