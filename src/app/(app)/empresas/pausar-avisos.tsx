@@ -45,7 +45,7 @@ export function PausarAvisos({ empresaId, apagados, editable }: { empresaId: str
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       {editable ? (
         <button type="button" role="switch" aria-checked={!pausados} disabled={ocupado} onClick={cambiar} title={nombres ? `Apagados: ${nombres}` : undefined}
-          className={`inline-flex items-center gap-2 rounded-full border py-0.5 pl-0.5 pr-2.5 font-medium transition disabled:opacity-60 ${tono}`}>
+          className={`inline-flex items-center gap-2 rounded-full border py-0.5 pl-0.5 pr-2.5 font-medium transition min-h-11 sm:min-h-0 ${tono}`}>
           {/* El interruptor: a la derecha y verde = activos; a la izquierda y ámbar = en pausa */}
           <span aria-hidden className={`relative h-4 w-7 rounded-full transition-colors ${pausados ? "bg-aviso/60" : "bg-ok"}`}>
             <span className={`absolute top-0.5 size-3 rounded-full bg-white shadow transition-all ${pausados ? "left-0.5" : "left-3.5"}`} />
@@ -61,10 +61,10 @@ export function PausarAvisos({ empresaId, apagados, editable }: { empresaId: str
         </span>
       )}
       {error && (
-        <span role="alert" className="inline-flex items-center gap-2 text-alerta-texto">
-          {error.mensaje}
-          <button type="button" onClick={() => guardar(error.pausar)} className="rounded-full border border-current px-2 py-0.5 font-medium">Reintentar</button>
-          <button type="button" onClick={() => setError(null)} className="underline underline-offset-2">Ignorar</button>
+        <span role="alert" className="flex flex-wrap items-center gap-2 text-alerta-texto">
+          <span className="basis-full sm:basis-auto">{error.mensaje}</span>
+          <button type="button" onClick={() => guardar(error.pausar)} className="min-h-11 rounded-full border border-current px-3 py-0.5 font-medium sm:min-h-0">Reintentar</button>
+          <button type="button" onClick={() => setError(null)} className="min-h-11 px-1 underline underline-offset-2 sm:min-h-0">Ignorar</button>
         </span>
       )}
     </div>
