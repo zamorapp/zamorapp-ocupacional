@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { DIAS_ENLACE_PACIENTE, edad, estadoEnlace, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
+import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NIVEL_EDUCATIVO, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
 import { DIETAS } from "@/lib/dietas";
 import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
 import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, type EnlaceNuevo } from "./paciente-enlace-acciones";
@@ -51,13 +51,14 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const [diasTa, setDiasTa] = useState<7 | 14>(7);
   const [dieta, setDieta] = useState("general");
   const [firma, setFirma] = useState(true);
+  const [conversadas, setConversadas] = useState(false);
   const elegido = perfiles.find((p) => p.id === perfil);
   // Cada orden cuenta como un documento: el paciente ve una fila por cada una
   const marcados = Object.values(docs).filter(Boolean).length + (docs.orden && elegido ? Math.max(elegido.ordenes.length - 1, 0) : 0);
   const previa = () => {
     const q = new URLSearchParams({ nombre, ...(empresa ? { empresa } : {}),
       ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
-      ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1" } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}) });
+      ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1" } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}), ...(conversadas ? { conversadas: "1" } : {}) });
     return `/imprimir/registro-previa?${q}`;
   };
   const marcar = (k: keyof typeof SIN_DOCS) => (v: boolean) => setDocs((d) => ({ ...d, [k]: v }));
@@ -77,6 +78,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
       dieta: docs.dieta ? dieta : null,
       bienestar: docs.bienestar,
       firma: puedeFirmar && firma,
+      conversadas,
     };
     iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos })));
   };
@@ -174,6 +176,12 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                 </label>
               )}
               {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}
+              {marcados > 0 && (
+                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
+                  <input type="checkbox" checked={conversadas} onChange={(e) => setConversadas(e.target.checked)} className="size-4 accent-primary" />
+                  <MessagesSquare className="size-4 shrink-0 text-muted-foreground" /> <span>Ya lo atendí en consulta <span className="block text-xs text-muted-foreground">Leerá «Aquí tienes las indicaciones que conversaste en consulta con…»</span></span>
+                </label>
+              )}
             </fieldset>
             {r && !r.ok && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{r.mensaje}</p>}
             {marcados > 0 && (
@@ -239,6 +247,21 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
             {(d.fecha || d.turno) && ` · Prefiere ${[d.fecha && fechaCorta(d.fecha), d.turno && TURNOS[d.turno].toLowerCase()].filter(Boolean).join(", ")}`}
           </p>
           {d.motivo && <p className="mt-1 rounded-md bg-muted/60 px-2 py-1 text-xs">«{d.motivo}»</p>}
+          {(d.estado_civil || d.nivel_educativo || d.lateralidad || d.profesion || d.lugar_nacimiento) && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {[d.estado_civil && ESTADO_CIVIL[d.estado_civil], d.lugar_nacimiento && `nació en ${d.lugar_nacimiento}`, d.nivel_educativo && NIVEL_EDUCATIVO[d.nivel_educativo],
+                d.profesion, d.lateralidad && `mano ${LATERALIDAD[d.lateralidad].toLowerCase()}`, d.fecha_ingreso && `ingresó ${fechaCorta(d.fecha_ingreso)}`].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {((d.antecedentes?.length ?? 0) > 0 || (d.habitos?.length ?? 0) > 0) && (
+            <details className="mt-1 rounded-md border bg-background px-2 py-1 text-xs">
+              <summary className="cursor-pointer font-medium">Salud que marcó: {d.antecedentes?.length ?? 0} antecedentes, {d.habitos?.length ?? 0} hábitos · pasan a su consulta</summary>
+              <ul className="mt-1 space-y-0.5">
+                {d.antecedentes?.map((a) => <li key={a.id}>{a.grupo === "familiar" ? "Familiar: " : ""}<b>{a.nombre}</b>{a.observacion && ` · ${a.observacion}`}</li>)}
+                {d.habitos?.map((h) => <li key={h.clave}>{h.nombre}: {h.valor}</li>)}
+              </ul>
+            </details>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">Llegó {fechaCorta(s.recibido!)}</span>
       </div>

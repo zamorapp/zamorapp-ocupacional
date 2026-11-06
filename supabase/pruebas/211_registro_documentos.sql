@@ -48,7 +48,7 @@ set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'sin llenar no hay documentos (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') is null)::int;
 select 'llena sus datos (debe 1): ' || (public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-uno',
-  '{"cedula":"V-24680135","nombres":"Gilberto","apellidos":"Gómez","fecha_nacimiento":"1991-02-03","telefono":"04141234567","tipo":"empresa","empresa":"Givaldo","cargo":"Soldador"}') = 'ok')::int;
+  '{"cedula":"V-24680135","nombres":"Gilberto","apellidos":"Gómez","fecha_nacimiento":"1991-02-03","telefono":"04141234567","tipo":"empresa","empresa":"Givaldo","cargo":"Soldador","motivo":"Chequeo"}') = 'ok')::int;
 select 've sus documentos con sus datos, la empresa y el médico firmante (debe 1): ' || count(*) from (select public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-uno') j) x
  where j->'persona'->>'cedula' = 'V-24680135' and j->'persona'->>'cargo' = 'Soldador' and j->'empresa'->>'razon_social' = 'A'
    and j->'motivo'->>'nombre' = 'Pre-empleo prueba 211' and j->'medico'->>'nombre_completo' = 'Dr. Prueba 211' and (j->>'firmado')::boolean
@@ -59,7 +59,7 @@ select 'no devuelve nada de la historia ni el teléfono (debe 0): ' || count(*) 
  where j::text ~ '04141234567|584141234567|token_hash|diagnost';
 select 'token inventado no devuelve nada (debe 1): ' || (public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-xxx') is null)::int;
 select 'enlace sin documentos no devuelve nada (debe 1): ' || ((public.enviar_solicitud_paciente('reg-0123456789-0123456789-0123456789-dos',
-  '{"cedula":"V-13579246","nombres":"Ana","apellidos":"Ruiz","fecha_nacimiento":"1990-01-01","telefono":"04141234567"}') = 'ok')
+  '{"cedula":"V-13579246","nombres":"Ana","apellidos":"Ruiz","fecha_nacimiento":"1990-01-01","telefono":"04141234567","motivo":"Chequeo"}') = 'ok')
   and public.documentos_registro_paciente('reg-0123456789-0123456789-0123456789-dos') is null)::int;
 select 'un anónimo no ejecuta la limpieza directa (debe 0): ' || has_function_privilege('anon','public.limpiar_documentos_registro(jsonb,uuid)','execute')::int;
 

@@ -14,7 +14,7 @@ import { invalidarEmpresas } from "@/lib/empresas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteEnEspera } from "@/lib/citas";
 import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
-import { hoyCaracas } from "@/lib/fecha";
+import { hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -218,16 +218,42 @@ export async function deshacerPaso(trabajadorId: string, destinoId: string, ante
   return { ok: true, mensaje: "Deshecho: volvió a su empresa anterior, como estaba." };
 }
 
+// Lo que el paciente escribió en su enlace entra a su primera consulta después de enviarlo (no a las siguientes) y solo
+// si lo aceptaron hace menos de 60 días: motivo con sus palabras, antecedentes y hábitos del catálogo
+type DelEnlace = { motivo?: string; antecedentes?: DatosConsulta["antecedentes"]; habitos?: DatosConsulta["habitos"] };
+function delEnlace(e: { datos: unknown; recibido_en: string | null } | null, ultimaConsulta: string | null): DelEnlace | null {
+  if (!e?.recibido_en || !e.datos || typeof e.datos !== "object") return null;
+  const recibido = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(e.recibido_en));
+  if (recibido < sumarDias(hoyCaracas(), -60) || (ultimaConsulta && ultimaConsulta >= recibido)) return null;
+  const d = e.datos as DelEnlace;
+  return { motivo: typeof d.motivo === "string" ? d.motivo : undefined, antecedentes: Array.isArray(d.antecedentes) ? d.antecedentes : [], habitos: Array.isArray(d.habitos) ? d.habitos : [] };
+}
+// Antecedentes de la consulta anterior + los que marcó el paciente: lo nuevo se suma; lo repetido conserva lo anterior
+// y agrega «Refiere: …» con lo que escribió
+function unirAntecedentes(previos: DatosConsulta["antecedentes"], delPaciente: DatosConsulta["antecedentes"]) {
+  const lista = previos.map((a) => ({ ...a }));
+  for (const a of delPaciente) {
+    const ya = lista.find((x) => x.id === a.id);
+    const nota = a.observacion?.trim();
+    if (!ya) lista.push({ id: a.id, nombre: a.nombre, grupo: a.grupo, observacion: nota ? `Refiere: ${nota}` : "Refiere" });
+    else if (nota && !(ya.observacion ?? "").includes(nota)) ya.observacion = [ya.observacion, `Refiere: ${nota}`].filter(Boolean).join("; ");
+  }
+  return lista;
+}
+
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta
 export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string; inactivo?: boolean }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
   const supabase = await crearClienteServidor();
 
-  const [{ data: t }, { data: previa }, listas] = await Promise.all([
+  const [{ data: t }, { data: previa }, listas, { data: enlace }] = await Promise.all([
     supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id, estado, empresas(razon_social, activa)").eq("id", trabajadorId).single(),
-    supabase.from("consultas").select("antecedentes, habitos").eq("trabajador_id", trabajadorId).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("consultas").select("fecha, antecedentes, habitos").eq("trabajador_id", trabajadorId).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     opciones(sesion.orgId, ["examen_funcional", "examen_fisico", "habito"]),
+    // Lo que escribió el paciente en su enlace (motivo, antecedentes, hábitos), si lo aceptaron hace menos de 60 días
+    supabase.from("solicitudes_paciente").select("datos, recibido_en").eq("trabajador_id", trabajadorId).eq("resultado", "aceptada")
+      .order("recibido_en", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
   // Empresa inactiva: no se abre una consulta a nombre de una empresa que ya no se atiende. Si viene como candidato,
@@ -252,6 +278,8 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
   const habitosPrevios = new Map<string, string>(
     (Array.isArray(previa?.habitos) ? previa.habitos : []).map((h: { clave: string; valor: string }) => [h.clave, h.valor]),
   );
+  const paciente = delEnlace(enlace, previa?.fecha ?? null);
+  for (const h of paciente?.habitos ?? []) habitosPrevios.set(h.clave, h.valor);
 
   const { data, error } = await supabase
     .from("consultas")
@@ -263,7 +291,8 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
       puesto_id: t.puesto_id,
       motivo_id: motivoId || null,
       tipo: previa ? "sucesiva" : "primera",
-      antecedentes: previa?.antecedentes ?? [],
+      antecedentes: unirAntecedentes(previa?.antecedentes ?? [], paciente?.antecedentes ?? []),
+      ...(paciente?.motivo ? { motivo_texto: paciente.motivo } : {}),
       habitos: listas.habito.map((h) => ({ clave: h.codigo ?? h.id, nombre: h.nombre, valor: habitosPrevios.get(h.codigo ?? h.id) ?? "" })),
       examen_funcional: plantilla("examen_funcional"),
       examen_fisico: plantilla("examen_fisico"),

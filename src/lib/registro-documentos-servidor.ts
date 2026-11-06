@@ -32,6 +32,7 @@ export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: 
     if (!puedeFirmarRegistro(sesion)) return "Solo un médico envía documentos con su firma y sello.";
     d.firma = true;
   }
+  if (el.conversadas && docsElegidos(d).length) d.conversadas = true;
   return d;
 }
 

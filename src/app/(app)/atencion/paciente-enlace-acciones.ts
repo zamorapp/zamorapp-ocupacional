@@ -11,7 +11,7 @@ import { olvidar } from "@/lib/memo";
 import { numeroWhatsApp } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { mensajePaciente, soloDigitosCedula, type Coincidencia, type DatosPaciente, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
+import { ESTADO_CIVIL, LATERALIDAD, NIVEL_EDUCATIVO, mensajePaciente, soloDigitosCedula, type Coincidencia, type DatosPaciente, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
 import { docsElegidos, type EleccionRegistro } from "@/lib/registro-documentos";
 import { armarDocumentosRegistro } from "@/lib/registro-documentos-servidor";
 
@@ -33,6 +33,28 @@ async function servicio() {
 
 // 0414-1234567 para la ficha (la base guarda 584141234567)
 const telefonoFicha = (t: string | undefined) => (t && t.startsWith("58") && t.length === 12 ? `0${t.slice(2, 5)}-${t.slice(5)}` : t ? `+${t}` : null);
+
+// Datos de la ficha que escribió el paciente. Estado civil e instrucción van con el nombre de la lista de la
+// organización (la ficha guarda el nombre; códigos S/C/U/D/V y PRI/BAC/TSU/UNI/POS del catálogo base).
+const CODIGO_CIVIL: Record<keyof typeof ESTADO_CIVIL, string> = { soltero: "S", casado: "C", concubino: "U", divorciado: "D", viudo: "V" };
+const CODIGO_NIVEL: Record<keyof typeof NIVEL_EDUCATIVO, string> = { primaria: "PRI", bachiller: "BAC", tecnico: "TSU", universitario: "UNI", postgrado: "POS" };
+type Supa = Awaited<ReturnType<typeof crearClienteServidor>>;
+async function datosFicha(supabase: Supa, d: DatosPaciente, conEmpresa: boolean) {
+  const { data: items } = d.estado_civil || d.nivel_educativo
+    ? await supabase.from("lista_items").select("lista, codigo, nombre").in("lista", ["estado_civil", "nivel_educativo"]).eq("activo", true)
+    : { data: [] as { lista: string; codigo: string | null; nombre: string }[] };
+  const nombre = (lista: string, codigo: string | undefined, respaldo: string | undefined) =>
+    codigo ? items?.find((i) => i.lista === lista && i.codigo === codigo)?.nombre ?? respaldo ?? null : null;
+  const f = {
+    estado_civil: d.estado_civil ? nombre("estado_civil", CODIGO_CIVIL[d.estado_civil], ESTADO_CIVIL[d.estado_civil]) : null,
+    nivel_educativo: d.nivel_educativo ? nombre("nivel_educativo", CODIGO_NIVEL[d.nivel_educativo], NIVEL_EDUCATIVO[d.nivel_educativo]) : null,
+    lateralidad: d.lateralidad && d.lateralidad in LATERALIDAD ? d.lateralidad : null,
+    lugar_nacimiento: d.lugar_nacimiento ?? null,
+    profesion: d.profesion ?? null,
+    fecha_ingreso: conEmpresa ? d.fecha_ingreso ?? null : null,
+  };
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v)) as Partial<Record<keyof typeof f, string>>;
+}
 
 export type EnlaceNuevo = { ok: true; enlace: string; whatsapp: string; texto: string } | { ok: false; mensaje: string };
 
@@ -81,10 +103,17 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   ]);
   // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
   if (error) return vacio;
+  // Antecedentes y hábitos son datos de salud: solo los ve el personal clínico (recepción ve el resto para agendar)
+  const sinSaludSiNoClinico = (d: DatosPaciente): DatosPaciente => {
+    if (sesion.clinico) return d;
+    const { antecedentes: _a, habitos: _h, ...resto } = d;
+    void _a; void _h;
+    return resto;
+  };
   const mapa = (f: Fila): SolicitudPaciente => ({
     id: f.id, nombre: f.nombre, telefono: f.telefono, empresaSugerida: f.empresas?.razon_social ?? null, creado: f.creado_en, vence: f.vence,
     recibido: f.recibido_en, anulado: Boolean(f.anulado_en), resultado: f.resultado, revisado: f.revisado_en,
-    datos: "cedula" in f.datos ? (f.datos as DatosPaciente) : null, trabajadorId: f.trabajador_id,
+    datos: "cedula" in f.datos ? sinSaludSiNoClinico(f.datos as DatosPaciente) : null, trabajadorId: f.trabajador_id,
   });
   const porRevisar = ((pendientes ?? []) as unknown as Fila[]).map(mapa);
   // ¿Ya tiene ficha? Por los dígitos de la cédula, con cualquier letra
@@ -127,12 +156,20 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
   if (sol.resultado) return { ok: false, mensaje: "Esta solicitud ya se revisó." };
 
   const digitos = soloDigitosCedula(d.cedula);
-  const { data: previos } = await supabase.from("trabajadores").select("id, empresa_id, telefono, correo, direccion")
+  const { data: previos } = await supabase.from("trabajadores").select("id, empresa_id, telefono, correo, direccion, estado_civil, nivel_educativo, lateralidad, lugar_nacimiento, profesion, fecha_ingreso")
     .in("cedula", ["V", "E", "P"].map((l) => `${l}-${digitos}`)).limit(1);
   let trabajador = previos?.[0] ?? null;
   let aviso: string | undefined;
 
+  const ficha = await datosFicha(supabase, d, a.empresa !== "particular");
   if (trabajador) {
+    // Lo que la ficha no tenía (estado civil, instrucción, mano, profesión…) se completa con lo que escribió; lo que ya
+    // tenía no se pisa
+    const vacios = Object.fromEntries(Object.entries(ficha).filter(([k]) => !(trabajador as Record<string, unknown>)[k]));
+    if (Object.keys(vacios).length) {
+      const { error } = await supabase.from("trabajadores").update(vacios).eq("id", trabajador.id);
+      if (error) aviso = `Los datos de la ficha no se completaron: ${error.message}.`;
+    }
     if (a.actualizarContacto) {
       const cambios = Object.fromEntries(Object.entries({ telefono: telefonoFicha(d.telefono), correo: d.correo ?? null, direccion: d.direccion ?? null })
         .filter(([k, v]) => v && v !== trabajador![k as "telefono"]));
@@ -151,10 +188,10 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
     const { error } = await supabase.from("trabajadores").insert({
       id, org_id: sesion.orgId!, empresa_id: empresaId, cedula: d.cedula, nombres: d.nombres, apellidos: d.apellidos,
       sexo: d.sexo ?? null, fecha_nacimiento: d.fecha_nacimiento, telefono: telefonoFicha(d.telefono), correo: d.correo ?? null,
-      direccion: d.direccion ?? null, puesto_id: cat?.puesto(d.cargo ?? null) ?? null,
+      direccion: d.direccion ?? null, puesto_id: cat?.puesto(d.cargo ?? null) ?? null, ...ficha,
     });
     if (error) return { ok: false, mensaje: `No se pudo crear la ficha: ${error.message}` };
-    trabajador = { id, empresa_id: empresaId, telefono: null, correo: null, direccion: null };
+    trabajador = { id, empresa_id: empresaId, telefono: null, correo: null, direccion: null, estado_civil: null, nivel_educativo: null, lateralidad: null, lugar_nacimiento: null, profesion: null, fecha_ingreso: null };
     invalidarEmpresas();
   }
 

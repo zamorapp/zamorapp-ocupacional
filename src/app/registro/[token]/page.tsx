@@ -5,8 +5,9 @@ import { APP_NOMBRE } from "@/lib/config";
 import { TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import { filasRegistro, remitente, type VistaRegistro } from "@/lib/registro-documentos";
-import { FormularioRegistro } from "./formulario";
+import { filasRegistro, fraseIndicaciones, remitente, type VistaRegistro } from "@/lib/registro-documentos";
+import { FormularioRegistro, type CatalogoRegistro } from "./formulario";
+import { EnviarResultados, type EstadoResultados } from "./resultados";
 
 export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -28,7 +29,12 @@ export default async function Registro({ params }: { params: Promise<{ token: st
   const v = (data as Vista[] | null)?.[0];
   const hoy = hoyCaracas();
   // Ya llenó sus datos: si el servicio le dejó documentos, se los muestra para descargar (7 días)
-  const docs = supabase && v?.estado === "usado" ? ((await supabase.rpc("documentos_registro_paciente", { p_token: token })).data as VistaRegistro | null) : null;
+  // y, por 30 días desde que llenó, la opción de subir sus resultados
+  const [docs, resultados, catalogo] = supabase && v ? await Promise.all([
+    v.estado === "usado" ? supabase.rpc("documentos_registro_paciente", { p_token: token }).then((r) => r.data as VistaRegistro | null) : null,
+    v.estado === "usado" ? supabase.rpc("resultados_registro_paciente", { p_token: token }).then((r) => r.data as EstadoResultados | null) : null,
+    v.estado === "vigente" ? supabase.rpc("catalogo_registro_paciente", { p_token: token }).then((r) => r.data as CatalogoRegistro | null) : null,
+  ]) : [null, null, null];
 
   return (
     <main className="min-h-dvh bg-muted/30 px-4 py-6 sm:py-10">
@@ -47,11 +53,12 @@ export default async function Registro({ params }: { params: Promise<{ token: st
             <p className="mt-1 text-sm text-muted-foreground">Revisa que lo abriste completo o pide uno nuevo al servicio médico.</p>
           </section>
         ) : docs ? (
+          <>
           <section role="status" className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
             <div className="space-y-1 text-center">
               <CheckCircle2 className="mx-auto size-12 text-ok" />
               <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
-              <p className="text-sm text-muted-foreground">Puedes descargar lo que te envía <b className="text-foreground">{remitente(docs)}</b>.</p>
+              <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(docs), docs.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
             </div>
             <ul className="space-y-2">
               {filasRegistro(docs.documentos).map((f) => (
@@ -64,26 +71,32 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 </li>
               ))}
             </ul>
-            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF». Este enlace los guarda por 7 días. Te confirmaremos tu cita por WhatsApp.</p>
+            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF». Este enlace los guarda por 7 días.</p>
+            <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
           </section>
+          {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
+          </>
         ) : v.estado !== "vigente" ? (
+          <>
           <section className="rounded-2xl border bg-card p-6 shadow-sm">
             <h1 className="text-xl font-semibold">{AVISO[v.estado].titulo}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{AVISO[v.estado].texto}</p>
             {v.telefono_servicio && <p className="mt-3 text-sm">Teléfono del servicio: <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></p>}
           </section>
+          {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
+          </>
         ) : (
           <>
             <section className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm">
               <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} pide tu consulta</h1>
-              <p className="mt-1 text-sm opacity-90">Llena tus datos y te confirmamos el día y la hora por WhatsApp.</p>
+              <p className="mt-1 text-sm opacity-90">Llena tus datos para tu consulta y te confirmamos el día y la hora por WhatsApp.</p>
               <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> Toma 2 minutos</li>
+                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> Toma 5 minutos</li>
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
             </section>
-            <FormularioRegistro token={token} servicio={v.servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} />
+            <FormularioRegistro token={token} servicio={v.servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} />
           </>
         )}
       </div>
