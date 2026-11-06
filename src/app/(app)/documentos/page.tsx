@@ -25,7 +25,12 @@ export default async function Documentos() {
     if (g) g.items.push(c);
     else grupos.push({ clave, fecha: c.fecha, empresa: c.empresa, items: [c] });
   }
-  const lote = (doc: string, items: typeof consultas) => `/imprimir/lote?doc=${doc}&ids=${items.slice(0, MAX_LOTE).map((c) => c.id).join(",")}`;
+  // Si un grupo pasa de MAX_LOTE, se parte en tramos para no dejar consultas fuera sin aviso
+  const tramos = (items: typeof consultas) =>
+    Array.from({ length: Math.ceil(items.length / MAX_LOTE) }, (_, i) => ({
+      ids: items.slice(i * MAX_LOTE, (i + 1) * MAX_LOTE).map((c) => c.id).join(","),
+      rotulo: items.length > MAX_LOTE ? ` (${i * MAX_LOTE + 1}–${Math.min((i + 1) * MAX_LOTE, items.length)})` : "",
+    }));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -54,10 +59,12 @@ export default async function Documentos() {
                   </div>
                   {g.items.length > 1 && (
                     <div className="flex flex-wrap gap-2">
-                      {g.items.some((c) => c.aptitud) && (
-                        <Button variant="outline" size="sm" asChild><Link href={lote("constancia", g.items.filter((c) => c.aptitud))} target="_blank"><Printer /> Imprimir lote: constancias</Link></Button>
-                      )}
-                      <Button variant="outline" size="sm" asChild><Link href={lote("consulta", g.items)} target="_blank"><Printer /> Imprimir lote: informes</Link></Button>
+                      {tramos(g.items.filter((c) => c.aptitud)).map((t) => (
+                        <Button key={`c${t.rotulo}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=constancia&ids=${t.ids}`} target="_blank"><Printer /> Imprimir lote: constancias{t.rotulo}</Link></Button>
+                      ))}
+                      {tramos(g.items).map((t) => (
+                        <Button key={`i${t.rotulo}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=consulta&ids=${t.ids}`} target="_blank"><Printer /> Imprimir lote: informes{t.rotulo}</Link></Button>
+                      ))}
                     </div>
                   )}
                 </div>
