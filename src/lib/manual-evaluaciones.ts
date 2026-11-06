@@ -22,14 +22,15 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
     grupo: GRUPO_EVALUACIONES,
     titulo: "Cuál evaluación usar y en qué orden",
     para: "servicio",
-    resumen: "Todas las evaluaciones del puesto de trabajo están en el menú Gestión › Evaluaciones de riesgos. Esta guía te dice cuál usar según lo que ves en el puesto, y debajo tienes cada método explicado paso a paso.",
+    resumen: "Todas las evaluaciones del puesto de trabajo están en el menú Gestión › «Evaluaciones de riesgos» (pantalla «Evaluaciones de riesgos y puestos de trabajo»); abajo, «Puestos de trabajo y su riesgo» lista cada puesto con su riesgo más alto. Esta guía te dice cuál usar según lo que ves en el puesto, y debajo tienes cada método explicado paso a paso.",
     claves: "evaluacion evaluaciones metodo método cual elegir ergonomia ergonómica psicosocial mapa de riesgos lopcymat inpsasel det nih",
     pasos: [],
     partes: [
       {
         titulo: "Elige según lo que ves en el puesto",
         items: [
-          "No sabes qué riesgos hay o necesitas el mapa del área: «Identificación de riesgos y mapa de riesgos».",
+          "No sabes qué riesgos hay o necesitas el mapa del área: «Identificación de riesgos y mapa».",
+          "Oficinas (luz, ruido, temperatura, pausas, carga mental, mobiliario): «Trabajo en oficina».",
           "Hay esfuerzo físico, posturas o repetición y no sabes qué método usar: empieza con el DEB. Te dice qué peligro está en rojo o amarillo y qué método específico hacer.",
           "Levantar o bajar cargas con las dos manos: NIOSH.",
           "Empujar o arrastrar carros, carretillas, jaulas o contenedores: KIM-PP.",
@@ -68,7 +69,7 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
     titulo: "Identificación de riesgos y mapa de riesgos",
     para: "servicio",
     resumen: "Recorrido del área o del puesto para anotar cada riesgo (físico, químico, biológico, de seguridad, ergonómico y psicosocial) con su probabilidad, severidad y medida, y ubicarlo con un símbolo en el plano: el mapa de riesgos.",
-    claves: "mapa de riesgo identificacion identificación riesgos por puesto plano croquis simbolos símbolos matriz nt-04 nt04 inspeccion",
+    claves: "mapa de riesgo identificacion identificación riesgos por puesto plano croquis simbolos símbolos matriz nt-04 nt04 inspeccion oficina lista de chequeo",
     pasos: [],
     partes: [
       {
@@ -98,10 +99,14 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
         titulo: "Cómo se llena en zamorApp",
         numerada: true,
         items: [
-          "Menú Gestión › Evaluaciones de riesgos › «Identificación de riesgos y mapa de riesgos» › «Nueva identificación». Elige la empresa, qué se evalúa y el motivo (la lista se edita en Configuración › Listas › «Motivos de identificación de riesgos»).",
-          "Pestaña «Riesgos por puesto»: «Traer riesgos del puesto» copia los que ya tiene la matriz del puesto. Para cada riesgo llena grupo, agente, fuente, posible daño, expuestos, probabilidad y severidad, controles existentes, medida, responsable y plazo.",
-          "Pestaña «Mapa de riesgos»: sube el plano o usa el croquis. Toca un riesgo de la lista y luego el lugar del plano: queda su símbolo numerado con su letra (F físico, Q químico, B biológico, S seguridad, E ergonómico, P psicosocial).",
-          "Cierra la identificación para imprimir el informe con el mapa. «Pasar a los puestos» copia los riesgos a la matriz de cada puesto (la que usa la notificación de riesgos).",
+          "Menú Gestión › Evaluaciones de riesgos › tarjeta «Identificación de riesgos y mapa» › «Nueva identificación». Elige la empresa, el tipo («Todas las áreas» u «Oficina administrativa»), qué se evalúa y el motivo (la lista se edita en Configuración › Listas › «Motivos de identificación de riesgos»). Va en 5 pasos y se guarda sola.",
+          "Paso «Datos»: fecha, quiénes participaron (Comité, delegados de prevención, trabajadores consultados) y el acta.",
+          "Paso «Puestos»: agrega los puestos o áreas que entran y cuántos trabajadores están expuestos en cada uno.",
+          "Paso «Riesgos»: la lista de chequeo va por pantallas, una por grupo (Físico, Químico, Biológico, Mecánico o de seguridad, Disergonómico y Psicosocial). Toca Sí o No en cada riesgo; «Lo que falta de esta sección: No» marca de una vez el resto, y «Siguiente sección» o «Seguir con…» avanza. En «Fotos de la zona» tocas una sugerencia y se abre la cámara (las fotos necesitan internet).",
+          "«Valorar los riesgos»: en cada riesgo marcado escribe de dónde viene, el posible daño, los controles que ya existen, Probabilidad y Severidad, la medida recomendada, el responsable y el plazo.",
+          "Paso «Mapa»: «Subir plano» o «Usar croquis» (cuadriculado, sirve sin internet). En «Riesgos» tocas un riesgo y luego su lugar en el plano: queda su símbolo con la letra del grupo (F físico, Q químico, B biológico, S seguridad, E ergonómico, P psicosocial), su número y un anillo del color de su nivel. En «Nombres de áreas» escribes el nombre y tocas el plano.",
+          "Paso «Resultados»: gráficas por grupo y por puesto. «Proponer conclusión» la escribe con los datos y la ajustas. «Cerrar evaluación» la deja como informe; «Informe y mapa» la imprime. «Pasar a los puestos» copia los riesgos a la matriz de cada puesto (la que usa la notificación de riesgos). «Reabrir» corrige una cerrada.",
+          "«Trabajo en oficina» (otra tarjeta del mismo menú) abre la misma identificación con la lista de oficina: pantalla, silla, mesa, luz, ruido, temperatura, pausas y carga mental, con mediciones y sus valores de referencia. Si un puesto de computadora sale mal, sigue con ROSA.",
         ],
       },
       {
