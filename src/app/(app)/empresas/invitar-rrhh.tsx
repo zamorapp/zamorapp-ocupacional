@@ -56,7 +56,7 @@ function Formulario({ empresaId, contactos }: { empresaId: string; contactos: Co
           {copiado ? <Check /> : <Copy />} {copiado ? "Copiado" : "Copiar enlace"}
         </Button>
         <p className="text-center text-xs">
-          <Link href="/configuracion/usuarios#invitar" className="text-muted-foreground underline-offset-4 hover:underline">Ver o anular invitaciones</Link>
+          <Link href="/configuracion/usuarios#invitar" className="inline-flex min-h-11 items-center text-muted-foreground underline-offset-4 hover:underline">Ver o anular invitaciones</Link>
         </p>
       </div>
     );
