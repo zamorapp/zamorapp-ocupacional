@@ -5,6 +5,7 @@ import { claseDe } from "@/lib/estudios";
 import type { Item } from "@/lib/listas";
 import type { Sesion } from "@/lib/sesion";
 import { docsElegidos, partesOrden, type DocumentosRegistro, type EleccionRegistro, type ExamenOrden } from "@/lib/registro-documentos";
+import { temasBienestar } from "@/lib/bienestar";
 
 export const FIRMANTES = new Set(["administrador", "gerente_medico", "medico"]);
 export const puedeFirmarRegistro = (s: Pick<Sesion, "clinico" | "rol">) => s.clinico && FIRMANTES.has(s.rol ?? "");
@@ -27,7 +28,7 @@ export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: 
   }
   if (el.controlTa) d.control_ta = { dias: el.controlTa === 14 ? 14 : 7 };
   if (el.dieta) d.dieta = { dieta: el.dieta, plan: [] };
-  if (el.bienestar) d.bienestar = { tema: [] };
+  if (el.bienestar) d.bienestar = { tema: temasBienestar((el.temas ?? []).join(",")).slice(0, 12) };
   if (el.firma && docsElegidos(d).length) {
     if (!puedeFirmarRegistro(sesion)) return "Solo un médico envía documentos con su firma y sello.";
     d.firma = true;

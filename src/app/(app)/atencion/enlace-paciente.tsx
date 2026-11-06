@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NIVEL_EDUCATIVO, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
 import { DIETAS } from "@/lib/dietas";
+import { BOTONES_BIENESTAR } from "@/lib/bienestar";
 import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
 import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, type EnlaceNuevo } from "./paciente-enlace-acciones";
 
@@ -50,6 +51,8 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const [motivo, setMotivo] = useState("");
   const [diasTa, setDiasTa] = useState<7 | 14>(7);
   const [dieta, setDieta] = useState("general");
+  // Temas de bienestar que van en la hoja (al menos uno)
+  const [temas, setTemas] = useState<string[]>(["pausas"]);
   const [firma, setFirma] = useState(true);
   const [conversadas, setConversadas] = useState(false);
   const elegido = perfiles.find((p) => p.id === perfil);
@@ -58,7 +61,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const previa = () => {
     const q = new URLSearchParams({ nombre, ...(empresa ? { empresa } : {}),
       ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
-      ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1" } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}), ...(conversadas ? { conversadas: "1" } : {}) });
+      ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1", tema: temas.join(",") } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}), ...(conversadas ? { conversadas: "1" } : {}) });
     return `/imprimir/registro-previa?${q}`;
   };
   const marcar = (k: keyof typeof SIN_DOCS) => (v: boolean) => setDocs((d) => ({ ...d, [k]: v }));
@@ -68,7 +71,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const lista = empresas;
   const puedeCompartir = typeof navigator !== "undefined" && "share" in navigator;
 
-  const limpiar = () => { setR(null); setNombre(""); setTelefono(""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setMotivo(""); };
+  const limpiar = () => { setR(null); setNombre(""); setTelefono(""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setMotivo(""); setTemas(["pausas"]); };
   const cerrar = (v: boolean) => { setAbierto(v); if (!v) { limpiar(); setEmpresa(""); } };
   const crear = () => {
     if (docs.orden && !perfil) return setR({ ok: false, mensaje: "Elige el perfil de exámenes de la orden." });
@@ -77,6 +80,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
       controlTa: docs.ta ? diasTa : null,
       dieta: docs.dieta ? dieta : null,
       bienestar: docs.bienestar,
+      temas: docs.bienestar ? temas : [],
       firma: puedeFirmar && firma,
       conversadas,
     };
@@ -168,7 +172,22 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                   {DIETAS.map((x) => <option key={x.clave} value={x.clave}>{x.boton}</option>)}
                 </select>
               </FilaDoc>
-              <FilaDoc marcado={docs.bienestar} alCambiar={marcar("bienestar")} titulo={DOCS_REGISTRO.bienestar.nombre} />
+              <FilaDoc marcado={docs.bienestar} alCambiar={marcar("bienestar")} titulo={DOCS_REGISTRO.bienestar.nombre}>
+                <div role="group" aria-label="Temas de bienestar" className="flex flex-wrap gap-1.5">
+                  {BOTONES_BIENESTAR.map((t) => {
+                    const activo = temas.includes(t.clave);
+                    const unico = activo && temas.length === 1;
+                    return (
+                      <button key={t.clave} type="button" aria-pressed={activo} disabled={unico || (!activo && temas.length >= 12)} title={unico ? "Debe quedar al menos un tema" : undefined}
+                        onClick={() => setTemas((x) => (activo ? x.filter((k) => k !== t.clave) : [...x, t.clave]))}
+                        className={cn("inline-flex h-8 items-center gap-1 rounded-full border px-3 text-xs", activo ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary", unico && "cursor-default")}>
+                        {activo && <Check className="size-3" />} {t.boton}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Salen con tu versión de cada hoja. <Link href="/atencion/hojas" className="font-medium text-primary underline">Leerlas o editarlas</Link></p>
+              </FilaDoc>
               {marcados > 0 && puedeFirmar && (
                 <label className="flex items-start gap-2 px-1 pt-1 text-sm">
                   <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />

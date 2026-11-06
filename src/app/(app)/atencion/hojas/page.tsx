@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, ArrowLeft, ExternalLink, Eye, FlaskConical, Gauge, Salad } from "lucide-react";
+import { Activity, ArrowLeft, ExternalLink, Eye, FlaskConical, Gauge, PencilLine, Salad } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DIETAS } from "@/lib/dietas";
 import { BOTONES_BIENESTAR } from "@/lib/bienestar";
+import { areasBienestar } from "@/lib/hojas-version";
+import { versionesHojas } from "@/lib/hojas-version-servidor";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { resumenPerfiles } from "@/lib/registro-documentos-servidor";
@@ -23,31 +26,53 @@ function Ver({ href, children }: { href: string; children: React.ReactNode }) {
   );
 }
 
+// Dieta o tema de bienestar: «Leer y editar» abre la hoja para cambiarla y guardarla como versión del servicio
+function Hoja({ codigo, nombre, detalle, propia }: { codigo: string; nombre: string; detalle?: string; propia: boolean }) {
+  return (
+    <Link href={`/imprimir/hoja-editar/${codigo}`} className="flex min-h-12 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm transition hover:border-primary">
+      <span className="min-w-0 flex-1">
+        <b className="font-medium">{nombre}</b>{propia && <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">Tu versión</span>}
+        {detalle && <span className="block text-xs text-muted-foreground">{detalle}</span>}
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary"><PencilLine className="size-3.5" /> Leer y editar</span>
+    </Link>
+  );
+}
+
 // Todo lo que se le puede entregar al paciente (en la consulta o con «Enlace al paciente»), para verlo sin abrir una
 // consulta: dietas, bienestar, control de tensión y las órdenes que salen de cada perfil de exámenes.
 export default async function HojasPaciente() {
   const sesion = await obtenerSesion();
   const listas = await opciones(sesion.orgId, ["grupo_paraclinicos", "paraclinico"]);
   const perfiles = resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico);
+  const versiones = sesion.demo ? {} : await versionesHojas(await crearClienteServidor());
+  const nombreTema = new Map(BOTONES_BIENESTAR.map((t) => [t.clave, t.boton]));
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-2"><Link href="/atencion"><ArrowLeft /> Atención médica</Link></Button>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hojas para el paciente</h1>
-        <p className="text-muted-foreground">Lo que le puedes entregar en la consulta o enviar con «Enlace al paciente». «Ver» abre la hoja con un paciente de ejemplo. En la consulta, cada renglón se puede cambiar antes de imprimir.</p>
+        <p className="text-muted-foreground">Lo que le puedes entregar en la consulta o enviar con «Enlace al paciente». Ábrela para leerla, agregarle o quitarle renglones y guardarla como tu versión: sale así en todas las consultas y enlaces. En cada consulta aún puedes ajustarla para ese paciente.</p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Salad className="size-5 text-primary" /> Recomendaciones nutricionales</CardTitle></CardHeader>
           <CardContent className="grid gap-2">
-            {DIETAS.map((d) => <Ver key={d.clave} href={ver({ dieta: d.clave })}><b className="font-medium">{d.boton}</b><span className="block text-xs text-muted-foreground">{d.titulo}</span></Ver>)}
+            {DIETAS.map((d) => <Hoja key={d.clave} codigo={`dieta-${d.clave}`} nombre={d.boton} detalle={d.titulo} propia={`dieta-${d.clave}` in versiones} />)}
           </CardContent>
         </Card>
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Activity className="size-5 text-primary" /> Bienestar</CardTitle></CardHeader>
-            <CardContent className="grid gap-2">
-              {BOTONES_BIENESTAR.map((t) => <Ver key={t.clave} href={ver({ bienestar: "1", tema: t.clave })}><b className="font-medium">{t.boton}</b></Ver>)}
+            <CardContent className="space-y-3">
+              {areasBienestar().map((a) => (
+                <div key={a.titulo} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{a.titulo}</p>
+                  <div className="grid gap-2">
+                    {a.claves.filter((k) => nombreTema.has(k)).map((k) => <Hoja key={k} codigo={`bienestar-${k}`} nombre={nombreTema.get(k)!} propia={`bienestar-${k}` in versiones} />)}
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
           <Card>

@@ -319,6 +319,279 @@ export const TEMAS: TemaBienestar[] = [
     ],
     fuente: "OMS y OIT, Directrices sobre salud mental en el trabajo (2022), recomendación de formar a los gerentes. LOPCYMAT (2005), art. 56, deberes del empleador.",
   },
+  // ===== Biblioteca 06-nov (Cesar): más afecciones musculoesqueléticas, heridas y piel, salud mental y estilo de vida
+  {
+    clave: "escoliosis",
+    boton: "Escoliosis",
+    titulo: "Escoliosis: espalda fuerte y sin dolor",
+    grupos: [
+      {
+        items: [
+          "Con escoliosis se puede trabajar y hacer ejercicio: mantenerse activo protege la espalda.",
+          "Hacer a diario los ejercicios que le indiquen para fortalecer abdomen, espalda y glúteos; nadar y caminar ayudan.",
+          "Sentado: espalda apoyada, pies en el piso y la pantalla al frente, sin girar el tronco.",
+          "Repartir el peso: bolso o morral en ambos hombros; las cargas, cerca del cuerpo y con las dos manos.",
+          "Cambiar de postura cada 30 a 60 minutos y hacer las pausas activas de espalda.",
+          "Control con su médico según le indique; más seguido si el dolor aumenta o nota que la curva cambia.",
+          "Consultar pronto si aparece dolor que no cede con reposo, hormigueo o pérdida de fuerza en las piernas, o falta de aire.",
+        ],
+      },
+    ],
+    fuente: "SOSORT, Guías de manejo conservador de la escoliosis (Negrini S y cols., Scoliosis Spinal Disord 2018;13:3). NICE NG59, Low back pain and sciatica (2020).",
+  },
+  {
+    clave: "rodilla",
+    boton: "Dolor de rodilla",
+    titulo: "Dolor de rodilla (gonalgia): cuidar la articulación",
+    grupos: [
+      {
+        titulo: "Cuidados",
+        items: [
+          "Mantenerse activo con ejercicios suaves: caminar en terreno plano, bicicleta fija o natación.",
+          "Fortalecer los muslos (cuádriceps) con los ejercicios que le indiquen: es lo que más protege la rodilla.",
+          "Bajar de peso si hay sobrepeso: cada kilo menos alivia la rodilla al caminar.",
+          "Hielo 15 minutos, envuelto en un paño, si la rodilla está inflamada; calor si está rígida.",
+          "Calzado cómodo, con buena suela y sin tacón alto.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Evitar arrodillarse o ponerse en cuclillas por mucho tiempo; si hace falta, usar rodilleras o un cojín.",
+          "Subir y bajar escaleras despacio, con apoyo en el pasamanos.",
+          "Alternar estar de pie y sentado; no cargar peso subiendo escaleras.",
+          "Consultar pronto si la rodilla se hincha mucho, se traba, falla al apoyar o está caliente y roja.",
+        ],
+      },
+    ],
+    fuente: "OARSI, Guidelines for the non-surgical management of knee osteoarthritis (Bannuru RR y cols., Osteoarthritis Cartilage 2019;27:1578). NICE NG226, Osteoarthritis in over 16s (2022).",
+  },
+  {
+    clave: "hombro",
+    boton: "Dolor de hombro",
+    titulo: "Dolor de hombro (manguito rotador): mover sin lastimar",
+    grupos: [
+      {
+        items: [
+          "No inmovilizar el hombro: moverlo suave dentro de lo que no duele evita que se ponga rígido.",
+          "Evitar trabajar con los brazos por encima de los hombros: usar escalera o plataforma y acercar el trabajo.",
+          "Cargar pegado al cuerpo y con los codos doblados; no levantar peso con el brazo estirado.",
+          "Ejercicios de péndulo: inclinado, dejar colgar el brazo y hacer círculos pequeños, 1 minuto, 3 veces al día.",
+          "Hielo 15 minutos después de un esfuerzo si duele.",
+          "Dormir boca arriba o del lado sano, con una almohada bajo el brazo que duele.",
+          "Consultar si no puede levantar el brazo, si el dolor no deja dormir o si dura más de 4 semanas.",
+        ],
+      },
+    ],
+    fuente: "Hopman K y cols., Clinical practice guidelines for the management of rotator cuff syndrome in the workplace, Univ. de Nueva Gales del Sur (2013). Diercks R y cols., Guía del síndrome de dolor subacromial, Acta Orthop 2014;85:314.",
+  },
+  {
+    clave: "muneca",
+    boton: "Muñeca y túnel carpiano",
+    titulo: "Muñeca y túnel carpiano: manos sin hormigueo",
+    grupos: [
+      {
+        items: [
+          "Muñeca recta al trabajar: ni doblada hacia arriba ni hacia abajo; teclado bajo y ratón cerca.",
+          "Agarrar con toda la mano, no en pinza; usar herramientas con mango grueso y que no vibren.",
+          "Repartir las tareas repetitivas y hacer micro-pausas cada hora: abrir y cerrar la mano, estirar los dedos.",
+          "Evitar apoyar la muñeca sobre bordes duros.",
+          "Si le indicaron férula, usarla de noche con la muñeca recta.",
+          "Sacudir las manos alivia el hormigueo; consultar si se adormecen los dedos pulgar, índice y medio, o si se le caen las cosas.",
+        ],
+      },
+    ],
+    fuente: "AAOS, Management of Carpal Tunnel Syndrome: Evidence-Based Clinical Practice Guideline (2016). INSST (España), Guía técnica de manipulación manual y movimientos repetitivos.",
+  },
+  {
+    clave: "codo",
+    boton: "Codo (epicondilitis)",
+    titulo: "Dolor de codo (epicondilitis o «codo de tenista»)",
+    grupos: [
+      {
+        items: [
+          "Bajar las tareas que más duelen por unas semanas, sin dejar de usar el brazo.",
+          "Agarrar con la palma hacia arriba cuando sea posible; evitar torcer o apretar con fuerza.",
+          "Herramientas más livianas y con mango más grueso; evitar las que vibran.",
+          "Estirar: brazo al frente, palma abajo, con la otra mano bajar los dedos 20 segundos, 3 veces al día.",
+          "Hielo 15 minutos después del trabajo si duele.",
+          "Si le indicaron una banda o codera, ponerla 2 dedos debajo del codo.",
+          "Suele mejorar en semanas o meses; consultar si empeora o hay hormigueo en la mano.",
+        ],
+      },
+    ],
+    fuente: "NICE CKS, Tennis elbow. Lucado AM y cols., Lateral elbow pain CPG, JOSPT 2022;52:CPG1.",
+  },
+  {
+    clave: "pie",
+    boton: "Dolor de talón (fascitis)",
+    titulo: "Dolor de talón (fascitis plantar)",
+    grupos: [
+      {
+        items: [
+          "Calzado con buen soporte del arco y talón acolchado; no andar descalzo en piso duro.",
+          "Estirar la pantorrilla contra la pared, 30 segundos por lado, 3 veces al día.",
+          "Antes de levantarse de la cama: doblar los dedos hacia usted con la mano, 10 veces.",
+          "Rodar una botella fría bajo la planta del pie 10 minutos al final del día.",
+          "Si trabaja de pie: usar plantillas o alfombra antifatiga y alternar con ratos sentado.",
+          "Bajar de peso si hay sobrepeso.",
+          "Suele mejorar en semanas; consultar si hay hinchazón, moretón o el dolor no deja apoyar.",
+        ],
+      },
+    ],
+    fuente: "Koc TA y cols., Heel Pain – Plantar Fasciitis CPG, JOSPT 2023;53:CPG1. NICE CKS, Plantar fasciitis.",
+  },
+  {
+    clave: "heridas",
+    boton: "Cuidado de heridas",
+    titulo: "Cuidado de una herida",
+    grupos: [
+      {
+        titulo: "Cuidados diarios",
+        items: [
+          "Lavarse bien las manos antes y después de tocar la herida.",
+          "Limpiar la herida con agua potable y jabón neutro o con solución fisiológica; secar con gasa a toques, sin frotar.",
+          "No usar alcohol, yodo, café, hierbas ni polvos sobre la herida: dañan la piel nueva.",
+          "Cubrirla con gasa limpia o apósito y cambiarlo una vez al día, o antes si se moja o se ensucia.",
+          "No quitarse las costras ni los puntos; los puntos se retiran el día que le indiquen.",
+          "Comer proteínas (huevo, pollo, pescado, granos), frutas y verduras: ayudan a cicatrizar.",
+          "Proteger la cicatriz del sol por 6 meses para que no se oscurezca.",
+        ],
+      },
+      {
+        titulo: "Consulte pronto si",
+        items: [
+          "La herida se pone más roja, caliente, hinchada o duele más cada día.",
+          "Sale pus o mal olor, o tiene fiebre.",
+          "Se abre o sangra sin parar al presionar 10 minutos.",
+          "La herida fue con un objeto oxidado o sucio y no tiene la vacuna antitetánica al día.",
+          "Es diabético: revisar la herida a diario y no esperar.",
+        ],
+      },
+    ],
+    fuente: "OMS, Directrices mundiales para la prevención de la infección del sitio quirúrgico (2018). NICE NG125, Surgical site infections (2020). CDC, Tetanus: wound management.",
+  },
+  {
+    clave: "quemaduras",
+    boton: "Quemaduras leves",
+    titulo: "Quemaduras leves: primeros cuidados",
+    grupos: [
+      {
+        items: [
+          "Enfriar de inmediato con agua corriente fresca (no helada) por 20 minutos.",
+          "Quitar anillos, reloj o ropa cerca de la quemadura antes de que se hinche, si no está pegada a la piel.",
+          "No poner hielo, pasta dental, aceite, mantequilla, café ni clara de huevo.",
+          "No reventar las ampollas; cubrir con una gasa limpia, suelta, sin apretar.",
+          "Para el dolor, el analgésico que le indique su médico.",
+          "Acudir de inmediato si la quemadura es más grande que la palma de la mano, es en cara, manos, pies, genitales o articulaciones, es por electricidad o químicos, o la piel se ve blanca o negra.",
+        ],
+      },
+    ],
+    fuente: "OMS, Quemaduras: nota descriptiva (2023). Cruz Roja / IFRC, Guías internacionales de primeros auxilios (2020). Directrices europeas de primeros auxilios ERC 2021.",
+  },
+  {
+    clave: "ansiedad",
+    boton: "Ansiedad",
+    titulo: "Cuando la ansiedad aprieta",
+    grupos: [
+      {
+        titulo: "Lo que ayuda",
+        items: [
+          "Sentir miedo o preocupación es humano; cuando se vuelve muy fuerte o constante, también tiene tratamiento.",
+          "Respiración lenta: inhalar en 4 segundos y botar el aire en 6, por 3 a 5 minutos.",
+          "Volver al presente: nombrar 5 cosas que ve, 4 que toca, 3 que oye, 2 que huele y 1 que saborea.",
+          "Escribir lo que le preocupa y, al lado, un pequeño paso posible para cada cosa.",
+          "Moverse a diario: caminar 30 minutos baja la tensión del cuerpo.",
+          "Bajar el café, las bebidas energéticas y el alcohol; dormir en horario fijo.",
+          "Hablarlo con alguien de confianza: no tiene que cargarlo solo.",
+        ],
+      },
+      {
+        titulo: "Busque ayuda",
+        items: [
+          "Si la ansiedad no le deja trabajar, dormir o estar con los suyos por más de 2 semanas, consulte: hay tratamiento eficaz.",
+          "Si tiene dolor en el pecho, falta de aire o palpitaciones fuertes, acuda a emergencia para descartar otras causas.",
+          "Si piensa en hacerse daño, busque ayuda hoy mismo: acuda a emergencia o llame a su médico.",
+        ],
+      },
+    ],
+    fuente: "OMS, En tiempos de estrés, haz lo que importa (2020). OMS, Guía mhGAP de intervenciones para trastornos mentales (2.ª ed., 2016; actualización 2023). NICE CG113, Generalised anxiety disorder and panic disorder (2019).",
+  },
+  {
+    clave: "animo",
+    boton: "Ánimo bajo y depresión",
+    titulo: "Cuando el ánimo está bajo",
+    grupos: [
+      {
+        titulo: "Pasos que ayudan",
+        items: [
+          "Lo que siente es real y tiene tratamiento; pedir ayuda es un paso de fuerza, no de debilidad.",
+          "Mantener una rutina sencilla: levantarse, asearse y comer a horas fijas, aunque cueste.",
+          "Planear cada día una actividad pequeña que antes le gustaba y hacerla, aunque no tenga ganas.",
+          "Salir a la luz del sol y caminar un rato cada día.",
+          "Estar en contacto con alguien de confianza; contar cómo se siente.",
+          "Evitar el alcohol y otras drogas: empeoran el ánimo.",
+          "Si le indicaron tratamiento, tomarlo como se lo indicaron y no dejarlo sin hablar con su médico.",
+        ],
+      },
+      {
+        titulo: "Busque ayuda",
+        items: [
+          "Si la tristeza, el desgano o el no disfrutar las cosas duran más de 2 semanas, consulte al servicio médico.",
+          "Si piensa que no vale la pena vivir o en hacerse daño, busque ayuda hoy mismo: acuda a emergencia, llame a su médico o a alguien de confianza que lo acompañe.",
+        ],
+      },
+    ],
+    fuente: "OMS, Guía mhGAP de intervenciones para trastornos mentales (2.ª ed., 2016; actualización 2023). NICE NG222, Depression in adults (2022). OMS y OIT, Directrices sobre salud mental en el trabajo (2022).",
+  },
+  {
+    clave: "sueno",
+    boton: "Dormir mejor",
+    titulo: "Dormir mejor",
+    grupos: [
+      {
+        items: [
+          "Acostarse y levantarse a la misma hora todos los días, incluso el fin de semana.",
+          "Dormir 7 a 8 horas; si trabaja de noche, oscurecer el cuarto y proteger esas horas de sueño.",
+          "Dejar el teléfono y las pantallas una hora antes de dormir.",
+          "Cuarto oscuro, fresco y silencioso; la cama, solo para dormir.",
+          "Nada de café, té negro ni bebidas energéticas después de las 2 de la tarde; cenar liviano.",
+          "No usar el alcohol para dormir: corta el sueño profundo.",
+          "Si no se duerme en 20 minutos, levantarse a algo tranquilo con luz baja y volver cuando tenga sueño.",
+          "Consultar si ronca fuerte, deja de respirar dormido o tiene sueño de día que lo hace cabecear: puede ser peligroso al manejar u operar equipos.",
+        ],
+      },
+    ],
+    fuente: "Academia Americana de Medicina del Sueño, Healthy sleep habits. Edinger JD y cols., Behavioral treatments for chronic insomnia, J Clin Sleep Med 2021;17:255. NIOSH, Work schedules: shift work and long hours (2020).",
+  },
+  {
+    clave: "vida-sana",
+    boton: "Estilo de vida saludable",
+    titulo: "Estilo de vida saludable",
+    grupos: [
+      {
+        titulo: "Cada día",
+        items: [
+          "Moverse 150 minutos a la semana (30 minutos, 5 días): caminar rápido cuenta.",
+          "Medio plato de vegetales y frutas, un cuarto de proteína y un cuarto de granos o tubérculos.",
+          "Tomar agua; bajar los refrescos, jugos azucarados y la comida frita o empaquetada.",
+          "Menos sal: no agregarla en la mesa y evitar embutidos y cubitos.",
+          "Dormir 7 a 8 horas y cuidar los ratos con la familia y los amigos.",
+        ],
+      },
+      {
+        titulo: "Para prevenir",
+        items: [
+          "No fumar; si fuma, el servicio médico le ayuda a dejarlo.",
+          "Si toma alcohol, poco y no todos los días; nunca antes de manejar o trabajar.",
+          "Medirse la tensión, el azúcar, el colesterol y la cintura al menos una vez al año.",
+          "Vacunas al día (tétanos, hepatitis B, influenza, según su edad y trabajo).",
+          "Protegerse del sol con gorra, manga larga y protector solar.",
+        ],
+      },
+    ],
+    fuente: "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). OMS, Alimentación sana: nota descriptiva (2020). OMS, HEARTS: paquete técnico para las enfermedades cardiovasculares (2018).",
+  },
 ];
 
 // Temas elegidos en la URL (?tema=pausas,estres). Sin parámetro, la hoja sale con las pausas activas

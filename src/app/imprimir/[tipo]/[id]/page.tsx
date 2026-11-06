@@ -16,6 +16,9 @@ import { esDocTrabajador } from "@/lib/whatsapp-trabajador";
 import { obtenerSesion } from "@/lib/sesion";
 import { temasBienestar } from "@/lib/bienestar";
 import { leerCambios } from "@/lib/cambios-hoja";
+import { conVersion } from "@/lib/hojas-version";
+import { versionesHojas } from "@/lib/hojas-version-servidor";
+import { crearClienteServidor } from "@/lib/supabase/server";
 
 
 type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string }> };
@@ -35,6 +38,8 @@ export default async function Imprimir({ params, searchParams }: Props) {
   const d = { ...base, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const faltan = tipo === "recipe" ? faltantesRecipe(d) : [];
   const sesion = await obtenerSesion();
+  // Dieta y bienestar: la versión propia del servicio, con los cambios de esta consulta encima
+  const versiones = tipo === "dieta" || tipo === "bienestar" ? await versionesHojas(await crearClienteServidor()) : null;
   const trabajador = esDocTrabajador(tipo) && sesion.clinico && !sesion.demo ? { consultaId: id, tipo, servicio: d.org.nombre || sesion.organizacion } : null;
 
   return (
@@ -55,8 +60,8 @@ export default async function Imprimir({ params, searchParams }: Props) {
           {(tipo === "control-ta" || tipo === "dieta" || tipo === "bienestar") && <OpcionesIndicaciones tipo={tipo} />}
           {tipo === "atencion" ? <ConstanciaAtencion d={d} diagnostico={dx === "1"} />
             : tipo === "control-ta" ? <ControlTension d={d} dias={diasTa(dias)} />
-            : tipo === "dieta" ? <PlanAlimentacion d={d} dieta={dieta} planes={clavesPlan(plan)} cambios={leerCambios(c)} />
-            : tipo === "bienestar" ? <Bienestar d={d} temas={temasBienestar(tema)} cambios={leerCambios(c)} />
+            : tipo === "dieta" ? <PlanAlimentacion d={d} dieta={dieta} planes={clavesPlan(plan)} cambios={conVersion(versiones, { dieta }, leerCambios(c))} />
+            : tipo === "bienestar" ? <Bienestar d={d} temas={temasBienestar(tema)} cambios={conVersion(versiones, { temas: temasBienestar(tema) }, leerCambios(c))} />
             : <t.Componente d={d} />}
         </>
       )}
