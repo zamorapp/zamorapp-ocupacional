@@ -7,7 +7,7 @@ import { createJiti } from "jiti";
 
 const raiz = fileURLToPath(new URL("../../src/", import.meta.url));
 const jiti = createJiti(import.meta.url, { alias: { "@/": raiz } });
-const { hojaEditable, soloDeLaHoja, conVersion, areasBienestar, HOJAS_EDITABLES } = await jiti.import("../../src/lib/hojas-version.ts");
+const { hojaEditable, soloDeLaHoja, conVersion, areasBienestar, alarmasQuitadas, HOJAS_EDITABLES } = await jiti.import("../../src/lib/hojas-version.ts");
 const { TEMAS } = await jiti.import("../../src/lib/bienestar.ts");
 
 test("cada hoja guarda solo sus claves y nunca las indicaciones del paciente", () => {
@@ -35,4 +35,17 @@ test("todos los temas tienen área y botón editable, con claves válidas para l
   }
   assert.equal(new Set(HOJAS_EDITABLES.map((h) => h.codigo)).size, HOJAS_EDITABLES.length);
   for (const h of HOJAS_EDITABLES) assert.match(h.codigo, /^(dieta|bienestar)-[a-z_-]{1,30}$/);
+});
+
+test("al guardar, las señales de alarma no se pueden quitar ni dejar en blanco", () => {
+  const ansiedad = hojaEditable("bienestar-ansiedad");
+  const i = TEMAS.find((t) => t.clave === "ansiedad").grupos.findIndex((g) => g.alarma);
+  assert.ok(i >= 0, "ansiedad tiene grupo de alarma");
+  assert.equal(alarmasQuitadas(ansiedad, { [`ansiedad-${i}`]: [] }), true);
+  assert.equal(alarmasQuitadas(ansiedad, { [`ansiedad-${i}`]: ["Si piensa en hacerse daño, busque ayuda.", "  "] }), true);
+  assert.equal(alarmasQuitadas(ansiedad, { [`ansiedad-${i}`]: ["Si piensa en hacerse daño, busque ayuda hoy."] }), false);
+  assert.equal(alarmasQuitadas(ansiedad, { "ansiedad-0": [] }), false, "un grupo que no es de alarma sí se puede vaciar");
+  assert.equal(alarmasQuitadas(hojaEditable("dieta-hta"), { evitar: [] }), false);
+  // Heridas, quemaduras, ansiedad y ánimo traen alarmas
+  for (const k of ["heridas", "quemaduras", "ansiedad", "animo"]) assert.ok(TEMAS.find((t) => t.clave === k).grupos.some((g) => g.alarma), k);
 });

@@ -22,6 +22,18 @@ export function soloDeLaHoja(h: HojaEditable, cambios: Cambios): Cambios {
   return Object.fromEntries(Object.entries(cambios).filter(([k]) => propia(k)));
 }
 
+// Las señales de alarma («Busque ayuda», «Acuda a emergencia»…) no se pueden quitar de la versión del servicio: un
+// grupo de alarma cambiado no puede quedar vacío ni con renglones en blanco (Analizar #286)
+export const SIN_ALARMAS = "Las señales de alarma no se pueden quitar. Puedes cambiar su texto, pero cada grupo de alarma debe tener al menos un renglón.";
+export function alarmasQuitadas(h: HojaEditable, cambios: Cambios): boolean {
+  if (h.tipo !== "bienestar") return false;
+  const tema = TEMAS.find((t) => t.clave === h.clave);
+  return !!tema?.grupos.some((g, i) => {
+    const v = cambios[`${h.clave}-${i}`];
+    return g.alarma && Array.isArray(v) && (!v.length || v.some((x) => !x.trim()));
+  });
+}
+
 // Cambios con los que sale una hoja: versión de la organización y, encima, los del paciente (?c=)
 export function conVersion(versiones: Versiones | null | undefined, hoja: { dieta?: string; temas?: string[] }, delPaciente: Cambios = {}): Cambios {
   const codigos = hoja.temas ? hoja.temas.map((t) => `bienestar-${t}`) : [`dieta-${dietaDe(hoja.dieta).clave}`];

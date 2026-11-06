@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { leerCambios } from "@/lib/cambios-hoja";
-import { hojaEditable, soloDeLaHoja } from "@/lib/hojas-version";
+import { SIN_ALARMAS, alarmasQuitadas, hojaEditable, soloDeLaHoja } from "@/lib/hojas-version";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -24,6 +24,7 @@ export async function guardarVersionHoja(codigo: string, c: string | null): Prom
   const x = await contexto(codigo);
   if ("error" in x) return { ok: false, mensaje: x.error! };
   const cambios = soloDeLaHoja(x.h, leerCambios(c));
+  if (alarmasQuitadas(x.h, cambios)) return { ok: false, mensaje: SIN_ALARMAS };
   if (!Object.keys(cambios).length) return borrarVersionHoja(codigo);
   const fila = { lista: "hoja_paciente", org_id: x.sesion.orgId!, codigo, nombre: x.h.nombre, datos: { cambios }, activo: true };
   const { data: ya } = await x.supabase.from("lista_items").select("id").eq("org_id", x.sesion.orgId!).eq("lista", "hoja_paciente").eq("codigo", codigo).maybeSingle();
