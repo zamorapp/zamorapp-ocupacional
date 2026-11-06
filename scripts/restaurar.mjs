@@ -29,8 +29,22 @@ try {
     // Sin disparadores ni llaves foráneas durante la carga: los datos ya fueron validados cuando se guardaron
     await cliente.query("set local session_replication_role = replica");
     // Sin cascade: si otra tabla fuera del respaldo apunta a estas, Postgres se niega y no se vacía nada de más
+    // Tablas fuera del respaldo que apuntan a estas (p. ej. sync.bloques en respaldos anteriores al 6-nov): si están
+    // vacías se vacían junto con ellas (no se pierde nada); si tienen datos, se detiene como antes.
+    const { rows: dependientes } = await cliente.query(
+      `select distinct rn.nspname || '.' || r.relname as tabla
+       from pg_constraint k
+       join pg_class r on r.oid = k.conrelid join pg_namespace rn on rn.oid = r.relnamespace
+       join pg_class f on f.oid = k.confrelid join pg_namespace fn on fn.oid = f.relnamespace
+       where k.contype = 'f' and fn.nspname || '.' || f.relname = any($1)
+         and not (rn.nspname || '.' || r.relname = any($1))`, [tablas]);
+    const vacias = [];
+    for (const { tabla } of dependientes) {
+      const { rows: [r] } = await cliente.query(`select exists (select 1 from ${nombreSql(tabla)}) as hay`);
+      if (!r.hay) vacias.push(tabla);
+    }
     try {
-      await cliente.query(`truncate ${tablas.map(nombreSql).join(", ")}`);
+      await cliente.query(`truncate ${[...tablas, ...vacias].map(nombreSql).join(", ")}`);
     } catch (e) {
       throw new Error(`No vacío las tablas: hay tablas fuera del respaldo que dependen de ellas (${e.message})`);
     }

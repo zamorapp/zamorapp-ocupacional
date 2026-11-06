@@ -68,6 +68,23 @@ if ($drive) { $destinos += Join-Path $drive "zamorApp\respaldos-zamorApp" }
 else { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no encontré Google Drive tras esperar 5 minutos; el respaldo quedó solo en la PC y subirá a Drive en el próximo respaldo" | Add-Content $registro }
 
 Set-Location $raiz
+# Se pone al día sola: la tarea corre desde esta carpeta y, si nadie la actualiza, se queda con scripts viejos
+# (así siguió el ENOENT de archivos hasta el 6-nov con el arreglo ya en main). Solo avance directo: si hay cambios
+# locales o no hay internet, no toca nada y sigue con lo que tiene.
+if (Test-Path (Join-Path $raiz ".git")) {
+  $env:GIT_TERMINAL_PROMPT = "0"
+  $antes = (& git -C $raiz rev-parse --short HEAD 2>$null)
+  # Con ErrorActionPreference=Stop, la salida de error de git tumbaría el respaldo: aquí solo se anota
+  $ErrorActionPreference = "Continue"
+  $pull = (& git -C $raiz pull --ff-only --quiet origin main 2>&1) -join " "
+  $codigoPull = $LASTEXITCODE
+  $despues = (& git -C $raiz rev-parse --short HEAD 2>$null)
+  if ($codigoPull -ne 0) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no pude poner al día los scripts del respaldo ($antes): $pull" | Add-Content $registro
+  } elseif ($antes -ne $despues) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') Scripts del respaldo puestos al día: $antes -> $despues" | Add-Content $registro
+  }
+}
 # La salida de error de node se lee aparte: con ErrorActionPreference=Stop, «2>&1» la convierte en excepción
 $ErrorActionPreference = "Continue"
 $errores = Join-Path $carpeta "respaldo-error.txt"
@@ -110,7 +127,8 @@ if ($vencida) {
     if ($codigoPrueba -ne 0 -and $codigoPrueba -ne 3) { $prueba = "$prueba $((Get-Content $errores -ErrorAction SilentlyContinue) -join ' ')" }
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $prueba" | Add-Content $registro
     Write-Host $prueba
-    # Solo un resultado (bueno o malo) cuenta como hecha; si se pospuso, se reintenta en el próximo respaldo
-    if ($codigoPrueba -ne 3) { Set-Content $marca (Get-Date -Format "yyyy-MM-dd HH:mm") }
+    # Solo una prueba buena cuenta como hecha: si falló o se pospuso, se reintenta en el próximo respaldo
+    # (antes una falla marcaba la semana como probada y no había ninguna restauración buena registrada)
+    if ($codigoPrueba -eq 0) { Set-Content $marca (Get-Date -Format "yyyy-MM-dd HH:mm") }
   }
 }
