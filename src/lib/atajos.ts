@@ -114,6 +114,7 @@ const OTROS: Atajo[] = [
   { href: "/envios/bitacora", titulo: "Bitácora de envíos", donde: "Envíos", icono: Send, palabras: "enviados correos fallidos historial", clinico: true },
   { href: "/envios/plantillas", titulo: "Plantillas de correo", donde: "Envíos", icono: Send, palabras: "texto mensaje correo whatsapp", clinico: true },
   { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh" },
+  { href: "/menu", titulo: "Menú de botones", donde: "Menú", icono: Settings, palabras: "botones tarjetas vista menu barra lateral cambiar pantalla completa inicio categorias" },
   { href: "/ayuda", titulo: "Lo nuevo y manual de uso", donde: "Manual de uso", icono: BookOpen, palabras: "ayuda como se usa instrucciones novedades" },
 ];
 
