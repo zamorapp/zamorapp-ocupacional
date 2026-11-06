@@ -4,7 +4,7 @@ import { claveAvisos, enviarPush, pushConfigurado, type Suscripcion } from "@/li
 import { correoConfigurado, enviarCorreo } from "@/lib/correo";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 
-// Latido de los avisos de la campana al celular: lo llama el workflow «Avisos al celular» cada 15 minutos (también
+// Latido de los avisos de la campana al celular: lo llama pg_cron en Supabase cada 5 minutos (20261030909000) (también
 // con la laptop apagada). Sin sesión: la base solo responde con la clave del servidor (VAPID_PRIVADA, solo en Vercel)
 // y cada aviso sale una vez, así que llamarlo de más no repite nada. No devuelve datos: solo cuántos avisos salieron.
 export const dynamic = "force-dynamic";

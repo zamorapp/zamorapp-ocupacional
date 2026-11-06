@@ -6,8 +6,8 @@ import { ahora } from "@/lib/fecha";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { claveAvisos, pushConfigurado } from "@/lib/push";
 
-// Correo diario de constancias a RR. HH. (envío automático por empresa, Cesar 31-oct). Lo llama el workflow «Avisos al
-// celular» cada 15 minutos; la base decide a qué empresa ya le toca (pasó su hora y no se le envió hoy) y entrega sus
+// Correo diario de constancias a RR. HH. (envío automático por empresa, Cesar 31-oct). Lo llama pg_cron en
+// Supabase cada 15 minutos (20261030909000; GitHub de respaldo); la base decide a qué empresa ya le toca (pasó su hora y no se le envió hoy) y entrega sus
 // constancias listas solo con la clave del servidor. Sin la llave de servicio. No devuelve datos: solo cuántas salieron.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

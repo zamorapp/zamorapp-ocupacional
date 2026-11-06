@@ -5,7 +5,7 @@ import { ahora, hoyCaracas } from "@/lib/fecha";
 import { claveAvisos, pushConfigurado } from "@/lib/push";
 import { leerTasaBcv } from "@/lib/tasa-bcv";
 
-// Tasa BCV automática (Cesar, 05-nov-2026). La llama el workflow «Avisos al celular» cada 15 minutos, pero solo va al
+// Tasa BCV automática (Cesar, 05-nov-2026). La llama pg_cron en Supabase cada 30 minutos, pero solo va al
 // BCV cuando hace falta: si ya está guardada la tasa de un día posterior a hoy (la que el BCV publica en la tarde), no
 // hace nada. Antes de las 3 p. m. de Caracas solo busca si falta la de hoy. Sin sesión ni llave de servicio: la base
 // reconoce la organización por la clave del servidor. No devuelve montos.
