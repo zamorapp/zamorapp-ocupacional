@@ -96,13 +96,14 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     setDesborde(mm * z > ALTO + 0.5);
   }, [renglones, numero, emision, direccion, tasa]);
 
-  const guardarNumero = () => {
+  const guardarNumero = (alImprimir = false) => {
     // La tasa impresa queda anotada en la nota de cobro (si cambió)
     if (editable && tasa && tasa !== c.tasaBcv && c.estado !== "pagada" && c.estado !== "anulada") void guardarTasaCobro(c.id, tasa);
     if (!editable || !numero.trim() || numero.trim() === guardado) return;
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, numero);
-      setAviso(r);
+      // Si se imprimió y no se guardó (duplicado, sin conexión…), que se vea qué número salió en el papel
+      setAviso(!r.ok && alImprimir ? { ok: false, mensaje: `La factura se imprimió con el Nº ${limpiarNumeroFactura(numero)} pero no se guardó: ${r.mensaje} Corrígelo y vuelve a intentarlo.` } : r);
       if (r.ok) { const n = r.numero ?? numero.trim(); setGuardado(n); setNumero(n); }
     });
   };
@@ -111,7 +112,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   const guardarAntes = useRef(guardarNumero);
   guardarAntes.current = guardarNumero;
   useEffect(() => {
-    const antes = () => guardarAntes.current();
+    const antes = () => guardarAntes.current(true);
     window.addEventListener("beforeprint", antes);
     return () => window.removeEventListener("beforeprint", antes);
   }, []);
@@ -130,8 +131,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_9.5rem_minmax(0,1fr)]">
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Nº de factura (talonario)</span>
-            <Input value={numero} inputMode="numeric" placeholder="000123" disabled={!editable} onChange={(e) => setNumero(e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} className="font-mono text-foreground disabled:opacity-100" />
-            <span className="block text-xs text-muted-foreground">{propuesto ? "Propuesto: el siguiente del talonario" : guardado && numero.trim() === guardado ? "Guardado en la nota de cobro" : numero.trim() ? "Se guarda al salir del campo o al imprimir" : "\u00a0"}</span>
+            <Input value={numero} inputMode="numeric" placeholder="000123" disabled={!editable} onChange={(e) => setNumero(e.target.value)} onBlur={() => guardarNumero()} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} className="font-mono text-foreground disabled:opacity-100" />
+            <span className="block text-xs text-muted-foreground">{ocupado ? "Guardando…" : propuesto ? "Propuesto: el siguiente del talonario" : guardado && numero.trim() === guardado ? "Guardado en la nota de cobro" : numero.trim() ? "Se guarda al salir del campo o al imprimir" : "\u00a0"}</span>
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Fecha de emisión</span>

@@ -22,6 +22,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [estadoNumero, setEstadoNumero] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const set = <K extends keyof Cobro>(k: K, v: Cobro[K]) => setC((x) => ({ ...x, [k]: v }));
   const t = totales(c);
   // Tasa BCV que rige en la fecha de la nota (la de ese día o la anterior más cercana): se ofrece con un toque
@@ -41,9 +42,10 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
   const guardarNumero = () => {
     const previo = (JSON.parse(guardado) as Cobro).numeroFacturaFiscal;
     if (!editable || presupuesto || c.numeroFacturaFiscal.trim() === previo) return;
+    setEstadoNumero({ ok: true, mensaje: "Guardando…" });
     iniciar(async () => {
       const r = await guardarNumeroFactura(c.id, c.numeroFacturaFiscal);
-      setAviso(r);
+      setEstadoNumero(r);
       if (r.ok) {
         const n = r.numero ?? c.numeroFacturaFiscal.trim();
         setC((x) => ({ ...x, numeroFacturaFiscal: n }));
@@ -129,7 +131,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
                 </button>
               )}
             </div>
-            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} /></div>
+            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} />{estadoNumero && <p className={cn("mt-1 text-xs", estadoNumero.ok ? "text-muted-foreground" : "text-destructive")}>{estadoNumero.mensaje}</p>}</div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
             <div><Label className="mb-1.5">IGTF % (pago en divisas)</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.igtfPct} onChange={(e) => set("igtfPct", Number(e.target.value))} /></div>
             <div className="sm:col-span-2"><Label className="mb-1.5">Observación</Label><Input disabled={!editable} value={c.observacion} onChange={(e) => set("observacion", e.target.value)} /></div>
