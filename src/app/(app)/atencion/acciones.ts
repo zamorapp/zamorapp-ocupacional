@@ -371,7 +371,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       : null,
     p_reposo: d.reposo.activo
       ? { causa: d.reposo.causa, ente: d.reposo.ente, desde: d.reposo.desde, hasta: d.reposo.hasta, cie10: d.reposo.cie10 || null,
-          medico_externo: d.reposo.medicoExterno || null, centro_ivss: d.reposo.centroIvss || null, validado_ivss: d.reposo.validadoIvss }
+          medico_externo: d.reposo.medicoExterno || null, centro_ivss: d.reposo.centroIvss || null, validado_ivss: d.reposo.validadoIvss,
+          motivo_clinico: d.reposo.motivoClinico?.trim() || null }
       : null,
     p_cerrar: cerrar,
   });

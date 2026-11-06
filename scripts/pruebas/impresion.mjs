@@ -59,6 +59,8 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
         rotas: imgs.filter((i) => !i.naturalWidth).map((i) => i.alt || i.src.slice(0, 40)),
         texto: document.body.innerText,
         // Reposo: la firma va al lado del diagnóstico; si se va debajo, original y copia no caben en una carta
+        // Reposo: el motivo clínico solo en la copia del servicio médico, nunca en el original de RR. HH. (Analizar, 05-nov)
+        motivoReposo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].map((t) => !!t.closest("section")?.querySelector("[data-prueba=motivo-reposo]")),
         firmaDebajo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].some((t) => {
           const f = t.parentElement?.querySelector("[data-prueba=firma-medico]");
           return f && f.getBoundingClientRect().top >= t.getBoundingClientRect().bottom;
@@ -73,6 +75,7 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
     filas.push(`${tipo.padEnd(20)} ${caso.padEnd(7)} hojas ${info.hojas}  páginas ${paginas}${sePasa ? "  ← SE PASA" : ""}`);
     if (sePasa) fallas.push(`${tipo} (${caso}): ocupa ${paginas} páginas y debe caber en ${info.hojas}`);
     if (info.rotas.length) fallas.push(`${tipo} (${caso}): imagen que no carga: ${info.rotas.join(", ")}`);
+    if (tipo === "reposo" && info.motivoReposo.join() !== "false,true") fallas.push(`reposo (${caso}): el motivo clínico debe ir solo en la copia (original, copia = ${info.motivoReposo.join(", ")})`);
     if (info.firmaDebajo) fallas.push(`${tipo} (${caso}): la firma quedó debajo del diagnóstico en vez de al lado`);
     if (malo) fallas.push(`${tipo} (${caso}): aparece «${malo}» en el texto`);
     await pagina.emulateMedia({ media: "screen" });

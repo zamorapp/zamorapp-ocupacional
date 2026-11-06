@@ -7,6 +7,7 @@ export const OPCIONES_IMPRESION = {
   limitaciones: "Limitaciones",
   conclusiones: "Conclusiones",
   examen: "Examen detallado por sistema",
+  motivo: "Motivo clínico del reposo",
 } as const;
 export type OpcionImpresion = keyof typeof OPCIONES_IMPRESION;
 export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
@@ -21,6 +22,7 @@ export function opcionesDe(tipo: string): OpcionImpresion[] {
     preoperatoria: ["examen", "conclusiones"],
     paquete: ["riesgos", "limitaciones"],
     oam: ["riesgos"],
+    reposo: ["motivo"],
   };
   return ["membrete", "firma", ...(extra[tipo] ?? [])];
 }
