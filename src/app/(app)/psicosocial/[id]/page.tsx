@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { ROLES_PSICOSOCIAL } from "@/lib/psicosocial";
-import { codigosPsicosociales, obtenerPsicosocial, resultadosPsicosociales } from "@/lib/psicosocial-datos";
+import { codigosPsicosociales, enlaceOficinaPsicosocial, obtenerPsicosocial, perfilesPsicosociales, resultadosPsicosociales } from "@/lib/psicosocial-datos";
 import { puestosPorEmpresa } from "@/lib/ergonomia-datos";
 import { obtenerSesion } from "@/lib/sesion";
 import { PanelPsicosocial } from "./panel";
@@ -17,10 +17,13 @@ export default async function EvaluacionPsicosocial({ params }: { params: Promis
   const [sesion, ev] = await Promise.all([obtenerSesion(), obtenerPsicosocial(id)]);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
   const puedeEditar = !!sesion.rol && ROLES_PSICOSOCIAL.includes(sesion.rol);
-  const [resultados, codigos, puestos] = await Promise.all([
+  const servicio = puedeEditar || sesion.demo;
+  const [resultados, codigos, puestos, enlace, perfiles] = await Promise.all([
     resultadosPsicosociales(id),
-    puedeEditar || sesion.demo ? codigosPsicosociales(id) : Promise.resolve({ libres: [], usados: 0 }),
+    servicio ? codigosPsicosociales(id) : Promise.resolve({ libres: [], usados: 0, enTelefonos: 0 }),
     puestosPorEmpresa(),
+    servicio ? enlaceOficinaPsicosocial(id) : Promise.resolve(null),
+    servicio && ev.estado === "cerrada" ? perfilesPsicosociales(id) : Promise.resolve(null),
   ]);
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -33,6 +36,8 @@ export default async function EvaluacionPsicosocial({ params }: { params: Promis
         ev={ev}
         resultados={resultados}
         codigos={codigos}
+        enlaceOficina={enlace}
+        perfiles={perfiles}
         puestosEmpresa={(puestos[ev.empresaId] ?? []).map((p) => p.nombre)}
         urlPublica={URL_PUBLICA}
         demo={sesion.demo}

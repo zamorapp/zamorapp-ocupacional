@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, EyeOff, Loader2, Send, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ArrowRight, Check, CheckCircle2, Clock, EyeOff, Loader2, ShieldCheck } from "lucide-react";
+import { Pantallas, type SeccionPantalla } from "@/components/encuesta/pantallas";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { APARTADOS, METODO_PSICOSOCIAL, NIVELES, TOTAL_PREGUNTAS, nivel, puntajes, rango } from "@/lib/psicosocial";
@@ -20,10 +21,17 @@ function leerBorrador(codigo: string): { grupo: string | null; r: (number | null
   return null;
 }
 
+// Secciones del método para las pantallas de un clic (el texto del método no se cambia)
+const SECCIONES: SeccionPantalla[] = APARTADOS.map((a) => ({
+  id: `a${a.n}`, titulo: a.nombre, ayuda: a.intro,
+  preguntas: a.preguntas.map((q) => ({ id: `p${q.n}`, texto: q.texto, nota: q.nota, opciones: q.opciones.map((o, i) => ({ valor: i, texto: o })) })),
+}));
+
 export function Cuestionario({ codigo, grupos }: Props) {
-  const [paso, setPaso] = useState(0); // 0 = empezar, 1..6 = apartados, 7 = revisar y enviar
+  const [empezo, setEmpezo] = useState(false);
   const [grupo, setGrupo] = useState<string | null>(null);
   const [r, setR] = useState<(number | null)[]>(() => Array(TOTAL_PREGUNTAS).fill(null));
+  const [listo, setListo] = useState(false); // borrador leído (las pantallas arrancan en la primera sin responder)
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<number[] | null>(null);
   const [enviando, iniciar] = useTransition();
@@ -31,29 +39,25 @@ export function Cuestionario({ codigo, grupos }: Props) {
 
   useEffect(() => {
     const b = leerBorrador(codigo);
-    if (b) { setGrupo(b.grupo); setR(b.r); }
+    if (b) { setGrupo(b.grupo); setR(b.r); if (b.r.some((x) => x !== null)) setEmpezo(true); }
+    setListo(true);
   }, [codigo]);
   useEffect(() => {
-    if (resultado) return;
+    if (resultado || !listo) return;
     try { sessionStorage.setItem(clave(codigo), JSON.stringify({ grupo, r })); } catch {}
-  }, [codigo, grupo, r, resultado]);
+  }, [codigo, grupo, r, resultado, listo]);
 
-  const hechas = r.filter((x) => x !== null).length;
-  const apartado = paso >= 1 && paso <= 6 ? APARTADOS[paso - 1] : null;
-  const faltanAqui = apartado ? apartado.preguntas.filter((q) => r[q.n - 1] === null).map((q) => q.n) : [];
-  const irA = (n: number) => { setError(null); setPaso(n); requestAnimationFrame(() => arriba.current?.scrollIntoView({ behavior: "smooth", block: "start" })); };
-
-  const marcar = (n: number, opcion: number) => {
-    setR((prev) => { const x = [...prev]; x[n - 1] = opcion; return x; });
-    // Pasa sola a la siguiente pregunta sin responder del apartado (más rápido en el celular)
-    const sig = apartado?.preguntas.find((q) => q.n > n && r[q.n - 1] === null);
-    if (sig) setTimeout(() => document.getElementById(`p${sig.n}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+  const respuestas = useMemo(() => Object.fromEntries(r.map((x, i) => [`p${i + 1}`, x ?? undefined])) as Record<string, number | undefined>, [r]);
+  const marcar = (id: string, v: string | number) => {
+    setError(null);
+    const n = Number(id.slice(1));
+    setR((prev) => { const x = [...prev]; x[n - 1] = Number(v); return x; });
   };
 
   const enviar = () => {
     const faltan = r.map((x, i) => (x === null ? i + 1 : 0)).filter(Boolean);
     if (faltan.length) { setError(`Faltan ${faltan.length} preguntas: ${faltan.slice(0, 8).join(", ")}${faltan.length > 8 ? "…" : ""}.`); return; }
-    if (grupos.length && !grupo) { setError("Elige tu puesto o área."); irA(0); return; }
+    if (grupos.length && !grupo) { setError("Elige tu puesto o área."); setEmpezo(false); return; }
     iniciar(async () => {
       const res = await enviarCuestionario(codigo, grupo, r as number[]);
       if (!res.ok) { setError(res.mensaje); return; }
@@ -67,30 +71,21 @@ export function Cuestionario({ codigo, grupos }: Props) {
 
   return (
     <>
+    {!empezo && (
     <section className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm">
       <h1 className="text-2xl font-semibold tracking-tight">¿Cómo es tu trabajo?</h1>
       <p className="mt-1 text-sm opacity-90">
-        38 preguntas sobre la organización del trabajo: ritmo, apoyo, reconocimiento, estabilidad. Sirven para mejorar las condiciones, no para evaluarte a ti.
+        38 preguntas cortas en 6 partes, una por pantalla: tocas tu respuesta y pasa sola a la siguiente. Sirven para mejorar las condiciones, no para evaluarte a ti.
       </p>
       <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
         <li className="flex items-center gap-2"><EyeOff className="size-4 shrink-0" /> Anónimo: sin nombre ni cédula</li>
-        <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> Unos 10 minutos</li>
+        <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> Unos 8 minutos</li>
         <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Voluntario</li>
       </ul>
     </section>
+    )}
     <div ref={arriba} className="scroll-mt-4 space-y-4">
-      {/* Avance */}
-      <div className="sticky top-0 z-10 -mx-4 bg-muted/80 px-4 py-2 backdrop-blur">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{paso === 0 ? "Antes de empezar" : paso === 7 ? "Revisar y enviar" : `Parte ${paso} de 6 · ${apartado?.nombre}`}</span>
-          <span className="tabular-nums">{hechas} de {TOTAL_PREGUNTAS}</span>
-        </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={TOTAL_PREGUNTAS} aria-valuenow={hechas}>
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(hechas * 100) / TOTAL_PREGUNTAS}%` }} />
-        </div>
-      </div>
-
-      {paso === 0 && (
+      {!empezo ? (
         <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
           {grupos.length > 0 && (
             <div className="space-y-2">
@@ -98,9 +93,9 @@ export function Cuestionario({ codigo, grupos }: Props) {
               <p className="text-sm text-muted-foreground">Solo se usa para ver los resultados por grupo. Los grupos pequeños se juntan para que nadie pueda ser reconocido.</p>
               <div role="radiogroup" aria-label="Puesto o área" className="grid gap-2">
                 {grupos.map((g) => (
-                  <button key={g.id} type="button" role="radio" aria-checked={grupo === g.id} onClick={() => setGrupo(g.id)}
-                    className={cn("min-h-11 rounded-xl border px-4 py-2 text-left text-sm transition",
-                      grupo === g.id ? "border-primary bg-primary/10 font-medium text-foreground ring-1 ring-primary" : "bg-background hover:border-primary")}>
+                  <button key={g.id} type="button" role="radio" aria-checked={grupo === g.id} onClick={() => { setGrupo(g.id); setError(null); }}
+                    className={cn("min-h-12 rounded-xl border-2 px-4 py-2 text-left text-sm transition",
+                      grupo === g.id ? "border-primary bg-primary/10 font-medium text-foreground" : "bg-background hover:border-primary")}>
                     <span className="flex items-center justify-between gap-2">{g.nombre}{grupo === g.id && <Check className="size-4 shrink-0 text-primary" />}</span>
                   </button>
                 ))}
@@ -110,73 +105,18 @@ export function Cuestionario({ codigo, grupos }: Props) {
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>• Contesta con sinceridad cómo es tu trabajo <strong className="text-foreground">ahora</strong>. No hay respuestas buenas ni malas.</li>
             <li>• Nadie verá tus respuestas una por una: ni la empresa ni el servicio médico. Solo salen totales por grupo.</li>
-            <li>• Al final verás tu propio resultado en tu teléfono.</li>
+            <li>• Si se corta la señal, lo que llevas sigue en este teléfono. Al final verás tu propio resultado.</li>
           </ul>
-          <Button className="h-11 w-full" onClick={() => (grupos.length && !grupo ? setError("Elige tu puesto o área.") : irA(1))}>
+          <Button className="h-12 w-full text-base" onClick={() => (grupos.length && !grupo ? setError("Elige tu puesto o área.") : (setError(null), setEmpezo(true)))}>
             Empezar <ArrowRight className="size-4" />
           </Button>
         </section>
+      ) : listo && (
+        <Pantallas modo="pregunta" secciones={SECCIONES} respuestas={respuestas} onResponder={marcar} editable={!enviando}
+          alTerminar={enviar} textoTerminar={enviando ? "Enviando…" : "Enviar mis respuestas"}
+          final={<p className="text-xs text-muted-foreground">Al enviar, tu código queda usado. Tus respuestas se guardan sin tu nombre, sin tu código y sin la hora.</p>} />
       )}
-
-      {apartado && (
-        <section className="space-y-3" aria-labelledby={`ap${apartado.n}`}>
-          <h2 id={`ap${apartado.n}`} className="px-1 text-lg font-semibold">{apartado.nombre}</h2>
-          {apartado.intro && <p className="px-1 text-sm text-muted-foreground">{apartado.intro}</p>}
-          {apartado.preguntas.map((q) => (
-            <fieldset key={q.n} id={`p${q.n}`} className={cn("scroll-mt-24 space-y-3 rounded-2xl border bg-card p-4 shadow-sm", r[q.n - 1] !== null && "border-primary/40")}>
-              <legend className="sr-only">Pregunta {q.n}</legend>
-              <p className="font-medium leading-snug"><span className="mr-1.5 text-muted-foreground tabular-nums">{q.n}.</span>{q.texto}</p>
-              {q.nota && <p className="text-xs text-muted-foreground">{q.nota}</p>}
-              <div role="radiogroup" aria-label={`Respuesta a la pregunta ${q.n}`} className={cn("grid gap-1.5", q.opciones[0].length < 24 && "sm:grid-cols-5")}>
-                {q.opciones.map((o, i) => (
-                  <button key={i} type="button" role="radio" aria-checked={r[q.n - 1] === i} onClick={() => marcar(q.n, i)}
-                    className={cn("min-h-11 rounded-xl border px-3 py-2 text-sm transition",
-                      q.opciones[0].length < 24 ? "text-center" : "text-left",
-                      r[q.n - 1] === i ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          ))}
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={() => irA(paso - 1)}><ArrowLeft className="size-4" /> Atrás</Button>
-            <Button className="h-11 flex-1" onClick={() => {
-              if (faltanAqui.length) { setError(`Te falta la pregunta ${faltanAqui[0]}.`); document.getElementById(`p${faltanAqui[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-              irA(paso + 1);
-            }}>
-              {paso < 6 ? "Siguiente" : "Revisar"} <ArrowRight className="size-4" />
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {paso === 7 && (
-        <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
-          <h2 className="font-semibold">Listo para enviar</h2>
-          <ul className="grid gap-1.5 text-sm">
-            {APARTADOS.map((a) => {
-              const n = a.preguntas.filter((q) => r[q.n - 1] !== null).length;
-              return (
-                <li key={a.n}>
-                  <button type="button" onClick={() => irA(a.n)} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left hover:bg-muted">
-                    <span>{a.nombre}</span>
-                    <span className={cn("tabular-nums", n < a.preguntas.length ? "font-medium text-alerta-texto" : "text-muted-foreground")}>{n}/{a.preguntas.length}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-xs text-muted-foreground">Al enviar, tu código queda usado. Tus respuestas se guardan sin tu nombre, sin tu código y sin la hora.</p>
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={() => irA(6)}><ArrowLeft className="size-4" /> Atrás</Button>
-            <Button className="h-11 flex-1" onClick={enviar} disabled={enviando}>
-              {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Enviar
-            </Button>
-          </div>
-        </section>
-      )}
-
+      {enviando && <p role="status" className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Enviando…</p>}
       {error && <p role="alert" className="rounded-xl bg-alerta/10 px-4 py-3 text-sm text-alerta-texto">{error}</p>}
       <p className="px-1 text-[11px] leading-snug text-muted-foreground">{METODO_PSICOSOCIAL.cita}</p>
     </div>
