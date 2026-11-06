@@ -74,7 +74,7 @@ export default async function OrdenesYRelacion({ searchParams }: { searchParams:
             <CardContent className="px-5">
               <div className="flex items-center gap-2 text-sm text-muted-foreground"><Icono className="size-4" /> {t}</div>
               <div className="text-3xl font-semibold tabular-nums">{v}</div>
-              {d && <div className="truncate text-xs text-muted-foreground">{d}</div>}
+              {d && <div className="text-xs text-muted-foreground">{d}</div>}
             </CardContent>
           </Card>
         ))}
@@ -87,7 +87,7 @@ export default async function OrdenesYRelacion({ searchParams }: { searchParams:
             <ul className="divide-y">
               {ordenes.map((o, k) => (
                 <li key={`${o.id}-${k}`} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-6 py-3 text-sm">
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold text-primary">Nº {nOrden(o.numero)}</span>
+                  <div className="basis-full sm:basis-auto"><span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold text-primary">Nº {nOrden(o.numero)}</span></div>
                   <div className="min-w-0 flex-1 basis-52">
                     <div className="font-medium">{o.total} {o.total === 1 ? "trabajador" : "trabajadores"}{o.fecha && <span className="font-normal text-muted-foreground"> · cita el {fecha(o.fecha)}</span>}</div>
                     <div className="text-xs text-muted-foreground">Emitida el {fecha(o.creadoEn.slice(0, 10))} por {o.solicitante}</div>
@@ -132,7 +132,7 @@ export default async function OrdenesYRelacion({ searchParams }: { searchParams:
                         <td className="px-4 py-2 pl-6 font-mono text-muted-foreground">{fecha(f.fecha)}</td>
                         <td className="px-4 py-2 font-medium">{f.trabajador}{f.cargo && <span className="block text-xs font-normal text-muted-foreground">{f.cargo}</span>}</td>
                         <td className="px-4 py-2 font-mono">{f.cedula}</td>
-                        <td className="px-4 py-2">{f.evaluacion ?? "—"}</td>
+                        <td className="px-4 py-2 font-sans">{f.evaluacion ?? "—"}</td>
                         <td className="px-4 py-2"><Orden f={f} /></td>
                         <td className="px-4 py-2"><Cobro f={f} /></td>
                         <td className="px-4 py-2 font-mono">{f.factura ?? "—"}</td>

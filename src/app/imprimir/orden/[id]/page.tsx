@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { obtenerOrden } from "@/lib/ordenes";
 import { obtenerSesion } from "@/lib/sesion";
+import { hoyCaracas } from "@/lib/fecha";
 import { BarraImpresion } from "../../barra";
 import { fechaCorta, Ficha, Firmas, Hoja, hora12, Membrete, Pie } from "../../componentes";
 import { docEmpresa } from "../doc-empresa";
@@ -14,8 +15,8 @@ const ESTADO: Record<string, string> = {
   solicitada: "Por confirmar", citado: "Confirmada", en_espera: "En el servicio", en_consulta: "En consulta",
   atendido: "Atendido", no_asistio: "No asistió", cancelada: "Cancelada",
 };
-const momento = (iso: string) =>
-  new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(iso));
+// «06/11/2026 · 1:20 p. m.» (hora de Caracas)
+const momento = (iso: string) => `${fechaCorta(hoyCaracas(iso))} · ${hora12(iso)}`;
 
 // Orden de evaluación que RR. HH. pide desde el portal: la presenta el trabajador (o la lleva RR. HH.) y el servicio
 // la recibe. Solo datos administrativos: quién, qué evaluación y cuándo. Nunca datos médicos.

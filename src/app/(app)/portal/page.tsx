@@ -91,7 +91,6 @@ export default async function Portal() {
         <div className="flex flex-wrap gap-2">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
-          {veRelacion && <Button variant="outline" asChild><Link href="/portal/ordenes"><ClipboardList /> Órdenes y relación del mes</Link></Button>}
           {gestiona && <AnotarVacaciones />}
           {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
         </div>
@@ -160,7 +159,10 @@ export default async function Portal() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok-texto" /> Evaluaciones recientes</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok-texto" /> Evaluaciones recientes</CardTitle>
+          {veRelacion && <Link href="/portal/ordenes" className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><ClipboardList className="size-4" /> Órdenes y relación del mes</Link>}
+        </CardHeader>
         <CardContent className="px-0">
           {evaluados.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">Aún no hay evaluaciones.</p> : (
             <ul className="divide-y">

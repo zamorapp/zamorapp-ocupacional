@@ -72,7 +72,7 @@ begin
 
   for v_grupo in
     select c.org_id, c.empresa_id, array_agg(c.id order by c.hora nulls last, c.id) as ids
-      from public.citas c where c.id = any (v_ids) group by c.org_id, c.empresa_id
+      from public.citas c where c.id = any (v_ids) group by c.org_id, c.empresa_id order by c.org_id, c.empresa_id
   loop
     -- Número correlativo por servicio, sin huecos por carreras entre dos RR. HH. a la vez
     perform pg_advisory_xact_lock(hashtextextended('ordenes_evaluacion:' || v_grupo.org_id::text, 0));

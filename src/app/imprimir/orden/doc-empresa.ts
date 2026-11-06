@@ -12,7 +12,7 @@ export async function docEmpresa(sesion: Sesion, empresaId: string) {
   if (!supabaseConfigurado || sesion.demo) {
     return {
       org: { nombre: "OcupaVida Salud Ocupacional", rif: "J-50000000-0", direccion: "Maturín, estado Monagas", telefono: "0414-0000000", correo: null, logo: null,
-        ajustes: { membrete_titular: "Dr. Cesar Zamora", membrete_credenciales: "Medicina ocupacional" } as AjustesDocumentos },
+        ajustes: { membrete_titular: "Dr. César Zamora", membrete_credenciales: "Medicina ocupacional" } as AjustesDocumentos },
       empresa: { razon_social: "Construcciones del Oriente, C.A.", rif: "J-40123456-7", logo: null as string | null },
       impreso,
     };
