@@ -113,7 +113,7 @@ const OTROS: Atajo[] = [
   { href: "/envios/por-enviar", titulo: "Constancias por enviar", donde: "Envíos", icono: Send, palabras: "pendientes correo whatsapp", clinico: true },
   { href: "/envios/bitacora", titulo: "Bitácora de envíos", donde: "Envíos", icono: Send, palabras: "enviados correos fallidos historial", clinico: true },
   { href: "/envios/plantillas", titulo: "Plantillas de correo", donde: "Envíos", icono: Send, palabras: "texto mensaje correo whatsapp", clinico: true },
-  { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh" },
+  { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh invitar recursos humanos portal whatsapp" },
   { href: "/ayuda", titulo: "Lo nuevo y manual de uso", donde: "Manual de uso", icono: BookOpen, palabras: "ayuda como se usa instrucciones novedades" },
 ];
 

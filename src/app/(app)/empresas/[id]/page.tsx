@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, Building2, Link2, PersonStanding, Printer, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, PersonStanding, Printer, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { claveRiesgo, GRUPOS, nivelRiesgo, riesgoMaximo } from "@/lib/puestos-ti
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { FormEmpresa } from "../nueva-empresa";
+import { InvitarRrhh } from "../invitar-rrhh";
 import { Dependencias } from "./dependencias";
 import { HorasTrabajadas } from "./horas-trabajadas";
 import { EditorPuesto } from "./editor-puesto";
@@ -44,6 +45,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   // Constancias automáticas a RR. HH.: la ve el personal del servicio; la cambia quien firma con criterio médico
   const veEnvioAuto = !sesion.demo && Boolean(sesion.orgId) && ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
+  const contactosWa = contactos.filter((c) => c.telefono).map((c) => ({ nombre: c.nombre, telefono: c.telefono! }));
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
 
   return (
@@ -61,11 +63,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
-        {esAdmin && (
-          <Button variant="outline" asChild>
-            <Link href={`/configuracion/usuarios?empresa=${id}#invitar`}><Link2 /> Invitar a RR. HH.</Link>
-          </Button>
-        )}
+        {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
         {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
       </div>
 
