@@ -1,11 +1,12 @@
-# Avisos de la campana al celular (plazos de accidentes, resultados, alertas, exámenes por vencer): cada 15 minutos,
-# todos los días, llama a /api/avisos/campana en Vercel, que envía las notificaciones push nuevas. Así llegan aunque
-# nadie abra zamorApp ni la laptop esté encendida. Repo público: minutos sin límite. Sin secretos: la clave vive en Vercel.
+# RESPALDO de los latidos. Desde 20261030909000 los dispara Supabase con pg_cron a la hora exacta (avisos cada 5 min,
+# constancias cada 15, tasa BCV cada 30), porque GitHub atrasaba este cron de 4 a 7 horas. Este workflow queda cada
+# hora por si pg_cron fallara: las rutas no repiten envíos, así que llamarlas de más no duplica nada.
+# Repo público: minutos sin límite. Sin secretos: la clave vive en Vercel.
 name: Avisos al celular
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 permissions: {}
