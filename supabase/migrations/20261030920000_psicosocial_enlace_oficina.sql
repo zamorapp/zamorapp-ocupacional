@@ -1,9 +1,9 @@
 -- Psicosocial: UN enlace para toda la oficina + perfiles anónimos por persona (Cesar, 06-nov-2026).
 -- Antes: un código por trabajador (papelito o WhatsApp uno por uno). Ahora, además, un enlace único por evaluación que
--- se manda al grupo: cada teléfono que pulsa «Empezar» recibe un código libre de un solo uso (o uno nuevo si aún no se
--- llegó a la plantilla declarada). El anonimato no cambia: el enlace no pide nombre ni cédula y la respuesta sigue
+-- se manda al grupo: cada teléfono que pulsa «Empezar» recibe un código NUEVO de un solo uso, creado en ese momento.
+-- Nunca entrega un código ya generado (pudo imprimirse en un papelito o mandarse por WhatsApp: Analizar, 06-nov). El anonimato no cambia: el enlace no pide nombre ni cédula y la respuesta sigue
 -- sin unirse al código.
---   · Tope: nunca más cupos que la plantilla («trabajadores») o los códigos generados; así nadie llena 50 veces.
+--   · Tope: plantilla («trabajadores») − códigos ya generados − cuestionarios en papel; así nadie llena 50 veces.
 --   · El enlace vive en su propia tabla (no en la evaluación) para que no pase por la bitácora que lee el auditor de
 --     la empresa; lo lee solo el servicio. «Cambiar enlace» anula el anterior.
 --   · Un código entregado por el enlace no vuelve a salir en papelitos ni en el WhatsApp uno por uno.
@@ -36,7 +36,7 @@ begin
   if e.acuerdo_fecha is null then
     raise exception 'Primero anota la fecha del acuerdo con el Comité de Seguridad y Salud Laboral (condición de la licencia del método).' using errcode = '23514';
   end if;
-  if e.trabajadores is null and not exists (select 1 from public.codigos_psicosociales k where k.evaluacion_id = e.id and not k.usado and not k.entregado) then
+  if e.trabajadores is null then
     raise exception 'Anota cuántos trabajadores van a responder: es el tope de respuestas del enlace.' using errcode = '23514';
   end if;
   select token into t from public.enlaces_psicosociales where evaluacion_id = e.id;
@@ -50,11 +50,11 @@ end $$;
 revoke execute on function public.enlace_oficina_psicosocial(uuid, boolean) from public, anon;
 grant execute on function public.enlace_oficina_psicosocial(uuid, boolean) to authenticated;
 
--- Cupos que aún puede entregar el enlace: códigos libres sin entregar + lo que falta para llegar a la plantilla.
+-- Cupos que aún puede entregar el enlace: lo que falta para llegar a la plantilla, contando TODOS los códigos ya
+-- generados (papelitos, WhatsApp uno por uno y los del enlace) y los cuestionarios en papel.
 create or replace function public.cupos_enlace_psicosocial(e public.evaluaciones_psicosociales)
 returns int language sql stable security definer set search_path = public as $$
-  select (select count(*) from public.codigos_psicosociales k where k.evaluacion_id = e.id and not k.usado and not k.entregado)::int
-       + greatest(0, coalesce(e.trabajadores, 0) - (select count(*) from public.codigos_psicosociales k where k.evaluacion_id = e.id)::int
+  select greatest(0, coalesce(e.trabajadores, 0) - (select count(*) from public.codigos_psicosociales k where k.evaluacion_id = e.id)::int
                      - (select count(*) from public.respuestas_psicosociales r where r.evaluacion_id = e.id and r.origen = 'papel')::int)
 $$;
 revoke execute on function public.cupos_enlace_psicosocial(public.evaluaciones_psicosociales) from public, anon, authenticated;
@@ -79,7 +79,7 @@ revoke execute on function public.ver_enlace_psicosocial(text) from public;
 -- Pública a propósito: el enlace (128 bits) es la llave y solo entrega códigos hasta el tope; en la línea base del guardián
 grant execute on function public.ver_enlace_psicosocial(text) to anon, authenticated;
 
--- Entrega un código de un solo uso al teléfono que pulsa «Empezar». null = enlace no válido, cerrado o sin cupos.
+-- Crea y entrega un código de un solo uso al teléfono que pulsa «Empezar». null = enlace no válido, cerrado o sin cupos.
 create or replace function public.tomar_codigo_psicosocial(p_token text)
 returns text language plpgsql security definer set search_path = public as $$
 declare l public.enlaces_psicosociales; e public.evaluaciones_psicosociales; c text; b bytea;
@@ -91,21 +91,15 @@ begin
   -- Bloquea la evaluación: dos teléfonos a la vez no pasan el tope
   select * into e from public.evaluaciones_psicosociales where id = l.evaluacion_id for update;
   if e.estado <> 'abierta' or e.acuerdo_fecha is null then return null; end if;
-  select k.codigo into c from public.codigos_psicosociales k
-   where k.evaluacion_id = e.id and not k.usado and not k.entregado order by k.codigo limit 1 for update skip locked;
-  if c is null then
-    if public.cupos_enlace_psicosocial(e) < 1 then return null; end if;
-    for intento in 1..10 loop
-      b := uuid_send(gen_random_uuid());
-      c := '';
-      for i in 0..7 loop c := c || substr(letras, ((get_byte(b, i) * 256 + get_byte(b, i + 8)) % 31) + 1, 1); end loop;
-      insert into public.codigos_psicosociales (evaluacion_id, org_id, codigo, entregado) values (e.id, e.org_id, c, true) on conflict do nothing;
-      if found then return c; end if;
-    end loop;
-    return null;
-  end if;
-  update public.codigos_psicosociales set entregado = true where codigo = c;
-  return c;
+  if public.cupos_enlace_psicosocial(e) < 1 then return null; end if;
+  for intento in 1..10 loop
+    b := uuid_send(gen_random_uuid());
+    c := '';
+    for i in 0..7 loop c := c || substr(letras, ((get_byte(b, i) * 256 + get_byte(b, i + 8)) % 31) + 1, 1); end loop;
+    insert into public.codigos_psicosociales (evaluacion_id, org_id, codigo, entregado) values (e.id, e.org_id, c, true) on conflict do nothing;
+    if found then return c; end if;
+  end loop;
+  return null;
 end $$;
 revoke execute on function public.tomar_codigo_psicosocial(text) from public;
 -- Pública a propósito: ver arriba (línea base del guardián)

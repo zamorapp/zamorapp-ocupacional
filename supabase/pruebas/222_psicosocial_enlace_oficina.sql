@@ -13,9 +13,11 @@ exception when check_violation then null; end $$;
 update public.evaluaciones_psicosociales set acuerdo_fecha = '2026-11-06' where id='22200000-0000-0000-0000-0000000000e1';
 do $$ begin
   perform public.enlace_oficina_psicosocial('22200000-0000-0000-0000-0000000000e1');
-  raise notice 'enlace sin plantilla ni códigos (sin tope): FALLA';
+  raise notice 'enlace sin plantilla (sin tope): FALLA';
 exception when check_violation then null; end $$;
-update public.evaluaciones_psicosociales set trabajadores = 4 where id='22200000-0000-0000-0000-0000000000e1';
+update public.evaluaciones_psicosociales set trabajadores = 5 where id='22200000-0000-0000-0000-0000000000e1';
+-- Un papelito impreso antes: ocupa un lugar de la plantilla y el enlace nunca lo entrega
+select 'un código para papelito (debe 1): ' || public.generar_codigos_psicosociales('22200000-0000-0000-0000-0000000000e1', 1);
 select 'el servicio crea el enlace (debe 32): ' || length(public.enlace_oficina_psicosocial('22200000-0000-0000-0000-0000000000e1'));
 select 'pedirlo otra vez da el mismo (debe 1): ' || (public.enlace_oficina_psicosocial('22200000-0000-0000-0000-0000000000e1') = (select token from public.enlaces_psicosociales where evaluacion_id='22200000-0000-0000-0000-0000000000e1'))::int;
 reset role;
@@ -42,7 +44,11 @@ select 'enlace inventado no existe (debe 0): ' || count(*) from public.ver_enlac
 select 'token mal formado no entrega código (debe 1): ' || (public.tomar_codigo_psicosocial('xyz') is null)::int;
 insert into k222 select public.tomar_codigo_psicosocial((select token from t222)) from generate_series(1, 4);
 select 'cuatro teléfonos, cuatro códigos distintos (debe 4): ' || count(distinct codigo) from k222 where codigo is not null;
-select 'el quinto no recibe código: tope = plantilla (debe 1): ' || (public.tomar_codigo_psicosocial((select token from t222)) is null)::int;
+reset role;
+select 'el enlace nunca entrega el código del papelito (debe 0): ' || count(*) from k222 join public.codigos_psicosociales k using (codigo) where not k.entregado;
+select 'el papelito sigue libre para quien lo tiene (debe 1): ' || count(*) from public.codigos_psicosociales where evaluacion_id='22200000-0000-0000-0000-0000000000e1' and not entregado and not usado;
+set role anon;
+select 'el quinto no recibe código: 4 del enlace + 1 papelito = plantilla de 5 (debe 1): ' || (public.tomar_codigo_psicosocial((select token from t222)) is null)::int;
 select 'enlace agotado (debe 1): ' || count(*) from public.ver_enlace_psicosocial((select token from t222)) where estado='agotado';
 select 'responde con el código del enlace (debe 1): ' || (public.enviar_cuestionario_psicosocial((select min(codigo) from k222), null, array_fill(0, array[38])) = 'ok')::int;
 select 'responde el segundo (debe 1): ' || (public.enviar_cuestionario_psicosocial((select codigo from k222 order by codigo offset 1 limit 1), null, array_fill(4, array[38])) = 'ok')::int;

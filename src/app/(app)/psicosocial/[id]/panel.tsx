@@ -116,6 +116,8 @@ export function PanelPsicosocial({ ev, resultados, codigos, enlaceOficina, perfi
   const siguiente = codigos.libres[0];
   const [token, setToken] = useState(enlaceOficina);
   const enlaceTodos = token ? `${urlPublica}/c/o/${token}` : null;
+  // Cupos del enlace = plantilla − todos los códigos ya generados − cuestionarios en papel (igual que la base)
+  const cupos = Math.max(0, (ev.trabajadores ?? 0) - codigos.libres.length - codigos.usados - codigos.enTelefonos - Math.max(0, (resultados?.total ?? 0) - codigos.usados));
   const textoGrupo = (u: string) =>
     `Hola, equipo. ${ev.empresa} y el Comité de Seguridad y Salud Laboral están evaluando las condiciones de trabajo. Les pedimos responder una encuesta ANÓNIMA desde su teléfono (unos 8 minutos, una pregunta por pantalla): no pide nombre ni cédula. Cada quien la responde UNA vez: ${u}`;
   const pedirEnlace = (nuevo: boolean) => iniciar(async () => {
@@ -239,7 +241,7 @@ export function PanelPsicosocial({ ev, resultados, codigos, enlaceOficina, perfi
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><Users className="size-5" /></span>
                 <div className="min-w-0">
                   <p className="font-medium">Un solo enlace para toda la oficina</p>
-                  <p className="text-xs text-muted-foreground">Mándalo al grupo de WhatsApp. Cada quien responde desde su teléfono, una pregunta por pantalla. Admite hasta {ev.trabajadores ?? "el número de"} trabajadores{ev.trabajadores ? "" : " que anotes en el paso 1"}; nadie entra con nombre ni cédula.</p>
+                  <p className="text-xs text-muted-foreground">Mándalo al grupo de WhatsApp. Cada quien responde desde su teléfono, una pregunta por pantalla. Admite hasta {ev.trabajadores ?? "el número de"} trabajadores{ev.trabajadores ? "" : " que anotes en el paso 1"}, contando los códigos sueltos que ya generaste; nadie entra con nombre ni cédula.</p>
                 </div>
               </div>
               {enlaceTodos ? (
@@ -255,7 +257,10 @@ export function PanelPsicosocial({ ev, resultados, codigos, enlaceOficina, perfi
                       }}><RefreshCw /> Cambiar enlace</Button>
                     )}
                   </div>
-                  {codigos.enTelefonos > 0 && <p className="text-xs text-muted-foreground">{codigos.enTelefonos} {codigos.enTelefonos === 1 ? "persona empezó y aún no envía" : "personas empezaron y aún no envían"}.</p>}
+                  <p className={cn("text-xs", cupos ? "text-muted-foreground" : "font-medium text-alerta-texto")}>
+                    {cupos ? `Quedan ${cupos} ${cupos === 1 ? "cupo" : "cupos"} en el enlace.` : "El enlace no tiene cupos: sube «Trabajadores» en el paso 1 o reparte los códigos sueltos que ya generaste."}
+                    {codigos.enTelefonos > 0 && ` ${codigos.enTelefonos} ${codigos.enTelefonos === 1 ? "persona empezó y aún no envía" : "personas empezaron y aún no envían"}.`}
+                  </p>
                 </>
               ) : editable ? (
                 <Button disabled={ocupado || !ev.acuerdoFecha || (!ev.trabajadores && codigos.libres.length === 0)} onClick={() => pedirEnlace(false)}
@@ -490,6 +495,8 @@ function ResumenOficina({ dimensiones, total }: { dimensiones: Dimension[]; tota
 
 // Cada persona, sin nombre, sin puesto y sin orden de llegada (ordenadas de más a menos rojo). Solo el servicio.
 function Perfiles({ perfiles }: { perfiles: number[][] }) {
+  const [todas, setTodas] = useState(false);
+  const filas = todas ? perfiles : perfiles.slice(0, 12);
   const conRojo = perfiles.filter((p) => p.filter((x) => x === 2).length >= 3).length;
   return (
     <div className="space-y-2">
@@ -501,12 +508,12 @@ function Perfiles({ perfiles }: { perfiles: number[][] }) {
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[520px] text-xs">
           <thead className="bg-muted text-muted-foreground">
-            <tr><th className="px-2 py-1.5 text-left font-medium">#</th>{APARTADOS.map((a) => <th key={a.n} className="px-1 py-1.5 text-center font-medium">{a.corto}</th>)}</tr>
+            <tr><th className="sticky left-0 z-10 bg-muted px-2 py-1.5 text-left font-medium">#</th>{APARTADOS.map((a) => <th key={a.n} className="px-1 py-1.5 text-center font-medium">{a.corto}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
-            {perfiles.map((p, i) => (
+            {filas.map((p, i) => (
               <tr key={i}>
-                <td className="px-2 py-1 font-cifra text-muted-foreground">{i + 1}</td>
+                <td className="sticky left-0 z-10 bg-card px-2 py-1 font-cifra text-muted-foreground">{i + 1}</td>
                 {p.map((n, j) => (
                   <td key={j} className="px-1 py-1">
                     <span className={cn("block rounded-md py-1 text-center text-[11px] font-semibold", NIVELES[n].clase)}>{NIVELES[n].nombre}</span>
@@ -517,6 +524,9 @@ function Perfiles({ perfiles }: { perfiles: number[][] }) {
           </tbody>
         </table>
       </div>
+      {perfiles.length > 12 && (
+        <Button variant="ghost" size="sm" onClick={() => setTodas(!todas)}>{todas ? "Ver menos" : `Ver las ${perfiles.length}`}</Button>
+      )}
     </div>
   );
 }

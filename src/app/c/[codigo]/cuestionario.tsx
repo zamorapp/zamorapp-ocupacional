@@ -118,7 +118,7 @@ export function Cuestionario({ codigo, grupos }: Props) {
       )}
       {enviando && <p role="status" className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Enviando…</p>}
       {error && <p role="alert" className="rounded-xl bg-alerta/10 px-4 py-3 text-sm text-alerta-texto">{error}</p>}
-      <p className="px-1 text-[11px] leading-snug text-muted-foreground">{METODO_PSICOSOCIAL.cita}</p>
+      <p className="px-1 text-xs leading-snug text-muted-foreground">{METODO_PSICOSOCIAL.cita}</p>
     </div>
     </>
   );
