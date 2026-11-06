@@ -18,6 +18,10 @@ begin
     raise notice 'pg_cron o pg_net no están disponibles aquí (%): los latidos siguen por GitHub', sqlerrm;
     return;
   end;
+  -- pg_net solo para la base (trigger security definer y estos latidos): los usuarios de la app no pueden pedir URL
+  -- desde el servidor (riesgo SSRF, Analizar 06-nov)
+  revoke usage on schema net from anon, authenticated;
+  revoke execute on all functions in schema net from anon, authenticated, public;
 
   -- cron.schedule con nombre reemplaza el trabajo si ya existe: la migración se puede correr dos veces
   -- Avisos de la campana al celular (plazos, resultados, alertas, exámenes por vencer, horas propuestas)
