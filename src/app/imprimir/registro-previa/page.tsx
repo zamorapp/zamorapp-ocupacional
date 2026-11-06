@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { versionesHojas } from "@/lib/hojas-version-servidor";
 import { docsElegidos, filasRegistro, fraseIndicaciones, remitente, type EleccionRegistro, type VistaRegistro } from "@/lib/registro-documentos";
 import { armarDocumentosRegistro, puedeFirmarRegistro } from "@/lib/registro-documentos-servidor";
 import { HojasRegistro } from "@/app/registro/hojas";
@@ -28,6 +29,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
     controlTa: q.ta === "14" ? 14 : q.ta === "7" ? 7 : null,
     dieta: q.dieta && /^[a-z_-]{1,30}$/.test(q.dieta) ? q.dieta : null,
     bienestar: q.bienestar === "1",
+    temas: q.tema?.split(","),
     firma: q.firma === "1",
     conversadas: q.conversadas === "1",
   };
@@ -58,9 +60,8 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
     medico: medico as VistaRegistro["medico"],
     firmado: Boolean(medico),
   };
-  // Un tema de bienestar suelto (desde «Hojas para el paciente»)
-  if (v?.documentos.bienestar && q.tema && /^[a-z_-]{1,30}$/.test(q.tema)) v.documentos.bienestar = { tema: [q.tema] };
   const hoy = hoyCaracas();
+  const versiones = v ? await versionesHojas(supabase) : null;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
@@ -97,7 +98,7 @@ export default async function VistaPreviaRegistro({ searchParams }: Props) {
             <div aria-hidden className="pointer-events-none fixed inset-0 z-[5] flex items-center justify-center">
               <span className="-rotate-30 select-none text-center text-[12vw] font-black leading-none tracking-widest text-neutral-900/[.12] print:text-[96px]">MUESTRA<span className="block text-[4vw] print:text-[28px]">vista previa · sin validez</span></span>
             </div>
-            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} />)}
+            {docsElegidos(v.documentos).map((t) => <HojasRegistro key={t} v={v} tipo={t} hoy={hoy} versiones={versiones} />)}
           </div>
         </>
       )}

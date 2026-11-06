@@ -47,8 +47,8 @@ export function TextoEditable({ id, valor, className = "", bloque }: { id: strin
 }
 
 // Lista que el médico ajusta antes de imprimir: cambia un renglón (tocándolo), lo quita con la ✕ o agrega uno nuevo.
-// Los botones no salen en el papel.
-export function ListaEditable({ id, items, className = "", columnas }: { id: string; items: string[]; className?: string; columnas?: boolean }) {
+// Los botones no salen en el papel. Con «fija» (señales de alarma) no hay ✕: el renglón se cambia, pero no se quita de un toque.
+export function ListaEditable({ id, items, className = "", columnas, fija }: { id: string; items: string[]; className?: string; columnas?: boolean; fija?: boolean }) {
   const guardar = useGuardarCambio();
   const [lista, setLista] = useState(() => items.map((texto, i) => ({ n: i, texto })));
   const [siguiente, setSiguiente] = useState(items.length);
@@ -83,7 +83,7 @@ export function ListaEditable({ id, items, className = "", columnas }: { id: str
             >
               {x.texto}
             </span>
-            <button
+            {!fija && <button
               type="button"
               onClick={() => cambiar(lista.filter((y) => y.n !== x.n))}
               aria-label="Quitar este renglón"
@@ -91,7 +91,7 @@ export function ListaEditable({ id, items, className = "", columnas }: { id: str
               className="absolute top-0 right-0 indent-0 text-[#b42318] opacity-40 transition hover:opacity-100 group-hover:opacity-100 print:hidden"
             >
               <X className="size-3.5" />
-            </button>
+            </button>}
           </li>
         ))}
       </ul>

@@ -56,6 +56,7 @@ export type EleccionRegistro = {
   controlTa: 7 | 14 | null;
   dieta: string | null;
   bienestar: boolean;
+  temas?: string[];
   firma: boolean;
   conversadas?: boolean;
 };
