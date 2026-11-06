@@ -23,7 +23,7 @@ const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`)
 
 type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
 
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean }) {
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "" }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   const [emision, setEmision] = useState(c.fecha);
@@ -207,6 +207,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
                 {tasa && <div>Equivale a $ {num(t.total)} a la tasa BCV de Bs. {num(tasa)} por dólar.</div>}
                 {c.observacion && <div>{c.observacion}</div>}
+                {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
               </div>
               <div className="w-[72mm] shrink-0 space-y-[1px]">
                 <div className="flex justify-between"><span>{c.ivaPct === 0 ? "Monto exento" : "Base imponible"}</span><span className="font-mono tabular-nums">{num(enMoneda(t.subtotal))}</span></div>

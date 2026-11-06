@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { obtenerCobro } from "@/lib/facturacion";
 import { bs, totales, usd } from "@/lib/facturacion-tipos";
+import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
+import { DatosPagoCobro } from "../datos-pago";
 import { fechaCorta, Hoja, Marca, Titular } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
@@ -117,6 +119,11 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
         )}
 
         {c.observacion && <p className="mt-4"><b>Observación:</b> {c.observacion}</p>}
+        {/* Condiciones y datos para el pago (Configuración › Organización › Documentos); la nota de entrega no lleva montos */}
+        {!entrega && (() => {
+          const aj = (org?.ajustes ?? {}) as { cobro_condiciones?: string | null; cobro_datos_pago?: string | null };
+          return <DatosPagoCobro condiciones={(aj.cobro_condiciones ?? CONDICION_PAGO_BCV).trim()} datosPago={(aj.cobro_datos_pago ?? "").trim()} />;
+        })()}
         <p className="mt-10 border-t pt-2 text-[10.5px] italic text-neutral-600">
           {entrega ? "Constancia de los servicios entregados. No sustituye la factura." : <>Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.</>}
         </p>

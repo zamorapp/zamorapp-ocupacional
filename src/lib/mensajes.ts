@@ -45,3 +45,6 @@ export function enlaceCorreo(correo: string | null | undefined, asunto: string, 
 
 export const fechaLarga = (iso: string) =>
   new Date(iso + "T12:00:00").toLocaleDateString("es-VE", { weekday: "long", day: "numeric", month: "long" });
+
+// Nota de cobro / recibo (Configuración › Organización › Documentos). null = este texto; "" = no imprimir (Cesar, 05-nov)
+export const CONDICION_PAGO_BCV = "Los pagos se realizan a la tasa oficial del Banco Central de Venezuela (BCV) vigente el día del pago.";
