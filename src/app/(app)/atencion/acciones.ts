@@ -6,7 +6,8 @@ import { prepararConstanciasLuego } from "@/lib/constancias-listas";
 import { olvidar } from "@/lib/memo";
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import type { DatosConsulta } from "@/lib/consultas-tipos";
+import { esSinAntecedentes, type DatosConsulta, type Habito } from "@/lib/consultas-tipos";
+import { completarHabitos } from "@/lib/habitos";
 import type { ParaclinicoPedido } from "@/lib/alertas-tipos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
@@ -231,7 +232,8 @@ function delEnlace(e: { datos: unknown; recibido_en: string | null } | null, ult
 // Antecedentes de la consulta anterior + los que marcó el paciente: lo nuevo se suma; lo repetido conserva lo anterior
 // y agrega «Refiere: …» con lo que escribió
 function unirAntecedentes(previos: DatosConsulta["antecedentes"], delPaciente: DatosConsulta["antecedentes"]) {
-  const lista = previos.map((a) => ({ ...a }));
+  // Si el paciente marcó algo, la marca «No refiere antecedentes de importancia» de la vez anterior ya no aplica
+  const lista = previos.filter((a) => !(delPaciente.length > 0 && esSinAntecedentes(a))).map((a) => ({ ...a }));
   for (const a of delPaciente) {
     const ya = lista.find((x) => x.id === a.id);
     const nota = a.observacion?.trim();
@@ -275,11 +277,13 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
   const plantilla = (lista: "examen_funcional" | "examen_fisico") =>
     listas[lista].map((i) => ({ clave: i.codigo ?? i.id, nombre: i.nombre, valor: i.texto ?? "", normal: i.texto ?? "" }));
 
-  const habitosPrevios = new Map<string, string>(
-    (Array.isArray(previa?.habitos) ? previa.habitos : []).map((h: { clave: string; valor: string }) => [h.clave, h.valor]),
+  // Hábitos de la consulta anterior (con su detalle); lo que escribió el paciente en el enlace manda (solo texto)
+  type Previo = { valor: string; detalle?: Habito["detalle"] };
+  const habitosPrevios = new Map<string, Previo>(
+    (Array.isArray(previa?.habitos) ? previa.habitos : []).map((h: Habito) => [h.clave, { valor: h.valor, detalle: h.detalle }]),
   );
   const paciente = delEnlace(enlace, previa?.fecha ?? null);
-  for (const h of paciente?.habitos ?? []) habitosPrevios.set(h.clave, h.valor);
+  for (const h of paciente?.habitos ?? []) habitosPrevios.set(h.clave, { valor: h.valor });
 
   const { data, error } = await supabase
     .from("consultas")
@@ -293,7 +297,10 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
       tipo: previa ? "sucesiva" : "primera",
       antecedentes: unirAntecedentes(previa?.antecedentes ?? [], paciente?.antecedentes ?? []),
       ...(paciente?.motivo ? { motivo_texto: paciente.motivo } : {}),
-      habitos: listas.habito.map((h) => ({ clave: h.codigo ?? h.id, nombre: h.nombre, valor: habitosPrevios.get(h.codigo ?? h.id) ?? "" })),
+      habitos: completarHabitos(listas.habito.map((h) => ({ clave: h.codigo ?? h.id, nombre: h.nombre, valor: "" }))).map((h) => {
+        const p = habitosPrevios.get(h.clave);
+        return p ? { ...h, valor: p.valor ?? "", ...(p.detalle ? { detalle: p.detalle } : {}) } : h;
+      }),
       examen_funcional: plantilla("examen_funcional"),
       examen_fisico: plantilla("examen_fisico"),
     })
