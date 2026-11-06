@@ -5,25 +5,46 @@
 --    toca «Ver mis documentos» y le salen llenos con los datos de su ficha; luego puede subir resultados (30 días).
 --    Si le falta algo (cédula, nacimiento, sexo, celular, dirección) se le pide SOLO eso y se completa la ficha
 --    (solo lo vacío; nunca se pisa un dato que ya estaba). No pasa por «Por revisar».
+--    Llave: si la ficha tiene cédula, antes de ver documentos o subir resultados escribe los 4 últimos números
+--    (5 intentos por enlace). Así un WhatsApp reenviado o a un número equivocado no abre la historia de nadie.
+--    La cédula de la ficha nunca se cambia por el enlace; solo se pide si está vacía.
 -- 2. Seguimiento: abierto_en (la página lo marca con el navegador del paciente, no la vista previa de WhatsApp) y aviso
 --    al servicio la primera vez que lo abre y la primera vez que descarga.
 -- Los parches por texto quitan \r de ambos lados (producción y este archivo pegado en el editor tienen \r\n).
 
 alter table public.solicitudes_paciente add column if not exists para_trabajador uuid;
 alter table public.solicitudes_paciente add column if not exists abierto_en timestamptz;
+alter table public.solicitudes_paciente add column if not exists intentos_cedula smallint not null default 0;
 comment on column public.solicitudes_paciente.para_trabajador is
   'Trabajador ya registrado al que va el enlace (se crea desde su ficha). Sin FK: en el escritorio la ficha nace en la PC.';
 comment on column public.solicitudes_paciente.abierto_en is 'Primera vez que el paciente abrió el enlace en su teléfono.';
+comment on column public.solicitudes_paciente.intentos_cedula is 'Intentos fallidos de los 4 últimos números de la cédula (máximo 5).';
+
+-- Los 4 últimos números de la cédula de la ficha (la llave del enlace); null si la ficha no tiene cédula
+create or replace function public.ultimos_cedula(t public.trabajadores)
+returns text language sql immutable as $$
+  select case when length(regexp_replace(coalesce(t.cedula, ''), '\D', '', 'g')) >= 4
+              then right(regexp_replace(t.cedula, '\D', '', 'g'), 4) end
+$$;
+revoke execute on function public.ultimos_cedula(public.trabajadores) from public, anon, authenticated;
 
 -- ===== 1. Al crear: el trabajador es de la organización =====
 create or replace function public.validar_para_trabajador()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare t public.trabajadores;
 begin
-  if new.para_trabajador is not null
-     and not exists (select 1 from public.trabajadores t where t.id = new.para_trabajador and t.org_id = new.org_id) then
-    raise exception 'Ese trabajador todavía no está en la nube: espera la sincronía e inténtalo de nuevo';
+  if new.para_trabajador is not null then
+    select * into t from public.trabajadores x where x.id = new.para_trabajador and x.org_id = new.org_id;
+    if t.id is null then
+      raise exception 'Ese trabajador todavía no está en la nube: espera la sincronía e inténtalo de nuevo';
+    end if;
+    -- Cédula con texto pero sin 4 números: no sirve de llave y el enlace no la cambia
+    if coalesce(btrim(t.cedula), '') <> '' and public.ultimos_cedula(t) is null then
+      raise exception 'La cédula de su ficha no es válida: corrígela en la ficha y envía el enlace de nuevo';
+    end if;
   end if;
   new.abierto_en := null;
+  new.intentos_cedula := 0;
   return new;
 end $$;
 revoke execute on function public.validar_para_trabajador() from public, anon, authenticated;
@@ -36,7 +57,7 @@ create trigger validar_para_trabajador before insert on public.solicitudes_pacie
 create or replace function public.faltan_ficha_registro(t public.trabajadores)
 returns text[] language sql immutable as $$
   select array_remove(array[
-    case when coalesce(t.cedula, '') !~* '^[VEP]-?[0-9]{5,9}$' then 'cedula' end,
+    case when coalesce(btrim(t.cedula), '') = '' then 'cedula' end,
     case when t.fecha_nacimiento is null then 'fecha_nacimiento' end,
     case when t.sexo is null then 'sexo' end,
     case when coalesce(btrim(t.telefono), '') = '' then 'telefono' end,
@@ -54,6 +75,7 @@ begin
     raise exception 'catalogo_registro_paciente cambió: revisar 20261030918000 antes de aplicarla';
   end if;
   execute replace(replace(v_def, v_viejo, '''registrado'', v.para_trabajador is not null,
+    ''verificar'', (select public.ultimos_cedula(t) is not null from public.trabajadores t where t.id = v.para_trabajador and t.org_id = v.org_id),
     ''faltan'', (select to_jsonb(public.faltan_ficha_registro(t)) from public.trabajadores t where t.id = v.para_trabajador and t.org_id = v.org_id),
     ' || v_viejo), chr(13), '');
 end $$;
@@ -62,11 +84,25 @@ end $$;
 create or replace function public.enviar_registro_trabajador(v public.solicitudes_paciente, d jsonb)
 returns text language plpgsql security definer set search_path = public as $$
 declare
-  t public.trabajadores; e public.empresas; v_cargo text; faltan text[];
+  t public.trabajadores; e public.empresas; v_cargo text; faltan text[]; v_llave text;
   v_cedula text; nac date; tel text; dir text; v_sexo text; cambios jsonb := '{}'::jsonb; completo text[] := '{}';
 begin
   select * into t from public.trabajadores where id = v.para_trabajador and org_id = v.org_id for update;
   if t.id is null then return 'No encontramos tu ficha. Escríbele al servicio médico para que te envíe un enlace nuevo.'; end if;
+  -- Llave: los 4 últimos números de su cédula (5 intentos por enlace)
+  v_llave := public.ultimos_cedula(t);
+  if v_llave is not null then
+    if v.intentos_cedula >= 5 then
+      return 'Hiciste demasiados intentos. Escríbele al servicio médico para que te envíe un enlace nuevo.';
+    end if;
+    if regexp_replace(coalesce(d->>'ultimos4', ''), '\D', '', 'g') <> v_llave then
+      update public.solicitudes_paciente set intentos_cedula = intentos_cedula + 1 where id = v.id;
+      if v.intentos_cedula + 1 >= 5 then
+        return 'Hiciste demasiados intentos. Escríbele al servicio médico para que te envíe un enlace nuevo.';
+      end if;
+      return 'Esos números no coinciden con tu cédula. Te quedan ' || (5 - v.intentos_cedula - 1) || ' intentos.';
+    end if;
+  end if;
   faltan := public.faltan_ficha_registro(t);
   -- Solo lo que falta; se valida igual que en el formulario completo
   if 'cedula' = any (faltan) then

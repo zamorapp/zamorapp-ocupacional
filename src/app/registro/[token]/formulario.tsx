@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 import { conArticulo, ESTADO_CIVIL, LATERALIDAD, NIVEL_EDUCATIVO, PREGUNTA_HABITO, TURNOS, valorHabito } from "@/lib/solicitudes-paciente";
 import { enviarRegistro } from "./acciones";
 
-// registrado: el enlace es para un trabajador que ya tiene ficha; faltan = lo que su ficha no tiene (20261030918000)
-export type CatalogoRegistro = { remitente: string; registrado?: boolean; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
+// registrado: el enlace es para un trabajador que ya tiene ficha; faltan = lo que su ficha no tiene; verificar = pide los
+// 4 últimos números de su cédula antes de ver documentos (20261030918000)
+export type CatalogoRegistro = { remitente: string; registrado?: boolean; verificar?: boolean | null; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
 type Props = { token: string; servicio: string; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
 
 const GRUPO_ANTECEDENTE: Record<string, string> = { personal: "¿Tienes o has tenido alguna de estas?", familiar: "¿Alguien de tu familia (padres, hermanos, abuelos) tiene o tuvo…?" };
@@ -50,7 +51,7 @@ function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; 
 const opcionesDe = <T extends string>(o: Record<T, string>) => (Object.entries(o) as [T, string][]).map(([v, t]) => ({ v, t }));
 
 // Trabajador ya registrado: no escribe nada si su ficha está completa; si falta algo, se le pide solo eso
-function FormularioRegistrado({ token, hoy, faltan }: { token: string; hoy: string; faltan: string[] }) {
+function FormularioRegistrado({ token, hoy, faltan, verificar }: { token: string; hoy: string; faltan: string[]; verificar: boolean }) {
   const [sexo, setSexo] = useState<"F" | "M" | "">("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, iniciar] = useTransition();
@@ -71,6 +72,15 @@ function FormularioRegistrado({ token, hoy, faltan }: { token: string; hoy: stri
       <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
         <label>Sitio web<input name="sitio_web" tabIndex={-1} autoComplete="off" /></label>
       </div>
+      {verificar && (
+        <Seccion titulo="Confirma que eres tú" ayuda="Así nadie más puede abrir tus documentos si este enlace llega a otra persona.">
+          <div>
+            <Label htmlFor="ultimos4" className="mb-1.5">Últimos 4 números de tu cédula *</Label>
+            <Input id="ultimos4" name="ultimos4" required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off"
+              placeholder="Ej.: 5678" className="h-11 w-32 text-center text-lg tracking-[0.4em]" />
+          </div>
+        </Seccion>
+      )}
       {faltan.length > 0 && (
         <Seccion titulo="Completa tu ficha" ayuda="Ya tienes ficha con nosotros. Solo nos falta esto:">
           {pide("cedula") && (
@@ -114,7 +124,7 @@ function FormularioRegistrado({ token, hoy, faltan }: { token: string; hoy: stri
 }
 
 export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, maximo, catalogo }: Props) {
-  if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} />;
+  if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} verificar={Boolean(catalogo.verificar)} />;
   return <FormularioCompleto token={token} servicio={servicio} empresa={empresa} motivos={motivos} hoy={hoy} maximo={maximo} catalogo={catalogo} />;
 }
 

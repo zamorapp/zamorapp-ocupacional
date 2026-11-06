@@ -119,7 +119,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
                 ? "Ábrelos y descárgalos. Cuando tengas tus resultados, vuelve a este mismo enlace para enviarlos."
                 : "Llena tus datos para tu consulta y te confirmamos el día y la hora por WhatsApp."}</p>
               <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Un toque") : "Toma 5 minutos"}</li>
+                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : "Toma 5 minutos"}</li>
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>

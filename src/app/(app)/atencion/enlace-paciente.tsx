@@ -166,13 +166,16 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                                 return (
                                   <button key={x} type="button" role="checkbox" aria-checked={pedido}
                                     onClick={() => setSin((v) => (pedido ? [...v, x] : v.filter((y) => y !== x)))}
-                                    className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5",
+                                    className={cn("inline-flex min-h-10 items-center gap-1 rounded-full border px-3 sm:min-h-8 sm:px-2.5",
                                       pedido ? "border-primary bg-primary/10 text-foreground" : "bg-background text-muted-foreground line-through")}>
                                     {pedido && <Check className="size-3" />} {x}
                                   </button>
                                 );
                               })}
                             </div>
+                            {o.examenes.every((x) => sin.includes(x)) && (
+                              <p className="flex items-center gap-1 text-aviso-texto"><AlertTriangle className="size-3.5 shrink-0" /> La {o.nombre.charAt(0).toLowerCase() + o.nombre.slice(1)} quedó sin exámenes: no saldrá.</p>
+                            )}
                           </div>
                         ))}
                         {sin.length > 0 && <p className="text-muted-foreground">Quitaste {sin.length} {sin.length === 1 ? "examen" : "exámenes"}. <button type="button" className="font-medium text-primary hover:underline" onClick={() => setSin([])}>Pedir todos</button></p>}
@@ -436,9 +439,9 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                 <span>{e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "Sin nombre"}{e.telefono && <span className="text-muted-foreground"> · {telefonoVisible(e.telefono)}</span>}</span>
                 <span className="text-muted-foreground">· enviado {fechaCorta(e.creado)}</span>
                 {/* Seguimiento: abierto en su teléfono, datos enviados y documentos descargados */}
-                {e.abierto && <span className="inline-flex items-center gap-1 text-muted-foreground"><Eye className="size-3" /> abierto {momento(e.abierto)}</span>}
-                {e.recibido && !e.registrado && <span className="inline-flex items-center gap-1 text-muted-foreground"><Check className="size-3" /> datos enviados</span>}
-                {e.descargo && <span className="inline-flex items-center gap-1 text-ok-texto"><FileDown className="size-3" /> descargó {momento(e.descargo)}</span>}
+                {e.abierto && <span className="inline-flex items-center whitespace-nowrap gap-1 text-muted-foreground"><Eye className="size-3" /> abierto {momento(e.abierto)}</span>}
+                {e.recibido && !e.registrado && <span className="inline-flex items-center whitespace-nowrap gap-1 text-muted-foreground"><Check className="size-3" /> datos enviados</span>}
+                {e.descargo && <span className="inline-flex items-center whitespace-nowrap gap-1 text-ok-texto"><FileDown className="size-3" /> descargó {momento(e.descargo)}</span>}
                 {(estado === "esperando" || (estado === "aceptada" && !vencidoResultados(e, ahora))) && (
                   <button type="button" disabled={ocupado} onClick={() => anular(e, estado === "aceptada")}
                     title={estado === "aceptada" ? "Ya no podrá descargar ni enviar resultados con este enlace" : "El enlace deja de servir"}
