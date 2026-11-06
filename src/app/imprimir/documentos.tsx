@@ -392,7 +392,8 @@ export function Recipe({ d }: { d: DatosDocumento }) {
 // Pre-empleo: sale como «Autorización de exámenes pre-empleo», con la nota del VIH y la autorización firmada por el aspirante
 const esPreempleo = (d: DatosDocumento) => /pre.?empleo|ingreso/i.test(d.motivo?.nombre ?? "");
 
-export function Orden({ d }: { d: DatosDocumento }) {
+// parte: orden de una sola clase de estudio («rayos X», «laboratorio»…), como las del enlace de registro
+export function Orden({ d, parte }: { d: DatosDocumento; parte?: string }) {
   const a = d.org.ajustes;
   const pre = esPreempleo(d);
   const notaPre = pre ? a.orden_nota_preempleo ?? NOTA_PREEMPLEO_VIH : null;
@@ -403,7 +404,9 @@ export function Orden({ d }: { d: DatosDocumento }) {
   return (
     <Hoja>
       <Membrete d={d} />
-      <Titulo d={d} prefijo="OE" sub={d.motivo?.nombre ?? null}>{pre ? "Autorización de exámenes pre-empleo" : "Orden de exámenes paraclínicos"}</Titulo>
+      <Titulo d={d} prefijo="OE" sub={[d.motivo?.nombre, pre && parte && `Orden de ${parte}`].filter(Boolean).join(" · ") || null}>
+        {pre ? "Autorización de exámenes pre-empleo" : parte ? `Orden de ${parte}` : "Orden de exámenes paraclínicos"}
+      </Titulo>
       <DatosPaciente d={d} completo={false} />
       {examenes.length === 0 ? (
         <p>Esta consulta no tiene exámenes solicitados.</p>

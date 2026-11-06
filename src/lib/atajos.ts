@@ -107,6 +107,7 @@ const LISTAS: [string, string, string, boolean?][] = [
 
 const OTROS: Atajo[] = [
   { href: "/pacientes/importar", titulo: "Importar trabajadores desde Excel", donde: "Pacientes", icono: Users, palabras: "nomina cargar excel hoja lista masivo" },
+  { href: "/atencion/hojas", titulo: "Hojas para el paciente", donde: "Atención médica", icono: Stethoscope, palabras: "dieta dietas plan de alimentacion nutricion hipertension diabetes renal bienestar pausas lumbalgia tension arterial perfiles ordenes examenes ver", clinico: true },
   { href: "/atencion/citas-lote", titulo: "Citas por lote", donde: "Atención médica", icono: Stethoscope, palabras: "agendar varias citas excel jornada", clinico: true },
   { href: "/atencion", titulo: "Agenda y cola de atención", donde: "Atención médica", icono: Stethoscope, palabras: "cita citas agenda espera cola siguiente paciente", clinico: true },
   { href: "/envios/por-enviar", titulo: "Constancias por enviar", donde: "Envíos", icono: Send, palabras: "pendientes correo whatsapp", clinico: true },
