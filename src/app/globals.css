@@ -230,6 +230,15 @@
   }
 }
 
+/* Sin movimiento: solo el anillo fijo, sin parpadeo */
+@media (prefers-reduced-motion: reduce) {
+  .campo-senalado {
+    animation: none;
+    outline: 3px solid color-mix(in oklab, var(--alerta) 60%, transparent);
+    outline-offset: 2px;
+  }
+}
+
 /* Documentos impresos (constancia, reposo, informe, récipe) */
 @page {
   size: letter;

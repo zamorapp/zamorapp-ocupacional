@@ -431,7 +431,11 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const faltaRecipe = useMemo(() => new Map(faltantesMedicinas(d.tratamiento).map((f) => [f.indice, f.campos])), [d.tratamiento]);
   const nombreCampoRecipe = (c: CampoRecipe) => CAMPOS_RECIPE.find(([k]) => k === c)![1];
   const casillaMed = (i: number, c: CampoRecipe) => `med-${i}-${c}`;
-  const faltaMed = (i: number, c: CampoRecipe) => marcaFalta(!bloqueado && Boolean(faltaRecipe.get(i)?.includes(c)));
+  // Mientras se escribe la fila, neutra con un resumen ámbar; en rojo al salir de la fila o al intentar firmar
+  const [filasRecipeVistas, setFilasRecipeVistas] = useState<ReadonlySet<number>>(new Set());
+  const [recipeEnRojo, setRecipeEnRojo] = useState(false);
+  const filaEnRojo = (i: number) => recipeEnRojo || filasRecipeVistas.has(i);
+  const faltaMed = (i: number, c: CampoRecipe) => marcaFalta(!bloqueado && filaEnRojo(i) && Boolean(faltaRecipe.get(i)?.includes(c)));
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
@@ -517,6 +521,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     if (d.estado !== "borrador" || !faltanObligatorios.length) return false;
     setFaltanAlCerrar(faltanObligatorios);
     setAviso(null);
+    // En el celular la barra de pasos se desplaza: que se vea la pestaña con «!»
+    requestAnimationFrame(() => document.querySelector("[data-paso-falta]")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
     irAFaltante(faltanObligatorios[0]);
     irACampo(faltanObligatorios[0].campo);
     return true;
@@ -549,6 +555,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
       cancelar: "Completar ahora",
     }))) {
       const [i, campos] = [...faltaRecipe.entries()][0];
+      setRecipeEnRojo(true);
       setPaso("tratamiento");
       irACampo(casillaMed(i, campos[0]));
       return;
@@ -796,7 +803,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   return (
     <Tabs value={pasos[indicePaso].id} onValueChange={setPaso} className="gap-4">
       {/* Cabecera fija con el paciente, las acciones y los pasos */}
-      <div className="z-10 -mx-4 border-b bg-background/95 px-4 pt-3 lg:sticky lg:top-16 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="z-10 -mx-4 border-b bg-background px-4 pt-3 lg:sticky lg:top-16 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="grid size-10 shrink-0 sm:size-11 place-items-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
             {trabajador.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
@@ -1012,6 +1019,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             <TabsTrigger
               key={p.id}
               value={p.id}
+              data-paso-falta={pasosConFalta.has(p.id) || undefined}
               title={i < 9 ? `Alt + ${i + 1}` : undefined}
               className="group mb-2 h-9 flex-none gap-2 rounded-lg border-0 px-3 text-muted-foreground shadow-none hover:bg-muted data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
             >
@@ -1409,7 +1417,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                   </button>
                 )}
                 {d.tratamiento.map((m, i) => (
-                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(8rem,2fr)_minmax(7.75rem,1fr)_minmax(9.5rem,1.3fr)_repeat(3,minmax(7.5rem,1fr))_minmax(5.5rem,1fr)_auto]"
+                    onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && !filasRecipeVistas.has(i)) setFilasRecipeVistas((x) => new Set(x).add(i)); }}>
                     <BuscadorMedicina
                       valor={m.medicina}
                       medicinas={medicinas}
@@ -1442,13 +1451,20 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                     ))}
                     <Input data-campo={casillaMed(i, "dosis")} {...faltaMed(i, "dosis")} value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
                     <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("tratamiento", d.tratamiento.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                    <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
-                    <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
+                    <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 lg:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
+                    <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 lg:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
                     {/* Aviso (no bloquea): lo que pide la Res. MPPS 028 para que el récipe se pueda imprimir */}
                     {faltaRecipe.get(i) && !bloqueado && (
                       <div className="sm:col-span-full" data-estado="falta-recipe">
-                        <AvisoFaltantes className="px-2 py-1 text-xs" titulo="Para el récipe falta"
-                          faltan={faltaRecipe.get(i)!.map((c) => ({ campo: casillaMed(i, c), etiqueta: nombreCampoRecipe(c) }))} />
+                        {filaEnRojo(i) ? (
+                          <AvisoFaltantes className="px-2 py-1 text-xs" titulo="Para el récipe falta"
+                            faltan={faltaRecipe.get(i)!.map((c) => ({ campo: casillaMed(i, c), etiqueta: nombreCampoRecipe(c) }))} />
+                        ) : (
+                          <p className="flex items-center gap-1.5 text-xs text-aviso-texto">
+                            <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                            {faltaRecipe.get(i)!.length === 1 ? "Falta 1 dato del récipe" : `Faltan ${faltaRecipe.get(i)!.length} datos del récipe`}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
