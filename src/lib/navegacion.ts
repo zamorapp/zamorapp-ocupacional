@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Brain,
   Building2,
   CalendarClock,
   FileText,
@@ -33,6 +34,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
   { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
   { href: "/ergonomia", titulo: "Ergonomía", icono: PersonStanding, descripcion: "Evaluación de puestos con RULA y REBA, fotos, riesgos priorizados e informes por departamento" },
+  { href: "/psicosocial", titulo: "Psicosocial", icono: Brain, descripcion: "Cuestionario anónimo CoPsoQ-istas21 por celular o papel, resultados por puesto y plan de medidas" },
   { href: "/empresas", titulo: "Empresas", icono: Building2, descripcion: "Empresas clientes, sedes, dependencias y puestos" },
   { href: "/reportes", titulo: "Reportes", icono: BarChart3, descripcion: "Atendidos, morbilidad, aptitud, reposos e informe trimestral" },
   { href: "/facturacion", titulo: "Facturación", icono: Receipt, descripcion: "Servicios, pacientes atendidos y notas de cobro" },
@@ -47,7 +49,7 @@ export const SECCIONES: Seccion[] = [
 export type Grupo = { titulo: string; hrefs: string[] };
 export const GRUPOS: Grupo[] = [
   { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
-  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/ergonomia", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
+  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/ergonomia", "/psicosocial", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
   { titulo: "Ajustes", hrefs: ["/configuracion", "/ayuda"] },
 ];
 

@@ -66,7 +66,7 @@ export function Titular({ ajustes }: { ajustes: unknown }) {
 }
 
 // Titular del servicio primero (Configuración › Organización: «Médico titular» y su especialidad), luego el servicio
-export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
+export function Membrete({ d, compacto, sinEmpresa }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean; sinEmpresa?: boolean }) {
   if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
   const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
   const titular = a.membrete_titular?.trim();
@@ -88,7 +88,7 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
           {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>
-      <div className="flex items-center gap-3 text-right">
+      {sinEmpresa ? <div /> : <div className="flex items-center gap-3 text-right">
         <div>
           {/* Particular (sin empresa): nunca «Empresa: PARTICULAR» (Cesar, 05-nov) */}
           <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">{esParticular(d.empresa) ? "Atención" : "Empresa"}</div>
@@ -97,7 +97,7 @@ export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "emp
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
-      </div>
+      </div>}
     </header>
   );
 }
