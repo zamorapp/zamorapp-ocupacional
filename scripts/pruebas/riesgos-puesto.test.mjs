@@ -51,3 +51,13 @@ test("mediciones de oficina fuera de su valor de referencia", () => {
   assert.equal(R.fueraDeRango(lux, 600), false);
   assert.equal(R.fueraDeRango(lux, null), false);
 });
+
+test("qué fotografiar: las básicas y una por cada peligro marcado «Sí», sin repetir las ya tomadas", () => {
+  const preguntas = [{ id: "a", agente: "Radiación solar" }, { id: "b", agente: "Polvo" }];
+  const p = { clave: "p1", puestoId: null, puesto: "Obrero", area: "", expuestos: 1, respuestas: { a: 1, b: 0 }, fotos: [{ ruta: "o/e/f.jpg", nota: "Vista general del área" }] };
+  const s = R.sugerirFotos(p, preguntas);
+  assert.ok(s.includes("Radiación solar"));
+  assert.ok(!s.includes("Polvo"));
+  assert.ok(!s.includes("Vista general del área"));
+  assert.ok(R.sugerirFotos({ ...p, fotos: [] }, [], true).includes("Pantalla, silla y mesa vistas de lado"));
+});

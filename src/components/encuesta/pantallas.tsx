@@ -114,11 +114,11 @@ export function Pantallas({ secciones, respuestas, onResponder, editable = true,
 
       <div className="flex items-center gap-2">
         <Button variant="outline" disabled={i === 0} onClick={() => ir(i - 1)}><ArrowLeft /> Anterior</Button>
-        <span className="flex-1 text-center text-xs text-muted-foreground">{pendientes ? `Faltan ${pendientes} en esta sección` : "Sección completa"}</span>
+        <span className="hidden flex-1 text-center text-xs text-muted-foreground sm:block">{pendientes ? `Faltan ${pendientes} en esta sección` : "Sección completa"}</span>
         {!ultima ? (
-          <Button disabled={pendientes > 0} onClick={() => ir(i + 1)}>Siguiente sección <ArrowRight /></Button>
+          <Button className="ml-auto" disabled={pendientes > 0} onClick={() => ir(i + 1)}>Siguiente sección <ArrowRight /></Button>
         ) : alTerminar ? (
-          <Button disabled={pendientes > 0} onClick={alTerminar}>{textoTerminar} <ArrowRight /></Button>
+          <Button className="ml-auto" disabled={pendientes > 0} onClick={alTerminar}>{textoTerminar} <ArrowRight /></Button>
         ) : null}
       </div>
     </div>

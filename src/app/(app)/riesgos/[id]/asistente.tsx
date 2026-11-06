@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, CloudOff, ImagePlus, Loader2, Lock, MapPin, Plus, Printer, RotateCcw, Sparkles, Trash2, Type, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, CloudOff, ImagePlus, Loader2, Lock, MapPin, Plus, Printer, RotateCcw, Sparkles, Trash2, Type, Upload, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BarrasPuestos, DonaGrupos, FichasGrupo, LetraGrupo, MatrizRiesgos, Tarjetas } from "@/components/riesgos/graficas";
 import { LeyendaMapa, MapaRiesgos } from "@/components/riesgos/mapa";
+import { Pantallas } from "@/components/encuesta/pantallas";
 import { DEPARTAMENTOS, PLAZOS } from "@/lib/ergonomia";
 import { prepararArchivo } from "@/lib/preparar-archivo";
 import { ESCALA_P, ESCALA_S, GRUPOS, type GrupoRiesgo, type Valoracion } from "@/lib/puestos-tipos";
 import {
-  clavePuesto, faltaEnPuesto, filasDePuesto, fueraDeRango, MEDICIONES, NOMBRE_GRUPO, nivelFila, resumen, TIPOS_EVALUACION, TIPOS_MEDIDA,
-  type EvaluacionRiesgos, type FilaRiesgo, type Pregunta, type PuestoEvaluado,
+  clavePuesto, faltaEnPuesto, filasDePuesto, MAX_FOTOS_PUESTO, sugerirFotos, fueraDeRango, MEDICIONES, NOMBRE_GRUPO, nivelFila, resumen, TIPOS_EVALUACION, TIPOS_MEDIDA,
+  type EvaluacionRiesgos, type FilaRiesgo, type FotoZona, type Pregunta, type PuestoEvaluado,
 } from "@/lib/riesgos-puesto";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -161,7 +162,7 @@ export function Asistente({ ev, preguntas, motivos, agentes, puestosEmpresa, pla
 
       {paso === 0 && <PasoDatos x={x} set={set} editable={editable} motivos={motivos} tipo={tipo} />}
       {paso === 1 && <PasoPuestos x={x} setX={setX} editable={editable} puestosEmpresa={puestosEmpresa} />}
-      {paso === 2 && <PasoRiesgos x={x} setX={setX} editable={editable} preguntas={preguntas} agentes={agentes} oficina={ev.tipo === "oficina"} />}
+      {paso === 2 && <PasoRiesgos x={x} setX={setX} editable={editable} preguntas={preguntas} agentes={agentes} oficina={ev.tipo === "oficina"} evId={ev.id} orgId={orgId} demo={demo} />}
       {paso === 3 && <PasoMapa x={x} set={set} editable={editable} evId={ev.id} orgId={orgId} planoInicial={urlInicial} demo={demo} />}
       {paso === 4 && (
         <PasoResultados x={x} set={set} editable={editable} cerrada={cerrada} puedeEditar={puedeEditar} ev={ev} />
@@ -346,10 +347,9 @@ function PasoPuestos({ x, setX, editable, puestosEmpresa }: ConSetX & { puestosE
 }
 
 // ── Paso 3 ──
-function PasoRiesgos({ x, setX, editable, preguntas, agentes, oficina }: ConSetX & { preguntas: Pregunta[]; agentes: { grupo: string; nombre: string }[]; oficina: boolean }) {
+function PasoRiesgos({ x, setX, editable, preguntas, agentes, oficina, evId, orgId, demo }: ConSetX & { preguntas: Pregunta[]; agentes: { grupo: string; nombre: string }[]; oficina: boolean; evId: string; orgId: string; demo?: boolean }) {
   const [actual, setActual] = useState(() => x.puestos.find((p) => !faltaEnPuesto(p, preguntas, x.filas).listo)?.clave ?? x.puestos[0]?.clave);
   const p = x.puestos.find((q) => q.clave === actual) ?? x.puestos[0];
-  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set([GRUPOS.find(([g]) => preguntas.some((q) => q.grupo === g && p?.respuestas?.[q.id] === undefined))?.[0] ?? "fisico"]));
   const [extra, setExtra] = useState<{ grupo: GrupoRiesgo; agente: string }>({ grupo: "fisico", agente: "" });
   if (!p) return <Tarjeta titulo="3. Riesgos por puesto"><p className="text-sm text-muted-foreground">Primero agrega los puestos (paso 2).</p></Tarjeta>;
   const filasP = x.filas.filter((f) => clavePuesto(f) === p.clave);
@@ -378,7 +378,7 @@ function PasoRiesgos({ x, setX, editable, preguntas, agentes, oficina }: ConSetX
   const quitarFila = (id: string) => setX((a) => ({ ...a, filas: a.filas.filter((f) => f.id !== id), mapa: { ...a.mapa, marcas: a.mapa.marcas.filter((m) => m.filaId !== id) } }));
   const medir = (k: keyof NonNullable<PuestoEvaluado["mediciones"]>, v: number | null) =>
     setX((a) => ({ ...a, puestos: a.puestos.map((pp) => (pp.clave === p.clave ? { ...pp, mediciones: { ...(pp.mediciones ?? {}), [k]: v } } : pp)) }));
-  const alternar = (g: string) => setAbiertos((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
+  const siguientePuesto = x.puestos.find((q) => q.clave !== p.clave && faltaEnPuesto(q, preguntas, x.filas).sinResponder > 0);
 
   return (
     <div className="space-y-4">
@@ -415,51 +415,32 @@ function PasoRiesgos({ x, setX, editable, preguntas, agentes, oficina }: ConSetX
           </div>
         )}
 
-        <div className="space-y-2">
-          {GRUPOS.map(([g]) => {
-            const qs = preguntas.filter((q) => q.grupo === g);
-            if (!qs.length) return null;
-            const respondidas = qs.filter((q) => p.respuestas?.[q.id] !== undefined).length;
-            const si = qs.filter((q) => p.respuestas?.[q.id] === 1).length;
-            const abierto = abiertos.has(g);
-            return (
-              <div key={g} className="overflow-hidden rounded-xl border">
-                <button type="button" onClick={() => alternar(g)} aria-expanded={abierto} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50">
-                  <LetraGrupo g={g} />
-                  <span className="min-w-0 flex-1 font-medium">{NOMBRE_GRUPO[g]}</span>
-                  {si > 0 && <span className="rounded-full bg-alerta/10 px-2 py-0.5 text-xs font-medium text-alerta-texto">{si} presentes</span>}
-                  <span className={cn("font-cifra text-xs", respondidas === qs.length ? "text-ok-texto" : "text-muted-foreground")}>{respondidas}/{qs.length}</span>
-                  <ChevronDown className={cn("size-4 transition", abierto && "rotate-180")} />
-                </button>
-                {abierto && (
-                  <div className="divide-y border-t">
-                    {qs.map((q) => {
-                      const v = p.respuestas?.[q.id];
-                      return (
-                        <div key={q.id} className={cn("flex flex-wrap items-center gap-2 px-3 py-2", v === undefined && "bg-aviso/5")}>
-                          <div className="min-w-0 flex-1 text-sm">{q.texto}{q.fuente && <span className="mt-0.5 block text-[11px] text-muted-foreground">Fuente: {q.fuente}</span>}</div>
-                          <div className="flex gap-1" role="radiogroup" aria-label={q.texto}>
-                            {([[1, "Sí"], [0, "No"]] as const).map(([val, t]) => (
-                              <button key={t} type="button" role="radio" aria-checked={v === val} disabled={!editable} onClick={() => responder(q, val)}
-                                className={cn("min-w-14 rounded-lg border px-3 py-1.5 text-sm font-medium transition disabled:cursor-default",
-                                  v === val ? (val ? "border-alerta bg-alerta text-white" : "border-neutral-700 bg-neutral-700 text-white dark:border-neutral-300 dark:bg-neutral-300 dark:text-neutral-900") : "hover:border-primary/60")}>
-                                {t}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {editable && respondidas < qs.length && (
-                      <div className="flex justify-end bg-muted/30 px-3 py-2"><Button variant="ghost" size="sm" onClick={() => restoNo(g)}>Lo que falta de este grupo: No</Button></div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {/* Por pantallas de un clic (Cesar, 06-nov): un grupo de riesgo por pantalla; no se pasa sin responder todo */}
+        <Pantallas
+          key={p.clave}
+          modo="seccion"
+          editable={editable}
+          secciones={GRUPOS.map(([g]) => ({
+            id: g,
+            titulo: NOMBRE_GRUPO[g],
+            ayuda: `Riesgos ${NOMBRE_GRUPO[g].toLowerCase()}: «Sí» si el peligro está en el puesto.`,
+            marca: <LetraGrupo g={g} />,
+            preguntas: preguntas.filter((q) => q.grupo === g).map((q) => ({
+              id: q.id, texto: q.texto, nota: q.fuente ? `Fuente: ${q.fuente}` : undefined,
+              opciones: [{ valor: 1, texto: "Sí", tono: "alerta" as const }, { valor: 0, texto: "No", tono: "neutro" as const }],
+            })),
+          })).filter((sec) => sec.preguntas.length)}
+          respuestas={p.respuestas ?? {}}
+          onResponder={(id, v) => { const q = preguntas.find((qq) => qq.id === id); if (q) responder(q, v === 1 ? 1 : 0); }}
+          atajo={{ valor: 0, texto: "Lo que falta de esta sección: No" }}
+          onAtajo={(sec) => restoNo(sec.id as GrupoRiesgo)}
+          alTerminar={siguientePuesto ? () => setActual(siguientePuesto.clave) : undefined}
+          textoTerminar={siguientePuesto ? `Seguir con «${siguientePuesto.puesto}»` : undefined}
+        />
       </Tarjeta>
+
+      <FotosZona key={`f-${p.clave}`} p={p} editable={editable} evId={evId} orgId={orgId} demo={demo} sugerencias={sugerirFotos(p, preguntas, oficina)}
+        cambiar={(fotos) => setX((a) => ({ ...a, puestos: a.puestos.map((pp) => (pp.clave === p.clave ? { ...pp, fotos } : pp)) }))} />
 
       <Tarjeta titulo={`Valorar los riesgos de «${p.puesto}» (${filasP.length})`} ayuda="Probabilidad × severidad (1 a 5) da el nivel y el plazo sugerido. Ajusta la medida, el responsable y el plazo.">
         {filasP.length === 0 && <p className="text-sm text-muted-foreground">Sin riesgos todavía: responde «Sí» donde el peligro esté presente, o agrega uno abajo.</p>}
@@ -485,6 +466,85 @@ function PasoRiesgos({ x, setX, editable, preguntas, agentes, oficina }: ConSetX
         )}
       </Tarjeta>
     </div>
+  );
+}
+
+// Fotos de la zona del puesto, con la lista de qué fotografiar: tocar una sugerencia abre la cámara del teléfono y la
+// foto queda con ese nombre. Se achica y se le quita la ubicación (EXIF) antes de subirla.
+function FotosZona({ p, editable, evId, orgId, demo, sugerencias, cambiar }: { p: PuestoEvaluado; editable: boolean; evId: string; orgId: string; demo?: boolean; sugerencias: string[]; cambiar: (f: FotoZona[]) => void }) {
+  const fotos = p.fotos ?? [];
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [nota, setNota] = useState("");
+  const [subiendo, setSubiendo] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const entrada = useRef<HTMLInputElement>(null);
+  const rutas = fotos.map((f) => f.ruta).join("|");
+  useEffect(() => {
+    const faltan = fotos.map((f) => f.ruta).filter((r) => !urls[r]);
+    if (!faltan.length || demo) return;
+    crearClienteNavegador().storage.from("mapas-riesgo").createSignedUrls(faltan, 3600).then(({ data }) => {
+      if (data) setUrls((u) => ({ ...u, ...Object.fromEntries(data.filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl as string])) }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rutas, demo]);
+  const lleno = fotos.length >= MAX_FOTOS_PUESTO;
+  const pedir = (texto: string) => { setNota(texto); setAviso(""); entrada.current?.click(); };
+  const subir = async (lista: FileList | null) => {
+    const original = lista?.[0];
+    if (entrada.current) entrada.current.value = "";
+    if (!original) return;
+    if (demo) { setAviso("Modo demo: las fotos no se suben."); return; }
+    setSubiendo(true); setAviso("");
+    try {
+      const archivo = await prepararArchivo(original);
+      const ruta = `${orgId}/${evId}/foto-${nuevoId()}.${archivo.type === "image/png" ? "png" : "jpg"}`;
+      const supabase = crearClienteNavegador();
+      const { error } = await supabase.storage.from("mapas-riesgo").upload(ruta, archivo, { contentType: archivo.type });
+      if (error) throw new Error(/fetch|network|offline|503/i.test(error.message) ? "La foto necesita internet. Tómala y súbela cuando vuelva la conexión." : error.message);
+      cambiar([...fotos, { ruta, nota: (nota || "Foto de la zona").slice(0, 120) }]);
+      setNota("");
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "No se pudo subir la foto.");
+    } finally { setSubiendo(false); }
+  };
+  return (
+    <Tarjeta titulo={`Fotos de la zona (${fotos.length} de ${MAX_FOTOS_PUESTO})`} ayuda="Opcional. Toca lo que vas a fotografiar y se abre la cámara. Fotografía el puesto, no a la persona: sin rostros si el trabajador no lo autoriza. La empresa no ve estas fotos.">
+      {editable && !lleno && (
+        <div className="flex flex-wrap gap-2">
+          {sugerencias.map((t) => (
+            <button key={t} type="button" disabled={subiendo} onClick={() => pedir(t)} className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-sm transition hover:border-primary hover:bg-primary/5">
+              <Camera className="size-4 text-primary" /> {t}
+            </button>
+          ))}
+          <button type="button" disabled={subiendo} onClick={() => pedir("")} className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm hover:bg-muted"><Plus className="size-4" /> Otra foto</button>
+          <input ref={entrada} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => subir(e.target.files)} />
+        </div>
+      )}
+      {subiendo && <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Subiendo «{nota || "foto"}»…</p>}
+      {aviso && <p className="mt-2 text-sm text-aviso-texto">{aviso}</p>}
+      {fotos.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {fotos.map((f, i) => (
+            <figure key={f.ruta} className="relative overflow-hidden rounded-xl border bg-muted">
+              {urls[f.ruta]
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={urls[f.ruta]} alt={f.nota} className="aspect-[4/3] w-full object-cover" />
+                : <div className="grid aspect-[4/3] place-items-center text-xs text-muted-foreground">Foto {i + 1}</div>}
+              <figcaption className="flex items-center gap-1 px-2 py-1.5 text-xs">
+                <Input disabled={!editable} value={f.nota} className="h-7 text-xs" aria-label={`Nombre de la foto ${i + 1}`} onChange={(e) => cambiar(fotos.map((g) => (g.ruta === f.ruta ? { ...g, nota: e.target.value.slice(0, 120) } : g)))} />
+                {editable && !demo && (
+                  <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label={`Quitar la foto ${i + 1}`} onClick={async () => {
+                    if (!(await confirmar("¿Quitar esta foto?"))) return;
+                    cambiar(fotos.filter((g) => g.ruta !== f.ruta));
+                    await crearClienteNavegador().storage.from("mapas-riesgo").remove([f.ruta]);
+                  }}><X /></Button>
+                )}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+    </Tarjeta>
   );
 }
 

@@ -51,6 +51,11 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
     firmantesAnteriores(ev.empresaId).catch(() => null),
   ]);
 
+  // Fotos de la zona: solo el servicio (la empresa no las ve, igual que en ergonomía)
+  const rutasFotos = empresaRol || sesion.demo ? [] : ev.puestos.flatMap((p) => (p.fotos ?? []).map((f) => f.ruta));
+  const { data: firmadas } = rutasFotos.length ? await supabase.storage.from("mapas-riesgo").createSignedUrls(rutasFotos, 600) : { data: [] };
+  const urlFoto = new Map((firmadas ?? []).map((u) => [u.path, u.signedUrl]));
+
   const doc = {
     org: { ...(org ?? { nombre: sesion.organizacion, rif: null, direccion: null, telefono: null, correo: null, logo: null }), ajustes: (org?.ajustes ?? {}) as AjustesDocumentos },
     empresa: { razon_social: emp?.razon_social ?? ev.empresa, rif: emp?.rif ?? "", logo: (emp?.logo as string | null) ?? null },
@@ -185,6 +190,19 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
                   })}
                 </tbody>
               </table>
+              {!empresaRol && (p?.fotos?.length ?? 0) > 0 && (
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {p!.fotos!.map((f, i) => (
+                    <figure key={f.ruta} className="break-inside-avoid">
+                      {urlFoto.get(f.ruta)
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={urlFoto.get(f.ruta) ?? undefined} alt={f.nota} className="aspect-[4/3] w-full rounded border border-doc-linea object-cover" />
+                        : <div className="grid aspect-[4/3] place-items-center rounded border border-doc-linea text-doc-tenue">Foto {i + 1}</div>}
+                      <figcaption className="mt-0.5 text-[8.5px] text-doc-tenue">{f.nota}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              )}
             </Bloque>
           );
         })}

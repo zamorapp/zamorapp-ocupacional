@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { hoyCaracas } from "@/lib/fecha";
-import { aplicarAPuesto, clavePuesto, DEPTO_VALIDO, GRUPO_VALIDO, MEDICIONES, nivelFila, ROLES_PUESTOS, ROLES_RIESGOS, TIPO_VALIDO, TIPOS_EVALUACION, type FilaRiesgo, type Mapa, type PuestoEvaluado } from "@/lib/riesgos-puesto";
+import { aplicarAPuesto, clavePuesto, DEPTO_VALIDO, GRUPO_VALIDO, MEDICIONES, MAX_FOTOS_PUESTO, nivelFila, ROLES_PUESTOS, ROLES_RIESGOS, TIPO_VALIDO, TIPOS_EVALUACION, type FilaRiesgo, type Mapa, type PuestoEvaluado } from "@/lib/riesgos-puesto";
 import type { GrupoRiesgo, Valoracion } from "@/lib/puestos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -64,6 +64,9 @@ function limpiar(x: CambiosRiesgos, carpeta: string) {
       ...base, clave: clavePuesto(base), area: corto(p.area, 120),
       expuestos: Number.isInteger(p.expuestos) && (p.expuestos as number) >= 0 ? Math.min(p.expuestos as number, 100000) : null,
       respuestas, mediciones,
+      fotos: (Array.isArray(p.fotos) ? p.fotos : []).slice(0, MAX_FOTOS_PUESTO)
+        .filter((f) => typeof f?.ruta === "string" && f.ruta.startsWith(carpeta) && f.ruta.split("/").length === 3 && !f.ruta.includes(".."))
+        .map((f) => ({ ruta: f.ruta, nota: corto(f.nota, 120) })),
     };
   }).filter((p) => p.puesto && !vistos.has(p.clave) && vistos.add(p.clave));
   const filas = (Array.isArray(x.filas) ? x.filas : []).slice(0, 400).map((f): FilaRiesgo => ({
@@ -155,11 +158,11 @@ export async function reabrirEvaluacionRiesgos(id: string): Promise<Resultado> {
 export async function borrarEvaluacionRiesgos(id: string): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  const { data: ev } = await c.supabase.from("evaluaciones_riesgos").select("estado, mapa").eq("id", id).maybeSingle();
+  const { data: ev } = await c.supabase.from("evaluaciones_riesgos").select("estado, mapa, puestos").eq("id", id).maybeSingle();
   if (!ev) return { ok: false, mensaje: "La evaluación ya no existe." };
   if (ev.estado === "cerrada") return { ok: false, mensaje: "Una evaluación cerrada no se borra." };
-  const plano = (ev.mapa as Mapa | null)?.plano;
-  if (plano) await c.supabase.storage.from("mapas-riesgo").remove([plano]);
+  const archivos = [(ev.mapa as Mapa | null)?.plano, ...((ev.puestos as PuestoEvaluado[] | null) ?? []).flatMap((p) => (p.fotos ?? []).map((f) => f.ruta))].filter((r): r is string => Boolean(r));
+  if (archivos.length) await c.supabase.storage.from("mapas-riesgo").remove(archivos);
   const { data, error } = await c.supabase.from("evaluaciones_riesgos").delete().eq("id", id).select("id");
   if (error) return { ok: false, mensaje: explicar(error) };
   if (!data?.length) return { ok: false, mensaje: SIN_FILA };

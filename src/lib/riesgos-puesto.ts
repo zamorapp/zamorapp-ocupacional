@@ -98,6 +98,7 @@ export type PuestoEvaluado = {
   clave: string; puestoId: string | null; puesto: string; area: string; expuestos: number | null;
   respuestas?: Record<string, 0 | 1>; // id de la pregunta → 1 Sí (el peligro está) · 0 No
   mediciones?: Mediciones; // oficina: ambiente medido en el puesto
+  fotos?: FotoZona[]; // fotos de la zona evaluada (bucket mapas-riesgo, carpeta de la evaluación); la empresa no las ve
 };
 
 // Tipo de evaluación: la lista de chequeo cambia (general = todas las áreas; oficina = puesto administrativo)
@@ -239,3 +240,15 @@ export const GRUPO_VALIDO = new Set<string>(GRUPOS.map(([g]) => g));
 export const TIPO_VALIDO = new Set<string>(TIPOS_MEDIDA.map((t) => t.clave));
 export const DEPTO_VALIDO = new Set<string>(DEPARTAMENTOS.map((d) => d.clave));
 export { nivelRiesgo };
+
+// Fotos de la zona evaluada y qué fotografiar (Cesar, 06-nov): las básicas de toda inspección y una por cada peligro
+// marcado «Sí». Sin rostros si el trabajador no lo autoriza: la foto es del puesto, no de la persona.
+export type FotoZona = { ruta: string; nota: string };
+export const MAX_FOTOS_PUESTO = 8;
+export function sugerirFotos(p: PuestoEvaluado, preguntas: Pregunta[], oficina = false): string[] {
+  const base = oficina
+    ? ["Vista general de la oficina", "Pantalla, silla y mesa vistas de lado", "Cables, tomas y pasillos"]
+    : ["Vista general del área", "La tarea mientras se hace (sin rostros)", "Salidas, pasillos, extintores y señales"];
+  const peligros = preguntas.filter((q) => p.respuestas?.[q.id] === 1).map((q) => q.agente);
+  return [...new Set([...base, ...peligros])].filter((s) => !(p.fotos ?? []).some((f) => f.nota === s)).slice(0, 10);
+}
