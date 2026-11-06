@@ -145,6 +145,24 @@ do $$ begin
   raise notice 'FALLA: RR. HH. quedó con acceso clínico';
 exception when check_violation then raise notice 'RR. HH. no recibe acceso clínico (debe 1): 1';
 end $$;
+update public.miembros set acceso_clinico = true where usuario_id = '00000000-0000-0000-0000-0000000000a2';
+do $$ begin
+  update public.miembros set rol = 'gerente_empresa' where usuario_id = '00000000-0000-0000-0000-0000000000a2';
+  raise notice 'FALLA: un médico pasó a RR. HH. con acceso clínico';
+exception when check_violation then raise notice 'pasar a rol de empresa con «Clínico» marcado se rechaza (debe 1): 1';
+end $$;
+update public.miembros set acceso_clinico = false where usuario_id = '00000000-0000-0000-0000-0000000000a2';
+-- Aunque el constraint faltara, los atajos ignoran «Clínico» en roles de empresa
+reset role;
+alter table public.miembros drop constraint miembros_empresa_sin_clinico;
+update public.miembros set acceso_clinico = true where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
+select 'RR. HH. con «Clínico» colado no es clínico (debe 0): ' || cardinality(public.orgs_con(p_clinico => true)) + cardinality(public.pares_limitados(p_clinico => true)) + public.es_clinico('10000000-0000-0000-0000-000000000001')::int;
+reset role;
+update public.miembros set acceso_clinico = false where usuario_id = '00000000-0000-0000-0000-0000000000a3';
+alter table public.miembros add constraint miembros_empresa_sin_clinico
+  check (not (acceso_clinico and rol in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor')));
 -- La invitación lleva los permisos a la cuenta nueva
 reset role;
 insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000d3','rrhh-permisos@x');

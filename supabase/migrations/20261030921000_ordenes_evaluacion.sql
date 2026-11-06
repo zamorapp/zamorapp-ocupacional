@@ -254,4 +254,26 @@ returns boolean language sql stable security definer set search_path = public as
   ), false)
 $$;
 
+-- Mismo filtro en los atajos de las políticas clínicas (copiados de 170000, su única definición): segunda defensa
+-- además del constraint
+create or replace function public.orgs_con(p_roles public.rol_usuario[] default null, p_clinico boolean default false,
+                                           p_sin_limite boolean default false, p_excluir public.rol_usuario default null)
+returns uuid[] language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(org_id), '{}') from public.miembros
+  where usuario_id = auth.uid() and activo
+    and (p_roles is null or rol = any (p_roles))
+    and (not p_clinico or rol in ('gerente_medico', 'medico', 'enfermeria')
+         or (acceso_clinico and rol not in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor')))
+    and (not p_sin_limite or empresas_permitidas is null)
+    and (p_excluir is null or rol <> p_excluir)
+$$;
+create or replace function public.pares_limitados(p_roles public.rol_usuario[] default null, p_clinico boolean default false)
+returns text[] language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(m.org_id::text || e::text), '{}') from public.miembros m, unnest(m.empresas_permitidas) e
+  where m.usuario_id = auth.uid() and m.activo and m.empresas_permitidas is not null
+    and (p_roles is null or m.rol = any (p_roles))
+    and (not p_clinico or m.rol in ('gerente_medico', 'medico', 'enfermeria')
+         or (m.acceso_clinico and m.rol not in ('gerente_empresa', 'trabajador', 'supervisor', 'delegado_prevencion', 'auditor')))
+$$;
+
 select public.vistas_al_dia();
