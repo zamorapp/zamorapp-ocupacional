@@ -40,6 +40,7 @@
     "public.hoy_caracas()",
     "public.lista_clinica(p_lista text)",
     "public.listar_enlace_trabajador(p_token text)",
+    "public.marcar_abierto_registro(p_token text)",
     "public.marcar_constancias_enviadas(p_clave text, p_empresa uuid, p_consultas uuid[], p_destinatarios text[])",
     "public.marcar_descarga_registro(p_token text)",
     "public.mis_equipos_confianza()",
