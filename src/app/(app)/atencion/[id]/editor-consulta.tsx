@@ -27,9 +27,11 @@ import {
   taAlterada,
 } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
-import { CAMPOS_RECIPE, concentracionEnNombre, faltantesMedicinas } from "@/lib/recipe";
+import { CAMPOS_RECIPE, type CampoRecipe, concentracionEnNombre, faltantesMedicinas } from "@/lib/recipe";
 import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
+import { AvisoFaltantes } from "@/components/app/aviso-faltantes";
+import { type Faltante, irACampo, marcaFalta } from "@/lib/ir-a-campo";
 import { avisoVigilanciaEntregada, corregirConsulta, duplicarConsulta, firmarConsulta, guardarConsulta, guardarResultados, noRecordarResultados, reabrirConsulta } from "../acciones";
 import type { HistorialConsulta, VersionConsulta } from "@/lib/consultas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
@@ -41,6 +43,7 @@ import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { separarPorLaboratorio } from "@/lib/estudios";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
+import { Habitos } from "./habitos";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { completarPerfil, tieneOpciones, tramosDePerfil } from "@/lib/perfil-opciones";
 import { BuscadorDiagnostico, BuscadorMedicina } from "./buscador-diagnostico";
@@ -328,6 +331,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [motivoCorreccion, setMotivoCorreccion] = useState("");
   const [ignorarPendientes, setIgnorarPendientes] = useState(false);
+  // Lo que impide cerrar, mostrado al intentarlo: cada dato lleva a su casilla («Ignorar» lo esconde)
+  const [faltanAlCerrar, setFaltanAlCerrar] = useState<Faltante[]>([]);
   const [ignorarPerfil, setIgnorarPerfil] = useState(false);
   const [accidente, setAccidente] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -431,7 +436,14 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const medicinas = useMemo(() => [...medicinasPropias, ...listas.medicina], [medicinasPropias, listas.medicina]);
   const nombresAnterior = anterior ? anterior.tratamiento.filter((m) => m.medicina?.trim()).map((m) => m.medicina).join(" · ") : "";
   // Datos del récipe que faltan por medicina (índice → «concentración, vía»): aviso en la fila y antes de firmar e imprimir
-  const faltaRecipe = useMemo(() => new Map(faltantesMedicinas(d.tratamiento).map((f) => [f.indice, f.campos.map((c) => CAMPOS_RECIPE.find(([k]) => k === c)![1]).join(", ")])), [d.tratamiento]);
+  const faltaRecipe = useMemo(() => new Map(faltantesMedicinas(d.tratamiento).map((f) => [f.indice, f.campos])), [d.tratamiento]);
+  const nombreCampoRecipe = (c: CampoRecipe) => CAMPOS_RECIPE.find(([k]) => k === c)![1];
+  const casillaMed = (i: number, c: CampoRecipe) => `med-${i}-${c}`;
+  // Mientras se escribe la fila, neutra con un resumen ámbar; en rojo al salir de la fila o al intentar firmar
+  const [filasRecipeVistas, setFilasRecipeVistas] = useState<ReadonlySet<number>>(new Set());
+  const [recipeEnRojo, setRecipeEnRojo] = useState(false);
+  const filaEnRojo = (i: number) => recipeEnRojo || filasRecipeVistas.has(i);
+  const faltaMed = (i: number, c: CampoRecipe) => marcaFalta(!bloqueado && filaEnRojo(i) && Boolean(faltaRecipe.get(i)?.includes(c)));
   const mostrarTratamiento = !preventivo || verTodo || d.tratamiento.length > 0 || d.reposo.activo;
   const etiquetaAptitud = (a: Aptitud) => listas.clasificacion_aptitud.find((i) => i.codigo === a)?.nombre ?? APTITUD_LEGIBLE[a] ?? a;
 
@@ -506,9 +518,28 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     });
   };
 
+  // Antes de cerrar o firmar: lo obligatorio que falta se señala y se lleva a su casilla (antes solo un texto rojo abajo)
+  const faltanObligatorios: Faltante[] = [
+    !d.motivoId && { campo: "motivo", etiqueta: "motivo de consulta", paso: "generales" },
+    d.reposo.activo && d.reposo.hasta < d.reposo.desde && { campo: "reposo-hasta", etiqueta: "fin del reposo (termina antes de empezar)", paso: "tratamiento" },
+  ].filter(Boolean) as Faltante[];
+  const pasosConFalta = new Set(d.estado === "borrador" ? faltanObligatorios.map((f) => f.paso) : []);
+  const irAFaltante = (f: Faltante) => { if (f.paso) setPaso(f.paso); };
+  const detenerSiFalta = () => {
+    if (d.estado !== "borrador" || !faltanObligatorios.length) return false;
+    setFaltanAlCerrar(faltanObligatorios);
+    setAviso(null);
+    // En el celular la barra de pasos se desplaza: que se vea la pestaña con «!»
+    requestAnimationFrame(() => document.querySelector("[data-paso-falta]")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    irAFaltante(faltanObligatorios[0]);
+    irACampo(faltanObligatorios[0].campo);
+    return true;
+  };
+
   const guardar = useCallback(
     (cerrar: boolean) =>
       iniciar(async () => {
+        if (cerrar && detenerSiFalta()) return;
         const r = await guardarConTodo(d, cerrar);
         setAviso(r);
         if (r.ok) {
@@ -517,20 +548,24 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
           setGuardado(JSON.stringify(nuevo));
         }
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- detenerSiFalta solo lee d, que ya está en la lista
     [d, setAviso],
   );
 
   // Un clic: cierra (guardar_consulta con p_cerrar), firma y abre todos los documentos de la consulta en una sola impresión
   const firmarEImprimir = async () => {
+    if (detenerSiFalta()) return;
     // Antes de firmar: si el récipe no saldría por datos que faltan, se completa ahora (después habría que corregir la firmada)
     if (faltaRecipe.size > 0 && !(await confirmar({
       titulo: "El récipe no saldrá en la impresión",
-      texto: `Falta: ${[...faltaRecipe.entries()].map(([i, f]) => `${d.tratamiento[i].medicina} (${f})`).join("; ")}. «Completar ahora» te lleva a la medicina. «Firmar sin récipe» firma e imprime lo demás; el récipe queda fuera hasta corregir la consulta firmada.`,
+      texto: `Falta: ${[...faltaRecipe.entries()].map(([i, f]) => `${d.tratamiento[i].medicina} (${f.map(nombreCampoRecipe).join(", ")})`).join("; ")}. «Completar ahora» te lleva a la casilla que falta. «Firmar sin récipe» firma e imprime lo demás; el récipe queda fuera hasta corregir la consulta firmada.`,
       accion: "Firmar sin récipe",
       cancelar: "Completar ahora",
     }))) {
-      const i = pasos.findIndex((p) => p.id === "tratamiento");
-      if (i >= 0) irA(i);
+      const [i, campos] = [...faltaRecipe.entries()][0];
+      setRecipeEnRojo(true);
+      setPaso("tratamiento");
+      irACampo(casillaMed(i, campos[0]));
       return;
     }
     if (!(await confirmar(confirmarFirma("Firmar e imprimir")))) return;
@@ -651,6 +686,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
           <div key={k}>
             <Label className="mb-1.5 text-xs">{n}</Label>
             <Input
+              data-campo={`signo-${k}`}
+              {...marcaFalta(preventivo && !bloqueado && (k === "ta" || k === "peso") && !d.signos[k]?.trim(), false)}
               value={d.signos[k] ?? ""}
               placeholder={ph}
               className={cn("h-9 placeholder:text-muted-foreground/60", k === "ta" && taAlterada(d.signos.ta) && "border-alerta text-alerta-texto")}
@@ -701,7 +738,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     />
   );
   const tarjetaSano = (
-    <Card className={cn("gap-0 py-4", d.sano && "border-ok/50 bg-ok/5")}>
+    <Card data-campo="sano" className={cn("gap-0 py-4", d.sano && "border-ok/50 bg-ok/5")}
+      {...marcaFalta(preventivo && !bloqueado && !d.sano && !d.diagnosticos.some((x) => x.descripcion.trim()), false)}>
       <CardContent className="px-6">
         <label className="flex items-start gap-3">
           <input
@@ -731,7 +769,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   );
   const seccionAptitud = (
     <Seccion titulo="Clasificación de aptitud">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+      <div data-campo="aptitud" className="grid grid-cols-1 gap-2 rounded-xl sm:grid-cols-5" {...marcaFalta(preventivo && !bloqueado && !d.aptitud.clasificacion, false)}>
         {APTITUDES.map((a) => (
           <button
             key={a}
@@ -788,7 +826,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   return (
     <Tabs value={pasos[indicePaso].id} onValueChange={setPaso} className="gap-4">
       {/* Cabecera fija con el paciente, las acciones y los pasos */}
-      <div className="z-10 -mx-4 border-b bg-background/95 px-4 pt-3 lg:sticky lg:top-16 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="z-10 -mx-4 border-b bg-background px-4 pt-3 lg:sticky lg:top-16 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="grid size-10 shrink-0 sm:size-11 place-items-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
             {trabajador.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
@@ -974,6 +1012,9 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
         {aviso?.mensaje && (
           <p className={cn("mt-2 text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</p>
         )}
+        {/* Solo lo que todavía falta (al llenarlo desaparece del aviso) */}
+        <AvisoFaltantes className="mt-2" titulo="Para cerrar falta" onIr={irAFaltante} onIgnorar={() => setFaltanAlCerrar([])}
+          faltan={faltanAlCerrar.filter((f) => faltanObligatorios.some((o) => o.campo === f.campo))} />
         {/* Lo que se dejó para revisar hoy: ámbar y siempre primero */}
         <FranjaAlertas alertas={alertas} consultaId={d.id} hoy={hoy} puedeRevisar={puedeRevisarAlertas} onCambio={cambiarAlerta}
           conResultado={new Set(d.paraclinicos.filter((p) => p.resultado?.trim() || p.estado).map((p) => p.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()))} />
@@ -1001,16 +1042,18 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             <TabsTrigger
               key={p.id}
               value={p.id}
+              data-paso-falta={pasosConFalta.has(p.id) || undefined}
               title={i < 9 ? `Alt + ${i + 1}` : undefined}
               className="group mb-2 h-9 flex-none gap-2 rounded-lg border-0 px-3 text-muted-foreground shadow-none hover:bg-muted data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
             >
+              {/* Paso donde falta un dato obligatorio: número y nombre en rojo (se ve desde cualquier pestaña) */}
               <span className={cn(
                 "grid size-5 place-items-center rounded-full border text-[11px] font-semibold",
-                p.hecho ? "border-ok bg-ok text-white" : "group-data-[state=active]:border-primary group-data-[state=active]:text-primary",
+                pasosConFalta.has(p.id) ? "border-alerta bg-alerta text-white" : p.hecho ? "border-ok bg-ok text-white" : "group-data-[state=active]:border-primary group-data-[state=active]:text-primary",
               )}>
-                {p.hecho ? <Check className="size-3" strokeWidth={3} /> : i + 1}
+                {pasosConFalta.has(p.id) ? "!" : p.hecho ? <Check className="size-3" strokeWidth={3} /> : i + 1}
               </span>
-              {p.titulo}
+              <span className={cn(pasosConFalta.has(p.id) && "font-medium text-alerta-texto")}>{p.titulo}</span>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -1061,7 +1104,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div>
                   <Label className="mb-1.5">Motivo de consulta *</Label>
-                  <select value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT}>
+                  <select id="motivo" data-campo="motivo" value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT} {...marcaFalta(!bloqueado && !d.motivoId)}>
                     <option value="">Elige el motivo</option>
                     {["preventivo", "no_preventivo", null].map((g) => {
                       const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
@@ -1135,15 +1178,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             <Seccion titulo="Antecedentes médicos">
               <Antecedentes items={listas.antecedente_medico} valor={d.antecedentes} onChange={(v) => set("antecedentes", v)} />
             </Seccion>
-            <Seccion titulo="Hábitos">
-              <div className="space-y-2">
-                {d.habitos.map((h, i) => (
-                  <div key={h.clave} className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-3">
-                    <span className="text-sm">{h.nombre}</span>
-                    <Input value={h.valor} className="h-8" placeholder="Niega" onChange={(e) => set("habitos", d.habitos.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)))} />
-                  </div>
-                ))}
-              </div>
+            <Seccion titulo="Hábitos psicobiológicos">
+              <Habitos valor={d.habitos} onChange={(v) => set("habitos", v)} />
             </Seccion>
           </TabsContent>
 
@@ -1419,7 +1455,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                   </button>
                 )}
                 {d.tratamiento.map((m, i) => (
-                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(8rem,2fr)_minmax(7.75rem,1fr)_minmax(9.5rem,1.3fr)_repeat(3,minmax(7.5rem,1fr))_minmax(5.5rem,1fr)_auto]"
+                    onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && !filasRecipeVistas.has(i)) setFilasRecipeVistas((x) => new Set(x).add(i)); }}>
                     <BuscadorMedicina
                       valor={m.medicina}
                       medicinas={medicinas}
@@ -1441,24 +1478,32 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                         });
                       }}
                     />
-                    <Input value={m.concentracion ?? ""} placeholder={concentracionEnNombre(m.medicina) ? `${concentracionEnNombre(m.medicina)} (del nombre)` : "Concentración"} className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
+                    <Input data-campo={casillaMed(i, "concentracion")} {...faltaMed(i, "concentracion")} value={m.concentracion ?? ""} placeholder={concentracionEnNombre(m.medicina) ? `${concentracionEnNombre(m.medicina)} (del nombre)` : "Concentración"} className="h-9" onChange={(e) => actualizarMed(i, { concentracion: e.target.value })} />
                     {([["presentacion", listas.presentacion_medicina, "Presentación"], ["via", listas.via_administracion, "Vía"], ["frecuencia", listas.frecuencia_dosis, "Frecuencia"], ["duracion", listas.duracion_tratamiento, "Duración"]] as const).map(([k, items, ph]) => (
-                      <select key={k} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
+                      <select key={k} data-campo={casillaMed(i, k)} {...faltaMed(i, k)} value={m[k]} onChange={(e) => actualizarMed(i, { [k]: e.target.value })} className={cn(SELECT, "h-9")}>
                         <option value="">{ph}</option>
                         {items.map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
                         {/* Lo que llenó el vademécum o una consulta anterior y no está en la lista se conserva y se ve */}
                         {m[k] && !items.some((x) => x.nombre === m[k]) && <option value={m[k]}>{m[k]}</option>}
                       </select>
                     ))}
-                    <Input value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
+                    <Input data-campo={casillaMed(i, "dosis")} {...faltaMed(i, "dosis")} value={m.dosis} placeholder="Dosis" className="h-9" onChange={(e) => actualizarMed(i, { dosis: e.target.value })} />
                     <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("tratamiento", d.tratamiento.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
-                    <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
-                    <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 sm:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
+                    <Input value={m.observacion ?? ""} placeholder="Nota al paciente (ej. después de las comidas)" className="h-8 lg:col-span-4" onChange={(e) => actualizarMed(i, { observacion: e.target.value })} />
+                    <Input value={m.notaFarmacia ?? ""} placeholder="Nota a farmacia (ej. no sustituir)" className="h-8 lg:col-span-4" onChange={(e) => actualizarMed(i, { notaFarmacia: e.target.value })} />
                     {/* Aviso (no bloquea): lo que pide la Res. MPPS 028 para que el récipe se pueda imprimir */}
-                    {faltaRecipe.get(i) && (
-                      <p className="flex items-center gap-1.5 text-xs text-aviso-texto sm:col-span-full" data-estado="falta-recipe">
-                        <AlertTriangle className="size-3.5 shrink-0" aria-hidden /> Para el récipe falta: {faltaRecipe.get(i)}
-                      </p>
+                    {faltaRecipe.get(i) && !bloqueado && (
+                      <div className="sm:col-span-full" data-estado="falta-recipe">
+                        {filaEnRojo(i) ? (
+                          <AvisoFaltantes className="px-2 py-1 text-xs" titulo="Para el récipe falta"
+                            faltan={faltaRecipe.get(i)!.map((c) => ({ campo: casillaMed(i, c), etiqueta: nombreCampoRecipe(c) }))} />
+                        ) : (
+                          <p className="flex items-center gap-1.5 text-xs text-aviso-texto">
+                            <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                            {faltaRecipe.get(i)!.length === 1 ? "Falta 1 dato del récipe" : `Faltan ${faltaRecipe.get(i)!.length} datos del récipe`}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}

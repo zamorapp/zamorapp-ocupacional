@@ -40,8 +40,13 @@ export type Empresa = {
 // y al cambiar rol, empresas permitidas o estado de un miembro (invalidarEmpresas).
 const MEMORIA = new Map<string, { datos: Empresa[]; vence: number }>();
 const DURACION = 60 * 1000;
+// Generación: cada invalidación la sube. Una lectura que empezó ANTES de invalidar (con internet lento o leyendo la
+// copia de la PC) trae datos viejos y no puede volver a guardarlos en memoria: si no, el cambio recién guardado
+// (p. ej. pausar avisos) desaparecía de la pantalla durante 60 s (Cesar, 06-nov, escritorio).
+let generacion = 0;
 
 export function invalidarEmpresas() {
+  generacion += 1;
   MEMORIA.clear();
 }
 
@@ -69,8 +74,9 @@ const listarTodas = cache(async (): Promise<Empresa[]> => {
   const usuario = claims?.claims?.sub ? `${claims.claims.sub}:${String(claims.claims.aal ?? "aal1")}` : undefined;
   const guardado = usuario ? MEMORIA.get(usuario) : undefined;
   if (guardado && guardado.vence > performance.now()) return guardado.datos;
+  const desde = generacion;
   const datos = await consultarEmpresas();
-  if (usuario) MEMORIA.set(usuario, { datos, vence: performance.now() + DURACION });
+  if (usuario && desde === generacion) MEMORIA.set(usuario, { datos, vence: performance.now() + DURACION });
   return datos;
 });
 

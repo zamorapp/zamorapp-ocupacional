@@ -8,6 +8,7 @@ import { estadoFila, interpretarEspiro, movimiento, normalizarMedicion, ordenarF
 import { faltantesRecipe } from "@/lib/documentos";
 import { nombreConConcentracion } from "@/lib/recipe";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
+import { resumenHabitos } from "@/lib/habitos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
 import type { Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
@@ -290,7 +291,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
   const valImc = imc(sv.peso, sv.talla);
   const alterados = alteradosDe(c);
   const ant = resumenAntecedentes(c.antecedentes);
-  const habitos = c.habitos.filter((h) => h.valor.trim());
+  const habitos = resumenHabitos(c.habitos);
   const etiquetas = etiquetasAptitud(ajustes.palabra_aptitud);
   const clase = c.aptitud.clasificacion || null;
   const signos = [
@@ -320,7 +321,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
         <div className="grid grid-cols-3 gap-x-5 gap-y-1">
           <div><div className="text-[10.5px] text-doc-tenue">Personales</div><b className="font-semibold">{ant.personales}</b></div>
           <div><div className="text-[10.5px] text-doc-tenue">Familiares</div><b className="font-semibold">{ant.familiares}</b></div>
-          {habitos.length > 0 && <div><div className="text-[10.5px] text-doc-tenue">Hábitos</div><b className="font-semibold">{habitos.map((h) => `${h.nombre}: ${h.valor}`).join(" · ")}</b></div>}
+          {habitos && <div><div className="text-[10.5px] text-doc-tenue">Hábitos psicobiológicos</div><b className="font-semibold">{habitos}</b></div>}
         </div>
         </Bloque>
       )}

@@ -48,6 +48,12 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; motivos?: Opcion[]; puedeFirmar?: boolean; para?: ParaTrabajador;
 }) {
   const [abierto, setAbierto] = useState(false);
+  // Desde el menú de botones (grupo «Enlaces»): /atencion?enlace=nuevo abre esta ventana de una vez
+  useEffect(() => {
+    if (para || !habilitado || new URLSearchParams(window.location.search).get("enlace") !== "nuevo") return;
+    setAbierto(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, [para, habilitado]);
   const [nombre, setNombre] = useState(para?.nombre ?? "");
   const [telefono, setTelefono] = useState(para?.telefono ?? "");
   const [empresa, setEmpresa] = useState(para?.empresaId ?? "");

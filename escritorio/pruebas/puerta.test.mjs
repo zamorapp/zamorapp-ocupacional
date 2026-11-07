@@ -254,10 +254,11 @@ test("lo que la copia no trae se lee de la nube aunque la copia esté al día (a
 
 test("tras guardar en la nube se lee de la nube hasta que el cambio baja; luego otra vez de la copia", { skip: omitir }, async () => {
   nube.estado.rest = [];
-  // Una escritura (aunque la nube la rechace por datos incompletos) va a la nube y marca «hay cambios por bajar»
-  const w = await pedir("/rest/v1/miembros", { metodo: "POST", token: tokenAdmin, cuerpo: { rol: "x" } });
+  // Una escritura en algo que la copia trae (un catálogo: no se guarda en la PC), aunque la nube la rechace por datos
+  // incompletos, va a la nube y marca «hay cambios por bajar»
+  const w = await pedir("/rest/v1/organizaciones", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: null } });
   assert.notEqual(w.status, 503);
-  assert.ok(nube.estado.rest.includes("/rest/v1/miembros"));
+  assert.ok(nube.estado.rest.includes("/rest/v1/organizaciones"));
   await replicaObj.enCurso; // la escritura disparó una sincronía
   // Mientras una sincronía posterior no termine, la lectura va a la nube
   const ciclo = replicaObj.inicioCiclo;
@@ -288,6 +289,68 @@ test("copia vieja (más de 1 min) o con error: se lee de la nube", { skip: omiti
   await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin });
   assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "sincronía con error: va a la nube");
   replicaObj.error = null;
+});
+
+// Medido en la PC de Cesar el 6-nov: el Inicio llamaba recordar_alertas (aviso de la campana) en cada visita y eso
+// mandaba TODAS las lecturas a la nube hasta la sincronía siguiente: 1 s por pantalla en vez de 0,1 s
+test("avisos y escrituras que la copia no trae no mandan las lecturas a la nube", { skip: omitir }, async () => {
+  await replicaObj.ciclo();
+  for (const [ruta, cuerpo] of [["/rest/v1/rpc/recordar_alertas", {}], ["/rest/v1/rpc/purgar_solicitudes_paciente", {}], ["/rest/v1/accesos", { motivo: "x" }]]) {
+    nube.estado.rest = [];
+    await pedir(ruta, { metodo: "POST", token: tokenAdmin, cuerpo });
+    assert.ok(nube.estado.rest.includes(ruta), `${ruta} va a la nube`);
+    nube.estado.rest = [];
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin })).status, 200);
+    assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), `tras ${ruta} se sigue leyendo de la copia`);
+  }
+});
+
+test("una escritura durante una sincronía en curso encadena otra al terminar (no espera 30 s)", { skip: omitir }, async () => {
+  await replicaObj.ciclo();
+  nube.estado.latenciaMs = 150; // la sincronía tarda: la escritura llega con una en curso
+  const enCurso = replicaObj.ciclo();
+  await pedir("/rest/v1/organizaciones", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: null } });
+  await enCurso;
+  nube.estado.latenciaMs = 0;
+  // La que estaba en curso empezó antes de la escritura: sin la vuelta encadenada se leería de la nube hasta la próxima
+  const espera = performance.now();
+  while (!(await pedir("/zamorapp/estado")).json.lecturaLocal && performance.now() - espera < 20_000) await new Promise((r) => setTimeout(r, 100));
+  assert.equal((await pedir("/zamorapp/estado")).json.lecturaLocal, true, "la vuelta encadenada bajó la escritura");
+});
+
+test("al abrir, antes de la primera sincronía, se lee la copia que quedó en disco", { skip: omitir }, async () => {
+  const { crearPuerta } = await import("../puerta/servidor.mjs");
+  // Una puerta recién abierta con la copia completa en disco y la sincronía aún sin terminar
+  const replicaNueva = Object.assign(Object.create(Object.getPrototypeOf(replicaObj)), replicaObj, { ultimaMs: null, inicioCiclo: 0, error: null, enCurso: null });
+  const otra = crearPuerta({ estado, nube: nubeObj, motor, replica: replicaNueva, bandeja: bandejaObj, bloques: bloquesObj, origen: "http://127.0.0.1:54332", control: CONTROL, registro: () => {} });
+  await new Promise((ok) => otra.listen(0, "127.0.0.1", ok));
+  try {
+    const leer = (url) => fetch(`http://127.0.0.1:${otra.address().port}${url}`, { headers: { Authorization: `Bearer ${tokenAdmin}` } });
+    nube.estado.rest = [];
+    assert.equal((await leer("/rest/v1/trabajadores?select=id")).status, 200);
+    assert.ok(!nube.estado.rest.includes("/rest/v1/trabajadores"), "al abrir se lee de la copia");
+    // Pasado el tope sin una sincronía buena, vuelve la regla de siempre
+    const tope = CONFIG.lecturaAlAbrirMs; CONFIG.lecturaAlAbrirMs = 0;
+    nube.estado.rest = [];
+    await leer("/rest/v1/trabajadores?select=id");
+    assert.ok(nube.estado.rest.includes("/rest/v1/trabajadores"), "pasado el tope, a la nube");
+    CONFIG.lecturaAlAbrirMs = tope;
+  } finally { otra.closeAllConnections?.(); otra.close(); }
+});
+
+test("sin internet, una lectura sale de la copia sin esperar a que la nube conteste", { skip: omitir }, async () => {
+  nubeObj.marcarCaida("prueba");
+  nubeObj.revisadaEn = performance.now() - 60_000; // toca volver a preguntar
+  nube.estado.latenciaMs = 3000; // la nube tarda en contestar
+  try {
+    const a = performance.now();
+    assert.equal((await pedir("/rest/v1/trabajadores?select=id", { token: tokenAdmin })).status, 200);
+    assert.ok(performance.now() - a < 1500, `la lectura esperó ${Math.round(performance.now() - a)} ms a la nube`);
+  } finally {
+    nube.estado.latenciaMs = 0;
+    await nubeObj.comprobar();
+  }
+  assert.equal(nubeObj.enLinea, true);
 });
 
 // ─── Fase A: local primero ───
