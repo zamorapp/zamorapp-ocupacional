@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Wind } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { enEscritorio, espirometriaWinspiro } from "@/lib/escritorio";
+import { armarPedido, deBytes, leerResultado, notaDeResultado, type PacienteGdt } from "@/lib/gdt";
 import {
   ARTICULACIONES, estadoFila, FUENTE_ESPIROMETRIA, FUENTE_GONIOMETRIA, interpretarEspiro, relacionCalculada,
   type FilaGonio, type Lado, type Medicion, type TipoMedicion, type ValoresEspiro,
@@ -9,7 +13,8 @@ import {
 
 // Valores de goniometría o espirometría de un paraclínico. Todo es opcional: lo que se deja en blanco no se guarda
 // ni cuenta como faltante. El resumen (texto y color) lo arma lib/mediciones al cambiar cualquier valor.
-type Props = { tipo: TipoMedicion; medicion: Medicion | undefined; editable: boolean; onChange: (m: Medicion) => void };
+// winspiro: datos del paciente para traer la espirometría de winspiroPRO (solo en zamorApp Escritorio)
+type Props = { tipo: TipoMedicion; medicion: Medicion | undefined; editable: boolean; onChange: (m: Medicion) => void; winspiro?: PacienteGdt | null; completar?: (paso: "examen" | "generales") => void };
 
 const BORDE: Record<"normal" | "fuera" | "alterado", string> = {
   normal: "border-ok/60 bg-ok/5",
@@ -144,7 +149,7 @@ const CAMPOS: { clave: keyof ValoresEspiro; nombre: string; unidad: string; max:
 ];
 const VACIO: ValoresEspiro = { fvc: null, fvcPct: null, fev1: null, fev1Pct: null, relacion: null, pef: null };
 
-function Espirometria({ medicion, editable, onChange }: Props) {
+function Espirometria({ medicion, editable, onChange, winspiro, completar }: Props) {
   const med = medicion?.tipo === "espirometria" ? medicion : { tipo: "espirometria" as const, valores: VACIO, nota: "" };
   const v = med.valores;
   // Los decimales a medio escribir («3,») se guardan como texto mientras se tipean
@@ -161,6 +166,16 @@ function Espirometria({ medicion, editable, onChange }: Props) {
 
   return (
     <div className="grid grid-cols-1 gap-3">
+      {winspiro && editable && (
+        <Winspiro
+          paciente={winspiro}
+          completar={completar}
+          onResultado={(valores, nota) => {
+            setBorrador({});
+            onChange({ ...med, valores, nota });
+          }}
+        />
+      )}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {CAMPOS.map((c) => (
           <label key={c.clave} className="grid gap-1 text-xs text-muted-foreground">
@@ -191,6 +206,97 @@ function Espirometria({ medicion, editable, onChange }: Props) {
       )}
       <Nota valor={med.nota ?? ""} editable={editable} ejemplo="técnica, colaboración, broncodilatador…" onChange={(nota) => onChange({ ...med, nota })} />
       <p className="text-xs text-muted-foreground">{FUENTE_ESPIROMETRIA}</p>
+    </div>
+  );
+}
+
+// ── winspiroPRO (GDT) ──
+// Abre winspiroPRO con los datos del paciente; al cerrarlo, los valores de la mejor maniobra llenan la tabla solos.
+function Winspiro({ paciente, onResultado, completar }: { paciente: PacienteGdt; onResultado: (v: ValoresEspiro, nota: string) => void; completar?: (paso: "examen" | "generales") => void }) {
+  const [escritorio, setEscritorio] = useState(false);
+  const [esperando, setEsperando] = useState(false);
+  // «Dejar de esperar» suelta la pantalla; si winspiroPRO responde después, esa respuesta ya no cambia nada
+  const vuelta = useRef(0);
+  const [aviso, setAviso] = useState<{ tono: "ok" | "error" | "info"; texto: string } | null>(null);
+  useEffect(() => setEscritorio(enEscritorio()), []);
+
+  if (!escritorio) {
+    return <p className="text-xs text-muted-foreground">En zamorApp Escritorio, en la computadora del espirómetro, el botón «Hacer en winspiroPRO» trae estos valores solos.</p>;
+  }
+  const faltan = [
+    !paciente.tallaCm && "talla",
+    !paciente.pesoKg && "peso",
+    !paciente.nacimiento && "fecha de nacimiento",
+    paciente.sexo !== "M" && paciente.sexo !== "F" && "sexo",
+  ].filter(Boolean) as string[];
+
+  const hacer = async () => {
+    const mia = ++vuelta.current;
+    setEsperando(true);
+    setAviso(null);
+    try {
+      const bytes = await espirometriaWinspiro(armarPedido(paciente));
+      if (mia !== vuelta.current) return;
+      if (!bytes) return setAviso({ tono: "info", texto: "Se cerró winspiroPRO sin una prueba nueva. No cambió nada." });
+      const r = leerResultado(deBytes(bytes));
+      if (!r) return setAviso({ tono: "error", texto: "winspiroPRO no devolvió un resultado de espirometría. Los valores se pueden escribir a mano." });
+      if (r.paciente && r.paciente !== paciente.id) {
+        return setAviso({ tono: "error", texto: `El resultado es del paciente Nº ${r.paciente} de winspiroPRO, no de este (${paciente.id}). No se usó.` });
+      }
+      if (Object.values(r.valores).every((x) => x === null)) {
+        return setAviso({ tono: "error", texto: "winspiroPRO no trajo FVC ni FEV1 (¿se hizo solo capacidad vital?). Escribe los valores a mano." });
+      }
+      onResultado(r.valores, notaDeResultado(r));
+      setAviso({ tono: "ok", texto: "Listo: los valores llegaron de winspiroPRO. Revísalos y guarda." });
+    } catch (e) {
+      if (mia !== vuelta.current) return;
+      setAviso({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo hablar con winspiroPRO." });
+    } finally {
+      if (mia === vuelta.current) setEsperando(false);
+    }
+  };
+  const dejar = () => {
+    vuelta.current++;
+    setEsperando(false);
+    setAviso({ tono: "info", texto: "Dejaste de esperar. Los valores no cambiaron; si winspiroPRO sigue abierto, ciérralo antes de volver a intentarlo." });
+  };
+
+  return (
+    <div className="grid gap-1.5 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" onClick={() => void hacer()} disabled={esperando}>
+          {esperando ? <Loader2 className="size-4 animate-spin" /> : <Wind className="size-4" />}
+          {esperando ? "Esperando a winspiroPRO…" : "Hacer en winspiroPRO"}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {esperando ? "Haz la prueba y cierra winspiroPRO: los valores llegan solos." : "Abre winspiroPRO con este paciente; al cerrarlo, los valores se llenan solos."}
+        </span>
+        {esperando && (
+          <button type="button" onClick={dejar} className="text-xs font-medium text-primary hover:underline">Dejar de esperar</button>
+        )}
+      </div>
+      {faltan.length > 0 && !esperando && (
+        <p className="text-xs text-aviso-texto">
+          {faltan.length > 1 ? "Faltan" : "Falta"} {faltan.join(", ")} en zamorApp: winspiroPRO {faltan.length > 1 ? "los" : "lo"} pedirá para calcular lo previsto.
+          {completar && (
+            <>
+              {" "}
+              <button type="button" onClick={() => completar(!paciente.tallaCm || !paciente.pesoKg ? "examen" : "generales")} className="font-medium text-primary hover:underline">Completar</button>
+            </>
+          )}
+        </p>
+      )}
+      {aviso && (
+        <p
+          role="status"
+          className={cn(
+            "text-xs font-medium",
+            aviso.tono === "ok" ? "text-ok-texto" : aviso.tono === "error" ? "rounded-md border border-alerta bg-alerta/10 px-2.5 py-1.5 text-alerta-texto" : "text-muted-foreground",
+          )}
+        >
+          {aviso.texto}
+        </p>
+      )}
     </div>
   );
 }

@@ -86,7 +86,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
 export type ConsultaCompleta = {
   datos: DatosConsulta;
   // riesgos: los que salen en los impresos (los elegidos en la consulta o, si no se tocaron, los del cargo)
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; nombres?: string; apellidos?: string; nacimiento?: string | null; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
   // Firmada y emitida en el SAME (importada): hora de esa firma. null = sin firma o firmada en zamorApp
@@ -136,6 +136,9 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     trabajador: {
       id: c.trabajador_id,
       nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
+      nombres: tr?.nombres ?? "",
+      apellidos: tr?.apellidos ?? "",
+      nacimiento: tr?.fecha_nacimiento ?? null,
       cedula: tr?.cedula ?? "",
       edad,
       sexo: tr?.sexo ?? null,
