@@ -114,7 +114,7 @@ const OTROS: Atajo[] = [
   { href: "/envios/por-enviar", titulo: "Constancias por enviar", donde: "Envíos", icono: Send, palabras: "pendientes correo whatsapp", clinico: true },
   { href: "/envios/bitacora", titulo: "Bitácora de envíos", donde: "Envíos", icono: Send, palabras: "enviados correos fallidos historial", clinico: true },
   { href: "/envios/plantillas", titulo: "Plantillas de correo", donde: "Envíos", icono: Send, palabras: "texto mensaje correo whatsapp", clinico: true },
-  { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh" },
+  { href: "/empresas", titulo: "Sedes, dependencias y puestos", donde: "Empresas", icono: Building2, palabras: "cargos departamentos riesgos por puesto contactos rrhh invitar recursos humanos portal whatsapp" },
   { href: "/menu", titulo: "Menú de botones", donde: "Menú", icono: Settings, palabras: "botones tarjetas vista menu barra lateral cambiar pantalla completa inicio categorias" },
   { href: "/ayuda", titulo: "Lo nuevo y manual de uso", donde: "Manual de uso", icono: BookOpen, palabras: "ayuda como se usa instrucciones novedades" },
   { href: "/ayuda#evaluaciones", titulo: "Guía de evaluaciones: cómo se hace cada una", donde: "Manual de uso", icono: BookOpen, palabras: "como se hace guia guía manual instrucciones rula reba rosa niosh ocra kim deb istas psicosocial mapa de riesgos interpretar", roles: ERGONOMIA },
