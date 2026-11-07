@@ -94,6 +94,14 @@ test("medir abrir y guardar una consulta: PC (copia local) frente a nube", { ski
   assert.equal((await bandejaObj.resumen()).pendientes, 0, "la bandeja subió todo");
   const [enNubeV] = await enBase(NUBE_DB, "select motivo_texto from clinico.consultas where id = $1", [cid]);
   assert.equal(enNubeV.motivo_texto, `Control ${VUELTAS - 1}`, "y la nube quedó con el último guardado");
+  // 1b) Tras abrir el Inicio: la app manda los avisos de la campana a la nube (recordar_alertas y compañía). Antes
+  // eso pasaba TODAS las lecturas a la nube hasta la sincronía siguiente (6-nov, PC de Cesar: ~1 s por pantalla en
+  // vez de 0,1 s); ahora siguen saliendo de la copia
+  await replicaObj.ciclo();
+  for (const f of ["recordar_alertas", "recordar_post_vacacional"]) await pedir(`/rest/v1/rpc/${f}`, { metodo: "POST", token: tokenMed, cuerpo: {} });
+  nube.estado.rest = [];
+  resultados.pc_abrir_tras_avisos = await medir(VUELTAS, abrir);
+  assert.ok(!nube.estado.rest.some((r) => /\/rest\/v1\/(consultas|trabajadores|diagnosticos)/.test(r)), `tras los avisos se siguió leyendo de la copia (${nube.estado.rest.join(", ")})`);
   // 2) Nube: misma app apuntando a la nube con ida y vuelta de Venezuela (lecturas: copia «vieja»; escrituras: sin copia)
   nube.estado.latenciaMs = LATENCIA_NUBE_MS;
   // Lecturas: con la lectura local apagada, la app lee de la nube como la web (la bandeja que sube en segundo plano
@@ -115,6 +123,12 @@ test("medir abrir y guardar una consulta: PC (copia local) frente a nube", { ski
   resultados.latencia_nube_simulada_ms = LATENCIA_NUBE_MS; resultados.vueltas = VUELTAS;
   console.error(`VELOCIDAD ${JSON.stringify(resultados)}`);
   if (process.env.VELOCIDAD_JSON) fs.writeFileSync(process.env.VELOCIDAD_JSON, JSON.stringify(resultados, null, 1));
-  assert.ok(resultados.pc_guardar.mediana < 300 && resultados.pc_abrir.mediana < 300, "la PC responde en menos de 300 ms");
+  // Presupuestos (el CI falla si se pasan): la PC del CI es más rápida que la de Cesar, por eso con margen. Se pueden
+  // ajustar con PRESUPUESTO_MS (mediana) y PRESUPUESTO_P95_MS sin tocar la prueba
+  const mediana = Number(process.env.PRESUPUESTO_MS || 250), p95 = Number(process.env.PRESUPUESTO_P95_MS || 800);
+  for (const k of ["pc_abrir", "pc_guardar", "pc_abrir_tras_avisos"]) {
+    assert.ok(resultados[k].mediana < mediana, `${k}: mediana ${resultados[k].mediana} ms (presupuesto ${mediana} ms)`);
+    assert.ok(resultados[k].p95 < p95, `${k}: p95 ${resultados[k].p95} ms (presupuesto ${p95} ms)`);
+  }
   assert.ok(resultados.pc_guardar.mediana < resultados.nube_guardar.mediana && resultados.pc_abrir.mediana < resultados.nube_abrir.mediana);
 });
