@@ -196,3 +196,18 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   };
   return { servidor, estado, usuarios, postgrestListo: pgrst, cerrar };
 }
+
+// Serie de numeración libre para registrar una PC de prueba. La base de prueba conserva los equipos de las pruebas
+// anteriores (unique org_id + serie): una serie al azar a veces choca (CI #263 y 07-nov, guardados-seguidos). Se
+// eligen solo las que ninguna PC tiene.
+export async function serieLibre(baseUrl) {
+  const c = new pg.Client({ connectionString: baseUrl });
+  await c.connect();
+  try {
+    const usadas = new Set((await c.query("select serie from public.equipos")).rows.map((r) => r.serie));
+    const letras = "ABCDEFGHIJKLMNOPQRSTUVXYZ";
+    const libres = [...letras].flatMap((a) => [...letras].map((b) => a + b)).filter((x) => !usadas.has(x));
+    if (!libres.length) throw new Error("No quedan series libres en la base de prueba");
+    return libres[crypto.randomInt(libres.length)];
+  } finally { await c.end(); }
+}

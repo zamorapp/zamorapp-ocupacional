@@ -241,15 +241,34 @@ export class Motor {
     c = admin();
     await c.connect();
     try {
-      await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname in ('zamorapp', 'zamorapp_anterior') and pid <> pg_backend_pid()");
       await c.query("drop database if exists zamorapp_anterior with (force)");
-      // Los dos renombres juntos: si el segundo falla, no se queda la PC sin base «zamorapp»
-      await c.query("begin");
+      // Cerrar la puerta antes de echar a los conectados: la réplica, la bandeja o PostgREST se reconectaban entre el
+      // pg_terminate_backend y el renombre, y este fallaba con «database "zamorapp" is being accessed by other users»
+      // (CI 07-nov, puerta.test «fase C.2»). Con allow_connections apagado nadie nuevo entra; se reintenta unas veces
+      // por si una conexión tarda en cerrarse.
+      await c.query("alter database zamorapp with allow_connections false");
       try {
-        await c.query("alter database zamorapp rename to zamorapp_anterior");
-        await c.query("alter database zamorapp_restaurada rename to zamorapp");
-        await c.query("commit");
-      } catch (e) { await c.query("rollback").catch(() => {}); throw e; }
+        for (let intento = 1; ; intento++) {
+          await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname = 'zamorapp' and pid <> pg_backend_pid()");
+          // Los dos renombres juntos: si el segundo falla, no se queda la PC sin base «zamorapp»
+          await c.query("begin");
+          try {
+            await c.query("alter database zamorapp rename to zamorapp_anterior");
+            await c.query("alter database zamorapp_restaurada rename to zamorapp");
+            await c.query("commit");
+            // La anterior queda abrible por si hace falta volver a ella
+            await c.query("alter database zamorapp_anterior with allow_connections true").catch(() => {});
+            break;
+          } catch (e) {
+            await c.query("rollback").catch(() => {});
+            if (e.code !== "55006" || intento >= 10) throw e; // 55006: aún hay alguien conectado
+            await new Promise((ok) => setTimeout(ok, 200));
+          }
+        }
+      } catch (e) {
+        await c.query("alter database zamorapp with allow_connections true").catch(() => {});
+        throw e;
+      }
     } finally { await c.end(); }
     // La nube manda: se vuelve a bajar todo; lo que el respaldo tenía pendiente en la bandeja sube con sus versiones
     this.estado.d.cursor = null;

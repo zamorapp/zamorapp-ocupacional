@@ -15,7 +15,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { simularNube } from "./simulador-nube.mjs";
+import { serieLibre, simularNube } from "./simulador-nube.mjs";
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.resolve(aqui, "../..");
@@ -122,11 +122,10 @@ after(async () => {
 });
 
 let tokenAdmin, tokenMed, externa, bloque1, pacientes = [], consultas = [], rutas = [];
-const serieLibre = () => String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
 
 test("día 1 con internet: registrar la PC, copia completa, bloque de números, carpeta de Drive y clave", { skip: omitir, timeout: 180_000 }, async () => {
   tokenAdmin = await entrar(urlPuerta, "admin@x", "clave-admin");
-  const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC consultorio", serie: serieLibre() } });
+  const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC consultorio", serie: await serieLibre(NUBE_DB) } });
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   tokenMed = await entrar(urlPuerta, "meda@x", "clave-med");
   await replicaObj.ciclo();
@@ -417,7 +416,7 @@ test("PC nueva: se registra, restaura la copia de Drive (base + adjuntos) y sigu
   fs.renameSync(path.join(datos, "adjuntos"), path.join(datos, "adjuntos-pc1"));
   pc2 = { carpeta: carpeta2, ...(await armarPC(carpeta2)) };
   const admin2 = await entrar(pc2.urlPuerta, "admin@x", "clave-admin");
-  const eq = await pedirEn(pc2.urlPuerta, "/zamorapp/equipo", { metodo: "POST", token: admin2, cuerpo: { nombre: "PC nueva", serie: serieLibre() } });
+  const eq = await pedirEn(pc2.urlPuerta, "/zamorapp/equipo", { metodo: "POST", token: admin2, cuerpo: { nombre: "PC nueva", serie: await serieLibre(NUBE_DB) } });
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   assert.notEqual(pc2.estado.d.equipo.id, estado.d.equipo.id);
   // Registrar la PC dispara en segundo plano la primera copia completa: se espera a que termine antes de restaurar

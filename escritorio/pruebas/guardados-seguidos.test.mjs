@@ -10,7 +10,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { simularNube } from "./simulador-nube.mjs";
+import { serieLibre, simularNube } from "./simulador-nube.mjs";
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.resolve(aqui, "../..");
@@ -71,7 +71,7 @@ async function vaciar() {
 
 test("guardar la misma consulta 20 veces seguidas en la PC: 0 conflictos y la nube queda con lo último", { skip: omitir, timeout: 600_000 }, async () => {
   const tokenAdmin = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "admin@x", password: "clave-admin" } })).json.access_token;
-  const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
+  const serie = await serieLibre(NUBE_DB);
   const alta = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC guardados seguidos", serie } });
   assert.equal(alta.status, 200, JSON.stringify(alta.json));
   const tokenMed = (await pedir("/auth/v1/token?grant_type=password", { metodo: "POST", cuerpo: { email: "meda@x", password: "clave-med" } })).json.access_token;
