@@ -70,3 +70,15 @@ export async function dictadoWindows(): Promise<void> {
     throw new Error(mensaje(e));
   }
 }
+
+// Solo escritorio: abre winspiroPRO con los datos del paciente (archivo GDT) y espera a que lo cierren. Devuelve los
+// bytes del resultado, o null si se cerró sin hacer la prueba (ver escritorio/src-tauri/src/espirometro.rs).
+export async function espirometriaWinspiro(pedido: number[]): Promise<number[] | null> {
+  const p = puente();
+  if (!p) throw new Error("La conexión con winspiroPRO está en zamorApp Escritorio, en la computadora del espirómetro.");
+  try {
+    return ((await p.invoke("espirometria_winspiro", { pedido })) as number[] | null) ?? null;
+  } catch (e) {
+    throw new Error(mensaje(e));
+  }
+}

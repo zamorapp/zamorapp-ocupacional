@@ -10,10 +10,11 @@ export type TemaManual = {
   consejos?: string[];
 };
 
-export const MANUAL_ACTUALIZADO = "2026-11-06";
+export const MANUAL_ACTUALIZADO = "2026-11-07";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-07", texto: "Espirometría directa desde winspiroPRO (solo zamorApp Escritorio, en la computadora del espirómetro): en Paraclínicos › Espirometría › «Registrar valores» toca «Hacer en winspiroPRO». Se abre winspiroPRO con los datos del paciente; haz la prueba y ciérralo: FVC, FEV1, sus % del previsto, FEV1/FVC y PEF llegan solos con la interpretación de winspiroPRO en la nota. Si winspiroPRO ya estaba abierto, ciérralo primero. zamorApp no cambia nada de winspiroPRO", tema: "paraclinicos" },
   { fecha: "2026-11-06", texto: "Espirometría y goniometría con valores, opcionales: en Paraclínicos toca «Espirometría» o «Goniometría» (solo si las haces) y luego «Registrar valores». La espirometría da el patrón (normal, obstructivo, restrictivo o mixto) y su gravedad; la goniometría compara cada movimiento, derecho e izquierdo, con su normal y marca la limitación. El informe médico trae la tabla completa", tema: "paraclinicos" },
   { fecha: "2026-11-06", texto: "Enlace al paciente con la imagen de tu firma y tu sello: si lo creas con «Firmados a mi nombre», cada hoja que baja el paciente es un PDF que zamorApp arma en el servidor con tu firma y tu sello ya puestos (además de «Firmado digitalmente» con folio y cédula). La imagen original nunca viaja al teléfono del paciente: solo el PDF. «Ver cómo lo verá el paciente» la muestra igual. Requiere que tu organización tenga activados los avisos al celular (Configuración); si no, sale como antes, sin la imagen", tema: "enlace-paciente" },
   { fecha: "2026-11-06", texto: "Enlace al paciente: los documentos se descargan una sola vez. Desde su primer «Descargar PDF» tiene 30 minutos para bajarlos todos; después ve «Tus documentos ya fueron descargados», con el botón «Subir mis resultados», y lo que elegiste se borra de la plataforma. Para otra copia, mándale un enlace nuevo", tema: "enlace-paciente" },

@@ -54,6 +54,7 @@ import { EliminarPapelera } from "@/components/app/eliminar-papelera";
 import { rutaConDeshacer } from "@/components/app/franja-deshacer";
 import { TextoDictado } from "./dictado";
 import { MotivoReposo } from "./motivo-reposo";
+import { idPaciente } from "@/lib/gdt";
 import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
@@ -81,7 +82,7 @@ const APTITUD_LEGIBLE: Record<Aptitud, string> = {
 
 type Props = {
   inicial: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; nombres?: string; apellidos?: string; nacimiento?: string | null; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   // Firmada y emitida en el SAME (consulta importada): hora de esa firma; null = firmada aquí o sin firmar
   firmadaEnSame?: string | null;
@@ -282,6 +283,11 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
   if (!filas.some((f) => f.normal.trim() && !f.valor.trim())) return undefined;
   return () => aplicar(filas.map((f) => (f.valor.trim() ? f : { ...f, valor: f.normal })));
 }
+
+const numeroSigno = (v?: string) => {
+  const n = Number(String(v ?? "").trim().replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
 
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
@@ -673,7 +679,21 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
       modo={modoParaclinicos}
       catalogo={listas.paraclinico}
       sexo={trabajador.sexo}
-      paciente={{ cedula: trabajador.cedula, nombre: trabajador.nombre }}
+      paciente={{
+        cedula: trabajador.cedula,
+        nombre: trabajador.nombre,
+        // Para abrir winspiroPRO con este paciente (espirometría desde el escritorio)
+        winspiro: !idPaciente(trabajador.cedula) ? null : {
+          id: idPaciente(trabajador.cedula),
+          apellidos: trabajador.apellidos ?? "",
+          nombres: trabajador.nombres || trabajador.nombre,
+          nacimiento: trabajador.nacimiento ?? null,
+          sexo: trabajador.sexo,
+          tallaCm: ((t) => (t !== null && t < 3 ? t * 100 : t))(numeroSigno(d.signos.talla)), // talla en m o en cm
+          pesoKg: numeroSigno(d.signos.peso),
+          fecha: d.fecha,
+        },
+      }}
       archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
       asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
       resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
