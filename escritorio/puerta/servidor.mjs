@@ -582,7 +582,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         r = await nube.rpc(quien.uid, "registrar_equipo", { p_org: filas[0].org_id, p_nombre: String(cuerpo?.nombre || "PC"), p_serie: serie });
         break;
       } catch (e) {
-        if (!/duplicate|unique|duplicad/i.test(e.message) || series.length === 1) throw e;
+        if (!/duplicate|unique|duplicad/i.test(e.message)) throw e;
+        // La serie pedida ya la tiene otra PC: se dice claro (antes salía «Error interno de la puerta local»)
+        if (series.length === 1) return responder(res, 409, { code: "serie_usada", message: `La serie ${serie.toUpperCase()} ya la usa otra PC de la organización: elige otra o déjala en blanco.` });
       }
     }
     if (!r) return responder(res, 409, { message: "No quedan series libres" });

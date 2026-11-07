@@ -9,7 +9,7 @@ import path from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { simularNube } from "./simulador-nube.mjs";
+import { serieLibre, simularNube } from "./simulador-nube.mjs";
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.resolve(aqui, "../..");
@@ -111,16 +111,17 @@ test("entrar con internet y registrar la PC", { skip: omitir }, async () => {
   assert.equal(r.status, 200);
   tokenAdmin = r.json.access_token;
   assert.equal((await pedir("/auth/v1/user", { token: tokenAdmin })).json.id, "00000000-0000-0000-0000-0000000000a1");
-  // Dos letras al azar: la base de prueba conserva los equipos de las pruebas anteriores (día de Cesar, restauración…)
-  // y, con ~570 series posibles, a veces sale una ya usada (CI #263: «equipos_org_id_serie_key»). Si choca, otra serie.
-  let eq;
-  for (let intento = 0; intento < 8; intento++) {
-    const serie = String.fromCharCode(65 + crypto.randomInt(22)) + String.fromCharCode(65 + crypto.randomInt(26));
-    eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
-    if (eq.status !== 500) break; // la puerta responde 500 genérico; el choque de serie queda en su registro
-  }
+  // Una serie que ninguna PC tiene: la base de prueba conserva los equipos de las pruebas anteriores (CI #263)
+  const serie = await serieLibre(NUBE_DB);
+  const eq = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "PC de prueba", serie } });
   assert.equal(eq.status, 200, JSON.stringify(eq.json));
   assert.ok(estado.d.equipo.secreto.length === 64);
+  // Pedir una serie que ya tiene otra PC: 409 con mensaje claro (antes, 500 «Error interno de la puerta local»)
+  const equipoAntes = estado.d.equipo.id;
+  const repetida = await pedir("/zamorapp/equipo", { metodo: "POST", token: tokenAdmin, cuerpo: { nombre: "Otra", serie } });
+  assert.equal(repetida.status, 409, JSON.stringify(repetida.json));
+  assert.equal(repetida.json.code, "serie_usada");
+  assert.equal(estado.d.equipo.id, equipoAntes, "la PC no pierde su registro");
 });
 
 test("clave equivocada con internet: la nube la rechaza", { skip: omitir }, async () => {
