@@ -2,7 +2,7 @@
 // aplicar_cambios(), con la sesión del usuario que lo guardó (la nube vuelve a aplicar sus reglas de acceso).
 // Lo aplicado se borra de la bandeja; un conflicto o rechazo queda anotado y nunca se pierde (la nube lo guarda
 // en sync.conflictos y la PC conserva el cambio con su motivo).
-import pg from "./pg-local.mjs";
+import pg, { tomarCandado } from "./pg-local.mjs";
 import { RPC_CAMPANA } from "./config.mjs";
 
 const LOTE = 200;
@@ -137,6 +137,9 @@ export class Bandeja {
           let quedaron = 0; // cambios que siguieron pendientes porque se guardó otra vez mientras subían
           await c.query("begin");
           try {
+            // Candado de escrituras (pg-local.mjs): un guardado de la app que esté funda su cambio en esta misma fila
+            // de la bandeja termina antes (o espera); nunca se cruzan a mitad de camino
+            await tomarCandado(c);
             for (const f of lote) {
               const x = resultados.get(f.id);
               if (!x) { // la nube no respondió por este cambio: se reintenta unas veces y luego queda anotado, nunca se reintenta para siempre
