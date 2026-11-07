@@ -299,7 +299,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                         return (
                           <button key={z.id} type="button" role="tab" aria-selected={i === pasoActual} aria-label={`${i + 1}. ${z.titulo}${z.listo ? " (listo)" : ""}`} title={z.titulo}
                             onClick={() => irAPaso(i)}
-                            className={cn("h-2 flex-1 rounded-full transition hover:opacity-80", i === pasoActual ? "bg-primary" : z.listo ? "bg-primary/45" : "bg-muted", z.opcional && i !== pasoActual && "bg-muted/60")} />
+                            className={cn("h-2 flex-1 rounded-full transition hover:opacity-80", i === pasoActual ? "bg-primary" : z.listo ? "bg-primary/45" : "bg-muted")} />
                         );
                       })}
                     </div>
