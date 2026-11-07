@@ -57,6 +57,11 @@ fn hacer(pedido: Vec<u8>) -> Result<Option<Vec<u8>>, String> {
     if let Err(e) = estado {
         return Err(format!("No se pudo abrir winspiroPRO ({e})."));
     }
+    // Un resultado real mide unos pocos KB; algo de más de 1 MB no es de winspiroPRO y no se carga
+    if std::fs::metadata(&salida).map(|m| m.len() > 1024 * 1024).unwrap_or(false) {
+        let _ = std::fs::remove_file(&salida);
+        return Err("El archivo de resultado de winspiroPRO es demasiado grande; no se usó.".into());
+    }
     match std::fs::read(&salida) {
         Ok(bytes) => {
             let _ = std::fs::remove_file(&salida);
