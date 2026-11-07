@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Camera, Check, ChevronDown, CloudOff, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, ChevronDown, CloudOff, LayoutList, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,45 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   const faltan = useMemo(() => (esDeb ? faltantesDeb(x.datos) : []), [esDeb, x.datos]);
   const revisados = FACTORES.length - faltan.length;
   const [avisoFaltan, setAvisoFaltan] = useState(false);
-  const irA = (f: FactorDeb) => { setDebAbierto(f); setTimeout(() => document.getElementById(`deb-${f}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
+  // Paso a paso (Cesar, 06-nov): una pantalla por peligro (DEB) o por sección; no se avanza sin lo obligatorio.
+  // «Ver todo junto» vuelve a la lista completa (para revisar o imprimir); cerrada se ve siempre completa.
+  const [todoJunto, setTodoJunto] = useState(false);
+  const pasos = useMemo((): { id: string; titulo: string; nota?: string; secs: Seccion[]; opcional?: boolean; listo: boolean; faltan: number }[] => {
+    if (!metodo) return [];
+    if (esDeb) {
+      const deb = FACTORES.map((f) => {
+        const secs = metodo.secciones.filter((sec) => sec.grupo === f && (!sec.si || sec.si(x.datos)));
+        const falta = faltan.find((q) => q.factor === f);
+        return { id: f, titulo: NOMBRE_FACTOR[f], secs, listo: evaluarFactor(f, x.datos).zona !== null, faltan: falta ? Math.max(falta.n, 1) : 0 };
+      });
+      const otros = metodo.secciones.filter((sec) => sec.grupo === "otros");
+      return otros.length ? [...deb, { id: "otros", titulo: "Otros riesgos del puesto", nota: "Opcional: marca solo los que haya.", secs: otros, opcional: true, listo: true, faltan: 0 }] : deb;
+    }
+    return metodo.secciones.filter((sec) => !sec.si || sec.si(x.datos)).map((sec, i) => {
+      const n = sec.opcional ? 0 : sec.preguntas.filter((p) => {
+        if (x.datos[p.clave] !== undefined) return false;
+        const binaria = !p.numero && p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
+        return !binaria; // un ajuste Sí/No sin marcar cuenta como «No»
+      }).length;
+      return { id: `s${i}`, titulo: sec.titulo, secs: [sec], opcional: sec.opcional, listo: n === 0, faltan: n };
+    });
+  }, [metodo, esDeb, x.datos, faltan]);
+  const [paso, setPaso] = useState(() => 0);
+  const pasoActual = Math.min(paso, Math.max(pasos.length - 1, 0));
+  const porPasos = editable && !todoJunto && pasos.length > 1;
+  const irAPaso = (i: number) => { setPaso(i); setTimeout(() => document.getElementById("metodo-pasos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); };
+  // Primer paso sin terminar al abrir (para seguir donde se quedó)
+  const irA = (f: FactorDeb) => {
+    if (porPasos) { const i = pasos.findIndex((q) => q.id === f); if (i >= 0) { irAPaso(i); return; } }
+    setDebAbierto(f); setTimeout(() => document.getElementById(`deb-${f}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+  const ubicado = useRef(false);
+  useEffect(() => {
+    if (ubicado.current || !pasos.length) return;
+    ubicado.current = true;
+    const i = pasos.findIndex((q) => !q.listo);
+    if (i > 0) setPaso(i);
+  }, [pasos]);
   const alternarAbierto = (id: string) => setAbiertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Guardado automático 1,5 s después del último cambio (a prueba de cortes de luz); el puntaje lo recalcula el servidor
@@ -237,7 +275,51 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                 </div>
               )}
 
-            {esDeb
+            {editable && pasos.length > 1 && (
+              <div className="flex justify-end print:hidden">
+                <Button variant="ghost" size="sm" onClick={() => setTodoJunto(!todoJunto)}>{todoJunto ? <><ArrowRight /> Paso a paso</> : <><LayoutList /> Ver todo junto</>}</Button>
+              </div>
+            )}
+            {porPasos ? (() => {
+              const q = pasos[pasoActual];
+              const ultimo = pasoActual === pasos.length - 1;
+              return (
+                <div id="metodo-pasos" className="scroll-mt-4 space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium">Paso {pasoActual + 1} de {pasos.length}</span>
+                      <span className="text-xs text-muted-foreground">{pasos.filter((z) => z.listo && !z.opcional).length} de {pasos.filter((z) => !z.opcional).length} listos</span>
+                    </div>
+                    <div className="flex gap-1" role="tablist" aria-label="Pasos de la evaluación">
+                      {pasos.map((z, i) => {
+                        // Se puede saltar a un paso ya hecho o al siguiente pendiente; no más adelante
+                        const alcanzable = i <= pasoActual || pasos.slice(0, i).every((y) => y.listo);
+                        return (
+                          <button key={z.id} type="button" role="tab" aria-selected={i === pasoActual} aria-label={`${i + 1}. ${z.titulo}${z.listo ? " (listo)" : ""}`} title={z.titulo}
+                            disabled={!alcanzable} onClick={() => irAPaso(i)}
+                            className={cn("h-2 flex-1 rounded-full transition disabled:cursor-not-allowed", i === pasoActual ? "bg-primary" : z.listo ? "bg-primary/45" : "bg-muted", z.opcional && i !== pasoActual && "bg-muted/60")} />
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className={cn("space-y-4 rounded-xl border p-4 shadow-sm", q.opcional && "border-dashed")}>
+                    {esDeb && <div>
+                      <h3 className="text-base font-semibold">{q.titulo}</h3>
+                      {q.nota && <p className="text-xs text-muted-foreground">{q.nota}</p>}
+                      {esDeb && !q.opcional && (() => { const z = evaluarFactor(q.id as FactorDeb, x.datos).zona; return z ? <p className={cn("text-xs font-medium", z === "rojo" ? "text-red-700 dark:text-red-400" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>{z === "no" ? "No presente" : TEXTO_ZONA[z]}</p> : null; })()}
+                    </div>}
+                    {q.secs.map((sec) => seccion(sec, true))}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button variant="outline" disabled={pasoActual === 0} onClick={() => irAPaso(pasoActual - 1)}><ArrowLeft /> Anterior</Button>
+                    {!q.listo && <span className="text-xs text-aviso-texto" role="status">Falta{q.faltan === 1 ? "" : "n"} {q.faltan} {q.faltan === 1 ? "respuesta" : "respuestas"} para seguir</span>}
+                    {ultimo
+                      ? <Button disabled={!q.listo} onClick={() => document.getElementById("hallazgos")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Check /> Terminar y ver riesgos</Button>
+                      : <Button disabled={!q.listo} onClick={() => irAPaso(pasoActual + 1)}>Siguiente <ArrowRight /></Button>}
+                  </div>
+                </div>
+              );
+            })() : esDeb
               ? FACTORES.map((f) => {
                   const z = evaluarFactor(f, x.datos).zona;
                   const hay = presente(f, x.datos);
@@ -282,7 +364,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
         )}
 
         {/* Hallazgos */}
-        <section className="space-y-3">
+        <section id="hallazgos" className="scroll-mt-4 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-lg font-semibold">Riesgos y recomendaciones</h2>
