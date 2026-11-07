@@ -605,12 +605,13 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
         items: [
           "Menú Gestión › Evaluaciones de riesgos › «Riesgos psicosociales» › «Nueva evaluación»: elige la empresa, cuántos trabajadores son y los puestos o áreas (mejor áreas amplias que cargos de una sola persona).",
           "Paso 1: anota la fecha del acuerdo con el Comité (o los delegados de prevención) y cómo consta (por ejemplo, el número de acta). Sin esa fecha no se generan códigos. «Guardar».",
-          "Paso 2: «Generar» tantos códigos como trabajadores. «Imprimir papelitos con QR» saca 10 por hoja para recortar y repartir al azar (de una caja). Por WhatsApp, «WhatsApp» manda el siguiente código libre: uno distinto a cada trabajador.",
-          "El trabajador escanea el QR o entra a la dirección del papelito, elige su puesto y responde en unos 10 minutos. No pide nombre ni cédula. Al final ve su propio resultado en su teléfono. Cada código sirve una sola vez.",
+          "Paso 2, «Repartir: un enlace para todos o códigos»: lo más fácil es «Un solo enlace para toda la oficina»: copia el mensaje y mándalo al grupo de WhatsApp. Abrirlo no gasta cupo; al tocar «Empezar» el teléfono recibe su propio código de un solo uso. El tope es el número de trabajadores del paso 1. Si el enlace llegó a gente de fuera, «Cambiar enlace» anula el anterior.",
+          "Si prefieres códigos sueltos: «Códigos nuevos» genera tantos como trabajadores; «Imprimir papelitos con QR» saca 10 por hoja para recortar y repartir al azar (de una caja), o «WhatsApp» manda el siguiente código libre, uno distinto a cada trabajador.",
+          "El trabajador abre el enlace o el QR, elige su puesto y responde una pregunta por pantalla: al tocar una respuesta pasa sola a la siguiente (puede volver con «Atrás» y revisar al final). Tarda unos 10 minutos. No pide nombre ni cédula. Al final ve su propio resultado en su teléfono.",
           "Quien prefiera papel: «Cargar un cuestionario en papel» y marca las 38 respuestas tal cual (S, MV, AV, SA, N). Luego destruye o entrega el papel al Comité.",
           "Paso 3: los resultados salen desde 5 respuestas (cambia el «Mínimo por grupo» si hace falta) y solo al cerrar se ven completos.",
           "Paso 4: «Sugerir» arma las conclusiones con los datos; toca las medidas que propone el método para agregarlas al plan con responsable y plazo.",
-          "«Cerrar y entregar»: los códigos que falten dejan de servir y RR. HH. ve el informe en su portal. Conclusiones y medidas se siguen editando; reabrir solo lo hace el administrador o el gerente médico. «Informe» imprime la versión para la empresa.",
+          "«Cerrar y entregar»: los códigos y el enlace dejan de servir y RR. HH. ve el informe en su portal. Conclusiones y medidas se siguen editando; reabrir solo lo hace el administrador o el gerente médico. «Informe» imprime la versión para la empresa.",
         ],
       },
       {
@@ -618,6 +619,8 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
         items: [
           "Cada trabajador queda en verde (situación más favorable para la salud), amarillo (intermedia) o rojo (más desfavorable) en cada apartado, según los puntos de corte de la población de referencia.",
           "Por apartado ves el porcentaje de trabajadores en cada color. «Prioritario»: la mitad o más está en rojo. «A vigilar»: más de un tercio en rojo (más que la población de referencia).",
+          "Riesgo de la oficina por promedio: cada apartado se colorea con el promedio del grupo. Alto si 2 o más apartados quedan en rojo; Moderado si 1 está en rojo o 3 o más en amarillo; Bajo en los demás casos. Es un criterio del servicio para resumir; las prioridades siguen siendo por % en rojo, como pide el método.",
+          "«Cada persona (anónima)»: el nivel de cada respuesta, sin nombre ni puesto, ordenado de más a menos grave. Solo lo ve el servicio, solo con la evaluación cerrada y con el mínimo de respuestas; RR. HH. no lo ve. Sirve para saber cuántos están en peor situación, no quiénes.",
           "Actúa primero sobre el apartado con más trabajadores en rojo. Por puesto ves el porcentaje en rojo; los grupos pequeños se juntan en «Otros puestos» para proteger el anonimato.",
           "Ejemplos de medidas: Exigencias → ajustar la plantilla y planificar; Trabajo activo → dar autonomía y formación; Inseguridad → informar con tiempo los cambios; Apoyo y liderazgo → formar a los jefes y aclarar tareas; Doble presencia → horarios flexibles; Estima → reconocer el trabajo y tratar con justicia.",
         ],
@@ -632,7 +635,7 @@ export const TEMAS_EVALUACIONES: TemaManual[] = [
     consejos: [
       "Nadie ve respuestas una por una, ni tú: la base guarda las respuestas sin nombre, sin código y sin hora, y solo entrega totales.",
       "No se cobra por el cuestionario (condición de la licencia); sí por la evaluación, el análisis y la asesoría.",
-      "Necesita internet: el trabajador responde en línea y la pantalla del servicio lee la nube. Sin internet, usa papel y cárgalo después.",
+      "Necesita internet: el trabajador responde en línea y la pantalla del servicio lee la nube. Sin internet, usa papel y cárgalo después con «Cargar un cuestionario en papel».",
     ],
   },
 ];
