@@ -176,6 +176,23 @@ export function nivel(apartado: number, puntaje: number): Nivel {
   return 2;
 }
 
+// Nivel del PROMEDIO de un grupo (decimal): los cortes del método son enteros, así que un promedio que cae entre dos
+// intervalos (p. ej. 7,5 entre verde 0-7 y amarillo 8-11) va al más cercano. Sirve en apartados que suben o bajan.
+export function nivelMedia(apartado: number, media: number): Nivel {
+  const a = APARTADOS[apartado - 1];
+  if (a.verde[1] < a.rojo[0]) return media <= a.verde[1] + 0.5 ? 0 : media <= a.amarillo[1] + 0.5 ? 1 : 2;
+  return media >= a.verde[0] - 0.5 ? 0 : media >= a.amarillo[0] - 0.5 ? 1 : 2;
+}
+
+// Riesgo psicosocial global del grupo, en una frase, a partir del nivel promedio de los 6 apartados
+export function riesgoGlobal(niveles: Nivel[]): { nivel: Nivel; texto: string } {
+  const rojos = niveles.filter((n) => n === 2).length;
+  const amarillos = niveles.filter((n) => n === 1).length;
+  if (rojos >= 2) return { nivel: 2, texto: "Alto" };
+  if (rojos === 1 || amarillos >= 3) return { nivel: 1, texto: "Moderado" };
+  return { nivel: 0, texto: "Bajo" };
+}
+
 export const NIVELES = [
   { nombre: "Verde", que: "Situación más favorable para la salud", clase: "bg-ok/15 text-ok-texto", barra: "bg-ok", color: "#2f9e5b" },
   { nombre: "Amarillo", que: "Situación intermedia", clase: "bg-aviso/20 text-aviso-texto", barra: "bg-aviso", color: "#e0b100" },
@@ -235,6 +252,9 @@ export type Medida = { id: string; apartado: number; medida: string; responsable
 export const CODIGO_PSICOSOCIAL = /^[2-9A-HJKMNP-Z]{8}$/;
 // Código de ejemplo del modo demo (sin base): abre el cuestionario sin guardar nada
 export const CODIGO_DEMO = "K7Q3M9TX";
+// Enlace único de la oficina (/c/o/<token>): 32 caracteres hexadecimales (migración 20261030924000)
+export const ENLACE_OFICINA = /^[0-9a-f]{32}$/;
+export const TOKEN_DEMO = "0123456789abcdef0123456789abcdef";
 export const codigoLegible = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;
 export const normalizarCodigo = (c: string) => c.toUpperCase().replace(/[^0-9A-Z]/g, "");
 

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckCircle2, ClipboardPen, Copy, FileText, Handshake, KeyRound, Lightbulb, Loader2, Lock, LockOpen, MessageCircle, Plus, Printer, Save, Trash2, X,
+  CheckCircle2, ClipboardPen, Copy, FileText, Handshake, KeyRound, Lightbulb, Link2, Loader2, Lock, LockOpen, MessageCircle, Plus, Printer, RefreshCw, Save, Trash2, Users, X,
 } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
@@ -13,17 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  APARTADOS, METODO_PSICOSOCIAL, NIVELES, TOTAL_PREGUNTAS, codigoLegible, conclusionSugerida, idGrupo, ordenarPorRojo, porcentaje, prioridadDimension,
-  type Dimension, type Medida, type Resultados,
+  APARTADOS, METODO_PSICOSOCIAL, NIVELES, TOTAL_PREGUNTAS, codigoLegible, conclusionSugerida, idGrupo, nivelMedia, ordenarPorRojo, porcentaje, prioridadDimension,
+  riesgoGlobal, type Dimension, type Medida, type Nivel, type Resultados,
 } from "@/lib/psicosocial";
 import type { EvaluacionPsicosocial, Grupo } from "@/lib/psicosocial-datos";
 import { cn } from "@/lib/utils";
-import { borrarPsicosocial, cambiarEstadoPsicosocial, cargarPapel, generarCodigos, guardarPsicosocial } from "../acciones";
+import { borrarPsicosocial, cambiarEstadoPsicosocial, cargarPapel, crearEnlaceOficina, generarCodigos, guardarPsicosocial } from "../acciones";
 
 type Props = {
   ev: EvaluacionPsicosocial;
   resultados: Resultados | null;
-  codigos: { libres: string[]; usados: number };
+  codigos: { libres: string[]; usados: number; enTelefonos: number };
+  enlaceOficina: string | null;
+  perfiles: number[][] | null;
   puestosEmpresa: string[];
   urlPublica: string;
   demo: boolean;
@@ -77,7 +79,7 @@ function CeldaRojo({ d, n }: { d: Dimension | undefined; n: number }) {
   );
 }
 
-export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlPublica, demo, puedeEditar, puedeReabrir }: Props) {
+export function PanelPsicosocial({ ev, resultados, codigos, enlaceOficina, perfiles, puestosEmpresa, urlPublica, demo, puedeEditar, puedeReabrir }: Props) {
   const router = useRouter();
   const cerrada = ev.estado === "cerrada";
   const editable = puedeEditar && !cerrada;
@@ -112,6 +114,18 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
   const textoWhatsApp = (c: string) =>
     `Hola. ${ev.empresa} y el Comité de Seguridad y Salud Laboral están evaluando las condiciones de trabajo. Te invitamos a responder un cuestionario ANÓNIMO de 38 preguntas (unos 10 minutos): no pide tu nombre ni tu cédula. Este enlace es solo para ti y sirve una vez: ${enlace(c)}`;
   const siguiente = codigos.libres[0];
+  const [token, setToken] = useState(enlaceOficina);
+  const enlaceTodos = token ? `${urlPublica}/c/o/${token}` : null;
+  // Cupos del enlace = plantilla − todos los códigos ya generados − cuestionarios en papel (igual que la base)
+  const cupos = Math.max(0, (ev.trabajadores ?? 0) - codigos.libres.length - codigos.usados - codigos.enTelefonos - Math.max(0, (resultados?.total ?? 0) - codigos.usados));
+  const textoGrupo = (u: string) =>
+    `Hola, equipo. ${ev.empresa} y el Comité de Seguridad y Salud Laboral están evaluando las condiciones de trabajo. Les pedimos responder una encuesta ANÓNIMA desde su teléfono (unos 8 minutos, una pregunta por pantalla): no pide nombre ni cédula. Cada quien la responde UNA vez: ${u}`;
+  const pedirEnlace = (nuevo: boolean) => iniciar(async () => {
+    if (demo) { setAviso({ ok: false, texto: "En modo demo no se guardan datos." }); return; }
+    const r = await crearEnlaceOficina(ev.id, nuevo);
+    setAviso({ ok: r.ok, texto: r.mensaje });
+    if (r.ok && r.token) setToken(r.token);
+  });
   const participacion = resultados ? resultados.total : 0;
   const base = ev.trabajadores ?? (codigos.libres.length + codigos.usados || 0);
 
@@ -219,7 +233,46 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
         </Paso>
 
         {/* 2. Repartir */}
-        <Paso n={2} titulo="Repartir códigos" icono={<KeyRound className="size-4 text-muted-foreground" />} listo={codigos.usados > 0}>
+        <Paso n={2} titulo="Repartir: un enlace para todos o códigos" icono={<Link2 className="size-4 text-muted-foreground" />} listo={codigos.usados > 0}>
+          {/* Enlace único de la oficina: lo más rápido para un equipo pequeño */}
+          {!cerrada && (puedeEditar || token) && (
+            <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><Users className="size-5" /></span>
+                <div className="min-w-0">
+                  <p className="font-medium">Un solo enlace para toda la oficina</p>
+                  <p className="text-xs text-muted-foreground">Mándalo al grupo de WhatsApp. Cada quien responde desde su teléfono, una pregunta por pantalla. Admite hasta {ev.trabajadores ?? "el número de"} trabajadores{ev.trabajadores ? "" : " que anotes en el paso 1"}, contando los códigos sueltos que ya generaste; nadie entra con nombre ni cédula.</p>
+                </div>
+              </div>
+              {enlaceTodos ? (
+                <>
+                  <p className="break-all rounded-lg bg-background px-3 py-2 font-cifra text-xs">{enlaceTodos}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(textoGrupo(enlaceTodos))}`, "_blank", "noopener")}><MessageCircle /> Enviar al grupo</Button>
+                    <Button variant="outline" onClick={() => { navigator.clipboard?.writeText(textoGrupo(enlaceTodos)).then(() => setAviso({ ok: true, texto: "Copiado el mensaje con el enlace de la oficina." }), () => {}); }}><Copy /> Copiar</Button>
+                    {editable && (
+                      <Button variant="ghost" disabled={ocupado} onClick={async () => {
+                        if (!(await confirmar({ titulo: "¿Cambiar el enlace?", texto: "El enlace actual deja de servir para quien no haya empezado. Úsalo si se reenvió a personas de fuera.", accion: "Cambiar" }))) return;
+                        pedirEnlace(true);
+                      }}><RefreshCw /> Cambiar enlace</Button>
+                    )}
+                  </div>
+                  <p className={cn("text-xs", cupos ? "text-muted-foreground" : "font-medium text-alerta-texto")}>
+                    {cupos ? `Quedan ${cupos} ${cupos === 1 ? "cupo" : "cupos"} en el enlace.` : "El enlace no tiene cupos: sube «Trabajadores» en el paso 1 o reparte los códigos sueltos que ya generaste."}
+                    {codigos.enTelefonos > 0 && ` ${codigos.enTelefonos} ${codigos.enTelefonos === 1 ? "persona empezó y aún no envía" : "personas empezaron y aún no envían"}.`}
+                  </p>
+                </>
+              ) : editable ? (
+                <Button disabled={ocupado || !ev.acuerdoFecha || (!ev.trabajadores && codigos.libres.length === 0)} onClick={() => pedirEnlace(false)}
+                  title={!ev.acuerdoFecha ? "Primero guarda la fecha del acuerdo con el Comité" : !ev.trabajadores ? "Anota y guarda cuántos trabajadores van a responder" : undefined}>
+                  {ocupado ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace para la oficina
+                </Button>
+              ) : null}
+              {editable && !enlaceTodos && (!ev.acuerdoFecha || !ev.trabajadores) && (
+                <p className="text-xs text-aviso-texto">Antes, guarda en el paso 1 {!ev.acuerdoFecha ? "la fecha del acuerdo" : ""}{!ev.acuerdoFecha && !ev.trabajadores ? " y " : ""}{!ev.trabajadores ? "cuántos trabajadores responden" : ""}.</p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2 text-center">
             {[
               { k: "Respondieron", v: participacion, sub: base ? `${porcentaje(participacion, base)} % de ${base}` : "" },
@@ -262,7 +315,7 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Reparte los papelitos al azar (por ejemplo, de una caja): así nadie sabe qué código tiene cada quien. Por WhatsApp, manda un código distinto a cada trabajador; el siguiente se marca solo cuando lo usan, así que no reenvíes el mismo.
+            También puedes repartir códigos sueltos: papelitos al azar (por ejemplo, de una caja), así nadie sabe qué código tiene cada quien, o por WhatsApp un código distinto a cada trabajador (el siguiente se marca solo cuando lo usan).
           </p>
           {editable && <PapelDialogo ev={ev} grupos={grupos} demo={demo} alListo={(t) => { setAviso({ ok: true, texto: t }); router.refresh(); }} />}
         </Paso>
@@ -282,6 +335,7 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
           </div>
         ) : (
           <div className="space-y-6">
+            <ResumenOficina dimensiones={resultados.dimensiones ?? []} total={resultados.total} />
             <ul className="space-y-3">
               {(resultados.dimensiones ?? []).map((d) => {
                 const a = APARTADOS[d.apartado - 1];
@@ -290,7 +344,10 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
                   <li key={d.apartado} className="grid grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,15rem)_1fr_6rem] sm:items-center sm:gap-4">
                     <div className="min-w-0">
                       <div className="font-medium leading-tight">{a.nombre}</div>
-                      <div className="text-xs text-muted-foreground">Media {String(d.media).replace(".", ",")} de {a.maximo}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        Promedio {String(d.media).replace(".", ",")} de {a.maximo}
+                        <span className={cn("rounded-full px-1.5 py-px text-[11px] font-medium", NIVELES[nivelMedia(d.apartado, d.media)].clase)}>{NIVELES[nivelMedia(d.apartado, d.media)].nombre}</span>
+                      </div>
                     </div>
                     <Barra d={d} n={resultados.total} />
                     <span className={cn("justify-self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:justify-self-end", pr.clase)}>{pr.texto}</span>
@@ -334,6 +391,7 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
                 )}
               </div>
             )}
+            {perfiles && perfiles.length > 0 && <Perfiles perfiles={perfiles} />}
           </div>
         )}
       </Paso>
@@ -402,6 +460,72 @@ export function PanelPsicosocial({ ev, resultados, codigos, puestosEmpresa, urlP
             <Button onClick={guardar} disabled={ocupado || !cambiado}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Riesgo de toda la oficina con el PROMEDIO de cada apartado (complementa el % de personas en rojo del método)
+function ResumenOficina({ dimensiones, total }: { dimensiones: Dimension[]; total: number }) {
+  if (dimensiones.length === 0) return null;
+  const niveles = dimensiones.map((d) => nivelMedia(d.apartado, d.media));
+  const g = riesgoGlobal(niveles);
+  const cuenta = (n: Nivel) => niveles.filter((x) => x === n).length;
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-br from-card to-muted/40 p-4 shadow-sm sm:grid-cols-[auto_1fr] sm:items-center">
+      <div className="flex items-center gap-3">
+        <span className={cn("grid size-14 place-items-center rounded-2xl text-lg font-bold shadow-inner", NIVELES[g.nivel].barra, g.nivel === 1 ? "text-[#3d2c00]" : "text-white")}>{g.texto.slice(0, 1)}</span>
+        <div>
+          <p className="text-xs text-muted-foreground">Riesgo psicosocial de la oficina · {total} respuestas</p>
+          <p className="text-xl font-semibold">{g.texto}</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Por promedio: ${cuenta(2)} apartados en rojo, ${cuenta(1)} en amarillo, ${cuenta(0)} en verde`}>
+          {[2, 1, 0].map((n) => cuenta(n as Nivel) > 0 && <div key={n} className={NIVELES[n].barra} style={{ width: `${(cuenta(n as Nivel) * 100) / niveles.length}%` }} />)}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Por el promedio de la oficina: <strong className="text-alerta-texto">{cuenta(2)} en rojo</strong> · <strong className="text-aviso-texto">{cuenta(1)} en amarillo</strong> · <strong className="text-ok-texto">{cuenta(0)} en verde</strong> de 6 apartados.
+          {" "}Criterio del servicio: Alto = 2 o más en rojo; Moderado = 1 en rojo o 3 en amarillo. Las prioridades se fijan con el % de personas en rojo, como pide el método.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Cada persona, sin nombre, sin puesto y sin orden de llegada (ordenadas de más a menos rojo). Solo el servicio.
+function Perfiles({ perfiles }: { perfiles: number[][] }) {
+  const [todas, setTodas] = useState(false);
+  const filas = todas ? perfiles : perfiles.slice(0, 12);
+  const conRojo = perfiles.filter((p) => p.filter((x) => x === 2).length >= 3).length;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">Cada persona (anónima)</h3>
+      <p className="text-xs text-muted-foreground">
+        Una fila por cuestionario, sin nombre, sin puesto y ordenadas de más a menos rojo (no por quién respondió primero). Solo la ve el servicio médico; RR. HH. no.
+        {conRojo > 0 && <> <strong className="text-alerta-texto">{conRojo} {conRojo === 1 ? "persona tiene" : "personas tienen"} 3 o más apartados en rojo</strong>: conviene ofrecer a todo el equipo consulta voluntaria y confidencial.</>}
+      </p>
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full min-w-[520px] text-xs">
+          <thead className="bg-muted text-muted-foreground">
+            <tr><th className="sticky left-0 z-10 bg-muted px-2 py-1.5 text-left font-medium">#</th>{APARTADOS.map((a) => <th key={a.n} className="px-1 py-1.5 text-center font-medium">{a.corto}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y">
+            {filas.map((p, i) => (
+              <tr key={i}>
+                <td className="sticky left-0 z-10 bg-card px-2 py-1 font-cifra text-muted-foreground">{i + 1}</td>
+                {p.map((n, j) => (
+                  <td key={j} className="px-1 py-1">
+                    <span className={cn("block rounded-md py-1 text-center text-[11px] font-semibold", NIVELES[n].clase)}>{NIVELES[n].nombre}</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {perfiles.length > 12 && (
+        <Button variant="ghost" size="sm" onClick={() => setTodas(!todas)}>{todas ? "Ver menos" : `Ver las ${perfiles.length}`}</Button>
       )}
     </div>
   );
