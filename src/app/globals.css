@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:is(.tema-claro, .tema-claro *)));
 /* print: también dentro de .modo-impresion, la copia con la que el índice del informe de vigilancia mide sus páginas */
 @custom-variant print {
   @media print {
@@ -14,6 +14,8 @@
 }
 
 @theme inline {
+  /* Entrada suave de las tarjetas de la vista de botones (/menu); solo opacidad y desplazamiento, sin repintar */
+  --animate-aparecer: aparecer 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
@@ -73,8 +75,11 @@
 }
 
 /* Sistema de diseño zamorApp: neutros con tinte verde azulado (hue 195-200) en ambos temas.
-   Estados: ok / aviso / alerta / info como fondo; *-texto para texto legible (AA) sobre la tarjeta. */
-:root {
+   Estados: ok / aviso / alerta / info como fondo; *-texto para texto legible (AA) sobre la tarjeta.
+   .tema-claro: zona que siempre usa el tema claro aunque la app esté en oscuro (páginas de imprimir: el papel es
+   blanco y sus controles van sobre fondo claro; sin esto quedaba texto claro sobre blanco, 07-nov-2026). */
+:root,
+.dark .tema-claro {
   --radius: 0.75rem;
   --background: oklch(0.985 0.004 195);
   --foreground: oklch(0.21 0.02 200);
@@ -169,6 +174,9 @@
   html.dark {
     color-scheme: dark;
   }
+  .dark .tema-claro {
+    color-scheme: light;
+  }
   /* Listas desplegables nativas: la lista que abre Windows (navegador y escritorio) toma el color del texto del
      select, pero no su fondo si es transparente. En tema oscuro quedaba texto claro sobre fondo blanco. Cada
      opción lleva su propio fondo y color del tema, así todo <select> de la app se lee, tenga la clase que tenga. */
@@ -255,7 +263,8 @@
 /* Gráficos de los reportes: serie 1 verde azulado, serie 2 ámbar (pareja validada para daltonismo en ambos temas).
    .papel fija los colores claros en los documentos impresos aunque la app esté en modo oscuro. */
 :root,
-.dark .papel {
+.dark .papel,
+.dark .tema-claro {
   --g-1: #008a7c;
   --g-2: #c2690a;
   --g-pista: #e7efed;
@@ -268,4 +277,16 @@
   --g-pista: oklch(1 0 0 / 8%);
   --g-linea: oklch(1 0 0 / 14%);
   --g-tinta: oklch(0.74 0.012 200);
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Vista de botones (lib/vista-menu.ts): la barra lateral se esconde antes de pintar, sin parpadeo */
+html[data-menu="botones"] aside[data-barra-lateral] {
+  display: none;
 }

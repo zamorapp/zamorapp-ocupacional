@@ -52,7 +52,8 @@ export type DocumentosRegistro = {
 
 // Lo que el servicio marca en el diálogo «Enlace al paciente»
 export type EleccionRegistro = {
-  orden: { perfilId: string; motivoId: string | null } | null;
+  // sin: exámenes del perfil que el médico desmarcó para este paciente (p. ej. de «Rutina» solo hematología y glicemia)
+  orden: { perfilId: string; motivoId: string | null; sin?: string[] } | null;
   controlTa: 7 | 14 | null;
   dieta: string | null;
   bienestar: boolean;

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, CheckCircle2, Loader2, Send, ShieldCheck, User } from "lucide-react";
+import { Building2, CheckCircle2, FileDown, Loader2, Send, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +11,10 @@ import { cn } from "@/lib/utils";
 import { conArticulo, ESTADO_CIVIL, LATERALIDAD, NIVEL_EDUCATIVO, PREGUNTA_HABITO, TURNOS, valorHabito } from "@/lib/solicitudes-paciente";
 import { enviarRegistro } from "./acciones";
 
-export type CatalogoRegistro = { remitente: string; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
-type Props = { token: string; servicio: string; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
+// registrado: el enlace es para un trabajador que ya tiene ficha; faltan = lo que su ficha no tiene; verificar = pide los
+// 4 últimos números de su cédula antes de ver documentos (20261030918000)
+export type CatalogoRegistro = { remitente: string; registrado?: boolean; verificar?: boolean | null; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
+type Props = { token: string; servicio: string; telefono?: string | null; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
 
 const GRUPO_ANTECEDENTE: Record<string, string> = { personal: "¿Tienes o has tenido alguna de estas?", familiar: "¿Alguien de tu familia (padres, hermanos, abuelos) tiene o tuvo…?" };
 const PRIVADO = "Esto solo lo ve tu médico; tu empresa no ve tus antecedentes ni diagnósticos.";
@@ -48,7 +50,91 @@ function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; 
 // Lista de opciones como botones (estado civil, instrucción, mano)
 const opcionesDe = <T extends string>(o: Record<T, string>) => (Object.entries(o) as [T, string][]).map(([v, t]) => ({ v, t }));
 
-export function FormularioRegistro({ token, servicio, empresa, motivos, hoy, maximo, catalogo }: Props) {
+// Trabajador ya registrado: no escribe nada si su ficha está completa; si falta algo, se le pide solo eso
+function FormularioRegistrado({ token, hoy, faltan, verificar, telefono }: { token: string; hoy: string; faltan: string[]; verificar: boolean; telefono?: string | null }) {
+  const [sexo, setSexo] = useState<"F" | "M" | "">("");
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, iniciar] = useTransition();
+  const router = useRouter();
+  const pide = (c: string) => faltan.includes(c);
+  const enviar = (form: HTMLFormElement) => {
+    const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    if (pide("sexo") && !sexo) return setError("Indica tu sexo.");
+    setError(null);
+    iniciar(async () => {
+      const r = await enviarRegistro(token, { ...f, ...(pide("sexo") ? { sexo } : {}) });
+      if (!r.ok) return setError(r.mensaje);
+      router.refresh();
+    });
+  };
+  return (
+    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); enviar(e.currentTarget); }}>
+      <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+        <label>Sitio web<input name="sitio_web" tabIndex={-1} autoComplete="off" /></label>
+      </div>
+      {verificar && (
+        <Seccion titulo="Confirma que eres tú" ayuda="Así nadie más puede abrir tus documentos si este enlace llega a otra persona.">
+          <div>
+            <Label htmlFor="ultimos4" className="mb-1.5">Últimos 4 números de tu cédula *</Label>
+            <Input id="ultimos4" name="ultimos4" required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off"
+              placeholder="Ej.: 5678" className="h-11 w-32 text-center text-lg tracking-[0.4em]" />
+          </div>
+        </Seccion>
+      )}
+      {faltan.length > 0 && (
+        <Seccion titulo="Completa tu ficha" ayuda="Ya tienes ficha con nosotros. Solo nos falta esto:">
+          {pide("cedula") && (
+            <div>
+              <Label htmlFor="cedula" className="mb-1.5">Cédula *</Label>
+              <Input id="cedula" name="cedula" required inputMode="text" autoComplete="off" placeholder="Ej.: V-12345678" maxLength={14} className="h-11 text-base" />
+            </div>
+          )}
+          {pide("fecha_nacimiento") && (
+            <div>
+              <Label htmlFor="fecha_nacimiento" className="mb-1.5">Fecha de nacimiento *</Label>
+              <Input id="fecha_nacimiento" name="fecha_nacimiento" type="date" required min="1900-01-01" max={hoy} autoComplete="bday" className="h-11 text-base" />
+            </div>
+          )}
+          {pide("sexo") && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium">Sexo *</span>
+              <Opciones etiqueta="Sexo" valor={sexo} alCambiar={setSexo} opciones={[{ v: "F", t: "Femenino" }, { v: "M", t: "Masculino" }]} />
+            </div>
+          )}
+          {pide("telefono") && (
+            <div>
+              <Label htmlFor="telefono" className="mb-1.5">Celular (WhatsApp) *</Label>
+              <Input id="telefono" name="telefono" type="tel" required inputMode="tel" autoComplete="tel" placeholder="Ej.: 0414-1234567" maxLength={20} className="h-11 text-base" />
+            </div>
+          )}
+          {pide("direccion") && (
+            <div>
+              <Label htmlFor="direccion" className="mb-1.5">Dirección *</Label>
+              <Input id="direccion" name="direccion" required autoComplete="street-address" maxLength={300} className="h-11 text-base" />
+            </div>
+          )}
+        </Seccion>
+      )}
+      {error && (
+        <p role="alert" className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
+          {telefono && error.startsWith("Hiciste demasiados intentos")
+            ? <>{error.replace(/\.$/, "")}: <a className="font-medium underline" href={`tel:${telefono}`}>{telefono}</a>.</>
+            : error}
+        </p>
+      )}
+      <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={enviando}>
+        {enviando ? <Loader2 className="animate-spin" /> : <FileDown />} {faltan.length ? "Guardar y ver mis documentos" : "Ver mis documentos"}
+      </Button>
+    </form>
+  );
+}
+
+export function FormularioRegistro({ token, servicio, telefono, empresa, motivos, hoy, maximo, catalogo }: Props) {
+  if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} verificar={Boolean(catalogo.verificar)} telefono={telefono} />;
+  return <FormularioCompleto token={token} servicio={servicio} empresa={empresa} motivos={motivos} hoy={hoy} maximo={maximo} catalogo={catalogo} />;
+}
+
+function FormularioCompleto({ token, servicio, empresa, motivos, hoy, maximo, catalogo }: Props) {
   const [sexo, setSexo] = useState<"F" | "M" | "">("");
   const [tipo, setTipo] = useState<"particular" | "empresa" | "">(empresa ? "empresa" : "");
   const [motivo, setMotivo] = useState("");
