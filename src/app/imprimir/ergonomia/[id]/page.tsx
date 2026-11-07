@@ -6,6 +6,7 @@ import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SI
 import { obtenerEvaluacion, obtenerEvaluacionEmpresa } from "@/lib/ergonomia-datos";
 import { ahora } from "@/lib/fecha";
 import { ESCALA_P, ESCALA_S } from "@/lib/puestos-tipos";
+import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -42,6 +43,8 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
   const sesion = await obtenerSesion();
   const ev = esRolEmpresa(sesion.rol) ? await obtenerEvaluacionEmpresa(id) : await obtenerEvaluacion(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
+  // RR. HH. sin el permiso «Descargar documentos» no abre informes (Usuarios y roles)
+  if (!puedePortal(sesion, "descargas")) notFound();
   const { depto, conMetodo, conFotos } = vistaInforme(sesion.rol, para);
 
   const fotosVisibles = conFotos ? ev.fotos : [];

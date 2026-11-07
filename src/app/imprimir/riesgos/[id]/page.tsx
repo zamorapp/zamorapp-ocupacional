@@ -9,6 +9,7 @@ import type { Firmantes } from "@/lib/firmantes";
 import { firmantesAnteriores } from "@/lib/reportes";
 import { obtenerEvaluacionRiesgos, obtenerEvaluacionRiesgosEmpresa } from "@/lib/riesgos-datos";
 import { BASE_LEGAL, fueraDeRango, MEDICIONES, NOMBRE_GRUPO, nivelFila, porPuesto, TIPOS_EVALUACION, TIPOS_MEDIDA } from "@/lib/riesgos-puesto";
+import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -35,6 +36,8 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
   const empresaRol = esRolEmpresa(sesion.rol);
   const ev = empresaRol ? await obtenerEvaluacionRiesgosEmpresa(id) : await obtenerEvaluacionRiesgos(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
+  // RR. HH. sin el permiso «Descargar documentos» no abre informes (Usuarios y roles)
+  if (!puedePortal(sesion, "descargas")) notFound();
 
   const supabase = sesion.demo ? null! : await crearClienteServidor();
   const sinDatos = { data: null };

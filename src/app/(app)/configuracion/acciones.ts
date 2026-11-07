@@ -1,5 +1,7 @@
 "use server";
 
+import { normalizarPermisos } from "@/lib/permisos-portal";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
@@ -351,6 +353,8 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
       nombre,
       telefono,
       token_hash: "\\x" + createHash("sha256").update(token).digest("hex"),
+      // Qué podrá hacer en el portal; sin casillas en el formulario (otra pantalla) = todo
+      permisos_portal: datos.get("permisos_enviados") ? normalizarPermisos(datos.getAll("permisos")) : null,
     });
     if (error) return { ok: false, mensaje: error.message };
     revalidatePath("/configuracion/usuarios");
@@ -391,6 +395,20 @@ export async function anularInvitacion(id: string): Promise<Resultado> {
   }
 }
 
+// Qué puede hacer una persona de la empresa en el portal (consultas, atendidos del mes, descargas). Todo = null.
+export async function cambiarPermisosPortal(miembroId: string, permisos: string[]): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.from("miembros").update({ permisos_portal: normalizarPermisos(permisos) }).eq("id", miembroId);
+    if (error) throw error;
+    invalidarSesion();
+    revalidatePath("/configuracion/usuarios");
+    return { ok: true, mensaje: "Permisos guardados. Los verá la próxima vez que abra el portal." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
 export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, accesoClinico: boolean): Promise<Resultado> {
   try {
     const { sesion, supabase } = await contexto(["administrador"]);
@@ -398,7 +416,8 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     if (m?.usuario_id === sesion.usuarioId && (rol !== "administrador" || !activo)) {
       return { ok: false, mensaje: "No puedes quitarte a ti mismo el rol de administrador." };
     }
-    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
+    // Roles de empresa nunca son clínicos (la base lo exige: miembros_empresa_sin_clinico)
+    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: esRolEmpresa(rol) ? false : accesoClinico }).eq("id", miembroId);
     if (error) throw error;
     invalidarEmpresas();
     invalidarSesion();

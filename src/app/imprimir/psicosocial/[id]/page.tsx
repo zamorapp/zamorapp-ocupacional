@@ -6,6 +6,7 @@ import {
   APARTADOS, METODO_PSICOSOCIAL, NIVELES, ROLES_PSICOSOCIAL, codigoLegible, ordenarPorRojo, porcentaje, prioridadDimension, rango, type Dimension,
 } from "@/lib/psicosocial";
 import { codigosPsicosociales, obtenerPsicosocial, obtenerPsicosocialEmpresa, resultadosPsicosociales } from "@/lib/psicosocial-datos";
+import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { documentoBase } from "../../base";
@@ -57,6 +58,8 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
   const empresaRol = esRolEmpresa(sesion.rol);
   const ev = empresaRol ? await obtenerPsicosocialEmpresa(id) : await obtenerPsicosocial(id);
   if (!ev || (!sesion.orgId && !sesion.demo)) notFound();
+  // RR. HH. sin el permiso «Descargar documentos» no abre informes (Usuarios y roles)
+  if (!puedePortal(sesion, "descargas")) notFound();
   const servicio = sesion.demo || (!!sesion.rol && ROLES_PSICOSOCIAL.includes(sesion.rol));
 
   if (hoja === "codigos") {

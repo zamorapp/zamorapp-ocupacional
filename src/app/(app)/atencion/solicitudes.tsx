@@ -157,6 +157,7 @@ function Solicitud({ g, contactos, servicio, url }: { g: Grupo; contactos: Recor
         <div className="min-w-48 flex-1">
           <div className="font-medium">
             {nombres.length === 1 ? nombres[0] : `${nombres.length} trabajadores`} <span className="font-normal text-muted-foreground">· {c.empresa}</span>
+            {c.orden && <a href={`/imprimir/orden/${c.orden.id}`} className="ml-2 rounded-full border border-primary/40 px-2 py-0.5 font-mono text-xs font-medium text-primary hover:bg-primary/10" title="Orden de evaluación de RR. HH.">Orden {String(c.orden.numero).padStart(5, "0")}</a>}
             {nombres.length > 1 && (
               <button type="button" onClick={() => setVerTodos((v) => !v)} className="ml-1 inline-flex items-center text-xs font-normal text-primary hover:underline">
                 {verTodos ? "ocultar" : "ver"} <ChevronDown className={cn("size-3 transition", verTodos && "rotate-180")} />
