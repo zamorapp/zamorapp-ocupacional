@@ -2,6 +2,7 @@
 // «largo» es el peor caso realista: nombres, textos y listas largas, para atrapar documentos que se pasan
 // de hoja. Solo los usa /imprimir/prueba, que no existe fuera de la prueba (ZAMORAPP_PRUEBA_IMPRESION=1).
 import type { DatosDocumento } from "@/lib/documentos";
+import { ARTICULACIONES } from "@/lib/mediciones";
 
 const logo = (texto: string, color: string) =>
   `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="90"><rect width="240" height="90" rx="12" fill="${color}"/><text x="120" y="56" font-size="28" text-anchor="middle" fill="#fff" font-family="sans-serif">${texto}</text></svg>`).toString("base64")}`;
@@ -31,7 +32,17 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same" | "particula
       signos: { ta: "120/80", fc: "72", fr: "16", temp: "36,5", sat: "98", peso: "78", talla: "175" },
       examenFuncional: Array.from({ length: largo ? 14 : 4 }, (_, i) => ({ clave: `f${i}`, nombre: `Sistema ${i + 1}`, valor: texto("Sin alteraciones.", 2), normal: "Normal" })),
       examenFisico: Array.from({ length: largo ? 16 : 5 }, (_, i) => ({ clave: `x${i}`, nombre: `Región ${i + 1}`, valor: texto("Dentro de límites normales.", 2), normal: "Normal" })),
-      paraclinicos: Array.from({ length: largo ? 18 : 4 }, (_, i) => ({ id: `p${i}`, nombre: `Examen de laboratorio ${i + 1}`, grupo: "Hematología", resultado: i % 3 ? "Normal" : "13,5 g/dL", estado: "normal" as const, unidad: "g/dL", referencia: "12-16" })),
+      paraclinicos: [
+        ...Array.from({ length: largo ? 18 : 4 }, (_, i) => ({ id: `p${i}`, nombre: `Examen de laboratorio ${i + 1}`, grupo: "Hematología", resultado: i % 3 ? "Normal" : "13,5 g/dL", estado: "normal" as const, unidad: "g/dL", referencia: "12-16" })),
+        // Goniometría y espirometría con valores (opcionales): el informe trae su tabla de detalle
+        { id: "libre-espirometria", nombre: "Espirometría", grupo: "Estudios funcionales", resultado: "Patrón obstructivo leve. FVC 4,1 L (96 %) · FEV1 2,9 L (82 %) · FEV1/FVC 69 %.", estado: "fuera" as const, manual: true,
+          medicion: { tipo: "espirometria" as const, valores: { fvc: 4.1, fvcPct: 96, fev1: 2.9, fev1Pct: 82, relacion: 69, pef: 7.8 }, nota: "Buena colaboración." } },
+        { id: "libre-goniometria", nombre: "Goniometría", grupo: "Estudios funcionales", resultado: "Limitación leve: hombro der. abducción 150° de 180°.", estado: "fuera" as const, manual: true,
+          medicion: { tipo: "goniometria" as const, filas: [
+            { clave: "hombro.abd", lado: "D" as const, grados: 150, normal: 180 }, { clave: "hombro.abd", lado: "I" as const, grados: 180, normal: 180 },
+            ...(largo ? ARTICULACIONES.flatMap((a) => a.movimientos.flatMap((mv) => (mv.lados ? (["D", "I"] as const) : (["U"] as const)).map((lado) => ({ clave: mv.clave, lado, grados: mv.deficit ? 0 : mv.normal, normal: mv.normal })))).filter((f) => f.clave !== "hombro.abd") : []),
+          ], nota: largo ? repetir("Dolor al final del arco en el hombro derecho.", 4) : "" } },
+      ],
       diagnosticos: Array.from({ length: largo ? 6 : 2 }, (_, i) => ({ cie10: `M54.${i}`, descripcion: texto("Lumbalgia mecánica no especificada", largo ? 2 : 1), sistema: "Osteomuscular", origen: i ? "comun" as const : "ocupacional" as const, principal: i === 0 })),
       aptitud: { clasificacion: "elegible_con_restricciones", observacion: texto("Apto con restricciones temporales.", 3), limitaciones: Array.from({ length: largo ? 6 : 2 }, (_, i) => `Evitar levantar cargas mayores de ${10 + i * 5} kg`), vigenteHasta: "2027-10-28" },
       tratamiento: Array.from({ length: largo ? 8 : 2 }, (_, i) => ({ medicina: `Medicamento de prueba ${i + 1}`, concentracion: "500 mg", presentacion: "Tabletas", dosis: "1 tableta", frecuencia: "cada 8 horas", duracion: "7 días", via: "Oral", observacion: texto("Tomar después de las comidas.", 2), notaFarmacia: "" })),

@@ -15,6 +15,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteEnEspera } from "@/lib/citas";
 import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { normalizarMedicion } from "@/lib/mediciones";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -362,7 +363,8 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       signos_vitales: d.signos,
       examen_funcional: d.examenFuncional,
       examen_fisico: d.examenFisico,
-      paraclinicos: d.paraclinicos,
+      // Los valores de goniometría o espirometría se limpian aquí (la base guarda la lista tal cual)
+      paraclinicos: d.paraclinicos.map(({ medicion, ...p }) => { const m = normalizarMedicion(medicion); return m ? { ...p, medicion: m } : p; }),
       tratamiento: d.tratamiento.filter((m) => m.medicina),
       indicaciones: d.indicaciones || null,
       interconsultas: d.interconsultas.filter((i) => i.especialidad),
@@ -449,7 +451,7 @@ export async function corregirConsulta(id: string, motivo: string): Promise<Resu
 // guardar_resultados solo toca resultado, estado y unidad/referencia; con la consulta firmada hay que corregirla.
 export async function guardarResultados(id: string, paraclinicos: DatosConsulta["paraclinicos"]): Promise<Resultado> {
   const supabase = await crearClienteServidor();
-  const resultados = paraclinicos.map((p) => ({ id: p.id, resultado: p.resultado, estado: p.estado ?? "", manual: Boolean(p.manual), unidad: p.unidad ?? "", referencia: p.referencia ?? "" }));
+  const resultados = paraclinicos.map((p) => ({ id: p.id, resultado: p.resultado, estado: p.estado ?? "", manual: Boolean(p.manual), unidad: p.unidad ?? "", referencia: p.referencia ?? "", medicion: normalizarMedicion(p.medicion) ?? null }));
   const { error } = await supabase.rpc("guardar_resultados", { p_id: id, p_resultados: resultados });
   if (error) return { ok: false, mensaje: error.message };
   olvidar("");

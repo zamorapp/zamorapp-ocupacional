@@ -375,7 +375,9 @@ jobs:
           }
 
           # 1) Versión anterior (lo que Cesar ya tiene), con sus datos. Si no arranca no importa: es la vieja.
-          $previa = gh run list --repo $env:GITHUB_REPOSITORY --workflow escritorio.yml --status success --limit 10 --json databaseId --jq ".[].databaseId" 2>$null |
+          # Solo de main: una corrida verde de otra rama sin fusionar trae migraciones que la nube de prueba de esta
+          # rama no tiene, y la copia inicial se traba (07-nov: «HTTP 400» en lista_items, 24 de 43 tablas).
+          $previa = gh run list --repo $env:GITHUB_REPOSITORY --workflow escritorio.yml --branch main --status success --limit 10 --json databaseId --jq ".[].databaseId" 2>$null |
             Where-Object { $_ -ne "$env:GITHUB_RUN_ID" } | Select-Object -First 1
           if ($previa) {
             gh run download $previa --repo $env:GITHUB_REPOSITORY --name zamorapp-instalador-windows --dir previa 2>$null

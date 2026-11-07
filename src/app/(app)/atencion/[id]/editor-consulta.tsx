@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
+import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Ruler, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -36,6 +36,7 @@ import { MenuImprimir } from "@/components/app/menu-imprimir";
 import { enlaceCorreo, enlaceWhatsApp, llenar } from "@/lib/mensajes";
 import type { Adjunto } from "@/lib/adjuntos-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
+import { examenParaAgregar, NOMBRE_MEDICION, tipoMedicion } from "@/lib/mediciones";
 import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { separarPorLaboratorio } from "@/lib/estudios";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
@@ -53,6 +54,7 @@ import { EliminarPapelera } from "@/components/app/eliminar-papelera";
 import { rutaConDeshacer } from "@/components/app/franja-deshacer";
 import { TextoDictado } from "./dictado";
 import { MotivoReposo } from "./motivo-reposo";
+import { idPaciente } from "@/lib/gdt";
 import { Escriba } from "./escriba";
 import { Evolucion } from "./evolucion";
 import { RegistrarAccidente } from "./registrar-accidente";
@@ -80,7 +82,7 @@ const APTITUD_LEGIBLE: Record<Aptitud, string> = {
 
 type Props = {
   inicial: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; nombres?: string; apellidos?: string; nacimiento?: string | null; cedula: string; empresaId: string | null; edad: number | null; sexo: string | null; empresa: string; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   // Firmada y emitida en el SAME (consulta importada): hora de esa firma; null = firmada aquí o sin firmar
   firmadaEnSame?: string | null;
@@ -281,6 +283,11 @@ function normalDe(perfiles: Item[], filas: FilaExamen[], aplicar: (f: FilaExamen
   if (!filas.some((f) => f.normal.trim() && !f.valor.trim())) return undefined;
   return () => aplicar(filas.map((f) => (f.valor.trim() ? f : { ...f, valor: f.normal })));
 }
+
+const numeroSigno = (v?: string) => {
+  const n = Number(String(v ?? "").trim().replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
 
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
@@ -672,7 +679,22 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
       modo={modoParaclinicos}
       catalogo={listas.paraclinico}
       sexo={trabajador.sexo}
-      paciente={{ cedula: trabajador.cedula, nombre: trabajador.nombre }}
+      paciente={{
+        cedula: trabajador.cedula,
+        nombre: trabajador.nombre,
+        // Para abrir winspiroPRO con este paciente (espirometría desde el escritorio)
+        winspiro: !idPaciente(trabajador.cedula) ? null : {
+          id: idPaciente(trabajador.cedula),
+          apellidos: trabajador.apellidos ?? "",
+          nombres: trabajador.nombres || trabajador.nombre,
+          nacimiento: trabajador.nacimiento ?? null,
+          sexo: trabajador.sexo,
+          tallaCm: ((t) => (t !== null && t < 3 ? t * 100 : t))(numeroSigno(d.signos.talla)), // talla en m o en cm
+          pesoKg: numeroSigno(d.signos.peso),
+          fecha: d.fecha,
+        },
+        completar: (p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); },
+      }}
       archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
       asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}
       resultados={modoParaclinicos === "resultados" ? { sinGuardar: resultadosSinGuardar, guardando, guardar: guardarSoloResultados } : undefined}
@@ -1182,6 +1204,28 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 </div>
               );
             })()}
+            {modoParaclinicos === "editar" && (
+              // Goniometría y espirometría: opcionales (Cesar, 06-nov). Un toque las pide; los valores se llenan abajo
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-2.5">
+                <Ruler className="size-4 shrink-0 text-primary" />
+                <span className="mr-1 text-sm font-medium">Con valores, si las haces:</span>
+                {(["espirometria", "goniometria"] as const).map((t) => {
+                  const pedido = d.paraclinicos.find((p) => tipoMedicion(p, listas.paraclinico) === t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={Boolean(pedido)}
+                      onClick={() => set("paraclinicos", pedido ? d.paraclinicos.filter((p) => p !== pedido) : [...d.paraclinicos, examenParaAgregar(t, listas.paraclinico)])}
+                      className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition", pedido ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/50")}
+                    >
+                      {pedido ? <Check className="size-3" /> : <Plus className="size-3" />} {NOMBRE_MEDICION[t]}
+                    </button>
+                  );
+                })}
+                <span className="basis-full text-xs text-muted-foreground sm:basis-auto">Opcionales: si no las pides, no hacen falta.</span>
+              </div>
+            )}
             {modoParaclinicos === "editar" && (
             <details open={d.paraclinicos.length === 0} className="group rounded-xl border bg-card">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 font-semibold">

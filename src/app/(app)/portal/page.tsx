@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Brain, CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
+import { Brain, CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, ShieldAlert, Stethoscope, UserPlus, Users } from "lucide-react";
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
 import { Pasos, pasosCita, pasosSolicitud } from "@/components/app/pasos";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Propuestas, type GrupoPropuesta } from "./propuestas";
 import { Bienvenida } from "@/components/app/bienvenida-portal";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { listarPsicosocialesEmpresa } from "@/lib/psicosocial-datos";
+import { listarRiesgosEmpresa } from "@/lib/riesgos-datos";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
 
 export default async function Portal() {
   const hoy = hoyCaracas();
-  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes, psicosociales] = await Promise.all([
+  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes, psicosociales, mapasRiesgo] = await Promise.all([
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),
     listarTrabajadores(),
@@ -50,6 +51,7 @@ export default async function Portal() {
     obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
     listarSolicitudes({ limite: 20 }),
     listarPsicosocialesEmpresa(),
+    listarRiesgosEmpresa().catch(() => []),
   ]);
   // Otra hora propuesta por el servicio: una tarjeta para responder (varios trabajadores de la misma propuesta juntos)
   const grupos = new Map<string, GrupoPropuesta>();
@@ -186,6 +188,24 @@ export default async function Portal() {
               ))}
             </ul>
             <p className="px-6 pt-2 text-[11px] text-muted-foreground">Resultados agregados del cuestionario anónimo: nunca respuestas de una persona.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {mapasRiesgo.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-5 text-primary" /> Identificación de riesgos y mapa de riesgos</CardTitle></CardHeader>
+          <CardContent className="px-0">
+            <ul className="divide-y">
+              {mapasRiesgo.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
+                  <span className="w-24 font-mono text-muted-foreground">{fecha(p.cerradaEn ?? p.fecha)}</span>
+                  <span className="min-w-0 flex-1 font-medium">{p.titulo}<span className="block text-xs font-normal text-muted-foreground">{p.empresa}</span></span>
+                  <Button variant="outline" size="sm" asChild><a href={`/imprimir/riesgos/${p.id}`}><Download /> Informe y mapa</a></Button>
+                </li>
+              ))}
+            </ul>
+            <p className="px-6 pt-2 text-[11px] text-muted-foreground">Riesgos de cada puesto y su mapa, para publicarlos en el sitio de trabajo (LOPCYMAT art. 56.3).</p>
           </CardContent>
         </Card>
       )}
