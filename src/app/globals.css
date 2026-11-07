@@ -112,6 +112,7 @@
   --chart-3: oklch(0.75 0.15 75);
   --chart-4: oklch(0.58 0.13 245);
   --chart-5: oklch(0.58 0.21 27);
+  --enlace: oklch(0.55 0.16 300); /* grupo «Enlaces» del menú de botones */
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.21 0.02 200);
   --sidebar-primary: oklch(0.48 0.1 186);
@@ -154,6 +155,7 @@
   --chart-3: oklch(0.8 0.14 80);
   --chart-4: oklch(0.7 0.12 245);
   --chart-5: oklch(0.68 0.19 25);
+  --enlace: oklch(0.72 0.13 300);
   --sidebar: oklch(0.19 0.013 205);
   --sidebar-foreground: oklch(0.96 0.005 195);
   --sidebar-primary: oklch(0.72 0.11 186);

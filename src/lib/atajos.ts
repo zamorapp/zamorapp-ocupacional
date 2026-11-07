@@ -126,6 +126,8 @@ const FUNCIONES: Atajo[] = [
   { href: "/atencion", titulo: "Nueva consulta", donde: "Atención médica", icono: ClipboardPlus, palabras: "atender consultar evaluar examinar registrar consulta pre empleo preempleo periodico egreso reintegro", clinico: true },
   { href: "/atencion", titulo: "Nueva cita", donde: "Atención médica", icono: ClipboardPlus, palabras: "agendar citar programar cita reservar turno", clinico: true },
   { href: "/atencion?empresas=todas#consultas", titulo: "Últimos atendidos", donde: "Atención médica · todas las empresas", icono: History, palabras: "ultimas consultas recientes atendidos hoy ayer semana historial pacientes vistos", clinico: true },
+  { href: "/atencion?enlace=nuevo", titulo: "Enlace para paciente nuevo", donde: "Atención médica", icono: ClipboardPlus, palabras: "enlace link whatsapp paciente registro pedir consulta llenar datos celular", clinico: true },
+  { href: "/configuracion/usuarios#invitar", titulo: "Invitar a RR. HH.", donde: "Configuración › Usuarios y roles", icono: UserPlus, palabras: "enlace link invitacion portal empresa recursos humanos rrhh whatsapp", roles: ADMIN },
   { href: "/pacientes", titulo: "Registrar trabajador", donde: "Pacientes", icono: UserPlus, palabras: "nuevo paciente agregar crear ficha alta trabajador ingresar" },
   { href: "/facturacion/nuevo", titulo: "Nueva nota de cobro", donde: "Facturación", icono: Receipt, palabras: "facturar cobrar emitir factura nueva recibo" },
   { href: "/accidentes", titulo: "Reportar accidente", donde: "Accidentes", icono: HardHat, palabras: "nuevo accidente incidente lesion declarar notificar inpsasel enfermedad ocupacional investigacion" },
