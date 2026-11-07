@@ -41,6 +41,7 @@ import { perfilesSugeridos } from "@/lib/perfiles-paraclinicos";
 import { separarPorLaboratorio } from "@/lib/estudios";
 import { ParaclinicosDigitales, type ModoParaclinicos } from "./paraclinicos";
 import { Antecedentes } from "./antecedentes";
+import { Habitos } from "./habitos";
 import { aplicarPerfilExamen, aplicarPerfilParaclinicos, examenesDePerfil, indicacionPreestablecida } from "./perfiles";
 import { completarPerfil, tieneOpciones, tramosDePerfil } from "@/lib/perfil-opciones";
 import { BuscadorDiagnostico, BuscadorMedicina } from "./buscador-diagnostico";
@@ -1135,15 +1136,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             <Seccion titulo="Antecedentes médicos">
               <Antecedentes items={listas.antecedente_medico} valor={d.antecedentes} onChange={(v) => set("antecedentes", v)} />
             </Seccion>
-            <Seccion titulo="Hábitos">
-              <div className="space-y-2">
-                {d.habitos.map((h, i) => (
-                  <div key={h.clave} className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-3">
-                    <span className="text-sm">{h.nombre}</span>
-                    <Input value={h.valor} className="h-8" placeholder="Niega" onChange={(e) => set("habitos", d.habitos.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)))} />
-                  </div>
-                ))}
-              </div>
+            <Seccion titulo="Hábitos psicobiológicos">
+              <Habitos valor={d.habitos} onChange={(v) => set("habitos", v)} />
             </Seccion>
           </TabsContent>
 

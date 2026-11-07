@@ -1,5 +1,6 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import { diasSolapados, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type Origen } from "@/lib/consultas-tipos";
+import { resumenHabitos } from "@/lib/habitos";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { textoLateralidad } from "@/lib/lateralidad";
 import { CERTIFICACION_TRABAJADOR } from "@/lib/mensajes";
@@ -18,7 +19,7 @@ const TIPO: Record<DatosConsulta["tipo"], string> = { primera: "Primera", sucesi
 
 // Antecedentes y hábitos como texto, para no repetirlos en cada consulta si no cambiaron
 const huellaAntecedentes = (c: DatosConsulta) =>
-  JSON.stringify([resumenAntecedentes(c.antecedentes), c.habitos.filter((h) => h.valor.trim()).map((h) => [h.nombre, h.valor.trim()])]);
+  JSON.stringify([resumenAntecedentes(c.antecedentes), resumenHabitos(c.habitos)]);
 
 // Diagnósticos de toda la historia agrupados por CIE-10 (o por texto si no tiene código)
 function agruparDiagnosticos(consultas: ConsultaHistoria[]) {
@@ -78,7 +79,7 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
   const discapacidad = consultas.filter((x) => x.datos.potencialDiscapacidad);
   const conSignos = consultas.filter(({ datos: { signos: s } }) => s.ta || s.fc || s.peso);
   const antUltimos = resumenAntecedentes(ultima.antecedentes);
-  const habitos = ultima.habitos.filter((h) => h.valor.trim());
+  const habitos = resumenHabitos(ultima.habitos);
 
   return (
     <Hoja className="print:block">
@@ -154,7 +155,7 @@ export function HistoriaClinica({ d, consultas, ficha, empleos, emite, total }: 
           <dl className="space-y-1 text-[11px] [&>div]:flex [&>div]:gap-3 [&_dt]:w-40 [&_dt]:shrink-0 [&_dt]:font-semibold [&_dt]:text-doc-tenue">
             <div><dt>Antecedentes personales</dt><dd>{antUltimos.personales}</dd></div>
             <div><dt>Antecedentes familiares</dt><dd>{antUltimos.familiares}</dd></div>
-            {habitos.length > 0 && <div><dt>Hábitos</dt><dd>{habitos.map((h) => `${h.nombre}: ${h.valor}`).join(" · ")}</dd></div>}
+            {habitos && <div><dt>Hábitos psicobiológicos</dt><dd>{habitos}</dd></div>}
             {vigente?.clasificacion && (
               <div><dt>{palabra === "Elegible" ? "Elegibilidad" : "Aptitud"} actual</dt><dd><b className={COLOR_APTITUD[vigente.clasificacion]}>{corta(vigente.clasificacion)}</b>{vigente.vigenteHasta && ` · vigente hasta el ${fechaCorta(vigente.vigenteHasta)}`}{vigente.limitaciones.length > 0 && !d.sin.includes("limitaciones") && ` · Restricciones: ${vigente.limitaciones.join("; ")}`}</dd></div>
             )}

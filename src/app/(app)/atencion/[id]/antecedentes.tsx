@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Antecedente } from "@/lib/consultas-tipos";
+import { esSinAntecedentes, SIN_ANTECEDENTES, type Antecedente } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { ahora } from "@/lib/fecha";
@@ -40,30 +40,48 @@ export function Antecedentes({ items, valor, onChange }: Props) {
   const otrosFamiliares = marcadosFamiliares.filter((a) => a.id.startsWith("otro-"));
   const [refiereFamiliares, setRefiereFamiliares] = useState(marcadosFamiliares.length > 0);
 
-  const marcar = (item: { id: string; nombre: string; grupo: string | null }, si: boolean) =>
-    onChange(si ? [...valor, { id: item.id, nombre: item.nombre, grupo: item.grupo, observacion: "" }] : valor.filter((x) => x.id !== item.id));
+  const ninguno = valor.some(esSinAntecedentes);
+  // Marcar cualquier antecedente quita «No refiere…»; marcar «No refiere…» quita los demás
+  const marcar = (item: { id: string; nombre: string; grupo: string | null }, si: boolean) => {
+    const resto = valor.filter((x) => !esSinAntecedentes(x));
+    onChange(si ? [...resto, { id: item.id, nombre: item.nombre, grupo: item.grupo, observacion: "" }] : resto.filter((x) => x.id !== item.id));
+  };
   const observar = (id: string, observacion: string) => onChange(valor.map((x) => (x.id === id ? { ...x, observacion } : x)));
+  const marcarNinguno = (si: boolean) => {
+    if (si) setRefiereFamiliares(false);
+    onChange(si ? [{ ...SIN_ANTECEDENTES }] : []);
+  };
 
-  const sinPersonales = !valor.some((a) => !esFamiliar(a.grupo));
+  const sinPersonales = !valor.some((a) => !esFamiliar(a.grupo) && !esSinAntecedentes(a));
 
   return (
     <div className="space-y-5">
-      <div className="space-y-2">
+      <label
+        className={cn(
+          "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+          ninguno ? "border-ok/50 bg-ok/10 text-ok-texto" : "border-dashed text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <input type="checkbox" checked={ninguno} onChange={(e) => marcarNinguno(e.target.checked)} className="size-4 accent-[var(--primary)]" />
+        No refiere antecedentes de importancia
+      </label>
+      <div className={cn("space-y-2", ninguno && "opacity-50")}>
         <div className="text-sm font-medium">Personales</div>
         {personales.map((a) => (
           <Fila key={a.id} item={a} marcado={valor.find((x) => x.id === a.id)} onMarcar={(si) => marcar(a, si)} onObservacion={(v) => observar(a.id, v)} placeholder="Desde cuándo, tratamiento…" />
         ))}
-        {sinPersonales && <p className="text-xs text-muted-foreground">Sin marcas: «No refiere antecedentes personales».</p>}
+        {sinPersonales && !ninguno && <p className="text-xs text-muted-foreground">Sin marcas: «No refiere antecedentes personales».</p>}
       </div>
 
-      <div className={cn("rounded-lg border p-3", refiereFamiliares && "border-primary/40 bg-primary/5")}>
+      <div className={cn("rounded-lg border p-3", refiereFamiliares && "border-primary/40 bg-primary/5", ninguno && "opacity-50")}>
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
             checked={refiereFamiliares}
             onChange={(e) => {
               setRefiereFamiliares(e.target.checked);
-              if (!e.target.checked) onChange(valor.filter((x) => !esFamiliar(x.grupo)));
+              if (e.target.checked) onChange(valor.filter((x) => !esSinAntecedentes(x)));
+              else onChange(valor.filter((x) => !esFamiliar(x.grupo)));
             }}
             className="size-4 accent-[var(--primary)]"
           />
