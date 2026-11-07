@@ -73,4 +73,4 @@ export const SECCIONES_EMPRESA: Seccion[] = [
 ];
 
 // Rutas que puede abrir un usuario de empresa
-export const RUTAS_EMPRESA = ["/portal", "/pacientes", "/accidentes", "/ayuda"];
+export const RUTAS_EMPRESA = ["/portal", "/pacientes", "/accidentes", "/ayuda", "/menu"];

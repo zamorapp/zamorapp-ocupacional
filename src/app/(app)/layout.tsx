@@ -17,6 +17,7 @@ import { ETIQUETA_ROL, obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { resumenTiempos } from "@/lib/tiempos";
 import { ETIQUETA_PARTICULAR } from "@/lib/particulares";
+import { scriptVistaMenu } from "@/lib/vista-menu";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const [sesion, empresas, activa, cabeceras] = await Promise.all([obtenerSesion(), listarEmpresas(true), empresaActivaId(), headers()]);
@@ -46,7 +47,9 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-sidebar lg:block">
+      {/* Barra lateral o vista de botones (/menu): se decide antes de pintar, sin parpadeo */}
+      <script dangerouslySetInnerHTML={{ __html: scriptVistaMenu(sesion.vistaMenu) }} />
+      <aside data-barra-lateral className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-sidebar lg:block">
         <BarraLateral organizacion={sesion.organizacion} titular={sesion.titular} portal={portal} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">

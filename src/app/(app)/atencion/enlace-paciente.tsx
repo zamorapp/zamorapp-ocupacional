@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, Ban, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, de
 type Opcion = { id: string; nombre: string };
 const PARTICULAR = "particular";
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+// «06/11 3:45 p. m.» en hora de Caracas, para el seguimiento del enlace
+const momento = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
 const telefonoVisible = (t: string) => (t.startsWith("58") && t.length === 12 ? `0${t.slice(2, 5)}-${t.slice(5)}` : `+${t}`);
 
 // ordenes: lo que sale del perfil, ya separado por clase de estudio (laboratorio, rayos X, eco…)
@@ -39,17 +41,22 @@ function FilaDoc({ marcado, alCambiar, titulo, children }: { marcado: boolean; a
 }
 
 // ─── Botón «Enlace al paciente»: arma el enlace y lo manda por WhatsApp (a un número o eligiendo el contacto) ───
-export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = [], puedeFirmar = false }: {
-  habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; motivos?: Opcion[]; puedeFirmar?: boolean;
+// para: trabajador ya registrado (botón «Enviar enlace» de su ficha). No escribe sus datos (salvo lo que le falte a la ficha):
+// los documentos salen con los de su ficha y el mismo enlace le sirve para enviar resultados (20261030918000).
+export type ParaTrabajador = { id: string; nombre: string; telefono: string | null; empresaId: string | null; empresa: string };
+export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = [], puedeFirmar = false, para }: {
+  habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; motivos?: Opcion[]; puedeFirmar?: boolean; para?: ParaTrabajador;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const [nombre, setNombre] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [empresa, setEmpresa] = useState("");
+  const [nombre, setNombre] = useState(para?.nombre ?? "");
+  const [telefono, setTelefono] = useState(para?.telefono ?? "");
+  const [empresa, setEmpresa] = useState(para?.empresaId ?? "");
   // Documentos que descarga al terminar su registro
   const [docs, setDocs] = useState(SIN_DOCS);
   const [perfil, setPerfil] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Exámenes del perfil desmarcados para este paciente (personalizar la orden sin tocar el perfil)
+  const [sin, setSin] = useState<string[]>([]);
   const [diasTa, setDiasTa] = useState<7 | 14>(7);
   const [dieta, setDieta] = useState("general");
   // Temas de bienestar que van en la hoja (al menos uno)
@@ -61,7 +68,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const marcados = Object.values(docs).filter(Boolean).length + (docs.orden && elegido ? Math.max(elegido.ordenes.length - 1, 0) : 0);
   const previa = () => {
     const q = new URLSearchParams({ nombre, ...(empresa ? { empresa } : {}),
-      ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
+      ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}), ...(sin.length ? { sin: sin.join("|") } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
       ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1", tema: temas.join(",") } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}), ...(conversadas ? { conversadas: "1" } : {}) });
     return `/imprimir/registro-previa?${q}`;
   };
@@ -72,12 +79,12 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const lista = empresas;
   const puedeCompartir = typeof navigator !== "undefined" && "share" in navigator;
 
-  const limpiar = () => { setR(null); setNombre(""); setTelefono(""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setMotivo(""); setTemas(["pausas"]); };
-  const cerrar = (v: boolean) => { setAbierto(v); if (!v) { limpiar(); setEmpresa(""); } };
+  const limpiar = () => { setR(null); setNombre(para?.nombre ?? ""); setTelefono(para?.telefono ?? ""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setSin([]); setMotivo(""); setTemas(["pausas"]); };
+  const cerrar = (v: boolean) => { setAbierto(v); if (!v) { limpiar(); setEmpresa(para?.empresaId ?? ""); } };
   const crear = () => {
     if (docs.orden && !perfil) return setR({ ok: false, mensaje: "Elige el perfil de exámenes de la orden." });
     const documentos: EleccionRegistro = {
-      orden: docs.orden ? { perfilId: perfil, motivoId: motivo || null } : null,
+      orden: docs.orden ? { perfilId: perfil, motivoId: motivo || null, sin } : null,
       controlTa: docs.ta ? diasTa : null,
       dieta: docs.dieta ? dieta : null,
       bienestar: docs.bienestar,
@@ -85,19 +92,21 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
       firma: puedeFirmar && firma,
       conversadas,
     };
-    iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos })));
+    iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos, trabajadorId: para?.id ?? null })));
   };
   const copiar = async (texto: string) => { try { await navigator.clipboard.writeText(texto); setCopiado(true); } catch { setCopiado(false); } };
 
   return (
     <Dialog open={abierto} onOpenChange={cerrar}>
       <DialogTrigger asChild>
-        <Button variant="outline" disabled={!habilitado}><Link2 /> Enlace al paciente</Button>
+        <Button variant="outline" disabled={!habilitado}><Link2 /> {para ? "Enviar enlace" : "Enlace al paciente"}</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Enlace para que el paciente pida su consulta</DialogTitle>
-          <DialogDescription>El paciente llena sus datos desde su teléfono y te llega a «Por revisar». Nada entra a su ficha hasta que lo aceptes. Vale {DIAS_ENLACE_PACIENTE} días y sirve una sola vez.</DialogDescription>
+          <DialogTitle>{para ? `Enlace para ${para.nombre}` : "Enlace para que el paciente pida su consulta"}</DialogTitle>
+          <DialogDescription>{para
+            ? <>No tiene que escribir sus datos: los documentos salen llenos con su ficha (si le falta algo, el enlace le pide solo eso). Con el mismo enlace te envía sus resultados. Vale {DIAS_ENLACE_PACIENTE} días.</>
+            : <>El paciente llena sus datos desde su teléfono y te llega a «Por revisar». Nada entra a su ficha hasta que lo aceptes. Vale {DIAS_ENLACE_PACIENTE} días y sirve una sola vez.</>}</DialogDescription>
         </DialogHeader>
         {r?.ok ? (
           <div className="space-y-3">
@@ -113,16 +122,20 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
           </div>
         ) : (
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); crear(); }}>
-            <div>
-              <Label htmlFor="ep-nombre" className="mb-1.5">Nombre del paciente (opcional)</Label>
-              <Input id="ep-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} placeholder="Para saludarlo" className="h-10" />
-            </div>
+            {para ? (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm"><b>{para.nombre}</b>{para.empresa && <span className="text-muted-foreground"> · {para.empresa}</span>}</p>
+            ) : (
+              <div>
+                <Label htmlFor="ep-nombre" className="mb-1.5">Nombre del paciente (opcional)</Label>
+                <Input id="ep-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} placeholder="Para saludarlo" className="h-10" />
+              </div>
+            )}
             <div>
               <Label htmlFor="ep-telefono" className="mb-1.5">Celular (opcional)</Label>
               <Input id="ep-telefono" value={telefono} onChange={(e) => setTelefono(e.target.value)} inputMode="tel" placeholder="0414-1234567" maxLength={20} className="h-10" />
               <p className="mt-1 text-xs text-muted-foreground">Vacío: WhatsApp te deja elegir el contacto.</p>
             </div>
-            {lista.length > 0 && (
+            {!para && lista.length > 0 && (
               <div>
                 <Label htmlFor="ep-empresa" className="mb-1.5">Empresa (opcional)</Label>
                 <select id="ep-empresa" value={empresa} onChange={(e) => setEmpresa(e.target.value)} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm">
@@ -137,16 +150,35 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
               <FilaDoc marcado={docs.orden} alCambiar={marcar("orden")} titulo={DOCS_REGISTRO.orden.nombre}>
                 {perfiles.length ? (
                   <>
-                    <select value={perfil} onChange={(e) => setPerfil(e.target.value)} aria-label="Perfil de exámenes" className={cn(campo, !perfil && "border-aviso")}>
+                    <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setSin([]); }} aria-label="Perfil de exámenes" className={cn(campo, !perfil && "border-aviso")}>
                       <option value="">Perfil de exámenes…</option>
                       {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.examenes})</option>)}
                     </select>
                     {elegido && (
-                      <div className="space-y-1.5 rounded-md bg-background/70 p-2 text-xs" aria-live="polite">
-                        <p className="font-medium">{elegido.ordenes.length === 1 ? "Sale 1 orden:" : `Salen ${elegido.ordenes.length} órdenes separadas:`}</p>
+                      <div className="space-y-2 rounded-md bg-background/70 p-2 text-xs" aria-live="polite">
+                        <p className="font-medium">Toca un examen para quitarlo solo de esta orden (el perfil no cambia):</p>
                         {elegido.ordenes.map((o) => (
-                          <p key={o.nombre}><b>{o.nombre}</b> <span className="text-muted-foreground">({o.examenes.length}): {o.examenes.join(", ")}</span></p>
+                          <div key={o.nombre} className="space-y-1">
+                            <p className="font-medium text-muted-foreground">{o.nombre}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {o.examenes.map((x) => {
+                                const pedido = !sin.includes(x);
+                                return (
+                                  <button key={x} type="button" role="checkbox" aria-checked={pedido}
+                                    onClick={() => setSin((v) => (pedido ? [...v, x] : v.filter((y) => y !== x)))}
+                                    className={cn("inline-flex min-h-10 items-center gap-1 rounded-full border px-3 sm:min-h-8 sm:px-2.5",
+                                      pedido ? "border-primary bg-primary/10 text-foreground" : "bg-background text-muted-foreground line-through")}>
+                                    {pedido && <Check className="size-3" />} {x}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {o.examenes.every((x) => sin.includes(x)) && (
+                              <p className="flex items-center gap-1 text-aviso-texto"><AlertTriangle className="size-3.5 shrink-0" /> La {o.nombre.charAt(0).toLowerCase() + o.nombre.slice(1)} quedó sin exámenes: no saldrá.</p>
+                            )}
+                          </div>
                         ))}
+                        {sin.length > 0 && <p className="text-muted-foreground">Quitaste {sin.length} {sin.length === 1 ? "examen" : "exámenes"}. <button type="button" className="font-medium text-primary hover:underline" onClick={() => setSin([])}>Pedir todos</button></p>}
                       </div>
                     )}
                     {motivos.length > 0 && (
@@ -342,6 +374,8 @@ const COLOR: Record<string, string> = {
 
 function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: number }) {
   const [abierto, setAbierto] = useState(false);
+  // El aviso «Enlace abierto» / «Documentos descargados» trae aquí: la lista se abre sola
+  useEffect(() => { if (window.location.hash === "#enlaces-enviados") setAbierto(true); }, []);
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [quitados, setQuitados] = useState<SolicitudPaciente[]>([]);
@@ -391,7 +425,7 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
     if (r.ok) { setQuitados((v) => v.filter((q) => q.id !== e.id)); setOcultarDeshacer((v) => v.filter((id) => id !== e.id)); } else setError(r.mensaje);
   });
   return (
-    <div className="border-t px-5 py-2">
+    <div id="enlaces-enviados" className="scroll-mt-20 border-t px-5 py-2">
       <button type="button" onClick={() => setAbierto((v) => !v)} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
         Enlaces enviados ({lista.length}) <ChevronDown className={cn("size-3 transition", abierto && "rotate-180")} />
       </button>
@@ -404,6 +438,10 @@ function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: n
                 <span className={cn("rounded-full px-2 py-0.5 font-medium", COLOR[estado])}>{ETIQUETA[estado]}</span>
                 <span>{e.datos ? `${e.datos.nombres} ${e.datos.apellidos}` : e.nombre ?? "Sin nombre"}{e.telefono && <span className="text-muted-foreground"> · {telefonoVisible(e.telefono)}</span>}</span>
                 <span className="text-muted-foreground">· enviado {fechaCorta(e.creado)}</span>
+                {/* Seguimiento: abierto en su teléfono, datos enviados y documentos descargados */}
+                {e.abierto && <span className="inline-flex items-center whitespace-nowrap gap-1 text-muted-foreground"><Eye className="size-3" /> abierto {momento(e.abierto)}</span>}
+                {e.recibido && !e.registrado && <span className="inline-flex items-center whitespace-nowrap gap-1 text-muted-foreground"><Check className="size-3" /> datos enviados</span>}
+                {e.descargo && <span className="inline-flex items-center whitespace-nowrap gap-1 text-ok-texto"><FileDown className="size-3" /> descargó {momento(e.descargo)}</span>}
                 {(estado === "esperando" || (estado === "aceptada" && !vencidoResultados(e, ahora))) && (
                   <button type="button" disabled={ocupado} onClick={() => anular(e, estado === "aceptada")}
                     title={estado === "aceptada" ? "Ya no podrá descargar ni enviar resultados con este enlace" : "El enlace deja de servir"}
