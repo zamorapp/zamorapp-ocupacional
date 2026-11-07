@@ -599,7 +599,7 @@ export const MANUAL: TemaManual[] = [
     para: "servicio",
     resumen: "Invita a RR. HH. de cada empresa con un enlace y mándale las constancias por WhatsApp desde tu número, sin pagar el WhatsApp oficial.",
     pasos: [
-      "Empresas › en la tarjeta de la empresa (o dentro de su ficha) toca «Invitar a RR. HH.» (administrador). Toca un contacto o escribe nombre y WhatsApp, y «Crear enlace». Luego «Abrir WhatsApp y enviar»: se abre tu WhatsApp con el mensaje y el enlace ya escritos; solo toca Enviar.",
+      "Empresas › en la tarjeta de la empresa (o dentro de su ficha) toca «Invitar a RR. HH.» (administrador). Toca un contacto o escribe nombre y WhatsApp, deja marcado lo que podrá hacer en el portal (todo viene marcado) y toca «Crear enlace». Luego «Abrir WhatsApp y enviar»: se abre tu WhatsApp con el mensaje y el enlace ya escritos; solo toca Enviar.",
       "RR. HH. hace 3 pasos: toca el enlace y llena nombre, correo y contraseña; confirma en el correo que le llega; y toca «Aceptar y entrar al portal». Entra solo a su empresa y nunca ve diagnósticos. Te llega un aviso cuando entra.",
       "El enlace vale 7 días y un solo uso. Para ver quién entró, anular uno o invitar a varias empresas seguidas: Configuración › Usuarios y roles › «Invitar a RR. HH. por enlace» (ahí también eliges la empresa de una lista).",
       "En el portal, RR. HH. pide evaluaciones con fecha y hora. Si el trabajador no está en la nómina, toca «Trabajador nuevo» y escribe cédula, nombres y apellidos: queda registrado y con su solicitud.",
