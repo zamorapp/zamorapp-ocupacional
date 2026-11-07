@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Check, Copy, Link2, Loader2, MessageCircle, UserPlus } from "lucide-react";
 import { Aviso, Campo } from "@/components/app/campo";
+import { CasillasPermisos } from "@/components/app/permisos-portal";
 import { RequiereInternet, useSinInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import { crearInvitacion } from "../configuracion/acciones";
 
 type Contacto = { nombre: string; telefono: string };
@@ -40,6 +42,7 @@ function Formulario({ empresaId, contactos }: { empresaId: string; contactos: Co
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [permisos, setPermisos] = useState<PermisoPortal[] | null>(null);
   const sinInternet = useSinInternet();
 
   if (estado?.ok && estado.enlace) {
@@ -82,6 +85,11 @@ function Formulario({ empresaId, contactos }: { empresaId: string; contactos: Co
       )}
       <Campo id="nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} autoComplete="off" />
       <Campo id="telefono" etiqueta="WhatsApp" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" autoComplete="off" />
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Qué podrá hacer en el portal</p>
+        <CasillasPermisos nombre="permisos" compacto valor={permisos} onChange={setPermisos} />
+        <p className="text-xs text-muted-foreground">Siempre podrá ver a sus trabajadores y pedir informes o copias. Lo cambias después en «Usuarios y roles».</p>
+      </div>
       <Aviso resultado={estado} />
       <Button type="submit" size="lg" className="w-full" disabled={creando || sinInternet}>
         {creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace
