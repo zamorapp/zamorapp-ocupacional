@@ -108,6 +108,17 @@ export async function generarCodigos(id: string, cantidad: number): Promise<Resu
   return { ok: true, mensaje: `${data} códigos nuevos listos para repartir.` };
 }
 
+// Enlace ÚNICO para toda la oficina (/c/o/<token>): se manda al grupo; cada teléfono recibe su código al pulsar
+// «Empezar», hasta el número de trabajadores. «nuevo» lo cambia y el anterior deja de servir.
+export async function crearEnlaceOficina(id: string, nuevo = false): Promise<Resultado & { token?: string }> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data, error } = await c.supabase.rpc("enlace_oficina_psicosocial", { p_evaluacion: id, p_nuevo: nuevo });
+  if (error) return { ok: false, mensaje: explicar(error) };
+  revalidatePath(`/psicosocial/${id}`);
+  return { ok: true, mensaje: nuevo ? "Enlace cambiado: el anterior ya no sirve." : "Enlace de la oficina listo.", token: String(data) };
+}
+
 // Cuestionario respondido en papel: el servicio lo transcribe. Tampoco guarda quién lo cargó ni cuándo.
 export async function cargarPapel(id: string, grupo: string | null, respuestas: number[]): Promise<Resultado> {
   const c = await contexto();

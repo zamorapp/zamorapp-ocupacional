@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import { type Rol } from "@/lib/sesion-roles";
 import { esVistaMenu, type VistaMenu } from "@/lib/vista-menu";
 
@@ -19,6 +20,7 @@ export type Sesion = {
   titular: string | null;
   rol: Rol | null;
   clinico: boolean; // mismo criterio que es_clinico() en la base: rol de salud o acceso clínico activado
+  permisos: PermisoPortal[] | null; // portal de empresa: qué puede hacer (null = todo); ver lib/permisos-portal
   // Vista del menú guardada en la cuenta (user_metadata.vista_menu, lib/vista-menu.ts); null = nunca se eligió
   vistaMenu: VistaMenu | null;
 };
@@ -33,6 +35,7 @@ const SESION_DEMO: Sesion = {
   titular: "Dr. César Zamora",
   rol: "gerente_medico",
   clinico: true,
+  permisos: null,
   vistaMenu: null,
 };
 
@@ -41,8 +44,11 @@ const SESION_DEMO: Sesion = {
 type Datos = Omit<Sesion, "demo" | "usuarioId" | "correo" | "vistaMenu">;
 const MEMORIA = new Map<string, { datos: Datos; vence: number }>();
 const DURACION = 2 * 60 * 1000;
+// Generación: una lectura que empezó antes de invalidar no vuelve a guardar datos viejos (ver empresas.ts)
+let generacion = 0;
 
 export function invalidarSesion(usuarioId?: string) {
+  generacion += 1;
   if (usuarioId) MEMORIA.delete(usuarioId);
   else MEMORIA.clear();
 }
@@ -63,11 +69,12 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
   const guardado = MEMORIA.get(usuarioId);
   if (guardado && guardado.vence > performance.now()) return { demo: false, usuarioId, correo, vistaMenu, ...guardado.datos };
 
+  const desde = generacion;
   const [{ data: perfil }, { data: miembro }] = await Promise.all([
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
       .from("miembros")
-      .select("org_id, rol, acceso_clinico, organizaciones(nombre, ajustes)")
+      .select("org_id, rol, acceso_clinico, permisos_portal, organizaciones(nombre, ajustes)")
       .eq("usuario_id", usuarioId)
       .eq("activo", true)
       .limit(1)
@@ -82,8 +89,9 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     titular: org?.ajustes?.membrete_titular?.trim() || null,
     rol: (miembro?.rol as Rol) ?? null,
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
+    permisos: (miembro?.permisos_portal as PermisoPortal[] | null) ?? null,
   };
-  MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
+  if (desde === generacion) MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
   return { demo: false, usuarioId, correo, vistaMenu, ...datos };
 });
 

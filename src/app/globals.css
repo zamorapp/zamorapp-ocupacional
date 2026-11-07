@@ -112,6 +112,7 @@
   --chart-3: oklch(0.75 0.15 75);
   --chart-4: oklch(0.58 0.13 245);
   --chart-5: oklch(0.58 0.21 27);
+  --enlace: oklch(0.55 0.16 300); /* grupo «Enlaces» del menú de botones */
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.21 0.02 200);
   --sidebar-primary: oklch(0.48 0.1 186);
@@ -154,6 +155,7 @@
   --chart-3: oklch(0.8 0.14 80);
   --chart-4: oklch(0.7 0.12 245);
   --chart-5: oklch(0.68 0.19 25);
+  --enlace: oklch(0.72 0.13 300);
   --sidebar: oklch(0.19 0.013 205);
   --sidebar-foreground: oklch(0.96 0.005 195);
   --sidebar-primary: oklch(0.72 0.11 186);
@@ -213,6 +215,40 @@
     }
   }
 }
+/* Casilla donde falta un dato (marcaFalta en src/lib/ir-a-campo.ts): rojo si es importante, ámbar si no */
+[data-falta="rojo"] {
+  border-color: var(--alerta) !important;
+  background-color: color-mix(in oklab, var(--alerta) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--alerta) 40%, transparent);
+}
+[data-falta="ambar"] {
+  border-color: var(--aviso) !important;
+  background-color: color-mix(in oklab, var(--aviso) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--aviso) 40%, transparent);
+}
+/* Al tocar el aviso: la casilla parpadea para que el ojo la encuentre */
+.campo-senalado {
+  animation: campo-senalado 1.8s ease-out;
+}
+@keyframes campo-senalado {
+  0%,
+  45% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--alerta) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Sin movimiento: solo el anillo fijo, sin parpadeo */
+@media (prefers-reduced-motion: reduce) {
+  .campo-senalado {
+    animation: none;
+    outline: 3px solid color-mix(in oklab, var(--alerta) 60%, transparent);
+    outline-offset: 2px;
+  }
+}
+
 /* Documentos impresos (constancia, reposo, informe, récipe) */
 @page {
   size: letter;

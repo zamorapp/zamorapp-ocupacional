@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { CalendarPlus, CheckCircle2, Loader2, Search, UserPlus, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, FileText, Loader2, Search, UserPlus, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -26,6 +26,8 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
   // Trabajadores que aún no están en la nómina: se registran al enviar la solicitud
   const [nuevos, setNuevos] = useState<Nuevo[]>([]);
   const [ficha, setFicha] = useState<Nuevo | null>(null);
+  // Varias personas: una orden para todas o una por trabajador (Cesar, 06-nov)
+  const [ordenPor, setOrdenPor] = useState<"lote" | "trabajador">("lote");
   const [empresaNuevos, setEmpresaNuevos] = useState(empresaActiva ?? empresas[0]?.id ?? "");
   const total = elegidos.length + nuevos.length;
   const [buscando, iniciar] = useTransition();
@@ -128,6 +130,20 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
             {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
           </CampoSelect>
           <Campo id="nota" etiqueta="Nota (opcional)" className="sm:col-span-2" />
+          {total > 1 && (
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-1.5 text-sm font-medium">Orden de evaluación</legend>
+              <input type="hidden" name="orden_por" value={ordenPor} />
+              <div className="grid grid-cols-2 gap-2">
+                {([["lote", "Una para todos", `1 orden con los ${total}`], ["trabajador", "Una por trabajador", `${total} órdenes, una hoja cada uno`]] as const).map(([v, t, d]) => (
+                  <button key={v} type="button" aria-pressed={ordenPor === v} onClick={() => setOrdenPor(v)}
+                    className={`rounded-md border px-3 py-2 text-left text-sm ${ordenPor === v ? "border-primary bg-primary/10 ring-1 ring-primary" : "hover:bg-muted"}`}>
+                    <span className="block font-medium">{t}</span><span className="block text-xs text-muted-foreground">{d}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <div className="flex items-center gap-2 sm:col-span-2">
             <Aviso resultado={estado && !estado.ok ? estado : null} />
             <Button type="submit" className="ml-auto" disabled={enviando || !total}>
@@ -137,7 +153,13 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </form>
       </DialogContent>
     </Dialog>
-    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4" /> {estado.mensaje}</p>}
+    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4 shrink-0" /> {estado.mensaje}</p>}
+    {/* La orden de evaluación queda lista al pedir: un toque para verla, imprimirla o guardarla en PDF */}
+    {estado?.ok && !!estado.ordenes?.length && (
+      <a href={`/imprimir/orden/${estado.ordenes.map((o) => o.id).join(",")}`} className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/10">
+        <FileText className="size-4" /> {estado.ordenes.length === 1 ? `Orden de evaluación Nº ${estado.ordenes[0].numero}` : `${estado.ordenes.length} órdenes de evaluación (Nº ${estado.ordenes[0].numero} a ${estado.ordenes[estado.ordenes.length - 1].numero})`}: ver e imprimir
+      </a>
+    )}
     </div>
   );
 }

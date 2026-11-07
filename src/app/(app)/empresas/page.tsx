@@ -8,6 +8,9 @@ import { AlertaLegal } from "./alerta-legal";
 import { PausarAvisos } from "./pausar-avisos";
 import { FormEmpresa } from "./nueva-empresa";
 import { EstadoEmpresa } from "./estado-empresa";
+import { InvitarRrhh } from "./invitar-rrhh";
+import { supabaseConfigurado } from "@/lib/config";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Empresas" };
@@ -20,6 +23,13 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
   const empresas = todas.filter((e) => e.activa !== verInactivas);
   const total = empresas.reduce((s, e) => s + e.trabajadores, 0);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  // «Invitar a RR. HH.» en cada empresa (administrador): los contactos con WhatsApp salen como atajo
+  let contactos: { empresa_id: string; nombre: string; telefono: string }[] = [];
+  if (esAdmin && supabaseConfigurado && !verInactivas) {
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase.from("empresa_contactos").select("empresa_id, nombre, telefono").eq("activo", true).not("telefono", "is", null);
+    contactos = (data ?? []) as typeof contactos;
+  }
   const pastilla = (activa: boolean) =>
     cn("rounded-full border px-3 py-1.5 text-sm transition", activa ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted");
 
@@ -81,7 +91,13 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
                   {!sesion.demo && (
                     <div className="-mb-2 flex flex-wrap items-center justify-between gap-2">
                       <EstadoEmpresa empresaId={e.id} nombre={e.razonSocial} trabajadores={e.trabajadores} activa={e.activa} editable={esAdmin} />
-                      {esAdmin && <FormEmpresa habilitado empresa={e} />}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {esAdmin && e.activa && (
+                          <InvitarRrhh tamano="sm" empresaId={e.id} empresa={e.razonSocial}
+                            contactos={contactos.filter((c) => c.empresa_id === e.id).map((c) => ({ nombre: c.nombre, telefono: c.telefono }))} />
+                        )}
+                        {esAdmin && <FormEmpresa habilitado empresa={e} />}
+                      </div>
                     </div>
                   )}
                 </CardContent>

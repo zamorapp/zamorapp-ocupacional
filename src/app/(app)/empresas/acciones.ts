@@ -109,7 +109,7 @@ export async function ignorarAlertaLegal(id: string, ignorar: boolean): Promise<
 export async function pausarAvisos(id: string, pausar: boolean): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("pausar_avisos_empresa", { p_empresa: id, p_pausar: pausar });
-  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el gerente médico pausan avisos." : error.message };
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el gerente médico pausan avisos." : `No se guardó: ${error.message}` };
   invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
