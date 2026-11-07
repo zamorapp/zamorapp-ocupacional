@@ -22,6 +22,8 @@ import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
 import { evaluarFactor, faltantesDeb, FACTORES, NOMBRE_FACTOR, presente, TEXTO_ZONA, type FactorDeb } from "@/lib/ergonomia-deb";
 import { borrarEvaluacion, crearEvaluacion, guardarEvaluacion, guardarObservaciones, reabrirEvaluacion, type Cambios } from "../acciones";
 
+// Nivel 4 (inmediato) sin rojo lleno: fondo suave con borde y texto de alerta (Diseño, 07-nov)
+const claseNivel = (u: number) => (u === 4 ? "border-alerta bg-alerta/10 text-alerta-texto" : CLASE_URGENCIA[u]);
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nuevoId = () => crypto.randomUUID().slice(0, 8);
 // DEB en amarillo o rojo: método de la app para la evaluación específica de cada peligro (empuje aún no tiene)
@@ -52,30 +54,33 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   // Paso a paso (Cesar, 06-nov): una pantalla por peligro (DEB) o por sección; no se avanza sin lo obligatorio.
   // «Ver todo junto» vuelve a la lista completa (para revisar o imprimir); cerrada se ve siempre completa.
   const [todoJunto, setTodoJunto] = useState(false);
-  const pasos = useMemo((): { id: string; titulo: string; nota?: string; secs: Seccion[]; opcional?: boolean; listo: boolean; faltan: number }[] => {
+  const pasos = useMemo((): { id: string; titulo: string; nota?: string; secs: Seccion[]; opcional?: boolean; listo: boolean; faltan: number; primera?: string }[] => {
     if (!metodo) return [];
     if (esDeb) {
       const deb = FACTORES.map((f) => {
         const secs = metodo.secciones.filter((sec) => sec.grupo === f && (!sec.si || sec.si(x.datos)));
         const falta = faltan.find((q) => q.factor === f);
-        return { id: f, titulo: NOMBRE_FACTOR[f], secs, listo: evaluarFactor(f, x.datos).zona !== null, faltan: falta ? Math.max(falta.n, 1) : 0 };
+        const primera = secs.filter((sec) => !sec.opcional).flatMap((sec) => sec.preguntas).find((p) => x.datos[p.clave] === undefined)?.clave;
+        return { id: f, titulo: NOMBRE_FACTOR[f], secs, listo: evaluarFactor(f, x.datos).zona !== null, faltan: falta ? Math.max(falta.n, 1) : 0, primera };
       });
       const otros = metodo.secciones.filter((sec) => sec.grupo === "otros");
-      return otros.length ? [...deb, { id: "otros", titulo: "Otros riesgos del puesto", nota: "Opcional: marca solo los que haya.", secs: otros, opcional: true, listo: true, faltan: 0 }] : deb;
+      return otros.length ? [...deb, { id: "otros", titulo: "Otros riesgos del puesto", nota: "Opcional: marca solo los que haya.", secs: otros, opcional: true, listo: true, faltan: 0, primera: undefined }] : deb;
     }
     return metodo.secciones.filter((sec) => !sec.si || sec.si(x.datos)).map((sec, i) => {
-      const n = sec.opcional ? 0 : sec.preguntas.filter((p) => {
+      const sin = sec.opcional ? [] : sec.preguntas.filter((p) => {
         if (x.datos[p.clave] !== undefined) return false;
         const binaria = !p.numero && p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
         return !binaria; // un ajuste Sí/No sin marcar cuenta como «No»
-      }).length;
-      return { id: `s${i}`, titulo: sec.titulo, secs: [sec], opcional: sec.opcional, listo: n === 0, faltan: n };
+      });
+      return { id: `s${i}`, titulo: sec.titulo, secs: [sec], opcional: sec.opcional, listo: sin.length === 0, faltan: sin.length, primera: sin[0]?.clave };
     });
   }, [metodo, esDeb, x.datos, faltan]);
   const [paso, setPaso] = useState(() => 0);
+  // Falta algo y se pulsó Siguiente: aviso con «Ir a la pregunta» o «Ignorar y seguir» (todo aviso se puede ignorar)
+  const [avisoPaso, setAvisoPaso] = useState(false);
   const pasoActual = Math.min(paso, Math.max(pasos.length - 1, 0));
   const porPasos = editable && !todoJunto && pasos.length > 1;
-  const irAPaso = (i: number) => { setPaso(i); setTimeout(() => document.getElementById("metodo-pasos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); };
+  const irAPaso = (i: number) => { setPaso(i); setAvisoPaso(false); setTimeout(() => document.getElementById("metodo-pasos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); };
   // Primer paso sin terminar al abrir (para seguir donde se quedó)
   const irA = (f: FactorDeb) => {
     if (porPasos) { const i = pasos.findIndex((q) => q.id === f); if (i >= 0) { irAPaso(i); return; } }
@@ -123,7 +128,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     if (p.numero) {
       const n = p.numero;
       return (
-        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+        <label key={p.clave} id={`p-${p.clave}`} className="flex scroll-mt-24 flex-wrap items-center justify-between gap-2">
           <span className="min-w-0 flex-1 text-sm">{p.texto}
             {/* Mediciones ambientales del DEB: aviso si el valor queda fuera de la referencia */}
             {typeof actual === "number" && (p as { fuera?: (v: number) => boolean }).fuera?.(actual) && <span className="ml-1.5 text-xs font-medium text-aviso-texto">Fuera de referencia</span>}
@@ -146,7 +151,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     // Listas largas (frecuencia de NIOSH): un selector, no 18 botones
     if (p.opciones.length > 8) {
       return (
-        <label key={p.clave} className="flex flex-wrap items-center justify-between gap-2">
+        <label key={p.clave} id={`p-${p.clave}`} className="flex scroll-mt-24 flex-wrap items-center justify-between gap-2">
           <span className="text-sm">{p.texto}</span>
           <select disabled={!editable} value={actual ?? ""} onChange={(e) => responder(p.clave, e.target.value === "" ? null : Number(e.target.value))} className={cn(SELECT, "w-full sm:w-56")}>
             <option value="">Elige…</option>
@@ -157,13 +162,12 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
     }
     const binaria = p.opciones.length === 2 && p.opciones[0].valor === 0 && p.opciones[0].texto === "No";
     return (
-      <div key={p.clave} className={cn(binaria ? "flex flex-wrap items-center justify-between gap-2" : "space-y-1.5")}>
+      <div key={p.clave} id={`p-${p.clave}`} className={cn("scroll-mt-24 rounded-md", binaria ? "flex flex-wrap items-center justify-between gap-2" : "space-y-1.5")}>
         <div className={cn("text-sm", binaria && "min-w-0 flex-1")}>{p.texto}{p.ayuda && <span className="mt-0.5 block text-xs text-muted-foreground">{p.ayuda}</span>}</div>
         <div className={cn("flex flex-wrap gap-1.5", !binaria && "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4")} role="radiogroup" aria-label={p.texto}>
           {p.opciones.map((o) => {
             // En RULA/REBA un ajuste sin marcar cuenta como «No»; en el DEB hay que responder cada pregunta
             const elegido = actual === o.valor || (actual === undefined && binaria && o.valor === 0 && !esDeb);
-            const no = binaria && o.valor === 0;
             return (
               <button
                 key={o.valor}
@@ -174,7 +178,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                 onClick={() => responder(p.clave, o.valor)}
                 className={cn(
                   "rounded-lg border px-3 py-1.5 text-left text-sm transition disabled:cursor-default",
-                  elegido ? (no ? "border-neutral-700 bg-neutral-700 text-white dark:border-neutral-300 dark:bg-neutral-300 dark:text-neutral-900" : "border-primary bg-primary text-primary-foreground") : "hover:border-primary/60",
+                  elegido ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/60",
                   binaria && "min-w-14 text-center",
                 )}
               >
@@ -189,15 +193,15 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
   };
   // Una sección; en el DEB va dentro del acordeón del peligro (sin borde propio; franja de color en verde y roja)
   const seccion = (sec: Seccion, enAcordeon: boolean) => (
-    <div key={sec.titulo} className={cn(enAcordeon ? "space-y-3" : "rounded-xl border p-4", (sec.verde || sec.roja) && "border-l-4 pl-3", sec.verde && "border-l-emerald-500", sec.roja && "border-l-red-600")}>
+    <div key={sec.titulo} className={cn(enAcordeon ? "space-y-3" : "rounded-xl border p-4", (sec.verde || sec.roja) && "border-l-4 pl-3", sec.verde && "border-l-emerald-500", sec.roja && "border-l-alerta")}>
       <div className={cn("flex items-center justify-between gap-2", !enAcordeon && "mb-3")}>
         <h3 className="font-medium">
           {sec.verde && <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Zona verde</span>}
-          {sec.roja && <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">Zona roja</span>}
+          {sec.roja && <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-alerta-texto dark:text-alerta">Zona roja</span>}
           {enAcordeon ? sec.titulo.replace(/^.*?: (¿?)(\p{L})/u, (_m, q: string, c: string) => q + c.toUpperCase()).replace(/ \(zona (verde|roja)\)$/, "") : sec.titulo}
         </h3>
         {sec.opcional && <span className="shrink-0 text-xs text-muted-foreground">marca solo los que haya</span>}
-        {metodo && metodo.clave !== "niosh" && resultado?.zonas[sec.zona] !== undefined && <span className="font-cifra text-xs text-muted-foreground">zona: {resultado.zonas[sec.zona]}</span>}
+        {metodo && metodo.clave !== "niosh" && resultado?.zonas[sec.zona] !== undefined && <span className="shrink-0 font-cifra text-xs text-muted-foreground">Puntos: {resultado.zonas[sec.zona]}</span>}
       </div>
       <div className="space-y-3">{sec.preguntas.map(pregunta)}</div>
     </div>
@@ -287,17 +291,15 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                 <div id="metodo-pasos" className="scroll-mt-4 space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="font-medium">Paso {pasoActual + 1} de {pasos.length}</span>
-                      <span className="text-xs text-muted-foreground">{pasos.filter((z) => z.listo && !z.opcional).length} de {pasos.filter((z) => !z.opcional).length} listos</span>
+                      <span className="min-w-0 truncate font-medium">{q.titulo} · {pasoActual + 1} de {pasos.length}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{pasos.filter((z) => z.listo).length} de {pasos.length} listos</span>
                     </div>
                     <div className="flex gap-1" role="tablist" aria-label="Pasos de la evaluación">
                       {pasos.map((z, i) => {
-                        // Se puede saltar a un paso ya hecho o al siguiente pendiente; no más adelante
-                        const alcanzable = i <= pasoActual || pasos.slice(0, i).every((y) => y.listo);
                         return (
                           <button key={z.id} type="button" role="tab" aria-selected={i === pasoActual} aria-label={`${i + 1}. ${z.titulo}${z.listo ? " (listo)" : ""}`} title={z.titulo}
-                            disabled={!alcanzable} onClick={() => irAPaso(i)}
-                            className={cn("h-2 flex-1 rounded-full transition disabled:cursor-not-allowed", i === pasoActual ? "bg-primary" : z.listo ? "bg-primary/45" : "bg-muted", z.opcional && i !== pasoActual && "bg-muted/60")} />
+                            onClick={() => irAPaso(i)}
+                            className={cn("h-2 flex-1 rounded-full transition hover:opacity-80", i === pasoActual ? "bg-primary" : z.listo ? "bg-primary/45" : "bg-muted", z.opcional && i !== pasoActual && "bg-muted/60")} />
                         );
                       })}
                     </div>
@@ -306,17 +308,23 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                     {esDeb && <div>
                       <h3 className="text-base font-semibold">{q.titulo}</h3>
                       {q.nota && <p className="text-xs text-muted-foreground">{q.nota}</p>}
-                      {esDeb && !q.opcional && (() => { const z = evaluarFactor(q.id as FactorDeb, x.datos).zona; return z ? <p className={cn("text-xs font-medium", z === "rojo" ? "text-red-700 dark:text-red-400" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>{z === "no" ? "No presente" : TEXTO_ZONA[z]}</p> : null; })()}
+                      {esDeb && !q.opcional && (() => { const z = evaluarFactor(q.id as FactorDeb, x.datos).zona; return z ? <p className={cn("text-xs font-medium", z === "rojo" ? "text-alerta-texto dark:text-alerta" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>{z === "no" ? "No presente" : TEXTO_ZONA[z]}</p> : null; })()}
                     </div>}
                     {q.secs.map((sec) => seccion(sec, true))}
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button variant="outline" disabled={pasoActual === 0} onClick={() => irAPaso(pasoActual - 1)}><ArrowLeft /> Anterior</Button>
-                    {!q.listo && <span className="text-xs text-aviso-texto" role="status">Falta{q.faltan === 1 ? "" : "n"} {q.faltan} {q.faltan === 1 ? "respuesta" : "respuestas"} para seguir</span>}
                     {ultimo
-                      ? <Button disabled={!q.listo} onClick={() => document.getElementById("hallazgos")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Check /> Terminar y ver riesgos</Button>
-                      : <Button disabled={!q.listo} onClick={() => irAPaso(pasoActual + 1)}>Siguiente <ArrowRight /></Button>}
+                      ? <Button onClick={() => (q.listo || avisoPaso ? (setAvisoPaso(false), document.getElementById("hallazgos")?.scrollIntoView({ behavior: "smooth", block: "start" })) : setAvisoPaso(true))}><Check /> Terminar y ver riesgos</Button>
+                      : <Button onClick={() => (q.listo || avisoPaso ? irAPaso(pasoActual + 1) : setAvisoPaso(true))}>Siguiente <ArrowRight /></Button>}
                   </div>
+                  {avisoPaso && !q.listo && (
+                    <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-aviso/40 bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">
+                      <span className="min-w-0 flex-1">Falta{q.faltan === 1 ? "" : "n"} {q.faltan} {q.faltan === 1 ? "respuesta" : "respuestas"} en este paso.</span>
+                      {q.primera && <Button size="sm" variant="outline" className="h-8" onClick={() => { const el = document.getElementById(`p-${q.primera}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.classList.add("ring-2", "ring-aviso"); setTimeout(() => el?.classList.remove("ring-2", "ring-aviso"), 2000); }}>Ir a la pregunta</Button>}
+                      <Button size="sm" variant="ghost" className="h-8" onClick={() => (ultimo ? (setAvisoPaso(false), document.getElementById("hallazgos")?.scrollIntoView({ behavior: "smooth", block: "start" })) : irAPaso(pasoActual + 1))}>Ignorar y seguir</Button>
+                    </div>
+                  )}
                 </div>
               );
             })() : esDeb
@@ -331,7 +339,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
                       <button type="button" aria-expanded={abierto} onClick={() => setDebAbierto(abierto ? null : f)} className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left">
                         <span className="min-w-0">
                           <span className="block font-medium">{NOMBRE_FACTOR[f]}</span>
-                          <span className={cn("block text-xs", z === "rojo" ? "text-red-700 dark:text-red-400" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
+                          <span className={cn("block text-xs", z === "rojo" ? "text-alerta-texto dark:text-alerta" : z === "amarillo" ? "text-amber-700 dark:text-amber-400" : z === "verde" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
                             {z ? (z === "no" ? "No presente" : TEXTO_ZONA[z]) : hay === null ? "Sin revisar" : `Faltan ${falta?.n ?? 0} ${falta?.n === 1 ? "pregunta" : "preguntas"}`}
                           </span>
                         </span>
@@ -439,7 +447,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
       </div>
 
       {/* Resultado (fijo a la derecha en PC, al final en el celular) */}
-      <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+      <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         {resultado && (
           <div className="rounded-xl border p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{NOMBRE_METODO[ev.metodo]}</div>
@@ -451,7 +459,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
             {resultado.factores && <div className="mt-3"><GraficaDeb factores={resultado.factores} otros={resultado.otros} /></div>}
             {resultado.completo ? (
               <>
-                <div className={cn("mt-3 rounded-lg px-3 py-2 text-sm font-medium", CLASE_URGENCIA[resultado.urgencia])}>{resultado.factores ? resultado.texto : resultado.nivel}</div>
+                <div className={cn("mt-3 rounded-lg border border-transparent px-3 py-2 text-sm font-medium", claseNivel(resultado.urgencia))}>{resultado.factores ? resultado.texto : resultado.nivel}</div>
                 <p className="mt-2 text-sm">{resultado.accion}</p>
                 {resultado.factores?.some((f) => f.zona === "rojo" || f.zona === "amarillo") && (
                   <div className="mt-3 space-y-1.5 border-t pt-3">
@@ -557,7 +565,7 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
       {(resultado || editable) && (
         <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 rounded-2xl bg-background shadow-lg lg:hidden">
         {/* Color del nivel sobre fondo opaco: el contenido de atrás no se transparenta */}
-        <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5", resultado?.completo ? CLASE_URGENCIA[resultado.urgencia] : "")}>
+        <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5", resultado?.completo ? claseNivel(resultado.urgencia) : "")}>
           <div className="min-w-0 flex-1 text-sm">
             {resultado ? (
               esDeb && !resultado.completo ? <span className="block truncate"><b>DEB</b> · {revisados} de {FACTORES.length} revisados</span> : <span className="block truncate"><b className="font-cifra">{metodo!.corto} {resultado.completo ? (resultado.texto ?? `${resultado.puntaje} de ${resultado.maximo}`) : "incompleto"}</b>{resultado.completo && ` · ${resultado.nivel}`}</span>
