@@ -72,3 +72,14 @@ test("los roles de ergonomía del buscador son los de la pantalla", async () => 
   const { ERGONOMIA } = await jiti.import("../../src/lib/atajos.ts");
   assert.deepEqual([...ERGONOMIA].sort(), [...ROLES_ERGONOMIA].sort());
 });
+
+test("ergonomía, psicosocial y el mapa de riesgos se encuentran bajo «Evaluaciones de riesgos» (Cesar, 06-nov)", async () => {
+  const medico = { clinico: true, rol: "medico" };
+  assert.equal(buscarSecciones("mapa de riesgos", medico)[0].href, "/riesgos");
+  assert.ok(buscarSecciones("ergonomia", medico).some((d) => d.href === "/ergonomia"));
+  assert.ok(buscarSecciones("psicosocial", medico).some((d) => d.href === "/psicosocial"));
+  assert.ok(buscarSecciones("evaluaciones de riesgos", medico).some((d) => d.href === "/evaluaciones"));
+  const { ROLES_RIESGOS } = await jiti.import("../../src/lib/riesgos-puesto.ts");
+  const { ERGONOMIA } = await jiti.import("../../src/lib/atajos.ts");
+  assert.deepEqual([...ROLES_RIESGOS].sort(), [...ERGONOMIA].sort());
+});
