@@ -7,6 +7,7 @@ import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Aceptar, SalirParaRegistrarse } from "./aceptar";
+import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
 
 export const metadata: Metadata = { title: "Invitación al portal", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -33,6 +34,13 @@ function Pasos({ actual }: { actual: number }) {
   );
 }
 
+// Lo que RR. HH. puede hacer en el portal (nada clínico)
+const BENEFICIOS: [typeof CalendarClock, string, string][] = [
+  [CalendarClock, "Pida evaluaciones", "Con fecha y hora, también para trabajadores nuevos."],
+  [FileCheck2, "Reciba las constancias", "Las de aptitud, apenas el médico las firma."],
+  [ShieldCheck, "Solo ve su empresa", "La historia clínica queda con el personal de salud."],
+];
+
 const AVISO: Record<string, string> = {
   usada: "Esta invitación ya se usó. Si es usted, ingrese normalmente; si no, pida un enlace nuevo al servicio médico.",
   vencida: "Esta invitación venció. Pida un enlace nuevo al servicio médico.",
@@ -53,13 +61,8 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
   const conSesion = Boolean(claims?.claims?.sub);
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-4 sm:p-8">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icono.svg" alt="" className="size-10 rounded-xl" />
-          <span className="text-lg font-semibold">{APP_NOMBRE}</span>
-        </div>
+    <MarcoEnlace servicio={inv?.organizacion ?? APP_NOMBRE} subtitulo="Portal de empresas" ancho="max-w-md">
+      <TarjetaEnlace className="space-y-6 sm:p-8">
         {!inv ? (
           <div className="space-y-2">
             <h1 className="text-xl font-semibold">Enlace no válido</h1>
@@ -69,15 +72,18 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
           <>
             <div className="space-y-2">
               {/* «Le invita el Dr. …» sale de Configuración › Organización; sin eso, el nombre del servicio */}
-              <p className="text-sm text-muted-foreground">
-                {inv.invita ? `${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita} al portal de` : `${inv.organizacion} le invita${inv.nombre ? `, ${inv.nombre.split(" ")[0]},` : ""} al portal de`}
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[.08em] text-primary">Portal de su empresa</p>
               <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><Building2 className="mt-1 size-6 shrink-0 text-primary" /> {inv.empresa}</h1>
+              <p className="text-sm text-muted-foreground">
+                {`${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita ?? inv.organizacion}.`}
+              </p>
             </div>
             <ul className="space-y-2 text-sm">
-              <li className="flex gap-2"><CalendarClock className="size-4 shrink-0 text-primary" /> Pida evaluaciones con fecha y hora, también para trabajadores nuevos.</li>
-              <li className="flex gap-2"><FileCheck2 className="size-4 shrink-0 text-primary" /> Reciba las constancias de aptitud apenas el médico las firma.</li>
-              <li className="flex gap-2"><ShieldCheck className="size-4 shrink-0 text-primary" /> Solo ve su empresa. La historia clínica queda con el personal de salud.</li>
+              {BENEFICIOS.map(([Icono, titulo, detalle], i) => (
+                <li key={titulo} className="rounded-xl border bg-background px-3 py-2.5">
+                  <FichaBoton icono={Icono} titulo={titulo} detalle={detalle} indice={i} />
+                </li>
+              ))}
             </ul>
             {inv.estado !== "vigente" && !conSesion ? (
               <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">{AVISO[inv.estado]}</p>
@@ -109,8 +115,9 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
             )}
           </>
         )}
-        <p className="text-center text-xs text-muted-foreground"><Link href="/login" className="hover:underline">Ir al ingreso</Link></p>
-      </div>
-    </main>
+        {/* Con el formulario a la vista sobra: ya trae «¿Ya tiene cuenta? Ingresar» */}
+        {!(inv && !conSesion && inv.estado === "vigente") && <p className="text-center text-xs text-muted-foreground"><Link href="/login" className="hover:underline">Ir al ingreso</Link></p>}
+      </TarjetaEnlace>
+    </MarcoEnlace>
   );
 }

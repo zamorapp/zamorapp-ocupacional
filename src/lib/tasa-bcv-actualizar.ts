@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { claveAvisos, pushConfigurado } from "@/lib/push";
-import { leerTasaBcv } from "@/lib/tasa-bcv";
+import { leerTasaBcv } from "@/lib/tasa-bcv-fuentes";
 
 export type ResultadoTasa = { ok: boolean; guardada: boolean; motivo?: string; fecha?: string; fuente?: string };
 
@@ -28,6 +28,8 @@ export async function actualizarTasaBcv(): Promise<ResultadoTasa> {
   if (!toca) return { ok: true, guardada: false, motivo: "intento reciente" };
 
   const { tasa, fallas } = await leerTasaBcv();
+  // Si el BCV falló y se usó el respaldo, queda el motivo en el registro (solo la de hoy llega por el respaldo)
+  if (fallas.length) console.warn("tasa-bcv:", fallas.join(" | "));
   if (!tasa) {
     console.error("tasa-bcv: no se pudo leer", fallas.join(" | "));
     return { ok: false, guardada: false, motivo: "sin lectura" };

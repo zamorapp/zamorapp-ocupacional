@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { DatosConsulta, EstadoConsulta, Medicamento, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
+import { completarHabitos } from "@/lib/habitos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -86,7 +87,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
 export type ConsultaCompleta = {
   datos: DatosConsulta;
   // riesgos: los que salen en los impresos (los elegidos en la consulta o, si no se tocaron, los del cargo)
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
+  trabajador: { id: string; nombre: string; nombres?: string; apellidos?: string; nacimiento?: string | null; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
   // Firmada y emitida en el SAME (importada): hora de esa firma. null = sin firma o firmada en zamorApp
@@ -136,6 +137,9 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
     trabajador: {
       id: c.trabajador_id,
       nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
+      nombres: tr?.nombres ?? "",
+      apellidos: tr?.apellidos ?? "",
+      nacimiento: tr?.fecha_nacimiento ?? null,
       cedula: tr?.cedula ?? "",
       edad,
       sexo: tr?.sexo ?? null,
@@ -157,7 +161,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       especialidad: c.especialidad ?? "",
       enfermedadActual: c.enfermedad_actual ?? "",
       antecedentes: c.antecedentes ?? [],
-      habitos: Array.isArray(c.habitos) ? c.habitos : [],
+      habitos: completarHabitos(Array.isArray(c.habitos) ? c.habitos : []),
       signos: c.signos_vitales ?? {},
       examenFuncional: c.examen_funcional ?? [],
       examenFisico: c.examen_fisico ?? [],

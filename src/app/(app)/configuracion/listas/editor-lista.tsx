@@ -17,8 +17,10 @@ import { alternarItem, completarSugeridos, eliminarItem, guardarItem, moverItem,
 import { confirmar } from "@/components/app/confirmar";
 
 // Listas cuyo valor más importante es un texto largo (recomendaciones, plantillas)
-const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "medicina"]);
+const CON_TEXTO = new Set(["recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "examen_funcional", "examen_fisico", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "medicina", "pregunta_riesgo", "pregunta_riesgo_oficina"]);
 const ETIQUETA_TEXTO: Record<string, string> = {
+  pregunta_riesgo: "Una línea por dato: «Agente: …» (riesgo que se agrega con «Sí»), «Daño: …», «Medida: …», «Fuente: …» (norma o guía)",
+  pregunta_riesgo_oficina: "Una línea por dato: «Agente: …» (riesgo que se agrega con «Sí»), «Daño: …», «Medida: …», «Fuente: …» (norma o guía)",
   examen_funcional: "Valor por defecto",
   examen_fisico: "Valor por defecto",
   perfil_examen_fisico: "Hallazgos: una línea por fila, «Fila: hallazgo» (ej. Nariz: congestión nasal)",
@@ -27,6 +29,8 @@ const ETIQUETA_TEXTO: Record<string, string> = {
   medicina: "Indicación que se llena sola, una línea por campo: «concentracion: 500 mg», «presentacion: Tableta», «via: Oral», «dosis: 1 tableta», «frecuencia: Cada 8 horas», «duracion: 5 días», «observacion: …», «marcas: Atamel, …» (la marca solo sirve para buscar; no se imprime)",
 };
 const ETIQUETA_GRUPO: Record<string, string> = {
+  pregunta_riesgo: "Grupo de riesgo (fisico / quimico / biologico / mecanico / disergonomico / psicosocial)",
+  pregunta_riesgo_oficina: "Grupo de riesgo (fisico / quimico / biologico / mecanico / disergonomico / psicosocial)",
   motivo_consulta: "Grupo (preventivo / no_preventivo)",
   paraclinico: "Perfil o grupo",
   antecedente_medico: "Tipo (personal / familiar)",

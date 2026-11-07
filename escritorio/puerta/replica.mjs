@@ -2,7 +2,7 @@
 // Se aplica como superusuario local con session_replication_role = replica: no corren disparadores
 // (ni avisos ni bitácora duplicados) y el orden de llegada no importa para las llaves foráneas.
 import crypto from "node:crypto";
-import pg from "./pg-local.mjs";
+import pg, { enTransaccion, tomarCandado } from "./pg-local.mjs";
 import { CATALOGOS } from "./config.mjs";
 
 const ROLES_ACCESO_AMPLIO = ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion", "coordinador_sst", "auditor"];
@@ -65,6 +65,15 @@ export class Replica {
     return this.enCurso;
   }
 
+  // Tras guardar algo en la nube: un ciclo que EMPIECE después de la escritura (si ya había uno en curso, empezó
+  // antes y no la trae: se encadena otro apenas termine). Antes se esperaba ese mismo y la PC leía de la nube hasta
+  // la sincronía siguiente, hasta 30 s más. Varias escrituras seguidas comparten la misma vuelta extra.
+  cicloTrasEscritura() {
+    if (!this.enCurso) return this.ciclo().catch(() => {});
+    this.otraVuelta ??= this.enCurso.catch(() => {}).then(() => { this.otraVuelta = null; return this.ciclo(); }).catch(() => {});
+    return this.otraVuelta;
+  }
+
   async #ciclo() {
     const eq = this.estado.d.equipo;
     if (!this.nube.enLinea) return;
@@ -87,6 +96,9 @@ export class Replica {
       await this.#reintentarApartadas(uid);
       this.ultima = this.nube.reloj.iso();
       this.ultimaMs = performance.now();
+      this.duracionMs = Math.round(this.ultimaMs - inicio);
+      // Mientras dura un ciclo, lo recién guardado en la nube se lee de la nube: si se alarga, que quede anotado
+      if (this.duracionMs > 5000) this.registro(`[réplica] ciclo lento: ${this.duracionMs} ms`);
       this.inicioCiclo = inicio;
       this.error = null;
       this.motivo = null;
@@ -140,6 +152,7 @@ export class Replica {
     this.progreso = { hechas: 0, total: tablas.length, filas: 0 };
     await c.query("begin");
     try {
+      await tomarCandado(c); // ver pg-local.mjs: los guardados de la app esperan a que la copia termine
       for (const tabla of tablas) {
         let despues = null;
         const conId = await this.#tieneId(c, tabla);
@@ -209,16 +222,11 @@ export class Replica {
         }
         const t = this.#seguro(tabla);
         const conId = await this.#tieneId(c, t);
-        await c.query("begin");
-        try {
+        await enTransaccion(c, async () => {
           if (conId) await c.query(`delete from ${t} where not (id = any($1::uuid[]))`, [filas.map((f) => f.id)]);
           else await c.query(`delete from ${t}`);
           if (filas.length) await this.#insertar(c, t, filas);
-          await c.query("commit");
-        } catch (e) {
-          await c.query("rollback").catch(() => {});
-          throw e;
-        }
+        });
         antes[tabla] = huella;
         this.estado.guardar();
         this.registro(`[réplica] catálogo ${tabla} al día (${filas.length} filas)`);
@@ -257,23 +265,19 @@ export class Replica {
   // no acepta algo, se repite de a una fila: la que falla se aparta y se reintenta en los ciclos siguientes, y las
   // demás entran. Antes, una sola fila rechazada (p. ej. una columna calculada o un valor fuera del check) dejaba todo
   // el lote sin aplicar y el cursor sin avanzar.
+  // Cada transacción toma el candado de escrituras (pg-local.mjs): un guardado de la app nunca queda a mitad de camino
+  // con la réplica (06-nov, 40P01). Un error pasajero (40P01, 40001) repite la transacción y no aparta nada.
   async #aplicar(c, cambios) {
     try {
-      await c.query("begin");
-      for (const tramo of tramos(cambios)) await this.#aplicarTramo(c, tramo);
-      await c.query("commit");
+      await enTransaccion(c, async () => { for (const tramo of tramos(cambios)) await this.#aplicarTramo(c, tramo); });
       return;
     } catch (e) {
-      await c.query("rollback").catch(() => {});
       if (!esDeLaBase(e)) throw e;
     }
     for (const k of cambios) {
       try {
-        await c.query("begin");
-        await this.#aplicarTramo(c, [k]);
-        await c.query("commit");
+        await enTransaccion(c, () => this.#aplicarTramo(c, [k]));
       } catch (e) {
-        await c.query("rollback").catch(() => {});
         if (!esDeLaBase(e)) throw e;
         this.#apartar(k.tabla, k.fila_id, e);
       }
@@ -345,18 +349,21 @@ export class Replica {
       const select = cols.map((x) => x.column_name).join(",") || "*";
       const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
       await c.query("set session_replication_role = replica");
-      // Si la nube tiene una versión MENOR que la anotada (p. ej. se restauró un respaldo de la nube), manda la nube:
-      // si no, la réplica dejaría esa fila congelada en la PC (Analizar)
-      if (Array.isArray(filas) && filas.length && filas[0].version != null) {
-        const { rowCount } = await c.query("update local.version_nube set version = $3 where tabla = $1 and fila_id = $2 and version > $3", [tabla, id, filas[0].version]);
-        if (rowCount) this.registro(`[réplica] ${tabla} ${id}: la nube volvió a una versión anterior (${filas[0].version}); se toma la de la nube`);
-      }
-      if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
-      else {
-        await c.query(`delete from ${tabla} where id = $1`, [id]);
-        await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [tabla, id]);
-      }
-      return Array.isArray(filas) ? filas.length : 0;
+      // En una transacción con el candado de escrituras (pg-local.mjs), como el resto de la réplica
+      return await enTransaccion(c, async () => {
+        // Si la nube tiene una versión MENOR que la anotada (p. ej. se restauró un respaldo de la nube), manda la nube:
+        // si no, la réplica dejaría esa fila congelada en la PC (Analizar)
+        if (Array.isArray(filas) && filas.length && filas[0].version != null) {
+          const { rowCount } = await c.query("update local.version_nube set version = $3 where tabla = $1 and fila_id = $2 and version > $3", [tabla, id, filas[0].version]);
+          if (rowCount) this.registro(`[réplica] ${tabla} ${id}: la nube volvió a una versión anterior (${filas[0].version}); se toma la de la nube`);
+        }
+        if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
+        else {
+          await c.query(`delete from ${tabla} where id = $1`, [id]);
+          await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [tabla, id]);
+        }
+        return Array.isArray(filas) ? filas.length : 0;
+      });
     } finally { await c.end().catch(() => {}); }
   }
 

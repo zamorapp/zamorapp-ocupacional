@@ -60,9 +60,11 @@
     "public.subida_paciente_permitida(p_ruta text)",
     "public.tasa_bcv_reservar_intento(p_clave text)",
     "public.tasa_bcv_ultima_fecha(p_clave text)",
+    "public.tomar_codigo_psicosocial(p_token text)",
     "public.ve_consulta(p_org uuid, p_consulta uuid)",
     "public.ve_trabajador(p_org uuid, p_trabajador uuid)",
     "public.ver_cuestionario_psicosocial(p_codigo text)",
+    "public.ver_enlace_psicosocial(p_token text)",
     "public.ver_invitacion(p_token text)",
     "public.ver_solicitud_paciente(p_token text)",
     "public.verificar_dos_pasos()"

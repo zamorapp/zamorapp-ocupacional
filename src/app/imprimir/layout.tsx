@@ -12,5 +12,6 @@ const plexMono = localFont({
 });
 
 export default function LayoutImprimir({ children }: { children: React.ReactNode }) {
-  return <div className={`${publicSans.variable} ${plexMono.variable}`}>{children}<AjusteHojas /></div>;
+  // tema-claro: las hojas son papel blanco; sus controles (Nº, fechas, casillas) se leen igual en tema oscuro
+  return <div className={`tema-claro bg-background text-foreground ${publicSans.variable} ${plexMono.variable}`}>{children}<AjusteHojas /></div>;
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import { type Medida, type Resultados } from "@/lib/psicosocial";
+import { TOKEN_DEMO, type Medida, type Resultados } from "@/lib/psicosocial";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type Grupo = { id: string; nombre: string };
@@ -107,11 +107,41 @@ export async function resultadosPsicosociales(id: string): Promise<Resultados | 
   return data as Resultados;
 }
 
-// Códigos que aún no se usaron (para imprimir o mandar por WhatsApp). El servicio solamente.
-export async function codigosPsicosociales(id: string): Promise<{ libres: string[]; usados: number }> {
-  if (!supabaseConfigurado) return { libres: id === ID_DEMO_PSICO ? ["K7Q3M9TX", "P4WZ8HNC", "B2RT6YQE", "M8XK3VGA"] : [], usados: id === ID_DEMO_PSICO ? 41 : 0 };
+// Códigos que aún no se usaron (para imprimir o mandar por WhatsApp). El servicio solamente. Los que entregó el enlace
+// de la oficina (entregado) no se vuelven a repartir: cuentan aparte como «en teléfonos».
+export type CodigosPsicosociales = { libres: string[]; usados: number; enTelefonos: number };
+export async function codigosPsicosociales(id: string): Promise<CodigosPsicosociales> {
+  if (!supabaseConfigurado) return { libres: id === ID_DEMO_PSICO ? ["K7Q3M9TX", "P4WZ8HNC", "B2RT6YQE", "M8XK3VGA"] : [], usados: id === ID_DEMO_PSICO ? 41 : 0, enTelefonos: 0 };
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("codigos_psicosociales").select("codigo, usado").eq("evaluacion_id", id).order("codigo").limit(3000);
-  const filas = (data ?? []) as { codigo: string; usado: boolean }[];
-  return { libres: filas.filter((f) => !f.usado).map((f) => f.codigo), usados: filas.filter((f) => f.usado).length };
+  type Fila = { codigo: string; usado: boolean; entregado?: boolean };
+  const r = await supabase.from("codigos_psicosociales").select("codigo, usado, entregado").eq("evaluacion_id", id).order("codigo").limit(3000);
+  let filas = (r.data ?? []) as Fila[];
+  // Sin la migración 20261030924000 todavía no existe «entregado»: se lee como antes
+  if (r.error) filas = ((await supabase.from("codigos_psicosociales").select("codigo, usado").eq("evaluacion_id", id).order("codigo").limit(3000)).data ?? []) as Fila[];
+  return {
+    libres: filas.filter((f) => !f.usado && !f.entregado).map((f) => f.codigo),
+    usados: filas.filter((f) => f.usado).length,
+    enTelefonos: filas.filter((f) => !f.usado && f.entregado).length,
+  };
 }
+
+// Enlace único de la oficina (si ya se creó). Solo lo lee el servicio.
+export async function enlaceOficinaPsicosocial(id: string): Promise<string | null> {
+  if (!supabaseConfigurado) return id === ID_DEMO_PSICO ? TOKEN_DEMO : null;
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("enlaces_psicosociales").select("token").eq("evaluacion_id", id).maybeSingle();
+  return (data?.token as string | undefined) ?? null;
+}
+
+// Perfil de cada persona (anónimo): nivel 0/1/2 en los 6 apartados. Solo el servicio, solo cerrada y con el mínimo.
+export async function perfilesPsicosociales(id: string): Promise<number[][] | null> {
+  if (!supabaseConfigurado) return id === ID_DEMO_PSICO ? DEMO_PERFILES : null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("perfiles_psicosociales", { p_evaluacion: id });
+  if (error || !Array.isArray(data)) return null;
+  return data as number[][];
+}
+const DEMO_PERFILES: number[][] = [
+  [2, 2, 1, 2, 2, 2], [2, 1, 2, 2, 1, 2], [2, 2, 0, 1, 2, 1], [2, 1, 1, 2, 0, 2], [1, 2, 1, 1, 2, 1], [2, 0, 1, 2, 1, 0],
+  [1, 1, 0, 2, 1, 1], [1, 0, 1, 1, 2, 0], [0, 1, 0, 2, 0, 1], [1, 0, 0, 1, 1, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 0, 1, 0],
+];

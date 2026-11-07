@@ -44,8 +44,11 @@ const SESION_DEMO: Sesion = {
 type Datos = Omit<Sesion, "demo" | "usuarioId" | "correo" | "vistaMenu">;
 const MEMORIA = new Map<string, { datos: Datos; vence: number }>();
 const DURACION = 2 * 60 * 1000;
+// Generación: una lectura que empezó antes de invalidar no vuelve a guardar datos viejos (ver empresas.ts)
+let generacion = 0;
 
 export function invalidarSesion(usuarioId?: string) {
+  generacion += 1;
   if (usuarioId) MEMORIA.delete(usuarioId);
   else MEMORIA.clear();
 }
@@ -66,6 +69,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
   const guardado = MEMORIA.get(usuarioId);
   if (guardado && guardado.vence > performance.now()) return { demo: false, usuarioId, correo, vistaMenu, ...guardado.datos };
 
+  const desde = generacion;
   const [{ data: perfil }, { data: miembro }] = await Promise.all([
     supabase.from("perfiles").select("nombre_completo").eq("id", usuarioId).maybeSingle(),
     supabase
@@ -87,7 +91,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion> => {
     clinico: Boolean(miembro && (["gerente_medico", "medico", "enfermeria"].includes(miembro.rol) || miembro.acceso_clinico)),
     permisos: (miembro?.permisos_portal as PermisoPortal[] | null) ?? null,
   };
-  MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
+  if (desde === generacion) MEMORIA.set(usuarioId, { datos, vence: performance.now() + DURACION });
   return { demo: false, usuarioId, correo, vistaMenu, ...datos };
 });
 

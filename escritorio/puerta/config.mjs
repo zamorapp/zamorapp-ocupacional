@@ -27,6 +27,8 @@ export const CONFIG = {
   // frescuraLectura y sin escrituras pendientes de bajar): la pantalla no paga el viaje a la nube (C11).
   lecturaLocal: env.ZAMORAPP_LECTURA_LOCAL !== "0",
   frescuraLectura: Number(env.ZAMORAPP_FRESCURA_LECTURA || 60_000),
+  // Al abrir, hasta que termina la primera sincronía (con este tope), se lee la copia que quedó en disco
+  lecturaAlAbrirMs: Number(env.ZAMORAPP_LECTURA_AL_ABRIR_MS ?? 60_000),
   // Fase A (local primero): lo que se guarda en tablas que sincronizan se escribe en la base local al instante y
   // sube a la nube por la bandeja de salida (con o sin internet). Lo demás sigue yendo a la nube.
   escrituraLocal: env.ZAMORAPP_ESCRITURA_LOCAL !== "0",
@@ -47,6 +49,16 @@ export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta
 export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados", "recordar_post_vacacional"]);
 // Constancias que son la campana: sus avisos hechos en la PC se borran cuando la nube hace los suyos
 export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacacional"]);
+
+// Funciones que van a la nube pero no cambian lo que la pantalla lee enseguida: avisos de la campana que corren
+// después de mostrar la página (after() en recordatorios.ts), limpiezas de vencidos y vistas previas que solo leen
+// (papelera). Antes cada una obligaba a leer TODO de la nube hasta la sincronía siguiente (hasta 30-60 s): el Inicio
+// llama recordar_alertas en cada visita, así que casi toda la app leía de la nube (medido 6-nov: 1 s por pantalla en
+// vez de 0,1 s). Lo que crean baja a la copia en la sincronía normal (30 s).
+export const RPC_SIN_ESPERA = new Set([
+  "recordar_resultados", "recordar_alertas", "recordar_post_vacacional", "purgar_solicitudes_paciente",
+  "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio",
+]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([

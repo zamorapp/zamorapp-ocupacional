@@ -1,18 +1,17 @@
 import {
   BookOpen,
-  Brain,
   Building2,
   CalendarClock,
   FileText,
   HardHat,
   Inbox,
   LayoutDashboard,
-  PersonStanding,
   Receipt,
   Send,
   type LucideIcon,
   BarChart3,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Stethoscope,
   Users,
@@ -24,6 +23,7 @@ export type Seccion = {
   icono: LucideIcon;
   descripcion: string;
   clinico?: boolean; // solo personal de salud
+  incluye?: string[]; // otras rutas que quedan marcadas en el menú con esta sección
 };
 
 // Áreas de la barra lateral del servicio médico (especificación, sección 13)
@@ -33,8 +33,8 @@ export const SECCIONES: Seccion[] = [
   { href: "/atencion", titulo: "Atención médica", icono: Stethoscope, descripcion: "Cola, consultas, aptitud, reposos y récipes", clinico: true },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
   { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
-  { href: "/ergonomia", titulo: "Ergonomía", icono: PersonStanding, descripcion: "Evaluación de puestos con RULA y REBA, fotos, riesgos priorizados e informes por departamento" },
-  { href: "/psicosocial", titulo: "Psicosocial", icono: Brain, descripcion: "Cuestionario anónimo CoPsoQ-istas21 por celular o papel, resultados por puesto y plan de medidas" },
+  // Ergonomía, psicosocial, identificación de riesgos con mapa y puestos de trabajo en una sola entrada (Cesar, 06-nov)
+  { href: "/evaluaciones", titulo: "Evaluaciones de riesgos", icono: ShieldAlert, descripcion: "Identificación de riesgos y mapa de riesgos, ergonomía, psicosocial y puestos de trabajo", incluye: ["/riesgos", "/ergonomia", "/psicosocial"] },
   { href: "/empresas", titulo: "Empresas", icono: Building2, descripcion: "Empresas clientes, sedes, dependencias y puestos" },
   { href: "/reportes", titulo: "Reportes", icono: BarChart3, descripcion: "Atendidos, morbilidad, aptitud, reposos e informe trimestral" },
   { href: "/facturacion", titulo: "Facturación", icono: Receipt, descripcion: "Servicios, pacientes atendidos y notas de cobro" },
@@ -49,7 +49,7 @@ export const SECCIONES: Seccion[] = [
 export type Grupo = { titulo: string; hrefs: string[] };
 export const GRUPOS: Grupo[] = [
   { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
-  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/ergonomia", "/psicosocial", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
+  { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/evaluaciones", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
   { titulo: "Ajustes", hrefs: ["/configuracion", "/ayuda"] },
 ];
 
