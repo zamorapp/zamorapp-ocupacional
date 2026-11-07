@@ -4,6 +4,7 @@ import { motivoReposoImpreso } from "@/lib/reposo-motivo";
 import { Fragment } from "react";
 import type { AjustesDocumentos, DatosDocumento, OpcionImpresion } from "@/lib/documentos";
 import { textoResultado } from "@/lib/paraclinicos";
+import { estadoFila, interpretarEspiro, movimiento, normalizarMedicion, ordenarFilas, relacionCalculada } from "@/lib/mediciones";
 import { faltantesRecipe } from "@/lib/documentos";
 import { nombreConConcentracion } from "@/lib/recipe";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
@@ -173,6 +174,64 @@ const TITULO_INFORME: Record<VarianteInforme, [string, string]> = {
 export const InformeTrabajador = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="trabajador" />;
 export const Preoperatoria = ({ d }: { d: DatosDocumento }) => <Informe d={d} variante="preoperatorio" />;
 
+// Goniometría y espirometría: el detalle de los valores, solo si se llenaron (son opcionales)
+function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unknown }) {
+  const med = normalizarMedicion(medicion);
+  const n = (x: number | null) => (x === null ? "—" : String(x).replace(".", ","));
+  const encabezado = <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>;
+  const th = "border-b border-doc-linea px-1.5 py-0.5 font-bold";
+  if (med?.tipo === "goniometria" && med.filas.length) {
+    const filas = ordenarFilas(med.filas);
+    return (
+      <div className="mb-3.5 break-inside-avoid">
+        {encabezado}
+        <table className="w-full border-collapse text-[10.5px]">
+          <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>Movimiento</th><th className={th}>Lado</th><th className={`${th} text-right`}>Medido</th><th className={`${th} text-right`}>Normal</th><th className={th}>Valoración</th></tr></thead>
+          <tbody>
+            {filas.map((f) => {
+              const mv = movimiento(f.clave);
+              const e = estadoFila(f);
+              return (
+                <tr key={`${f.clave}${f.lado}`} className={e.estado !== "normal" ? "font-semibold" : undefined}>
+                  <td className="px-1.5 py-0.5">{mv?.articulacion} · {mv?.nombre}</td>
+                  <td className="px-1.5 py-0.5">{f.lado === "D" ? "Der." : f.lado === "I" ? "Izq." : "—"}</td>
+                  <td className="px-1.5 py-0.5 text-right tabular-nums">{f.grados}°</td>
+                  <td className="px-1.5 py-0.5 text-right tabular-nums">{f.normal}°</td>
+                  <td className="px-1.5 py-0.5">{e.estado === "normal" ? "Conservado" : e.estado === "fuera" ? "Limitación leve" : "Limitación marcada"}{e.pct !== null ? ` (${e.pct} %)` : ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {med.nota?.trim() && <p className="mt-1 text-[10.5px]">{med.nota.trim()}</p>}
+        <p className="mt-0.5 text-[9px] text-doc-tenue">Valores normales AAOS.</p>
+      </div>
+    );
+  }
+  if (med?.tipo === "espirometria") {
+    const v = med.valores;
+    const i = interpretarEspiro(v);
+    if (!i.estado) return null;
+    return (
+      <div className="mb-3.5 break-inside-avoid">
+        {encabezado}
+        <table className="w-full border-collapse text-[10.5px]">
+          <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>FVC</th><th className={th}>FEV1</th><th className={th}>FEV1/FVC</th><th className={th}>PEF</th></tr></thead>
+          <tbody><tr className="tabular-nums">
+            <td className="px-1.5 py-0.5">{n(v.fvc)} L{v.fvcPct !== null ? ` · ${n(v.fvcPct)} %` : ""}</td>
+            <td className="px-1.5 py-0.5">{n(v.fev1)} L{v.fev1Pct !== null ? ` · ${n(v.fev1Pct)} %` : ""}</td>
+            <td className="px-1.5 py-0.5">{n(v.relacion ?? relacionCalculada(v))} %</td>
+            <td className="px-1.5 py-0.5">{v.pef === null ? "—" : `${n(v.pef)} L/s`}</td>
+          </tr></tbody>
+        </table>
+        <p className="mt-1 text-[10.5px] font-semibold">{i.patron}{i.gravedad ? ` ${i.gravedad}` : ""}.{med.nota?.trim() ? ` ${med.nota.trim()}` : ""}</p>
+        <p className="mt-0.5 text-[9px] text-doc-tenue">% = del valor previsto. Criterio ATS/ERS 2005.</p>
+      </div>
+    );
+  }
+  return null;
+}
+
 // Examen por sistema con su descripción, como lo escribió el médico (lo alterado, resaltado).
 // Puede pasar de hoja entre filas; cada fila no se corta.
 function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[] }) {
@@ -280,6 +339,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
           <div className="grid grid-cols-2 gap-x-6">{c.paraclinicos.map((p) => <div key={p.nombre}><b className="font-semibold">{p.nombre}:</b> {textoResultado(p)}</div>)}</div>
         </Bloque>
       )}
+      {c.paraclinicos.map((p) => <DetalleMedicion key={`m-${p.id}`} titulo={p.nombre} medicion={p.medicion} />)}
       <Bloque titulo="Diagnósticos">
         {c.sano ? (
           "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional."
@@ -456,8 +516,9 @@ export function Certificado({ d }: { d: DatosDocumento }) {
       <Bloque titulo="Examen funcional y físico">
         {alterados.length ? alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n") : "Dentro de límites normales."}
       </Bloque>
-      {c.paraclinicos.length > 0 && (
-        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.map((p) => `• ${p.nombre}: ${textoResultado(p)}`).join("\n")}</Bloque>
+      {/* Espirometría y goniometría no salen en el certificado (puede ir a la empresa): solo en el informe médico */}
+      {c.paraclinicos.some((p) => !p.medicion) && (
+        <Bloque titulo="Exámenes paraclínicos">{c.paraclinicos.filter((p) => !p.medicion).map((p) => `• ${p.nombre}: ${textoResultado(p)}`).join("\n")}</Bloque>
       )}
       <Bloque titulo="Conclusión">
         {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}
