@@ -34,7 +34,7 @@ type Props = {
   asegurarGuardado: () => Promise<boolean>;
   resultados?: { sinGuardar: boolean; guardando: boolean; guardar: () => void };
   // Para comparar con la cédula y el nombre que trae el informe del laboratorio
-  paciente: { cedula: string; nombre: string; winspiro?: PacienteGdt | null };
+  paciente: { cedula: string; nombre: string; winspiro?: PacienteGdt | null; completar?: (paso: "examen" | "generales") => void };
 };
 
 const ARRASTRE = "application/x-zamorapp-adjunto";
@@ -426,7 +426,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                       </span>
                       {desplegado && tm && (
                         <div className="col-span-full rounded-lg border bg-muted/30 p-3" aria-label={`Valores de ${NOMBRE_MEDICION[tm].toLowerCase()}`}>
-                          <PanelMedicion tipo={tm} medicion={p.medicion} editable={editableResultado} onChange={(med) => conMedicion(p, med)} winspiro={paciente.winspiro} />
+                          <PanelMedicion tipo={tm} medicion={p.medicion} editable={editableResultado} onChange={(med) => conMedicion(p, med)} winspiro={paciente.winspiro} completar={paciente.completar} />
                         </div>
                       )}
                     </div>

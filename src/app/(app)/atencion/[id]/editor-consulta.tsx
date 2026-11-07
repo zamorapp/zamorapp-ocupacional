@@ -693,6 +693,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
           pesoKg: numeroSigno(d.signos.peso),
           fecha: d.fecha,
         },
+        completar: (p) => { setPaso(p); window.scrollTo({ top: 0, behavior: "smooth" }); },
       }}
       archivos={adjuntos ? { orgId: adjuntos.orgId, trabajadorId: trabajador.id, consultaId: d.id, lista: adjuntos.lista } : null}
       asegurarGuardado={async () => (modoParaclinicos === "editar" && cambios ? guardarAntes() : true)}

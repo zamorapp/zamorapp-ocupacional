@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import {
 // Valores de goniometría o espirometría de un paraclínico. Todo es opcional: lo que se deja en blanco no se guarda
 // ni cuenta como faltante. El resumen (texto y color) lo arma lib/mediciones al cambiar cualquier valor.
 // winspiro: datos del paciente para traer la espirometría de winspiroPRO (solo en zamorApp Escritorio)
-type Props = { tipo: TipoMedicion; medicion: Medicion | undefined; editable: boolean; onChange: (m: Medicion) => void; winspiro?: PacienteGdt | null };
+type Props = { tipo: TipoMedicion; medicion: Medicion | undefined; editable: boolean; onChange: (m: Medicion) => void; winspiro?: PacienteGdt | null; completar?: (paso: "examen" | "generales") => void };
 
 const BORDE: Record<"normal" | "fuera" | "alterado", string> = {
   normal: "border-ok/60 bg-ok/5",
@@ -149,7 +149,7 @@ const CAMPOS: { clave: keyof ValoresEspiro; nombre: string; unidad: string; max:
 ];
 const VACIO: ValoresEspiro = { fvc: null, fvcPct: null, fev1: null, fev1Pct: null, relacion: null, pef: null };
 
-function Espirometria({ medicion, editable, onChange, winspiro }: Props) {
+function Espirometria({ medicion, editable, onChange, winspiro, completar }: Props) {
   const med = medicion?.tipo === "espirometria" ? medicion : { tipo: "espirometria" as const, valores: VACIO, nota: "" };
   const v = med.valores;
   // Los decimales a medio escribir («3,») se guardan como texto mientras se tipean
@@ -169,6 +169,7 @@ function Espirometria({ medicion, editable, onChange, winspiro }: Props) {
       {winspiro && editable && (
         <Winspiro
           paciente={winspiro}
+          completar={completar}
           onResultado={(valores, nota) => {
             setBorrador({});
             onChange({ ...med, valores, nota });
@@ -211,9 +212,11 @@ function Espirometria({ medicion, editable, onChange, winspiro }: Props) {
 
 // ── winspiroPRO (GDT) ──
 // Abre winspiroPRO con los datos del paciente; al cerrarlo, los valores de la mejor maniobra llenan la tabla solos.
-function Winspiro({ paciente, onResultado }: { paciente: PacienteGdt; onResultado: (v: ValoresEspiro, nota: string) => void }) {
+function Winspiro({ paciente, onResultado, completar }: { paciente: PacienteGdt; onResultado: (v: ValoresEspiro, nota: string) => void; completar?: (paso: "examen" | "generales") => void }) {
   const [escritorio, setEscritorio] = useState(false);
   const [esperando, setEsperando] = useState(false);
+  // «Dejar de esperar» suelta la pantalla; si winspiroPRO responde después, esa respuesta ya no cambia nada
+  const vuelta = useRef(0);
   const [aviso, setAviso] = useState<{ tono: "ok" | "error" | "info"; texto: string } | null>(null);
   useEffect(() => setEscritorio(enEscritorio()), []);
 
@@ -228,10 +231,12 @@ function Winspiro({ paciente, onResultado }: { paciente: PacienteGdt; onResultad
   ].filter(Boolean) as string[];
 
   const hacer = async () => {
+    const mia = ++vuelta.current;
     setEsperando(true);
     setAviso(null);
     try {
       const bytes = await espirometriaWinspiro(armarPedido(paciente));
+      if (mia !== vuelta.current) return;
       if (!bytes) return setAviso({ tono: "info", texto: "Se cerró winspiroPRO sin una prueba nueva. No cambió nada." });
       const r = leerResultado(deBytes(bytes));
       if (!r) return setAviso({ tono: "error", texto: "winspiroPRO no devolvió un resultado de espirometría. Los valores se pueden escribir a mano." });
@@ -244,10 +249,16 @@ function Winspiro({ paciente, onResultado }: { paciente: PacienteGdt; onResultad
       onResultado(r.valores, notaDeResultado(r));
       setAviso({ tono: "ok", texto: "Listo: los valores llegaron de winspiroPRO. Revísalos y guarda." });
     } catch (e) {
+      if (mia !== vuelta.current) return;
       setAviso({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo hablar con winspiroPRO." });
     } finally {
-      setEsperando(false);
+      if (mia === vuelta.current) setEsperando(false);
     }
+  };
+  const dejar = () => {
+    vuelta.current++;
+    setEsperando(false);
+    setAviso({ tono: "info", texto: "Dejaste de esperar. Los valores no cambiaron; si winspiroPRO sigue abierto, ciérralo antes de volver a intentarlo." });
   };
 
   return (
@@ -260,12 +271,31 @@ function Winspiro({ paciente, onResultado }: { paciente: PacienteGdt; onResultad
         <span className="text-xs text-muted-foreground">
           {esperando ? "Haz la prueba y cierra winspiroPRO: los valores llegan solos." : "Abre winspiroPRO con este paciente; al cerrarlo, los valores se llenan solos."}
         </span>
+        {esperando && (
+          <button type="button" onClick={dejar} className="text-xs font-medium text-primary hover:underline">Dejar de esperar</button>
+        )}
       </div>
       {faltan.length > 0 && !esperando && (
-        <p className="text-xs text-aviso-texto">Falta {faltan.join(", ")} en zamorApp: winspiroPRO lo pedirá para calcular lo previsto.</p>
+        <p className="text-xs text-aviso-texto">
+          {faltan.length > 1 ? "Faltan" : "Falta"} {faltan.join(", ")} en zamorApp: winspiroPRO {faltan.length > 1 ? "los" : "lo"} pedirá para calcular lo previsto.
+          {completar && (
+            <>
+              {" "}
+              <button type="button" onClick={() => completar(!paciente.tallaCm || !paciente.pesoKg ? "examen" : "generales")} className="font-medium text-primary hover:underline">Completar</button>
+            </>
+          )}
+        </p>
       )}
       {aviso && (
-        <p role="status" className={cn("text-xs font-medium", aviso.tono === "ok" ? "text-ok-texto" : aviso.tono === "error" ? "text-alerta-texto" : "text-muted-foreground")}>{aviso.texto}</p>
+        <p
+          role="status"
+          className={cn(
+            "text-xs font-medium",
+            aviso.tono === "ok" ? "text-ok-texto" : aviso.tono === "error" ? "rounded-md border border-alerta bg-alerta/10 px-2.5 py-1.5 text-alerta-texto" : "text-muted-foreground",
+          )}
+        >
+          {aviso.texto}
+        </p>
       )}
     </div>
   );
