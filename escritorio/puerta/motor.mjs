@@ -106,6 +106,8 @@ export class Motor {
       await c.connect();
       const { rowCount } = await c.query("select 1 from pg_database where datname = 'zamorapp'");
       if (!rowCount) await c.query("create database zamorapp");
+      // Si la PC se apagó a mitad de una restauración, la base pudo quedar con las puertas cerradas
+      else await c.query("alter database zamorapp with allow_connections true");
       await c.end();
     }, "la base local");
   }
@@ -241,15 +243,31 @@ export class Motor {
     c = admin();
     await c.connect();
     try {
-      await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname in ('zamorapp', 'zamorapp_anterior') and pid <> pg_backend_pid()");
       await c.query("drop database if exists zamorapp_anterior with (force)");
-      // Los dos renombres juntos: si el segundo falla, no se queda la PC sin base «zamorapp»
-      await c.query("begin");
+      // Se cierran las puertas de «zamorapp» antes de echar a sus conexiones: si no, la réplica o PostgREST
+      // vuelven a entrar entre el cierre y el renombre y este falla con «is being accessed by other users».
+      await c.query("alter database zamorapp with allow_connections false");
       try {
-        await c.query("alter database zamorapp rename to zamorapp_anterior");
-        await c.query("alter database zamorapp_restaurada rename to zamorapp");
-        await c.query("commit");
-      } catch (e) { await c.query("rollback").catch(() => {}); throw e; }
+        for (let intento = 1; ; intento++) {
+          await c.query("select pg_terminate_backend(pid) from pg_stat_activity where datname = 'zamorapp' and pid <> pg_backend_pid()");
+          // Los dos renombres juntos: si el segundo falla, no se queda la PC sin base «zamorapp»
+          await c.query("begin");
+          try {
+            await c.query("alter database zamorapp rename to zamorapp_anterior");
+            await c.query("alter database zamorapp_restaurada rename to zamorapp");
+            await c.query("commit");
+            break;
+          } catch (e) {
+            await c.query("rollback").catch(() => {});
+            if (e.code !== "55006" || intento >= 10) throw e; // 55006: una conexión aún no termina de salir
+            await new Promise((listo) => setTimeout(listo, 200));
+          }
+        }
+      } catch (e) {
+        await c.query("alter database zamorapp with allow_connections true").catch(() => {});
+        throw e;
+      }
+      await c.query("alter database zamorapp_anterior with allow_connections true");
     } finally { await c.end(); }
     // La nube manda: se vuelve a bajar todo; lo que el respaldo tenía pendiente en la bandeja sube con sus versiones
     this.estado.d.cursor = null;

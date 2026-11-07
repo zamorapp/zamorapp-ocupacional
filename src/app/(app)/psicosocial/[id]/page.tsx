@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { ROLES_PSICOSOCIAL } from "@/lib/psicosocial";
 import { codigosPsicosociales, obtenerPsicosocial, resultadosPsicosociales } from "@/lib/psicosocial-datos";
@@ -27,7 +27,10 @@ export default async function EvaluacionPsicosocial({ params }: { params: Promis
       <div>
         <Link href="/psicosocial" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"><ArrowLeft className="size-4" /> Riesgos psicosociales</Link>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{ev.titulo}</h1>
-        <p className="text-sm text-muted-foreground">{ev.empresa}</p>
+        <p className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
+          {ev.empresa}
+          <Link href="/ayuda#psicosocial" target="_blank" className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><BookOpen className="size-4" /> ¿Cómo se hace?</Link>
+        </p>
       </div>
       <PanelPsicosocial
         ev={ev}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PersonStanding } from "lucide-react";
+import { ArrowLeft, PersonStanding } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
@@ -25,7 +25,8 @@ export default async function Ergonomia() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Ergonomía de puestos</h1>
+          <Link href="/evaluaciones" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"><ArrowLeft className="size-4" /> Evaluaciones de riesgos</Link>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Ergonomía de puestos</h1>
           <p className="text-muted-foreground">
             {evaluaciones.length} {evaluaciones.length === 1 ? "evaluación" : "evaluaciones"}
             {prioritarias > 0 && <> · <span className="font-medium text-alerta-texto">{prioritarias} con riesgo alto o muy alto</span></>}

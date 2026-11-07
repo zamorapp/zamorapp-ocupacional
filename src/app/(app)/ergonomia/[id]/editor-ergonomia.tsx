@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, ChevronDown, CloudOff, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { BookOpen, Camera, Check, ChevronDown, CloudOff, Lock, Loader2, Plus, Printer, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -213,7 +213,10 @@ export function EditorErgonomia({ ev, orgId, demo, puedeEditar, puedeReabrir }: 
         {metodo && (
           <section className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">{metodo.nombre}</h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h2 className="text-lg font-semibold">{metodo.nombre}</h2>
+                <Link href={`/ayuda#guia-${metodo.clave}`} target="_blank" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline print:hidden"><BookOpen className="size-4" /> ¿Cómo se hace?</Link>
+              </div>
               <p className="text-xs text-muted-foreground">{metodo.clave === "niosh" ? "Mide al inicio del levantamiento más exigente (si al dejar la carga es peor, evalúa también el destino)." : metodo.clave === "deb" ? "Recorre el puesto y responde Sí o No. Solo se abren las fichas de los peligros presentes; la zona roja aparece si falla alguna condición de la verde." : "Marca la postura más exigente o la que más se repite."} Fuente: {metodo.fuente}</p>
             </div>
             {esDeb && (

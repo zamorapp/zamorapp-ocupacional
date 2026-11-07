@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { medicionVacia, NOMBRE_MEDICION, resumenMedicion, tipoMedicion, type Medicion } from "@/lib/mediciones";
 import { LectorLaboratorio, type Registro } from "./lector-laboratorio";
 import { PanelMedicion } from "./medicion";
+import type { PacienteGdt } from "@/lib/gdt";
 
 // editar: consulta en curso (se agregan y quitan exámenes); resultados: cerrada (solo resultados y archivos);
 // lectura: firmada (resultados bloqueados; los archivos se pueden seguir ligando a sus exámenes)
@@ -33,7 +34,7 @@ type Props = {
   asegurarGuardado: () => Promise<boolean>;
   resultados?: { sinGuardar: boolean; guardando: boolean; guardar: () => void };
   // Para comparar con la cédula y el nombre que trae el informe del laboratorio
-  paciente: { cedula: string; nombre: string };
+  paciente: { cedula: string; nombre: string; winspiro?: PacienteGdt | null; completar?: (paso: "examen" | "generales") => void };
 };
 
 const ARRASTRE = "application/x-zamorapp-adjunto";
@@ -425,7 +426,7 @@ export function ParaclinicosDigitales({ paraclinicos, onChange, modo, catalogo, 
                       </span>
                       {desplegado && tm && (
                         <div className="col-span-full rounded-lg border bg-muted/30 p-3" aria-label={`Valores de ${NOMBRE_MEDICION[tm].toLowerCase()}`}>
-                          <PanelMedicion tipo={tm} medicion={p.medicion} editable={editableResultado} onChange={(med) => conMedicion(p, med)} />
+                          <PanelMedicion tipo={tm} medicion={p.medicion} editable={editableResultado} onChange={(med) => conMedicion(p, med)} winspiro={paciente.winspiro} completar={paciente.completar} />
                         </div>
                       )}
                     </div>

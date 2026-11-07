@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Brain, EyeOff, Users } from "lucide-react";
+import { ArrowLeft, Brain, EyeOff, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
@@ -26,7 +26,8 @@ export default async function Psicosocial() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Riesgos psicosociales</h1>
+          <Link href="/evaluaciones" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"><ArrowLeft className="size-4" /> Evaluaciones de riesgos</Link>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Riesgos psicosociales</h1>
           <p className="text-muted-foreground">{METODO_PSICOSOCIAL.nombre} · cuestionario anónimo desde el celular o en papel</p>
         </div>
         {puedeEditar && (
