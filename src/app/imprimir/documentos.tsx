@@ -184,7 +184,7 @@ function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unkno
   if (med?.tipo === "goniometria" && med.filas.length) {
     const filas = ordenarFilas(med.filas);
     return (
-      <div className="mb-3.5 break-inside-avoid">
+      <div className="mb-2 break-inside-avoid">
         {encabezado}
         <table className="w-full border-collapse text-[10.5px]">
           <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>Movimiento</th><th className={th}>Lado</th><th className={`${th} text-right`}>Medido</th><th className={`${th} text-right`}>Normal</th><th className={th}>Valoración</th></tr></thead>
@@ -214,7 +214,7 @@ function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unkno
     const i = interpretarEspiro(v);
     if (!i.estado) return null;
     return (
-      <div className="mb-3.5 break-inside-avoid">
+      <div className="mb-2 break-inside-avoid">
         {encabezado}
         <table className="w-full border-collapse text-[10.5px]">
           <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>FVC</th><th className={th}>FEV1</th><th className={th}>FEV1/FVC</th><th className={th}>PEF</th></tr></thead>
@@ -233,29 +233,58 @@ function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unkno
   return null;
 }
 
-// Examen por sistema con su descripción, como lo escribió el médico (lo alterado, resaltado).
-// Puede pasar de hoja entre filas; cada fila no se corta.
-function ExamenDetallado({ titulo, filas }: { titulo: string; filas: FilaExamen[] }) {
+// Examen por sistema, compacto (Cesar, 09-nov-2026: la consulta salía en 3 hojas): lo alterado va primero, una fila
+// por sistema con lo que escribió el médico; lo que quedó igual al «normal» del catálogo se agrupa en una línea por texto
+// («NRS: General · Neurológico · …»), sin perder ningún sistema. Nada se resume en silencio: cada sistema sale nombrado.
+const ABREVIATURAS: Record<string, string> = { NRS: "no refiere síntomas" };
+
+function gruposExamen(filas: FilaExamen[]) {
   const llenas = filas.filter((x) => x.valor.trim());
-  if (!llenas.length) return null;
+  // Sin texto «normal» en el catálogo no hay con qué comparar: va como fila, sin marca
+  const detalle = llenas.filter((x) => !x.normal.trim() || x.valor.trim() !== x.normal.trim());
+  const normales = new Map<string, string[]>();
+  for (const x of llenas) if (!detalle.includes(x)) normales.set(x.normal.trim(), [...(normales.get(x.normal.trim()) ?? []), x.nombre]);
+  return { detalle, normales: [...normales] };
+}
+
+function ColumnaExamen({ titulo, filas }: { titulo: string; filas: FilaExamen[] }) {
+  const { detalle, normales } = gruposExamen(filas);
+  if (!detalle.length && !normales.length) return null;
   return (
-    <div className="mb-3.5">
-      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
-      <dl className="space-y-0.5 text-[11px] leading-snug">
-        {llenas.map((x) => {
-          // Sin texto «normal» en el catálogo no hay con qué comparar: no se marca
-          const alterado = x.normal.trim() !== "" && x.valor.trim() !== x.normal.trim();
-          return (
-            <div key={x.clave} className="flex gap-3 break-inside-avoid">
-              <dt className={`w-32 shrink-0 ${alterado ? "font-bold" : "font-semibold text-doc-tenue"}`}>{x.nombre}</dt>
-              <dd className={alterado ? "font-semibold" : undefined}>
-                {x.valor.trim()}
-                {alterado && <span className="ml-1.5 rounded-full border border-doc-linea px-1.5 text-[9px] font-normal text-doc-tenue">alterado</span>}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
+    <div className="min-w-0">
+      <div className="mb-0.5 text-[9.5px] font-bold uppercase tracking-[.1em] text-doc-tenue">{titulo}</div>
+      {detalle.map((x) => {
+        const alterado = x.normal.trim() !== "";
+        return (
+          <p key={x.clave} className="break-inside-avoid">
+            <b className={alterado ? "font-bold" : "font-semibold"}>{x.nombre}:</b>{" "}
+            <span className={alterado ? "font-semibold" : undefined}>{x.valor.trim()}</span>
+            {alterado && <span className="ml-1 rounded-full border border-doc-linea px-1.5 text-[8.5px] font-normal text-doc-tenue">alterado</span>}
+          </p>
+        );
+      })}
+      {normales.map(([texto, nombres]) => (
+        <p key={texto} className="break-inside-avoid">
+          <b className="font-semibold">{texto}</b>
+          {ABREVIATURAS[texto] && <span className="text-doc-tenue"> ({ABREVIATURAS[texto]})</span>}: <span className="text-doc-tenue">{nombres.join(" · ")}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// Funcional y físico lado a lado en una sola sección; si solo hay uno, ocupa todo el ancho
+function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico: FilaExamen[] }) {
+  const hayF = funcional.some((x) => x.valor.trim());
+  const hayX = fisico.some((x) => x.valor.trim());
+  if (!hayF && !hayX) return null;
+  return (
+    <div data-prueba="bloque" className="mb-2.5 border-t-[1.5px] border-doc-acento pt-1.5">
+      <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento">Examen funcional y físico</div>
+      <div className={`grid gap-x-6 gap-y-1.5 text-[11px] leading-snug ${hayF && hayX ? "grid-cols-2" : "grid-cols-1"}`}>
+        <ColumnaExamen titulo="Funcional" filas={funcional} />
+        <ColumnaExamen titulo="Físico" filas={fisico} />
+      </div>
     </div>
   );
 }
@@ -270,13 +299,19 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       <Membrete d={d} />
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
-      <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
-      {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-1 pl-2.5 text-[10px] text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
-      <Firmas>
-        {certificacion ? <FirmaTrabajador d={d} /> : <span />}
-        <FirmaMedico d={d} />
-      </Firmas>
-      <Pie d={d} />
+      {/* Secciones más juntas que en los documentos de una hoja: la consulta completa cabe en dos hojas (Cesar, 09-nov-2026) */}
+      <div className="[&_[data-prueba=bloque]]:mb-2">
+        <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
+      </div>
+      {/* Certificación y firmas juntas: la firma nunca queda sola en una hoja aparte */}
+      <div className="mt-auto break-inside-avoid">
+        {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-0.5 pl-2.5 text-[9.5px] leading-snug text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
+        <Firmas compacto>
+          {certificacion ? <FirmaTrabajador d={d} /> : <span />}
+          <FirmaMedico d={d} compacto />
+        </Firmas>
+        <Pie d={d} compacto />
+      </div>
     </Hoja>
   );
 }
@@ -310,7 +345,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
             {signos.map(([k, v, u]) => (
               <div key={k} className="flex-1 border-r border-doc-linea px-2 py-1.5 text-center last:border-r-0">
                 <div className="text-[8.5px] font-semibold uppercase tracking-[.1em] text-doc-tenue">{k}</div>
-                <span className="font-cifra text-[13px] font-medium">{v}</span> <span className="text-[9px] text-doc-tenue">{u}</span>
+                <span className="whitespace-nowrap"><span className="font-cifra text-[13px] font-medium">{v}</span> <span className="text-[9px] text-doc-tenue">{u}</span></span>
               </div>
             ))}
           </div>
@@ -330,10 +365,7 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
           {alterados.length ? <>Dentro de límites normales, excepto:{"\n"}{alterados.map((x) => `• ${x.nombre}: ${x.valor}`).join("\n")}</> : "Dentro de límites normales."}
         </Bloque>
       ) : (
-        <>
-          <ExamenDetallado titulo="Examen funcional" filas={c.examenFuncional} />
-          <ExamenDetallado titulo="Examen físico" filas={c.examenFisico} />
-        </>
+        <ExamenCompacto funcional={c.examenFuncional} fisico={c.examenFisico} />
       )}
       {c.paraclinicos.length > 0 && (
         <Bloque titulo="Exámenes paraclínicos">
@@ -354,8 +386,8 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
             <tbody>
               {c.diagnosticos.map((x, i) => (
                 <tr key={i} className="border-b border-[#edf1f0]">
-                  <td className="px-1.5 py-1 font-cifra">{sinCodigo(x.cie10) ? "sin CIE-10" : x.cie10}</td><td className="px-1.5 py-1">{x.descripcion}</td>
-                  <td className="px-1.5 py-1"><span className="rounded-full border border-doc-linea px-2 text-[9.5px] text-doc-tenue">{ETIQUETA_ORIGEN[x.origen]}</span></td>
+                  <td className="px-1.5 py-0.5 font-cifra">{sinCodigo(x.cie10) ? "sin CIE-10" : x.cie10}</td><td className="px-1.5 py-0.5">{x.descripcion}</td>
+                  <td className="px-1.5 py-0.5"><span className="rounded-full border border-doc-linea px-2 text-[9.5px] text-doc-tenue">{ETIQUETA_ORIGEN[x.origen]}</span></td>
                 </tr>
               ))}
             </tbody>

@@ -21,8 +21,9 @@ const base = (args[0] ?? "http://localhost:3100").replace(/\/$/, "");
 const DOCUMENTOS = {
   constancia: { fijo: true }, reposo: { fijo: true }, recipe: { fijo: true }, certificado: { fijo: false },
   atencion: { fijo: true }, oam: { fijo: true }, referencia: { fijo: false }, orden: { fijo: false },
-  // El informe completo fluye en varias hojas a propósito (Hoja print:block): solo se revisa que no rompa nada
-  informe: { fluye: true }, "informe-trabajador": { fluye: true }, preoperatoria: { fluye: true },
+  // El informe completo fluye en varias hojas a propósito (Hoja print:block); una consulta normal (catálogos completos
+  // del examen, paraclínicos, espirometría y goniometría) cabe en 2 hojas: Cesar, 09-nov-2026 (salía en 3)
+  informe: { fluye: true, maxNormal: 2 }, "informe-trabajador": { fluye: true, maxNormal: 2 }, preoperatoria: { fluye: true, maxNormal: 2 },
   reubicacion: { fijo: false }, libre: { fijo: false },
   // Vigilancia con datos de ejemplo: fluye en varias hojas; el índice calcula sus páginas al abrir
   vigilancia: { fluye: true },
@@ -76,6 +77,7 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
     const sePasa = !regla.fluye && paginas > info.hojas && (caso === "normal" || regla.fijo);
     filas.push(`${tipo.padEnd(20)} ${caso.padEnd(7)} hojas ${info.hojas}  páginas ${paginas}${sePasa ? "  ← SE PASA" : ""}`);
     if (sePasa) fallas.push(`${tipo} (${caso}): ocupa ${paginas} páginas y debe caber en ${info.hojas}`);
+    if (regla.maxNormal && caso === "normal" && paginas > regla.maxNormal) fallas.push(`${tipo} (normal): ocupa ${paginas} páginas y debe caber en ${regla.maxNormal}`);
     if (info.rotas.length) fallas.push(`${tipo} (${caso}): imagen que no carga: ${info.rotas.join(", ")}`);
     if (tipo === "reposo" && info.motivoReposo.join() !== "false,true") fallas.push(`reposo (${caso}): el motivo clínico debe ir solo en la copia (original, copia = ${info.motivoReposo.join(", ")})`);
     if (tipo === "reposo" && info.diagnosticoReposo.join() !== "false,true") fallas.push(`reposo (${caso}): el diagnóstico debe ir solo en la copia (original, copia = ${info.diagnosticoReposo.join(", ")})`);

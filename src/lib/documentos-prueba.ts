@@ -10,6 +10,9 @@ const logo = (texto: string, color: string) =>
 // Firma de prueba parecida a una real: trazo a mano sobre fondo blanco (como un escaneo), para ver que no tape nada
 const firma = `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#fff"/><path d="M18 88c22-50 40-70 48-62s-22 66-8 66 30-58 46-56-8 42 6 40 22-34 34-30-4 26 10 24 30-20 44-18c18 3 40 8 86-6" fill="none" stroke="#1b2a6b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M70 104c60-6 120-10 200-14" fill="none" stroke="#1b2a6b" stroke-width="3" stroke-linecap="round"/></svg>`).toString("base64")}`;
 
+const FUNCIONAL = [["general", "General"], ["neurologico", "Neurológico"], ["sentidos", "Órganos de los sentidos"], ["cardiovascular", "Cardiovascular"], ["respiratorio", "Respiratorio"], ["digestivo", "Digestivo"], ["genitourinario", "Genitourinario"], ["osteomuscular", "Osteomuscular"], ["piel", "Piel y anexos"]];
+const FISICO = [["piel", "Piel"], ["cabeza", "Cabeza"], ["ojos", "Ojos"], ["oidos", "Oídos"], ["nariz", "Nariz"], ["boca", "Boca y faringe"], ["cuello", "Cuello"], ["torax", "Tórax"], ["cardiovascular", "Cardiovascular"], ["pulmonar", "Pulmonar"], ["abdomen", "Abdomen"], ["hernias", "Hernias"], ["genitourinario", "Genitourinario"], ["columna", "Columna"], ["msup", "Miembros superiores"], ["minf", "Miembros inferiores"], ["neurologico", "Neurológico"], ["mental", "Estado mental"], ["linfatico", "Sistema linfático"]];
+
 const repetir = (frase: string, n: number) => Array.from({ length: n }, () => frase).join(" ");
 
 // «same»: consulta importada del SAME, firmada y emitida allá (leyenda junto a la firma)
@@ -30,8 +33,12 @@ export function documentoDePrueba(caso: "normal" | "largo" | "same" | "particula
       antecedentes: Array.from({ length: largo ? 12 : 3 }, (_, i) => ({ id: `a${i}`, nombre: `Antecedente ${i + 1}`, grupo: i % 2 ? "Personales" : "Familiares", observacion: texto("Controlado con tratamiento.", 3) })),
       habitos: [{ clave: "tabaco", nombre: "Tabaco", valor: "No" }, { clave: "alcohol", nombre: "Alcohol", valor: texto("Ocasional, fines de semana.", 2) }],
       signos: { ta: "120/80", fc: "72", fr: "16", temp: "36,5", sat: "98", peso: "78", talla: "175" },
-      examenFuncional: Array.from({ length: largo ? 14 : 4 }, (_, i) => ({ clave: `f${i}`, nombre: `Sistema ${i + 1}`, valor: texto("Sin alteraciones.", 2), normal: "Normal" })),
-      examenFisico: Array.from({ length: largo ? 16 : 5 }, (_, i) => ({ clave: `x${i}`, nombre: `Región ${i + 1}`, valor: texto("Dentro de límites normales.", 2), normal: "Normal" })),
+      // Catálogos reales (lista_items, nov-2026): 9 sistemas «NRS» y 19 regiones «Normal»; lo alterado en negrita.
+      // «largo»: varias filas alteradas con texto largo (peor caso del examen detallado)
+      examenFuncional: FUNCIONAL.map(([clave, nombre], i) => ({ clave, nombre, normal: "NRS",
+        valor: largo && i % 3 === 0 ? repetir("Refiere dolor lumbar de 3 meses de evolución que empeora con la carga.", 2) : i === 7 ? "Refiere dolor lumbar ocasional." : "NRS" })),
+      examenFisico: FISICO.map(([clave, nombre], i) => ({ clave, nombre, normal: clave === "hernias" ? "No presenta" : "Normal",
+        valor: largo && i % 4 === 1 ? repetir("Contractura paravertebral lumbar bilateral, dolor a la palpación.", 2) : clave === "columna" ? "Contractura paravertebral lumbar; Lasègue negativo." : clave === "hernias" ? "No presenta" : "Normal" })),
       paraclinicos: [
         ...Array.from({ length: largo ? 18 : 4 }, (_, i) => ({ id: `p${i}`, nombre: `Examen de laboratorio ${i + 1}`, grupo: "Hematología", resultado: i % 3 ? "Normal" : "13,5 g/dL", estado: "normal" as const, unidad: "g/dL", referencia: "12-16" })),
         // Goniometría y espirometría con valores (opcionales): el informe trae su tabla de detalle
