@@ -289,13 +289,24 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
   );
 }
 
+// Desde la hoja 2, una línea fina arriba identifica la hoja suelta (Diseño, 09-nov-2026): nombre, cédula, documento,
+// folio y «Hoja N de M». Va en el margen de la página (@page consulta), así no quita alto al contenido.
+// El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
+function IdentHojas({ texto }: { texto: string }) {
+  const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
+  const css = `@page consulta { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); vertical-align: bottom; padding-bottom: 1.5mm; border-bottom: 0.5pt solid #c9d3d1; font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
+@page consulta:first { @top-left { content: none; border: none; } }`;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
 export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
   const laboral = variante === "completo";
   const certificacion = laboral ? (esParticular(d.empresa) ? CERTIFICACION_PARTICULAR : d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR) : null;
   const [prefijo, titulo] = TITULO_INFORME[variante];
   // Flujo normal al imprimir: el informe suele ocupar dos hojas y así no deja huecos al pasar de página
   return (
-    <Hoja className="print:block">
+    <Hoja className="print:block [page:consulta]">
+      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, titulo, `Folio ${folio(prefijo, d.datos.id)}`].join(" · ")} />
       <Membrete d={d} />
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
@@ -305,7 +316,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       </div>
       {/* Certificación y firmas juntas: la firma nunca queda sola en una hoja aparte */}
       <div className="mt-auto break-inside-avoid">
-        {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-0.5 pl-2.5 text-[9.5px] leading-snug text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
+        {certificacion && <p className="mt-1 border-l-[3px] border-doc-linea py-0.5 pl-2.5 text-[8.5pt] leading-snug text-doc-tenue"><b className="text-[#15201e]">Certificación del {esParticular(d.empresa) ? "paciente" : "trabajador"}.</b> {certificacion}</p>}
         <Firmas compacto>
           {certificacion ? <FirmaTrabajador d={d} /> : <span />}
           <FirmaMedico d={d} compacto />
