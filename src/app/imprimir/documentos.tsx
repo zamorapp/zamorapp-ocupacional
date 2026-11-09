@@ -314,7 +314,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       {/* Secciones más juntas que en los documentos de una hoja: la consulta completa cabe en dos hojas (Cesar, 09-nov-2026) */}
       {/* Las secciones pueden pasar de hoja entre líneas (no saltan enteras dejando media hoja en blanco); el título
           nunca queda solo al pie: va pegado a su primera línea */}
-      <div className="text-[11.5px] leading-snug [&_[data-prueba=bloque]]:mb-2 [&_[data-prueba=bloque]]:break-inside-auto [&_[data-prueba=bloque]>div:first-child]:break-after-avoid [&_tr]:break-inside-avoid">
+      <div className="leading-[1.35] [&_[data-prueba=bloque]]:mb-1.5 [&_[data-prueba=bloque]]:pt-1 [&_[data-prueba=bloque]]:break-inside-auto [&_[data-prueba=bloque]>div:first-child]:break-after-avoid [&_tr]:break-inside-avoid">
         <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
       </div>
       {/* Certificación y firmas juntas: la firma nunca queda sola en una hoja aparte */}
@@ -357,8 +357,8 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
         <Bloque titulo="Signos vitales y antropometría">
           <div className="flex overflow-hidden rounded-lg border border-doc-linea">
             {signos.map(([k, v, u]) => (
-              <div key={k} className="flex-1 border-r border-doc-linea px-2 py-1.5 text-center last:border-r-0">
-                <div className="text-[8.5px] font-semibold uppercase tracking-[.1em] text-doc-tenue">{k}</div>
+              <div key={k} className="flex-1 border-r border-doc-linea px-2 py-0.5 text-center last:border-r-0">
+                <div className="text-[6.5pt] font-semibold uppercase leading-tight tracking-[.1em] text-doc-tenue">{k}</div>
                 <span className="whitespace-nowrap"><span className="font-cifra text-[13px] font-medium">{v}</span> <span className="text-[9px] text-doc-tenue">{u}</span></span>
               </div>
             ))}
