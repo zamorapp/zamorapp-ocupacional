@@ -295,7 +295,9 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 // El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
 function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
-  const css = `@page consulta { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
+  // Tamaño, márgenes y número de página repetidos como en el @page general (globals.css): en Chromium 141 (el del CI) una
+  // página con nombre no los heredaba bien y la consulta salía en 3 hojas; @page apaisada también los declara
+  const css = `@page consulta { size: letter; margin: 12mm 12mm 14mm; @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 8.5px ui-monospace, Consolas, monospace; color: #55625f; } @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
 @page consulta:first { @top-left { content: none; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
