@@ -28,7 +28,8 @@ const hoja = (doc: Doc, d: DatosDocumento & { clave: string }) => {
   if (doc === "atencion") return <ConstanciaAtencion key={k} d={d} />;
   if (doc === "referencia") return <Referencia key={k} d={d} />;
   if (doc === "recipe") return <Recipe key={k} d={d} />;
-  return <Informe key={k} d={d} />;
+  // Varias consultas en un documento: sin la línea de identificación de la hoja 2 (iría el nombre de una en todas)
+  return <Informe key={k} d={d} identificar={false} />;
 };
 
 // Varias consultas en un solo documento, una por hoja y agrupadas por documento (?doc=constancia,atencion): lo usa

@@ -290,26 +290,26 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
   );
 }
 
-// Desde la hoja 2, una línea fina arriba identifica la hoja suelta (Diseño, 09-nov-2026): nombre, cédula, documento,
-// folio y «Hoja N de M». Va en el margen de la página (@page consulta), así no quita alto al contenido.
+// Desde la hoja 2, una línea arriba identifica la hoja suelta (Diseño, 09-nov-2026): nombre, cédula, documento, folio y
+// «Hoja N de M». Va en el margen de la página (@page), así no quita alto al contenido. Sin páginas con nombre: en el
+// Chromium 141 del CI, «page: consulta» hacía salir la consulta en 3 hojas. Por eso va en el @page general y solo
+// cuando la impresión es UN documento (el lote lo apaga: mezclaría el nombre de otro trabajador en sus hojas).
 // El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
 function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
-  // Tamaño, márgenes y número de página repetidos como en el @page general (globals.css): en Chromium 141 (el del CI) una
-  // página con nombre no los heredaba bien y la consulta salía en 3 hojas; @page apaisada también los declara
-  const css = `@page consulta { size: letter; margin: 12mm 12mm 14mm; @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 8.5px ui-monospace, Consolas, monospace; color: #55625f; } @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
-@page consulta:first { @top-left { content: none; } }`;
+  const css = `@page { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
+@page :first { @top-left { content: none; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
-export function Informe({ d, variante = "completo" }: { d: DatosDocumento; variante?: VarianteInforme }) {
+export function Informe({ d, variante = "completo", identificar = true }: { d: DatosDocumento; variante?: VarianteInforme; identificar?: boolean }) {
   const laboral = variante === "completo";
   const certificacion = laboral ? (esParticular(d.empresa) ? CERTIFICACION_PARTICULAR : d.org.ajustes.certificacion_trabajador ?? CERTIFICACION_TRABAJADOR) : null;
   const [prefijo, titulo] = TITULO_INFORME[variante];
   // Flujo normal al imprimir: el informe suele ocupar dos hojas y así no deja huecos al pasar de página
   return (
-    <Hoja className="print:block [page:consulta]">
-      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, titulo, `Folio ${folio(prefijo, d.datos.id)}`].join(" · ")} />
+    <Hoja className="print:block">
+      {identificar && <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, titulo, `Folio ${folio(prefijo, d.datos.id)}`].join(" · ")} />}
       <Membrete d={d} />
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
