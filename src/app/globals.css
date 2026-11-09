@@ -274,6 +274,13 @@
   body {
     background: white;
   }
+  /* Elementos de Next.js fuera de las hojas (avisos de ruta, portal de desarrollo): fuera del papel. Si quedan en
+     el flujo, un salto de «page» con nombre (@page consulta) entre la hoja y ellos abre una página en blanco al
+     final en Chromium 141 (#334: la consulta salía en 3 hojas en el CI) */
+  next-route-announcer,
+  nextjs-portal {
+    display: none !important;
+  }
   .hoja {
     break-after: page;
   }
