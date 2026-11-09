@@ -294,8 +294,8 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 // El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
 function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
-  const css = `@page consulta { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); vertical-align: bottom; padding-bottom: 1.5mm; border-bottom: 0.5pt solid #c9d3d1; font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
-@page consulta:first { @top-left { content: none; border: none; } }`;
+  const css = `@page consulta { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
+@page consulta:first { @top-left { content: none; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
@@ -311,7 +311,9 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       <Titulo d={d} prefijo={prefijo} sub={[d.motivo?.nombre, d.datos.tipo].filter(Boolean).join(" · ")}>{titulo}</Titulo>
       <DatosPaciente d={d} completo={variante !== "trabajador"} />
       {/* Secciones más juntas que en los documentos de una hoja: la consulta completa cabe en dos hojas (Cesar, 09-nov-2026) */}
-      <div className="[&_[data-prueba=bloque]]:mb-2">
+      {/* Las secciones pueden pasar de hoja entre líneas (no saltan enteras dejando media hoja en blanco); el título
+          nunca queda solo al pie: va pegado a su primera línea */}
+      <div className="[&_[data-prueba=bloque]]:mb-2 [&_[data-prueba=bloque]]:break-inside-auto [&_[data-prueba=bloque]>div:first-child]:break-after-avoid [&_tr]:break-inside-avoid">
         <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
       </div>
       {/* Certificación y firmas juntas: la firma nunca queda sola en una hoja aparte */}
@@ -364,8 +366,9 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
       )}
       {antecedentes && (
         <Bloque titulo="Antecedentes">
-        <div className="grid grid-cols-3 gap-x-5 gap-y-1">
-          <div><div className="text-[10.5px] text-doc-tenue">Personales</div><b className="font-semibold">{ant.personales}</b></div>
+        {/* Personales largos van a todo el ancho: en un tercio de hoja se volvían una columna alta y angosta */}
+        <div className={`grid gap-x-5 gap-y-1 ${ant.personales.length > 70 ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className={ant.personales.length > 70 ? "col-span-2" : undefined}><div className="text-[10.5px] text-doc-tenue">Personales</div><b className="font-semibold">{ant.personales}</b></div>
           <div><div className="text-[10.5px] text-doc-tenue">Familiares</div><b className="font-semibold">{ant.familiares}</b></div>
           {habitos && <div><div className="text-[10.5px] text-doc-tenue">Hábitos psicobiológicos</div><b className="font-semibold">{habitos}</b></div>}
         </div>
