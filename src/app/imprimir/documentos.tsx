@@ -179,12 +179,13 @@ export const Preoperatoria = ({ d }: { d: DatosDocumento }) => <Informe d={d} va
 function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unknown }) {
   const med = normalizarMedicion(medicion);
   const n = (x: number | null) => (x === null ? "—" : String(x).replace(".", ","));
-  const encabezado = <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>;
+  // La tabla puede pasar de hoja entre filas (repite su encabezado); el título queda pegado a ella
+  const encabezado = <div className="mb-1.5 break-after-avoid flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>;
   const th = "border-b border-doc-linea px-1.5 py-0.5 font-bold";
   if (med?.tipo === "goniometria" && med.filas.length) {
     const filas = ordenarFilas(med.filas);
     return (
-      <div className="mb-2 break-inside-avoid">
+      <div className="mb-2">
         {encabezado}
         <table className="w-full border-collapse text-[10.5px]">
           <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>Movimiento</th><th className={th}>Lado</th><th className={`${th} text-right`}>Medido</th><th className={`${th} text-right`}>Normal</th><th className={th}>Valoración</th></tr></thead>
@@ -214,7 +215,7 @@ function DetalleMedicion({ titulo, medicion }: { titulo: string; medicion: unkno
     const i = interpretarEspiro(v);
     if (!i.estado) return null;
     return (
-      <div className="mb-2 break-inside-avoid">
+      <div className="mb-2">
         {encabezado}
         <table className="w-full border-collapse text-[10.5px]">
           <thead><tr className="text-left text-[8.5px] uppercase tracking-[.1em] text-doc-tenue"><th className={th}>FVC</th><th className={th}>FEV1</th><th className={th}>FEV1/FVC</th><th className={th}>PEF</th></tr></thead>
@@ -313,7 +314,7 @@ export function Informe({ d, variante = "completo" }: { d: DatosDocumento; varia
       {/* Secciones más juntas que en los documentos de una hoja: la consulta completa cabe en dos hojas (Cesar, 09-nov-2026) */}
       {/* Las secciones pueden pasar de hoja entre líneas (no saltan enteras dejando media hoja en blanco); el título
           nunca queda solo al pie: va pegado a su primera línea */}
-      <div className="[&_[data-prueba=bloque]]:mb-2 [&_[data-prueba=bloque]]:break-inside-auto [&_[data-prueba=bloque]>div:first-child]:break-after-avoid [&_tr]:break-inside-avoid">
+      <div className="text-[11.5px] leading-snug [&_[data-prueba=bloque]]:mb-2 [&_[data-prueba=bloque]]:break-inside-auto [&_[data-prueba=bloque]>div:first-child]:break-after-avoid [&_tr]:break-inside-avoid">
         <CuerpoConsulta c={d.datos} sin={d.sin} ajustes={d.org.ajustes} variante={variante} particular={esParticular(d.empresa)} />
       </div>
       {/* Certificación y firmas juntas: la firma nunca queda sola en una hoja aparte */}
