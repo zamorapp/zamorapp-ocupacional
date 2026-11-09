@@ -402,6 +402,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
   const preventivo = motivo?.grupo === "preventivo";
   // Duplicada: el tipo de evaluación queda resaltado hasta que se cambie o se confirme (Cesar, 09-nov: duplicó un
   // prevacacional y no encontraba dónde pasarlo a posvacacional; el selector vivía solo en Generales)
+  // resaltarTipo: anillo ámbar en el selector; confirmarTipo: la cajita con la pregunta («Ignorar» solo la oculta)
+  const [resaltarTipo, setResaltarTipo] = useState(duplicada && inicial.estado === "borrador");
   const [confirmarTipo, setConfirmarTipo] = useState(duplicada && inicial.estado === "borrador");
   useEffect(() => {
     if (!duplicada) return;
@@ -860,25 +862,28 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 className={cn(
                   "inline-flex h-9 max-w-full items-center gap-1.5 rounded-full border-2 pl-3 pr-1 text-sm transition-shadow",
                   !d.motivoId ? "border-alerta bg-alerta/10 text-alerta-texto" : "border-primary bg-primary/10 text-primary",
-                  confirmarTipo && "ring-4 ring-aviso/60",
+                  resaltarTipo && !bloqueado && "ring-4 ring-aviso/60",
                   !bloqueado && "cursor-pointer hover:bg-primary/15",
                 )}>
                 {bloqueado ? <Lock className="size-4 shrink-0" aria-hidden /> : <ClipboardList className="size-4 shrink-0" aria-hidden />}
                 <span className="sr-only">Tipo de evaluación</span>
                 <select id="tipo-evaluacion" value={d.motivoId ?? ""} disabled={bloqueado}
-                  onChange={(e) => { cambiarMotivo(e.target.value || null); setConfirmarTipo(false); }}
-                  className="h-8 min-w-0 max-w-[16rem] cursor-pointer truncate rounded-full bg-transparent pr-1 font-semibold outline-none disabled:cursor-default disabled:appearance-none">
+                  onChange={(e) => { cambiarMotivo(e.target.value || null); setConfirmarTipo(false); setResaltarTipo(false); }}
+                  className="h-8 min-w-0 max-w-[16rem] cursor-pointer truncate rounded-full bg-transparent pr-1 font-semibold outline-none disabled:cursor-default disabled:appearance-none disabled:opacity-100">
                   <option value="">Elige el tipo de evaluación</option>
                   {opcionesMotivo}
                 </select>
               </label>
             </div>
-            {confirmarTipo && (
-              <p role="status" className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-aviso-texto">
-                <span>Consulta duplicada: ¿es el mismo tipo de evaluación? Si no, cámbialo arriba.</span>
-                <button type="button" onClick={() => setConfirmarTipo(false)} className="font-medium underline-offset-2 hover:underline">Sí, es igual</button>
-                <button type="button" onClick={() => setConfirmarTipo(false)} className="text-muted-foreground underline-offset-2 hover:underline">Ignorar</button>
-              </p>
+            {confirmarTipo && !bloqueado && (
+              <div role="status" className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-aviso/40 bg-aviso/10 px-3 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 basis-56 text-aviso-texto">Consulta duplicada: ¿es el mismo tipo de evaluación? Si no, cámbialo arriba.</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 max-sm:h-11" onClick={() => { setConfirmarTipo(false); setResaltarTipo(false); }}>
+                  <Check /> Sí, es el mismo
+                </Button>
+                <button type="button" onClick={() => setConfirmarTipo(false)} title="Oculta este aviso; el tipo sigue resaltado"
+                  className="text-muted-foreground underline-offset-2 hover:underline max-sm:min-h-11 max-sm:px-2">Ignorar</button>
+              </div>
             )}
             <p className="truncate text-sm text-muted-foreground">
               {d.aptitud.clasificacion && (
@@ -1155,6 +1160,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                     <option value="">Elige el motivo</option>
                     {opcionesMotivo}
                   </select>
+                  <p className="mt-1 text-xs text-muted-foreground">También se cambia arriba, junto al nombre.</p>
                 </div>
                 <div>
                   <Label className="mb-1.5">Tipo</Label>
