@@ -77,9 +77,11 @@ begin
   elsif new.tipo not in ('inspeccion', 'orientacion', 'otro') then
     raise exception 'Elige el trabajador atendido.' using errcode = '23514';
   end if;
-  -- La evolución se anota en una consulta de ESE trabajador (la que la enfermera leyó), o en su historia sin consulta
-  if new.consulta_id is not null and not exists (
-      select 1 from clinico.consultas c where c.id = new.consulta_id and c.trabajador_id = new.trabajador_id and c.org_id = new.org_id) then
+  -- La evolución se anota en una consulta de ESE trabajador (la que la enfermera leyó), o en su historia sin consulta.
+  -- Si la consulta aún no está (la creó otro autor en la PC y no ha subido), responde la llave foránea: en Conflictos
+  -- se ve como tal y «reintentar» la sube cuando la consulta ya llegó (bandeja.mjs, orden por autor).
+  if new.consulta_id is not null and (new.trabajador_id is null or exists (
+      select 1 from clinico.consultas c where c.id = new.consulta_id and (c.trabajador_id <> new.trabajador_id or c.org_id <> new.org_id))) then
     raise exception 'La consulta no es de este trabajador.' using errcode = '23514';
   end if;
   if not exists (select 1 from public.empresas where id = new.empresa_id and org_id = new.org_id) then

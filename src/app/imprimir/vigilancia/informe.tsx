@@ -25,15 +25,17 @@ export type OrgInforme = { nombre: string; rif: string | null; direccion: string
 type Celda = string | number;
 
 const num = (n: number | null | undefined, dec = 2) => (n === null || n === undefined ? "—" : n.toLocaleString("es-VE", { maximumFractionDigits: dec }));
-const porc = (n: number, total: number) => (total ? num(Math.round((n * 1000) / total) / 10, 1) : "0");
+const porc = (n: number, total: number, fijo = false) =>
+  total ? (fijo ? (Math.round((n * 1000) / total) / 10).toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : num(Math.round((n * 1000) / total) / 10, 1)) : "0";
 
 // Cuadro compacto: total y % sobre la última columna numérica; sin filas, una sola línea
 // minimo: en lo que va a la empresa, las cifras de 1 a minimo-1 salen como «<minimo» (sin su % ni el total que las delata)
 // texto: columnas (además de la primera) que llevan palabras: a la izquierda y en letra normal
 // agrupar: la primera columna se escribe solo en la primera fila de cada grupo, con una línea más marcada entre grupos
 // cerosTenues: los ceros en gris (cuadros completos que listan también lo que no tuvo casos)
-function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [], agrupar = false, cerosTenues = false }: {
+function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin registros en el período.", minimo = 0, texto = [], agrupar = false, cerosTenues = false, unDecimal = false }: {
   columnas: string[]; filas: Celda[][]; porcentaje?: boolean; total?: boolean; vacio?: string; minimo?: number; texto?: number[]; agrupar?: boolean; cerosTenues?: boolean;
+  unDecimal?: boolean; // % siempre con un decimal (7,0 · 14,0)
 }) {
   const cifra = (j: number) => j > 0 && !texto.includes(j);
   if (!filas.length) return <p className="text-[10.5px] italic text-doc-tenue">{vacio}</p>;
@@ -57,7 +59,7 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
           return (
             <tr key={i}>
               {f.map((v, j) => <td key={j} className={`${td} ${borde} ${cifra(j) ? "text-right font-cifra tabular-nums" : ""} ${(cerosTenues && v === 0) || (j === 0 && sigue) ? "text-doc-tenue" : ""}`}>{j === 0 && sigue ? "" : oculta(v) ? `<${minimo}` : typeof v === "number" ? num(v) : v}</td>)}
-              {porcentaje && <td className={`${td} ${borde} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma)}</td>}
+              {porcentaje && <td className={`${td} ${borde} text-right font-cifra tabular-nums text-doc-tenue`}>{f.some(oculta) ? "—" : porc(f[f.length - 1] as number, suma, unDecimal)}</td>}
             </tr>
           );
         })}
@@ -65,7 +67,7 @@ function Tabla({ columnas, filas, porcentaje = true, total = true, vacio = "Sin 
           <tr className="font-semibold">
             <td className={`${td} border-t-doc-acento`} colSpan={columnas.length - 1}>Total</td>
             <td className={`${td} border-t-doc-acento text-right font-cifra tabular-nums`}>{num(suma)}</td>
-            {porcentaje && <td className={`${td} border-t-doc-acento text-right font-cifra`}>100</td>}
+            {porcentaje && <td className={`${td} border-t-doc-acento text-right font-cifra`}>{unDecimal ? "100,0" : "100"}</td>}
           </tr>
         )}
       </tbody>
@@ -416,8 +418,8 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             <Panel ancla="i-enfermeria" titulo="Atención de enfermería"
               nota={`${num(v.enfermeria.atenciones, 0)} atenciones a ${num(v.enfermeria.pacientes, 0)} trabajadores en ${num(v.enfermeria.dias_enfermeria, 0)} días (el médico atendió ${num(v.enfermeria.dias_medico, 0)} días). ${num(v.enfermeria.referidos, 0)} referidos al médico.`}>
               <div className="grid grid-cols-2 items-start gap-3">
-                <T columnas={["Tipo de atención", "Casos"]} filas={v.enfermeria.por_tipo.map((x) => [ETIQUETA_TIPO_ENFERMERIA[x.nombre] ?? x.nombre, x.n])} />
-                <T columnas={["Motivos de enfermería", "Casos"]} filas={g(v.enfermeria.causas).map((x) => [x.nombre, x.n])} />
+                <T columnas={["Tipo de atención", "Casos"]} filas={v.enfermeria.por_tipo.map((x) => [ETIQUETA_TIPO_ENFERMERIA[x.nombre] ?? x.nombre, x.n])} unDecimal />
+                <T columnas={["Motivos de enfermería", "Casos"]} filas={g(v.enfermeria.causas).map((x) => [x.nombre, x.n])} unDecimal />
               </div>
             </Panel>
           )}

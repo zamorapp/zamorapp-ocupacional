@@ -76,10 +76,10 @@ export default async function HojaControlTa({ searchParams }: { searchParams: Pr
             </tbody>
           </table>
           <p className="mt-2 rounded-lg border border-doc-linea px-3 py-1.5 text-[10px] leading-snug">
-            <b>Referencia (adultos, mmHg):</b> normal menos de 130/85 · normal alta 130–139 / 85–89 · <b>alta 140/90 o más</b> · <b className="text-[#b42318]">180/110 o más: referir al médico de inmediato</b>.
+            <b>Referencia (adultos, mmHg):</b> normal menos de 130/85 · normal alta 130–139 / 85–89 · <b>alta 140/90 o más</b> · <b className="text-[#b42318] underline">180/110 o más: REFERIR AL MÉDICO DE INMEDIATO</b>.
             Tome la tensión sentado, tras 5 minutos de reposo, con el brazo a la altura del corazón.
           </p>
-          <Pie d={impreso} compacto derecha="Se pasa luego a zamorApp › Enfermería, o se archiva con la historia" />
+          <Pie d={impreso} compacto derecha={`Hoja ${h + 1} de ${hojas}`} />
         </Hoja>
       ))}
     </div>
