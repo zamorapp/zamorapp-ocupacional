@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Ruler, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
+import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Ruler, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -98,6 +98,8 @@ type Props = {
   plantillas: Plantilla[];
   nueva: boolean;
   pasoInicial?: string;
+  /** Viene de «Duplicar consulta»: se resalta el tipo de evaluación para confirmarlo o cambiarlo */
+  duplicada?: boolean;
   declaraciones: DeclaracionConsulta[];
   siguiente?: SiguienteCita | null;
   hoy: string; // día de hoy en Caracas según el servidor (no el de Windows)
@@ -295,7 +297,7 @@ const numeroSigno = (v?: string) => {
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false, notaRiesgos }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, duplicada = false, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false, notaRiesgos }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -398,6 +400,26 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     else { setD(base); if (intacta) setDeshacer(null); }
   };
   const preventivo = motivo?.grupo === "preventivo";
+  // Duplicada: el tipo de evaluación queda resaltado hasta que se cambie o se confirme (Cesar, 09-nov: duplicó un
+  // prevacacional y no encontraba dónde pasarlo a posvacacional; el selector vivía solo en Generales)
+  // resaltarTipo: anillo ámbar en el selector; confirmarTipo: la cajita con la pregunta («Ignorar» solo la oculta)
+  const [resaltarTipo, setResaltarTipo] = useState(duplicada && inicial.estado === "borrador");
+  const [confirmarTipo, setConfirmarTipo] = useState(duplicada && inicial.estado === "borrador");
+  useEffect(() => {
+    if (!duplicada) return;
+    const u = new URL(window.location.href);
+    u.searchParams.delete("duplicada");
+    window.history.replaceState(window.history.state, "", u.pathname + u.search);
+  }, [duplicada]);
+  const opcionesMotivo = ["preventivo", "no_preventivo", null].map((g) => {
+    const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
+    if (!items.length) return null;
+    return (
+      <optgroup key={g ?? "otros"} label={g === "preventivo" ? "Preventivos" : g === "no_preventivo" ? "No preventivos" : "Otros"}>
+        {items.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+      </optgroup>
+    );
+  });
   // «Perfil normal» y «Copiar igual»: lo aplicado, con la consulta como estaba para «Deshacer»
   const [aplicado, setAplicado] = useState<{ tipo: "copia" | "perfil"; texto: string; antes: DatosConsulta; despues: DatosConsulta } | null>(null);
   const [sinOferta, setSinOferta] = useState(false);
@@ -514,7 +536,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
       }
       const r = await duplicarConsulta(d.id);
       setAviso(r);
-      if (r.ok && r.id) router.push(`/atencion/${r.id}`);
+      if (r.ok && r.id) router.push(`/atencion/${r.id}?duplicada=1`);
     });
   };
 
@@ -832,7 +854,37 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             {trabajador.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
           </div>
           <div className="min-w-0 flex-1 basis-48">
-            <Link href={`/pacientes/${trabajador.id}`} className="text-lg font-semibold hover:text-primary">{trabajador.nombre}</Link>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <Link href={`/pacientes/${trabajador.id}`} className="text-lg font-semibold hover:text-primary">{trabajador.nombre}</Link>
+              {/* Tipo de evaluación: visible desde cualquier pestaña y editable mientras la consulta está abierta */}
+              <label
+                title={bloqueado ? (d.estado === "firmada" ? "Para cambiar el tipo: «Corregir»" : "Para cambiar el tipo: «Reabrir para editar»") : "Tipo de evaluación: cámbialo aquí"}
+                className={cn(
+                  "inline-flex h-9 max-w-full items-center gap-1.5 rounded-full border-2 pl-3 pr-1 text-sm transition-shadow",
+                  !d.motivoId ? "border-alerta bg-alerta/10 text-alerta-texto" : "border-primary bg-primary/10 text-primary",
+                  resaltarTipo && !bloqueado && "ring-4 ring-aviso/60",
+                  !bloqueado && "cursor-pointer hover:bg-primary/15",
+                )}>
+                {bloqueado ? <Lock className="size-4 shrink-0" aria-hidden /> : <ClipboardList className="size-4 shrink-0" aria-hidden />}
+                <span className="sr-only">Tipo de evaluación</span>
+                <select id="tipo-evaluacion" value={d.motivoId ?? ""} disabled={bloqueado}
+                  onChange={(e) => { cambiarMotivo(e.target.value || null); setConfirmarTipo(false); setResaltarTipo(false); }}
+                  className="h-8 min-w-0 max-w-[16rem] cursor-pointer truncate rounded-full bg-transparent pr-1 font-semibold outline-none disabled:cursor-default disabled:appearance-none disabled:opacity-100">
+                  <option value="">Elige el tipo de evaluación</option>
+                  {opcionesMotivo}
+                </select>
+              </label>
+            </div>
+            {confirmarTipo && !bloqueado && (
+              <div role="status" className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-aviso/40 bg-aviso/10 px-3 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 basis-56 text-aviso-texto">Consulta duplicada: ¿es el mismo tipo de evaluación? Si no, cámbialo arriba.</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 max-sm:h-11" onClick={() => { setConfirmarTipo(false); setResaltarTipo(false); }}>
+                  <Check /> Sí, es el mismo
+                </Button>
+                <button type="button" onClick={() => setConfirmarTipo(false)} title="Oculta este aviso; el tipo sigue resaltado"
+                  className="text-muted-foreground underline-offset-2 hover:underline max-sm:min-h-11 max-sm:px-2">Ignorar</button>
+              </div>
+            )}
             <p className="truncate text-sm text-muted-foreground">
               {d.aptitud.clasificacion && (
                 <span className={cn("mr-2 rounded-full px-2 py-0.5 text-xs font-medium", ESTILO_APTITUD[d.aptitud.clasificacion])}>{etiquetaAptitud(d.aptitud.clasificacion)}</span>
@@ -1106,16 +1158,9 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                   <Label className="mb-1.5">Motivo de consulta *</Label>
                   <select id="motivo" data-campo="motivo" value={d.motivoId ?? ""} onChange={(e) => cambiarMotivo(e.target.value || null)} className={SELECT} {...marcaFalta(!bloqueado && !d.motivoId)}>
                     <option value="">Elige el motivo</option>
-                    {["preventivo", "no_preventivo", null].map((g) => {
-                      const items = listas.motivo_consulta.filter((m) => (m.grupo ?? null) === g || (g === null && m.grupo && !["preventivo", "no_preventivo"].includes(m.grupo)));
-                      if (!items.length) return null;
-                      return (
-                        <optgroup key={g ?? "otros"} label={g === "preventivo" ? "Preventivos" : g === "no_preventivo" ? "No preventivos" : "Otros"}>
-                          {items.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                        </optgroup>
-                      );
-                    })}
+                    {opcionesMotivo}
                   </select>
+                  <p className="mt-1 text-xs text-muted-foreground">También se cambia arriba, junto al nombre.</p>
                 </div>
                 <div>
                   <Label className="mb-1.5">Tipo</Label>

@@ -30,8 +30,8 @@ const LISTAS = [
   "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo",
 ];
 
-export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string }> }) {
-  const [{ id }, { paso }] = await Promise.all([params, searchParams]);
+export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string; duplicada?: string }> }) {
+  const [{ id }, { paso, duplicada }] = await Promise.all([params, searchParams]);
   const demo = !supabaseConfigurado;
   // Todo en dos ramas paralelas: lo que depende de la organización (sesión → listas, plantillas, datos) y lo que
   // depende del trabajador (consulta → historial, adjuntos). Antes eran 6 esperas en fila; ahora la más larga es 3.
@@ -66,7 +66,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       </Link>
       {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
-        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
+        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} duplicada={duplicada === "1"} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
           puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
           alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")}
           puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"}
