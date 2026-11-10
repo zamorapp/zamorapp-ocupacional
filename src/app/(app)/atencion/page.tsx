@@ -90,7 +90,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
             perfiles={resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico)}
             puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")} />
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
-          <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
+          {sesion.rol !== "enfermeria" && <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />}
         </div>
       </div>
 

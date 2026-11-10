@@ -1,6 +1,6 @@
 // Atenciones de enfermería: tipos y textos compartidos entre la pantalla, los reportes y la vigilancia.
 
-export type TipoEnfermeria = "signos" | "tratamiento" | "procedimiento" | "cura" | "primeros_auxilios" | "orientacion" | "inspeccion" | "otro";
+export type TipoEnfermeria = "signos" | "tratamiento" | "procedimiento" | "cura" | "primeros_auxilios" | "evolucion" | "orientacion" | "inspeccion" | "otro";
 
 // En el orden en que se muestran los botones (lo más frecuente primero)
 export const TIPOS_ENFERMERIA: { k: TipoEnfermeria; t: string; corto: string; sinTrabajador?: boolean; pideSignos?: boolean; pideTratamiento?: boolean }[] = [
@@ -9,6 +9,8 @@ export const TIPOS_ENFERMERIA: { k: TipoEnfermeria; t: string; corto: string; si
   { k: "procedimiento", t: "Procedimiento (vendaje, nebulización, inyección…)", corto: "Procedimiento", pideSignos: true, pideTratamiento: true },
   { k: "cura", t: "Cura o curación", corto: "Cura", pideTratamiento: true },
   { k: "primeros_auxilios", t: "Primeros auxilios", corto: "Primeros auxilios", pideSignos: true, pideTratamiento: true },
+  // Nota de seguimiento tras leer la consulta del médico: se puede anotar en esa consulta. No suma a la morbilidad.
+  { k: "evolucion", t: "Evolución de enfermería", corto: "Evolución", pideSignos: true },
   { k: "orientacion", t: "Orientación o charla", corto: "Orientación", sinTrabajador: true },
   { k: "inspeccion", t: "Inspección del lugar de trabajo", corto: "Inspección", sinTrabajador: true },
   { k: "otro", t: "Otra atención", corto: "Otra", sinTrabajador: true },
@@ -36,8 +38,15 @@ export const SIGNOS_ENFERMERIA: { k: "ta" | "fc" | "fr" | "temp" | "glicemia" | 
 
 // Tensión alta para resaltarla en la lista (no decide nada: el médico evalúa)
 export function tensionAlta(ta: string | null | undefined) {
+  return nivelTension(ta) !== null;
+}
+
+// Palabra que acompaña a la tensión (nunca solo el color): «alta» desde 140/90, «crisis» desde 180/110
+export function nivelTension(ta: string | null | undefined): "alta" | "crisis" | null {
   const m = /^(\d{2,3})\s*\/\s*(\d{2,3})$/.exec(String(ta ?? "").trim());
-  return Boolean(m && (Number(m[1]) >= 140 || Number(m[2]) >= 90));
+  if (!m) return null;
+  const [s, d] = [Number(m[1]), Number(m[2])];
+  return s >= 180 || d >= 110 ? "crisis" : s >= 140 || d >= 90 ? "alta" : null;
 }
 
 // Decisiones del médico (organizaciones.ajustes). Las dos empiezan apagadas.

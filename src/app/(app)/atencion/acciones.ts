@@ -248,6 +248,7 @@ function unirAntecedentes(previos: DatosConsulta["antecedentes"], delPaciente: D
 export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string; inactivo?: boolean }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
+  if (sesion.rol === "enfermeria") return { ok: false, mensaje: "La consulta la abre el médico. Enfermería registra su atención o su evolución en Enfermería." };
   const supabase = await crearClienteServidor();
 
   const [{ data: t }, { data: previa }, listas, { data: enlace }] = await Promise.all([

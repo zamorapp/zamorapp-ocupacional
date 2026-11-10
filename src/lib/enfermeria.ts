@@ -19,6 +19,7 @@ export type AtencionEnfermeria = {
   empresa: string;
   registradoPor: string | null;
   mia: boolean;
+  consultaId: string | null;
 };
 
 export type IndicadoresEnfermeria = {
@@ -40,20 +41,36 @@ export async function ajustesEnfermeria(): Promise<AjustesEnfermeria> {
   return { enfermeria_unida: a.enfermeria_unida === true, enfermeria_vigilancia: a.enfermeria_vigilancia === true };
 }
 
+type Filtro = { empresaId?: string | null; desde?: string; hasta?: string; trabajadorId?: string; consultaId?: string };
+
 // Atenciones de un día (o de un rango corto), de una empresa o de todas las que el usuario ve
 export async function listarAtenciones(empresaId: string | null, desde: string, hasta = desde): Promise<AtencionEnfermeria[]> {
+  return buscarAtenciones({ empresaId, desde, hasta });
+}
+
+// Lo de enfermería de un trabajador (su historia) o lo anotado en una consulta del médico
+export async function atencionesDeTrabajador(trabajadorId: string) {
+  return buscarAtenciones({ trabajadorId });
+}
+export async function notasDeConsulta(consultaId: string) {
+  return buscarAtenciones({ consultaId });
+}
+
+async function buscarAtenciones(f: Filtro): Promise<AtencionEnfermeria[]> {
   const sesion = await obtenerSesion();
   if (!supabaseConfigurado || sesion.demo || !sesion.clinico) return [];
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("atenciones_enfermeria")
-    .select("id, fecha, tipo, motivo, cie10, signos, tratamiento, nota, referido_medico, registrado_por, creado_en, trabajadores(id, nombres, apellidos, cedula), empresas(razon_social)")
-    .gte("fecha", desde)
-    .lte("fecha", hasta)
+    .select("id, fecha, tipo, motivo, cie10, signos, tratamiento, nota, referido_medico, registrado_por, creado_en, consulta_id, trabajadores(id, nombres, apellidos, cedula), empresas(razon_social)")
     .order("fecha", { ascending: false })
     .order("creado_en", { ascending: false })
     .limit(300);
-  if (empresaId) q = q.eq("empresa_id", empresaId);
+  if (f.desde) q = q.gte("fecha", f.desde);
+  if (f.hasta) q = q.lte("fecha", f.hasta);
+  if (f.empresaId) q = q.eq("empresa_id", f.empresaId);
+  if (f.trabajadorId) q = q.eq("trabajador_id", f.trabajadorId);
+  if (f.consultaId) q = q.eq("consulta_id", f.consultaId);
   const { data, error } = await q;
   if (error) throw new Error(`No se pudieron leer las atenciones de enfermería: ${error.message}`);
   const ids = [...new Set((data ?? []).map((a) => a.registrado_por).filter(Boolean))] as string[];
@@ -76,6 +93,7 @@ export async function listarAtenciones(empresaId: string | null, desde: string, 
       empresa: e?.razon_social ?? "",
       registradoPor: a.registrado_por ? nombre.get(a.registrado_por) || null : null,
       mia: a.registrado_por === sesion.usuarioId,
+      consultaId: a.consulta_id,
     };
   });
 }

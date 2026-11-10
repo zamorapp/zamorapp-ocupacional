@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { textoLateralidad } from "@/lib/lateralidad";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, HeartPulse, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,8 @@ import { Vacaciones } from "./vacaciones";
 import { InactivarTrabajador, ReingresarTrabajador } from "./estado-laboral";
 import { periodosDeTrabajador } from "../acciones";
 import type { Vacacion } from "./vacaciones-acciones";
+import { atencionesDeTrabajador } from "@/lib/enfermeria";
+import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -64,6 +66,8 @@ export default async function FichaPaciente({ params }: Props) {
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
+  // Atenciones y evolución de enfermería: parte de su historia, solo para el personal de salud
+  const enfermeria = sesion.clinico && !sesion.demo ? await atencionesDeTrabajador(t.id) : [];
   const [adjuntos, empleos, catalogoEstudios] = verAdjuntos
     ? await Promise.all([
         listarAdjuntos(t.id),
@@ -175,7 +179,14 @@ export default async function FichaPaciente({ params }: Props) {
             )}
             {!esRolEmpresa(sesion.rol) && (
               <>
-                <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
+                {/* Enfermería no abre consultas del médico: registra su atención o su evolución */}
+                {sesion.rol === "enfermeria" ? (
+                  <Button asChild className="flex-1 xl:flex-none">
+                    <Link href={`/enfermeria?trabajador=${t.id}#nueva`}><HeartPulse /> Atención de enfermería</Link>
+                  </Button>
+                ) : (
+                  <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
+                )}
                 {listasEnlace && (
                   <EnlacePaciente habilitado empresas={[]} motivos={listasEnlace.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
                     perfiles={resumenPerfiles(listasEnlace.grupo_paraclinicos, listasEnlace.paraclinico)}
@@ -216,6 +227,7 @@ export default async function FichaPaciente({ params }: Props) {
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
+          {sesion.clinico && !sesion.demo && <TabsTrigger value="enfermeria">Enfermería ({enfermeria.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="historia">Historia laboral ({empleos.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="resultados">Estudios ({adjuntos.length})</TabsTrigger>}
         </TabsList>
@@ -344,6 +356,19 @@ export default async function FichaPaciente({ params }: Props) {
             )}
           </Card>
         </TabsContent>
+        {sesion.clinico && !sesion.demo && (
+          <TabsContent value="enfermeria" className="mt-4">
+            <Card>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">Tensión, tratamientos, curas, procedimientos y evolución de enfermería de este trabajador.</p>
+                  <Button asChild size="sm" variant="outline"><Link href={`/enfermeria?trabajador=${t.id}#nueva`}><HeartPulse /> Nueva atención</Link></Button>
+                </div>
+                <ListaAtenciones atenciones={enfermeria} puedeBorrarTodo={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} vacio="Sin atenciones de enfermería." />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         {verAdjuntos && (
           <TabsContent value="historia" className="mt-4">
             <Card><CardContent><HistoriaLaboral trabajadorId={t.id} empleos={empleos} /></CardContent></Card>

@@ -13,7 +13,10 @@ select set_config('request.jwt.claim.sub','',false) \g /dev/null
 update clinico.consultas set medico_id='00000000-0000-0000-0000-0000000000a2' where id='40000000-0000-0000-0000-0000000000f1';
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
-do $$ begin perform public.firmar_consulta('40000000-0000-0000-0000-0000000000f1'); raise notice 'enfermería firmó: FALLA'; exception when others then raise notice 'enfermería no firma (ok)'; end $$;
+-- Enfermería no firma: o la rechaza la firma, o (desde el 10-nov) ni siquiera puede cambiar la consulta del médico
+do $$ begin perform public.firmar_consulta('40000000-0000-0000-0000-0000000000f1');
+  if exists (select 1 from public.consultas where id = '40000000-0000-0000-0000-0000000000f1' and estado = 'firmada') then raise notice 'enfermería firmó: FALLA'; else raise notice 'enfermería no firma (ok)'; end if;
+exception when others then raise notice 'enfermería no firma (ok)'; end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
 do $$ begin perform public.firmar_consulta('40000000-0000-0000-0000-0000000000f1'); raise notice 'otro médico firmó: FALLA'; exception when others then raise notice 'otro médico no firma (ok)'; end $$;
 do $$ begin update public.consultas set estado='firmada' where id='40000000-0000-0000-0000-0000000000f1'; raise notice 'otro médico firmó por cambio directo: FALLA'; exception when others then raise notice 'cambio directo bloqueado (ok)'; end $$;

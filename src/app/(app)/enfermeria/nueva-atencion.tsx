@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Check, HeartPulse, Loader2, Search, X } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Check, HeartPulse, Loader2, Printer, Search, X } from "lucide-react";
 import { Aviso, CampoSelect } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,20 +12,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { PROCEDIMIENTOS_ENFERMERIA, SIGNOS_ENFERMERIA, TIPOS_ENFERMERIA, tipoEnfermeria, type TipoEnfermeria } from "@/lib/enfermeria-tipos";
 import { cn } from "@/lib/utils";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
-import { registrarAtencion } from "./acciones";
+import { consultasDelTrabajador, registrarAtencion, type ConsultaParaLeer } from "./acciones";
 
 type Motivo = { nombre: string; codigo: string | null };
 
 // Atención de enfermería en una sola tarjeta: qué hizo → a quién → motivo de un clic → signos → guardar.
 // Tras guardar se queda en el mismo tipo y día, lista para el siguiente trabajador.
-export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
+export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa, inicial }: {
   fecha: string; hoy: string; motivos: Motivo[]; empresas: { id: string; nombre: string }[]; empresa: string | null;
+  // Desde «Escribir evolución» de una consulta: ya trae al trabajador y la consulta
+  inicial?: { paciente: PacienteEncontrado; consultaId: string | null } | null;
 }) {
   const [estado, accion, enviando] = useActionState(registrarAtencion, null);
-  const [tipo, setTipo] = useState<TipoEnfermeria>("signos");
+  const [tipo, setTipo] = useState<TipoEnfermeria>(inicial ? "evolucion" : "signos");
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PacienteEncontrado[]>([]);
-  const [paciente, setPaciente] = useState<PacienteEncontrado | null>(null);
+  const [paciente, setPaciente] = useState<PacienteEncontrado | null>(inicial?.paciente ?? null);
+  const [consultas, setConsultas] = useState<ConsultaParaLeer[]>([]);
+  const [consultaId, setConsultaId] = useState<string>(inicial?.consultaId ?? "");
   const [motivo, setMotivo] = useState("");
   const [cie10, setCie10] = useState("");
   const [buscando, iniciar] = useTransition();
@@ -40,13 +45,21 @@ export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
     return () => clearTimeout(t);
   }, [texto, paciente]);
 
+  // Elegido el trabajador: sus últimas consultas del médico, para leerlas y anotar la evolución en una
+  useEffect(() => {
+    if (!paciente) { setConsultas([]); return; }
+    let vigente = true;
+    consultasDelTrabajador(paciente.id).then((c) => { if (vigente) setConsultas(c); });
+    return () => { vigente = false; };
+  }, [paciente]);
+
   // Guardada: limpia lo del trabajador y deja el tipo y el día para el siguiente
   useEffect(() => {
     if (!estado?.ok) return;
     formulario.current?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-limpiar]").forEach((c) => {
       if (c instanceof HTMLInputElement && c.type === "checkbox") c.checked = false; else c.value = "";
     });
-    setPaciente(null); setTexto(""); setMotivo(""); setCie10("");
+    setPaciente(null); setTexto(""); setMotivo(""); setCie10(""); setConsultaId("");
     buscador.current?.focus();
   }, [estado]);
 
@@ -65,6 +78,7 @@ export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
         <form ref={formulario} action={accion} className="space-y-4">
           <input type="hidden" name="tipo" value={tipo} />
           <input type="hidden" name="cie10" value={inspeccion ? "" : cie10} />
+          <input type="hidden" name="consulta_id" value={paciente ? consultaId : ""} />
 
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">¿Qué hiciste?</legend>
@@ -86,7 +100,7 @@ export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
                 <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
                   <input type="hidden" name="trabajador_id" value={paciente.id} />
                   <span className="min-w-0 flex-1 [overflow-wrap:anywhere]"><b>{paciente.nombre}</b> · {paciente.cedula} · {paciente.empresa}</span>
-                  <button type="button" onClick={() => setPaciente(null)} aria-label="Cambiar trabajador" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+                  <button type="button" onClick={() => { setPaciente(null); setConsultaId(""); }} aria-label="Cambiar trabajador" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
                 </div>
               ) : (
                 <>
@@ -109,6 +123,40 @@ export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
                     </ul>
                   )}
                 </>
+              )}
+            </div>
+          )}
+
+          {paciente && !inspeccion && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">Consultas del médico <span className="font-normal text-muted-foreground">(solo lectura)</span></p>
+                <Link href={`/imprimir/enfermeria/control-ta?trabajador=${paciente.id}`} target="_blank" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <Printer className="size-3.5" /> Hoja de tensión para llenar a mano
+                </Link>
+              </div>
+              {consultas.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin consultas del médico.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {consultas.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <label className="flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2">
+                        <input type="radio" name="_consulta" checked={consultaId === c.id} onChange={() => setConsultaId(c.id)} className="size-4 accent-[var(--primary)]" />
+                        <span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-cifra">{c.fecha.slice(0, 10).split("-").reverse().join("/")}</span> · {c.motivo}</span>
+                      </label>
+                      <Link href={`/atencion/${c.id}`} target="_blank" className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs hover:bg-muted">
+                        <BookOpen className="size-3.5" /> Leer
+                      </Link>
+                    </li>
+                  ))}
+                  <li>
+                    <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                      <input type="radio" name="_consulta" checked={consultaId === ""} onChange={() => setConsultaId("")} className="size-4 accent-[var(--primary)]" />
+                      Solo en su historia (sin unir a una consulta)
+                    </label>
+                  </li>
+                </ul>
               )}
             </div>
           )}
@@ -177,8 +225,12 @@ export function NuevaAtencion({ fecha, hoy, motivos, empresas, empresa }: {
           )}
 
           <div>
-            <Label htmlFor="nota" className="mb-1.5">{inspeccion ? "Hallazgos y recomendaciones" : "Observación"} <span className="font-normal text-muted-foreground">(opcional)</span></Label>
-            <Textarea data-limpiar id="nota" name="nota" rows={2} maxLength={2000} />
+            <Label htmlFor="nota" className="mb-1.5">
+              {tipo === "evolucion" ? "Evolución de enfermería *" : inspeccion ? "Hallazgos y recomendaciones" : "Observación"}
+              {tipo !== "evolucion" && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+            </Label>
+            <Textarea data-limpiar id="nota" name="nota" rows={tipo === "evolucion" ? 4 : 2} maxLength={2000} required={tipo === "evolucion"}
+              placeholder={tipo === "evolucion" ? "Ej.: paciente refiere mejoría de la cefalea; TA controlada; cumple tratamiento indicado." : undefined} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

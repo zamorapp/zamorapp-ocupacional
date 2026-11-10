@@ -14,7 +14,9 @@ create table if not exists clinico.atenciones_enfermeria (
   -- cascade: si se elimina un trabajador repetido (Papelera), sus atenciones se van con él y vuelven al restaurarlo
   trabajador_id uuid references public.trabajadores (id) on delete cascade,
   fecha date not null default public.hoy_caracas(),
-  tipo text not null check (tipo in ('signos', 'tratamiento', 'procedimiento', 'cura', 'primeros_auxilios', 'orientacion', 'inspeccion', 'otro')),
+  tipo text not null check (tipo in ('signos', 'tratamiento', 'procedimiento', 'cura', 'primeros_auxilios', 'orientacion', 'inspeccion', 'evolucion', 'otro')),
+  -- Evolución de enfermería anotada en una consulta del médico (la enfermera la lee, no la cambia)
+  consulta_id uuid references clinico.consultas (id) on delete set null,
   motivo text check (char_length(motivo) <= 200),
   cie10 text check (cie10 ~ '^[A-Z][0-9]{2}(\.[0-9A-Z]{1,2})?$'),
   -- {ta: "120/80", fc, fr, temp, glicemia, spo2, peso}
@@ -24,10 +26,13 @@ create table if not exists clinico.atenciones_enfermeria (
   referido_medico boolean not null default false,
   registrado_por uuid references auth.users (id) on delete set null default auth.uid(),
   creado_en timestamptz not null default public.ahora(),
-  actualizado_en timestamptz not null default public.ahora()
+  actualizado_en timestamptz not null default public.ahora(),
+  -- La escribe solo «hora_oficial» (hora que traía la PC y si venía verificada)
+  hora_equipo jsonb
 );
 create index if not exists atenciones_enfermeria_empresa_fecha on clinico.atenciones_enfermeria (org_id, empresa_id, fecha);
 create index if not exists atenciones_enfermeria_trabajador on clinico.atenciones_enfermeria (trabajador_id, fecha desc);
+create index if not exists atenciones_enfermeria_consulta on clinico.atenciones_enfermeria (consulta_id) where consulta_id is not null;
 
 alter table clinico.atenciones_enfermeria enable row level security;
 -- Mismo alcance que la consulta: personal de salud de la organización, y si está limitado, solo su empresa
@@ -56,6 +61,9 @@ declare v_emp uuid; v_org uuid;
 begin
   if tg_op = 'INSERT' then
     if auth.uid() is not null then new.registrado_por := auth.uid(); end if;
+    -- La hora de registro no la elige quien escribe: en la nube, la del servidor; desde la PC, la marca «hora_oficial»
+    -- (si no venía verificada). Así nadie corre el plazo de 24 h para borrar.
+    if coalesce(current_setting('sync.cambio_id', true), '') = '' then new.creado_en := public.ahora(); end if;
   else
     new.registrado_por := old.registrado_por;
     new.creado_en := old.creado_en;
@@ -68,6 +76,11 @@ begin
     new.empresa_id := coalesce(v_emp, new.empresa_id);
   elsif new.tipo not in ('inspeccion', 'orientacion', 'otro') then
     raise exception 'Elige el trabajador atendido.' using errcode = '23514';
+  end if;
+  -- La evolución se anota en una consulta de ESE trabajador (la que la enfermera leyó), o en su historia sin consulta
+  if new.consulta_id is not null and not exists (
+      select 1 from clinico.consultas c where c.id = new.consulta_id and c.trabajador_id = new.trabajador_id and c.org_id = new.org_id) then
+    raise exception 'La consulta no es de este trabajador.' using errcode = '23514';
   end if;
   if not exists (select 1 from public.empresas where id = new.empresa_id and org_id = new.org_id) then
     raise exception 'La empresa no es de esta organización.' using errcode = '23514';
@@ -88,6 +101,10 @@ revoke execute on function public.validar_atencion_enfermeria() from public, aut
 drop trigger if exists validar_atencion_enfermeria on clinico.atenciones_enfermeria;
 create trigger validar_atencion_enfermeria before insert or update on clinico.atenciones_enfermeria
   for each row execute function public.validar_atencion_enfermeria();
+-- «hora_oficial» corre antes que «validar_…» (los before van en orden alfabético)
+drop trigger if exists hora_oficial on clinico.atenciones_enfermeria;
+create trigger hora_oficial before insert or update on clinico.atenciones_enfermeria
+  for each row execute function public.hora_oficial_de_la_bandeja('creado_en');
 drop trigger if exists upd_atenciones_enfermeria on clinico.atenciones_enfermeria;
 create trigger upd_atenciones_enfermeria before update on clinico.atenciones_enfermeria
   for each row execute function public.tocar_actualizado();
@@ -107,14 +124,14 @@ grant select, insert, update, delete on public.atenciones_enfermeria to authenti
 revoke all on public.atenciones_enfermeria from anon;
 
 -- ─── 3) Motivos frecuentes de enfermería (Configuración › Listas; el código es el CIE-10 que une con la del médico) ───
-insert into public.listas (codigo, nombre, descripcion) values
-  ('motivo_enfermeria', 'Motivos de atención de enfermería', 'Lo que se elige con un clic en la atención de enfermería; el código CIE-10 une su morbilidad con la del médico')
-on conflict (codigo) do nothing;
-
 create or replace function public.sembrar_motivos_enfermeria_2026()
 returns void language plpgsql set search_path = public as $$
 begin
+  -- En la PC la lista y sus motivos llegan por la réplica con sus ids
   if public.es_base_local() then return; end if;
+  insert into public.listas (codigo, nombre, descripcion) values
+    ('motivo_enfermeria', 'Motivos de atención de enfermería', 'Lo que se elige con un clic en la atención de enfermería; el código CIE-10 une su morbilidad con la del médico')
+  on conflict (codigo) do nothing;
   with nuevos as (
     insert into public.lista_items (lista, codigo, nombre, orden)
     select 'motivo_enfermeria', x.codigo, x.nombre, x.orden
@@ -213,7 +230,7 @@ begin
       join public.trabajadores t on t.id = a.trabajador_id
       join public.empresas e on e.id = a.empresa_id
       left join public.dependencias dp on dp.id = t.dependencia_id
-      where a.tipo <> 'inspeccion' and a.fecha between p_desde and p_hasta and (p_empresa is null or a.empresa_id = p_empresa)
+      where a.tipo not in ('inspeccion', 'evolucion') and a.fecha between p_desde and p_hasta and (p_empresa is null or a.empresa_id = p_empresa)
     ),
     atendidos as (select grupo, count(distinct trabajador_id) as n from ate group by grupo)
     select coalesce(jsonb_agg(to_jsonb(x) order by x.grupo nulls first, x.casos desc, x.descripcion), '[]') into v from (
@@ -239,7 +256,7 @@ begin
       union all
       select 'enfermeria', a.trabajador_id, a.fecha, coalesce(a.cie10, 'motivo:' || lower(coalesce(a.motivo, 'sin motivo'))), a.cie10, coalesce(a.motivo, 'Sin motivo')
       from public.atenciones_enfermeria a
-      where a.trabajador_id is not null and a.tipo <> 'inspeccion'
+      where a.trabajador_id is not null and a.tipo not in ('inspeccion', 'evolucion')
         and a.fecha between p_desde and p_hasta and (p_empresa is null or a.empresa_id = p_empresa)
     ),
     atendidos as (select count(distinct trabajador_id) as n from casos)
@@ -284,7 +301,7 @@ begin
     -- Nunca un motivo con menos de 3 casos ni uno sensible por su nombre (lo lee RR. HH.)
     mot as (
       select case when count(*) < 3 or bool_or(coalesce(cie10, '') ~ '^(F|O|B2[0-4]|Z21)') then 'Otros motivos' else min(motivo) end as nombre, count(*) as n
-      from ate where trabajador_id is not null and tipo <> 'inspeccion'
+      from ate where trabajador_id is not null and tipo not in ('inspeccion', 'evolucion')
       group by lower(coalesce(motivo, 'Sin motivo'))
     )
     select jsonb_build_object(
@@ -307,3 +324,33 @@ begin
 end $$;
 revoke execute on function public.reporte_enfermeria(text, uuid, date, date, jsonb) from public, anon;
 grant execute on function public.reporte_enfermeria(text, uuid, date, date, jsonb) to authenticated;
+
+-- ─── 5) Decisiones del médico sobre enfermería: cambia SOLO su clave en ajustes (no pisa lo que otro guardó a la vez) ───
+-- Las cambian el administrador y el gerente médico (Cesar: enfermería la administra el gerente médico).
+create or replace function public.guardar_decision_enfermeria(p_org uuid, p_clave text, p_valor boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_clave not in ('enfermeria_unida', 'enfermeria_vigilancia') then
+    raise exception 'Opción desconocida.' using errcode = '22023';
+  end if;
+  if p_org is null or not p_org = any (public.orgs_con('{administrador,gerente_medico}')) then
+    raise exception 'Solo el administrador o el gerente médico cambian esta decisión.' using errcode = '42501';
+  end if;
+  update public.organizaciones
+     set ajustes = coalesce(ajustes, '{}'::jsonb) || jsonb_build_object(p_clave, coalesce(p_valor, false))
+   where id = p_org;
+end $$;
+revoke execute on function public.guardar_decision_enfermeria(uuid, text, boolean) from public, anon;
+grant execute on function public.guardar_decision_enfermeria(uuid, text, boolean) to authenticated;
+
+-- ─── 6) Enfermería lee las consultas del médico pero no las abre, cambia ni borra (pedido de Cesar, 10-nov) ───
+-- Restrictivas: se suman a las demás reglas; solo afectan a quien tiene el rol «enfermeria» en esa organización.
+drop policy if exists consultas_enfermeria_no_crea on clinico.consultas;
+create policy consultas_enfermeria_no_crea on clinico.consultas as restrictive for insert
+  with check (not org_id = any ((select public.orgs_con('{enfermeria}'))::uuid[]));
+drop policy if exists consultas_enfermeria_no_edita on clinico.consultas;
+create policy consultas_enfermeria_no_edita on clinico.consultas as restrictive for update
+  using (not org_id = any ((select public.orgs_con('{enfermeria}'))::uuid[]));
+drop policy if exists consultas_enfermeria_no_borra on clinico.consultas;
+create policy consultas_enfermeria_no_borra on clinico.consultas as restrictive for delete
+  using (not org_id = any ((select public.orgs_con('{enfermeria}'))::uuid[]));

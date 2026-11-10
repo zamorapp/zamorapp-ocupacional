@@ -23,12 +23,14 @@ do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c
 select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera"}', public.hoy_caracas() + 400)::jsonb, '[]', null, null, false) \g /dev/null
 select 'fecha a más de un año se acepta (debe 1): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and fecha = public.hoy_caracas() + 400;
 select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera"}', public.hoy_caracas() + 10)::jsonb, '[]', null, null, false) \g /dev/null
--- Enfermería guarda la consulta pero no cambia la fecha
+-- Enfermería lee la consulta del médico pero no la guarda (ni la fecha ni lo demás; pedido de Cesar, 10-nov)
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
 do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', '{"fecha":"2026-01-02","tipo":"primera"}', '[]', null, null, false);
- raise notice 'enfermería cambia la fecha: FALLA'; exception when others then raise notice 'enfermería no cambia la fecha (ok)'; end $$;
-select public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera","signos_vitales":{"ta":"120/80"}}', public.hoy_caracas() + 10)::jsonb, '[]', null, null, false) \g /dev/null
-select 'enfermería guarda sin cambiar la fecha (debe 1): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and signos_vitales ->> 'ta' = '120/80';
+ exception when others then null; end $$;
+select 'enfermería no cambia la fecha (debe 0): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and fecha = '2026-01-02';
+do $$ begin perform public.guardar_consulta('15300000-0000-0000-0000-0000000000c1', format('{"fecha":"%s","tipo":"primera","signos_vitales":{"ta":"120/80"}}', public.hoy_caracas() + 10)::jsonb, '[]', null, null, false);
+ exception when others then null; end $$;
+select 'enfermería no escribe en la consulta (debe 0): ' || count(*) from clinico.consultas where id = '15300000-0000-0000-0000-0000000000c1' and signos_vitales ->> 'ta' = '120/80';
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
 -- Las horas reales de registro no las cambia el usuario
 update clinico.consultas set creado_en = '2020-01-01 10:00+00', hora_inicio = '2020-01-01 10:00+00' where id = '15300000-0000-0000-0000-0000000000c1';

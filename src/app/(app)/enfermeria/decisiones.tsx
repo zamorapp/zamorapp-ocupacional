@@ -21,7 +21,7 @@ const OPCIONES: { k: Clave; titulo: string; si: string; no: string }[] = [
   },
 ];
 
-// Las dos decisiones del médico, a la vista y de un clic. Solo el administrador las cambia; los demás las ven.
+// Las dos decisiones del médico, a la vista y de un clic. Las cambian el administrador y el gerente médico.
 export function Decisiones({ valores, editable }: { valores: Record<Clave, boolean>; editable: boolean }) {
   const [actual, setActual] = useState(valores);
   const [guardando, setGuardando] = useState<Clave | null>(null);
@@ -55,7 +55,7 @@ export function Decisiones({ valores, editable }: { valores: Record<Clave, boole
         </div>
       ))}
       {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-      {!editable && <p className="text-xs text-muted-foreground">Solo el administrador cambia estas decisiones.</p>}
+      {!editable && <p className="text-xs text-muted-foreground">Solo el administrador o el gerente médico cambian estas decisiones.</p>}
     </div>
   );
 }

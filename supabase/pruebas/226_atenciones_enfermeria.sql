@@ -80,9 +80,12 @@ reset role;
 select 'un anónimo no corre el reporte (debe 0): ' || has_function_privilege('anon', 'public.reporte_enfermeria(text, uuid, date, date, jsonb)', 'execute')::int;
 delete from clinico.atenciones_enfermeria where id::text like '22600000-%';
 delete from clinico.consultas where id = '22600000-0000-0000-0000-00000000000c';
--- Pasadas 24 horas la autora ya no la borra (es dato clínico); el administrador sí
+-- Pasadas 24 horas la autora ya no la borra (es dato clínico); el administrador sí.
+-- (La fila vieja se arma sin disparadores: por la app la hora de registro siempre es la del servidor)
+set session_replication_role = replica;
 insert into clinico.atenciones_enfermeria (id,org_id,empresa_id,trabajador_id,fecha,tipo,motivo,registrado_por,creado_en) values
  ('22600000-0000-0000-0000-0000000000a9','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','2026-03-01','signos','x','00000000-0000-0000-0000-0000000000a5', public.ahora() - interval '2 days');
+set session_replication_role = origin;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
 delete from public.atenciones_enfermeria where id = '22600000-0000-0000-0000-0000000000a9';
@@ -97,3 +100,65 @@ insert into clinico.atenciones_enfermeria (id,org_id,empresa_id,trabajador_id,fe
 select 'control de tensión: 150/95 es alta (debe 1): ' || count(*)
   from jsonb_array_elements(public.reporte_enfermeria('tension', null, '2026-03-01', '2026-03-31')) x where x ->> 'ta' = '150/95' and x ->> 'clasificacion' like 'Alta%';
 delete from clinico.atenciones_enfermeria where id::text like '22600000-%';
+
+-- Quien registra no elige la hora de registro (si no, alargaría el plazo de 24 h para borrar)
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+insert into public.atenciones_enfermeria (id,org_id,empresa_id,trabajador_id,tipo,motivo,creado_en) values
+ ('22600000-0000-0000-0000-0000000000a7','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','signos','x', public.ahora() + interval '30 days');
+select 'la hora de registro es la del servidor (debe 1): ' || count(*) from public.atenciones_enfermeria
+ where id = '22600000-0000-0000-0000-0000000000a7' and creado_en <= public.ahora() + interval '1 minute';
+
+-- Decisiones: el administrador cambia solo su clave (lo demás de ajustes queda); el médico no
+reset role;
+update public.organizaciones set ajustes = coalesce(ajustes, '{}'::jsonb) || '{"prueba_226": 1}' where id = '10000000-0000-0000-0000-000000000001';
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select public.guardar_decision_enfermeria('10000000-0000-0000-0000-000000000001', 'enfermeria_unida', true) \g /dev/null
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+do $$ begin
+  perform public.guardar_decision_enfermeria('10000000-0000-0000-0000-000000000001', 'enfermeria_vigilancia', true);
+  raise notice 'FALLA: el médico cambió una decisión';
+exception when others then raise notice 'el médico no cambia las decisiones (debe 1): 1';
+end $$;
+reset role;
+select 'el administrador la cambió sin pisar otros ajustes (debe 110): ' || (ajustes ->> 'enfermeria_unida')::boolean::int || (ajustes ->> 'prueba_226') || coalesce((ajustes ->> 'enfermeria_vigilancia')::boolean::int, 0)
+  from public.organizaciones where id = '10000000-0000-0000-0000-000000000001';
+update public.organizaciones set ajustes = ajustes - 'prueba_226' - 'enfermeria_unida' where id = '10000000-0000-0000-0000-000000000001';
+delete from clinico.atenciones_enfermeria where id::text like '22600000-%';
+
+-- Enfermería lee la consulta del médico, no la cambia; su evolución se anota en ella (solo si es del mismo trabajador)
+reset role;
+insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos) values
+ ('22600000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','226001','Otro','A');
+insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,enfermedad_actual) values
+ ('22600000-0000-0000-0000-0000000000cc','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','borrador','2026-03-02','Cefalea');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+select 'la enfermera lee la consulta del médico (debe 1): ' || count(*) from public.consultas where id = '22600000-0000-0000-0000-0000000000cc';
+update public.consultas set enfermedad_actual = 'cambiada' where id = '22600000-0000-0000-0000-0000000000cc';
+select 'la enfermera no la cambia (debe 0): ' || count(*) from public.consultas where id = '22600000-0000-0000-0000-0000000000cc' and enfermedad_actual = 'cambiada';
+do $$ begin
+  insert into public.consultas (org_id,empresa_id,trabajador_id,fecha) values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','2026-03-02');
+  raise notice 'FALLA: la enfermera abrió una consulta';
+exception when others then raise notice 'la enfermera no abre consultas del médico (debe 1): 1';
+end $$;
+insert into public.atenciones_enfermeria (id,org_id,empresa_id,trabajador_id,fecha,tipo,nota,consulta_id) values
+ ('22600000-0000-0000-0000-0000000000e1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','2026-03-03','evolucion','Mejoría de la cefalea','22600000-0000-0000-0000-0000000000cc');
+select 'su evolución queda en la consulta (debe 1): ' || count(*) from public.atenciones_enfermeria where consulta_id = '22600000-0000-0000-0000-0000000000cc';
+do $$ begin
+  insert into public.atenciones_enfermeria (org_id,empresa_id,trabajador_id,tipo,nota,consulta_id) values
+   ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','22600000-0000-0000-0000-0000000000d1','evolucion','x','22600000-0000-0000-0000-0000000000cc');
+  raise notice 'FALLA: evolución en la consulta de otro trabajador';
+exception when others then raise notice 'no se anota en la consulta de otro trabajador (debe 1): 1';
+end $$;
+select 'la evolución no suma a la morbilidad (debe 0): ' || count(*)
+  from jsonb_array_elements(public.reporte_enfermeria('morbilidad', null, '2026-03-01', '2026-03-31')) x;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+select 'el médico ve la evolución en su consulta (debe 1): ' || count(*) from public.atenciones_enfermeria where consulta_id = '22600000-0000-0000-0000-0000000000cc';
+update public.consultas set enfermedad_actual = 'del médico' where id = '22600000-0000-0000-0000-0000000000cc';
+select 'el médico sí la cambia (debe 1): ' || count(*) from public.consultas where id = '22600000-0000-0000-0000-0000000000cc' and enfermedad_actual = 'del médico';
+reset role;
+delete from clinico.atenciones_enfermeria where id::text like '22600000-%';
+delete from clinico.consultas where id = '22600000-0000-0000-0000-0000000000cc';
+delete from public.trabajadores where id = '22600000-0000-0000-0000-0000000000d1';
