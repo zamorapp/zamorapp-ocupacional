@@ -13,7 +13,7 @@ import { agregarUsuario } from "../acciones";
 // Qué ve y qué no ve cada rol, en palabras del día a día (resumen de Manual › Usuarios)
 const ROLES_SERVICIO: { rol: Rol; ve: string; nove?: string }[] = [
   { rol: "medico", ve: "Atiende y firma consultas; ve las historias clínicas." },
-  { rol: "enfermeria", ve: "Ve las historias clínicas y registra en la consulta." },
+  { rol: "enfermeria", ve: "Registra atenciones de enfermería y ve las historias. Puedes limitarla a una empresa." },
   { rol: "gerente_medico", ve: "Lo del médico, más reportes, auditoría y ajustes clínicos." },
   { rol: "recepcion", ve: "Registra trabajadores, citas y llegadas.", nove: "No abre historias clínicas." },
   { rol: "coordinador_sst", ve: "Accidentes, puestos de trabajo e informes de SST.", nove: "No abre historias clínicas." },
@@ -29,7 +29,9 @@ const ROLES_CLIENTE: { rol: Rol; ve: string; nove?: string }[] = [
 
 const TITULOS = ["¿Quién?", "¿Qué rol?", "¿De qué empresa?", "Revisar"] as const;
 
-// Agregar usuario en pasos: correo → rol (con lo que ve y no ve) → empresa (solo roles de empresa) → revisar
+// Agregar usuario en pasos: correo → rol (con lo que ve y no ve) → empresa (roles de empresa; opcional para enfermería y médico) → revisar
+// Enfermería y médico pueden quedar en una sola empresa (la enfermera de una empresa cliente); sin marcar, ven todas.
+const LIMITABLES: Rol[] = ["enfermeria", "medico"];
 export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: string }[] }) {
   const [estado, accion, enviando] = useActionState(agregarUsuario, null);
   const [paso, setPaso] = useState(0);
@@ -38,6 +40,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
   const [elegidas, setElegidas] = useState<string[]>([]);
   const entradaCorreo = useRef<HTMLInputElement>(null);
   const deEmpresa = rol ? ROLES_EMPRESA.includes(rol) : false;
+  const pideEmpresa = deEmpresa || (rol ? LIMITABLES.includes(rol) : false);
 
   // Al agregar bien, se vuelve a empezar para el siguiente
   useEffect(() => {
@@ -48,10 +51,10 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
     if (paso === 0 && !entradaCorreo.current?.reportValidity()) return;
     if (paso === 1 && !rol) return;
     if (paso === 2 && deEmpresa && !elegidas.length) return;
-    setPaso(paso === 1 && !deEmpresa ? 3 : paso + 1); // sin empresa que elegir, salta a revisar
+    setPaso(paso === 1 && !pideEmpresa ? 3 : paso + 1); // sin empresa que elegir, salta a revisar
   };
-  const atras = () => setPaso(paso === 3 && !deEmpresa ? 1 : paso - 1);
-  const visibles = rol && !deEmpresa ? [0, 1, 3] : [0, 1, 2, 3];
+  const atras = () => setPaso(paso === 3 && !pideEmpresa ? 1 : paso - 1);
+  const visibles = rol && !pideEmpresa ? [0, 1, 3] : [0, 1, 2, 3];
   const nombres = elegidas.map((id) => empresas.find((e) => e.id === id)?.nombre).filter(Boolean).join(", ");
 
   const Opcion = ({ r }: { r: { rol: Rol; ve: string; nove?: string } }) => (
@@ -75,7 +78,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
           <div className="h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${((visibles.indexOf(paso) + 1) / visibles.length) * 100}%` }} /></div>
         </div>
         <ol className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Pasos">
-          {TITULOS.map((t, i) => (i === 2 && rol && !deEmpresa ? null : (
+          {TITULOS.map((t, i) => (i === 2 && rol && !pideEmpresa ? null : (
             <li key={t} aria-current={i === paso ? "step" : undefined}
               className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
                 i === paso ? "border-primary bg-primary text-primary-foreground" : i < paso ? "bg-ok/10 text-ok-texto" : "text-muted-foreground")}>
@@ -88,7 +91,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
         <form action={accion} onSubmit={(e) => { if (paso < 3) { e.preventDefault(); siguiente(); } }} className="space-y-4">
           {/* Lo que se envía: siempre presente aunque el paso no se vea */}
           <input type="hidden" name="rol" value={rol ?? ""} />
-          {deEmpresa && elegidas.map((id) => <input key={id} type="hidden" name="empresas" value={id} />)}
+          {pideEmpresa && elegidas.map((id) => <input key={id} type="hidden" name="empresas" value={id} />)}
 
           <div hidden={paso !== 0} className="max-w-md">
             <label htmlFor="correo" className="mb-1.5 block text-sm font-medium">Correo con el que la persona creó su cuenta</label>
@@ -107,7 +110,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
 
           {paso === 2 && (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Solo verá lo de la empresa que marques.</p>
+              <p className="text-sm text-muted-foreground">{deEmpresa ? "Solo verá lo de la empresa que marques." : "Si atiende en una sola empresa, márcala: solo verá a esos trabajadores y sus atenciones. Sin marcar, ve todas las empresas."}</p>
               {empresas.length === 0 && <p className="text-sm">Todavía no hay empresas: regístrala primero en Empresas.</p>}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {empresas.map((e) => (
@@ -136,7 +139,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
                   <span className="block">{rol === "gerente_empresa" ? "RR. HH. de la empresa" : ETIQUETA_ROL[rol]}</span>
                   {info?.nove && <span className="block text-xs text-aviso-texto">{info.nove}</span>}
                 </Fila>
-                {deEmpresa && <Fila etiqueta="Empresa" n={2}><span className="[overflow-wrap:anywhere]">{nombres}</span></Fila>}
+                {pideEmpresa && <Fila etiqueta="Empresa" n={2}><span className="[overflow-wrap:anywhere]">{nombres || "Todas las empresas"}</span></Fila>}
               </ul>
             );
           })()}

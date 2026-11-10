@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarClock,
   FileText,
+  HeartPulse,
   HardHat,
   Inbox,
   LayoutDashboard,
@@ -31,6 +32,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/panel", titulo: "Inicio", icono: LayoutDashboard, descripcion: "Alertas, agenda y cumplimiento" },
   { href: "/pacientes", titulo: "Pacientes", icono: Users, descripcion: "Expediente único del trabajador, importación desde Excel" },
   { href: "/atencion", titulo: "Atención médica", icono: Stethoscope, descripcion: "Cola, consultas, aptitud, reposos y récipes", clinico: true },
+  { href: "/enfermeria", titulo: "Enfermería", icono: HeartPulse, descripcion: "Tensión, tratamientos, procedimientos, curas e inspecciones de enfermería", clinico: true },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
   { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
   // Ergonomía, psicosocial, identificación de riesgos con mapa y puestos de trabajo en una sola entrada (Cesar, 06-nov)
@@ -48,7 +50,7 @@ export const SECCIONES: Seccion[] = [
 // Grupos de la barra lateral (en este orden). Una sección nueva que no esté en ninguna lista cae en «Gestión».
 export type Grupo = { titulo: string; hrefs: string[] };
 export const GRUPOS: Grupo[] = [
-  { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/envios", "/solicitudes"] },
+  { titulo: "Día a día", hrefs: ["/panel", "/pacientes", "/atencion", "/enfermeria", "/envios", "/solicitudes"] },
   { titulo: "Gestión", hrefs: ["/empresas", "/accidentes", "/evaluaciones", "/inspeccion", "/reportes", "/documentos", "/facturacion"] },
   { titulo: "Ajustes", hrefs: ["/configuracion", "/ayuda"] },
 ];

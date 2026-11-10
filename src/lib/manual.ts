@@ -17,10 +17,11 @@ export type TemaManual = {
   claves?: string;
 };
 
-export const MANUAL_ACTUALIZADO = "2026-11-07";
+export const MANUAL_ACTUALIZADO = "2026-11-10";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-10", texto: "Enfermería: la enfermera de una empresa registra cada día tomas de tensión, tratamientos, procedimientos (vendajes, nebulizaciones, inyecciones), curas, primeros auxilios e inspecciones, con su propia morbilidad aparte de la del médico. Registro de atenciones y control de tensión se imprimen y bajan a Excel. Tú decides si unir las dos morbilidades (con los días de cada uno) y si sus indicadores entran en la vigilancia", tema: "enfermeria" },
   { fecha: "2026-11-07", texto: "Permisos de cada persona de RR. HH.: al invitarla marcas qué podrá hacer en el portal (solicitar consultas, ver los atendidos del mes, descargar documentos) y luego lo cambias con sus casillas. El portal esconde lo que no tiene; siempre ve a sus trabajadores y puede pedir informes o copias", tema: "rrhh-whatsapp" },
   { fecha: "2026-11-07", texto: "Menú de botones: «Menú» arriba (o «Ver menú como botones» al pie de la barra lateral) muestra todo en tarjetas grandes por categoría, con un grupo «Enlaces» (enlace para paciente nuevo, enlace a trabajador registrado, pacientes por revisar e invitar a RR. HH.). «Usar barra lateral» vuelve a la de siempre; cada equipo recuerda tu elección", tema: "atajos" },
   { fecha: "2026-11-07", texto: "Lo que falta se marca en su casilla: al cerrar la consulta, el aviso «Para cerrar falta: …» trae un botón por dato que te lleva a la casilla exacta (en rojo) aunque esté en otro paso; lo mismo en el récipe, la evaluación rápida y la ficha del trabajador. Siempre puedes «Ignorar»", tema: "consulta" },
@@ -243,6 +244,25 @@ export const MANUAL: TemaManual[] = [
       "«Nueva cita» agenda a un trabajador; «Citas por lote» agenda a varios de una vez (por ejemplo, todos los pre-empleo de una empresa).",
       "El botón verde de WhatsApp en cada cita abre tu WhatsApp con el recordatorio listo para enviar al trabajador.",
     ],
+  },
+  {
+    id: "enfermeria",
+    titulo: "Enfermería: atenciones del día, morbilidad y control de tensión",
+    para: "servicio",
+    resumen: "Lo que hace la enfermera cada día que va a la empresa, con su morbilidad aparte de la del médico.",
+    pasos: [
+      "Cuenta de la enfermera: Configuración › Usuarios › Agregar usuario. Ella primero crea su cuenta en la pantalla de ingreso; luego escribes su correo, eliges «Enfermería» y, en «¿De qué empresa?», marcas la empresa donde trabaja: solo verá a esos trabajadores y sus atenciones. Sin marcar, ve todas las empresas. Nunca firma consultas.",
+      "En el menú, «Enfermería». Arriba eliges el día (la fecha en que hizo la atención, aunque la registre después; nunca una fecha futura).",
+      "«Nueva atención»: toca qué hizo (Tensión y signos, Tratamiento, Procedimiento, Cura, Primeros auxilios, Orientación, Inspección u Otra), busca al trabajador por cédula o nombre, elige el motivo con un clic (o escríbelo), anota los signos y lo administrado. En Procedimiento, los botones «+ Vendaje», «+ Nebulización», «+ Inyección IM»… lo escriben por ti. Marca «Referir al médico» si debe verlo. «Guardar atención» deja listo el formulario para el siguiente trabajador.",
+      "La inspección del lugar de trabajo no pide trabajador: escribe el área y los hallazgos. No cuenta en la morbilidad.",
+      "«Órdenes del médico por cumplir»: los tratamientos que el médico le indicó (Indicación o récipe). Al aplicarlo, toca «Cumplida».",
+      "La lista del día muestra cada atención; la tensión de 140/90 o más sale en rojo. Quien la registró puede borrarla solo en las primeras 24 horas (un error de tecleo); después, solo el gerente médico o el administrador.",
+      "Imprimir: «Imprimir el día» saca el registro de atenciones de ese día. En Reportes › «Enfermería» (registro), «Control de tensión» (cada toma con su clasificación; busca un trabajador para imprimir su control) y «Morbilidad enfermería» eliges el período, imprimes o bajas a Excel.",
+      "Tus decisiones (abajo en Enfermería; las cambia el administrador): «Unir la morbilidad de enfermería con la mía» agrega en Reportes «Morbilidad unida» (casos y días del médico y de enfermería, unidos por el CIE-10 del motivo) y «Días de atención». «Indicadores de enfermería en la vigilancia» suma al informe de vigilancia, en pantalla e impreso, la atención de enfermería: atenciones, días, motivos y referidos. Las dos empiezan apagadas y se pueden apagar cuando quieras sin perder datos.",
+      "Los motivos de un clic se editan en Configuración › Listas › Enfermería: el código es el CIE-10 que une la morbilidad de enfermería con la tuya.",
+    ],
+    consejos: ["En el escritorio, la enfermera registra también sin internet: sube sola al volver la conexión."],
+    claves: "enfermera enfermeria tension arterial ta presion signos tratamiento procedimiento vendaje cura nebulizacion inyeccion morbilidad unir fusionar vigilancia sesion cuenta",
   },
   {
     id: "enlace-paciente",

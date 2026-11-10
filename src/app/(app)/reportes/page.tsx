@@ -14,6 +14,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
 import { datosPortada } from "@/lib/firmantes";
+import { ETIQUETA_TIPO_ENFERMERIA } from "@/lib/enfermeria-tipos";
 import { EditorInforme } from "./editor-informe";
 import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { ExploradorCausas } from "./explorador-causas";
@@ -198,6 +199,15 @@ export default async function Reportes({ searchParams }: Props) {
             <Grafico titulo="Aptitud emitida" analisis={a?.aptitud}>
               <Dona partes={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0))} sub="evaluaciones" />
             </Grafico>
+            {v.enfermeria && (
+              <Grafico className="lg:col-span-2" titulo="Atención de enfermería"
+                detalle={`${num(v.enfermeria.atenciones)} atenciones a ${num(v.enfermeria.pacientes)} trabajadores en ${num(v.enfermeria.dias_enfermeria)} días · el médico atendió ${num(v.enfermeria.dias_medico)} días · ${num(v.enfermeria.referidos)} referidos al médico. Se quita en Enfermería › Tus decisiones.`}>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <BarrasH filas={v.enfermeria.por_tipo.map((x) => ({ nombre: ETIQUETA_TIPO_ENFERMERIA[x.nombre] ?? x.nombre, n: x.n }))} />
+                  <BarrasH filas={v.enfermeria.causas} serie={2} />
+                </div>
+              </Grafico>
+            )}
           </div>
 
           {v.sugeridos && (

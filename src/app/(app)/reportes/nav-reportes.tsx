@@ -7,7 +7,7 @@ import { GRUPOS_REPORTE, REPORTES } from "@/lib/reportes-catalogo";
 import { cn } from "@/lib/utils";
 
 // Barra de reportes: vigilancia + los del SAME. Conserva el período elegido al cambiar de reporte.
-export function NavReportes() {
+export function NavReportes({ unida = false }: { unida?: boolean }) {
   const ruta = usePathname();
   const q = useSearchParams();
   const periodo = new URLSearchParams([...q.entries()].filter(([k]) => ["p", "desde", "hasta", "anio", "t", "inicio", "mes"].includes(k)));
@@ -28,7 +28,7 @@ export function NavReportes() {
           <div key={g} className="flex items-center gap-1.5">
             <span className="mx-1 h-5 border-l" aria-hidden />
             <span className="sr-only">{g}</span>
-            {REPORTES.filter((r) => r.grupo === g).map((r) => (
+            {REPORTES.filter((r) => r.grupo === g && (!r.requiere || unida)).map((r) => (
               <Link key={r.clave} href={`/reportes/${r.clave}${sufijo}`} title={r.titulo} aria-current={ruta === `/reportes/${r.clave}` ? "page" : undefined} className={pastilla(ruta === `/reportes/${r.clave}`)}>
                 {r.corto}
               </Link>

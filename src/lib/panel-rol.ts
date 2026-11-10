@@ -8,7 +8,7 @@ export type Enfoque = { titulo: string; tareas: Tarea[]; acciones: { titulo: str
 export type Tareas = { citados: number; en_espera: number; solicitadas: number; eventos_abiertos: number; por_cobrar: number; por_firmar?: number; abiertas?: number; por_recibir?: number };
 
 const ACCIONES_DE = (sesion: Pick<Sesion, "rol" | "clinico">) =>
-  sesion.clinico ? ACCIONES.clinico : sesion.rol === "recepcion" ? ACCIONES.recepcion : sesion.rol === "coordinador_sst" ? ACCIONES.sst : ACCIONES.admin;
+  sesion.rol === "enfermeria" ? ACCIONES.enfermeria : sesion.clinico ? ACCIONES.clinico : sesion.rol === "recepcion" ? ACCIONES.recepcion : sesion.rol === "coordinador_sst" ? ACCIONES.sst : ACCIONES.admin;
 
 // Accesos rápidos: solo dependen del rol, salen al instante sin esperar a la base
 export const accionesDelRol = (sesion: Pick<Sesion, "rol" | "clinico">) => ACCIONES_DE(sesion);
@@ -42,7 +42,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
         { titulo: "Consultas abiertas", valor: t.abiertas ?? 0, detalle: "Empezadas y sin cerrar", href: "/atencion" },
         { titulo: "Resultados por recibir", valor: t.por_recibir ?? 0, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
       ],
-      acciones: ACCIONES.clinico,
+      acciones: ACCIONES_DE(sesion),
     };
   }
 
@@ -99,6 +99,12 @@ const ACCIONES: Record<string, Enfoque["acciones"]> = {
     { titulo: "Nuevo paciente", href: "/pacientes", icono: "paciente" },
     { titulo: "Reportar accidente", href: "/accidentes", icono: "accidente" },
     { titulo: "Documentos emitidos", href: "/documentos", icono: "constancia" },
+  ],
+  enfermeria: [
+    { titulo: "Atención de enfermería", href: "/enfermeria", icono: "consulta" },
+    { titulo: "Control de tensión", href: "/reportes/tension", icono: "reporte" },
+    { titulo: "Nuevo paciente", href: "/pacientes", icono: "paciente" },
+    { titulo: "Reportar accidente", href: "/accidentes", icono: "accidente" },
   ],
   recepcion: [
     { titulo: "Agendar cita", href: "/atencion", icono: "cita" },

@@ -8,6 +8,7 @@ import { fechaCorta as corta, parametrosPeriodo } from "@/lib/periodos";
 import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa, type Reporte } from "@/lib/reportes";
 import { sensible } from "@/lib/vigilancia-ia";
 import type { cargarVigilancia } from "@/lib/vigilancia";
+import { ETIQUETA_TIPO_ENFERMERIA } from "@/lib/enfermeria-tipos";
 import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
 import { CAUSAS_REPOSO, filasArt34 } from "@/lib/vigilancia-integral";
 import { nombrable } from "@/lib/vigilancia-redaccion";
@@ -410,6 +411,16 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             <T columnas={["Dependencia", "Personal efectivo", "Consultas"]} porcentaje={false} filas={(r.consultas.por_dependencia ?? []).map((d) => [d.nombre, d.personal, d.n])} />
           </Panel>
           <Analisis texto={a.dependencias} />
+          {/* Enfermería: solo si el médico la llevó a la vigilancia (Enfermería › Tus decisiones) */}
+          {v.enfermeria && v.enfermeria.atenciones > 0 && (
+            <Panel ancla="i-enfermeria" titulo="Atención de enfermería"
+              nota={`${num(v.enfermeria.atenciones, 0)} atenciones a ${num(v.enfermeria.pacientes, 0)} trabajadores en ${num(v.enfermeria.dias_enfermeria, 0)} días (el médico atendió ${num(v.enfermeria.dias_medico, 0)} días). ${num(v.enfermeria.referidos, 0)} referidos al médico.`}>
+              <div className="grid grid-cols-2 items-start gap-3">
+                <T columnas={["Tipo de atención", "Casos"]} filas={v.enfermeria.por_tipo.map((x) => [ETIQUETA_TIPO_ENFERMERIA[x.nombre] ?? x.nombre, x.n])} />
+                <T columnas={["Motivos de enfermería", "Casos"]} filas={g(v.enfermeria.causas).map((x) => [x.nombre, x.n])} />
+              </div>
+            </Panel>
+          )}
         </Seccion>
 
         <Seccion ancla="s-morbilidad" n="3" titulo="Morbilidad">
