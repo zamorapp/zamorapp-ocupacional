@@ -75,9 +75,27 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000002251',false) \g /dev/null
 select 'el médico de la empresa B no ve las de A (debe 0): ' || count(*) from public.indicaciones;
 
+-- Desde la bandeja (PC sin internet): el autor de la PC se respeta solo si es médico de la organización;
+-- si no, queda quien sube (nadie imprime con la firma de otro)
+reset role;
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-000000002252','rrhh225@x') on conflict do nothing;
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values
+ ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000002252','recepcion',null);
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+select set_config('sync.cambio_id', gen_random_uuid()::text, false) \g /dev/null
+insert into public.indicaciones (id, org_id, trabajador_id, tipo, indicaciones, medico_id) values
+ ('22500000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-00000000000a', 'enfermeria', 'a', '00000000-0000-0000-0000-0000000000a4'),
+ ('22500000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-00000000000a', 'enfermeria', 'b', '00000000-0000-0000-0000-000000002252'),
+ ('22500000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-00000000000a', 'enfermeria', 'c', '00000000-0000-0000-0000-0000000000a5');
+select set_config('sync.cambio_id', '', false) \g /dev/null
+select 'bandeja: otro médico de la org se respeta (debe 1): ' || count(*) from public.indicaciones where id = '22500000-0000-0000-0000-000000000003' and medico_id = '00000000-0000-0000-0000-0000000000a4';
+select 'bandeja: recepción o enfermería como autor no; queda quien sube (debe 2): ' || count(*) from public.indicaciones
+ where id in ('22500000-0000-0000-0000-000000000004', '22500000-0000-0000-0000-000000000005') and medico_id = '00000000-0000-0000-0000-0000000000a2';
+
 -- Sincronía con el escritorio: sube y baja
 reset role;
 select 'la tabla sube y baja con el escritorio (debe 1): ' || count(*) from sync.tablas where nombre = 'clinico.indicaciones' and clinica and subible;
 select 'la sincronía anotó la orden (debe 1): ' || least(count(*), 1) from sync.registro where fila_id = '22500000-0000-0000-0000-000000000001';
-delete from public.miembros where usuario_id = '00000000-0000-0000-0000-000000002251';
+delete from public.miembros where usuario_id in ('00000000-0000-0000-0000-000000002251', '00000000-0000-0000-0000-000000002252');
 delete from clinico.indicaciones where id::text like '22500000-%';

@@ -238,7 +238,7 @@ export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { cla
 }
 
 // Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
-export function imagenesMedico(d: DatosDocumento) {
+export function imagenesMedico(d: Pick<DatosDocumento, "sin" | "medicoDatos">) {
   const m = d.medicoDatos;
   if (d.sin.includes("firma")) return { firma: null, sello: null };
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };

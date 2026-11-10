@@ -28,7 +28,7 @@ export function HojaIndicacion({ d, x }: { d: DatosHojaRecipe & { impreso: { por
         {meds.map((m, i) => `${i + 1}. ${lineaOrden(m)}`).join("\n")}
         {x.indicaciones && `${meds.length ? "\n\n" : ""}${x.indicaciones}`}
         {x.indicadoPor && `\n\nIndicado por: ${x.indicadoPor}`}
-        <div className="mt-4 grid grid-cols-[auto_1fr_auto_1fr] items-end gap-x-2 gap-y-3 text-[10.5px]">
+        <div className="mt-4 grid grid-cols-[auto_1fr_auto_1fr] items-end gap-x-2 gap-y-3 text-[12px]">
           <span className="font-semibold">Cumplido por</span>
           <span className="h-5 border-b border-[#15201e] text-center">{x.estado === "cumplida" ? x.cumplidaPor ?? "" : ""}</span>
           <span className="font-semibold">Fecha y hora</span>

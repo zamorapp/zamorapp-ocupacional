@@ -61,6 +61,10 @@ const datosMotivo = cache(async (id: string) => (await crearClienteServidor()).f
 const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo, proyecto").eq("id", id).single());
 const datosDependencia = cache(async (id: string) => (await crearClienteServidor()).from("dependencias").select("nombre").eq("id", id).maybeSingle());
 
+// Para hojas que no salen de una consulta (indicación o récipe sin consulta): centro y médico con firma y sello
+export const datosDeOrg = datosOrg;
+export const datosDeMedico = datosMedico;
+
 // Reúne todo lo que necesita cualquier documento de una consulta
 export async function obtenerDocumento(consultaId: string) {
   const consulta = await obtenerConsulta(consultaId);

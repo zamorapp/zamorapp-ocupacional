@@ -163,12 +163,13 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
           {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         </div>
 
-        <SheetFooter className="flex-row flex-wrap gap-2">
-          <Button type="button" variant="ghost" onClick={onCerrar}>Cancelar</Button>
-          <Button type="button" variant="outline" disabled={guardando} onClick={() => guardar(false)} data-accion="guardar-indicacion">
+        {/* En el celular: «Guardar e imprimir» a todo lo ancho y fijo abajo; debajo «Cancelar · Guardar» */}
+        <SheetFooter className="sticky bottom-0 mt-auto grid grid-cols-2 gap-2 border-t bg-background sm:flex sm:flex-row sm:justify-end sm:border-t-0">
+          <Button type="button" className="col-span-2 sm:order-3" disabled={guardando} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> Guardar e imprimir</Button>
+          <Button type="button" variant="ghost" className="sm:order-1" onClick={onCerrar}>Cancelar</Button>
+          <Button type="button" variant="outline" className="sm:order-2" disabled={guardando} onClick={() => guardar(false)} data-accion="guardar-indicacion">
             {guardando && <Loader2 className="animate-spin" />} Guardar
           </Button>
-          <Button type="button" disabled={guardando} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> Guardar e imprimir</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

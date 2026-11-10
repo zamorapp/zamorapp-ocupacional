@@ -82,8 +82,16 @@ begin
     new.estado := case when new.tipo = 'recipe' then 'emitida' else 'pendiente' end;
     new.cumplida_por := null; new.cumplida_en := null; new.nota_cumplimiento := null;
     new.motivo_anulacion := null; new.anulada_por := null; new.anulada_en := null;
-    -- Desde la bandeja se respetan autor y hora de la PC (la hora la marca hora_oficial si no venía verificada)
-    if not v_bandeja or new.medico_id is null then new.medico_id := v_uid; end if;
+    -- Desde la bandeja se respetan autor y hora de la PC (la hora la marca hora_oficial si no venía verificada), pero
+    -- el autor solo si es médico activo de esta organización con acceso clínico: su firma y sello salen en la hoja
+    -- (Analizar, 10-nov: si no, se podría imprimir con la firma de otro médico). Si no lo es, queda quien sube.
+    if not v_bandeja or new.medico_id is null or (new.medico_id is distinct from v_uid and not exists (
+        select 1 from public.miembros m
+         where m.usuario_id = new.medico_id and m.org_id = new.org_id and m.activo
+           and m.rol in ('administrador', 'gerente_medico', 'medico')
+           and (m.rol in ('gerente_medico', 'medico') or m.acceso_clinico))) then
+      new.medico_id := v_uid;
+    end if;
     if not v_bandeja then new.creada_en := public.ahora(); end if;
     return new;
   end if;
