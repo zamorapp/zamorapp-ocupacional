@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { alertasDeTrabajador } from "@/lib/alertas";
 import { AlertasPaciente } from "./alertas-paciente";
+import { BotonIndicacion, ListaIndicaciones } from "./indicaciones";
+import { indicacionesDeTrabajador } from "@/lib/indicaciones-datos";
 import { Vacaciones } from "./vacaciones";
 import { InactivarTrabajador, ReingresarTrabajador } from "./estado-laboral";
 import { periodosDeTrabajador } from "../acciones";
@@ -101,6 +103,10 @@ export default async function FichaPaciente({ params }: Props) {
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
   // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
   const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
+  // Indicación o récipe sin consulta (Cesar, 10-nov): no cuenta como consulta; solo el personal clínico las ve
+  const indicaciones = conBase && sesion.clinico ? await indicacionesDeTrabajador(t.id) : [];
+  const porCumplir = indicaciones.filter((x) => x.estado === "pendiente");
+  const emiteIndicacion = conBase && sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "");
   // Empresa inactiva: la ficha y toda su historia se ven; para atenderlo de nuevo se pasa a una empresa activa
   // Inactivo o egresado: «Reingresar» (misma u otra empresa) reemplaza a «Pasar a otra empresa»
   const fuera = t.estado === "inactivo" || t.estado === "egresado";
@@ -187,6 +193,7 @@ export default async function FichaPaciente({ params }: Props) {
                 ) : (
                   <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
                 )}
+                {emiteIndicacion && <BotonIndicacion trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} />}
                 {listasEnlace && (
                   <EnlacePaciente habilitado empresas={[]} motivos={listasEnlace.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
                     perfiles={resumenPerfiles(listasEnlace.grupo_paraclinicos, listasEnlace.paraclinico)}
@@ -222,11 +229,19 @@ export default async function FichaPaciente({ params }: Props) {
         <AlertasPaciente alertas={alertas} puedeDescartar={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
       )}
 
+      {porCumplir.length > 0 && (
+        <Card className="gap-0 border-primary/30 py-0" data-bloque="ordenes-por-cumplir">
+          <CardHeader className="px-5 pt-4 pb-0"><CardTitle className="text-base">Por cumplir en enfermería</CardTitle></CardHeader>
+          <CardContent className="px-5"><ListaIndicaciones trabajadorId={t.id} items={porCumplir} puedeAnular={emiteIndicacion} compacta /></CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="resumen">
         <TabsList>
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
+          {conBase && sesion.clinico && <TabsTrigger value="indicaciones">Indicaciones y récipes ({indicaciones.length})</TabsTrigger>}
           {sesion.clinico && !sesion.demo && <TabsTrigger value="enfermeria">Enfermería ({enfermeria.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="historia">Historia laboral ({empleos.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="resultados">Estudios ({adjuntos.length})</TabsTrigger>}
@@ -356,6 +371,13 @@ export default async function FichaPaciente({ params }: Props) {
             )}
           </Card>
         </TabsContent>
+        {conBase && sesion.clinico && (
+          <TabsContent value="indicaciones" className="mt-4">
+            <Card className="py-0">
+              <ListaIndicaciones trabajadorId={t.id} items={indicaciones} puedeAnular={emiteIndicacion} />
+            </Card>
+          </TabsContent>
+        )}
         {sesion.clinico && !sesion.demo && (
           <TabsContent value="enfermeria" className="mt-4">
             <Card>

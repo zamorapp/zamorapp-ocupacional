@@ -435,13 +435,18 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
   );
 }
 
-function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: string; children: React.ReactNode }) {
+// Lo que necesita una mitad del récipe: también la usa la indicación o récipe sin consulta (/imprimir/indicacion)
+export type DatosHojaRecipe = Pick<DatosDocumento, "org" | "medicoDatos" | "sin"> & {
+  datos: { fecha: string }; trabajador: { nombre: string; cedula: string }; extra: { fecha_nacimiento: string | null };
+};
+
+export function MitadRecipe({ d, titulo, children, vence: conVence = true }: { d: DatosHojaRecipe; titulo: string; children: React.ReactNode; vence?: boolean }) {
   const m = d.medicoDatos;
   const vence = sumarDias(d.datos.fecha, 30);
   const img = imagenesMedico(d);
   return (
     <div className="flex flex-col rounded-lg border border-doc-linea p-4">
-      <div className="mb-2 border-b border-doc-linea pb-2 text-[10.5px]">
+      <div className="mb-2 border-b border-doc-linea pb-2 text-[12px]">
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {d.org.logo && <img src={d.org.logo} alt="" className="h-10 max-w-24 shrink-0 object-contain" />}
@@ -453,14 +458,14 @@ function MitadRecipe({ d, titulo, children }: { d: DatosDocumento; titulo: strin
         <div className="mt-1 font-semibold">{m?.nombre_completo} · C.I. {m?.cedula} · MPPS {m?.mpps}</div>
       </div>
       <div className="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[.14em] text-doc-acento">{titulo}</div>
-      <div className="mb-2 text-[10.5px]">
+      <div className="mb-2 text-[12px]">
         <b>Paciente:</b> {d.trabajador.nombre} · <b>C.I.</b> {d.trabajador.cedula} · <b>Año de nac.:</b> {d.extra.fecha_nacimiento?.slice(0, 4)}
       </div>
       <div className="flex-1 whitespace-pre-line">{children}</div>
       <div className="mt-5 flex items-end justify-between text-[10.5px]">
         <div className="font-cifra text-doc-tenue">
           <div>Emisión {fechaCorta(d.datos.fecha)}</div>
-          <div>Vence {fechaCorta(vence)}</div>
+          {conVence && <div>Vence {fechaCorta(vence)}</div>}
         </div>
         {d.org.ajustes.firma_sello_separados !== false ? (
           <div className="flex items-end gap-2">

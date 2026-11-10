@@ -34,6 +34,7 @@ const NOMBRES: Record<string, [string, string]> = {
   "clinico.reposos": ["reposo", "reposos"],
   "clinico.adjuntos": ["archivo adjunto", "archivos adjuntos"],
   "clinico.alertas_clinicas": ["alerta para la próxima evaluación", "alertas para la próxima evaluación"],
+  "clinico.indicaciones": ["indicación o récipe sin consulta", "indicaciones o récipes sin consulta"],
   "clinico.historia_laboral": ["dato de historia laboral", "datos de historia laboral"],
   "clinico.investigaciones": ["investigación de accidente", "investigaciones de accidente"],
   "public.citas": ["cita", "citas"],
