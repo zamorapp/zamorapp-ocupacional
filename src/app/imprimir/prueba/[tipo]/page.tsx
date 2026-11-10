@@ -37,7 +37,13 @@ export default async function PruebaImpresion({ params, searchParams }: Props) {
   if (tipo === "vigilancia") {
     // ?caso=empresa: la versión que va a la empresa (cifras <3 tapadas, diagnósticos no nombrables agrupados)
     const paraEmpresa = caso === "empresa";
-    const v = armarVigilancia(vigilanciaDePrueba(caso === "vacio" ? "vacio" : "normal"), { paraEmpresa });
+    // ?caso=enfermeria: con la sección de enfermería (el médico la activó en Enfermería › Tus decisiones)
+    const enfermeria = caso === "enfermeria"
+      ? { atenciones: 64, pacientes: 31, dias_enfermeria: 24, dias_medico: 12, referidos: 5, inspecciones: 3,
+          por_tipo: [{ nombre: "signos", n: 38 }, { nombre: "tratamiento", n: 12 }, { nombre: "procedimiento", n: 7 }, { nombre: "cura", n: 4 }, { nombre: "inspeccion", n: 3 }],
+          causas: [{ nombre: "Control de tensión arterial", n: 30 }, { nombre: "Cefalea", n: 9 }, { nombre: "Lumbalgia", n: 6 }, { nombre: "Herida (cura)", n: 4 }, { nombre: "Otros motivos", n: 8 }] }
+      : null;
+    const v = { ...armarVigilancia(vigilanciaDePrueba(caso === "vacio" ? "vacio" : "normal"), { paraEmpresa }), enfermeria };
     const org = { nombre: "Servicio de prueba", rif: "J-00000000-0", direccion: "Dirección de ejemplo", telefono: null, correo: null, logo: null, ajustes: {} };
     return <InformeVigilancia v={v} org={org} logoEmpresa={null} paraEmpresa={paraEmpresa} puedeEnviar={false} />;
   }

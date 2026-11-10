@@ -49,7 +49,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
               </Avatar>
               <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-0">
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
-                <div className="truncate text-sm text-muted-foreground">{m.correo}{ROLES_EMPRESA.includes(m.rol) && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
+                <div className="truncate text-sm text-muted-foreground">{m.correo}{m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
                 {(esAdmin || m.usuario) && <UsuarioCorto miembro={m} editable={esAdmin} alGuardar={setAviso} />}
                 {ROLES_EMPRESA.includes(m.rol) && m.rol !== "trabajador" && (
                   esAdmin

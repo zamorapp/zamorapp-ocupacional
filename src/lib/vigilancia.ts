@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import { indicadoresEnfermeria, type IndicadoresEnfermeria } from "@/lib/enfermeria";
 import { listarEmpresas } from "@/lib/empresas";
 import { AUTORIDAD, centroPorDefecto, CUSTODIO, sinDefectosViejos } from "@/lib/firmantes";
 import { opciones } from "@/lib/listas";
@@ -32,7 +33,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
   const listo = !sesion.demo && supabaseConfigurado;
   const memo = <T,>(que: string, p: Periodo, fn: () => Promise<T>) => recordar(clave(sesion, que, empresaId, p), TRES_MINUTOS, fn);
 
-  const [r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos] = await Promise.all([
+  const [r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, ajustesOrg, previos] = await Promise.all([
     listo ? memo("reporte", periodo, () => obtenerReporte(empresaId, periodo)) : null,
     listo ? memo("series", periodo, () => obtenerSeries(empresaId, periodo)) : null,
     listo ? memo("series", anterior, () => obtenerSeries(empresaId, anterior)) : null,
@@ -50,12 +51,18 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
     listo
       ? (async () => {
           const { data } = await (await crearClienteServidor()).from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle();
-          return ((data?.ajustes as { vigilancia_horas?: string } | null)?.vigilancia_horas === "nomina" ? "nomina" : "same") as CriterioHoras;
+          const a = data?.ajustes as { vigilancia_horas?: string; enfermeria_vigilancia?: boolean } | null;
+          return { horas: (a?.vigilancia_horas === "nomina" ? "nomina" : "same") as CriterioHoras, enfermeria: a?.enfermeria_vigilancia === true };
         })()
-      : ("same" as CriterioHoras),
+      : { horas: "same" as CriterioHoras, enfermeria: false },
     listo ? firmantesAnteriores(empresaId) : null,
   ]);
-  return armarVigilancia({ empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos }, { paraEmpresa });
+  const criterioHoras = ajustesOrg.horas;
+  // Indicadores de enfermería en la vigilancia: solo si el médico lo decidió (Enfermería › Tus decisiones)
+  const enfermeria: IndicadoresEnfermeria | null = listo && ajustesOrg.enfermeria
+    ? await memo("enfermeria", periodo, () => indicadoresEnfermeria(empresaId, periodo.desde, periodo.hasta))
+    : null;
+  return { ...armarVigilancia({ empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos }, { paraEmpresa }), enfermeria };
 }
 
 export type DatosBrutosVigilancia = {

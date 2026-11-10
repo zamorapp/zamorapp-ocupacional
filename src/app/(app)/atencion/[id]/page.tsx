@@ -14,6 +14,10 @@ import { NOTA_RIESGOS_PUESTO, PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
+import { LecturaEnfermeria } from "./lectura-enfermeria";
+import { notasDeConsulta } from "@/lib/enfermeria";
+import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { declaracionesDeConsulta } from "../../accidentes/acciones";
 import { siguienteEnEspera } from "@/lib/citas";
 import { ahora } from "@/lib/fecha";
@@ -54,9 +58,34 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     demo ? null : siguienteEnEspera(),
   ]);
   if (!consulta) notFound();
+  // Lo que enfermería anotó en esta consulta (su evolución): lo ven el médico, el gerente médico y el administrador
+  const notas = demo || !sesion.clinico ? [] : await notasDeConsulta(id);
+  const tarjetaNotas = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Evolución de enfermería en esta consulta</CardTitle>
+        <CardDescription>Lo que anotó enfermería después de leerla. Queda en la historia del trabajador.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ListaAtenciones atenciones={notas} puedeBorrarTodo={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} conConsulta={false} vacio="Enfermería no ha anotado nada en esta consulta." />
+      </CardContent>
+    </Card>
+  );
+  // Enfermería lee la consulta del médico, no la cambia (la base tampoco se lo permite)
+  if (sesion.rol === "enfermeria") {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4">
+        <Link href={`/pacientes/${consulta.trabajador.id}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> Historia de {consulta.trabajador.nombre}
+        </Link>
+        <LecturaEnfermeria consulta={consulta} />
+        {tarjetaNotas}
+      </div>
+    );
+  }
   const envio = { servicio: org.nombre, plantilla: org.ajustes.mensaje_aptitud ?? PLANTILLA_APTITUD, telefono: contacto?.telefono ?? null, correo: contacto?.correo ?? null };
   // Mismo criterio que validar_firma() en la base: el autor, el gerente médico o el administrador con acceso clínico; nunca enfermería
-  const puedeFirmar = sesion.clinico && sesion.rol !== "enfermeria" &&
+  const puedeFirmar = sesion.clinico &&
     (!consulta.medicoId || consulta.medicoId === sesion.usuarioId || sesion.rol === "gerente_medico" || sesion.rol === "administrador");
   const adjuntos = sesion.demo || !sesion.orgId || !listaAdjuntos ? null : { orgId: sesion.orgId, lista: listaAdjuntos };
   return (
@@ -72,6 +101,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
           puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"}
           notaRiesgos={org.ajustes.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO} />
       </FrescoAlVolver>
+      {notas.length > 0 && tarjetaNotas}
     </div>
   );
 }

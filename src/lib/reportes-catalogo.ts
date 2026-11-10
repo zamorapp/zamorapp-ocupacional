@@ -1,4 +1,5 @@
 import { ETIQUETA_ESTADO_CONSULTA, ETIQUETA_ORIGEN } from "@/lib/consultas-tipos";
+import { ETIQUETA_TIPO_ENFERMERIA } from "@/lib/enfermeria-tipos";
 import { ETIQUETA_APTITUD, ETIQUETA_ESTADO } from "@/lib/pacientes";
 
 // Catálogo de reportes (los del SAME y más). Solo datos: lo usan la pantalla, la impresión y el Excel.
@@ -12,7 +13,7 @@ export type Columna = {
   ancho?: number; // ancho en Excel (caracteres)
   total?: boolean; // se suma en la fila de totales
   clinico?: boolean; // dato clínico: vacío para quien no es personal de salud
-  etiqueta?: "aptitud" | "origen" | "causa" | "ente" | "estado_cita" | "estado_trabajador" | "sexo" | "estado_consulta";
+  etiqueta?: "aptitud" | "origen" | "causa" | "ente" | "estado_cita" | "estado_trabajador" | "sexo" | "estado_consulta" | "tipo_enfermeria";
   opcional?: boolean; // solo aparece si se marca en «Mostrar» (parámetro ver=)
 };
 // Opción del reporte (parámetro o_<k>); "sql" la recibe la base en p_opciones, si no la usa la app
@@ -26,7 +27,8 @@ export type DefReporte = {
   grupo: "Atención" | "Morbilidad" | "Aptitud y ausentismo" | "Gestión";
   descripcion: string;
   fuente: string;
-  funcion?: "reporte_indicadores"; // función de la base; por defecto reporte_listado
+  funcion?: "reporte_indicadores" | "reporte_enfermeria"; // función de la base; por defecto reporte_listado
+  requiere?: "enfermeria_unida"; // solo sale en la barra si el médico lo activó (Enfermería › Tus decisiones)
   columnas: Columna[];
   filtros: string[];
   resumenes: Resumen[];
@@ -501,6 +503,141 @@ export const REPORTES: DefReporte[] = [
     resumenes: [{ titulo: "Accidentes por mes", por: "periodo", valor: "accidentes" }, { titulo: "Días perdidos por empresa", por: "empresa", valor: "dias_perdidos" }],
     nota: "COVENIN 474:1997, por millón de horas hombre trabajadas: IF neta = accidentes con tiempo perdido; IF bruta = todos los accidentes; Í. severidad = días perdidos + días cargados. Sin horas cargadas en Empresas › Horas trabajadas, se estiman: trabajadores activos × 8 h × días hábiles del mes (5.2).",
   },
+  // ─── Enfermería (función reporte_enfermeria) ───
+  {
+    clave: "enfermeria",
+    titulo: "Registro de atenciones de enfermería",
+    corto: "Enfermería",
+    grupo: "Atención",
+    descripcion: "Cada atención de enfermería del período: tensión y signos, tratamientos administrados, procedimientos (vendajes, nebulizaciones…), curas e inspecciones.",
+    fuente: "atenciones",
+    funcion: "reporte_enfermeria",
+    clinico: true,
+    horizontal: true,
+    columnas: [
+      fecha(),
+      { k: "historia", t: "Historia", tipo: "num", ancho: 9, opcional: true },
+      ...PACIENTE,
+      { k: "edad", t: "Edad", tipo: "num", ancho: 6, opcional: true },
+      { k: "empresa", t: "Empresa", ancho: 24 },
+      { k: "dependencia", t: "Dependencia", ancho: 18, opcional: true },
+      { k: "tipo", t: "Atención", etiqueta: "tipo_enfermeria", ancho: 20 },
+      { k: "motivo", t: "Motivo o área", ancho: 22 },
+      { k: "ta", t: "TA", ancho: 8 },
+      { k: "fc", t: "Pulso", ancho: 6 },
+      { k: "temp", t: "T °C", ancho: 6, opcional: true },
+      { k: "glicemia", t: "Glicemia", ancho: 8, opcional: true },
+      { k: "spo2", t: "SpO2", ancho: 6, opcional: true },
+      { k: "tratamiento", t: "Tratamiento o procedimiento", ancho: 30 },
+      { k: "referido", t: "Referido", tipo: "si_no", ancho: 8 },
+      { k: "nota", t: "Observación", ancho: 30, opcional: true },
+      { k: "registrado", t: "Registró", ancho: 20 },
+    ],
+    filtros: ["tipo", "motivo", "registrado"],
+    resumenes: [{ titulo: "Por tipo de atención", por: "tipo" }, { titulo: "Por motivo", por: "motivo" }, { titulo: "Por empresa", por: "empresa" }],
+  },
+  {
+    clave: "tension",
+    titulo: "Control de tensión arterial",
+    corto: "Control de tensión",
+    grupo: "Atención",
+    descripcion: "Cada toma de tensión (enfermería) con su clasificación. Busca un trabajador para imprimir su control.",
+    fuente: "tension",
+    funcion: "reporte_enfermeria",
+    clinico: true,
+    columnas: [
+      fecha(),
+      ...PACIENTE,
+      { k: "edad", t: "Edad", tipo: "num", ancho: 6, opcional: true },
+      { k: "empresa", t: "Empresa", ancho: 24 },
+      { k: "ta", t: "Tensión", ancho: 9 },
+      { k: "fc", t: "Pulso", ancho: 6 },
+      { k: "clasificacion", t: "Clasificación", ancho: 16 },
+      { k: "tratamiento", t: "Tratamiento", ancho: 26, opcional: true },
+      { k: "referido", t: "Referido", tipo: "si_no", ancho: 8 },
+      { k: "registrado", t: "Registró", ancho: 20, opcional: true },
+    ],
+    filtros: ["clasificacion", "empresa"],
+    resumenes: [{ titulo: "Por clasificación", por: "clasificacion" }, { titulo: "Tomas por trabajador", por: "paciente" }],
+    nota: "Clasificación ESC/ESH 2018: Normal < 130/85; Normal alta 130–139/85–89; Alta ≥ 140/90; Crisis ≥ 180/110. Orienta: el diagnóstico de hipertensión lo hace el médico.",
+  },
+  {
+    clave: "dias-atencion",
+    titulo: "Días de atención: médico y enfermería",
+    corto: "Días de atención",
+    grupo: "Atención",
+    descripcion: "Cada día con consultas del médico o atenciones de enfermería, por empresa, y quién atendió.",
+    fuente: "dias",
+    funcion: "reporte_enfermeria",
+    requiere: "enfermeria_unida",
+    columnas: [
+      fecha(),
+      { k: "empresa", t: "Empresa", ancho: 28 },
+      { k: "atendio", t: "Atendió", ancho: 20 },
+      { k: "consultas_medico", t: "Consultas del médico", tipo: "num", total: true },
+      { k: "pacientes_medico", t: "Pacientes (médico)", tipo: "num", total: true },
+      { k: "atenciones_enfermeria", t: "Atenciones de enfermería", tipo: "num", total: true },
+      { k: "pacientes_enfermeria", t: "Pacientes (enfermería)", tipo: "num", total: true },
+    ],
+    filtros: ["atendio", "empresa"],
+    resumenes: [{ titulo: "Días por quién atendió", por: "atendio" }, { titulo: "Días por empresa", por: "empresa" }],
+  },
+  {
+    clave: "morbilidad-enfermeria",
+    titulo: "Morbilidad de enfermería",
+    corto: "Morbilidad enfermería",
+    grupo: "Morbilidad",
+    descripcion: "Motivos de atención de enfermería ordenados por frecuencia, aparte de la morbilidad del médico. No cuenta las inspecciones.",
+    fuente: "morbilidad",
+    funcion: "reporte_enfermeria",
+    clinico: true,
+    horizontal: true,
+    ranking: true,
+    opciones: [{ k: "agrupar", t: "Agrupar por", sql: true, valores: [["", "General"], ["empresa", "Empresa"], ["dependencia", "Dependencia"]] }],
+    columnas: [
+      { k: "grupo", t: "Grupo", ancho: 24 },
+      { k: "cie10", t: "CIE-10", ancho: 9 },
+      { k: "descripcion", t: "Motivo", ancho: 36 },
+      { k: "casos", t: "Casos", tipo: "num", total: true },
+      { k: "pacientes", t: "Pacientes", tipo: "num", total: true },
+      { k: "dias", t: "Días", tipo: "num" },
+      { k: "femenino", t: "F", tipo: "num", total: true },
+      { k: "masculino", t: "M", tipo: "num", total: true },
+      { k: "e_menor_18", t: "< 18", tipo: "num", total: true },
+      { k: "e_18_39", t: "18-39", tipo: "num", total: true },
+      { k: "e_40_59", t: "40-59", tipo: "num", total: true },
+      { k: "e_60_mas", t: "60 +", tipo: "num", total: true },
+    ],
+    filtros: [],
+    resumenes: [{ titulo: "Diez primeros motivos", por: "descripcion", valor: "casos" }],
+    nota: "% atendidos: pacientes con el motivo sobre los pacientes que atendió enfermería en el período.",
+  },
+  {
+    clave: "morbilidad-unida",
+    titulo: "Morbilidad unida: médico y enfermería",
+    corto: "Morbilidad unida",
+    grupo: "Morbilidad",
+    descripcion: "Diagnósticos del médico y motivos de enfermería juntos (unidos por el CIE-10), con los casos y los días de cada uno.",
+    fuente: "unida",
+    funcion: "reporte_enfermeria",
+    requiere: "enfermeria_unida",
+    clinico: true,
+    horizontal: true,
+    ranking: true,
+    columnas: [
+      { k: "cie10", t: "CIE-10", ancho: 9 },
+      { k: "descripcion", t: "Diagnóstico o motivo", ancho: 40 },
+      { k: "casos", t: "Casos", tipo: "num", total: true },
+      { k: "pacientes", t: "Pacientes", tipo: "num", total: true },
+      { k: "casos_medico", t: "Casos médico", tipo: "num", total: true },
+      { k: "casos_enfermeria", t: "Casos enfermería", tipo: "num", total: true },
+      { k: "dias_medico", t: "Días médico", tipo: "num" },
+      { k: "dias_enfermeria", t: "Días enfermería", tipo: "num" },
+    ],
+    filtros: [],
+    resumenes: [{ titulo: "Diez primeras causas (unidas)", por: "descripcion", valor: "casos" }],
+    nota: "Un motivo de enfermería con su CIE-10 se suma al mismo diagnóstico del médico; sin código, va aparte con su nombre. Días: días distintos en que el médico o enfermería vieron ese diagnóstico o motivo.",
+  },
 ];
 
 export const GRUPOS_REPORTE = ["Atención", "Morbilidad", "Aptitud y ausentismo", "Gestión"] as const;
@@ -513,6 +650,7 @@ export const ETIQUETAS_FIJAS: Record<string, Record<string, string>> = {
   origen: ETIQUETA_ORIGEN,
   estado_trabajador: ETIQUETA_ESTADO,
   estado_consulta: ETIQUETA_ESTADO_CONSULTA,
+  tipo_enfermeria: ETIQUETA_TIPO_ENFERMERIA,
   estado_cita: { citado: "Citado", en_espera: "En espera", en_consulta: "En consulta", atendido: "Atendido", no_asistio: "No asistió", cancelada: "Cancelada" },
 };
 
