@@ -64,7 +64,7 @@ export default async function Documentos({ searchParams }: { searchParams: Promi
         {consultas.length === 0 ? (
           <div className="grid place-items-center gap-2 py-16 text-center text-muted-foreground">
             <FileText className="size-8" />
-            No hay consultas cerradas entre esas fechas en esta empresa. Cambia «Consultas desde» o la empresa de arriba.
+            No hay consultas cerradas entre esas fechas en esta empresa. Cambia «Desde» o la empresa de arriba.
           </div>
         ) : (
           <div className="divide-y">

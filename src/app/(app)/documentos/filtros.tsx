@@ -50,7 +50,7 @@ export function FiltrosDocumentos({ desde, hasta, impreso, hoy, porDefecto }: { 
         />
         <div className="mt-1 flex min-h-6 items-center justify-between gap-2 text-xs">
           <span className={otra ? "text-aviso-texto" : "text-muted-foreground"}>{otra ? "Sale en todas las hojas de abajo." : "Por defecto, hoy."}</span>
-          {otra && <Button type="button" variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs max-sm:min-h-11" onClick={() => ir({ impreso: hoy })}>Hoy</Button>}
+          {otra && <Button type="button" variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-primary max-sm:min-h-11" onClick={() => ir({ impreso: hoy })}>Hoy</Button>}
         </div>
       </fieldset>
     </div>
