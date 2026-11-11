@@ -46,7 +46,7 @@ const hora = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
 // todas: sin el filtro de la empresa activa (los «Últimos atendidos» de Inicio y del buscador)
-export async function listarConsultas(opciones: { desde?: string; trabajadorId?: string; limite?: number; todas?: boolean } = {}): Promise<ResumenConsulta[]> {
+export async function listarConsultas(opciones: { desde?: string; hasta?: string; trabajadorId?: string; limite?: number; todas?: boolean } = {}): Promise<ResumenConsulta[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   let q = supabase
@@ -56,6 +56,7 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
     .order("hora_inicio", { ascending: false })
     .limit(opciones.limite ?? 200);
   if (opciones.desde) q = q.gte("fecha", opciones.desde);
+  if (opciones.hasta) q = q.lte("fecha", opciones.hasta);
   if (opciones.trabajadorId) q = q.eq("trabajador_id", opciones.trabajadorId);
   else if (!opciones.todas) {
     const empresa = await empresaActivaId();

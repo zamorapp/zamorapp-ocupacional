@@ -9,14 +9,26 @@ import { listarConsultas } from "@/lib/consultas";
 import { fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { FiltrosDocumentos } from "./filtros";
 
 export const metadata: Metadata = { title: "Documentos" };
 export const dynamic = "force-dynamic";
 
-export default async function Documentos() {
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const LIMITE = 1000;
+
+export default async function Documentos({ searchParams }: { searchParams: Promise<{ desde?: string; hasta?: string; impreso?: string }> }) {
   const sesion = await obtenerSesion();
-  const desde = sumarDias(hoyCaracas(), -90);
-  const consultas = sesion.demo ? [] : (await listarConsultas({ desde, limite: 300 })).filter((c) => c.estado !== "borrador");
+  const p = await searchParams;
+  const hoy = hoyCaracas();
+  const porDefecto = sumarDias(hoy, -90);
+  const desde = p.desde && ISO.test(p.desde) ? p.desde : porDefecto;
+  const hasta = p.hasta && ISO.test(p.hasta) ? p.hasta : hoy;
+  const impreso = p.impreso && ISO.test(p.impreso) ? p.impreso : hoy;
+  // La hoja de lote lee ?impreso= (fecha-impresion.tsx): así informes y constancias salen con la misma fecha
+  const conFecha = impreso !== hoy ? `&impreso=${impreso}` : "";
+  const todas = sesion.demo ? [] : await listarConsultas({ desde, hasta, limite: LIMITE });
+  const consultas = todas.filter((c) => c.estado !== "borrador");
   // Por día y empresa, con «Imprimir lote»: todas las constancias o informes de ese grupo en un solo documento
   const grupos: { clave: string; fecha: string; empresa: string; items: typeof consultas }[] = [];
   for (const c of consultas) {
@@ -41,15 +53,18 @@ export default async function Documentos() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Documentos</h1>
         <p className="text-muted-foreground">
-          Constancias, reposos, informes y récipes de las consultas cerradas en los últimos 90 días. Se abren listos para imprimir o guardar en PDF. Con los botones de cada grupo sacas todas las de un día y una empresa en un solo documento.
+          Constancias, reposos, informes y récipes de las consultas cerradas. Elige las fechas; con los botones de cada grupo sacas todas las de un día y una empresa en un solo documento.
         </p>
       </div>
+
+      <FiltrosDocumentos desde={desde} hasta={hasta} impreso={impreso} hoy={hoy} porDefecto={porDefecto} />
+      {todas.length === LIMITE && <p className="text-sm text-aviso-texto">Se muestran las {LIMITE} más recientes del rango. Acorta las fechas para ver las demás.</p>}
 
       <Card className="gap-0 overflow-hidden py-0">
         {consultas.length === 0 ? (
           <div className="grid place-items-center gap-2 py-16 text-center text-muted-foreground">
             <FileText className="size-8" />
-            Cierra una consulta en Atención médica para emitir sus documentos.
+            No hay consultas cerradas entre esas fechas en esta empresa. Cambia «Consultas desde» o la empresa de arriba.
           </div>
         ) : (
           <div className="divide-y">
@@ -61,13 +76,13 @@ export default async function Documentos() {
                     <span className="font-semibold"> · {g.empresa || "Sin empresa"}</span>
                     <span className="text-muted-foreground"> · {g.items.length} {g.items.length === 1 ? "consulta" : "consultas"}</span>
                   </div>
-                  {g.items.length > 1 && (
+                  {(
                     <div className="flex flex-wrap gap-2">
                       {botonesLote(g.items.filter((c) => c.aptitud), g.items.length, "constancias").map((t) => (
-                        <Button key={`c${t.texto}`} size="sm" asChild><Link href={`/imprimir/lote?doc=constancia&ids=${t.ids}`} target="_blank"><Printer /> {t.texto}</Link></Button>
+                        <Button key={`c${t.texto}`} size="sm" asChild><Link href={`/imprimir/lote?doc=constancia&ids=${t.ids}${conFecha}`} target="_blank"><Printer /> {t.texto}</Link></Button>
                       ))}
                       {botonesLote(g.items, g.items.length, "informes").map((t) => (
-                        <Button key={`i${t.texto}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=consulta&ids=${t.ids}`} target="_blank"><Printer /> {t.texto}</Link></Button>
+                        <Button key={`i${t.texto}`} variant="outline" size="sm" asChild><Link href={`/imprimir/lote?doc=consulta&ids=${t.ids}${conFecha}`} target="_blank"><Printer /> {t.texto}</Link></Button>
                       ))}
                     </div>
                   )}
@@ -79,7 +94,7 @@ export default async function Documentos() {
                         <Link href={`/atencion/${c.id}`} className="font-medium hover:text-primary">{c.paciente}</Link>
                         <div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div>
                       </div>
-                      <MenuImprimir consultaId={c.id} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} preoperatoria={/preoper/i.test(c.motivo ?? "")} />
+                      <MenuImprimir consultaId={c.id} impreso={impreso !== hoy ? impreso : undefined} aptitud={Boolean(c.aptitud)} reposo={c.tieneReposo} tratamiento={c.tieneTratamiento} preoperatoria={/preoper/i.test(c.motivo ?? "")} />
                     </li>
                   ))}
                 </ul>
