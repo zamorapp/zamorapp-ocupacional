@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   consultaId: string;
+  // Fecha de impresión ya elegida (Documentos): la hoja abre con ella en el pie
+  impreso?: string;
   aptitud: boolean;
   reposo: boolean;
   tratamiento: boolean;
@@ -36,7 +38,7 @@ type Props = {
 };
 
 // Botón único «Imprimir» con los documentos que aplican a la consulta. Cada uno abre en otra pestaña lista para imprimir o guardar en PDF.
-export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className, soloOpciones }: Props) {
+export function MenuImprimir({ consultaId, impreso, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className, soloOpciones }: Props) {
   const docs = [
     { tipo: "paquete", texto: "Todo lo de esta consulta", nota: "uno por hoja", icono: Files },
     aptitud && { tipo: "constancia", texto: "Constancia de aptitud", icono: FileCheck2 },
@@ -59,7 +61,7 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
   ].filter(Boolean) as { tipo: string; texto: string; nota?: string; icono: typeof FileText }[];
 
   const abrir = (tipo: string) => {
-    const url = `/imprimir/${tipo}/${consultaId}`;
+    const url = `/imprimir/${tipo}/${consultaId}${impreso ? `?impreso=${impreso}` : ""}`;
     // Con cambios sin guardar, se guarda primero y el documento abre al terminar (o no abre si falló)
     return abrirEnVentana(antes ? async () => ((await antes()) ? url : null) : url);
   };

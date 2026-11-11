@@ -298,7 +298,7 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
   const css = `@page { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
-@page :first { @top-left { content: none; } }`;
+@page :first { @top-left { content: ""; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 

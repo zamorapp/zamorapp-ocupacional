@@ -59,7 +59,7 @@ export function CampoFechaImpresion() {
       <input
         type="date"
         data-accion="fecha-impresion"
-        className="bg-transparent font-medium tabular-nums outline-none"
+        className="bg-transparent font-medium text-foreground tabular-nums outline-none"
         value={f ?? hoy}
         onChange={(e) => cambiar(e.target.value)}
       />

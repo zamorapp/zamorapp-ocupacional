@@ -249,10 +249,18 @@
   }
 }
 
-/* Documentos impresos (constancia, reposo, informe, récipe) */
+/* Documentos impresos (constancia, reposo, informe, récipe).
+   Las casillas vacías del margen anulan el encabezado y pie del navegador (fecha de HOY, título y dirección),
+   que Chrome/Edge agregan si «Encabezados y pies de página» está marcado: en la hoja solo sale la fecha que elige
+   el médico (Cesar, 11-nov: la empresa pide la fecha de la consulta y no puede aparecer otra). */
 @page {
   size: letter;
   margin: 12mm 12mm 14mm;
+  @top-left { content: ""; }
+  @top-center { content: ""; }
+  @top-right { content: ""; }
+  @bottom-left { content: ""; }
+  @bottom-center { content: ""; }
   @bottom-right {
     content: "Página " counter(page) " de " counter(pages);
     font: 8.5px ui-monospace, Consolas, monospace;
@@ -262,6 +270,11 @@
 @page apaisada {
   size: letter landscape;
   margin: 12mm 14mm 14mm;
+  @top-left { content: ""; }
+  @top-center { content: ""; }
+  @top-right { content: ""; }
+  @bottom-left { content: ""; }
+  @bottom-center { content: ""; }
 }
 /* Factura en el talonario de forma libre (20,6 × 14,6 cm apaisada): sin márgenes ni número de página; la
    posición la fija la propia hoja en milímetros (franja útil entre el membrete y la leyenda preimpresos) */
