@@ -6,6 +6,7 @@ import { NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
 import { puntosUnicos } from "@/lib/recomendaciones-categorias";
 import { GRUPOS_RIESGO } from "@/lib/pacientes";
 import { esParticular } from "@/lib/particulares";
+import { FechaImpreso } from "./fecha-impresion";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
 // Los colores son fijos (papel), no siguen el tema oscuro de la app.
@@ -306,7 +307,7 @@ export function Pie({ d, derecha, compacto }: { d: { impreso: { por: string; el:
   return (
     <footer className={`${compacto ? "mt-2" : "mt-4"} flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue`}>
       <span>
-        Impreso por {d.impreso.por} · {d.impreso.el}
+        Impreso por {d.impreso.por} · <FechaImpreso el={d.impreso.el} />
         {/* Una consulta corregida invalida los impresos de su revisión anterior */}
         {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores</b></>}
       </span>
