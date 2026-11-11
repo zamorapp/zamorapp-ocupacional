@@ -275,7 +275,6 @@
   @top-right { content: ""; }
   @bottom-left { content: ""; }
   @bottom-center { content: ""; }
-  @bottom-right { content: ""; }
 }
 /* Factura en el talonario de forma libre (20,6 × 14,6 cm apaisada): sin márgenes ni número de página; la
    posición la fija la propia hoja en milímetros (franja útil entre el membrete y la leyenda preimpresos) */
