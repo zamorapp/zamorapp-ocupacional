@@ -86,6 +86,12 @@ for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
     await pagina.emulateMedia({ media: "screen" });
   }
 }
+// Fecha de impresión elegida (?impreso=AAAA-MM-DD): el pie la muestra en vez de la fecha real; una inválida se ignora
+for (const [q, debe] of [["2026-07-06", "06/07/26"], ["2026-13-40", "28/10/26, 9:30 a. m."]]) {
+  await pagina.goto(`${base}/imprimir/prueba/constancia?impreso=${q}`, { waitUntil: "networkidle", timeout: 120_000 });
+  const pies = await pagina.locator("[data-prueba=fecha-impresion]").allTextContents();
+  if (!pies.length || pies.some((t) => t !== debe)) fallas.push(`fecha de impresión ${q}: el pie dice «${pies.join(" | ")}» y debe decir «${debe}»`);
+}
 // Lo que va a la empresa nunca nombra un diagnóstico con menos de 3 casos ni uno confidencial (los datos de
 // ejemplo traen un solo caso de F32.9 en las causas, un corte, el detalle de reposos y las causas de reposo)
 for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
