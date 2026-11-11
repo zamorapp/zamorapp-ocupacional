@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
+import { ArrowLeft, CircleHelp, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
@@ -13,6 +13,7 @@ import type { DocTrabajador } from "@/lib/whatsapp-trabajador";
 import { ahora } from "@/lib/fecha";
 import { CampoFechaImpresion, fechaArchivo, useFechaImpresion } from "./fecha-impresion";
 
+const AYUDA_PDF = "Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».";
 const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
 
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
@@ -71,7 +72,11 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio
           </div>
         ) : (
           <>
-            <span className={cn("hidden text-xs text-muted-foreground", siguiente ? "min-[1700px]:inline" : "2xl:inline")}>Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».</span>
+            <span className={cn("hidden text-xs text-muted-foreground", siguiente ? "min-[1700px]:inline" : "2xl:inline")}>{AYUDA_PDF}</span>
+            {/* Por debajo de 2xl la ayuda va en el «?» (Cesar trabaja a 1366) */}
+            <span tabIndex={0} title={AYUDA_PDF} aria-label={AYUDA_PDF} className={cn("grid size-9 place-items-center rounded-md text-muted-foreground hover:text-foreground max-sm:size-11", siguiente ? "min-[1700px]:hidden" : "2xl:hidden")}>
+              <CircleHelp className="size-4" aria-hidden />
+            </span>
             <Button disabled={inactivo} onClick={() => hacer("imprimir")}>
               {preparando ? <Loader2 className="animate-spin" /> : <Printer />} {preparando ? "Preparando anexos…" : "Imprimir o guardar PDF"}
             </Button>

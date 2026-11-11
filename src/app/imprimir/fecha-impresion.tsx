@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 import { hoyCaracas } from "@/lib/fecha";
+import { cn } from "@/lib/utils";
 
 // Fecha de impresión editable (Cesar, 11-nov): por defecto hoy; se cambia en la barra de cualquier hoja y viaja en
 // la dirección (?impreso=AAAA-MM-DD), así el lote, la vista previa y el PDF la respetan sin tocar la base de datos.
@@ -49,10 +50,12 @@ export function CampoFechaImpresion() {
     window.history.replaceState(window.history.state, "", url);
     window.dispatchEvent(new Event(EVENTO));
   };
+  // En ámbar si no es hoy: que no salga un lote entero con una fecha vieja sin darse cuenta
+  const otra = !!f && f !== hoy;
   return (
-    <label className="flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-sm" title="Fecha que sale en el pie de la hoja. Por defecto, hoy.">
+    <label className={cn("flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-sm max-sm:min-h-11", otra && "border-aviso bg-aviso/10 text-aviso-texto")} title="Fecha que sale en el pie de la hoja. Por defecto, hoy.">
       <CalendarDays className="size-4 text-muted-foreground" aria-hidden />
-      <span className="whitespace-nowrap text-muted-foreground">Fecha de impresión</span>
+      <span className={cn("whitespace-nowrap", !otra && "text-muted-foreground")}>Fecha de impresión</span>
       <input
         type="date"
         data-accion="fecha-impresion"
@@ -60,8 +63,8 @@ export function CampoFechaImpresion() {
         value={f ?? hoy}
         onChange={(e) => cambiar(e.target.value)}
       />
-      {f && f !== hoy && (
-        <button type="button" className="text-xs font-medium text-primary underline-offset-2 hover:underline" onClick={() => cambiar("")}>
+      {otra && (
+        <button type="button" className="text-xs font-medium text-primary underline-offset-2 hover:underline max-sm:min-h-11 max-sm:px-2" onClick={() => cambiar("")}>
           Hoy
         </button>
       )}
