@@ -24,6 +24,8 @@ import { guardarLogoEmpresa } from "../acciones";
 import { envioAutoEmpresa, ROLES_ENVIO_AUTO } from "@/lib/envio-auto";
 import { listarContactos } from "@/lib/envios";
 import { EnvioAutoConstancias } from "./envio-auto";
+import { BotonDepurarNomina, DepurarNomina } from "./depurar-nomina";
+import { revisionDepuracion } from "./depurar-nomina-acciones";
 import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
 import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
 
@@ -46,6 +48,9 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   const veEnvioAuto = !sesion.demo && Boolean(sesion.orgId) && ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
   const contactosWa = contactos.filter((c) => c.telefono).map((c) => ({ nombre: c.nombre, telefono: c.telefono! }));
+  // Revisión de nómina con RR. HH. por enlace: la maneja quien actualiza la nómina (administrador o personal de salud)
+  const depura = !sesion.demo && Boolean(sesion.orgId) && (sesion.clinico || sesion.rol === "administrador");
+  const revision = depura ? await revisionDepuracion(id) : null;
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
 
   return (
@@ -63,9 +68,15 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
-        {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
-        {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
+        {/* En el teléfono los botones van debajo del título, a todo el ancho (no le quitan espacio al nombre) */}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
+          {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} />}
+          {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
+        </div>
       </div>
+
+      {revision && <DepurarNomina key={`${revision.id}-${revision.actualizado_en}-${revision.estado}-${revision.abierto_en}`} empresaId={id} revision={revision} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <div className="space-y-6">
