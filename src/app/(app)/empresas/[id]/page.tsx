@@ -68,9 +68,12 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
-        {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
-        {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} />}
-        {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
+        {/* En el teléfono los botones van debajo del título, a todo el ancho (no le quitan espacio al nombre) */}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
+          {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} />}
+          {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
+        </div>
       </div>
 
       {revision && <DepurarNomina key={`${revision.id}-${revision.actualizado_en}-${revision.estado}-${revision.abierto_en}`} empresaId={id} revision={revision} />}

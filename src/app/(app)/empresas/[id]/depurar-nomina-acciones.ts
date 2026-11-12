@@ -139,6 +139,31 @@ export async function confirmarDepuracion(empresaId: string, id: string, inactiv
   };
 }
 
+/** «Citar egreso» desde la revisión: cita con motivo Egreso para el día elegido (por defecto hoy), sin salir de la ficha. */
+export async function citarEgreso(empresaId: string, trabajadorId: string, fecha: string): Promise<R> {
+  const p = await permiso();
+  if (p) return { ok: false, mensaje: p };
+  if (!UUID.test(empresaId) || !UUID.test(trabajadorId) || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Datos no válidos." };
+  if (fecha < hoyCaracas()) return { ok: false, mensaje: "Elige hoy o un día próximo." };
+  const sesion = await obtenerSesion();
+  const supabase = await crearClienteServidor();
+  const [{ data: t }, { data: motivo }] = await Promise.all([
+    supabase.from("trabajadores").select("empresa_id").eq("id", trabajadorId).maybeSingle(),
+    // El motivo puede ser de la organización o de la lista base (org_id vacío): primero el propio
+    supabase.from("lista_items").select("id").eq("lista", "motivo_consulta").eq("codigo", "EGR").eq("activo", true)
+      .or(`org_id.eq.${sesion.orgId},org_id.is.null`).order("org_id", { ascending: true, nullsFirst: false }).limit(1).maybeSingle(),
+  ]);
+  if (!t || t.empresa_id !== empresaId) return { ok: false, mensaje: "Ese trabajador ya no es de esta empresa." };
+  if (!motivo) return { ok: false, mensaje: "Falta el motivo «Egreso» en Configuración › Listas." };
+  const { error } = await supabase.from("citas").insert({
+    org_id: sesion.orgId, empresa_id: empresaId, trabajador_id: trabajadorId, fecha, motivo_id: motivo.id, observacion: "Egreso indicado por RR. HH.",
+  });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite agendar citas." : "No se pudo citar: " + error.message };
+  revalidatePath(`/empresas/${empresaId}`);
+  revalidatePath("/atencion");
+  return { ok: true, mensaje: `Egreso citado para el ${dma(fecha)}.` };
+}
+
 export async function deshacerDepuracion(empresaId: string, lote: string): Promise<R<{ deshecho: Deshecho }>> {
   const r = await deshacerNomina(lote);
   revalidatePath(`/empresas/${empresaId}`);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, ClipboardCheck, Copy, Link2, Loader2, MessageCircle, Smartphone, Undo2, UserMinus, UserPlus, XCircle } from "lucide-react";
+import { ArrowRightLeft, CalendarPlus, Check, ClipboardCheck, Copy, Link2, Loader2, MessageCircle, Smartphone, Undo2, UserMinus, UserPlus, XCircle } from "lucide-react";
 import { Campo } from "@/components/app/campo";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { confirmar } from "@/components/app/confirmar";
@@ -13,9 +13,15 @@ import { dma, venceTexto, type RevisionDepuracion } from "@/lib/depurar-nomina";
 import { hoyCaracas } from "@/lib/fecha";
 import { enlaceWhatsApp } from "@/lib/mensajes";
 import { cn } from "@/lib/utils";
-import { anularEnlaceDepuracion, confirmarDepuracion, crearEnlaceDepuracion, deshacerDepuracion, liberarEnlaceDepuracion } from "./depurar-nomina-acciones";
+import { anularEnlaceDepuracion, citarEgreso, confirmarDepuracion, crearEnlaceDepuracion, deshacerDepuracion, liberarEnlaceDepuracion } from "./depurar-nomina-acciones";
 
 type Contacto = { nombre: string; telefono: string };
+
+// 04141234567 → 0414-1234567 mientras se escribe (con +58 o más dígitos se deja como está)
+const formatoTelefono = (v: string) => {
+  const d = v.replace(/\D/g, "");
+  return /^0\d{0,10}$/.test(d) && !v.trim().startsWith("+") ? (d.length > 4 ? `${d.slice(0, 4)}-${d.slice(4)}` : d) : v;
+};
 
 // Botón de la cabecera de la ficha, al lado de «Invitar a RR. HH.» (Cesar, 12-nov): nombre y teléfono de quien recibe
 // (el teléfono es la llave del enlace) → «Crear enlace» → WhatsApp con el mensaje listo.
@@ -101,7 +107,7 @@ function FormEnlace({ empresaId, empresa, revision, contactos }: { empresaId: st
               <p className="text-xs text-muted-foreground">Toca un contacto o escribe los datos:</p>
               <div className="flex flex-wrap gap-1.5">
                 {contactos.map((c) => (
-                  <button key={c.telefono} type="button" onClick={() => { setNombre(c.nombre); setTelefono(c.telefono); }} aria-pressed={telefono === c.telefono}
+                  <button key={c.telefono} type="button" onClick={() => { setNombre(c.nombre); setTelefono(formatoTelefono(c.telefono)); }} aria-pressed={telefono === formatoTelefono(c.telefono)}
                     className="min-h-9 rounded-full border px-2.5 text-xs hover:bg-muted aria-pressed:border-primary aria-pressed:bg-primary/10">
                     {c.nombre}
                   </button>
@@ -110,10 +116,13 @@ function FormEnlace({ empresaId, empresa, revision, contactos }: { empresaId: st
             </div>
           )}
           <Campo id="dep-nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} autoComplete="off" />
-          <Campo id="dep-telefono" etiqueta="WhatsApp (es la llave del enlace)" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" autoComplete="off" />
+          <Campo id="dep-telefono" etiqueta="WhatsApp (es la llave del enlace)" type="tel" value={telefono} onChange={(e) => setTelefono(formatoTelefono(e.target.value))} placeholder="0414-1234567" inputMode="tel" autoComplete="off" />
           {error && <p className="text-sm text-alerta-texto" role="alert">{error}</p>}
+          {telefono.replace(/\D/g, "").length > 0 && telefono.replace(/\D/g, "").length < 10 && (
+            <p className="text-xs text-muted-foreground">Escribe el número completo (11 dígitos, como 0414-1234567).</p>
+          )}
           <Button type="submit" size="lg" className="w-full" disabled={pendiente || sinInternet || telefono.replace(/\D/g, "").length < 10}>
-            {pendiente ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace
+            {pendiente ? <><Loader2 className="animate-spin" /> Creando…</> : <><Link2 /> Crear enlace</>}
           </Button>
         </form>
       )}
@@ -230,7 +239,10 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
                       <Link href={`/pacientes/${n.id}`} className="font-medium hover:underline">{n.nombre}</Link>
                       <p className="text-xs text-muted-foreground">{[n.cedula, n.cargo, n.motivo].filter(Boolean).join(" · ")}{!n.en_nomina && ` · ya está ${n.estado}`}</p>
                     </div>
-                    <div className="w-full pl-8 sm:w-auto sm:pl-0"><Egreso n={n} /></div>
+                    <div className="flex w-full flex-wrap items-center gap-2 pl-8 sm:w-auto sm:justify-end sm:pl-0">
+                      <Egreso n={n} />
+                      {!n.egreso && !n.cita_egreso && <CitarEgreso empresaId={empresaId} trabajadorId={n.id} nombre={n.nombre} bloqueado={sinInternet} />}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -240,7 +252,7 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
           {r.agregados.length > 0 && (
             <div>
               <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold"><UserPlus className="size-4 text-info-texto" /> Faltan en tu registro</h3>
-              <p className="mb-2 text-xs text-muted-foreground">Los que traen cédula se agregan a la nómina para programarles su evaluación. Sin cédula, regístralos a mano cuando la tengas.</p>
+              <p className="mb-2 text-xs text-muted-foreground">Los que traen cédula se agregan a la nómina al confirmar. Sin cédula, «Registrar» abre la ficha nueva con su nombre y cargo: solo falta la cédula.</p>
               <ul className="divide-y rounded-xl border">
                 {r.agregados.map((a) => {
                   const puede = Boolean(a.cedula && !a.registrado);
@@ -254,11 +266,24 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
                       </div>
                       <div className="w-full pl-8 sm:w-auto sm:pl-0">
                       {a.registrado ? (
-                        <Link href={`/pacientes/${a.registrado.id}`} className="inline-block shrink-0 rounded-full bg-aviso/15 px-2.5 py-1 text-xs font-medium text-aviso-texto hover:underline">
-                          Ya registrado{a.registrado.misma_empresa ? "" : " en otra empresa"}{a.registrado.estado !== "activo" ? ` (${a.registrado.estado})` : ""}
-                        </Link>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="shrink-0 rounded-full bg-aviso/15 px-2.5 py-1 text-xs font-medium text-aviso-texto">
+                            Ya registrado{a.registrado.misma_empresa ? "" : " en otra empresa"}{a.registrado.estado !== "activo" ? ` (${a.registrado.estado})` : ""}
+                          </span>
+                          {/* En otra empresa: se pasa desde su ficha (cargo y período nuevos); aquí, abrirla */}
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/pacientes/${a.registrado.id}`}>{a.registrado.misma_empresa ? "Ver ficha" : <><ArrowRightLeft /> Abrir ficha para pasarlo</>}</Link>
+                          </Button>
+                        </span>
                       ) : !a.cedula ? (
-                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">Falta la cédula</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">Falta la cédula</span>
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/pacientes?${new URLSearchParams({ nuevo: "1", empresa: empresaId, nombres: a.nombres, apellidos: a.apellidos, ...(a.cargo ? { cargo: a.cargo } : {}) })}`}>
+                              <UserPlus /> Registrar
+                            </Link>
+                          </Button>
+                        </span>
                       ) : (
                         <span className="shrink-0 rounded-full bg-info/10 px-2.5 py-1 text-xs font-medium text-info-texto">Nuevo</span>
                       )}
@@ -308,4 +333,32 @@ function Egreso({ n }: { n: RevisionDepuracion["no_estan"][number] }) {
     : n.cita_egreso ? [`Egreso citado ${dma(n.cita_egreso)}`, "bg-info/10 text-info-texto"]
     : ["Sin evaluación de egreso", "bg-aviso/15 text-aviso-texto"];
   return <span className={cn("inline-block shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", clase)}>{texto}</span>;
+}
+
+// «Citar egreso»: un toque abre la fecha (hoy por defecto) y otro guarda la cita con motivo Egreso
+function CitarEgreso({ empresaId, trabajadorId, nombre, bloqueado }: { empresaId: string; trabajadorId: string; nombre: string; bloqueado: boolean }) {
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [fecha, setFecha] = useState(() => hoyCaracas());
+  const [error, setError] = useState("");
+  const [pendiente, iniciar] = useTransition();
+  const guardar = () => iniciar(async () => {
+    setError("");
+    const x = await citarEgreso(empresaId, trabajadorId, fecha);
+    if (!x.ok) { setError(x.mensaje); return; }
+    setAbierto(false);
+    router.refresh();
+  });
+  if (!abierto) {
+    return <Button size="sm" variant="outline" onClick={() => setAbierto(true)} disabled={bloqueado}><CalendarPlus /> Citar egreso</Button>;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <input type="date" value={fecha} min={hoyCaracas()} onChange={(e) => setFecha(e.target.value)} aria-label={`Fecha del egreso de ${nombre}`}
+        className="h-8 rounded-md border bg-transparent px-2 text-sm" />
+      <Button size="sm" onClick={guardar} disabled={pendiente || !fecha}>{pendiente ? <Loader2 className="animate-spin" /> : <Check />} Citar</Button>
+      <Button size="sm" variant="ghost" onClick={() => setAbierto(false)} disabled={pendiente}>Cancelar</Button>
+      {error && <span className="w-full text-xs text-alerta-texto" role="alert">{error}</span>}
+    </span>
+  );
 }

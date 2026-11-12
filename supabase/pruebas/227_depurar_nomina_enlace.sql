@@ -90,6 +90,13 @@ select 'con cédula completa y motivo (debe 1): ' || ((select r -> 'no_estan' ->
 select 'su egreso está hecho (debe 1): ' || ((select r -> 'no_estan' -> 0 -> 'egreso' ->> 'hecha' from r227) = 'true')::int;
 select 'tres agregados (debe 3): ' || jsonb_array_length((select r -> 'agregados' from r227));
 select 'Beto ya estaba registrado (debe 1): ' || ((select count(*) from r227, jsonb_array_elements(r -> 'agregados') x where x -> 'registrado' ->> 'nombre' = 'Beto Otra' and x -> 'registrado' ->> 'misma_empresa' = 'false') = 1)::int;
+select 'Ramón (sin cédula) aún no registrado (debe 1): ' || ((select count(*) from r227, jsonb_array_elements(r -> 'agregados') x where x ->> 'nombres' = 'Ramón' and x -> 'registrado' = 'null'::jsonb) = 1)::int;
+reset role;
+insert into public.trabajadores (id, org_id, empresa_id, cedula, nombres, apellidos, estado) values
+ ('22700000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','V-22700010','ramón ','Lugo','aspirante');
+set role authenticated;
+select 'Cesar lo registró a mano: se reconoce por el nombre (debe 1): ' || ((select count(*) from jsonb_array_elements(public.revision_depuracion_nomina('20000000-0000-0000-0000-00000000000a') -> 'agregados') x
+  where x ->> 'nombres' = 'Ramón' and x -> 'registrado' ->> 'misma_empresa' = 'true') = 1)::int;
 select 'Cesar ve a quién se mandó y que ya lo abrieron (debe 1): ' || ((select r ->> 'rrhh_nombre' = 'Daniela Pérez' and r ->> 'telefono_fin' = '4567' and r ->> 'abierto_en' is not null from r227))::int;
 -- Cinco intentos fallidos bloquean; Cesar libera
 reset role;

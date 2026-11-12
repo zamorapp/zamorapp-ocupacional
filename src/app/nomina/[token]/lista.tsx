@@ -17,6 +17,8 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 export function ListaNomina({ token, vista }: { token: string; vista: VistaDepuracion }) {
   const [marcas, setMarcas] = useState<Record<string, Marca>>(vista.respuestas ?? {});
   const [agregados, setAgregados] = useState<Agregado[]>(vista.agregados ?? []);
+  // «Marcar los que quedan» pide un segundo toque: cambia muchos de una vez
+  const [seguroResto, setSeguroResto] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [q, setQ] = useState("");
   const [cuantos, setCuantos] = useState(POR_PAGINA);
@@ -179,11 +181,19 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
               Ver {Math.min(POR_PAGINA, visibles.length - cuantos)} más (quedan {visibles.length - cuantos})
             </Button>
           )}
-          {pendientes > 0 && (
-            <Button variant="secondary" className="mt-3 h-11 w-full whitespace-normal text-primary" onClick={resto}>
+          {pendientes > 0 && (seguroResto ? (
+            <div className="mt-3 space-y-2 rounded-xl border border-primary/40 bg-primary/5 p-3" role="alert">
+              <p className="text-sm">¿Los {pendientes} que no ha tocado siguen trabajando? Quedarán como «Sigue». Puede cambiar cualquiera después.</p>
+              <div className="flex gap-2">
+                <Button className="h-11 flex-1" onClick={() => { setSeguroResto(false); resto(); }}><Check /> Sí, todos siguen</Button>
+                <Button variant="outline" className="h-11" onClick={() => setSeguroResto(false)}>No</Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" className="mt-3 h-11 w-full whitespace-normal text-primary" onClick={() => setSeguroResto(true)}>
               Marcar los {pendientes} que quedan sin revisar como «Sigue»
             </Button>
-          )}
+          ))}
         </section>
 
         <section className="min-w-0 rounded-2xl border bg-card p-4 shadow-sm sm:p-5 lg:sticky lg:top-4">

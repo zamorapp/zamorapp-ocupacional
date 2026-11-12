@@ -83,7 +83,7 @@ begin
   select * into d from public.depuraciones_nomina where token = p_token for update;
   if d.id is null or d.anulado_en is not null or d.aplicado_en is not null or d.vence <= public.ahora() then return 'cerrado'; end if;
   if d.bloqueado_en is not null then return 'bloqueado'; end if;
-  if length(public.depuracion_telefono(p_telefono)) < 10 or public.depuracion_huella(public.depuracion_telefono(p_telefono)) <> d.telefono_hash then
+  if length(public.depuracion_telefono(p_telefono)) < 10 or public.depuracion_huella(d.token || public.depuracion_telefono(p_telefono)) <> d.telefono_hash then
     update public.depuraciones_nomina set intentos = intentos + 1,
            bloqueado_en = case when intentos + 1 >= 5 then public.ahora() end
      where id = d.id;
@@ -275,7 +275,7 @@ begin
   insert into public.depuraciones_nomina (org_id, empresa_id, token, vence, respuestas, agregados, enviado_en, rrhh_nombre, telefono_hash, telefono_fin)
   values (v_org, p_empresa, t, public.ahora() + make_interval(days => least(greatest(coalesce(p_dias, 7), 1), 30)),
           coalesce(d.respuestas, '{}'::jsonb), coalesce(d.agregados, '[]'::jsonb), d.enviado_en,
-          nullif(left(btrim(coalesce(p_nombre, '')), 120), ''), public.depuracion_huella(v_tel), right(v_tel, 4));
+          nullif(left(btrim(coalesce(p_nombre, '')), 120), ''), public.depuracion_huella(t || v_tel), right(v_tel, 4));  -- con el token como sal (Analizar)
   return t;
 end $$;
 revoke execute on function public.crear_depuracion_nomina(uuid, text, text, int, boolean) from public, anon;
@@ -359,8 +359,13 @@ begin
                select jsonb_build_object('id', t.id, 'nombre', btrim(t.nombres || ' ' || t.apellidos), 'estado', t.estado,
                                          'misma_empresa', t.empresa_id = p_empresa)
                  from public.trabajadores t
-                where x ->> 'cedula' is not null and t.org_id = v_org
-                  and regexp_replace(t.cedula, '\D', '', 'g') = x ->> 'cedula'
+                where t.org_id = v_org
+                  and (regexp_replace(t.cedula, '\D', '', 'g') = x ->> 'cedula'
+                       -- Sin cédula: Cesar lo registra a mano («Registrar»); se reconoce por el nombre en esta empresa
+                       or (x ->> 'cedula' is null and t.empresa_id = p_empresa
+                           and lower(regexp_replace(btrim(t.nombres || ' ' || t.apellidos), '\s+', ' ', 'g'))
+                             = lower(regexp_replace(btrim((x ->> 'nombres') || ' ' || (x ->> 'apellidos')), '\s+', ' ', 'g'))))
+                order by (regexp_replace(t.cedula, '\D', '', 'g') = x ->> 'cedula') desc nulls last
                 limit 1))
              order by i)
         from jsonb_array_elements(d.agregados) with ordinality a(x, i)), '[]'::jsonb));

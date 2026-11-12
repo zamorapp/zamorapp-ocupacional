@@ -31,7 +31,7 @@ export function LlaveTelefono({ token, nombre }: { token: string; nombre: string
       <div>
         <h1 className="text-xl font-semibold">{nombre ? `Hola, ${nombre}` : "Hola"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Por seguridad, escriba su número de teléfono: el mismo al que le enviamos este enlace. Solo se abre en este teléfono.
+          Por seguridad, escriba su número de teléfono: el mismo al que le enviamos este enlace. Después solo se abrirá en este aparato.
         </p>
       </div>
       <label className="block space-y-1.5">
