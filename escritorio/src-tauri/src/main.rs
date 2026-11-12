@@ -432,9 +432,14 @@ fn pedir_puerta(ruta: &str) -> Result<String, String> {
 }
 
 fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
-    let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
     // Las consultas (GET) responden al instante; las acciones (sincronizar) pueden tardar minutos
-    c.set_read_timeout(Some(Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))).ok();
+    llamar_puerta_en(metodo, ruta, Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))
+}
+
+fn llamar_puerta_en(metodo: &str, ruta: &str, espera: Duration) -> Result<String, String> {
+    let destino = std::net::SocketAddr::from(([127, 0, 0, 1], PUERTO_PUERTA));
+    let mut c = std::net::TcpStream::connect_timeout(&destino, espera).map_err(|e| e.to_string())?;
+    c.set_read_timeout(Some(espera)).ok();
     write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
         .map_err(|e| e.to_string())?;
     // Se lee hasta que la puerta cierra (Connection: close) o hasta tener el cuerpo completo (Content-Length):
@@ -473,6 +478,51 @@ fn sin_trozos(cuerpo: &str) -> String {
         resto = siguiente.strip_prefix("\r\n").unwrap_or("");
     }
     salida
+}
+
+// La X (o Alt+F4) de la ventana principal pregunta antes de salir: Cesar la pulsaba por error y tenía que volver a
+// abrir el programa (12-nov-2026). Si hay algo en marcha, el mismo aviso lo dice; nada se pierde al salir.
+static PREGUNTANDO_SALIDA: AtomicBool = AtomicBool::new(false);
+
+fn confirmar_salida(app: AppHandle) {
+    if PREGUNTANDO_SALIDA.swap(true, Ordering::SeqCst) { return; }
+    std::thread::spawn(move || {
+        // Estado de la puerta con espera corta: si no responde (arrancando o caída), se pregunta igual, sin detalles
+        let estado = llamar_puerta_en("GET", "/zamorapp/estado", Duration::from_secs(2)).ok()
+            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok());
+        let lista = PENDIENTE.lock().map(|p| p.is_some()).unwrap_or(false);
+        let texto = texto_salida(estado.as_ref(), ACTUALIZANDO.load(Ordering::SeqCst) && !lista, lista);
+        let salir = dialogo(&app, texto)
+            .title("Salir de zamorApp")
+            .buttons(MessageDialogButtons::OkCancelCustom("Salir".into(), "Cancelar".into()))
+            .blocking_show();
+        PREGUNTANDO_SALIDA.store(false, Ordering::SeqCst);
+        if !salir { anotar("salir: cancelado"); return; }
+        anotar("salir: confirmado");
+        // destroy() no vuelve a pedir permiso (no pasa por CloseRequested); al destruirse la principal, el programa sale
+        match app.get_webview_window("principal") {
+            Some(v) => { if v.destroy().is_err() { app.exit(0); } }
+            None => app.exit(0),
+        }
+    });
+}
+
+fn texto_salida(estado: Option<&serde_json::Value>, descargando: bool, actualizacion_lista: bool) -> String {
+    let mut avisos: Vec<String> = Vec::new();
+    if let Some(e) = estado {
+        let n = |v: &serde_json::Value| v.as_u64().unwrap_or(0);
+        let por_subir = n(&e["bandeja"]["pendientes"]) + n(&e["adjuntos"]["pendientes"]);
+        if por_subir > 0 {
+            let cuantos = if por_subir == 1 { "1 cambio guardado".to_string() } else { format!("{por_subir} cambios guardados") };
+            avisos.push(format!("• Hay {cuantos} en esta PC que todavía no {} a la nube. No se {}: {} la próxima vez que abras zamorApp con internet.",
+                if por_subir == 1 { "subió" } else { "subieron" }, if por_subir == 1 { "pierde" } else { "pierden" }, if por_subir == 1 { "sube" } else { "suben" }));
+        }
+        if e["sincronizando"] == true { avisos.push("• Se está sincronizando con la nube. Si sales, continúa la próxima vez que abras zamorApp.".into()); }
+        if e["respaldo"]["enCurso"] == true { avisos.push("• Se está haciendo un respaldo. Si sales, se interrumpe y habrá que repetirlo.".into()); }
+    }
+    if descargando { avisos.push("• Se está descargando una actualización. Si sales, se vuelve a ofrecer la próxima vez.".into()); }
+    if actualizacion_lista { avisos.push("• Al salir se instala la actualización que ya está lista; zamorApp se vuelve a abrir solo en unos segundos.".into()); }
+    if avisos.is_empty() { "¿Desea salir de zamorApp?".into() } else { format!("¿Desea salir de zamorApp?\n\n{}", avisos.join("\n")) }
 }
 
 fn sincronizar_ahora(app: AppHandle) {
@@ -852,6 +902,12 @@ fn main() {
         .expect("no se pudo crear la ventana de zamorApp");
 
     app.run(|manejador, evento| match evento {
+        // La X o Alt+F4 de la ventana principal: primero se pregunta (en las pruebas automáticas también: la prueba
+        // de humo pulsa «Cancelar» y luego «Salir», como lo haría Cesar)
+        RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } if label == "principal" => {
+            api.prevent_close();
+            confirmar_salida(manejador.clone());
+        }
         // Cerrar la ventana principal cierra el programa entero, aunque queden documentos abiertos en otras ventanas
         RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "principal" => manejador.exit(0),
         RunEvent::Exit => {

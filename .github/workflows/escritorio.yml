@@ -309,6 +309,27 @@ jobs:
             RevisarSame "instalar $(Split-Path $setup -Leaf)"
           }
 
+          # Pulsa un botón del aviso «Salir de zamorApp» que abre la X (UI Automation). Las versiones sin aviso no lo
+          # muestran: tras unos segundos sin encontrarlo devuelve $false y el cierre sigue como antes.
+          function PulsarSalida($proc, [string]$boton) {
+            Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+            $raiz = [Windows.Automation.AutomationElement]::RootElement
+            $todo = [Windows.Automation.Condition]::TrueCondition
+            $nombre = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, $boton)
+            for ($i = 0; $i -lt 16 -and -not $proc.HasExited; $i++) {
+              foreach ($v in $raiz.FindAll([Windows.Automation.TreeScope]::Children, $todo)) {
+                if ($v.Current.ProcessId -ne $proc.Id) { continue }
+                foreach ($d in @($v) + @($v.FindAll([Windows.Automation.TreeScope]::Children, $todo))) {
+                  if ($d.Current.Name -ne "Salir de zamorApp") { continue }
+                  $b = $d.FindFirst([Windows.Automation.TreeScope]::Descendants, $nombre)
+                  if ($b) { $b.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true }
+                }
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            return $false
+          }
+
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
           # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
           # -imprimir: además abre el informe de vigilancia en su ventana, lo guarda en PDF y abre el diálogo de impresoras
@@ -352,7 +373,15 @@ jobs:
               }
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
               # Con un documento abierto en otra ventana, la «principal» de Windows puede ser esa: se cierran hasta que salga
-              for ($c = 0; $c -lt 4 -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); [void]$proc.WaitForExit(10000) }
+              # La X pregunta «Salir de zamorApp» (Salir / Cancelar). En las aperturas con ventana real se prueba primero
+              # que «Cancelar» la deja abierta; después se pulsa «Salir», como lo haría Cesar.
+              if ($ok -and $ui -and $que -ne "versión anterior") {
+                $proc.Refresh(); [void]$proc.CloseMainWindow()
+                if (-not (PulsarSalida $proc "Cancelar")) { $ok = $false; Write-Host "::error::$que`: la X no preguntó «Salir de zamorApp»" }
+                elseif ($proc.WaitForExit(3000)) { $ok = $false; Write-Host "::error::$que`: «Cancelar» cerró zamorApp" }
+                else { Write-Host "   La X preguntó «Salir de zamorApp» y «Cancelar» la dejó abierta" }
+              }
+              for ($c = 0; $c -lt 4 -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); [void](PulsarSalida $proc "Salir"); [void]$proc.WaitForExit(10000) }
               if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
               # Solo cuentan los procesos del programa (el PostgreSQL "nube" de las pruebas sigue vivo y no es suyo).
               # La base puede tardar unos segundos en cerrar con calma; cuenta lo que siga vivo a los 30 s.
