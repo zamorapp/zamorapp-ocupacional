@@ -16,6 +16,8 @@ type Props = {
   empresaInicial: string;
   tipos: { id: string; nombre: string }[];
   cargos: Record<string, string[]>;
+  /** Llega abierto y con datos (p. ej. «Registrar» desde la depuración de nómina con RR. HH.) */
+  inicial?: { nombres?: string; apellidos?: string; cargo?: string } | null;
 };
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
@@ -29,9 +31,9 @@ function Campo({ id, etiqueta, className, ...props }: React.ComponentProps<"inpu
   );
 }
 
-export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, cargos }: Props) {
+export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, cargos, inicial }: Props) {
   const router = useRouter();
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(Boolean(inicial && habilitado));
   const [empresa, setEmpresa] = useState(empresaInicial);
   const [estado, accion, enviando] = useActionState(crearPaciente, null);
 
@@ -69,8 +71,8 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, car
               {tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
             </select>
           </div>
-          <Campo id="nombres" etiqueta="Nombres *" required />
-          <Campo id="apellidos" etiqueta="Apellidos *" required />
+          <Campo id="nombres" etiqueta="Nombres *" required defaultValue={inicial?.nombres} />
+          <Campo id="apellidos" etiqueta="Apellidos *" required defaultValue={inicial?.apellidos} />
           <div>
             <Label htmlFor="sexo" className="mb-1.5">Sexo</Label>
             <select id="sexo" name="sexo" defaultValue="" className={SELECT}>
@@ -82,7 +84,7 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, car
           <Campo id="fecha_nacimiento" etiqueta="Fecha de nacimiento" type="date" />
           <div>
             <Label htmlFor="cargo" className="mb-1.5">Cargo</Label>
-            <EntradaCargo id="cargo" name="cargo" cargos={cargos[empresa] ?? []} className="h-10" placeholder="Escribe o elige; si no existe se agrega" />
+            <EntradaCargo id="cargo" name="cargo" cargos={cargos[empresa] ?? []} defaultValue={inicial?.cargo} className="h-10" placeholder="Escribe o elige; si no existe se agrega" />
           </div>
           <Campo id="dependencia" etiqueta="Dependencia" placeholder="Se crea si no existe" />
           <Campo id="fecha_ingreso" etiqueta="Fecha de ingreso" type="date" />

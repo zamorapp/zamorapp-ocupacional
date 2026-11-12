@@ -6,6 +6,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { siguienteNumero } from "@/lib/facturacion-tipos";
 import { FacturaFormaLibre } from "./factura-forma-libre";
+import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 
 export const metadata: Metadata = { title: "Factura" };
 export const dynamic = "force-dynamic";
@@ -37,6 +38,8 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
       hoy={hoyCaracas()}
       relacion={c.items.some((i) => i.consultaId) ? `/imprimir/atendidos?cobro=${c.id}` : null}
       datosPago={String((org?.ajustes as { factura_datos_pago?: string | null } | null)?.factura_datos_pago ?? "").trim()}
+      // La misma condición de pago de la nota de cobro (Configuración › Organización › Documentos); vacío = no se imprime
+      condiciones={String((org?.ajustes as { cobro_condiciones?: string | null } | null)?.cobro_condiciones ?? CONDICION_PAGO_BCV).trim()}
     />
   );
 }

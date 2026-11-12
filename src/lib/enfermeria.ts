@@ -38,7 +38,7 @@ export type OrdenEnfermeria = { id: string; fecha: string; paciente: string; ced
 export async function ajustesEnfermeria(): Promise<AjustesEnfermeria> {
   const { ajustes } = await datosOrganizacion();
   const a = ajustes as AjustesEnfermeria;
-  return { enfermeria_unida: a.enfermeria_unida === true, enfermeria_vigilancia: a.enfermeria_vigilancia === true };
+  return { enfermeria_unida: a.enfermeria_unida === true, enfermeria_vigilancia: a.enfermeria_vigilancia === true, enfermeria_tasas: a.enfermeria_tasas === true };
 }
 
 type Filtro = { empresaId?: string | null; desde?: string; hasta?: string; trabajadorId?: string; consultaId?: string };

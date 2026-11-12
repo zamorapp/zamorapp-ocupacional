@@ -309,6 +309,33 @@ jobs:
             RevisarSame "instalar $(Split-Path $setup -Leaf)"
           }
 
+          # Pulsa un botón del aviso «Salir de zamorApp» que abre la X. Las versiones sin aviso no lo muestran: tras unos
+          # segundos sin encontrarlo devuelve $false y el cierre sigue como antes. El aviso es un TaskDialog de Windows
+          # (rfd): UI Automation no expone sus botones como pulsables (12-nov), así que se le manda TDM_CLICK_BUTTON con
+          # el número del botón, igual que un clic: Salir = 1000, Cancelar = 1001 (ID_CUSTOM_OK / ID_CUSTOM_CANCEL de rfd).
+          function PulsarSalida($proc, [string]$boton) {
+            Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+            if (-not ("Ventanas.Mensajes" -as [type])) {
+              Add-Type -Namespace Ventanas -Name Mensajes -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint m, IntPtr w, IntPtr l);'
+            }
+            $id = if ($boton -eq "Salir") { 1000 } else { 1001 }
+            $raiz = [Windows.Automation.AutomationElement]::RootElement
+            $todo = [Windows.Automation.Condition]::TrueCondition
+            for ($i = 0; $i -lt 16 -and -not $proc.HasExited; $i++) {
+              foreach ($v in $raiz.FindAll([Windows.Automation.TreeScope]::Children, $todo)) {
+                if ($v.Current.ProcessId -ne $proc.Id) { continue }
+                foreach ($d in @($v) + @($v.FindAll([Windows.Automation.TreeScope]::Children, $todo))) {
+                  if ($d.Current.Name -ne "Salir de zamorApp" -or -not $d.Current.NativeWindowHandle) { continue }
+                  [void][Ventanas.Mensajes]::PostMessageW([IntPtr]$d.Current.NativeWindowHandle, 0x0466, [IntPtr]$id, [IntPtr]::Zero)
+                  Write-Host "   Aviso «Salir de zamorApp»: pulsado «$boton»"
+                  return $true
+                }
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            return $false
+          }
+
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
           # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
           # -imprimir: además abre el informe de vigilancia en su ventana, lo guarda en PDF y abre el diálogo de impresoras
@@ -352,7 +379,18 @@ jobs:
               }
               # Cerrar la ventana: el programa debe detener la base y PostgREST con calma y no dejar procesos vivos
               # Con un documento abierto en otra ventana, la «principal» de Windows puede ser esa: se cierran hasta que salga
-              for ($c = 0; $c -lt 4 -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); [void]$proc.WaitForExit(10000) }
+              # La X pregunta «Salir de zamorApp» (Salir / Cancelar). En las aperturas con ventana real se prueba primero
+              # que «Cancelar» la deja abierta; después se pulsa «Salir», como lo haría Cesar.
+              if ($ok -and $ui -and $que -ne "versión anterior") {
+                # Con un documento abierto (apertura 6) la «principal» de Windows puede ser esa ventana, que se cierra
+                # sin preguntar: se repite hasta llegar a la de zamorApp
+                $pregunto = $false
+                for ($c = 0; $c -lt 4 -and -not $pregunto -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); $pregunto = PulsarSalida $proc "Cancelar" }
+                if (-not $pregunto) { $ok = $false; Write-Host "::error::$que`: la X no preguntó «Salir de zamorApp»" }
+                elseif ($proc.WaitForExit(3000)) { $ok = $false; Write-Host "::error::$que`: «Cancelar» cerró zamorApp" }
+                else { Write-Host "   La X preguntó «Salir de zamorApp» y «Cancelar» la dejó abierta" }
+              }
+              for ($c = 0; $c -lt 4 -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); [void](PulsarSalida $proc "Salir"); [void]$proc.WaitForExit(10000) }
               if (-not $proc.WaitForExit(40000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::$que no se cerró con la ventana" }
               # Solo cuentan los procesos del programa (el PostgreSQL "nube" de las pruebas sigue vivo y no es suyo).
               # La base puede tardar unos segundos en cerrar con calma; cuenta lo que siga vivo a los 30 s.
@@ -467,7 +505,7 @@ jobs:
             $relanzado = Get-Process zamorapp -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } | Select-Object -First 1
             if (-not $relanzado) { throw "El programa actualizado no está corriendo" }
             Write-Host "actualización: instalada y el programa se volvió a abrir solo (versión $((& $nuevo | Select-String 'versión del instalador' | Select-Object -Last 1).Line))"
-            [void]$relanzado.CloseMainWindow()
+            [void]$relanzado.CloseMainWindow(); [void](PulsarSalida $relanzado "Salir")
             if (-not $relanzado.WaitForExit(40000)) { Stop-Process -Id $relanzado.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::El programa actualizado no se cerró con la ventana" }
           } finally {
             if (-not $ok) { Write-Host "== arranque.log (actualización)"; & $nuevo | ForEach-Object { Write-Host "   $_" }; Write-Host "== servidor de prueba"; Get-Content capturas/actualizacion.log, capturas/actualizacion.err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" } }
