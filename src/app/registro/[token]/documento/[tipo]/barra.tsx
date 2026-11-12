@@ -62,11 +62,11 @@ export function BarraPaciente({ token, volver, titulo, pdf, telefono }: {
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             {falla === "cerrado" ? (
               <span>
-                Tus documentos ya fueron descargados. Si necesitas descargarlos de nuevo, pide un enlace nuevo al servicio
+                Sus documentos ya fueron descargados. Si necesita descargarlos de nuevo, pida un enlace nuevo al servicio
                 {telefono && <> al <a className="underline underline-offset-2" href={`tel:${telefono}`}>{telefono}</a></>}.
               </span>
             ) : falla === "limite" ? "Ya preparamos este PDF varias veces en este enlace. Descárgalo igual desde aquí."
-              : "No pudimos preparar tu PDF. Revisa tu conexión e inténtalo de nuevo."}
+              : "No pudimos preparar su PDF. Revise su conexión e inténtelo de nuevo."}
           </p>
           {falla !== "cerrado" && (
             <>
@@ -81,7 +81,7 @@ export function BarraPaciente({ token, volver, titulo, pdf, telefono }: {
       ) : (
         <p className="mx-auto mt-1 max-w-[216mm] text-xs text-muted-foreground">
           {pdf ? (bajando ? "Tarda unos segundos." : "El PDF sale con la firma y el sello del médico.")
-            : ios ? "Toca Compartir (□↑) y elige «Guardar en Archivos»." : "Elige «Guardar como PDF» y luego «Descargar»."}
+            : ios ? "Toque Compartir (□↑) y elija «Guardar en Archivos»." : "Elija «Guardar como PDF» y luego «Descargar»."}
         </p>
       )}
     </div>
