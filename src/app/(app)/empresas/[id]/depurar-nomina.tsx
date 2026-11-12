@@ -25,13 +25,19 @@ const formatoTelefono = (v: string) => {
 
 // Botón de la cabecera de la ficha, al lado de «Invitar a RR. HH.» (Cesar, 12-nov): nombre y teléfono de quien recibe
 // (el teléfono es la llave del enlace) → «Crear enlace» → WhatsApp con el mensaje listo.
-export function BotonDepurarNomina({ empresaId, empresa, enNomina, revision, contactos }: {
-  empresaId: string; empresa: string; enNomina: number; revision: RevisionDepuracion | null; contactos: Contacto[];
+// `abrir`: llega desde el botón de la tarjeta en Empresas (?depurar=1) y abre el cuadro de una vez.
+export function BotonDepurarNomina({ empresaId, empresa, enNomina, revision, contactos, abrir = false }: {
+  empresaId: string; empresa: string; enNomina: number; revision: RevisionDepuracion | null; contactos: Contacto[]; abrir?: boolean;
 }) {
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(abrir);
   const [clave, setClave] = useState(0);
   return (
-    <Dialog open={abierto} onOpenChange={(v) => { setAbierto(v); if (!v) setClave((k) => k + 1); }}>
+    <Dialog open={abierto} onOpenChange={(v) => {
+      setAbierto(v);
+      if (!v) setClave((k) => k + 1);
+      // Al cerrar, quita ?depurar=1 para que recargar la ficha no lo vuelva a abrir
+      if (!v && abrir) window.history.replaceState(null, "", window.location.pathname);
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline"><ClipboardCheck /> Depurar nómina con RR. HH.</Button>
       </DialogTrigger>
