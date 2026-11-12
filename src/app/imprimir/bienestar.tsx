@@ -84,13 +84,13 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
   const alarma = lista(cambios, k("alarma"), q.alarma);
   return (
     <div data-prueba="tema-equilibrio" className="mb-2">
-      <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Ejercicios para recuperar el equilibrio</div>
+      <div className="mb-1 text-[13px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Ejercicios para recuperar el equilibrio</div>
       <TextoEditable id={k("intro")} bloque valor={texto(cambios, k("intro"), q.intro)} className="mb-1.5 text-[12px] leading-snug text-doc-tenue" />
       <div className="mb-2 grid grid-cols-3 gap-2 break-inside-avoid">
         {q.frecuencia.map((f, i) => (
           <div key={f.cifra} className="flex items-center gap-2 rounded-lg bg-doc-suave px-2.5 py-1.5">
             <div className="font-cifra text-[15px] font-bold leading-none whitespace-nowrap text-doc-acento">{f.cifra}</div>
-            <TextoEditable id={k(`f${i}`)} bloque valor={texto(cambios, k(`f${i}`), f.texto)} className="text-[11px] leading-[1.25]" />
+            <TextoEditable id={k(`f${i}`)} bloque valor={texto(cambios, k(`f${i}`), f.texto)} className="text-[12px] leading-[1.25]" />
           </div>
         ))}
       </div>
@@ -103,8 +103,8 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
               <FiguraEquilibrio nombre={e.figura} className="h-[26mm] w-auto" />
             </div>
             <div className="flex flex-1 flex-col gap-0.5 px-2.5 py-1.5">
-              <TextoEditable id={k(`e${i}t`)} bloque valor={texto(cambios, k(`e${i}t`), e.titulo)} className="text-[12.5px] font-extrabold leading-tight" />
-              <ListaEditable id={k(`e${i}p`)} items={lista(cambios, k(`e${i}p`), e.pasos)} className="text-[11px] leading-[1.28]" />
+              <TextoEditable id={k(`e${i}t`)} bloque valor={texto(cambios, k(`e${i}t`), e.titulo)} className="text-[13px] font-extrabold leading-tight" />
+              <ListaEditable id={k(`e${i}p`)} items={lista(cambios, k(`e${i}p`), e.pasos)} className="text-[12px] leading-[1.28]" />
               <div className="mt-auto flex flex-wrap gap-1 pt-0.5">
                 {e.dosis.map((x, j) => (
                   <span key={x} className={`rounded-full px-2 py-px text-[9.5px] font-bold ${j === 0 ? "bg-[#fdf0e5] text-[#9a4a12]" : "bg-doc-suave text-doc-acento"}`}>
@@ -122,7 +122,7 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
         {(["acostado", "sentado-borde", "de-pie-apoyado"] as const).map((f, i) => (
           <div key={f} className="break-inside-avoid overflow-hidden rounded-xl border border-doc-linea">
             <div className="flex h-[22mm] items-center justify-center bg-gradient-to-b from-[#f3faf9] to-doc-suave"><FiguraEquilibrio nombre={f} className="h-[19mm] w-auto" /></div>
-            <p className="px-2.5 py-1 text-[11px] leading-[1.28]"><b className="text-doc-acento">{i + 1}.</b> <TextoEditable id={k(`l${i}`)} valor={texto(cambios, k(`l${i}`), q.levantarse[i])} /></p>
+            <p className="px-2.5 py-1 text-[12px] leading-[1.28]"><b className="text-doc-acento">{i + 1}.</b> <TextoEditable id={k(`l${i}`)} valor={texto(cambios, k(`l${i}`), q.levantarse[i])} /></p>
           </div>
         ))}
       </div>
@@ -132,10 +132,10 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
           <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Si siente que se va a desmayar</div>
           <div className="overflow-hidden rounded-xl border border-doc-linea">
             <div className="flex h-[22mm] items-center justify-center bg-gradient-to-b from-[#f3faf9] to-doc-suave"><FiguraEquilibrio nombre="contra-desmayo" className="h-[19mm] w-auto" /></div>
-            <TextoEditable id={k("d")} bloque valor={texto(cambios, k("d"), q.desmayo)} className="px-2.5 py-1 text-[11px] leading-[1.28]" />
+            <TextoEditable id={k("d")} bloque valor={texto(cambios, k("d"), q.desmayo)} className="px-2.5 py-1 text-[12px] leading-[1.28]" />
           </div>
           <div className="mt-2 mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">En el trabajo, mientras se recupera</div>
-          <ListaEditable id={k("trabajo")} items={lista(cambios, k("trabajo"), q.trabajo)} className="text-[11px] leading-[1.28]" />
+          <ListaEditable id={k("trabajo")} items={lista(cambios, k("trabajo"), q.trabajo)} className="text-[12px] leading-[1.28]" />
         </div>
         <div className="break-inside-avoid">
           <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Registro de 14 días · marque cada sesión</div>
@@ -161,14 +161,26 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
       <div className="flex break-inside-avoid items-start gap-2.5 rounded-xl border border-[#b42318]/40 bg-[#fff4ef] px-3 py-1.5">
         <svg viewBox="0 0 34 34" className="mt-0.5 size-6 shrink-0" aria-hidden><path d="M17 3 L32 30 L2 30 Z" fill="#b42318" /><rect x="15.5" y="12" width="3" height="10" rx="1.5" fill="#fff" /><circle cx="17" cy="25.5" r="1.8" fill="#fff" /></svg>
         <div className="min-w-0 flex-1">
-          <div className="text-[11.5px] font-extrabold text-[#b42318]">Acuda a emergencia si aparece</div>
-          <ListaEditable id={k("alarma")} items={alarma} columnas fija className="text-[11px] leading-[1.28] font-semibold" />
-          {!alarma.length && <p role="alert" className="mt-1 rounded bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-900 print:hidden">Esta hoja quedó sin señales de alarma</p>}
+          <div className="text-[12px] font-extrabold text-[#b42318]">Acuda a emergencia si aparece</div>
+          <ListaEditable id={k("alarma")} items={alarma} columnas fija className="text-[12px] leading-[1.28] font-semibold" />
+          {!alarma.length && <p role="alert" className="mt-1 rounded bg-amber-100 px-2 py-1 text-[12px] font-medium text-amber-900 print:hidden">Esta hoja quedó sin señales de alarma</p>}
         </div>
       </div>
       <p className="mt-1 text-[7pt] leading-tight text-doc-tenue">Fuente: {q.fuente}</p>
     </div>
   );
+}
+
+// Texto de una regla CSS a partir de datos del paciente: todo lo que no sea letra simple, número o espacio va como
+// escape CSS (\HHHH), así ningún nombre puede cerrar la cadena ni la etiqueta <style>
+const textoCss = (t: string) => Array.from(t).map((c) => (/[A-Za-z0-9 ]/.test(c) ? c : `\\${c.codePointAt(0)!.toString(16)} `)).join("");
+
+// Desde la 2.ª hoja: arriba «Nombre · C.I. · Folio» y «Hoja N de M», como pide Diseño para los impresos de varias hojas.
+// La 1.ª ya lleva membrete y ficha. Esta página imprime una sola hoja de bienestar (nunca va en lote ni en paquete).
+function IdentificacionHojas({ d }: { d: DatosDocumento }) {
+  const id = textoCss(`${d.trabajador.nombre} · C.I. ${d.trabajador.cedula} · Recomendaciones de bienestar · Folio ${folio("BI", d.datos.id)}`);
+  const css = `@page { @top-left { content: "${id}"; width: 75%; font: 7.5pt ui-monospace, Consolas, monospace; color: #55625f; } @top-right { content: "Hoja " counter(page) " de " counter(pages); font: 7.5pt ui-monospace, Consolas, monospace; color: #55625f; } } @page :first { @top-left { content: ""; } @top-right { content: ""; } }`;
+  return <style>{css}</style>;
 }
 
 // «MARÍA ALEJANDRA FERNÁNDEZ» → «María»: el saludo usa solo el primer nombre
@@ -183,13 +195,14 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
   const conPausas = elegidos.includes("pausas");
   const conEquilibrio = elegidos.includes("equilibrio");
   const nombres = [conPausas && "pausas activas", conEquilibrio && "ejercicios de equilibrio", ...otros.map((t) => t.boton.toLowerCase())].filter(Boolean).join(", ");
-  // Las pausas solas caben en una carta; el equilibrio ocupa dos y con más temas la hoja fluye a otra página
-  const fluye = conEquilibrio || otros.length > (conPausas ? 0 : 2);
+  // Pausas ilustradas y equilibrio ocupan dos hojas; con más temas la hoja fluye a las que hagan falta
+  const fluye = conPausas || conEquilibrio || otros.length > 2;
   const nombre = primerNombre(d.trabajador.nombre);
   const saludo = `${nombre ? `${nombre}, p` : "P"}reparamos estas recomendaciones para usted, para cuidar su salud en el trabajo y en casa. Léalas con calma y tráigalas a su próximo control.`;
   return (
     <Hoja className={fluye ? "print:block" : ""}>
       <DefsFiguras />
+      {fluye && <IdentificacionHojas d={d} />}
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="BI" compacto sub={nombres}>
         Recomendaciones de bienestar

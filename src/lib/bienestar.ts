@@ -81,7 +81,7 @@ export const EQUILIBRIO = {
   frecuencia: [
     { cifra: "3 × día", texto: "mañana, tarde y noche" },
     { cifra: "5–10 min", texto: "cada sesión, todos los días" },
-    { cifra: "15 min", texto: "si el mareo dura más que esto al terminar, hágalos más suave" },
+    { cifra: "15 min", texto: "si el mareo dura más, hágalos más suave" },
   ],
   ejercicios: [
     { figura: "cabeza-no", titulo: "Cabeza «no» con la mirada fija", pasos: ["Sentado, mire una letra pegada en la pared a un brazo de distancia.", "Gire la cabeza a los lados sin dejar de verla nítida."], dosis: ["1 minuto", "Luego de pie"], nivel: "Fácil" },
