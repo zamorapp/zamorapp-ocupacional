@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { listarEmpresas } from "@/lib/empresas";
-import { listarAtenciones, listarServicios, preciosEmpresa, tasaVigente } from "@/lib/facturacion";
+import { listarAtenciones, listarServicios, preciosEmpresa, sugerenciasCobro, tasaVigente } from "@/lib/facturacion";
 import { ArmarCobro } from "./armar-cobro";
 
 export const metadata: Metadata = { title: "Nueva nota de cobro" };
@@ -11,13 +11,15 @@ export const dynamic = "force-dynamic";
 
 export default async function NuevoCobro({ searchParams }: { searchParams: Promise<{ empresa?: string; desde?: string; hasta?: string; factura?: string }> }) {
   const q = await searchParams;
-  if (!q.empresa || !q.desde || !q.hasta) notFound();
-  const [empresas, atenciones, servicios, precios, tasa] = await Promise.all([
+  const dia = /^\d{4}-\d{2}-\d{2}$/;
+  if (!q.empresa || !q.desde || !q.hasta || !dia.test(q.desde) || !dia.test(q.hasta)) notFound();
+  const [empresas, atenciones, servicios, precios, tasa, sugerencias] = await Promise.all([
     listarEmpresas(),
     listarAtenciones(q.empresa, q.desde, q.hasta),
     listarServicios(true),
     preciosEmpresa(q.empresa),
     tasaVigente(),
+    sugerenciasCobro(q.empresa, q.desde, q.hasta),
   ]);
   const empresa = empresas.find((e) => e.id === q.empresa);
   if (!empresa) notFound();
@@ -38,6 +40,7 @@ export default async function NuevoCobro({ searchParams }: { searchParams: Promi
         servicios={servicios.map((s) => ({ ...s, precioUsd: precios[s.id] ?? s.precioUsd }))}
         tasa={tasa?.tasa ?? null}
         aFactura={Boolean(q.factura)}
+        sugerencias={sugerencias}
       />
     </div>
   );

@@ -122,3 +122,12 @@ export function siguienteNumero(previos: string[]): string {
 export function limpiarNumeroFactura(s: string) {
   return s.trim().replace(/^n\s*[º°o]?\s*\.?\s*(?=\d)/i, "").replace(/\s+/g, "");
 }
+
+// Trabajos del período, además de las consultas, que se pueden agregar a la factura (Cesar, 12-nov-2026):
+// vigilancia epidemiológica, evaluaciones de puestos (ergonómicas, de riesgos, psicosociales). Se proponen con el
+// servicio de su categoría; el «detalle» identifica el trabajo para no proponerlo dos veces.
+export type SugerenciaCobro = { clave: string; categoria: Categoria; titulo: string; detalle: string; fecha: string };
+
+export function servicioParaCategoria(servicios: Servicio[], categoria: Categoria) {
+  return servicios.find((s) => s.activo && s.categoria === categoria) ?? null;
+}

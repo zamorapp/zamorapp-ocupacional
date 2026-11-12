@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 // Al ver los pacientes atendidos de una empresa con atenciones sin cobrar, se ofrece facturar ese período.
 // «Ignorar» lo esconde solo para esa empresa y ese período, en este equipo (nunca bloquea).
-export function AvisoFacturar({ empresa, empresaId, desde, hasta, pendientes, etiqueta }: { empresa: string; empresaId: string; desde: string; hasta: string; pendientes: number; etiqueta: string }) {
+export function AvisoFacturar({ empresa, empresaId, desde, hasta, pendientes, otros = 0, etiqueta }: { empresa: string; empresaId: string; desde: string; hasta: string; pendientes: number; otros?: number; etiqueta: string }) {
   const clave = `zamorapp.facturar.ignorado.${empresaId}.${desde}.${hasta}`;
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -24,7 +24,10 @@ export function AvisoFacturar({ empresa, empresaId, desde, hasta, pendientes, et
       <div className="min-w-0 flex-1">
         <div className="font-medium">¿Desea facturar este período?</div>
         <div className="text-sm text-muted-foreground">
-          {empresa} · {etiqueta}: {pendientes} {pendientes === 1 ? "paciente atendido sin facturar" : "pacientes atendidos sin facturar"}.
+          {empresa} · {etiqueta}: {[
+            pendientes > 0 && `${pendientes} ${pendientes === 1 ? "paciente atendido" : "pacientes atendidos"}`,
+            otros > 0 && `${otros} ${otros === 1 ? "servicio más (vigilancia o evaluación de puesto)" : "servicios más (vigilancia, evaluaciones de puestos)"}`,
+          ].filter(Boolean).join(" y ")} sin facturar.
         </div>
       </div>
       <div className="flex gap-2 max-sm:w-full">
