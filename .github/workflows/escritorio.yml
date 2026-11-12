@@ -382,8 +382,11 @@ jobs:
               # La X pregunta «Salir de zamorApp» (Salir / Cancelar). En las aperturas con ventana real se prueba primero
               # que «Cancelar» la deja abierta; después se pulsa «Salir», como lo haría Cesar.
               if ($ok -and $ui -and $que -ne "versión anterior") {
-                $proc.Refresh(); [void]$proc.CloseMainWindow()
-                if (-not (PulsarSalida $proc "Cancelar")) { $ok = $false; Write-Host "::error::$que`: la X no preguntó «Salir de zamorApp»" }
+                # Con un documento abierto (apertura 6) la «principal» de Windows puede ser esa ventana, que se cierra
+                # sin preguntar: se repite hasta llegar a la de zamorApp
+                $pregunto = $false
+                for ($c = 0; $c -lt 4 -and -not $pregunto -and -not $proc.HasExited; $c++) { $proc.Refresh(); [void]$proc.CloseMainWindow(); $pregunto = PulsarSalida $proc "Cancelar" }
+                if (-not $pregunto) { $ok = $false; Write-Host "::error::$que`: la X no preguntó «Salir de zamorApp»" }
                 elseif ($proc.WaitForExit(3000)) { $ok = $false; Write-Host "::error::$que`: «Cancelar» cerró zamorApp" }
                 else { Write-Host "   La X preguntó «Salir de zamorApp» y «Cancelar» la dejó abierta" }
               }
