@@ -60,7 +60,8 @@ export async function guardarTasa(fecha: string, tasa: number): Promise<Resultad
   return { ok: true, mensaje: "Tasa guardada." };
 }
 
-export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }): Promise<Resultado> {
+// siguiente: "factura" (desde «¿Desea facturar este período?») abre de una vez la factura del talonario
+export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }, siguiente: "nota" | "factura" = "nota"): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
   const items = datos.items.filter((i) => i.descripcion.trim());
@@ -89,7 +90,7 @@ export async function crearCobro(datos: { empresaId: string; desde: string; hast
     return { ok: false, mensaje: e2.code === "23505" ? "Alguna atención ya está en otra nota de cobro." : e2.message };
   }
   revalidatePath("/facturacion");
-  redirect(`/facturacion/${data.id}`);
+  redirect(siguiente === "factura" ? `/imprimir/factura/${data.id}` : `/facturacion/${data.id}`);
 }
 
 export async function actualizarCobro(cobro: Cobro): Promise<Resultado> {

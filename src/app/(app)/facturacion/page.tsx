@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FilePlus2, Printer, Receipt } from "lucide-react";
 import { NuevoPresupuesto } from "./nuevo-presupuesto";
+import { AvisoFacturar } from "./aviso-facturar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,6 +15,7 @@ import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, ta
 import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
+import { periodoAnterior } from "@/lib/periodos";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { Servicios } from "./servicios";
@@ -168,19 +170,31 @@ export default async function Facturacion({ searchParams }: Props) {
         const atenciones = sesion.demo ? [] : await listarAtenciones(empresaId, periodo.desde, periodo.hasta);
         const pendientes = atenciones.filter((a) => !a.cobroId).length;
         const params = new URLSearchParams({ desde: periodo.desde, hasta: periodo.hasta, ...(empresaId ? { empresa: empresaId } : {}) });
+        // Atajos de mes: se factura casi siempre el mes que terminó
+        const esteMes = resolverPeriodo("mes");
+        const mesPasado = periodoAnterior(esteMes);
+        const atajos = [["Mes pasado", mesPasado], ["Este mes", esteMes]] as const;
         return (
           <div className="space-y-3">
+            {editable && empresa && pendientes > 0 && (
+              <AvisoFacturar empresa={empresa.razonSocial} empresaId={empresa.id} desde={periodo.desde} hasta={periodo.hasta} pendientes={pendientes} etiqueta={atajos.find(([, p]) => p.desde === periodo.desde && p.hasta === periodo.hasta)?.[1].etiqueta ?? `del ${fecha(periodo.desde)} al ${fecha(periodo.hasta)}`} />
+            )}
             <form className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="vista" value="atendidos" />
               <input type="hidden" name="p" value="rango" />
+              <div className="flex gap-1 rounded-lg border bg-card p-1">
+                {atajos.map(([t, p]) => (
+                  <Link key={t} href={`/facturacion?vista=atendidos&p=rango&desde=${p.desde}&hasta=${p.hasta}`} className={cn("rounded-md px-3 py-1.5 text-sm transition", periodo.desde === p.desde && periodo.hasta === p.hasta ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
+                ))}
+              </div>
               <input type="date" name="desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
               <input type="date" name="hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
               <Button type="submit" variant="outline">Ver</Button>
               <span className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Todas las empresas (elige una arriba para cobrar)"}</span>
               <div className="ml-auto flex gap-2">
-                <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Reporte</Link></Button>
+                <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Relación de pacientes</Link></Button>
                 {editable && empresaId && pendientes > 0 && (
-                  <Button asChild><Link href={`/facturacion/nuevo?${params}`}><FilePlus2 /> Crear nota de cobro ({pendientes})</Link></Button>
+                  <Button asChild><Link href={`/facturacion/nuevo?${params}&factura=1`}><FilePlus2 /> Facturar ({pendientes})</Link></Button>
                 )}
               </div>
             </form>

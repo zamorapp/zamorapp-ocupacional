@@ -35,6 +35,7 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
       editable={editable}
       tasas={tasas}
       hoy={hoyCaracas()}
+      relacion={c.items.some((i) => i.consultaId) ? `/imprimir/atendidos?cobro=${c.id}` : null}
       datosPago={String((org?.ajustes as { factura_datos_pago?: string | null } | null)?.factura_datos_pago ?? "").trim()}
     />
   );

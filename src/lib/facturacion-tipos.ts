@@ -50,6 +50,7 @@ export type Cobro = {
 
 export type Atencion = {
   id: string;
+  trabajadorId: string;
   fecha: string;
   estado: string;
   paciente: string;

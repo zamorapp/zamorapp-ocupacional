@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, Loader2, Ruler, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, ListChecks, Loader2, Ruler, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Cobro, limpiarNumeroFactura, totales } from "@/lib/facturacion-tipos";
@@ -25,7 +26,9 @@ const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`)
 
 type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
 
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string }) {
+// relacion: enlace a la relación de pacientes de esta nota (null si no trae trabajadores). Tras imprimir la factura se
+// ofrece imprimirla también (con «Ignorar»); además queda siempre un botón en la barra.
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   // Una factura que todavía no tiene número se emite hoy (con la tasa de hoy); una ya numerada conserva su fecha
@@ -49,6 +52,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   const [ocupado, iniciar] = useTransition();
   const [escala, setEscala] = useState(1);
   const [desborde, setDesborde] = useState(false);
+  const [ofrecerRelacion, setOfrecerRelacion] = useState(false);
   const contenido = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,8 +118,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   guardarAntes.current = guardarNumero;
   useEffect(() => {
     const antes = () => guardarAntes.current(true);
+    // Después de imprimir (navegador; el escritorio avisa por alImprimir) se ofrece la relación de pacientes
+    const despues = () => setOfrecerRelacion(true);
     window.addEventListener("beforeprint", antes);
-    return () => window.removeEventListener("beforeprint", antes);
+    window.addEventListener("afterprint", despues);
+    return () => { window.removeEventListener("beforeprint", antes); window.removeEventListener("afterprint", despues); };
   }, []);
 
   const sinNumero = !numero.trim();
@@ -127,8 +134,18 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         titulo={`Factura ${numero ? `Nº ${numero}` : "(sin número)"} · ${c.empresa}`}
         // Sin «ocupado»: al salir del campo Nº se guarda y, si eso apagaba el botón, el clic de imprimir se perdía (06-nov)
         bloqueado={sinNumero || desborde}
+        alImprimir={() => setOfrecerRelacion(true)}
+        siguiente={relacion && <Button variant="outline" asChild><Link href={relacion}><ListChecks /> Relación de pacientes</Link></Button>}
       />
       <div className="mx-auto mb-4 max-w-[206mm] space-y-3 px-4 print:hidden">
+        {relacion && ofrecerRelacion && (
+          <div role="status" data-aviso="relacion" className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+            <ListChecks className="size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0 flex-1"><div className="font-medium text-foreground">¿Imprimir también la relación de pacientes?</div><div className="text-muted-foreground">Trabajadores de esta factura con cargo, fecha y resultado. Sin diagnósticos.</div></div>
+            <Button variant="ghost" onClick={() => setOfrecerRelacion(false)}>Ignorar</Button>
+            <Button asChild><Link href={relacion}><ListChecks /> Imprimir relación</Link></Button>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-3 rounded-lg border bg-white p-3 text-sm shadow-sm sm:grid-cols-[10rem_9.5rem_9.5rem_minmax(0,1fr)]">
           <label className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Nº de factura (talonario)</span>

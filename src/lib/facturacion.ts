@@ -61,7 +61,7 @@ export async function listarAtenciones(empresaId: string | null, desde: string, 
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("atenciones")
-    .select("id, fecha, estado, paciente, cedula, cargo, motivo, motivo_codigo, aptitud, cobro_id")
+    .select("id, trabajador_id, fecha, estado, paciente, cedula, cargo, motivo, motivo_codigo, aptitud, cobro_id")
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .neq("estado", "borrador")
@@ -73,6 +73,7 @@ export async function listarAtenciones(empresaId: string | null, desde: string, 
   if (error) throw error;
   return (data ?? []).map((a) => ({
     id: a.id,
+    trabajadorId: a.trabajador_id,
     fecha: a.fecha,
     estado: a.estado,
     paciente: a.paciente,
