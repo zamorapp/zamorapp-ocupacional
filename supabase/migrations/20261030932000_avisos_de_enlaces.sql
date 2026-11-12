@@ -133,3 +133,19 @@ returns void language sql security definer set search_path = public as $$
 $$;
 revoke execute on function public.acuse_aviso_push(text, text, boolean) from public;
 grant execute on function public.acuse_aviso_push(text, text, boolean) to anon, authenticated;
+
+-- ===== 6. Títulos parejos (Diseño 12-nov): quién + qué, como los demás avisos de enlaces =====
+-- Igual que 20261030918000, solo cambian los títulos («Enlace abierto» → «Paciente abrió su enlace»).
+create or replace function public.avisar_enlace_paciente()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_quien text := coalesce(nullif(btrim(coalesce(new.datos ->> 'nombres', '') || ' ' || coalesce(new.datos ->> 'apellidos', '')), ''), new.nombre, 'El paciente');
+begin
+  if old.abierto_en is null and new.abierto_en is not null then
+    perform public.notificar(new.org_id, null, 'servicio', 'Paciente abrió su enlace', v_quien || ' abrió el enlace que le enviaste.', '/atencion#enlaces-enviados');
+  end if;
+  if old.descarga_hasta is null and new.descarga_hasta is not null then
+    perform public.notificar(new.org_id, null, 'servicio', 'Paciente descargó sus documentos', v_quien || ' descargó sus documentos.', '/atencion#enlaces-enviados');
+  end if;
+  return new;
+end $$;
+revoke execute on function public.avisar_enlace_paciente() from public, anon, authenticated;

@@ -90,9 +90,9 @@ reset role;
 select 'bloqueado sigue sin aceptar (debe 1): ' || count(*) from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000225' and recibido_en is null and intentos_cedula = 5;
 select 'anota cuándo lo abrió (debe 1): ' || count(*) from public.solicitudes_paciente where id = '5f000000-0000-0000-0000-000000000224' and abierto_en is not null;
 select 'avisa una sola vez que lo abrió (debe 1): ' || (count(*) > 0 and count(*) = count(distinct usuario_id))::int
-  from public.notificaciones where titulo = 'Enlace abierto' and texto = 'El paciente abrió el enlace que le enviaste.';
-select 'avisa que descargó (debe 1): ' || (count(*) > 0)::int from public.notificaciones where titulo = 'Documentos descargados' and texto = 'Rosa Mar descargó sus documentos.';
+  from public.notificaciones where titulo = 'Paciente abrió su enlace' and texto = 'El paciente abrió el enlace que le enviaste.';
+select 'avisa que descargó (debe 1): ' || (count(*) > 0)::int from public.notificaciones where titulo = 'Paciente descargó sus documentos' and texto = 'Rosa Mar descargó sus documentos.';
 
 delete from public.solicitudes_paciente where id in ('5f000000-0000-0000-0000-000000000222','5f000000-0000-0000-0000-000000000223','5f000000-0000-0000-0000-000000000224','5f000000-0000-0000-0000-000000000225');
-delete from public.notificaciones where titulo in ('Ficha completada por el enlace','Enlace abierto','Documentos descargados');
+delete from public.notificaciones where titulo in ('Ficha completada por el enlace','Paciente abrió su enlace','Paciente descargó sus documentos');
 delete from public.trabajadores where id in ('30000000-0000-0000-0000-000000000220','30000000-0000-0000-0000-000000000221','30000000-0000-0000-0000-000000000222');

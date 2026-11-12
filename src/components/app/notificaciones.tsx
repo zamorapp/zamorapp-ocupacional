@@ -44,6 +44,8 @@ const claveAparato = (a: AparatoSinAcuse) => `${a.id}@${a.desde}`;
 function leerIgnorados(): string[] {
   try { return JSON.parse(localStorage.getItem(IGNORADOS) ?? "[]") as string[]; } catch { return []; }
 }
+// Cómo lo llama Cesar: «celular» o «Chrome de la PC», nunca el sistema
+const aparato = (equipo: string) => (/android|iphone/i.test(equipo) ? "celular" : "Chrome de la PC");
 const HORA = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", hour: "numeric", minute: "2-digit", hourCycle: "h12" });
 
 // Campana de avisos: se actualiza cada 30 segundos
@@ -97,9 +99,11 @@ export function Notificaciones() {
           <div key={claveAparato(a)} role="alert" className="mx-2 mb-2 rounded-lg border border-aviso/40 bg-aviso/10 p-2.5 text-sm">
             <div className="flex items-start gap-2 font-medium text-aviso-texto">
               <Smartphone className="mt-0.5 size-4 shrink-0" />
-              <span>{a.bloqueado ? `Tu ${a.equipo} recibe los avisos pero no los muestra` : `Tu ${a.equipo} no confirmó el aviso del ${HORA.format(new Date(a.desde))}`}</span>
+              <span>{a.bloqueado ? `Tu ${aparato(a.equipo)} recibe los avisos pero no los muestra` : `Tu ${aparato(a.equipo)} no confirmó el aviso del ${HORA.format(new Date(a.desde))}`}</span>
             </div>
-            <p className="mt-0.5 pl-6 text-xs text-muted-foreground">Ábrelo y toca «Probar» para revisarlo.</p>
+            <p className="mt-0.5 pl-6 text-xs text-muted-foreground">
+              Abre zamorApp en ese {aparato(a.equipo)}, toca «Probar» y luego «Enviar uno de prueba». Si no te llega, ahí te dice qué ajustar.
+            </p>
             <div className="mt-2 flex gap-2 pl-6">
               <Button size="sm" asChild><Link href="/configuracion/perfil#avisos-celular">Probar</Link></Button>
               <Button size="sm" variant="ghost" onClick={() => ignorar(a)}>Ignorar</Button>
@@ -118,7 +122,7 @@ export function Notificaciones() {
                     {n.nivel === "aviso" && <Clock className="mt-0.5 size-3.5 shrink-0" />}
                     <span className="min-w-0">{n.titulo}</span>
                   </div>
-                  {n.texto && <div className="truncate text-xs text-muted-foreground">{n.texto}</div>}
+                  {n.texto && <div className="line-clamp-2 text-xs text-muted-foreground">{n.texto}</div>}
                   <div className="text-[11px] text-muted-foreground">{hace(n.creadoEn)}</div>
                 </div>
               </div>

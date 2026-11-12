@@ -464,7 +464,7 @@ const COLOR: Record<string, string> = {
 
 function Enviados({ enviados, ahora }: { enviados: SolicitudPaciente[]; ahora: number }) {
   const [abierto, setAbierto] = useState(false);
-  // El aviso «Enlace abierto» / «Documentos descargados» trae aquí: la lista se abre sola
+  // El aviso «Paciente abrió su enlace» / «Paciente descargó sus documentos» trae aquí: la lista se abre sola
   useEffect(() => { if (window.location.hash === "#enlaces-enviados") setAbierto(true); }, []);
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
