@@ -28,7 +28,7 @@ type Renglon = { cantidad: number; descripcion: string; detalle: string; precio:
 
 // relacion: enlace a la relación de pacientes de esta nota (null si no trae trabajadores). Tras imprimir la factura se
 // ofrece imprimirla también (con «Ignorar»); además queda siempre un botón en la barra.
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null }) {
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null, condiciones = "" }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null; condiciones?: string }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   // Una factura que todavía no tiene número se emite hoy (con la tasa de hoy); una ya numerada conserva su fecha
@@ -224,7 +224,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               <div><span className="text-neutral-600">RIF:</span> <b>{c.rif}</b></div>
               <div className="truncate"><span className="text-neutral-600">Domicilio fiscal:</span> {direccion || "—"}</div>
               <div>{telefono && <><span className="text-neutral-600">Teléfono:</span> {telefono}</>}</div>
-              {c.desde && <div className="col-span-2"><span className="text-neutral-600">Periodo:</span> del {fecha(c.desde)} al {fecha(c.hasta ?? c.desde)}</div>}
+              {c.desde && <div className="col-span-2"><span className="text-neutral-600">Período:</span> del {fecha(c.desde)} al {fecha(c.hasta ?? c.desde)}</div>}
             </div>
             <table className="w-full border-collapse">
               <thead>
@@ -262,7 +262,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
             <div className="mt-1.5 flex items-start justify-between gap-6">
               <div className="max-w-[95mm] text-[9px] text-neutral-700">
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
-                {tasa && <div>Tasa BCV: Bs. {cifraTasa(tasa)} por dólar{auto && auto.tasa === tasa ? ` (fecha valor ${fecha(auto.fecha)})` : ""}.</div>}
+                {tasa && <div>Tasa BCV del {fecha(auto && auto.tasa === tasa ? auto.fecha : emision)}: Bs. {cifraTasa(tasa)} por dólar.</div>}
+                {condiciones && <div className="font-semibold text-neutral-900">{condiciones}</div>}
                 {c.observacion && <div>{c.observacion}</div>}
                 {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
               </div>
