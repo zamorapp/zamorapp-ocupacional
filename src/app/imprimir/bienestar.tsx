@@ -232,7 +232,7 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
             {t.grupos.map((g, i) => (
               // Señales de alarma: recuadro con borde y en negrita, para que se vean de un vistazo
               <div key={g.titulo ?? i} className={g.alarma ? "break-inside-avoid rounded-md border border-[#b42318]/50 bg-white/70 px-2 py-1 font-semibold" : ""}>
-                {g.titulo && <div className={`mb-0.5 text-[9px] font-bold uppercase tracking-[.1em] ${g.alarma ? "text-[#b42318]" : "text-doc-tenue"}`}>{g.titulo}</div>}
+                {g.titulo && <div className={`mb-0.5 font-bold uppercase tracking-[.1em] ${g.alarma ? "text-[10.5px] text-[#b42318]" : "text-[10px] text-doc-tenue"}`}>{g.titulo}</div>}
                 <ListaEditable id={`${t.clave}-${i}`} items={listas[i]} columnas={t.grupos.length === 1} fija={g.alarma} className="text-[12px] leading-[1.3]" />
               </div>
             ))}
