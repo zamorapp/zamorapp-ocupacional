@@ -505,7 +505,7 @@ jobs:
             $relanzado = Get-Process zamorapp -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$($script:dir.FullName)*" } | Select-Object -First 1
             if (-not $relanzado) { throw "El programa actualizado no está corriendo" }
             Write-Host "actualización: instalada y el programa se volvió a abrir solo (versión $((& $nuevo | Select-String 'versión del instalador' | Select-Object -Last 1).Line))"
-            [void]$relanzado.CloseMainWindow()
+            [void]$relanzado.CloseMainWindow(); [void](PulsarSalida $relanzado "Salir")
             if (-not $relanzado.WaitForExit(40000)) { Stop-Process -Id $relanzado.Id -Force -ErrorAction SilentlyContinue; Write-Host "::warning::El programa actualizado no se cerró con la ventana" }
           } finally {
             if (-not $ok) { Write-Host "== arranque.log (actualización)"; & $nuevo | ForEach-Object { Write-Host "   $_" }; Write-Host "== servidor de prueba"; Get-Content capturas/actualizacion.log, capturas/actualizacion.err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" } }
