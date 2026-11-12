@@ -270,7 +270,7 @@ export async function historialEnlacesPaciente(desde: string, hasta: string): Pr
   const supabase = await crearClienteServidor();
   const consulta = (campos: string) => supabase.from("solicitudes_paciente").select(campos)
     .gte("creado_en", `${desde}T00:00:00-04:00`).lt("creado_en", `${sumarDias(hasta, 1)}T00:00:00-04:00`)
-    .order("creado_en", { ascending: false }).limit(MAX_HISTORIAL + 1).abortSignal(AbortSignal.timeout(6000));
+    .order("creado_en", { ascending: false }).limit(MAX_HISTORIAL + 1).abortSignal(AbortSignal.timeout(10_000));
   // purgar: la misma limpieza de la bandeja (datos de descartados y hojas ya descargadas)
   const [r] = await Promise.all([consulta(`${CAMPOS}, documentos, resultados_hasta`), supabase.rpc("purgar_solicitudes_paciente" as never)]);
   let { data, error } = r as unknown as { data: Fila[] | null; error: { message: string } | null };
