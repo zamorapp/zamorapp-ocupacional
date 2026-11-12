@@ -6,7 +6,7 @@
 ## Cuentas
 | Servicio | Cuenta / identificador | Dueño del acceso |
 |---|---|---|
-| GitHub | Organización `zamorapp` (gratis). Repos: `zamorapp-ocupacional` (público, código) y `zamorapp-descargas` (público, instaladores) | Cesar (`gestionesaguamiel-web`) |
+| GitHub | Organización `zamorapp` (gratis). Repos: `zamorapp-ocupacional` (público, código) y `zamorapp-descargas` (público, instaladores) | Cesar (dueño de la organización) |
 | Vercel | Proyecto `zamorapp-ocupacional`, plan Hobby | Cesar |
 | Supabase | Proyecto `xgsoryzvyrsddgkxkzeb`, plan Free | Cesar |
 | Google Drive | Carpeta `zamorApp` (respaldos de zamorApp y del SAME) en la unidad montada en la PC | Cesar |

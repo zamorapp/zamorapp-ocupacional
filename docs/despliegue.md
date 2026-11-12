@@ -9,7 +9,7 @@
 
 ## Base (Supabase)
 - Proyecto `xgsoryzvyrsddgkxkzeb`. Las migraciones de `supabase/migrations/` son la fuente de verdad.
-- **Aplicar con PC**: PR «solo migración» → `main` → etiqueta `migraciones-AAAAMMDD-N` sobre ese commit (con `scripts/migraciones/preparar-etiqueta.mjs`, que llena `supabase/migraciones-aprobadas.json` con SHA-256) → Cesar da doble clic en `%USERPROFILE%\.zamorapp\aplicar-migraciones.cmd`. El aplicador aborta si una pendiente es más vieja que la última aplicada.
+- **Aplicar con PC**: PR «solo migración» → `main` → etiqueta `migraciones-AAAAMMDD-N` sobre ese commit (con `scripts/migraciones/preparar-etiqueta.mjs`, que llena `supabase/migraciones-aprobadas.json` con SHA-256) → Cesar ejecuta con doble clic el aplicador de la PC. El aplicador aborta si una pendiente es más vieja que la última aplicada.
 - **Aplicar sin PC**: armar un `.sql` con `begin;` + migraciones exactas + `insert into supabase_migrations.schema_migrations (version, name) values (...) on conflict do nothing;` + `commit;` + `select 'LISTO';`. Cesar lo pega en el SQL Editor de Supabase y toca Run. Quitar `chr(13)` en parches por texto (el pegado llega con CRLF).
 - Verificar después en solo lectura (lista de migraciones y objetos).
 - Edge Function `respaldo-archivos`: se despliega una vez con la CLI de Supabase (`functions deploy --no-verify-jwt`).

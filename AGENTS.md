@@ -27,7 +27,7 @@ Lee este archivo completo antes de tocar nada. Después lee, en este orden, lo q
 4. **Migración en producción ANTES de fusionar el código que la usa.** Verificarla en Supabase (incluida `supabase_migrations.schema_migrations`); un «listo» no prueba nada.
 5. **Cada tanda que llega a `main` sale también en una versión nueva del escritorio.**
 6. **Privacidad clínica**: RR. HH. nunca ve diagnósticos, grupo sanguíneo ni discapacidad. Cada rol ve solo lo suyo (RLS).
-7. **Secretos nunca** en el código, el chat ni los documentos. El repo es **público**.
+7. **Secretos nunca** en el código, el chat ni los documentos. El repo es **público**: en `docs/` nunca nombres de empresas cliente, trabajadores, montos ni datos de contacto.
 8. **Solo planes gratuitos** (Vercel Hobby, Supabase Free, GitHub org gratis). Windows CI una vez por PR; agrupar fusiones (Vercel: 100 despliegues/día).
 9. **Fechas**: zona `America/Caracas`; nunca `Date.now()` / `current_date` para fechas de negocio (usar `hoy_caracas()` / `ahora()`).
 10. **Con Cesar**: español, frases cortas, sin jerga técnica, preguntas sí/no, pasos numerados (doble clic, frase exacta). Avisar ANTES lo que una versión todavía NO hace. Todo aviso tiene «Ignorar»; ninguna espera bloquea.

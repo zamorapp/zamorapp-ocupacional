@@ -11,8 +11,8 @@ Actualiza este archivo cada vez que algo se abra o se cierre.
 - **#340** La X del escritorio pregunta «¿Desea salir de zamorApp?» (Salir/Cancelar). Falta: Windows CI verde, SÍ de Analizar y frase de Cesar.
 
 ## Esperando a Cesar (manual)
-- Mendoza Sons: firmar 7 de 8 evaluaciones (06/07/2026) y sacar el PDF con fecha de impresión 06/07.
-- Guardar el Nº de factura de la nota de cobro #3 (240 USD); calibrar la factura con «Hoja de prueba».
+- Firmar las evaluaciones pendientes de una empresa y sacar su PDF con la fecha de impresión que pidió el cliente.
+- Guardar el número de factura de una nota de cobro; calibrar la factura con «Hoja de prueba».
 - Prueba real de winspiroPRO con el espirómetro.
 - Decisiones viejas sin respuesta: «sí fase uno» (hoja de ruta), «sí antropometría», «sí escritorio»; borrar 2 borradores; red de consultorios (5 respuestas); ergonomía: «más preguntas en DEB» (sin definir).
 

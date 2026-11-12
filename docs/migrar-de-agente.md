@@ -2,7 +2,7 @@
 
 ## Lo que el agente nuevo necesita
 1. **Este repo** (`zamorapp/zamorapp-ocupacional`): código + `AGENTS.md` + `docs/`. Es la fuente de verdad técnica.
-2. **El respaldo del proyecto** que Cesar guarda en su PC (`Documentos\zamorApp-respaldo-proyecto\`): memoria del proyecto (reglas, decisiones, errores por área), índice de conversaciones y archivos de trabajo (planes, auditorías, capturas, `.sql` aplicados, notas de versión).
+2. **El respaldo del proyecto** (la carpeta de respaldo del proyecto que Cesar guarda en su PC): memoria del proyecto (reglas, decisiones, errores por área), índice de conversaciones y archivos de trabajo (planes, auditorías, capturas, `.sql` aplicados, notas de versión).
 3. **Accesos** (los da Cesar, nunca pegando claves en el chat): miembro de la organización GitHub `zamorapp`, del proyecto Vercel y del proyecto Supabase.
 
 ## Primeros pasos del agente nuevo
