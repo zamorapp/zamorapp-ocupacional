@@ -433,14 +433,17 @@ fn pedir_puerta(ruta: &str) -> Result<String, String> {
 
 fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
     // Las consultas (GET) responden al instante; las acciones (sincronizar) pueden tardar minutos
-    llamar_puerta_en(metodo, ruta, Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))
+    llamar_puerta_en(metodo, ruta, Duration::from_secs(if metodo == "GET" { 20 } else { 300 }), true)
 }
 
-fn llamar_puerta_en(metodo: &str, ruta: &str, espera: Duration) -> Result<String, String> {
+// con_control = false: pregunta como cualquier visitante local. Lo usa el aviso de salir, para no consumir marcas que
+// la puerta entrega una sola vez al programa (buscarActualizacion), que solo debe leer vigilar_nube.
+fn llamar_puerta_en(metodo: &str, ruta: &str, espera: Duration, con_control: bool) -> Result<String, String> {
     let destino = std::net::SocketAddr::from(([127, 0, 0, 1], PUERTO_PUERTA));
     let mut c = std::net::TcpStream::connect_timeout(&destino, espera).map_err(|e| e.to_string())?;
     c.set_read_timeout(Some(espera)).ok();
-    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+    let control = if con_control { format!("X-Zamorapp-Control: {}\r\n", clave_control()) } else { String::new() };
+    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\n{control}Content-Length: 0\r\nConnection: close\r\n\r\n")
         .map_err(|e| e.to_string())?;
     // Se lee hasta que la puerta cierra (Connection: close) o hasta tener el cuerpo completo (Content-Length):
     // así una conexión que quede abierta no deja al programa esperando el tiempo límite.
@@ -488,7 +491,7 @@ fn confirmar_salida(app: AppHandle) {
     if PREGUNTANDO_SALIDA.swap(true, Ordering::SeqCst) { return; }
     std::thread::spawn(move || {
         // Estado de la puerta con espera corta: si no responde (arrancando o caída), se pregunta igual, sin detalles
-        let estado = llamar_puerta_en("GET", "/zamorapp/estado", Duration::from_secs(2)).ok()
+        let estado = llamar_puerta_en("GET", "/zamorapp/estado", Duration::from_secs(2), false).ok()
             .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok());
         let lista = PENDIENTE.lock().map(|p| p.is_some()).unwrap_or(false);
         let texto = texto_salida(estado.as_ref(), ACTUALIZANDO.load(Ordering::SeqCst) && !lista, lista);
