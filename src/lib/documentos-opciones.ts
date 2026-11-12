@@ -10,6 +10,8 @@ export const OPCIONES_IMPRESION = {
   motivo: "Motivo clínico del reposo",
 } as const;
 export type OpcionImpresion = keyof typeof OPCIONES_IMPRESION;
+// «Revisión N: reemplaza los impresos anteriores» en el pie: oculto salvo ?rev=1
+export const revisionDeUrl = (rev: string | undefined) => rev === "1";
 export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
   (sin ?? "").split(",").filter((x): x is OpcionImpresion => x in OPCIONES_IMPRESION);
 

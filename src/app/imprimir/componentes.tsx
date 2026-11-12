@@ -302,8 +302,9 @@ export function Firmas({ children, compacto }: { children: React.ReactNode; comp
   return <div className={`mt-auto flex flex-wrap items-end justify-between gap-5 break-inside-avoid ${compacto ? "pt-2" : "pt-5"}`}>{children}</div>;
 }
 
-export function Pie({ d, derecha, compacto }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string; compacto?: boolean }) {
-  const revision = d.impreso.revision ?? 1;
+export function Pie({ d, derecha, compacto }: { d: { impreso: { por: string; el: string; revision?: number; mostrarRevision?: boolean } }; derecha?: string; compacto?: boolean }) {
+  // Oculto por defecto (pedido de Cesar, 12-nov): solo sale si se marca «Aviso de revisión» al imprimir
+  const revision = d.impreso.mostrarRevision ? d.impreso.revision ?? 1 : 1;
   return (
     <footer className={`${compacto ? "mt-2" : "mt-4"} flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue`}>
       <span>
