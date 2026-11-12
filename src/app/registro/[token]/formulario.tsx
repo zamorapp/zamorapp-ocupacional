@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, CheckCircle2, FileDown, Loader2, Send, ShieldCheck, User } from "lucide-react";
+import { Building2, Check, CheckCircle2, FileDown, Loader2, Send, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,8 +28,8 @@ function Opciones<T extends string>({ etiqueta, valor, opciones, alCambiar }: { 
       {opciones.map((o) => (
         <button key={o.v} type="button" role="radio" aria-checked={valor === o.v} onClick={() => alCambiar(valor === o.v ? "" : o.v)}
           className={cn("flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm transition sm:min-h-10",
-            valor === o.v ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>
-          {o.t}
+            valor === o.v ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background text-foreground hover:border-primary")}>
+          {valor === o.v && <Check className="size-4" />} {o.t}
         </button>
       ))}
     </div>
@@ -156,9 +156,21 @@ function FormularioCorto({ token, servicio, empresa, hoy }: { token: string; ser
   }
   const enviar = (form: HTMLFormElement) => {
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
-    if (!particular && !(f.cargo ?? "").trim()) return setError("Escribe tu cargo en la empresa.");
-    if (!particular && !empresa && !(f.empresa ?? "").trim()) return setError("Escribe la empresa donde trabajas.");
-    if (!f.acepto) return setError("Marca la autorización para que el servicio use tus datos.");
+    // Lleva al primer dato que falta y dice cuál (Diseño, #348): el botón nunca se ve apagado sin explicación
+    const faltan: [string, string][] = [
+      ["nombres", "Falta tu nombre."], ["apellidos", "Faltan tus apellidos."], ["cedula", "Falta tu cédula."],
+      ["fecha_nacimiento", "Falta tu fecha de nacimiento."], ["telefono", "Falta tu celular."],
+      ...(particular ? [] : [...(empresa ? [] : [["empresa", "Escribe la empresa donde trabajas."] as [string, string]]), ["cargo", "Escribe tu cargo en la empresa."] as [string, string]]),
+      ["acepto", "Marca la autorización para continuar."],
+    ];
+    form.querySelectorAll("[aria-invalid]").forEach((x) => x.removeAttribute("aria-invalid"));
+    const falta = faltan.find(([k]) => !(f[k] ?? "").trim());
+    if (falta) {
+      const campo = form.elements.namedItem(falta[0]) as HTMLElement | null;
+      campo?.setAttribute("aria-invalid", "true");
+      campo?.focus();
+      return setError(falta[1]);
+    }
     setError(null);
     iniciar(async () => {
       const r = await enviarRegistro(token, { ...f, sexo, tipo: particular ? "particular" : "empresa", ...(empresa && !f.empresa ? { empresa } : {}), acepto: "" });
@@ -169,7 +181,7 @@ function FormularioCorto({ token, servicio, empresa, hoy }: { token: string; ser
     });
   };
   return (
-    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); enviar(e.currentTarget); }}>
+    <form noValidate className="space-y-4 [&_[aria-invalid=true]]:border-destructive [&_[aria-invalid=true]]:ring-2 [&_[aria-invalid=true]]:ring-destructive/30" onSubmit={(e) => { e.preventDefault(); enviar(e.currentTarget); }}>
       <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
         <label>Sitio web<input name="sitio_web" tabIndex={-1} autoComplete="off" /></label>
       </div>
@@ -192,6 +204,7 @@ function FormularioCorto({ token, servicio, empresa, hoy }: { token: string; ser
           <div>
             <Label htmlFor="fecha_nacimiento" className="mb-1.5">Fecha de nacimiento *</Label>
             <Input id="fecha_nacimiento" name="fecha_nacimiento" type="date" required min="1900-01-01" max={hoy} autoComplete="bday" className="h-11 text-base" />
+            <p className="mt-1 text-xs text-muted-foreground">Día / mes / año</p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

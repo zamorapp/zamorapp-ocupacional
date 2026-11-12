@@ -303,15 +303,15 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], examenes =
                 <p className="text-xs text-muted-foreground">Salen con tu versión de cada hoja. <Link href="/atencion/hojas" className="font-medium text-primary underline">Leerlas o editarlas</Link></p>
               </FilaDoc>
               {marcados > 0 && puedeFirmar && (
-                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
-                  <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />
+                <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
                   <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», antes de ver al paciente</span></span>
                 </label>
               )}
               {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}
               {marcados > 0 && (
-                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
-                  <input type="checkbox" checked={conversadas} onChange={(e) => setConversadas(e.target.checked)} className="size-4 accent-primary" />
+                <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <input type="checkbox" checked={conversadas} onChange={(e) => setConversadas(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
                   <MessagesSquare className="size-4 shrink-0 text-muted-foreground" /> <span>Ya lo atendí en consulta <span className="block text-xs text-muted-foreground">Leerá «Aquí tienes las indicaciones que conversaste en consulta con…»</span></span>
                 </label>
               )}
