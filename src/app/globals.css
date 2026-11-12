@@ -263,7 +263,7 @@
   @bottom-center { content: ""; }
   @bottom-right {
     content: "Página " counter(page) " de " counter(pages);
-    font: 8.5px ui-monospace, Consolas, monospace;
+    font: 7pt ui-monospace, Consolas, monospace;
     color: #55625f;
   }
 }
