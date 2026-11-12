@@ -262,7 +262,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
             <div className="mt-1.5 flex items-start justify-between gap-6">
               <div className="max-w-[95mm] text-[9px] text-neutral-700">
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
-                {tasa && <div>Tasa BCV del {fecha(auto && auto.tasa === tasa ? auto.fecha : emision)}: Bs. {cifraTasa(tasa)} por dólar.</div>}
+                {/* La fecha solo cuando la tasa es la del BCV leída para ese día; una escrita a mano no se atribuye a una fecha */}
+                {tasa && <div>Tasa BCV{auto && auto.tasa === tasa ? ` del ${fecha(auto.fecha)}` : ""}: Bs. {cifraTasa(tasa)} por dólar.</div>}
                 {condiciones && <div className="font-semibold text-neutral-900">{condiciones}</div>}
                 {c.observacion && <div>{c.observacion}</div>}
                 {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
