@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Ban, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Ban, Plus, Check, ChevronDown, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, Link2, Loader2, MessageCircle, MessagesSquare, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { DIAS_ENLACE_PACIENTE, edad, ESTADO_CIVIL, estadoEnlace, LATERALIDAD, NIVEL_EDUCATIVO, TURNOS, type Coincidencia, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
 import { DIETAS } from "@/lib/dietas";
 import { BOTONES_BIENESTAR } from "@/lib/bienestar";
-import { DOCS_REGISTRO, type EleccionRegistro } from "@/lib/registro-documentos";
+import { DOCS_REGISTRO, MAX_RECOMENDACIONES, type EleccionRegistro } from "@/lib/registro-documentos";
 import { aceptarSolicitudPaciente, anularEnlacePaciente, crearEnlacePaciente, descartarSolicitudPaciente, deshacerDescarte, eliminarEnlacePaciente, quitarEnlacePaciente, volverEnlacePaciente, type EnlaceNuevo } from "./paciente-enlace-acciones";
 
 type Opcion = { id: string; nombre: string };
@@ -25,7 +25,35 @@ const telefonoVisible = (t: string) => (t.startsWith("58") && t.length === 12 ? 
 
 // ordenes: lo que sale del perfil, ya separado por clase de estudio (laboratorio, rayos X, eco…)
 type Perfil = Opcion & { examenes: number; ordenes: { nombre: string; examenes: string[] }[] };
-const SIN_DOCS = { orden: false, ta: false, dieta: false, bienestar: false };
+const SIN_DOCS = { orden: false, rec: false, ta: false, dieta: false, bienestar: false };
+// Examen del catálogo para pedirlo suelto, sin perfil (20261030929000)
+export type ExamenCatalogo = { id: string; nombre: string; grupo: string | null };
+const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Buscador de una lista larga: escribe y toca para agregar (exámenes sueltos y frases de recomendaciones)
+function Buscador<T>({ items, texto, clave, alElegir, etiqueta, vacio }: {
+  items: T[]; texto: (x: T) => string; clave: (x: T) => string; alElegir: (x: T) => void; etiqueta: string; vacio: string;
+}) {
+  const [q, setQ] = useState("");
+  const buscado = sinTildes(q.trim());
+  const encontrados = buscado ? items.filter((x) => sinTildes(texto(x)).includes(buscado)).slice(0, 8) : [];
+  return (
+    <div className="space-y-1">
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={etiqueta} aria-label={etiqueta} className="h-9 bg-background" />
+      {buscado && (
+        <ul className="max-h-48 overflow-y-auto rounded-md border bg-background text-sm">
+          {encontrados.length ? encontrados.map((x) => (
+            <li key={clave(x)}>
+              <button type="button" onClick={() => { alElegir(x); setQ(""); }} className="flex min-h-10 w-full items-center gap-2 px-2 py-1 text-left hover:bg-muted sm:min-h-8">
+                <Plus className="size-3.5 shrink-0 text-primary" /> <span className="line-clamp-2">{texto(x)}</span>
+              </button>
+            </li>
+          )) : <li className="px-2 py-2 text-xs text-muted-foreground">{vacio}</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
 const campo = "h-9 w-full rounded-md border bg-background px-2 text-sm";
 
 // Una fila con casilla: el documento y, si está marcado, sus opciones debajo
@@ -44,8 +72,8 @@ function FilaDoc({ marcado, alCambiar, titulo, children }: { marcado: boolean; a
 // para: trabajador ya registrado (botón «Enviar enlace» de su ficha). No escribe sus datos (salvo lo que le falte a la ficha):
 // los documentos salen con los de su ficha y el mismo enlace le sirve para enviar resultados (20261030918000).
 export type ParaTrabajador = { id: string; nombre: string; telefono: string | null; empresaId: string | null; empresa: string };
-export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = [], puedeFirmar = false, para }: {
-  habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; motivos?: Opcion[]; puedeFirmar?: boolean; para?: ParaTrabajador;
+export function EnlacePaciente({ habilitado, empresas, perfiles = [], examenes = [], frases = [], motivos = [], puedeFirmar = false, para }: {
+  habilitado: boolean; empresas: Opcion[]; perfiles?: Perfil[]; examenes?: ExamenCatalogo[]; frases?: string[]; motivos?: Opcion[]; puedeFirmar?: boolean; para?: ParaTrabajador;
 }) {
   const [abierto, setAbierto] = useState(false);
   // Desde el menú de botones (grupo «Enlaces»): /atencion?enlace=nuevo abre esta ventana de una vez
@@ -57,12 +85,17 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const [nombre, setNombre] = useState(para?.nombre ?? "");
   const [telefono, setTelefono] = useState(para?.telefono ?? "");
   const [empresa, setEmpresa] = useState(para?.empresaId ?? "");
+  // «Solo registro» (20261030929000): el no registrado llena solo sus datos de registro, sin consulta
+  const [soloRegistro, setSoloRegistro] = useState(true);
   // Documentos que descarga al terminar su registro
   const [docs, setDocs] = useState(SIN_DOCS);
   const [perfil, setPerfil] = useState("");
   const [motivo, setMotivo] = useState("");
   // Exámenes del perfil desmarcados para este paciente (personalizar la orden sin tocar el perfil)
   const [sin, setSin] = useState<string[]>([]);
+  // Exámenes pedidos uno a uno, con o sin perfil
+  const [sueltos, setSueltos] = useState<ExamenCatalogo[]>([]);
+  const [rec, setRec] = useState("");
   const [diasTa, setDiasTa] = useState<7 | 14>(7);
   const [dieta, setDieta] = useState("general");
   // Temas de bienestar que van en la hoja (al menos uno)
@@ -72,9 +105,11 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const elegido = perfiles.find((p) => p.id === perfil);
   // Cada orden cuenta como un documento: el paciente ve una fila por cada una
   const marcados = Object.values(docs).filter(Boolean).length + (docs.orden && elegido ? Math.max(elegido.ordenes.length - 1, 0) : 0);
+  const ordenLista = Boolean(perfil) || sueltos.length > 0;
   const previa = () => {
     const q = new URLSearchParams({ nombre, ...(empresa ? { empresa } : {}),
-      ...(docs.orden && perfil ? { perfil, ...(motivo ? { motivo } : {}), ...(sin.length ? { sin: sin.join("|") } : {}) } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
+      ...(docs.orden && ordenLista ? { ...(perfil ? { perfil } : {}), ...(motivo ? { motivo } : {}), ...(sin.length ? { sin: sin.join("|") } : {}), ...(sueltos.length ? { sueltos: sueltos.map((x) => x.id).join(",") } : {}) } : {}),
+      ...(docs.rec && rec.trim() ? { rec: rec.trim() } : {}), ...(docs.ta ? { ta: String(diasTa) } : {}),
       ...(docs.dieta ? { dieta } : {}), ...(docs.bienestar ? { bienestar: "1", tema: temas.join(",") } : {}), ...(puedeFirmar && firma ? { firma: "1" } : {}), ...(conversadas ? { conversadas: "1" } : {}) });
     return `/imprimir/registro-previa?${q}`;
   };
@@ -85,12 +120,14 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
   const lista = empresas;
   const puedeCompartir = typeof navigator !== "undefined" && "share" in navigator;
 
-  const limpiar = () => { setR(null); setNombre(para?.nombre ?? ""); setTelefono(para?.telefono ?? ""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setSin([]); setMotivo(""); setTemas(["pausas"]); };
+  const limpiar = () => { setR(null); setNombre(para?.nombre ?? ""); setTelefono(para?.telefono ?? ""); setCopiado(false); setDocs(SIN_DOCS); setPerfil(""); setSin([]); setSueltos([]); setRec(""); setMotivo(""); setTemas(["pausas"]); setSoloRegistro(true); };
   const cerrar = (v: boolean) => { setAbierto(v); if (!v) { limpiar(); setEmpresa(para?.empresaId ?? ""); } };
   const crear = () => {
-    if (docs.orden && !perfil) return setR({ ok: false, mensaje: "Elige el perfil de exámenes de la orden." });
+    if (docs.orden && !ordenLista) return setR({ ok: false, mensaje: "Elige un perfil o busca al menos un examen para la orden." });
+    if (docs.rec && !rec.trim()) return setR({ ok: false, mensaje: "Escribe las recomendaciones o desmárcalas." });
     const documentos: EleccionRegistro = {
-      orden: docs.orden ? { perfilId: perfil, motivoId: motivo || null, sin } : null,
+      orden: docs.orden ? { perfilId: perfil || null, motivoId: motivo || null, sin, sueltos: sueltos.map((x) => x.id) } : null,
+      recomendaciones: docs.rec ? rec : null,
       controlTa: docs.ta ? diasTa : null,
       dieta: docs.dieta ? dieta : null,
       bienestar: docs.bienestar,
@@ -98,7 +135,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
       firma: puedeFirmar && firma,
       conversadas,
     };
-    iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos, trabajadorId: para?.id ?? null })));
+    iniciar(async () => setR(await crearEnlacePaciente({ nombre, telefono, empresaId: empresa || null, documentos, trabajadorId: para?.id ?? null, soloRegistro: !para && soloRegistro })));
   };
   const copiar = async (texto: string) => { try { await navigator.clipboard.writeText(texto); setCopiado(true); } catch { setCopiado(false); } };
 
@@ -109,7 +146,7 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{para ? `Enlace para ${para.nombre}` : "Enlace para que el paciente pida su consulta"}</DialogTitle>
+          <DialogTitle>{para ? `Enlace para ${para.nombre}` : "Enlace al paciente"}</DialogTitle>
           <DialogDescription>{para
             ? <>No tiene que escribir sus datos: los documentos salen llenos con su ficha (si le falta algo, el enlace le pide solo eso). Con el mismo enlace te envía sus resultados. Vale {DIAS_ENLACE_PACIENTE} días.</>
             : <>El paciente llena sus datos desde su teléfono y te llega a «Por revisar». Nada entra a su ficha hasta que lo aceptes. Vale {DIAS_ENLACE_PACIENTE} días y sirve una sola vez.</>}</DialogDescription>
@@ -150,16 +187,28 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                 </select>
               </div>
             )}
+            {!para && (
+              <fieldset className="space-y-2">
+                <legend className="mb-1.5 text-sm font-medium">¿Qué datos le pido?</legend>
+                {([[true, "Solo registro", "1 minuto: nombre y apellido, cédula, fecha de nacimiento, celular, empresa y cargo."],
+                  [false, "Registro y consulta", "5 minutos: además el motivo de consulta, sus antecedentes y hábitos."]] as const).map(([v, t, d]) => (
+                  <label key={t} className={cn("flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition", soloRegistro === v && "border-primary/60 bg-primary/5")}>
+                    <input type="radio" name="ep-datos" checked={soloRegistro === v} onChange={() => setSoloRegistro(v)} className="mt-0.5 size-4 accent-primary" />
+                    <span><b className="font-medium">{t}</b><span className="block text-xs text-muted-foreground">{d}</span></span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <fieldset className="space-y-2">
               <legend className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><FileDown className="size-4 text-primary" /> Al terminar, descarga (opcional)</legend>
               <p className="-mt-1 text-xs text-muted-foreground">Salen llenos con su nombre, cédula y empresa apenas envíe sus datos.</p>
               <FilaDoc marcado={docs.orden} alCambiar={marcar("orden")} titulo={DOCS_REGISTRO.orden.nombre}>
-                {perfiles.length ? (
+                {perfiles.length || examenes.length ? (
                   <>
-                    <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setSin([]); }} aria-label="Perfil de exámenes" className={cn(campo, !perfil && "border-aviso")}>
-                      <option value="">Perfil de exámenes…</option>
+                    {perfiles.length > 0 && <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setSin([]); }} aria-label="Perfil de exámenes" className={cn(campo, !ordenLista && "border-aviso")}>
+                      <option value="">{examenes.length ? "Perfil (opcional): ninguno" : "Perfil de exámenes…"}</option>
                       {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.examenes})</option>)}
-                    </select>
+                    </select>}
                     {elegido && (
                       <div className="space-y-2 rounded-md bg-background/70 p-2 text-xs" aria-live="polite">
                         <p className="font-medium">Toca un examen para quitarlo solo de esta orden (el perfil no cambia):</p>
@@ -187,6 +236,22 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                         {sin.length > 0 && <p className="text-muted-foreground">Quitaste {sin.length} {sin.length === 1 ? "examen" : "exámenes"}. <button type="button" className="font-medium text-primary hover:underline" onClick={() => setSin([])}>Pedir todos</button></p>}
                       </div>
                     )}
+                    {examenes.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Buscador items={examenes.filter((x) => !sueltos.some((y) => y.id === x.id))} texto={(x) => x.nombre} clave={(x) => x.id}
+                          alElegir={(x) => setSueltos((v) => (v.length >= 60 ? v : [...v, x]))} etiqueta={perfil ? "Agregar otro examen…" : "Buscar examen…"} vacio="No está en el catálogo de paraclínicos." />
+                        {sueltos.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5" aria-live="polite">
+                            {sueltos.map((x) => (
+                              <button key={x.id} type="button" onClick={() => setSueltos((v) => v.filter((y) => y.id !== x.id))} aria-label={`Quitar ${x.nombre}`}
+                                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 text-xs sm:min-h-8 sm:px-2.5">
+                                {x.nombre} <X className="size-3" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {motivos.length > 0 && (
                       <select value={motivo} onChange={(e) => setMotivo(e.target.value)} aria-label="Tipo de examen" className={campo}>
                         <option value="">Tipo de examen (opcional)</option>
@@ -197,6 +262,16 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                 ) : (
                   <p className="text-xs text-aviso-texto">Primero arma un perfil en <Link href="/configuracion/listas?l=grupo_paraclinicos" className="font-medium underline">Perfiles de paraclínicos</Link>.</p>
                 )}
+              </FilaDoc>
+              <FilaDoc marcado={docs.rec} alCambiar={marcar("rec")} titulo={DOCS_REGISTRO.recomendaciones.nombre}>
+                <textarea value={rec} onChange={(e) => setRec(e.target.value)} rows={4} maxLength={MAX_RECOMENDACIONES} aria-label="Recomendaciones"
+                  placeholder="Ej.: Acudir en ayunas de 12 horas. Tomar 2 litros de agua al día."
+                  className={cn("w-full rounded-md border bg-background px-2 py-1.5 text-sm", !rec.trim() && "border-aviso")} />
+                {frases.length > 0 && (
+                  <Buscador items={frases} texto={(x) => x} clave={(x) => x} etiqueta="Agregar una frase guardada…" vacio="No hay frases con esa palabra."
+                    alElegir={(x) => setRec((v) => (v.trim() ? `${v.replace(/\s+$/, "")}\n${x}` : x).slice(0, MAX_RECOMENDACIONES))} />
+                )}
+                <p className="text-xs text-muted-foreground">Sale en una hoja con tu membrete. Las frases se editan en <Link href="/configuracion/clinica" className="font-medium text-primary underline">Configuración clínica</Link>.</p>
               </FilaDoc>
               <FilaDoc marcado={docs.ta} alCambiar={marcar("ta")} titulo={DOCS_REGISTRO["control-ta"].nombre}>
                 <div role="radiogroup" aria-label="Días de control" className="flex gap-2">
@@ -228,15 +303,15 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], motivos = 
                 <p className="text-xs text-muted-foreground">Salen con tu versión de cada hoja. <Link href="/atencion/hojas" className="font-medium text-primary underline">Leerlas o editarlas</Link></p>
               </FilaDoc>
               {marcados > 0 && puedeFirmar && (
-                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
-                  <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="size-4 accent-primary" />
+                <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
                   <Stamp className="size-4 shrink-0 text-muted-foreground" /> <span>Firmados a mi nombre <span className="block text-xs text-muted-foreground">Salen con tu nombre, MPPS y «Firmado digitalmente», antes de ver al paciente</span></span>
                 </label>
               )}
               {marcados > 0 && !puedeFirmar && <p className="px-1 text-xs text-muted-foreground">Salen sin firma: solo un médico los envía firmados.</p>}
               {marcados > 0 && (
-                <label className="flex items-start gap-2 px-1 pt-1 text-sm">
-                  <input type="checkbox" checked={conversadas} onChange={(e) => setConversadas(e.target.checked)} className="size-4 accent-primary" />
+                <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <input type="checkbox" checked={conversadas} onChange={(e) => setConversadas(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
                   <MessagesSquare className="size-4 shrink-0 text-muted-foreground" /> <span>Ya lo atendí en consulta <span className="block text-xs text-muted-foreground">Leerá «Aquí tienes las indicaciones que conversaste en consulta con…»</span></span>
                 </label>
               )}
@@ -270,6 +345,8 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
   const [fecha, setFecha] = useState(d.fecha && d.fecha >= hoy ? d.fecha : hoy);
   const [hora, setHora] = useState("");
   const [actualizar, setActualizar] = useState(false);
+  // «Solo registro»: por defecto solo se crea la ficha; la cita es opcional
+  const [conCita, setConCita] = useState(!s.soloRegistro);
   const [ocupado, iniciar] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; texto: string; ficha?: string } | null>(null);
   const contactoNuevo = previo && [
@@ -279,7 +356,7 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
   ].filter(Boolean);
 
   const aceptar = () => iniciar(async () => {
-    const r = await aceptarSolicitudPaciente({ id: s.id, empresa, motivoId: motivo || null, fecha, hora: hora || null, actualizarContacto: actualizar });
+    const r = await aceptarSolicitudPaciente({ id: s.id, empresa, motivoId: motivo || null, fecha, hora: hora || null, actualizarContacto: actualizar, sinCita: !conCita });
     setMsg({ ok: r.ok, texto: r.mensaje ?? "", ficha: "trabajadorId" in r ? r.trabajadorId : undefined });
   });
 
@@ -329,7 +406,7 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
           <p className="flex flex-wrap items-center gap-1"><UserCheck className="size-3.5 text-primary" /> Ya tiene ficha: <b>{previo.nombre}</b> · {previo.empresa}
             {previo.estado !== "activo" && <span className="text-aviso-texto">({previo.estado}: si vuelve a trabajar, reingrésalo desde su ficha)</span>}
             <Link href={`/pacientes/${previo.id}`} className="ml-1 font-medium text-primary hover:underline">Abrir</Link></p>
-          <p className="text-muted-foreground">La cita se agenda en su ficha; no se crea otra.</p>
+          <p className="text-muted-foreground">{conCita ? "La cita se agenda en su ficha; no se crea otra." : "Se enlaza a su ficha; no se crea otra."}</p>
           {contactoNuevo && contactoNuevo.length > 0 && (
             <label className="flex items-center gap-2"><input type="checkbox" checked={actualizar} onChange={(e) => setActualizar(e.target.checked)} className="accent-primary" />
               Actualizar en la ficha: {contactoNuevo.join(", ")}</label>
@@ -346,7 +423,13 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
         </label>
       )}
 
+      {s.soloRegistro && (
+        <label className="flex w-fit items-center gap-2 text-xs">
+          <input type="checkbox" checked={conCita} onChange={(e) => setConCita(e.target.checked)} className="size-4 accent-primary" /> Agendar también una cita
+        </label>
+      )}
       <div className="flex flex-wrap items-end gap-2">
+        {conCita && <>
         <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Motivo
           <select value={motivo} onChange={(e) => setMotivo(e.target.value)} className="h-9 w-48 rounded-md border bg-background px-2 text-sm text-foreground">
             <option value="">Sin motivo</option>
@@ -355,14 +438,15 @@ function Revisar({ s, previo, empresas, motivos, hoy, alDescartar }: {
         </label>
         <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Día<Input type="date" value={fecha} min={hoy} onChange={(e) => setFecha(e.target.value)} className="h-9 w-40" /></label>
         <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Hora<Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="h-9 w-32" /></label>
+        </>}
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button size="sm" disabled={ocupado || (!previo && !empresa)} onClick={aceptar}>{ocupado ? <Loader2 className="animate-spin" /> : <Check />} Aceptar y agendar</Button>
+          <Button size="sm" disabled={ocupado || (!previo && !empresa)} onClick={aceptar}>{ocupado ? <Loader2 className="animate-spin" /> : <Check />} {conCita ? "Aceptar y agendar" : previo ? "Aceptar" : "Crear ficha"}</Button>
           <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => iniciar(async () => { const r = await descartarSolicitudPaciente(s.id); if (r.ok) alDescartar(s); else setMsg({ ok: false, texto: r.mensaje }); })}>
             <Trash2 /> Descartar
           </Button>
         </div>
       </div>
-      {!hora && <p className="flex items-center gap-1 text-xs text-aviso-texto"><AlertTriangle className="size-3.5 shrink-0" /> Sin hora: la cita queda para el día, sin hora fija.</p>}
+      {conCita && !hora && <p className="flex items-center gap-1 text-xs text-aviso-texto"><AlertTriangle className="size-3.5 shrink-0" /> Sin hora: la cita queda para el día, sin hora fija.</p>}
       {msg && !msg.ok && <p role="alert" className="flex items-start gap-1 text-xs text-destructive"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {msg.texto}</p>}
     </li>
   );

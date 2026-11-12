@@ -1,4 +1,4 @@
-import { Orden } from "@/app/imprimir/documentos";
+import { InformeLibre, Orden } from "@/app/imprimir/documentos";
 import { ControlTension, PlanAlimentacion } from "@/app/imprimir/indicaciones";
 import { Bienestar } from "@/app/imprimir/bienestar";
 import { conVersion, type Versiones } from "@/lib/hojas-version";
@@ -17,7 +17,8 @@ export function HojasRegistro({ v, tipo, parte, hoy, versiones, imagenes }: { v:
   }
   const d = documentoDeRegistro(v, hoy, undefined, imagenes);
   const temas = temasBienestar(docs.bienestar?.tema?.join(","));
-  return tipo === "control-ta" ? <ControlTension d={d} dias={docs.control_ta?.dias ?? 7} />
+  return tipo === "recomendaciones" ? <InformeLibre d={d} />
+    : tipo === "control-ta" ? <ControlTension d={d} dias={docs.control_ta?.dias ?? 7} />
     : tipo === "dieta" ? <PlanAlimentacion d={d} dieta={docs.dieta?.dieta} planes={docs.dieta?.plan ?? []} cambios={conVersion(versiones, { dieta: docs.dieta?.dieta })} />
     : <Bienestar d={d} temas={temas} cambios={conVersion(versiones, { temas })} />;
 }

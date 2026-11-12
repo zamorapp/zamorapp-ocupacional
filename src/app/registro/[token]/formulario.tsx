@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, CheckCircle2, FileDown, Loader2, Send, ShieldCheck, User } from "lucide-react";
+import { Building2, Check, CheckCircle2, FileDown, Loader2, Send, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,8 @@ import { enviarRegistro } from "./acciones";
 
 // registrado: el enlace es para un trabajador que ya tiene ficha; faltan = lo que su ficha no tiene; verificar = pide los
 // 4 últimos números de su cédula antes de ver documentos (20261030918000)
-export type CatalogoRegistro = { remitente: string; registrado?: boolean; verificar?: boolean | null; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
+// solo_registro: el no registrado llena solo sus datos de registro, sin consulta (20261030929000)
+export type CatalogoRegistro = { remitente: string; registrado?: boolean; solo_registro?: boolean; verificar?: boolean | null; faltan?: string[] | null; antecedentes: { id: string; nombre: string; grupo: string }[]; habitos: { clave: string; nombre: string }[] };
 type Props = { token: string; servicio: string; telefono?: string | null; empresa: string | null; motivos: { id: string; nombre: string }[]; hoy: string; maximo: string; catalogo: CatalogoRegistro | null };
 
 const GRUPO_ANTECEDENTE: Record<string, string> = { personal: "¿Tienes o has tenido alguna de estas?", familiar: "¿Alguien de tu familia (padres, hermanos, abuelos) tiene o tuvo…?" };
@@ -27,8 +28,8 @@ function Opciones<T extends string>({ etiqueta, valor, opciones, alCambiar }: { 
       {opciones.map((o) => (
         <button key={o.v} type="button" role="radio" aria-checked={valor === o.v} onClick={() => alCambiar(valor === o.v ? "" : o.v)}
           className={cn("flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm transition sm:min-h-10",
-            valor === o.v ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary")}>
-          {o.t}
+            valor === o.v ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background text-foreground hover:border-primary")}>
+          {valor === o.v && <Check className="size-4" />} {o.t}
         </button>
       ))}
     </div>
@@ -131,7 +132,118 @@ function FormularioRegistrado({ token, hoy, faltan, verificar, telefono }: { tok
 
 export function FormularioRegistro({ token, servicio, telefono, empresa, motivos, hoy, maximo, catalogo }: Props) {
   if (catalogo?.registrado) return <FormularioRegistrado token={token} hoy={hoy} faltan={catalogo.faltan ?? []} verificar={Boolean(catalogo.verificar)} telefono={telefono} />;
+  if (catalogo?.solo_registro) return <FormularioCorto token={token} servicio={servicio} empresa={empresa} hoy={hoy} />;
   return <FormularioCompleto token={token} servicio={servicio} empresa={empresa} motivos={motivos} hoy={hoy} maximo={maximo} catalogo={catalogo} />;
+}
+
+// «Solo registro»: los datos para su ficha y nada más (1 minuto). Sus documentos aparecen apenas los guarda.
+function FormularioCorto({ token, servicio, empresa, hoy }: { token: string; servicio: string; empresa: string | null; hoy: string }) {
+  const [sexo, setSexo] = useState<"F" | "M" | "">("");
+  const [particular, setParticular] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [listo, setListo] = useState<string | null>(null);
+  const [enviando, iniciar] = useTransition();
+  const router = useRouter();
+  if (listo !== null) {
+    return (
+      <section role="status" className="space-y-3 rounded-2xl border bg-card p-6 text-center shadow-sm">
+        <CheckCircle2 className="mx-auto size-12 text-ok" />
+        <h2 className="text-xl font-semibold">¡Listo{listo ? `, ${listo}` : ""}!</h2>
+        <p className="text-sm text-muted-foreground">{servicio} recibió tus datos.</p>
+        <p className="text-xs text-muted-foreground">Ya puedes cerrar esta página.</p>
+      </section>
+    );
+  }
+  const enviar = (form: HTMLFormElement) => {
+    const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    // Lleva al primer dato que falta y dice cuál (Diseño, #348): el botón nunca se ve apagado sin explicación
+    const faltan: [string, string][] = [
+      ["nombres", "Falta tu nombre."], ["apellidos", "Faltan tus apellidos."], ["cedula", "Falta tu cédula."],
+      ["fecha_nacimiento", "Falta tu fecha de nacimiento."], ["telefono", "Falta tu celular."],
+      ...(particular ? [] : [...(empresa ? [] : [["empresa", "Escribe la empresa donde trabajas."] as [string, string]]), ["cargo", "Escribe tu cargo en la empresa."] as [string, string]]),
+      ["acepto", "Marca la autorización para continuar."],
+    ];
+    form.querySelectorAll("[aria-invalid]").forEach((x) => x.removeAttribute("aria-invalid"));
+    const falta = faltan.find(([k]) => !(f[k] ?? "").trim());
+    if (falta) {
+      const campo = form.elements.namedItem(falta[0]) as HTMLElement | null;
+      campo?.setAttribute("aria-invalid", "true");
+      campo?.focus();
+      return setError(falta[1]);
+    }
+    setError(null);
+    iniciar(async () => {
+      const r = await enviarRegistro(token, { ...f, sexo, tipo: particular ? "particular" : "empresa", ...(empresa && !f.empresa ? { empresa } : {}), acepto: "" });
+      if (!r.ok) return setError(r.mensaje);
+      // Con documentos preparados, la página vuelve a pedirse y los muestra para descargar
+      if (r.documentos) router.refresh();
+      else setListo(f.nombres?.trim().split(/\s+/)[0] ?? "");
+    });
+  };
+  return (
+    <form noValidate className="space-y-4 [&_[aria-invalid=true]]:border-destructive [&_[aria-invalid=true]]:ring-2 [&_[aria-invalid=true]]:ring-destructive/30" onSubmit={(e) => { e.preventDefault(); enviar(e.currentTarget); }}>
+      <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+        <label>Sitio web<input name="sitio_web" tabIndex={-1} autoComplete="off" /></label>
+      </div>
+      <Seccion titulo="Tus datos" ayuda="Así salen tus documentos con tu nombre.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="nombres" className="mb-1.5">Nombres *</Label>
+            <Input id="nombres" name="nombres" required autoComplete="given-name" maxLength={80} className="h-11 text-base" />
+          </div>
+          <div>
+            <Label htmlFor="apellidos" className="mb-1.5">Apellidos *</Label>
+            <Input id="apellidos" name="apellidos" required autoComplete="family-name" maxLength={80} className="h-11 text-base" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="cedula" className="mb-1.5">Cédula *</Label>
+            <Input id="cedula" name="cedula" required autoComplete="off" placeholder="Ej.: V-12345678" maxLength={14} className="h-11 text-base" />
+          </div>
+          <div>
+            <Label htmlFor="fecha_nacimiento" className="mb-1.5">Fecha de nacimiento *</Label>
+            <Input id="fecha_nacimiento" name="fecha_nacimiento" type="date" required min="1900-01-01" max={hoy} autoComplete="bday" className="h-11 text-base" />
+            <p className="mt-1 text-xs text-muted-foreground">Día / mes / año</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="telefono" className="mb-1.5">Celular (WhatsApp) *</Label>
+            <Input id="telefono" name="telefono" type="tel" required inputMode="tel" autoComplete="tel" placeholder="Ej.: 0414-1234567" maxLength={20} className="h-11 text-base" />
+          </div>
+          <div>
+            <span className="mb-1.5 block text-sm font-medium">Sexo</span>
+            <Opciones etiqueta="Sexo" valor={sexo} alCambiar={setSexo} opciones={[{ v: "F", t: "Femenino" }, { v: "M", t: "Masculino" }]} />
+          </div>
+        </div>
+        {!particular && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="empresa" className="mb-1.5">Empresa donde trabajas{empresa ? "" : " *"}</Label>
+              <Input id="empresa" name="empresa" defaultValue={empresa ?? ""} maxLength={120} className="h-11 text-base" />
+            </div>
+            <div>
+              <Label htmlFor="cargo" className="mb-1.5">Cargo *</Label>
+              <Input id="cargo" name="cargo" maxLength={120} placeholder="Ej.: operador de planta" className="h-11 text-base" />
+            </div>
+          </div>
+        )}
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input type="checkbox" checked={particular} onChange={(e) => setParticular(e.target.checked)} className="size-5 shrink-0 accent-primary" />
+          No trabajo en una empresa (vengo por mi cuenta)
+        </label>
+      </Seccion>
+      <label className="flex items-start gap-3 rounded-2xl border bg-card p-4 text-sm shadow-sm">
+        <input type="checkbox" name="acepto" className="mt-0.5 size-5 shrink-0 accent-primary" />
+        <span>Autorizo a {servicio} a guardar estos datos para atenderme. Solo los ve su personal de salud.</span>
+      </label>
+      {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
+      <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={enviando}>
+        {enviando ? <Loader2 className="animate-spin" /> : <Send />} Guardar mis datos
+      </Button>
+    </form>
+  );
 }
 
 function FormularioCompleto({ token, servicio, empresa, motivos, hoy, maximo, catalogo }: Props) {

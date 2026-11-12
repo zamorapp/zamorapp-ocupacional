@@ -27,7 +27,7 @@ import { Solicitudes, type Contacto } from "./solicitudes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { EnlacePaciente, PorRevisar } from "./enlace-paciente";
 import { listarSolicitudesPaciente } from "./paciente-enlace-acciones";
-import { resumenPerfiles } from "@/lib/registro-documentos-servidor";
+import { extrasEnlace, resumenPerfiles } from "@/lib/registro-documentos-servidor";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { RefrescarAlVolver } from "@/components/app/refrescar-al-volver";
 
@@ -50,7 +50,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const [consultas, citas, listas, solicitudes, org, , , empresas, activa, porEnlace] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde, todas }),
     sesion.demo ? [] : listarCitas(dia),
-    opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico"]),
+    opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico", "recomendacion_paciente"]),
     sesion.demo ? [] : listarSolicitudes(),
     datosOrganizacion(),
     recordarResultados(sesion),
@@ -87,7 +87,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
           <Button variant="outline" asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></Button>
           <EnlacePaciente habilitado={!sesion.demo} empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
-            perfiles={resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico)}
+            perfiles={resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico)} {...extrasEnlace(listas.paraclinico, listas.recomendacion_paciente)}
             puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")} />
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
           {sesion.rol !== "enfermeria" && <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />}

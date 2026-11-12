@@ -9,6 +9,8 @@ import { CLASES, claseDeducida, FAMILIA, type Clase } from "@/lib/estudios";
 
 export const DOCS_REGISTRO = {
   orden: { nombre: "Orden de exámenes", ruta: "orden" },
+  // Texto libre del médico (20261030929000)
+  recomendaciones: { nombre: "Recomendaciones del médico", ruta: "recomendaciones" },
   "control-ta": { nombre: "Control de tensión arterial", ruta: "control-ta" },
   dieta: { nombre: "Recomendaciones nutricionales", ruta: "dieta" },
   bienestar: { nombre: "Recomendaciones de bienestar", ruta: "bienestar" },
@@ -45,6 +47,7 @@ export type DocumentosRegistro = {
   control_ta?: { dias: 7 | 14 };
   dieta?: { dieta: string; plan: string[] };
   bienestar?: { tema: string[] };
+  recomendaciones?: { texto: string };
   firma?: boolean;
   // Se mandó después de atenderlo: «las indicaciones que conversaste con…» (20261030912000)
   conversadas?: boolean;
@@ -53,17 +56,20 @@ export type DocumentosRegistro = {
 // Lo que el servicio marca en el diálogo «Enlace al paciente»
 export type EleccionRegistro = {
   // sin: exámenes del perfil que el médico desmarcó para este paciente (p. ej. de «Rutina» solo hematología y glicemia)
-  orden: { perfilId: string; motivoId: string | null; sin?: string[] } | null;
+  // sueltos: exámenes del catálogo elegidos uno a uno (ids), con o sin perfil (20261030929000)
+  orden: { perfilId: string | null; motivoId: string | null; sin?: string[]; sueltos?: string[] } | null;
   controlTa: 7 | 14 | null;
   dieta: string | null;
   bienestar: boolean;
   temas?: string[];
+  recomendaciones?: string | null;
   firma: boolean;
   conversadas?: boolean;
 };
 
 export const docsElegidos = (d: DocumentosRegistro | null | undefined): DocRegistro[] =>
-  d ? (["orden", "control-ta", "dieta", "bienestar"] as const).filter((t) => (t === "control-ta" ? d.control_ta : d[t])) : [];
+  d ? (["orden", "recomendaciones", "control-ta", "dieta", "bienestar"] as const).filter((t) => (t === "control-ta" ? d.control_ta : d[t])) : [];
+export const MAX_RECOMENDACIONES = 2500;
 
 // Lo que ve el paciente al terminar: una fila por documento y una por cada orden (laboratorio, rayos X…)
 export type FilaRegistro = { tipo: DocRegistro; parte?: ParteOrden; nombre: string; detalle: string };
@@ -138,7 +144,7 @@ export function documentoDeRegistro(v: VistaRegistro, hoy: string, parte?: Parte
       tratamiento: [], indicaciones: "", interconsultas: [],
       reposo: { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: fecha, hasta: fecha, cie10: "", medicoExterno: "", centroIvss: "", validadoIvss: false },
       reubicacion: { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: fecha, hasta: "", motivo: "", restricciones: "", resultado: "" },
-      informeLibre: { titulo: "", dirigidoA: "", cuerpo: "" },
+      informeLibre: { titulo: "Recomendaciones", dirigidoA: "", cuerpo: v.documentos.recomendaciones?.texto ?? "" },
       conclusiones: "", recomendacionesEmpresa: "", recomendacionesTrabajador: "", observacionPrivada: "",
       autorizaPaciente: false, sano: false, potencialDiscapacidad: false, discapacidadNota: "", riesgos: null,
     },

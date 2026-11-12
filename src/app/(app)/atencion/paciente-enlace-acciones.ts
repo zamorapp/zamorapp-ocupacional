@@ -60,7 +60,8 @@ export type EnlaceNuevo = { ok: true; enlace: string; whatsapp: string; texto: s
 
 // trabajadorId: el enlace va a un trabajador ya registrado (botón «Enviar enlace» de su ficha): solo confirma su cédula
 // y el motivo, y sus datos salen de la ficha (20261030918000)
-export async function crearEnlacePaciente(e: { nombre: string; telefono: string; empresaId: string | null; documentos?: EleccionRegistro; trabajadorId?: string | null }): Promise<EnlaceNuevo> {
+// soloRegistro: el paciente no registrado llena solo sus datos de registro, sin consulta (20261030929000)
+export async function crearEnlacePaciente(e: { nombre: string; telefono: string; empresaId: string | null; documentos?: EleccionRegistro; trabajadorId?: string | null; soloRegistro?: boolean }): Promise<EnlaceNuevo> {
   const s = await servicio();
   if ("error" in s) return { ok: false, mensaje: s.error! };
   const documentos = e.documentos ? await armarDocumentosRegistro(s.supabase, s.sesion, e.documentos) : {};
@@ -77,11 +78,11 @@ export async function crearEnlacePaciente(e: { nombre: string; telefono: string;
     empresa_id: e.empresaId && /^[0-9a-f-]{36}$/i.test(e.empresaId) ? e.empresaId : null,
     creado_por: s.sesion.usuarioId,
     ...(docsElegidos(documentos).length ? { documentos } : {}),
-    ...(e.trabajadorId && /^[0-9a-f-]{36}$/i.test(e.trabajadorId) ? { para_trabajador: e.trabajadorId } : {}),
+    ...(e.trabajadorId && /^[0-9a-f-]{36}$/i.test(e.trabajadorId) ? { para_trabajador: e.trabajadorId } : e.soloRegistro ? { solo_registro: true } : {}),
   } as never);
   if (error) return { ok: false, mensaje: errorNube(`No se creó el enlace: ${error.message}`) };
   const enlace = `${URL_PUBLICA}/registro/${token}`;
-  const texto = `${mensajePaciente(nombre, s.sesion.organizacion, docsElegidos(documentos).length > 0, Boolean(e.trabajadorId))} ${enlace}`;
+  const texto = `${mensajePaciente(nombre, s.sesion.organizacion, docsElegidos(documentos).length > 0, Boolean(e.trabajadorId), !e.trabajadorId && Boolean(e.soloRegistro))} ${enlace}`;
   revalidatePath("/atencion");
   return { ok: true, enlace, texto, whatsapp: `https://wa.me/${telefono ?? ""}?text=${encodeURIComponent(texto)}` };
 }
@@ -90,7 +91,7 @@ type Fila = {
   id: string; nombre: string | null; telefono: string | null; creado_en: string; vence: string; recibido_en: string | null;
   anulado_en: string | null; resultado: SolicitudPaciente["resultado"]; revisado_en: string | null; datos: DatosPaciente | Record<string, never>;
   trabajador_id: string | null; empresas: { razon_social: string } | null;
-  abierto_en: string | null; descarga_hasta: string | null; para_trabajador: string | null;
+  abierto_en: string | null; descarga_hasta: string | null; para_trabajador: string | null; solo_registro: boolean;
 };
 
 // Por revisar (todas) y los últimos enlaces enviados, para la bandeja de Atención médica
@@ -99,7 +100,7 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return vacio;
   const supabase = await crearClienteServidor();
-  const campos = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social), abierto_en, descarga_hasta, para_trabajador";
+  const campos = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social), abierto_en, descarga_hasta, para_trabajador, solo_registro";
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
     supabase.from("solicitudes_paciente").select(campos).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
     supabase.from("solicitudes_paciente").select(campos).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
@@ -118,7 +119,7 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
     id: f.id, nombre: f.nombre, telefono: f.telefono, empresaSugerida: f.empresas?.razon_social ?? null, creado: f.creado_en, vence: f.vence,
     recibido: f.recibido_en, anulado: Boolean(f.anulado_en), resultado: f.resultado, revisado: f.revisado_en,
     datos: "cedula" in f.datos ? sinSaludSiNoClinico(f.datos as DatosPaciente) : null, trabajadorId: f.trabajador_id,
-    abierto: f.abierto_en, registrado: Boolean(f.para_trabajador),
+    abierto: f.abierto_en, registrado: Boolean(f.para_trabajador), soloRegistro: Boolean(f.solo_registro),
     // La descarga abre una ventana de 30 minutos: la primera descarga fue 30 minutos antes de su cierre
     descargo: f.descarga_hasta ? new Date(Date.parse(f.descarga_hasta) - 30 * 60_000).toISOString() : null,
   });
@@ -147,7 +148,8 @@ async function empresaParticular(supabase: Awaited<ReturnType<typeof crearClient
   return !error && typeof data === "string" ? data : null;
 }
 
-export type Aceptar = { id: string; empresa: string; motivoId: string | null; fecha: string; hora: string | null; actualizarContacto: boolean };
+// sinCita: solo crea (o usa) la ficha, sin agendar (enlace «Solo registro», 20261030929000)
+export type Aceptar = { id: string; empresa: string; motivoId: string | null; fecha: string; hora: string | null; actualizarContacto: boolean; sinCita?: boolean };
 
 // Aceptar: si la cédula ya tiene ficha, se usa esa (y, si se pide, se actualizan teléfono, correo y dirección); si no,
 // se crea la ficha en la empresa elegida. Luego la cita del día elegido y la solicitud queda «aceptada».
@@ -155,8 +157,8 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
   const s = await servicio();
   if ("error" in s) return { ok: false, mensaje: s.error! };
   const { supabase, sesion } = s;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(a.fecha) || a.fecha < hoyCaracas()) return { ok: false, mensaje: "Elige un día de hoy en adelante." };
-  if (a.hora && !/^\d{2}:\d{2}$/.test(a.hora)) return { ok: false, mensaje: "Revisa la hora." };
+  if (!a.sinCita && (!/^\d{4}-\d{2}-\d{2}$/.test(a.fecha) || a.fecha < hoyCaracas())) return { ok: false, mensaje: "Elige un día de hoy en adelante." };
+  if (!a.sinCita && a.hora && !/^\d{2}:\d{2}$/.test(a.hora)) return { ok: false, mensaje: "Revisa la hora." };
   const { data: sol } = await supabase.from("solicitudes_paciente").select("id, datos, recibido_en, resultado").eq("id", a.id).maybeSingle();
   const d = sol?.datos as DatosPaciente | undefined;
   if (!sol || !d?.cedula) return { ok: false, mensaje: "No se encontró la solicitud." };
@@ -202,6 +204,13 @@ export async function aceptarSolicitudPaciente(a: Aceptar): Promise<R & { trabaj
     invalidarEmpresas();
   }
 
+  if (a.sinCita) {
+    const { error: errSol } = await supabase.from("solicitudes_paciente").update({ resultado: "aceptada", trabajador_id: trabajador.id }).eq("id", a.id);
+    if (errSol) aviso = `La ficha quedó lista, pero la solicitud sigue en «Por revisar»: ${errorNube(errSol.message)}`;
+    revalidatePath("/", "layout");
+    olvidar("");
+    return { ok: true, mensaje: aviso ?? (previos?.length ? "Ya tenía ficha: quedó enlazado a ella." : "Ficha creada."), trabajadorId: trabajador.id };
+  }
   const citaId = crypto.randomUUID();
   const { error: errCita } = await supabase.from("citas").insert({
     id: citaId, org_id: sesion.orgId!, empresa_id: trabajador.empresa_id, trabajador_id: trabajador.id, fecha: a.fecha, hora: a.hora || null,

@@ -4,7 +4,7 @@ import { aplicarPerfilParaclinicos } from "@/app/(app)/atencion/[id]/perfiles";
 import { claseDe } from "@/lib/estudios";
 import type { Item } from "@/lib/listas";
 import type { Sesion } from "@/lib/sesion";
-import { docsElegidos, partesOrden, type DocumentosRegistro, type EleccionRegistro, type ExamenOrden } from "@/lib/registro-documentos";
+import { docsElegidos, MAX_RECOMENDACIONES, partesOrden, type DocumentosRegistro, type EleccionRegistro, type ExamenOrden } from "@/lib/registro-documentos";
 import { temasBienestar } from "@/lib/bienestar";
 
 export const FIRMANTES = new Set(["administrador", "gerente_medico", "medico"]);
@@ -16,17 +16,33 @@ export const puedeFirmarRegistro = (s: Pick<Sesion, "clinico" | "rol">) => s.cli
 export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: Pick<Sesion, "orgId" | "clinico" | "rol">, el: EleccionRegistro): Promise<DocumentosRegistro | string> {
   const d: DocumentosRegistro = {};
   if (el.orden) {
-    if (!/^[0-9a-f-]{36}$/i.test(el.orden.perfilId)) return "Elige el perfil de exámenes de la orden.";
+    // Perfil (opcional) y exámenes sueltos del catálogo: la orden lleva los dos, sin repetir
+    const perfilId = el.orden.perfilId && /^[0-9a-f-]{36}$/i.test(el.orden.perfilId) ? el.orden.perfilId : null;
+    const sueltos = [...new Set((Array.isArray(el.orden.sueltos) ? el.orden.sueltos : []).filter((x): x is string => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 60);
+    if (!perfilId && !sueltos.length) return "Elige un perfil o al menos un examen para la orden.";
     const { data } = await supabase.from("lista_items").select("id, lista, codigo, nombre, grupo, texto, orden, activo, datos")
       .eq("org_id", sesion.orgId!).in("lista", ["grupo_paraclinicos", "paraclinico"]).eq("activo", true);
     const items = (data ?? []) as (Item & { lista: string })[];
-    const perfil = items.find((i) => i.id === el.orden!.perfilId && i.lista === "grupo_paraclinicos");
-    if (!perfil) return "Ese perfil de exámenes ya no existe. Elige otro.";
+    const catalogo = items.filter((i) => i.lista === "paraclinico");
+    const perfil = perfilId ? items.find((i) => i.id === perfilId && i.lista === "grupo_paraclinicos") : null;
+    if (perfilId && !perfil) return "Ese perfil de exámenes ya no existe. Elige otro.";
     const sin = new Set((Array.isArray(el.orden.sin) ? el.orden.sin : []).filter((x): x is string => typeof x === "string").slice(0, 200));
-    const examenes = examenesDePerfilConClase(perfil.texto ?? "", items.filter((i) => i.lista === "paraclinico")).filter((x) => !sin.has(x.nombre));
-    if (!examenes.length) return sin.size ? "Deja marcado al menos un examen de la orden." : `El perfil «${perfil.nombre}» no tiene exámenes.`;
-    d.orden = { examenes, perfil: perfil.nombre, ...(el.orden.motivoId && /^[0-9a-f-]{36}$/i.test(el.orden.motivoId) ? { motivo_id: el.orden.motivoId } : {}) };
+    const delPerfil = perfil ? examenesDePerfilConClase(perfil.texto ?? "", catalogo).filter((x) => !sin.has(x.nombre)) : [];
+    const porId = new Map(catalogo.map((c) => [c.id, c]));
+    const vistos = new Set(delPerfil.map((x) => x.nombre.toLowerCase()));
+    const extra: ExamenOrden[] = sueltos.flatMap((id) => {
+      const c = porId.get(id);
+      if (!c || vistos.has(c.nombre.toLowerCase())) return [];
+      vistos.add(c.nombre.toLowerCase());
+      return [{ nombre: c.nombre, ...(c.grupo ? { grupo: c.grupo } : {}), clase: claseDe(c) }];
+    });
+    const examenes = [...delPerfil, ...extra].slice(0, 60);
+    if (!examenes.length) return perfil && !sin.size && !sueltos.length ? `El perfil «${perfil.nombre}» no tiene exámenes.` : "Deja marcado al menos un examen de la orden.";
+    d.orden = { examenes, ...(perfil ? { perfil: perfil.nombre } : {}), ...(el.orden.motivoId && /^[0-9a-f-]{36}$/i.test(el.orden.motivoId) ? { motivo_id: el.orden.motivoId } : {}) };
   }
+  const rec = typeof el.recomendaciones === "string" ? el.recomendaciones.replace(/\r/g, "").trim() : "";
+  if (rec.length > MAX_RECOMENDACIONES) return `Las recomendaciones pasan de ${MAX_RECOMENDACIONES} letras: acórtalas.`;
+  if (rec) d.recomendaciones = { texto: rec };
   if (el.controlTa) d.control_ta = { dias: el.controlTa === 14 ? 14 : 7 };
   if (el.dieta) d.dieta = { dieta: el.dieta, plan: [] };
   if (el.bienestar) d.bienestar = { tema: temasBienestar((el.temas ?? []).join(",")).slice(0, 12) };
@@ -46,6 +62,14 @@ function examenesDePerfilConClase(texto: string, catalogo: Item[]): ExamenOrden[
     ...(x.grupo ? { grupo: x.grupo } : {}),
     clase: claseDe(porId.get(x.id) ?? { nombre: x.nombre, grupo: x.grupo }),
   }));
+}
+
+// Para el diálogo: exámenes del catálogo para pedirlos sueltos y frases guardadas de recomendaciones al trabajador
+export function extrasEnlace(paraclinicos: Item[], recomendaciones: Item[]) {
+  return {
+    examenes: paraclinicos.map((p) => ({ id: p.id, nombre: p.nombre, grupo: p.grupo ?? null })),
+    frases: [...new Set(recomendaciones.map((r) => (r.texto?.trim() || r.nombre).trim()).filter(Boolean))].slice(0, 500),
+  };
 }
 
 // Para el diálogo: qué órdenes salen de cada perfil y con qué exámenes

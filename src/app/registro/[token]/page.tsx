@@ -1,25 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AlarmClock, CheckCircle2, ChevronRight, Clock, FileCheck2, FileText, FlaskConical, HeartPulse, Leaf, Salad, ScanLine, ShieldCheck, Stethoscope, Upload } from "lucide-react";
-import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
+import { Clock, FileCheck2, ShieldCheck, Stethoscope, Upload } from "lucide-react";
+import { MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
 import { APP_NOMBRE } from "@/lib/config";
 import { aQuien, TOKEN_REGISTRO } from "@/lib/solicitudes-paciente";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
-import { filasRegistro, fraseIndicaciones, remitente, type VistaRegistro } from "@/lib/registro-documentos";
+import { type VistaRegistro } from "@/lib/registro-documentos";
 import { FormularioRegistro, type CatalogoRegistro } from "./formulario";
 import { EnviarResultados, type EstadoResultados } from "./resultados";
 import { MarcarAbierto } from "./abierto";
+import { DocumentosListos } from "./documentos-listos";
 
 export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
 
-// Ícono de cada hoja que descarga (orden de laboratorio; las de imagen llevan ScanLine), tensión, dieta, bienestar
-const ICONO_DOC: Record<string, typeof FileText> = { orden: FlaskConical, "control-ta": HeartPulse, dieta: Salad, bienestar: Leaf };
-
-const horaCaracas = (iso: string) => new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
 
 const AVISO: Record<Exclude<Vista["estado"], "vigente">, { titulo: string; texto: string }> = {
   usado: { titulo: "Tus datos ya se enviaron", texto: "El servicio médico los está revisando y te confirmará la cita por WhatsApp." },
@@ -56,34 +52,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           </TarjetaEnlace>
         ) : docs ? (
           <>
-          <TarjetaEnlace role="status" className="space-y-4">
-            <div className="space-y-1 text-center">
-              <CheckCircle2 className="mx-auto size-12 text-ok" />
-              <h1 className="text-xl font-semibold">¡Listo, {docs.persona.nombres.split(" ")[0]}!</h1>
-              <p className="text-sm text-muted-foreground">{fraseIndicaciones(remitente(docs), docs.documentos.conversadas)} Descárgalas y tenlas a mano.</p>
-            </div>
-            <ul className="space-y-2">
-              {filasRegistro(docs.documentos).map((f, i) => (
-                <li key={f.parte ?? f.tipo}>
-                  <Link href={`/registro/${token}/documento/${f.tipo}${f.parte ? `?parte=${f.parte}` : ""}`} className="group flex min-h-16 items-center rounded-xl border bg-background px-3 py-2.5 shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:border-primary hover:shadow-md motion-safe:hover:-translate-y-0.5">
-                    <FichaBoton icono={f.parte && f.parte !== "laboratorio" ? ScanLine : ICONO_DOC[f.tipo] ?? FileText} titulo={f.nombre} detalle={f.detalle && <span className="block truncate">{f.detalle}</span>} indice={i}>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform motion-safe:group-hover:translate-x-0.5" />
-                    </FichaBoton>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <p className="text-center text-xs text-muted-foreground">Ábrelos y toca «Descargar PDF».</p>
-            <p className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-              <AlarmClock className="mt-0.5 size-5 shrink-0" />
-              <span>
-                {docs.descarga_hasta
-                  ? <>Puedes descargarlos hasta las <b>{horaCaracas(docs.descarga_hasta)}</b>. Después, este enlace queda solo para enviar tus resultados.</>
-                  : <>Tienes 30 minutos desde la primera descarga para bajarlos todos. Después, este enlace queda solo para enviar tus resultados.</>}
-              </span>
-            </p>
-            <p className="rounded-xl bg-primary/10 px-4 py-3 text-center text-sm">Cuando tengas tus resultados, vuelve a este mismo enlace y súbelos abajo, en «Enviar mis resultados».</p>
-          </TarjetaEnlace>
+          <DocumentosListos token={token} docs={docs} />
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
           </>
         ) : descargados ? (
@@ -110,12 +79,13 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           <>
             <TarjetaEnlace className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary)_70%,black)] p-5 text-primary-foreground">
               <span aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-white/10" />
-              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : "pide tu consulta"}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : catalogo?.solo_registro ? "regístrate en 1 minuto" : "pide tu consulta"}</h1>
               <p className="mt-1 text-sm opacity-90">{catalogo?.registrado
                 ? "Ábrelos y descárgalos. Cuando tengas tus resultados, vuelve a este mismo enlace para enviarlos."
+                : catalogo?.solo_registro ? "Llena tus datos y, si te prepararon documentos, te aparecen para descargar."
                 : "Llena tus datos para tu consulta y te confirmamos el día y la hora por WhatsApp."}</p>
               <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : "Toma 5 minutos"}</li>
+                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : catalogo?.solo_registro ? "Toma 1 minuto" : "Toma 5 minutos"}</li>
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
