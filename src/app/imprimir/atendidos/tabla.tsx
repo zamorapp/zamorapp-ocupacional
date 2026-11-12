@@ -54,8 +54,10 @@ export function HojaRelacion({ org, empresa, desde, hasta, cobro, filas }: { org
   const resumen = [...porResultado.entries()].map(([r, n]) => `${r}: ${n}`).join(" · ");
   // Desde la hoja 2, arriba: de qué relación es la hoja (si se separan, cada una dice de dónde viene)
   const cabecera = ["Relación de pacientes atendidos", empresa, `Del ${fechaCorta(desde)} al ${fechaCorta(hasta)}`, cobro ? `Nota Nº ${cobro.numero}` : null].filter(Boolean).join(" · ");
-  const css = `@page apaisada { @top-left { content: ${cssTexto(`${cabecera} · Hoja `)} counter(page) " de " counter(pages); font: 7pt ui-sans-serif, system-ui, sans-serif; color: #55625f; } }
-@page apaisada:first { @top-left { content: ""; } }`;
+  // La identificación a la izquierda y «Hoja N de M» a la derecha, para que nunca se corten a mitad (Diseño)
+  const letra = "font: 7pt ui-sans-serif, system-ui, sans-serif; color: #55625f;";
+  const css = `@page apaisada { @top-left { content: ${cssTexto(cabecera)}; ${letra} width: 80%; } @top-right { content: "Hoja " counter(page) " de " counter(pages); ${letra} white-space: nowrap; } }
+@page apaisada:first { @top-left { content: ""; } @top-right { content: ""; } }`;
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
