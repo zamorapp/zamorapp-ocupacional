@@ -44,3 +44,4 @@
 | Descarga larga sin avance visible | Toda acción larga muestra avance y anota resultado en `arranque.log` |
 | Pruebas de la puerta en paralelo se pisaron | `node --test --test-concurrency=1` |
 | Diálogo nuevo al cerrar rompió la prueba de humo | Actualizar `PulsarSalida` (UI Automation) en la prueba de humo |
+| Enlaces públicos sin aviso; push «enviado» que nadie vio (12-nov) | Todo enlace público avisa al abrir (sin vistas previas: `es_vista_previa`) y al completar con `public.avisar_enlace()`; cada aparato confirma con `/api/avisos/acuse` y la campana avisa si deja de confirmar; el escritorio repite cada aviso nuevo como aviso de Windows |
