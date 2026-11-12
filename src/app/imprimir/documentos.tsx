@@ -297,8 +297,11 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 // El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
 export function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
-  const css = `@page { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
-@page :first { @top-left { content: ""; } }`;
+  // 7 pt y un solo renglón (Diseño, 12-nov): la identificación a la izquierda, ancha, y «Hoja N de M» aparte a la
+  // derecha (igual que la relación de atendidos)
+  const letra = "font: 7pt ui-monospace, Consolas, monospace; color: #55625f; white-space: nowrap;";
+  const css = `@page { @top-left { content: "${limpio}"; ${letra} width: 80%; } @top-right { content: "Hoja " counter(page) " de " counter(pages); ${letra} } }
+@page :first { @top-left { content: ""; } @top-right { content: ""; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
