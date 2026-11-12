@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { ClipboardList, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +13,8 @@ type Props = { empresaId: string; desde: string; hasta: string; atenciones: Aten
 
 const fecha = (iso: string) => iso.split("-").reverse().join("/");
 
-// Servicios que no salen de una consulta y que se ofrecen con un clic (asesorías, charlas, informes…)
-const OTRAS_CATEGORIAS = new Set(["asesoria", "formacion", "informe", "evaluacion_puesto", "otro"]);
+// Renglón de «Otros servicios»; «clave» si viene de una sugerencia marcada arriba (al desmarcarla se quita)
+type Extra = ItemCobro & { clave?: string };
 
 export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tasa, aFactura = false, sugerencias = [] }: Props) {
   // Cada atención propone el servicio de su motivo; se puede cambiar o excluir
@@ -23,9 +24,10 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
       return { atencion: a, incluir: Boolean(s), servicioId: s?.id ?? "", precio: s?.precioUsd ?? 0 };
     }),
   );
-  const [extras, setExtras] = useState<ItemCobro[]>([]);
-  // «¿Facturar también…?»: lo hecho en el período para la empresa (vigilancia, puestos…). Se marca para agregarlo.
-  const [elegidas, setElegidas] = useState<Set<string>>(new Set());
+  const [extras, setExtras] = useState<Extra[]>([]);
+  // «¿Facturar también…?»: lo hecho en el período para la empresa (vigilancia, puestos…). Al marcarlo pasa a
+  // «Otros servicios» como un renglón más (precio editable, «Quitar»); al desmarcarlo se quita.
+  const elegidas = new Set(extras.map((x) => x.clave).filter(Boolean));
   const [preguntaVista, setPreguntaVista] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
@@ -40,39 +42,36 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
       cantidad: 1,
       precioUsd: l.precio,
     })),
-    ...sugerencias.filter((x) => elegidas.has(x.clave)).map((x) => {
-      const sv = servicioParaCategoria(servicios, x.categoria);
-      return { servicioId: sv?.id ?? null, consultaId: null, descripcion: sv?.nombre ?? x.titulo, detalle: x.detalle, cantidad: 1, precioUsd: sv?.precioUsd ?? 0 };
-    }),
-    ...extras,
+    ...extras.map((x) => ({ servicioId: x.servicioId, consultaId: x.consultaId, descripcion: x.descripcion, detalle: x.detalle, cantidad: x.cantidad, precioUsd: x.precioUsd })),
   ];
   const t = totales({ items, ivaPct: 0, igtfPct: 0, tasaBcv: tasa });
   const sinServicio = lineas.filter((l) => l.incluir && !l.servicioId).length;
 
-  const otros = servicios.filter((sv) => OTRAS_CATEGORIAS.has(sv.categoria));
-  const agregarServicio = (sv: Servicio) => setExtras([...extras, { servicioId: sv.id, consultaId: null, descripcion: sv.nombre, detalle: "", cantidad: 1, precioUsd: sv.precioUsd }]);
-  const alternar = (clave: string) => setElegidas((e) => { const n = new Set(e); if (n.has(clave)) n.delete(clave); else n.add(clave); return n; });
+  const alternar = (x: SugerenciaCobro) => {
+    if (elegidas.has(x.clave)) return setExtras(extras.filter((y) => y.clave !== x.clave));
+    const sv = servicioParaCategoria(servicios, x.categoria);
+    setExtras([...extras, { clave: x.clave, servicioId: sv?.id ?? null, consultaId: null, descripcion: sv?.nombre ?? x.titulo, detalle: x.detalle, cantidad: 1, precioUsd: sv?.precioUsd ?? 0 }]);
+  };
 
   return (
     <div className="space-y-4">
-      {preguntaVista && (sugerencias.length > 0 || otros.length > 0) && (
+      {preguntaVista && sugerencias.length > 0 && (
         <div data-aviso="otros-servicios" className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
           <div className="flex items-start gap-3">
             <ClipboardList className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
             <div className="min-w-0 flex-1">
               <div className="font-medium">¿Facturará también otros servicios?</div>
-              <div className="text-sm text-muted-foreground">{sugerencias.length > 0 ? "Se hizo esto para la empresa en el período y no está cobrado. Marque lo que quiere agregar." : "Agregue con un clic lo que aplique en esta factura."}</div>
+              <div className="text-sm text-muted-foreground">Se hizo esto para la empresa en el período y no está cobrado. Marque lo que quiere agregar; lo demás (asesorías, charlas…) va con «Agregar» en «Otros servicios».</div>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setPreguntaVista(false)}>Ignorar</Button>
           </div>
-          {sugerencias.length > 0 && (
-            <ul className="divide-y rounded-lg border bg-card">
+          <ul className="divide-y rounded-lg border bg-card">
               {sugerencias.map((x) => {
                 const sv = servicioParaCategoria(servicios, x.categoria);
                 return (
                   <li key={x.clave}>
                     <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
-                      <input type="checkbox" checked={elegidas.has(x.clave)} onChange={() => alternar(x.clave)} className="size-4 accent-[var(--primary)]" />
+                      <input type="checkbox" checked={elegidas.has(x.clave)} onChange={() => alternar(x)} className="size-4 accent-[var(--primary)]" />
                       <span className="min-w-0 flex-1"><span className="font-medium">{sv?.nombre ?? x.titulo}</span><span className="block text-xs text-muted-foreground">{x.detalle}</span></span>
                       <span className="tabular-nums">{sv ? usd(sv.precioUsd) : <span className="text-xs text-aviso-texto">Sin servicio en «Servicios y precios»</span>}</span>
                     </label>
@@ -80,19 +79,12 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
                 );
               })}
             </ul>
-          )}
-          {otros.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Agregar:</span>
-              {otros.map((sv) => <Button key={sv.id} size="sm" variant="outline" onClick={() => agregarServicio(sv)}><Plus /> {sv.nombre}</Button>)}
-            </div>
-          )}
         </div>
       )}
       <Card className="gap-0 py-0">
-        <CardHeader className="border-b py-3"><CardTitle className="text-base">Atenciones del periodo ({lineas.length})</CardTitle></CardHeader>
+        <CardHeader className="border-b py-3"><CardTitle className="text-base">Atenciones del período ({lineas.length})</CardTitle></CardHeader>
         <CardContent className="px-0">
-          {lineas.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted-foreground">No hay atenciones pendientes de cobro.</p>}
+          {lineas.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted-foreground">No hay atenciones pendientes de cobro en el período.</p>}
           <ul className="divide-y">
             {lineas.map((l, i) => (
               <li key={l.atencion.id} className="grid grid-cols-1 items-center gap-2 px-5 py-2 text-sm sm:grid-cols-[auto_minmax(0,2fr)_minmax(0,2fr)_7rem]">
@@ -140,7 +132,7 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
               <Input value={x.detalle} placeholder="Detalle (ej. informe del III trimestre)" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, detalle: e.target.value } : y)))} />
               <Input type="number" min={0} step="0.5" value={x.cantidad} title="Cantidad u horas" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, cantidad: Number(e.target.value) } : y)))} />
               <Input type="number" min={0} step="0.01" value={x.precioUsd} className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, precioUsd: Number(e.target.value) } : y)))} />
-              <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => setExtras(extras.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>
+              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => setExtras(extras.filter((_, j) => j !== i))}><Trash2 /> Quitar</Button>
             </div>
           ))}
         </CardContent>
@@ -150,7 +142,7 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
         <div>
           <div className="text-sm text-muted-foreground">{items.length} renglones</div>
           <div className="text-2xl font-semibold">{usd(t.total)}</div>
-          {t.totalBs !== null ? <div className="text-sm text-muted-foreground">{bs(t.totalBs)} a tasa {tasa}</div> : <div className="text-sm text-aviso-texto">Carga la tasa BCV para ver el monto en Bs.</div>}
+          {t.totalBs !== null ? <div className="text-sm text-muted-foreground">{bs(t.totalBs)} a tasa {tasa}</div> : <Link href="/facturacion" target="_blank" className="text-sm text-aviso-texto underline underline-offset-2 hover:text-foreground">Cargar la tasa BCV de hoy para ver el monto en Bs.</Link>}
         </div>
         {sinServicio > 0 && <p className="text-sm text-alerta-texto">{sinServicio} atenciones marcadas sin servicio: elígelo o desmárcalas.</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}

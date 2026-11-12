@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 
 export default async function NuevoCobro({ searchParams }: { searchParams: Promise<{ empresa?: string; desde?: string; hasta?: string; factura?: string }> }) {
   const q = await searchParams;
-  if (!q.empresa || !q.desde || !q.hasta) notFound();
+  const dia = /^\d{4}-\d{2}-\d{2}$/;
+  if (!q.empresa || !q.desde || !q.hasta || !dia.test(q.desde) || !dia.test(q.hasta)) notFound();
   const [empresas, atenciones, servicios, precios, tasa, sugerencias] = await Promise.all([
     listarEmpresas(),
     listarAtenciones(q.empresa, q.desde, q.hasta),

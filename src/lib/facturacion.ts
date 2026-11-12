@@ -154,6 +154,7 @@ export async function listarMotivosCobro(): Promise<{ codigo: string; nombre: st
   });
 }
 
+const ISO_DIA = /^\d{4}-\d{2}-\d{2}$/;
 const fechaVe = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const METODO_ERGO: Record<string, string> = { rula: "RULA", reba: "REBA", rosa: "ROSA", niosh: "NIOSH", deb: "DEB", ocra: "OCRA", kim: "KIM", libre: "inspección" };
 
@@ -161,7 +162,8 @@ const METODO_ERGO: Record<string, string> = { rula: "RULA", reba: "REBA", rosa: 
 // Vigilancia: la del trimestre que termina en el período o que se preparó en el período. Cada consulta que falle
 // (por ejemplo, un rol que no puede leer esa tabla) simplemente no propone nada.
 export async function sugerenciasCobro(empresaId: string, desde: string, hasta: string): Promise<SugerenciaCobro[]> {
-  if (!supabaseConfigurado) return [];
+  // Las fechas van dentro de un filtro .or() de PostgREST: solo AAAA-MM-DD
+  if (!supabaseConfigurado || !ISO_DIA.test(desde) || !ISO_DIA.test(hasta)) return [];
   const supabase = await crearClienteServidor();
   // Límites del período en hora de Caracas (UTC-4) para las columnas con hora
   const ini = `${desde}T04:00:00Z`, fin = `${hasta}T23:59:59-04:00`;
@@ -177,7 +179,7 @@ export async function sugerenciasCobro(empresaId: string, desde: string, hasta: 
   const ya = new Set((cobrado.data ?? []).map((i) => String(i.detalle)));
   const out: SugerenciaCobro[] = [];
   for (const v of vig.data ?? []) out.push({ clave: `vig:${v.id}`, categoria: "informe", titulo: "Informe de vigilancia epidemiológica", detalle: `Vigilancia epidemiológica del ${fechaVe(v.desde)} al ${fechaVe(v.hasta)}`, fecha: v.hasta });
-  for (const e of ergo.data ?? []) out.push({ clave: `ergo:${e.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación ergonómica de puesto", detalle: `Puesto ${e.puesto} (${METODO_ERGO[e.metodo] ?? e.metodo}) · ${fechaVe(e.fecha)}`, fecha: e.fecha });
+  for (const e of ergo.data ?? []) out.push({ clave: `ergo:${e.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación ergonómica de puesto", detalle: `Puesto ${e.puesto ?? "sin nombre"} (${METODO_ERGO[e.metodo] ?? e.metodo}) · ${fechaVe(e.fecha)}`, fecha: e.fecha });
   for (const r of ries.data ?? []) out.push({ clave: `ries:${r.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación de riesgos del puesto", detalle: `${r.titulo} · ${fechaVe(r.fecha)}`, fecha: r.fecha });
   for (const p of psico.data ?? []) out.push({ clave: `psico:${p.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación de riesgos psicosociales", detalle: `${p.titulo} · ${fechaVe(p.inicio)}`, fecha: p.inicio });
   return out.filter((x) => !ya.has(x.detalle)).sort((a, b) => a.fecha.localeCompare(b.fecha));
