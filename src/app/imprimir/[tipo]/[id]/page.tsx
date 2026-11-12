@@ -28,9 +28,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: TIPOS[tipo as keyof typeof TIPOS]?.titulo ?? "Documento" };
 }
 
+// Alterna solo «dx» y conserva el resto de las opciones de la URL (sin, copia, rev…)
+function conDx(q: Record<string, string | undefined>, activo: boolean) {
+  const p = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => typeof e[1] === "string"));
+  if (activo) p.set("dx", "1");
+  else p.delete("dx");
+  return p;
+}
+
 export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
-  const { dx, sin, copia, dias, plan, tema, dieta, c, rev } = await searchParams;
+  const consulta = await searchParams;
+  const { dx, sin, copia, dias, plan, tema, dieta, c, rev } = consulta;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
   const base = await obtenerDocumento(id);
@@ -52,7 +61,7 @@ export default async function Imprimir({ params, searchParams }: Props) {
           <OpcionesImpresion disponibles={opcionesDe(tipo)} copia={tipo === "constancia" ? d.copia : undefined} revision={base.impreso.revision} />
           {tipo === "atencion" && d.datos.diagnosticos.length > 0 && (
             <div className="mx-auto -mt-3 mb-4 flex max-w-[216mm] justify-end px-1 text-sm print:hidden">
-              <Link href={`/imprimir/atencion/${id}?${new URLSearchParams({ ...(dx === "1" ? {} : { dx: "1" }), ...(sin ? { sin } : {}) })}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
+              <Link href={`/imprimir/atencion/${id}?${conDx(consulta, dx !== "1")}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">
                 {dx === "1" ? "Quitar diagnóstico (versión para la empresa)" : "Incluir diagnóstico (solo para el trabajador)"}
               </Link>
             </div>
