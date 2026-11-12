@@ -197,7 +197,7 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Depuración de nómina con RR. HH.</h2>
           <p className="text-sm text-muted-foreground">
-            {vigente ? <>Enlace para <b className="text-foreground">{quien}</b> (teléfono …{r.telefono_fin}), activo hasta el {venceTexto(r.vence)}. </> : r.estado === "vencido" ? <>El enlace de {quien} venció. </> : null}
+            {vigente ? <>Enlace para <b className="text-foreground">{quien}</b> <span className="whitespace-nowrap">(teléfono …{r.telefono_fin})</span>, activo hasta el {venceTexto(r.vence)}. </> : r.estado === "vencido" ? <>El enlace de {quien} venció. </> : null}
             {r.bloqueado ? <b className="text-alerta-texto">Bloqueado por intentos con otro teléfono. </b>
               : vigente && !r.abierto_en ? "Todavía no lo abre. "
               : vigente && r.abierto_en ? <>Lo abrió el {dma(hoyCaracas(r.abierto_en))}. </> : null}
@@ -356,8 +356,10 @@ function CitarEgreso({ empresaId, trabajadorId, nombre, bloqueado }: { empresaId
     <span className="flex flex-wrap items-center gap-2">
       <input type="date" value={fecha} min={hoyCaracas()} onChange={(e) => setFecha(e.target.value)} aria-label={`Fecha del egreso de ${nombre}`}
         className="h-8 rounded-md border bg-transparent px-2 text-sm" />
-      <Button size="sm" onClick={guardar} disabled={pendiente || !fecha}>{pendiente ? <Loader2 className="animate-spin" /> : <Check />} Citar</Button>
-      <Button size="sm" variant="ghost" onClick={() => setAbierto(false)} disabled={pendiente}>Cancelar</Button>
+      <span className="flex items-center gap-1">
+        <Button size="sm" onClick={guardar} disabled={pendiente || !fecha}>{pendiente ? <Loader2 className="animate-spin" /> : <Check />} Citar</Button>
+        <Button size="sm" variant="ghost" onClick={() => setAbierto(false)} disabled={pendiente}>Cancelar</Button>
+      </span>
       {error && <span className="w-full text-xs text-alerta-texto" role="alert">{error}</span>}
     </span>
   );
