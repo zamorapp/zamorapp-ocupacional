@@ -183,7 +183,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
           </table>
         )}
 
-        {def.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{def.nota}</p>}
+        {l.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{l.nota}</p>}
         <p className="mt-1 text-[9.5px] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
         <Pie d={{ impreso }} derecha={`zamorApp · ${def.corto}`} />
       </Hoja>

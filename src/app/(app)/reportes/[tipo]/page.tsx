@@ -126,7 +126,7 @@ export default async function ReporteSame({ params, searchParams }: Props) {
           envio={l.sesion.clinico ? { fecha: hoyCaracas(), contactos, plantillas, correo: remitenteVisible(), puedeAutorizar: l.sesion.rol === "administrador" || l.sesion.rol === "gerente_medico" } : null}
         />
       ) : l.pivote ? <TablaPivote p={l.pivote} /> : <TablaReporte columnas={l.columnas} filas={l.filas} totales={l.totales} />}
-      {def.nota && <p className="text-xs text-muted-foreground">{def.nota}</p>}
+      {l.nota && <p className="text-xs text-muted-foreground">{l.nota}</p>}
       <p className="text-xs text-muted-foreground">Solo cuentan las consultas cerradas o firmadas; las que están en curso no entran en los reportes.</p>
     </div>
   );

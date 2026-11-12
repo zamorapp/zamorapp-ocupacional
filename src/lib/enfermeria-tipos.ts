@@ -50,4 +50,7 @@ export function nivelTension(ta: string | null | undefined): "alta" | "crisis" |
 }
 
 // Decisiones del médico (organizaciones.ajustes). Las dos empiezan apagadas.
-export type AjustesEnfermeria = { enfermeria_unida?: boolean; enfermeria_vigilancia?: boolean };
+export type AjustesEnfermeria = { enfermeria_unida?: boolean; enfermeria_vigilancia?: boolean; enfermeria_tasas?: boolean };
+// Decisiones del médico sobre enfermería (organizaciones.ajustes); todas apagadas por defecto
+export const CLAVES_DECISION_ENFERMERIA = ["enfermeria_unida", "enfermeria_vigilancia", "enfermeria_tasas"] as const;
+export type ClaveDecisionEnfermeria = (typeof CLAVES_DECISION_ENFERMERIA)[number];

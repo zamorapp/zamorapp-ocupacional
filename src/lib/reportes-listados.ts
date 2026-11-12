@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
+import { ajustesEnfermeria } from "@/lib/enfermeria";
 import { listarEmpresas } from "@/lib/empresas";
 import { opciones } from "@/lib/listas";
 import { periodoDeConsulta, type ConsultaPeriodo } from "@/lib/periodos";
@@ -180,6 +181,9 @@ export async function cargarListado(clave: string, q: ConsultaReporte) {
   const pOpciones = Object.fromEntries(
     (def.opciones ?? []).filter((o) => o.sql && opc[o.k]).map((o) => [o.k, /^\d+$/.test(opc[o.k]) ? Number(opc[o.k]) : opc[o.k] === "true" ? true : opc[o.k]]),
   );
+  // Tasas de enfermería: solo si el médico las activó (si no, la base ni las calcula)
+  const tasas = def.columnas.some((c) => c.requiere === "enfermeria_tasas") && (await ajustesEnfermeria()).enfermeria_tasas === true;
+  if (tasas) pOpciones.tasas = true;
   const ver = (q.ver ?? "").split(",").filter((k) => def.columnas.some((c) => c.opcional && c.k === k));
   const listo = supabaseConfigurado && !sesion.demo;
 
@@ -251,7 +255,8 @@ export async function cargarListado(clave: string, q: ConsultaReporte) {
     opc,
     ver,
     listo,
-    columnas: columnasVista(def, { sinClinico: Boolean(def.clinico && !sesion.clinico), ver, agrupado: opc.agrupar || undefined }),
+    columnas: columnasVista(def, { sinClinico: Boolean(def.clinico && !sesion.clinico), ver, agrupado: opc.agrupar || undefined, tasas }),
+    nota: [def.nota, tasas && def.notaTasas].filter(Boolean).join(" ") || undefined,
     // Columna por la que se agrupa la impresión: el grupo de la morbilidad o, en el consolidado, la empresa
     agrupar: opc.agrupar ? "grupo" : !empresa && !def.pivote && def.columnas.some((c) => c.k === "empresa") ? "empresa" : null,
     filas,
