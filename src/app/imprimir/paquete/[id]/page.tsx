@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { copiaDeUrl, datosCompletarRecipe, faltantesRecipe, obtenerAnexos, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
 import { CompletarRecipe } from "../../completar-recipe";
-import { opcionesDe } from "@/lib/documentos-opciones";
+import { opcionesDe, revisionDeUrl } from "@/lib/documentos-opciones";
 import { OpcionesImpresion } from "../../opciones";
 import { Anexos } from "../../anexos";
 import { BarraImpresion } from "../../barra";
@@ -15,12 +15,12 @@ export const metadata: Metadata = { title: "Documentos de la consulta" };
 // Todos los documentos que aplican a la consulta en una sola impresión (uno por hoja):
 // constancia si hay aptitud, reposo si está activo, récipe si hay tratamiento completo, orden si hay paraclínicos y referencia si hay interconsultas.
 // Al final, los exámenes escaneados de la consulta.
-export default async function Paquete({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sin?: string; copia?: string }> }) {
+export default async function Paquete({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sin?: string; copia?: string; rev?: string }> }) {
   const { id } = await params;
-  const { sin, copia } = await searchParams;
+  const { sin, copia, rev } = await searchParams;
   const base = await obtenerDocumento(id);
   if (!base) notFound();
-  const d = { ...base, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
+  const d = { ...base, impreso: { ...base.impreso, mostrarRevision: revisionDeUrl(rev) }, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const tratamiento = d.datos.tratamiento.some((m) => m.medicina);
   const faltan = tratamiento ? faltantesRecipe(d) : [];
   const docs = [
@@ -37,7 +37,7 @@ export default async function Paquete({ params, searchParams }: { params: Promis
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
       <BarraImpresion volver={`/atencion/${id}`} titulo={`${docs.length} documento${docs.length === 1 ? "" : "s"}${anexos.length ? ` + ${anexos.length} escaneado${anexos.length === 1 ? "" : "s"}` : ""} · ${d.trabajador.nombre}`} bloqueado={!total} esperarAnexos={anexos.length > 0} siguiente={siguiente ? <SiguientePaciente siguiente={siguiente} /> : undefined} />
-      {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} copia={d.datos.aptitud.clasificacion ? d.copia : undefined} />}
+      {docs.length > 0 && <OpcionesImpresion disponibles={opcionesDe("paquete")} copia={d.datos.aptitud.clasificacion ? d.copia : undefined} revision={base.impreso.revision} />}
       {faltan.length > 0 && <CompletarRecipe {...await datosCompletarRecipe(d)} enPaquete />}
       {total === 0 && <p className="mx-auto max-w-2xl rounded-lg bg-white p-6 text-center text-sm">Esta consulta no tiene constancia, reposo, récipe ni orden para imprimir. Usa el informe desde la consulta.</p>}
       {docs.map(({ clave, Componente }) => <Componente key={clave} d={d} />)}

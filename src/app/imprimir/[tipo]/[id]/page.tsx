@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { copiaDeUrl, datosCompletarRecipe, faltantesRecipe, obtenerDocumento, opcionesDeUrl } from "@/lib/documentos";
 import { CompletarRecipe } from "../../completar-recipe";
-import { opcionesDe } from "@/lib/documentos-opciones";
+import { opcionesDe, revisionDeUrl } from "@/lib/documentos-opciones";
 import { OpcionesImpresion } from "../../opciones";
 import { BarraImpresion } from "../../barra";
 import { ConstanciaAtencion } from "../../documentos";
@@ -21,7 +21,7 @@ import { versionesHojas } from "@/lib/hojas-version-servidor";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 
-type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string; rev?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
@@ -30,12 +30,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Imprimir({ params, searchParams }: Props) {
   const { tipo, id } = await params;
-  const { dx, sin, copia, dias, plan, tema, dieta, c } = await searchParams;
+  const { dx, sin, copia, dias, plan, tema, dieta, c, rev } = await searchParams;
   const t = TIPOS[tipo as keyof typeof TIPOS];
   if (!t) notFound();
   const base = await obtenerDocumento(id);
   if (!base) notFound();
-  const d = { ...base, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
+  const d = { ...base, impreso: { ...base.impreso, mostrarRevision: revisionDeUrl(rev) }, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const faltan = tipo === "recipe" ? faltantesRecipe(d) : [];
   const sesion = await obtenerSesion();
   // Dieta y bienestar: la versión propia del servicio, con los cambios de esta consulta encima
@@ -49,7 +49,7 @@ export default async function Imprimir({ params, searchParams }: Props) {
         <CompletarRecipe {...await datosCompletarRecipe(d)} />
       ) : (
         <>
-          <OpcionesImpresion disponibles={opcionesDe(tipo)} copia={tipo === "constancia" ? d.copia : undefined} />
+          <OpcionesImpresion disponibles={opcionesDe(tipo)} copia={tipo === "constancia" ? d.copia : undefined} revision={base.impreso.revision} />
           {tipo === "atencion" && d.datos.diagnosticos.length > 0 && (
             <div className="mx-auto -mt-3 mb-4 flex max-w-[216mm] justify-end px-1 text-sm print:hidden">
               <Link href={`/imprimir/atencion/${id}?${new URLSearchParams({ ...(dx === "1" ? {} : { dx: "1" }), ...(sin ? { sin } : {}) })}`} replace className="rounded-full border bg-white px-3 py-1 hover:border-primary">

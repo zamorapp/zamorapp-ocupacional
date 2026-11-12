@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 
 // Qué incluir en esta impresión (como las casillas del SAME). Se guarda en la URL (?sin=…, ?copia=1|0) y no cambia la configuración.
 // copia: estado actual de la copia de la constancia para el servicio médico (undefined = el documento no la tiene)
-export function OpcionesImpresion({ disponibles, copia }: { disponibles: OpcionImpresion[]; copia?: boolean }) {
+// revision: número de revisión de la consulta (>1 muestra la casilla «Aviso de revisión», apagada por defecto)
+export function OpcionesImpresion({ disponibles, copia, revision }: { disponibles: OpcionImpresion[]; copia?: boolean; revision?: number }) {
   const router = useRouter();
   const ruta = usePathname();
   const q = useSearchParams();
@@ -23,6 +24,13 @@ export function OpcionesImpresion({ disponibles, copia }: { disponibles: OpcionI
   const alternarCopia = () => {
     const p = new URLSearchParams(q);
     p.set("copia", copia ? "0" : "1");
+    ir(p);
+  };
+  const conRevision = q.get("rev") === "1";
+  const alternarRevision = () => {
+    const p = new URLSearchParams(q);
+    if (conRevision) p.delete("rev");
+    else p.set("rev", "1");
     ir(p);
   };
   const chip = (activo: boolean) => cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 transition", activo ? "border-primary bg-primary/10 text-primary" : "bg-white text-muted-foreground line-through decoration-1 hover:border-primary/50");
@@ -46,6 +54,11 @@ export function OpcionesImpresion({ disponibles, copia }: { disponibles: OpcionI
       {copia !== undefined && (
         <button type="button" aria-pressed={copia} onClick={alternarCopia} className={chip(copia)} title="Segunda hoja igual, marcada «Copia · Servicio médico»">
           {copia && <Check className="size-3.5" />} Copia para el servicio médico
+        </button>
+      )}
+      {(revision ?? 1) > 1 && (
+        <button type="button" aria-pressed={conRevision} onClick={alternarRevision} className={chip(conRevision)} title={`Pie de hoja: «Revisión ${revision}: reemplaza los impresos anteriores»`}>
+          {conRevision && <Check className="size-3.5" />} Aviso de revisión {revision}
         </button>
       )}
     </div>
