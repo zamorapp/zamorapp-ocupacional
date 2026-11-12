@@ -295,7 +295,7 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 // Chromium 141 del CI, «page: consulta» hacía salir la consulta en 3 hojas. Por eso va en el @page general y solo
 // cuando la impresión es UN documento (el lote lo apaga: mezclaría el nombre de otro trabajador en sus hojas).
 // El texto entra en una cadena CSS: se quitan comillas, barras, < > y saltos para que nunca rompa la regla ni la etiqueta
-function IdentHojas({ texto }: { texto: string }) {
+export function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
   const css = `@page { @top-left { content: "${limpio} · Hoja " counter(page) " de " counter(pages); font: 8px ui-monospace, Consolas, monospace; color: #55625f; } }
 @page :first { @top-left { content: ""; } }`;
