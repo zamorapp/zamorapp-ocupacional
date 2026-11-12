@@ -1,6 +1,6 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import { EQUILIBRIO, PAUSAS, REGISTRO_PAUSAS, TEMAS, temasBienestar } from "@/lib/bienestar";
-import { DefsFiguras, FiguraEquilibrio, FiguraPausa } from "./figuras";
+import { DefsFiguras, FiguraEquilibrio, FiguraPausa, FiguraTema } from "./figuras";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, FirmaMedico, Firmas, Ficha, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
@@ -211,7 +211,10 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
         const sinAlarma = t.grupos.some((g) => g.alarma) && t.grupos.every((g, i) => !g.alarma || !listas[i].length);
         return (
         <div key={t.clave} data-prueba={`tema-${t.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
-          <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{t.titulo}</div>
+          <div className="mb-1 flex items-center gap-3">
+            <FiguraTema clave={t.clave} />
+            <div className="text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{t.titulo}</div>
+          </div>
           <div className={t.grupos.length > 1 ? "grid grid-cols-2 gap-4" : ""}>
             {t.grupos.map((g, i) => (
               // Señales de alarma: recuadro con borde y en negrita, para que se vean de un vistazo
@@ -227,6 +230,7 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
         );
       })}
 
+      <div className="break-inside-avoid [break-before:avoid]">
       <Firmas compacto>
         <div className="min-w-0 flex-1 self-stretch">
           <Bloque titulo="Indicaciones del médico">
@@ -237,6 +241,7 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
         </div>
         <FirmaMedico d={d} compacto />
       </Firmas>
+      </div>
       <Pie d={d} derecha={`Folio ${folio("BI", d.datos.id)}`} />
     </Hoja>
   );

@@ -209,3 +209,85 @@ export function FiguraEquilibrio({ nombre, className = "" }: { nombre: string; c
   if (!f) return null;
   return <svg viewBox={CAJAS[nombre] ?? "0 0 200 120"} className={`overflow-visible ${className}`} aria-hidden>{f}</svg>;
 }
+
+// 120 × 80: una figura por tema (encabezado de cada tema)
+const TEMAS_FIG: Record<string, React.ReactNode> = {
+  // Acostado girando la cabeza: el giro aparece con el cambio de posición
+  vppb: (
+    <>
+      <path d="M8 62 L112 62" stroke={G} strokeWidth={7} strokeLinecap="round" />
+      <circle cx={28} cy={48} r={9} fill="#fff" stroke={T} strokeWidth={3} />
+      <path d="M38 52 L92 54 L108 56" stroke={T} strokeWidth={4} strokeLinecap="round" fill="none" />
+      <path d="M22 30 a8 8 0 1 1 8 8 a5 5 0 1 1 -4 -5" stroke={N} strokeWidth={2.6} fill="none" strokeLinecap="round" />
+      <path d="M60 22 Q74 10 88 22" stroke={N} strokeWidth={3} fill="none" strokeLinecap="round" markerEnd="url(#fig-flecha)" />
+    </>
+  ),
+  // Oído con gotas y zumbido
+  meniere: (
+    <>
+      <path d="M46 14 Q74 10 76 38 Q77 54 64 58 Q58 60 58 68 Q57 76 48 74" stroke={T} strokeWidth={4} fill="#fff" strokeLinecap="round" />
+      <path d="M54 30 Q64 26 66 38 Q66 46 58 46" stroke={T} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <path d="M90 22 q6 8 0 16 M98 16 q10 14 0 28 M106 10 q14 20 0 40" stroke={N} strokeWidth={2.6} fill="none" strokeLinecap="round" />
+      <path d="M22 40 q5 -9 10 0 a5 5 0 1 1 -10 0z M30 58 q4 -7 8 0 a4 4 0 1 1 -8 0z" fill={V} />
+    </>
+  ),
+  // Cabeza que recibe señal fuerte de un oído y débil del otro
+  neuritis: (
+    <>
+      <circle cx={60} cy={42} r={22} fill="#fff" stroke={T} strokeWidth={3.5} />
+      <circle cx={53} cy={38} r={2.6} fill={T} /><circle cx={67} cy={38} r={2.6} fill={T} />
+      <path d="M53 50 Q60 54 67 50" stroke={T} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+      <path d="M30 30 q-8 12 0 24 M22 24 q-12 18 0 36" stroke={V} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <path d="M90 38 q3 4 0 8" stroke={N} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeDasharray="2 3" />
+      <path d="M44 10 Q60 0 76 10" stroke={N} strokeWidth={3} fill="none" strokeLinecap="round" markerStart="url(#fig-flecha)" markerEnd="url(#fig-flecha)" />
+    </>
+  ),
+  // Acostado con las piernas en alto
+  desmayo: (
+    <>
+      <path d="M8 64 L112 64" stroke={G} strokeWidth={7} strokeLinecap="round" />
+      <circle cx={22} cy={50} r={9} fill="#fff" stroke={T} strokeWidth={3} />
+      <path d="M32 54 L70 56 L86 34 L104 30" stroke={T} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M96 22 L96 8" stroke={N} strokeWidth={3} strokeLinecap="round" markerEnd="url(#fig-flecha)" />
+      <path d="M40 30 q4 -6 8 0 a4 4 0 1 1 -8 0z" fill={V} />
+    </>
+  ),
+  // De pie, con el movimiento del alrededor
+  mppp: (
+    <>
+      <circle cx={60} cy={16} r={8} fill="#fff" stroke={T} strokeWidth={3} />
+      <path d="M60 24 L60 50 M60 32 L48 44 M60 32 L72 44 M60 50 L54 74 M60 50 L66 74" stroke={T} strokeWidth={4} strokeLinecap="round" fill="none" />
+      <path d="M22 26 q-8 14 0 28 M98 26 q8 14 0 28 M14 20 q-12 20 0 40 M106 20 q12 20 0 40" stroke={N} strokeWidth={2.4} fill="none" strokeLinecap="round" />
+      <path d="M36 76 L84 76" stroke={V} strokeWidth={2.4} strokeLinecap="round" />
+    </>
+  ),
+  // Mirar el horizonte desde el vehículo
+  cinetosis: (
+    <>
+      <path d="M4 30 L116 30" stroke={V} strokeWidth={2} strokeDasharray="5 4" />
+      <path d="M14 58 L18 44 Q22 38 32 38 L70 38 Q78 38 84 46 L100 48 Q106 50 106 56 L106 62 L14 62 Z" fill="#fff" stroke={T} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M34 40 L38 30 L64 30 L70 40" stroke={T} strokeWidth={2.4} fill="#e6f2f0" />
+      <circle cx={32} cy={64} r={7} fill={T} /><circle cx={88} cy={64} r={7} fill={T} />
+      <path d="M50 22 Q56 16 62 22 Q56 28 50 22 z" fill="#fff" stroke={T} strokeWidth={2} /><circle cx={56} cy={22} r={2} fill={T} />
+    </>
+  ),
+  // Escalera con señal de alto y volante
+  "vertigo-trabajo": (
+    <>
+      <path d="M20 76 L34 6 M44 76 L58 6 M23 62 L47 62 M26 48 L50 48 M29 34 L53 34 M32 20 L56 20" stroke={T} strokeWidth={3.2} strokeLinecap="round" />
+      <circle cx={52} cy={26} r={13} fill="#fff" stroke="#b42318" strokeWidth={3.5} /><path d="M43 35 L61 17" stroke="#b42318" strokeWidth={3.5} />
+      <circle cx={92} cy={50} r={20} fill="none" stroke={T} strokeWidth={4} /><circle cx={92} cy={50} r={5} fill={T} />
+      <path d="M72 50 L87 50 M97 50 L112 50 M92 55 L92 70" stroke={T} strokeWidth={3.5} />
+    </>
+  ),
+};
+
+export function FiguraTema({ clave }: { clave: string }) {
+  const f = TEMAS_FIG[clave];
+  if (!f) return null;
+  return (
+    <span className="flex h-[17mm] w-[26mm] shrink-0 items-center justify-center rounded-lg bg-white/80">
+      <svg viewBox="0 0 120 80" className="h-[15mm] w-auto overflow-visible" aria-hidden>{f}</svg>
+    </span>
+  );
+}
