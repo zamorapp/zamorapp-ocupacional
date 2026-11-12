@@ -298,9 +298,9 @@ function ExamenCompacto({ funcional, fisico }: { funcional: FilaExamen[]; fisico
 export function IdentHojas({ texto }: { texto: string }) {
   const limpio = texto.replace(/["\\<>\r\n]/g, " ").replace(/\s+/g, " ").trim();
   // 7 pt y un solo renglón (Diseño, 12-nov): la identificación a la izquierda, ancha, y «Hoja N de M» aparte a la
-  // derecha (igual que la relación de atendidos)
-  const letra = "font: 7pt ui-monospace, Consolas, monospace; color: #55625f; white-space: nowrap;";
-  const css = `@page { @top-left { content: "${limpio}"; ${letra} width: 80%; } @top-right { content: "Hoja " counter(page) " de " counter(pages); ${letra} } }
+  // derecha (igual que la relación de atendidos). Un nombre larguísimo baja a un 2.º renglón en vez de pisar «Hoja N de M»
+  const letra = "font: 7pt ui-monospace, Consolas, monospace; color: #55625f;";
+  const css = `@page { @top-left { content: "${limpio}"; ${letra} width: 80%; } @top-right { content: "Hoja " counter(page) " de " counter(pages); ${letra} white-space: nowrap; } }
 @page :first { @top-left { content: ""; } @top-right { content: ""; } }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
