@@ -8,7 +8,7 @@
 -- 2. Las dos funciones públicas de resultados usan esa fecha.
 -- 3. Los avisos «Enlace abierto» y «Documentos descargados» llevan al historial (/atencion/enlaces).
 -- 4. Autolimpieza: los enlaces ya terminados (caducados, descartados o aceptados con el plazo de resultados cumplido) se
---    borran solos N días después de terminar (regla «enlaces_historial», 180 días, editable en Configuración > Limpieza).
+--    borran solos N días después de terminar (regla «enlaces_historial», 180 días, de 60 a 730, editable en Configuración > Limpieza).
 --    Igual que «Eliminar»: la ficha, la cita y los resultados que subió el paciente (clinico.adjuntos) no se tocan.
 -- 5. La pantalla final del paciente saluda con el nombre que escribió el servicio al crear el enlace.
 -- Los parches por texto quitan \r de ambos lados y revisan que el texto viejo aparezca exactamente una vez.
@@ -90,7 +90,9 @@ begin
 end $$;
 
 -- ===== 4. Autolimpieza de enlaces terminados =====
-insert into public.limpieza_plazos (clave, dias, minimo, maximo) values ('enlaces_historial', 180, 30, 730)
+-- Mínimo 60 días: lo que el paciente escribió (motivo, antecedentes, hábitos) se ofrece al abrir su consulta durante
+-- 60 días desde que lo llenó (atencion/acciones.ts); el borrado llega como pronto 30 + 60 = 90 días después.
+insert into public.limpieza_plazos (clave, dias, minimo, maximo) values ('enlaces_historial', 180, 60, 730)
 on conflict (clave) do nothing;
 
 -- Cuándo terminó un enlace (null = sigue en uso o por revisar). El que nunca se llenó lo limpia «enlaces_paciente».
