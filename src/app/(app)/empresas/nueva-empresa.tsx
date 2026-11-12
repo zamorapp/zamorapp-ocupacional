@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -237,7 +237,7 @@ export function FormEmpresa({ habilitado, empresa, dependencias = [] }: { habili
             {paso > 0 ? (
               <Button type="button" variant="ghost" className="mr-auto" onClick={() => ir(paso - 1)}><ChevronLeft /> Atrás</Button>
             ) : (
-              <Button type="button" variant="ghost" className="mr-auto" onClick={() => setAbierto(false)}>Cancelar</Button>
+              <DialogClose asChild><Button type="button" variant="ghost" className="mr-auto">Cancelar</Button></DialogClose>
             )}
             {crear && paso < ultimo && (
               <Button type="button" onClick={() => { if (pasoValido()) ir(paso + 1); }}>

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EntradaCargo } from "@/components/app/entrada-cargo";
@@ -109,7 +109,7 @@ export function NuevoPaciente({ habilitado, empresas, empresaInicial, tipos, car
             </div>
           )}
           <div className="flex justify-end gap-2 sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={() => setAbierto(false)}>Cancelar</Button>
+            <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
             <Button type="submit" disabled={enviando}>
               {enviando && <Loader2 className="animate-spin" />} Guardar paciente
             </Button>
