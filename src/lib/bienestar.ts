@@ -115,7 +115,20 @@ export const EQUILIBRIO = {
     "Hall CD y cols., Guía APTA de rehabilitación vestibular, J Neurol Phys Ther 2022;46:118. Brignole M y cols., Guía ESC 2018 de síncope, Eur Heart J 2018;39:1883. Edlow JA y cols., GRACE-3, Acad Emerg Med 2023;30:442.",
 };
 
-export type TemaBienestar = { clave: string; boton: string; titulo: string; grupos: { titulo?: string; alarma?: true; items: string[] }[]; fuente: string };
+// Ejercicio ilustrado de un tema (figura en imprimir/figuras.tsx) y comparación «así sí / así no»
+export type EjercicioTema = { figura: string; titulo: string; pasos: string[]; dosis: string[] };
+export type ComparaTema = { figura: string; bien: boolean; texto: string };
+// porque: la teoría («qué le pasa y por qué»); comparar y ejercicios: la práctica ilustrada; nota: aviso bajo los ejercicios.
+// Los grupos de siempre conservan su número (claves «<clave>-<n>» de ?c= y de la versión del servicio): lo nuevo va aparte
+export type TemaBienestar = {
+  clave: string; boton: string; titulo: string;
+  porque?: string[];
+  grupos: { titulo?: string; alarma?: true; items: string[] }[];
+  comparar?: ComparaTema[];
+  ejercicios?: EjercicioTema[];
+  nota?: string;
+  fuente: string;
+};
 
 // Temas que el médico agrega con un botón. «pausas» tiene su propio diseño (rutina por zona y registro)
 export const TEMAS: TemaBienestar[] = [
@@ -123,6 +136,12 @@ export const TEMAS: TemaBienestar[] = [
     clave: "lumbalgia",
     boton: "Lumbalgia",
     titulo: "Lumbalgia: cuidar la espalda baja en el trabajo",
+    porque: [
+      "Casi todos los dolores de la espalda baja vienen de músculos, ligamentos y articulaciones cansados o sobrecargados, no de una lesión grave. La mayoría mejora en 2 a 6 semanas.",
+      "Moverse acelera la recuperación: el músculo activo recibe más sangre y se relaja. El reposo en cama lo debilita y el dolor dura más.",
+      "En el trabajo lo provocan levantar o girar con peso, las posturas sostenidas (agachado, sentado o de pie muchas horas) y la vibración de vehículos y máquinas.",
+      "La faja no previene el dolor de espalda. Lo que protege es la buena técnica, las ayudas mecánicas y unos músculos fuertes.",
+    ],
     grupos: [
       {
         items: [
@@ -138,12 +157,32 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "NICE NG59, Low back pain and sciatica in over 16s (2016, actualizada 2020). Qaseem A y cols., Guía ACP 2017 de dolor lumbar, Ann Intern Med 2017;166:514. NIOSH, ecuación revisada de levantamiento de cargas (1994).",
+    comparar: [
+      { figura: "levantar-mal", bien: false, texto: "Doblado por la cintura, piernas rectas y la carga lejos del cuerpo." },
+      { figura: "levantar-bien", bien: true, texto: "Rodillas dobladas, espalda recta y la carga pegada al cuerpo." },
+      { figura: "sentado-mal", bien: false, texto: "Encorvado, sin apoyo en la cintura y la pantalla abajo." },
+      { figura: "sentado-bien", bien: true, texto: "Espalda apoyada, pies en el piso y la pantalla a la altura de los ojos." },
+    ],
+    ejercicios: [
+      { figura: "basculacion", titulo: "Báscula de pelvis", pasos: ["Boca arriba, rodillas dobladas.", "Apriete el abdomen y pegue la cintura al piso. Sostenga 5 segundos y suelte."], dosis: ["10 veces", "2 veces al día"] },
+      { figura: "rodillas-pecho", titulo: "Rodillas al pecho", pasos: ["Boca arriba, abrace una rodilla y llévela al pecho sin dolor.", "Luego la otra y después las dos juntas."], dosis: ["20 segundos", "3 veces cada una"] },
+      { figura: "gato-camello", titulo: "Gato y camello", pasos: ["En cuatro puntos, manos bajo los hombros.", "Suba la espalda mirando el ombligo; luego bájela suave mirando al frente."], dosis: ["10 veces, lento"] },
+      { figura: "puente", titulo: "Puente", pasos: ["Boca arriba, rodillas dobladas y brazos a los lados.", "Suba la cadera apretando los glúteos hasta alinear hombros, cadera y rodillas. Sostenga 5 segundos."], dosis: ["10 veces"] },
+      { figura: "brazo-pierna", titulo: "Brazo y pierna opuestos", pasos: ["En cuatro puntos, espalda recta como una mesa.", "Estire un brazo y la pierna contraria sin arquear la espalda. Sostenga 5 segundos y cambie."], dosis: ["8 veces cada lado"] },
+      { figura: "extension-pie", titulo: "Extensión de pie, en el trabajo", pasos: ["De pie, manos en la cintura y pies separados.", "Incline el tronco hacia atrás despacio y vuelva. Ideal tras estar agachado o sentado."], dosis: ["5 veces", "Cada 1 a 2 horas"] },
+    ],
+    nota: "Haga los ejercicios sin forzar: una molestia leve es normal; si el dolor baja por la pierna o aumenta, pare y consulte.",
+    fuente: "OMS, Guía para el manejo no quirúrgico del dolor lumbar crónico primario en adultos (2023). NICE NG59, Low back pain and sciatica in over 16s (2016, actualizada 2020). Qaseem A y cols., Guía ACP 2017 de dolor lumbar, Ann Intern Med 2017;166:514. NIOSH, ecuación revisada de levantamiento de cargas (1994) y Workplace use of back belts (1994).",
   },
   {
     clave: "cuello",
     boton: "Cervicalgia",
     titulo: "Cervicalgia y cervicobraquialgia: cuidar el cuello y los brazos",
+    porque: [
+      "La cabeza pesa unos 5 kilos. Cuando se adelanta para mirar una pantalla baja o el celular, el cuello y los hombros cargan varias veces ese peso y se contracturan.",
+      "Casi todos los dolores de cuello son mecánicos: mejoran en semanas con ejercicio, buena postura y pausas.",
+      "Si se irrita un nervio del cuello, el dolor baja al brazo con hormigueo o pérdida de fuerza (cervicobraquialgia).",
+    ],
     grupos: [
       {
         items: [
@@ -158,12 +197,33 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "Blanpied PR y cols., Guía de práctica clínica de dolor de cuello, J Orthop Sports Phys Ther 2017;47:A1. INSST (España), Guía técnica de pantallas de visualización de datos (2021).",
+    comparar: [
+      { figura: "pantalla-mal", bien: false, texto: "Pantalla baja: el cuello se dobla y la cabeza se adelanta." },
+      { figura: "sentado-bien", bien: true, texto: "Borde de la pantalla a la altura de los ojos, a un brazo de distancia." },
+      { figura: "celular-mal", bien: false, texto: "Celular a la altura de la cintura: cuello doblado mucho rato." },
+      { figura: "celular-bien", bien: true, texto: "Celular a la altura de los ojos y pausas para soltar el cuello." },
+    ],
+    ejercicios: [
+      { figura: "retraer-menton", titulo: "Mentón atrás", pasos: ["Sentado derecho, mirando al frente.", "Lleve el mentón hacia atrás, como haciendo doble mentón, sin bajar la cabeza. Sostenga 5 segundos."], dosis: ["10 veces", "3 veces al día"] },
+      { figura: "estirar-lado", titulo: "Estirar el lado del cuello", pasos: ["Incline la oreja hacia el hombro sin subir el hombro.", "La otra mano baja hacia el piso. Sostenga 20 segundos."], dosis: ["3 veces cada lado"] },
+      { figura: "girar-cabeza", titulo: "Girar la cabeza", pasos: ["Hombros quietos, gire despacio a mirar sobre un hombro.", "Sostenga 5 segundos y gire al otro lado."], dosis: ["5 veces cada lado"] },
+      { figura: "omoplatos", titulo: "Juntar los omoplatos", pasos: ["Codos doblados, hombros relajados.", "Lleve los omoplatos hacia atrás y abajo, como para sujetar un lápiz entre ellos. Sostenga 5 segundos."], dosis: ["10 veces"] },
+      { figura: "isometrico", titulo: "Fuerza sin mover el cuello", pasos: ["Palma en la frente: empuje la cabeza contra la mano sin que se mueva.", "Repita con la mano a cada lado y atrás de la cabeza."], dosis: ["5 segundos", "5 veces cada dirección"] },
+      { figura: "hombros-atras", titulo: "Círculos de hombros", pasos: ["Brazos sueltos a los lados.", "Haga círculos amplios con los hombros hacia atrás, sin prisa."], dosis: ["10 veces", "En cada pausa"] },
+    ],
+    nota: "Muévase sin dolor fuerte. Si aparece hormigueo en el brazo o mareo al girar la cabeza, pare y consulte.",
+    fuente: "Blanpied PR y cols., Guía de práctica clínica de dolor de cuello, J Orthop Sports Phys Ther 2017;47:A1. INSST (España), Guía técnica de pantallas de visualización de datos (2021). OSHA, Computer Workstations eTool.",
   },
   {
     clave: "venas",
-    boton: "Insuficiencia venosa",
-    titulo: "Insuficiencia venosa de miembros inferiores (várices)",
+    boton: "Insuficiencia venosa y dolor de piernas",
+    titulo: "Insuficiencia venosa (várices) y dolor de piernas por estar de pie o sentado",
+    porque: [
+      "Las venas de las piernas suben la sangre al corazón contra la gravedad, gracias a unas válvulas que no la dejan regresar y al bombeo de la pantorrilla al caminar.",
+      "De pie o sentado sin moverse, la pantorrilla no bombea: la sangre se acumula y al final de la jornada las piernas se hinchan, pesan, duelen y dan calambres.",
+      "Si las válvulas se dañan con los años aparecen várices, manchas oscuras y, sin cuidados, heridas que cuestan sanar. El movimiento y las medias frenan ese avance.",
+      "Estar de pie muchas horas también cansa músculos y pies: alternar la postura, el buen calzado y una alfombra antifatiga alivian el dolor.",
+    ],
     grupos: [
       {
         titulo: "En el trabajo",
@@ -186,12 +246,26 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "De Maeseneer MG y cols., Guía ESVS 2022 de enfermedad venosa crónica de miembros inferiores, Eur J Vasc Endovasc Surg 2022;63:184.",
+    ejercicios: [
+      { figura: "puntas-pie", titulo: "Puntas de pie", pasos: ["De pie, apoyado en una mesa o pared.", "Suba en puntas de pie y baje despacio: la pantorrilla bombea la sangre hacia arriba."], dosis: ["15 veces", "Cada hora"] },
+      { figura: "talon-punta", titulo: "Talón y punta, sentado", pasos: ["Sentado, pies en el piso.", "Levante las puntas y luego los talones, como si pisara un pedal."], dosis: ["20 veces", "Cada hora"] },
+      { figura: "circulos-tobillo", titulo: "Círculos de tobillo", pasos: ["Sentado, estire una pierna con el pie en el aire.", "Dibuje círculos con el pie hacia un lado y hacia el otro."], dosis: ["10 cada lado", "Cada pie"] },
+      { figura: "marcha", titulo: "Marcha en el sitio", pasos: ["De pie, levante las rodillas una y otra vez.", "Mueva los brazos y respire tranquilo."], dosis: ["1 minuto", "Cada hora de pie"] },
+      { figura: "piernas-arriba", titulo: "Piernas en alto", pasos: ["Acostado, apoye las piernas sobre almohadas, por encima del corazón.", "Mueva los tobillos de vez en cuando."], dosis: ["15 a 20 minutos", "Al llegar a casa"] },
+      { figura: "bicicleta", titulo: "Bicicleta acostado", pasos: ["Boca arriba, piernas en el aire.", "Pedalee despacio, como en una bicicleta."], dosis: ["1 minuto", "En casa"] },
+    ],
+    nota: "Si una sola pierna se hincha de repente, está caliente, roja o duele, no haga ejercicios: acuda a emergencia.",
+    fuente: "De Maeseneer MG y cols., Guía ESVS 2022 de enfermedad venosa crónica de miembros inferiores, Eur J Vasc Endovasc Surg 2022;63:184. CCOHS (Canadá), Working in a standing position.",
   },
   {
     clave: "hernias",
     boton: "Hernia umbilical o inguinal",
     titulo: "Hernia umbilical o inguinal: cuidados en el trabajo",
+    porque: [
+      "Una hernia es la salida de grasa o intestino por un punto débil de la pared del abdomen: el ombligo o la ingle.",
+      "Todo lo que sube la presión dentro del abdomen la empuja hacia afuera: levantar peso aguantando el aire, pujar, toser mucho o el sobrepeso.",
+      "La hernia no se cierra sola. Hasta que el cirujano decida, el objetivo es que no crezca ni se complique.",
+    ],
     grupos: [
       {
         items: [
@@ -206,6 +280,16 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    comparar: [
+      { figura: "levantar-mal", bien: false, texto: "Levantar doblado y aguantando el aire: la presión empuja la hernia." },
+      { figura: "levantar-bien", bien: true, texto: "Rodillas dobladas, carga pegada y soltando el aire al hacer fuerza." },
+    ],
+    ejercicios: [
+      { figura: "exhalar-fuerza", titulo: "Soltar el aire al hacer fuerza", pasos: ["Tome aire antes de levantar.", "Sople despacio mientras hace la fuerza; nunca aguante el aire."], dosis: ["Siempre que cargue"] },
+      { figura: "levantarse-de-lado", titulo: "Levantarse de la cama de lado", pasos: ["Gire de lado con las rodillas dobladas.", "Empújese con los brazos para sentarse, sin hacer abdominales."], dosis: ["Cada vez que se levante"] },
+      { figura: "caminar", titulo: "Caminar a diario", pasos: ["Camine a paso cómodo en terreno plano.", "Ayuda a bajar de peso y a evitar el estreñimiento."], dosis: ["30 minutos", "5 días por semana"] },
+    ],
+    nota: "No haga abdominales ni levante pesas sin permiso del médico. Si la hernia no se mete, se pone dura o morada, acuda a emergencia.",
     fuente: "HerniaSurge Group, International guidelines for groin hernia management, Hernia 2018;22:1. Henriksen NA y cols., Guía EHS/AHS de hernias umbilicales y epigástricas, Br J Surg 2020;107:171.",
   },
   {
@@ -373,6 +457,11 @@ export const TEMAS: TemaBienestar[] = [
     clave: "escoliosis",
     boton: "Escoliosis",
     titulo: "Escoliosis: espalda fuerte y sin dolor",
+    porque: [
+      "La escoliosis es una curva de la columna hacia un lado, a veces con giro de las vértebras. La mayoría de los adultos con curvas leves o moderadas trabajan y hacen vida normal.",
+      "El dolor no suele venir de la curva sino de músculos cansados por posturas sostenidas: por eso el ejercicio y las pausas son el mejor tratamiento.",
+      "Los músculos fuertes del abdomen, la espalda y los glúteos sostienen la columna como una faja natural.",
+    ],
     grupos: [
       {
         items: [
@@ -386,12 +475,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    comparar: [
+      { figura: "morral-mal", bien: false, texto: "Todo el peso en un solo hombro: la espalda se ladea." },
+      { figura: "morral-bien", bien: true, texto: "Morral en los dos hombros, pegado a la espalda y liviano." },
+    ],
+    ejercicios: [
+      { figura: "gato-camello", titulo: "Gato y camello", pasos: ["En cuatro puntos, manos bajo los hombros.", "Suba la espalda mirando el ombligo; luego bájela suave."], dosis: ["10 veces, lento"] },
+      { figura: "puente", titulo: "Puente", pasos: ["Boca arriba, rodillas dobladas.", "Suba la cadera apretando los glúteos y sostenga 5 segundos."], dosis: ["10 veces"] },
+      { figura: "brazo-pierna", titulo: "Brazo y pierna opuestos", pasos: ["En cuatro puntos, espalda recta.", "Estire un brazo y la pierna contraria sin arquear; sostenga 5 segundos."], dosis: ["8 veces cada lado"] },
+    ],
+    nota: "Los ejercicios propios de su curva se los enseña el fisioterapeuta; estos tres fortalecen la espalda de cualquier persona.",
     fuente: "SOSORT, Guías de manejo conservador de la escoliosis (Negrini S y cols., Scoliosis Spinal Disord 2018;13:3). NICE NG59, Low back pain and sciatica (2020).",
   },
   {
     clave: "rodilla",
     boton: "Dolor de rodilla",
     titulo: "Dolor de rodilla (gonalgia): cuidar la articulación",
+    porque: [
+      "La rodilla soporta varias veces el peso del cuerpo al subir escaleras, agacharse o arrodillarse. Con los años o por sobrecarga, el cartílago se desgasta (artrosis) o se irritan tendones y bolsas.",
+      "El músculo del muslo (cuádriceps) es el amortiguador de la rodilla: cuando está fuerte, la articulación sufre menos y duele menos.",
+      "El ejercicio es el tratamiento de primera línea según las guías: mejora el dolor tanto como muchos medicamentos y sin efectos adversos.",
+    ],
     grupos: [
       {
         titulo: "Cuidados",
@@ -413,12 +517,26 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    ejercicios: [
+      { figura: "cuadriceps-isometrico", titulo: "Apretar la rodilla", pasos: ["Boca arriba o sentado con la pierna estirada y una toalla enrollada bajo la rodilla.", "Apriete el muslo empujando la rodilla contra la toalla. Sostenga 5 segundos."], dosis: ["10 veces", "2 veces al día"] },
+      { figura: "elevar-pierna", titulo: "Elevar la pierna recta", pasos: ["Boca arriba, una rodilla doblada y la otra recta.", "Apriete el muslo y suba la pierna recta hasta la altura de la otra rodilla; baje despacio."], dosis: ["10 veces cada pierna"] },
+      { figura: "extension-sentado", titulo: "Estirar la rodilla sentado", pasos: ["Sentado en una silla firme.", "Estire la rodilla hasta dejar la pierna recta, sostenga 5 segundos y baje despacio."], dosis: ["10 veces cada pierna"] },
+      { figura: "sentarse-pararse", titulo: "Sentarse y pararse", pasos: ["Silla firme contra la pared.", "Párese y siéntese despacio; al principio puede ayudarse con las manos."], dosis: ["10 veces"] },
+      { figura: "escalon", titulo: "Subir un escalón", pasos: ["Frente al primer escalón, con la mano en el pasamanos.", "Suba con la pierna que duele, baje con la sana."], dosis: ["10 veces cada pierna"] },
+      { figura: "bicicleta-fija", titulo: "Bicicleta fija o caminar", pasos: ["Pedalee sin resistencia, o camine en terreno plano.", "Aumente el tiempo poco a poco."], dosis: ["20 a 30 minutos", "3 a 5 días por semana"] },
+    ],
+    nota: "Una molestia leve que pasa en menos de 2 horas es normal. Si la rodilla se hincha más al día siguiente, baje las repeticiones.",
     fuente: "OARSI, Guidelines for the non-surgical management of knee osteoarthritis (Bannuru RR y cols., Osteoarthritis Cartilage 2019;27:1578). NICE NG226, Osteoarthritis in over 16s (2022).",
   },
   {
     clave: "hombro",
     boton: "Dolor de hombro",
     titulo: "Dolor de hombro (manguito rotador): mover sin lastimar",
+    porque: [
+      "Los tendones del manguito rotador mueven y sostienen el hombro. Trabajar con los brazos en alto o repetir el mismo movimiento muchas horas los irrita y duelen al levantar el brazo.",
+      "Si se deja quieto, el hombro se pone rígido y pierde fuerza. El movimiento suave y el fortalecimiento progresivo son el tratamiento principal.",
+      "La mayoría mejora en semanas o pocos meses si se ajusta la tarea y se hacen los ejercicios a diario.",
+    ],
     grupos: [
       {
         items: [
@@ -432,12 +550,30 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    comparar: [
+      { figura: "brazos-arriba-mal", bien: false, texto: "Trabajar con los brazos por encima de los hombros." },
+      { figura: "plataforma-bien", bien: true, texto: "Subir a una plataforma para trabajar a la altura del pecho." },
+    ],
+    ejercicios: [
+      { figura: "pendulo", titulo: "Péndulo", pasos: ["Apoye la mano sana en una mesa e inclínese.", "Deje colgar el brazo que duele y haga círculos pequeños."], dosis: ["1 minuto", "3 veces al día"] },
+      { figura: "pared-dedos", titulo: "Dedos por la pared", pasos: ["De frente a la pared, a un brazo de distancia.", "Suba los dedos por la pared hasta donde no duela y baje despacio."], dosis: ["10 veces"] },
+      { figura: "rotacion-externa", titulo: "Rotación hacia afuera", pasos: ["Codo pegado al cuerpo y doblado en ángulo recto.", "Lleve la mano hacia afuera y vuelva despacio; luego con una liga elástica."], dosis: ["10 a 15 veces"] },
+      { figura: "omoplatos", titulo: "Juntar los omoplatos", pasos: ["Codos doblados, hombros relajados.", "Lleve los omoplatos hacia atrás y abajo. Sostenga 5 segundos."], dosis: ["10 veces"] },
+      { figura: "brazo-cruzado-g", titulo: "Brazo cruzado", pasos: ["Lleve el brazo al pecho, cruzado.", "Con la otra mano empújelo suave hacia usted. Sostenga 20 segundos."], dosis: ["3 veces cada lado"] },
+      { figura: "baston", titulo: "Subir con un palo", pasos: ["De pie o acostado, tome un palo de escoba con las dos manos.", "El brazo sano ayuda a subir el que duele por encima de la cabeza."], dosis: ["10 veces"] },
+    ],
+    nota: "Muévase hasta donde aparece una molestia leve, sin dolor fuerte. Si el dolor dura más de 2 horas después, haga menos.",
     fuente: "Hopman K y cols., Clinical practice guidelines for the management of rotator cuff syndrome in the workplace, Univ. de Nueva Gales del Sur (2013). Diercks R y cols., Guía del síndrome de dolor subacromial, Acta Orthop 2014;85:314.",
   },
   {
     clave: "muneca",
     boton: "Muñeca y túnel carpiano",
     titulo: "Muñeca y túnel carpiano: manos sin hormigueo",
+    porque: [
+      "Por el túnel carpiano, un canal estrecho de la muñeca, pasan los tendones de los dedos y el nervio mediano. Si los tendones se inflaman, el nervio queda apretado.",
+      "Por eso hay hormigueo o adormecimiento en el pulgar, el índice y el medio, sobre todo de noche o al agarrar con fuerza.",
+      "En el trabajo lo favorecen la muñeca doblada mucho rato, la fuerza repetida, las herramientas que vibran y el frío.",
+    ],
     grupos: [
       {
         items: [
@@ -450,12 +586,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    comparar: [
+      { figura: "muneca-mal", bien: false, texto: "Muñeca doblada hacia arriba al teclear o agarrar." },
+      { figura: "muneca-bien", bien: true, texto: "Muñeca recta, alineada con el antebrazo." },
+    ],
+    ejercicios: [
+      { figura: "mano-abrir", titulo: "Abrir y cerrar la mano", pasos: ["Cierre la mano en un puño suave.", "Ábrala estirando bien todos los dedos."], dosis: ["10 veces", "Cada hora"] },
+      { figura: "estirar-flexores", titulo: "Estirar la palma", pasos: ["Brazo al frente, palma hacia afuera y dedos arriba.", "Con la otra mano lleve los dedos hacia usted. Sostenga 20 segundos."], dosis: ["3 veces cada mano"] },
+      { figura: "estirar-extensores", titulo: "Estirar el dorso", pasos: ["Brazo al frente, palma hacia abajo.", "Con la otra mano baje los dedos hacia usted. Sostenga 20 segundos."], dosis: ["3 veces cada mano"] },
+    ],
+    nota: "Estire hasta sentir tensión, nunca hormigueo. Si el hormigueo aumenta con los ejercicios, pare y consulte.",
     fuente: "AAOS, Management of Carpal Tunnel Syndrome: Evidence-Based Clinical Practice Guideline (2016). INSST (España), Guía técnica de manipulación manual y movimientos repetitivos.",
   },
   {
     clave: "codo",
     boton: "Codo (epicondilitis)",
     titulo: "Dolor de codo (epicondilitis o «codo de tenista»)",
+    porque: [
+      "La epicondilitis es una sobrecarga de los tendones que mueven la muñeca y los dedos, donde se pegan al hueso del codo, por fuera.",
+      "Aparece con tareas de agarrar, torcer o apretar repetidas: herramientas, destornilladores, teclado, ratón, cargar bolsas con el brazo estirado.",
+      "El tendón se recupera con carga dosificada: ejercicios de fuerza lentos y progresivos, más que el reposo completo.",
+    ],
     grupos: [
       {
         items: [
@@ -469,12 +620,23 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    ejercicios: [
+      { figura: "estirar-extensores", titulo: "Estirar el antebrazo", pasos: ["Brazo al frente, palma hacia abajo.", "Con la otra mano baje los dedos hasta sentir tensión. Sostenga 20 segundos."], dosis: ["3 veces", "3 veces al día"] },
+      { figura: "peso-muneca", titulo: "Fortalecer el antebrazo", pasos: ["Antebrazo apoyado en la mesa, palma abajo y la mano fuera del borde.", "Con una botella pequeña de agua suba la muñeca y bájela muy despacio."], dosis: ["10 a 15 veces", "1 vez al día"] },
+      { figura: "apretar-pelota", titulo: "Apretar una pelota blanda", pasos: ["Tome una pelota blanda o una media enrollada.", "Apriétela, sostenga 5 segundos y suelte."], dosis: ["10 veces"] },
+    ],
+    nota: "Una molestia leve durante el ejercicio está permitida; si el codo duele más al día siguiente, use menos peso.",
     fuente: "NICE CKS, Tennis elbow. Lucado AM y cols., Lateral elbow pain CPG, JOSPT 2022;52:CPG1.",
   },
   {
     clave: "pie",
     boton: "Dolor de talón (fascitis)",
     titulo: "Dolor de talón (fascitis plantar)",
+    porque: [
+      "La fascia plantar es una banda firme bajo la planta que sostiene el arco del pie. Con muchas horas de pie, calzado duro o sobrepeso se irrita donde se pega al talón.",
+      "Por eso duele más en los primeros pasos de la mañana o al levantarse después de estar sentado.",
+      "Los estiramientos, el buen calzado y bajar la carga sobre el talón la alivian en la mayoría de las personas.",
+    ],
     grupos: [
       {
         items: [
@@ -488,6 +650,12 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    ejercicios: [
+      { figura: "estirar-pantorrilla", titulo: "Estirar la pantorrilla", pasos: ["Manos en la pared, una pierna atrás con el talón en el piso.", "Doble la rodilla de adelante hasta sentir el estiramiento atrás. Sostenga 30 segundos."], dosis: ["3 veces cada lado", "3 veces al día"] },
+      { figura: "estirar-fascia", titulo: "Estirar la planta", pasos: ["Sentado, pase una toalla por la punta del pie.", "Jale suave los dedos hacia usted. Sostenga 30 segundos."], dosis: ["3 veces", "Antes de pararse"] },
+      { figura: "rodar-botella", titulo: "Rodar una botella", pasos: ["Sentado, ponga una botella fría bajo la planta.", "Ruédela del talón a los dedos."], dosis: ["10 minutos", "Al final del día"] },
+    ],
+    nota: "Si el dolor es fuerte al apoyar o hay hinchazón o moretón, no estire: consulte.",
     fuente: "Koc TA y cols., Heel Pain – Plantar Fasciitis CPG, JOSPT 2023;53:CPG1. NICE CKS, Plantar fasciitis.",
   },
   {

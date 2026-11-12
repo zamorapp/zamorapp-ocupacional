@@ -1,7 +1,7 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import { EQUILIBRIO, PAUSAS, REGISTRO_PAUSAS, TEMAS, temasBienestar } from "@/lib/bienestar";
 import { IdentHojas } from "./documentos";
-import { DefsFiguras, FiguraEquilibrio, FiguraPausa, FiguraTema } from "./figuras";
+import { DefsFiguras, FiguraDolor, FiguraEquilibrio, FiguraPausa, FiguraTema } from "./figuras";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, FirmaMedico, Firmas, Ficha, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
@@ -185,7 +185,7 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
   const conEquilibrio = elegidos.includes("equilibrio");
   const nombres = [conPausas && "pausas activas", conEquilibrio && "ejercicios de equilibrio", ...otros.map((t) => t.boton.toLowerCase())].filter(Boolean).join(", ");
   // Pausas ilustradas y equilibrio ocupan dos hojas; con más temas la hoja fluye a las que hagan falta
-  const fluye = conPausas || conEquilibrio || otros.length > 2;
+  const fluye = conPausas || conEquilibrio || otros.length > 2 || otros.some((t) => t.ejercicios?.length || t.comparar?.length);
   const nombre = primerNombre(d.trabajador.nombre);
   const saludo = `${nombre ? `${nombre}, p` : "P"}reparamos estas recomendaciones para usted, para cuidar su salud en el trabajo y en casa. Léalas con calma y tráigalas a su próximo control.`;
   return (
@@ -213,11 +213,23 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
         const listas = t.grupos.map((g, i) => lista(cambios, `${t.clave}-${i}`, g.items));
         // Si al editar todas las señales de alarma quedaron vacías, se avisa (solo en pantalla)
         const sinAlarma = t.grupos.some((g) => g.alarma) && t.grupos.every((g, i) => !g.alarma || !listas[i].length);
+        const k = (x: string) => `${t.clave}-${x}`;
+        const ilustrado = !!(t.ejercicios?.length || t.comparar?.length);
         return (
-        <div key={t.clave} data-prueba={`tema-${t.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
+        // Un tema con ejercicios ocupa más de media hoja: puede partirse entre tarjetas, nunca dentro de una
+        <div key={t.clave} data-prueba={`tema-${t.clave}`} className={`mb-2 rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5 ${ilustrado ? "" : "break-inside-avoid"}`}>
+          {/* Encabezado y «por qué» van juntos: nunca queda el título solo al pie de una hoja */}
+          <div className="break-inside-avoid">
           <div className="mb-1 flex items-center gap-3">
             <FiguraTema clave={t.clave} />
             <div className="text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{t.titulo}</div>
+          </div>
+          {t.porque && (
+            <div className="mb-1.5 break-inside-avoid rounded-md bg-white/80 px-2.5 py-1">
+              <div className="mb-0.5 text-[10px] font-bold uppercase tracking-[.1em] text-doc-tenue">Qué le pasa y por qué</div>
+              <ListaEditable id={k("porque")} items={lista(cambios, k("porque"), t.porque)} columnas className="text-[12px] leading-[1.3]" />
+            </div>
+          )}
           </div>
           <div className={t.grupos.length > 1 ? "grid grid-cols-2 gap-4" : ""}>
             {t.grupos.map((g, i) => (
@@ -229,6 +241,49 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
             ))}
           </div>
           {sinAlarma && <p role="alert" className="mt-1 rounded bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-900 print:hidden">Esta hoja quedó sin señales de alarma</p>}
+          {t.comparar && (
+            <>
+              <div className="mt-1.5 mb-1 break-after-avoid text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Así no · así sí</div>
+              <div className="grid grid-cols-4 gap-2">
+                {t.comparar.map((c, i) => (
+                  <div key={c.figura} className={`break-inside-avoid overflow-hidden rounded-xl border bg-white ${c.bien ? "border-doc-acento/60" : "border-[#b42318]/50"}`}>
+                    <div className="relative flex h-[22mm] items-center justify-center">
+                      <span className={`absolute top-1 left-1.5 rounded-full px-1.5 text-[9.5px] font-extrabold text-white ${c.bien ? "bg-doc-acento" : "bg-[#b42318]"}`}>{c.bien ? "✓ Así sí" : "✗ Así no"}</span>
+                      <FiguraDolor nombre={c.figura} className="mt-2 h-[18mm] w-auto" />
+                    </div>
+                    <TextoEditable id={k(`c${i}`)} bloque valor={texto(cambios, k(`c${i}`), c.texto)} className="px-2 pb-1 text-[12px] leading-[1.25]" />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {t.ejercicios && (
+            <>
+              <div className="mt-1.5 mb-1 break-after-avoid text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Ejercicios · hágalos a diario</div>
+              <div className="grid grid-cols-3 gap-2">
+                {t.ejercicios.map((e, i) => (
+                  <div key={e.figura} className="flex break-inside-avoid flex-col overflow-hidden rounded-xl border border-doc-linea bg-white">
+                    <div className="relative flex h-[24mm] items-center justify-center bg-gradient-to-b from-[#f3faf9] to-doc-suave">
+                      <span className="absolute top-1.5 left-2 inline-flex size-5 items-center justify-center rounded-full bg-doc-acento text-[10.5px] font-extrabold text-white">{i + 1}</span>
+                      <FiguraDolor nombre={e.figura} className="h-[20mm] w-auto" />
+                    </div>
+                    <div className="flex flex-1 flex-col gap-0.5 px-2 py-1">
+                      <TextoEditable id={k(`e${i}t`)} bloque valor={texto(cambios, k(`e${i}t`), e.titulo)} className="text-[12.5px] font-extrabold leading-tight" />
+                      <ListaEditable id={k(`e${i}p`)} items={lista(cambios, k(`e${i}p`), e.pasos)} className="text-[12px] leading-[1.25]" />
+                      <div className="mt-auto flex flex-wrap gap-1 pt-0.5">
+                        {e.dosis.map((x, j) => (
+                          <span key={x} className={`rounded-full px-2 py-px text-[9.5px] font-bold ${j === 0 ? "bg-[#fdf0e5] text-[#9a4a12]" : "bg-doc-suave text-doc-acento"}`}>
+                            <TextoEditable id={k(`e${i}d${j}`)} valor={texto(cambios, k(`e${i}d${j}`), x)} />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {t.nota && <TextoEditable id={k("nota")} bloque valor={texto(cambios, k("nota"), t.nota)} className="mt-1.5 break-inside-avoid rounded-md border-l-[3px] border-[#e8833a] bg-[#fdf6ef] px-2.5 py-1 text-[12px] font-semibold leading-snug" />}
           <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {t.fuente}</p>
         </div>
         );
