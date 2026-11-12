@@ -713,6 +713,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           numerosLibres: bloques ? await bloques.libres() : null,
           respaldo: respaldo ? respaldo.estadoActual() : null,
           adjuntos: await adjuntos.contar(),
+          sincronizando: Boolean(replica.enCurso || bandeja?.enCurso),
           actualizar: Boolean(nube.incompatible), incompatible: nube.incompatible, buscarActualizacion: buscar });
       }
       // Botones de la pantalla «hay una versión nueva» (solo desde la ventana de zamorApp): pedir la actualización
