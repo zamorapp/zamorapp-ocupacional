@@ -2,7 +2,7 @@
 // por zona del cuerpo y frecuencia), cuidados ocupacionales (lumbalgia, cuello, várices, hernias) y salud mental
 // (higiene mental, estrés, sobrecarga, acoso, inteligencia emocional, meditación, gerentes). Cada tema lleva su fuente. Antes de imprimir, el médico puede tocar cualquier texto y cambiarlo.
 
-export type EjercicioPausa = { hacer: string; dosis: string };
+export type EjercicioPausa = { figura: string; hacer: string; dosis: string };
 export type ZonaPausa = { zona: string; ejercicios: EjercicioPausa[] };
 
 export const PAUSAS = {
@@ -15,56 +15,105 @@ export const PAUSAS = {
   // Textos cortos (una línea con letra de 9 pt): la rutina completa tiene que caber en una carta
   zonas: [
     { zona: "Cuello", ejercicios: [
-      { hacer: "Oreja al hombro, sin subirlo", dosis: "10 s c/lado" },
-      { hacer: "Mentón al pecho y volver despacio", dosis: "5 veces" },
-      { hacer: "Girar y mirar sobre cada hombro", dosis: "5 c/lado" },
+      { figura: "oreja-hombro", hacer: "Oreja al hombro, sin subirlo", dosis: "10 s c/lado" },
+      { figura: "menton-pecho", hacer: "Mentón al pecho y volver despacio", dosis: "5 veces" },
+      { figura: "mirar-hombro", hacer: "Girar y mirar sobre cada hombro", dosis: "5 c/lado" },
     ] },
     { zona: "Hombros", ejercicios: [
-      { hacer: "Subir los hombros y soltarlos", dosis: "10 veces" },
-      { hacer: "Círculos de hombros hacia atrás", dosis: "10 veces" },
-      { hacer: "Brazo cruzado sobre el pecho", dosis: "15 s c/lado" },
+      { figura: "subir-hombros", hacer: "Subir los hombros y soltarlos", dosis: "10 veces" },
+      { figura: "circulos-hombros", hacer: "Círculos de hombros hacia atrás", dosis: "10 veces" },
+      { figura: "brazo-cruzado", hacer: "Brazo cruzado sobre el pecho", dosis: "15 s c/lado" },
     ] },
     { zona: "Brazos y muñecas", ejercicios: [
-      { hacer: "Palma arriba: bajar los dedos", dosis: "15 s c/lado" },
-      { hacer: "Palma abajo: bajar el dorso", dosis: "15 s c/lado" },
-      { hacer: "Círculos lentos de muñecas", dosis: "10 veces" },
+      { figura: "palma-arriba", hacer: "Palma arriba: bajar los dedos", dosis: "15 s c/lado" },
+      { figura: "palma-abajo", hacer: "Palma abajo: bajar el dorso", dosis: "15 s c/lado" },
+      { figura: "circulos-munecas", hacer: "Círculos lentos de muñecas", dosis: "10 veces" },
     ] },
     { zona: "Manos y dedos", ejercicios: [
-      { hacer: "Abrir la mano y cerrar el puño suave", dosis: "10 veces" },
-      { hacer: "Pulgar a la punta de cada dedo", dosis: "3 rondas" },
-      { hacer: "Sacudir las manos sueltas", dosis: "10 s" },
+      { figura: "abrir-cerrar", hacer: "Abrir la mano y cerrar el puño suave", dosis: "10 veces" },
+      { figura: "pulgar-dedos", hacer: "Pulgar a la punta de cada dedo", dosis: "3 rondas" },
+      { figura: "sacudir-manos", hacer: "Sacudir las manos sueltas", dosis: "10 s" },
     ] },
     { zona: "Espalda alta y pecho", ejercicios: [
-      { hacer: "Manos atrás entrelazadas: abrir el pecho", dosis: "15 s" },
-      { hacer: "Manos al frente: redondear la espalda", dosis: "15 s" },
-      { hacer: "Juntar los omóplatos, codos atrás", dosis: "10 veces" },
+      { figura: "abrir-pecho", hacer: "Manos atrás entrelazadas: abrir el pecho", dosis: "15 s" },
+      { figura: "redondear-espalda", hacer: "Manos al frente: redondear la espalda", dosis: "15 s" },
+      { figura: "juntar-omoplatos", hacer: "Juntar los omóplatos, codos atrás", dosis: "10 veces" },
     ] },
     { zona: "Cintura y espalda baja", ejercicios: [
-      { hacer: "Manos en la cintura: inclinarse atrás", dosis: "5 veces" },
-      { hacer: "Brazo arriba: inclinarse al otro lado", dosis: "10 s c/lado" },
-      { hacer: "Sentado: girar el tronco", dosis: "10 s c/lado" },
+      { figura: "inclinarse-atras", hacer: "Manos en la cintura: inclinarse atrás", dosis: "5 veces" },
+      { figura: "inclinarse-lado", hacer: "Brazo arriba: inclinarse al otro lado", dosis: "10 s c/lado" },
+      { figura: "girar-tronco", hacer: "Sentado: girar el tronco", dosis: "10 s c/lado" },
     ] },
     { zona: "Piernas", ejercicios: [
-      { hacer: "Puntas de pie, apoyado en una silla", dosis: "15 veces" },
-      { hacer: "Talón a la nalga, apoyado", dosis: "15 s c/pierna" },
-      { hacer: "Sentado: estirar la pierna, punta arriba", dosis: "15 s c/pierna" },
+      { figura: "puntas-pie", hacer: "Puntas de pie, apoyado en una silla", dosis: "15 veces" },
+      { figura: "talon-nalga", hacer: "Talón a la nalga, apoyado", dosis: "15 s c/pierna" },
+      { figura: "estirar-pierna", hacer: "Sentado: estirar la pierna, punta arriba", dosis: "15 s c/pierna" },
     ] },
     { zona: "Ojos", ejercicios: [
-      { hacer: "Mirar un punto lejano", dosis: "20 s" },
-      { hacer: "Parpadear despacio", dosis: "10 veces" },
-      { hacer: "Mirar arriba, abajo y a los lados", dosis: "5 c/lado" },
+      { figura: "mirar-lejos", hacer: "Mirar un punto lejano", dosis: "20 s" },
+      { figura: "parpadear", hacer: "Parpadear despacio", dosis: "10 veces" },
+      { figura: "mirar-lados", hacer: "Mirar arriba, abajo y a los lados", dosis: "5 c/lado" },
     ] },
   ] as ZonaPausa[],
+  // Teoría breve: por qué sirven (pedido de Cesar, 12-nov: sumar contenido teórico, no quitar)
+  porque: [
+    "Pasar horas en la misma postura, sentado o de pie, cansa los músculos, endurece las articulaciones y frena la circulación de las piernas.",
+    "Los dolores de espalda, cuello, hombros y manos son las molestias de origen laboral más frecuentes; moverse a menudo es la forma más sencilla de prevenirlos.",
+    "Romper el tiempo sentado con movimiento, aunque sea corto, mejora la circulación, el azúcar en la sangre y el ánimo.",
+    "Fijar la vista en una pantalla reduce el parpadeo y seca los ojos: mirar lejos y parpadear los descansa.",
+  ],
   reglas: [
     "Lento, sin rebotes ni dolor; respire normal y termine con 3 respiraciones profundas.",
     "Si un ejercicio duele, no lo haga y avise al servicio médico. Con lesión, hernia o cirugía reciente, solo los que indique el médico.",
   ],
   fuente:
-    "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). Centro Canadiense de Salud y Seguridad Ocupacional (CCOHS), Office Ergonomics: Stretching (2023). Academia Americana de Oftalmología, regla 20-20-20 (2024).",
+    "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). EU-OSHA, Trastornos musculoesqueléticos relacionados con el trabajo: prevalencia, costes y demografía en la UE (2019). Centro Canadiense de Salud y Seguridad Ocupacional (CCOHS), Office Ergonomics: Stretching (2023). Academia Americana de Oftalmología, regla 20-20-20 (2024).",
 };
 
 // Días de la semana para marcar cada pausa hecha (4 por jornada)
 export const REGISTRO_PAUSAS = { dias: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"], pausas: 4 };
+
+// Ejercicios de equilibrio (rehabilitación vestibular) con figura: «equilibrio» tiene su propio diseño, como las pausas.
+// Cada ejercicio nombra su dibujo (imprimir/figuras.tsx). Las claves de ?c= empiezan con «equilibrio-».
+export type EjercicioEquilibrio = { figura: string; titulo: string; pasos: string[]; dosis: string[]; nivel: "Fácil" | "Medio" };
+export const EQUILIBRIO = {
+  intro: "Rutina para hacer en casa. Lento, con un apoyo firme cerca y sin prisa: el mareo leve mientras los hace es parte del entrenamiento.",
+  frecuencia: [
+    { cifra: "3 × día", texto: "mañana, tarde y noche" },
+    { cifra: "5–10 min", texto: "cada sesión, todos los días" },
+    { cifra: "15 min", texto: "si el mareo dura más que esto al terminar, hágalos más suave" },
+  ],
+  ejercicios: [
+    { figura: "cabeza-no", titulo: "Cabeza «no» con la mirada fija", pasos: ["Sentado, mire una letra pegada en la pared a un brazo de distancia.", "Gire la cabeza a los lados sin dejar de verla nítida."], dosis: ["1 minuto", "Luego de pie"], nivel: "Fácil" },
+    { figura: "cabeza-si", titulo: "Cabeza «sí» con la mirada fija", pasos: ["Igual que el anterior, mirando la misma letra.", "Mueva la cabeza arriba y abajo sin perderla de vista."], dosis: ["1 minuto", "Más rápido poco a poco"], nivel: "Fácil" },
+    { figura: "ojos-ab", titulo: "Ojos de un punto a otro", pasos: ["Dos letras a la altura de los ojos, separadas un palmo.", "Pase la vista de A a B solo con los ojos; luego ojos y cabeza juntos."], dosis: ["10 veces cada forma"], nivel: "Fácil" },
+    { figura: "pies-juntos", titulo: "De pie, pies juntos, junto a la pared", pasos: ["Párese con la pared o una mesa al alcance de la mano.", "Pies juntos, quieto. Cuando sea fácil, cierre los ojos."], dosis: ["30 segundos", "3 veces"], nivel: "Medio" },
+    { figura: "caminar-girando", titulo: "Caminar girando la cabeza", pasos: ["Camine en línea recta por un pasillo con buena luz.", "Gire la cabeza a un lado y al otro cada 3 pasos, con alguien al lado al principio."], dosis: ["2 a 3 minutos"], nivel: "Medio" },
+    { figura: "sentarse-pararse", titulo: "Sentarse y pararse sin manos", pasos: ["Silla firme contra la pared. Párese sin apoyar las manos.", "Quédese de pie 3 segundos y siéntese despacio."], dosis: ["5 veces"], nivel: "Medio" },
+  ] as EjercicioEquilibrio[],
+  levantarse: [
+    "Al despertar, quédese acostado 1 minuto y gire de lado.",
+    "Siéntese en el borde, pies en el piso, y espere 30 segundos.",
+    "Párese apoyado en algo firme y espere unos segundos antes de caminar.",
+  ],
+  desmayo: "De pie: cruce las piernas apretando los muslos y apriete los puños. Mejor aún: acuéstese con las piernas en alto.",
+  trabajo: [
+    "Nada de escaleras, andamios, techos ni bordes sin baranda.",
+    "No manejar ni operar máquinas hasta que el médico lo autorice.",
+    "Pisos secos, ordenados y con buena luz; evite giros bruscos de cabeza.",
+    "Si aparece el mareo: deténgase, siéntese o agárrese y avise.",
+  ],
+  alarma: [
+    "Dolor de cabeza o de cuello muy fuerte.",
+    "Visión doble o dificultad para hablar o tragar.",
+    "Debilidad o adormecimiento de un lado.",
+    "No puede pararse ni caminar.",
+    "Pierde la audición de golpe.",
+    "Se cae y se golpea la cabeza.",
+  ],
+  fuente:
+    "Hall CD y cols., Guía APTA de rehabilitación vestibular, J Neurol Phys Ther 2022;46:118. Brignole M y cols., Guía ESC 2018 de síncope, Eur Heart J 2018;39:1883. Edlow JA y cols., GRACE-3, Acad Emerg Med 2023;30:442.",
+};
 
 export type TemaBienestar = { clave: string; boton: string; titulo: string; grupos: { titulo?: string; alarma?: true; items: string[] }[]; fuente: string };
 
@@ -613,14 +662,300 @@ export const TEMAS: TemaBienestar[] = [
     ],
     fuente: "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). OMS, Alimentación sana: nota descriptiva (2020). OMS, HEARTS: paquete técnico para las enfermedades cardiovasculares (2018).",
   },
+  // Vértigo, mareos y equilibrio (12-nov-2026, auditados por el Dr. Zamora)
+  {
+    clave: "vppb",
+    boton: "Vértigo posicional",
+    titulo: "Vértigo posicional paroxístico benigno: cuando todo gira al moverse",
+    grupos: [
+      {
+        titulo: "Qué le pasa y cuidados",
+        items: [
+          "Es un vértigo corto (menos de 1 minuto) al acostarse, voltearse en la cama, mirar arriba o agacharse. No es grave y se corrige con una maniobra en el consultorio.",
+          "La maniobra que le hicieron funciona en la mayoría de los casos; si el vértigo sigue o vuelve, avise: se puede repetir.",
+          "Después de la maniobra puede dormir y moverse con normalidad; no hace falta dormir sentado ni usar collar.",
+          "Las pastillas para el mareo no curan este vértigo: úselas solo si se las indicaron y por pocos días.",
+          "Al levantarse de la cama: primero sentarse en el borde, esperar 30 segundos y luego pararse.",
+          "Puede volver con los años (1 de cada 2 personas en 5 años): si se repite, consulte para repetir la maniobra.",
+          "Si le indicaron vitamina D o calcio, tómelos: bajan las recaídas cuando la vitamina D está baja.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Mientras tenga vértigo: no subir a escaleras, techos ni andamios, y no manejar.",
+          "Evitar tareas mirando hacia arriba por mucho tiempo o agachándose de golpe; hacerlo despacio.",
+          "Si da vueltas en el trabajo: sentarse o agarrarse de algo firme, quedarse quieto y avisar.",
+        ],
+      },
+      {
+        titulo: "Consulte de inmediato si",
+        alarma: true,
+        items: [
+          "El vértigo dura horas sin moverse, o viene con dolor de cabeza fuerte, visión doble, dificultad para hablar, debilidad o adormecimiento de un lado, o no puede caminar.",
+        ],
+      },
+    ],
+    fuente: "Bhattacharyya N y cols., Guía AAO-HNSF de vértigo posicional paroxístico benigno (actualización), Otolaryngol Head Neck Surg 2017;156(3 Supl):S1. Jeong SH y cols., Vitamina D y recurrencia del VPPB, Neurology 2020;95:e1117.",
+  },
+  {
+    clave: "meniere",
+    boton: "Ménière",
+    titulo: "Enfermedad de Ménière: menos crisis, más control",
+    grupos: [
+      {
+        titulo: "Qué le pasa y por qué",
+        items: [
+          "El oído interno acumula más líquido del normal. Eso causa crisis de vértigo de 20 minutos a varias horas, con zumbido, oído tapado y baja de la audición.",
+          "No es contagiosa ni pone en peligro la vida; con el tratamiento y estos cuidados, la mayoría de las personas controla sus crisis.",
+        ],
+      },
+      {
+        titulo: "Cuidados diarios",
+        items: [
+          "Comer con poca sal: menos de 1 cucharadita al día en total (5 g). Evitar embutidos, enlatados, cubitos, salsas y comida rápida.",
+          "Repartir la sal y el agua a lo largo del día; no hacer comidas muy saladas de golpe.",
+          "Limitar el café, el té negro, los refrescos de cola y el alcohol; no fumar.",
+          "Dormir 7 a 8 horas y manejar el estrés: el cansancio y la tensión suelen desatar crisis.",
+          "Anotar cada crisis (fecha, duración, qué comió o hizo antes) y traer la nota al control.",
+          "Tomar el tratamiento como se lo indicaron, sin suspenderlo por su cuenta, y hacerse la audiometría de control.",
+          "Proteger los oídos del ruido: protectores auditivos en zonas ruidosas, también fuera del trabajo.",
+        ],
+      },
+      {
+        titulo: "Si viene una crisis",
+        items: [
+          "Al sentir zumbido, oído tapado o el inicio del giro: sentarse o acostarse enseguida en un lugar seguro.",
+          "Quedarse quieto con los ojos fijos en un punto; tomar el medicamento de rescate si se lo indicaron.",
+          "No manejar ni volver a la tarea hasta que pase por completo el mareo y el cansancio que deja.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Mientras las crisis no estén controladas: no trabajar en altura, cerca de bordes, agua profunda o máquinas en movimiento, ni manejar vehículos de la empresa.",
+          "Avisar al supervisor que puede tener crisis y acordar dónde sentarse y a quién llamar.",
+          "Tener agua a mano y respetar los horarios de comida.",
+        ],
+      },
+      {
+        titulo: "Consulte de inmediato si",
+        alarma: true,
+        items: [
+          "Pierde la audición de golpe, el vértigo dura más de 24 horas, se cae sin aviso o aparecen síntomas nuevos (visión doble, debilidad, dificultad para hablar).",
+        ],
+      },
+    ],
+    fuente: "Basura GJ y cols., Guía AAO-HNSF de enfermedad de Ménière, Otolaryngol Head Neck Surg 2020;162(2 Supl):S1. OMS, Reducción del consumo de sal (2023). NIOSH, Occupational noise exposure (1998).",
+  },
+  {
+    clave: "neuritis",
+    boton: "Neuritis vestibular",
+    titulo: "Neuritis vestibular: recuperar el equilibrio con ejercicios",
+    grupos: [
+      {
+        titulo: "Qué le pasa y por qué",
+        items: [
+          "Se inflama el nervio del equilibrio de un oído, casi siempre después de un virus. El cerebro recibe señales distintas de cada oído y por eso todo gira.",
+          "No es un derrame cerebral. Con movimiento y ejercicios, el cerebro aprende a compensar y el equilibrio vuelve.",
+        ],
+      },
+      {
+        titulo: "Cuidados",
+        items: [
+          "El vértigo fuerte mejora en días; el equilibrio se recupera en semanas si el cerebro practica. Moverse temprano acelera la mejoría.",
+          "Las pastillas para el mareo solo los primeros 2 a 3 días: usarlas más tiempo retrasa la recuperación.",
+          "Levantarse y caminar en casa desde que pueda, con apoyo al principio; no quedarse en cama.",
+          "Hacer a diario los ejercicios de equilibrio (hoja «Ejercicios de equilibrio»): 3 veces al día, 5 a 10 minutos.",
+          "Hidratarse bien y tomar completo el tratamiento indicado.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Volver por etapas: primero tareas en el piso, sentado o sin riesgo de caída.",
+          "No trabajar en altura, manejar ni operar máquinas hasta que el médico confirme que el equilibrio se recuperó.",
+          "Evitar al principio pantallas con mucho movimiento, pasillos con poca luz y pisos irregulares o mojados.",
+        ],
+      },
+      {
+        titulo: "Acuda a emergencia si",
+        alarma: true,
+        items: [
+          "Dolor de cabeza o de cuello intenso, visión doble, dificultad para hablar o tragar, debilidad o adormecimiento de un lado, no puede pararse ni caminar, o pierde la audición de golpe.",
+        ],
+      },
+    ],
+    fuente: "Hall CD y cols., Guía APTA de rehabilitación vestibular, J Neurol Phys Ther 2022;46:118. Strupp M y cols., Vestibulopatía unilateral aguda: criterios Bárány, J Vestib Res 2022;32:389. Edlow JA y cols., GRACE-3, Acad Emerg Med 2023;30:442.",
+  },
+  {
+    clave: "desmayo",
+    boton: "Mareo y desmayo",
+    titulo: "Mareo al levantarse o sensación de desmayo: cómo prevenirlo",
+    grupos: [
+      {
+        titulo: "Qué le pasa y por qué",
+        items: [
+          "Al pararse, la sangre baja a las piernas. Si la tensión no se ajusta a tiempo, llega menos sangre al cerebro: aparece mareo, vista nublada o desmayo.",
+          "El calor, la falta de agua o de comida, estar de pie mucho rato y algunos medicamentos lo favorecen.",
+        ],
+      },
+      {
+        titulo: "Cuidados",
+        items: [
+          "Levantarse en dos tiempos: sentarse 30 segundos, luego pararse y esperar unos segundos antes de caminar.",
+          "Tomar 2 a 3 litros de agua al día, más si hace calor o suda mucho (salvo que el médico indique otra cosa).",
+          "No pasar muchas horas sin comer; desayunar antes de la jornada.",
+          "Evitar el alcohol y las comidas muy abundantes, sobre todo al mediodía.",
+          "Al sentir que se va a desmayar: sentarse o acostarse con las piernas elevadas; si no puede, cruzar las piernas apretando los muslos y apretar los puños.",
+          "Si toma pastillas para la tensión, la próstata o para dormir, comentarlo en el control: pueden causar mareo.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "De pie mucho tiempo: mover las piernas, subir en puntas de pie y no trabar las rodillas.",
+          "Con calor: un vaso de agua (250 ml) cada 15 a 20 minutos aunque no tenga sed, pausas a la sombra y ropa clara y ligera.",
+          "Los primeros días en un puesto caluroso, empezar con menos carga y aumentar poco a poco.",
+          "Si se marea en la tarea: suspenderla, sentarse y avisar; no seguir en altura ni manejar.",
+        ],
+      },
+      {
+        titulo: "Acuda a emergencia si",
+        alarma: true,
+        items: [
+          "Se desmaya haciendo esfuerzo o acostado, tiene dolor en el pecho, palpitaciones fuertes o falta de aire, se golpea al caer, o se desmaya por segunda vez.",
+          "Con calor: confusión, piel muy caliente, deja de sudar o vómitos.",
+        ],
+      },
+    ],
+    fuente: "Brignole M y cols., Guía ESC 2018 de síncope, Eur Heart J 2018;39:1883. NIOSH, Occupational exposure to heat and hot environments (2016).",
+  },
+  {
+    clave: "mppp",
+    boton: "Mareo persistente",
+    titulo: "Mareo de todos los días: el equilibrio se puede reentrenar",
+    grupos: [
+      {
+        titulo: "Cuidados",
+        items: [
+          "Es un mareo o inestabilidad casi diaria por más de 3 meses, que empeora de pie, al caminar o con mucho movimiento alrededor (supermercados, pantallas, tráfico). Es real y tiene tratamiento.",
+          "Evitar lo que marea empeora el problema: exponerse poco a poco, unos minutos más cada día.",
+          "Hacer los ejercicios de equilibrio indicados todos los días, aunque al principio molesten un poco.",
+          "Caminar 20 a 30 minutos diarios mirando al frente y no al piso.",
+          "Cuidar el sueño y el estrés; la ansiedad y el mareo se alimentan entre sí. La terapia psicológica ayuda.",
+          "Si le indicaron un medicamento, tomarlo el tiempo completo: hace efecto después de varias semanas.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Con pantallas: brillo moderado, letra grande, evitar desplazamientos rápidos y aplicar la regla 20-20-20.",
+          "Pedir un puesto con buena luz y menos movimiento visual alrededor mientras mejora.",
+          "Seguir trabajando suele ayudar; la altura y el manejo dependen de la evaluación médica.",
+        ],
+      },
+      {
+        titulo: "Consulte pronto si",
+        alarma: true,
+        items: [
+          "Aparecen crisis de vértigo nuevas, pérdida de audición, caídas, o tristeza y angustia que no le dejan funcionar.",
+        ],
+      },
+    ],
+    fuente: "Staab JP y cols., Criterios del mareo postural perceptual persistente, Sociedad Bárány, J Vestib Res 2017;27:191. Popkirov S, Staab JP, Stone J, Pract Neurol 2018;18:5.",
+  },
+  {
+    clave: "cinetosis",
+    boton: "Mareo en viajes",
+    titulo: "Mareo en vehículos, lanchas y gabarras (cinetosis)",
+    grupos: [
+      {
+        titulo: "Qué le pasa y por qué",
+        items: [
+          "Los ojos y el oído interno le dan al cerebro información distinta sobre el movimiento. Ese choque produce náuseas, sudor frío y mareo.",
+          "No es una enfermedad: le pasa a casi todo el mundo en algún momento y mejora con la costumbre.",
+        ],
+      },
+      {
+        titulo: "Cuidados",
+        items: [
+          "Sentarse donde menos se mueve: adelante en el carro o autobús, en el centro y abajo en la embarcación.",
+          "Mirar el horizonte o un punto fijo lejano; no leer ni usar el teléfono en el trayecto.",
+          "Aire fresco en la cara; evitar olores fuertes y humo.",
+          "Comida ligera antes de viajar; nada de alcohol ni comidas grasosas.",
+          "El cuerpo se acostumbra con la exposición repetida: los primeros viajes son los peores.",
+          "Si le indicaron pastillas para el mareo, tomarlas 30 a 60 minutos antes de salir.",
+        ],
+      },
+      {
+        titulo: "En el trabajo",
+        items: [
+          "Las pastillas para el mareo dan sueño: con ellas no manejar, no operar máquinas ni trabajar en altura ese día.",
+          "Quien maneja casi nunca se marea: si es posible, rotar para que la persona que se marea maneje.",
+          "En traslados largos por agua o tierra, pausas para salir del vehículo y tomar agua.",
+        ],
+      },
+      {
+        titulo: "Consulte si",
+        alarma: true,
+        items: [
+          "El mareo sigue días después de bajar del vehículo o de la embarcación, o se acompaña de dolor de cabeza fuerte.",
+        ],
+      },
+    ],
+    fuente: "Golding JF, Motion sickness, Handb Clin Neurol 2016;137:371. CDC, Yellow Book: Motion sickness (2024).",
+  },
+  {
+    clave: "vertigo-trabajo",
+    boton: "Vértigo y trabajo seguro",
+    titulo: "Si tiene vértigo o mareos: cómo trabajar seguro",
+    grupos: [
+      {
+        titulo: "Qué le pasa y por qué",
+        items: [
+          "Un mareo de pocos segundos basta para una caída desde una escalera o para perder el control de un vehículo o una máquina.",
+          "Por eso, mientras haya vértigo o mareo, primero va la seguridad: la tarea se adapta hasta que el médico confirme que se recuperó.",
+        ],
+      },
+      {
+        titulo: "Altura, manejo y máquinas",
+        items: [
+          "No subir a escaleras, andamios, techos, torres ni plataformas mientras tenga vértigo o mareo, ni hasta que el médico lo autorice por escrito.",
+          "Tampoco trabajar cerca de fosas, tanques, bordes sin baranda ni en espacios confinados. Al volver a la altura: arnés con línea de vida y nunca solo.",
+          "Con crisis de vértigo que llegan de golpe y sin aviso: no manejar hasta que estén controladas.",
+          "Conductores de autobús, gandola o carga pesada: si la causa puede repetirse, se pide un año completo sin crisis antes de volver a manejar.",
+          "Si siente que empieza el mareo manejando: luces de emergencia, orillarse y detenerse.",
+          "No operar montacargas, grúas, sierras, prensas ni máquinas con partes en movimiento durante las crisis o con pastillas que den sueño.",
+        ],
+      },
+      {
+        titulo: "Qué hacer y a quién avisar",
+        items: [
+          "Preferir tareas sentado, en el piso y con apoyo firme cerca; pisos secos, ordenados y con buena luz.",
+          "Avisar al supervisor y al servicio médico de su condición; usted tiene derecho a negarse a una tarea que ponga en peligro su vida (LOPCYMAT).",
+          "Si aparece el vértigo en la tarea: detenerse, sentarse o sujetarse de algo firme, avisar y no reanudar hasta que pase y lo evalúen.",
+          "La empresa debe adaptar temporalmente el puesto mientras se recupera (LOPCYMAT).",
+        ],
+      },
+      {
+        titulo: "Acuda a emergencia si",
+        alarma: true,
+        items: [
+          "Se cae y se golpea la cabeza, o el vértigo viene con dolor de cabeza fuerte, visión doble, dificultad para hablar, debilidad de un lado o no puede caminar.",
+        ],
+      },
+    ],
+    fuente: "DVLA (Reino Unido), Assessing fitness to drive: neurological disorders, «Dizziness» (2025). LOPCYMAT (2005), arts. 53 y 56. Colombia, Resolución 4272 de 2021 sobre trabajo en alturas (referencia). Guías AAO-HNSF 2017 y 2020.",
+  },
 ];
 
 // Temas elegidos en la URL (?tema=pausas,estres). Sin parámetro, la hoja sale con las pausas activas
 export const temasBienestar = (texto: string | undefined) => {
   if (texto === undefined || texto === "") return ["pausas"];
-  const validas = ["pausas", ...TEMAS.map((t) => t.clave)];
+  const validas = ["pausas", "equilibrio", ...TEMAS.map((t) => t.clave)];
   const lista = texto.split(",").filter((c) => validas.includes(c));
   return lista.length ? lista : ["pausas"];
 };
 
-export const BOTONES_BIENESTAR = [{ clave: "pausas", boton: "Pausas activas" }, ...TEMAS.map(({ clave, boton }) => ({ clave, boton }))];
+export const BOTONES_BIENESTAR = [{ clave: "pausas", boton: "Pausas activas" }, { clave: "equilibrio", boton: "Ejercicios de equilibrio" }, ...TEMAS.map(({ clave, boton }) => ({ clave, boton }))];

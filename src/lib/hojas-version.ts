@@ -16,9 +16,9 @@ export const HOJAS_EDITABLES: HojaEditable[] = [
 export const hojaEditable = (codigo: string | undefined) => HOJAS_EDITABLES.find((h) => h.codigo === codigo) ?? null;
 
 // Claves de ?c= que pertenecen a cada hoja. «indicaciones» es de cada paciente: nunca va en la versión.
-const DE_PAUSAS = /^(intro|frec\d+|z\d+[ed]\d+|reglas)$/;
+const DE_PAUSAS = /^(intro|porque|frec\d+|z\d+[ed]\d+|reglas)$/;
 export function soloDeLaHoja(h: HojaEditable, cambios: Cambios): Cambios {
-  const propia = (k: string) => k !== "indicaciones" && (h.tipo === "dieta" ? true : h.clave === "pausas" ? DE_PAUSAS.test(k) : k.startsWith(`${h.clave}-`));
+  const propia = (k: string) => k !== "indicaciones" && k !== "saludo" && (h.tipo === "dieta" ? true : h.clave === "pausas" ? DE_PAUSAS.test(k) : k.startsWith(`${h.clave}-`));
   return Object.fromEntries(Object.entries(cambios).filter(([k]) => propia(k)));
 }
 
@@ -27,6 +27,10 @@ export function soloDeLaHoja(h: HojaEditable, cambios: Cambios): Cambios {
 export const SIN_ALARMAS = "Las señales de alarma no se pueden quitar. Puedes cambiar su texto, pero cada grupo de alarma debe tener al menos un renglón.";
 export function alarmasQuitadas(h: HojaEditable, cambios: Cambios): boolean {
   if (h.tipo !== "bienestar") return false;
+  if (h.clave === "equilibrio") {
+    const v = cambios["equilibrio-alarma"];
+    return Array.isArray(v) && (!v.length || v.some((x) => !x.trim()));
+  }
   const tema = TEMAS.find((t) => t.clave === h.clave);
   return !!tema?.grupos.some((g, i) => {
     const v = cambios[`${h.clave}-${i}`];
@@ -43,6 +47,7 @@ export function conVersion(versiones: Versiones | null | undefined, hoja: { diet
 // Para el buscador de Bienestar en «Hojas para el paciente»: cada tema en su área
 export const AREAS_BIENESTAR: { titulo: string; claves: string[] }[] = [
   { titulo: "Dolor y articulaciones", claves: ["pausas", "lumbalgia", "cuello", "escoliosis", "hombro", "codo", "muneca", "rodilla", "pie", "hernias", "venas"] },
+  { titulo: "Vértigo y equilibrio", claves: ["equilibrio", "vppb", "meniere", "neuritis", "desmayo", "mppp", "cinetosis", "vertigo-trabajo"] },
   { titulo: "Heridas y piel", claves: ["heridas", "quemaduras"] },
   { titulo: "Salud mental", claves: ["higiene", "estres", "ansiedad", "animo", "meditacion", "emocional", "sobrecarga", "acoso"] },
   { titulo: "Estilo de vida", claves: ["vida-sana", "sueno"] },
