@@ -75,6 +75,7 @@ export type SolicitudPaciente = {
   abierto?: string | null;
   descargo?: string | null;
   registrado?: boolean; // enlace enviado desde la ficha de un trabajador ya registrado
+  soloRegistro?: boolean; // el paciente llenó solo sus datos de registro, sin consulta (20261030929000)
 };
 
 // Paciente que ya tiene ficha con esa cédula (cualquier letra: V, E o P)
@@ -85,7 +86,7 @@ export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" |
 
 // registrado: el trabajador ya tiene ficha; no escribe datos (salvo lo que le falte) y el enlace le sirve para sus
 // documentos y para enviar sus resultados (20261030918000)
-export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false, registrado = false) {
+export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false, registrado = false, soloRegistro = false) {
   const primero = nombre?.trim().split(/\s+/)[0];
   const hola = primero ? `Hola ${primero}, ` : "Hola, ";
   // Descarga única (20261030915000): el trabajador sabe desde el mensaje que tiene 30 minutos tras la primera descarga
@@ -94,8 +95,8 @@ export function mensajePaciente(nombre: string | null, servicio: string, conDocu
     const que = conDocumentos ? "te envía tus documentos. Ábrelos con este enlace y, cuando tengas tus resultados, envíalos por el mismo enlace" : "te envía este enlace para que nos envíes tus resultados";
     return `${hola}${servicio} ${que} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
   }
-  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : "llenes tus datos y pidas tu consulta";
-  return `${hola}${servicio} te envía este enlace para que ${para}. Toma 5 minutos (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
+  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : soloRegistro ? "llenes tus datos de registro" : "llenes tus datos y pidas tu consulta";
+  return `${hola}${servicio} te envía este enlace para que ${para}. Toma ${soloRegistro ? "1 minuto" : "5 minutos"} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar

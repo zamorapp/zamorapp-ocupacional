@@ -110,12 +110,13 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           <>
             <TarjetaEnlace className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary)_70%,black)] p-5 text-primary-foreground">
               <span aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-white/10" />
-              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : "pide tu consulta"}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : catalogo?.solo_registro ? "regístrate en 1 minuto" : "pide tu consulta"}</h1>
               <p className="mt-1 text-sm opacity-90">{catalogo?.registrado
                 ? "Ábrelos y descárgalos. Cuando tengas tus resultados, vuelve a este mismo enlace para enviarlos."
+                : catalogo?.solo_registro ? "Llena tus datos y, si te prepararon documentos, te aparecen para descargar."
                 : "Llena tus datos para tu consulta y te confirmamos el día y la hora por WhatsApp."}</p>
               <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : "Toma 5 minutos"}</li>
+                <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : catalogo?.solo_registro ? "Toma 1 minuto" : "Toma 5 minutos"}</li>
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
