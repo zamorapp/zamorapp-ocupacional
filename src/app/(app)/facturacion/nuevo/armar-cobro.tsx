@@ -116,6 +116,11 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
         </CardHeader>
         <CardContent className="space-y-2 px-5 py-3">
           {extras.length === 0 && <p className="text-sm text-muted-foreground">Informes de vigilancia, asesorías por hora, evaluaciones de puestos, charlas…</p>}
+          {extras.length > 0 && (
+            <div aria-hidden className="hidden grid-cols-[minmax(0,2fr)_minmax(0,2fr)_6rem_7rem_auto] gap-2 text-xs font-medium text-muted-foreground sm:grid">
+              <span>Servicio</span><span>Detalle</span><span>Cant.</span><span>Precio $</span><span className="w-20" />
+            </div>
+          )}
           {extras.map((x, i) => (
             <div key={i} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_6rem_7rem_auto]">
               <select
@@ -130,8 +135,8 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
                 {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre} (por {ETIQUETA_UNIDAD[s.unidad]})</option>)}
               </select>
               <Input value={x.detalle} placeholder="Detalle (ej. informe del III trimestre)" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, detalle: e.target.value } : y)))} />
-              <Input type="number" min={0} step="0.5" value={x.cantidad} title="Cantidad u horas" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, cantidad: Number(e.target.value) } : y)))} />
-              <Input type="number" min={0} step="0.01" value={x.precioUsd} className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, precioUsd: Number(e.target.value) } : y)))} />
+              <label className="block"><span className="mb-1 block text-xs text-muted-foreground sm:hidden">Cant.</span><Input type="number" min={0} step="0.5" value={x.cantidad} aria-label="Cantidad u horas" title="Cantidad u horas" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, cantidad: Number(e.target.value) } : y)))} /></label>
+              <label className="block"><span className="mb-1 block text-xs text-muted-foreground sm:hidden">Precio $</span><Input type="number" min={0} step="0.01" value={x.precioUsd} aria-label="Precio en dólares" className="h-9" onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, precioUsd: Number(e.target.value) } : y)))} /></label>
               <Button type="button" size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => setExtras(extras.filter((_, j) => j !== i))}><Trash2 /> Quitar</Button>
             </div>
           ))}
