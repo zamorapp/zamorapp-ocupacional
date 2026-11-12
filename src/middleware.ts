@@ -69,6 +69,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/invitacion/")) return conTiempo(respuesta);
   // Enlace para que el paciente llene sus datos y pida su consulta: sin cuenta; la base valida el token
   if (request.nextUrl.pathname.startsWith("/registro/")) return conTiempo(respuesta);
+  // Revisión de nómina por RR. HH. sin cuenta (/nomina/<token>): la base valida el enlace en cada llamada
+  if (request.nextUrl.pathname.startsWith("/nomina/")) return conTiempo(respuesta);
   // Su PDF con firma y sello (GET /api/pdf?registro=<token>): sin cuenta; la ruta valida el token con la base.
   // El POST de /api/pdf (envíos del servicio) sigue exigiendo sesión.
   if (request.nextUrl.pathname === "/api/pdf" && request.method === "GET") return conTiempo(respuesta);
