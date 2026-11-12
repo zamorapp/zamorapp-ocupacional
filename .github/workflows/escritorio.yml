@@ -315,14 +315,26 @@ jobs:
             Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
             $raiz = [Windows.Automation.AutomationElement]::RootElement
             $todo = [Windows.Automation.Condition]::TrueCondition
-            $nombre = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, $boton)
+            # Solo el BOTÓN con ese nombre (el 12-nov el primer elemento «Cancelar» hallado no admitía Invoke)
+            $nombre = New-Object Windows.Automation.AndCondition(
+              (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, $boton)),
+              (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button)))
             for ($i = 0; $i -lt 16 -and -not $proc.HasExited; $i++) {
               foreach ($v in $raiz.FindAll([Windows.Automation.TreeScope]::Children, $todo)) {
                 if ($v.Current.ProcessId -ne $proc.Id) { continue }
                 foreach ($d in @($v) + @($v.FindAll([Windows.Automation.TreeScope]::Children, $todo))) {
                   if ($d.Current.Name -ne "Salir de zamorApp") { continue }
                   $b = $d.FindFirst([Windows.Automation.TreeScope]::Descendants, $nombre)
-                  if ($b) { $b.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true }
+                  if (-not $b) { continue }
+                  $patron = $null
+                  if ($b.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$patron)) { $patron.Invoke() }
+                  else {
+                    # Sin Invoke: se enfoca el botón y se pulsa Espacio, como con el teclado
+                    Add-Type -AssemblyName System.Windows.Forms
+                    $b.SetFocus(); [System.Windows.Forms.SendKeys]::SendWait(" ")
+                  }
+                  Write-Host "   Aviso «Salir de zamorApp»: pulsado «$boton»"
+                  return $true
                 }
               }
               Start-Sleep -Milliseconds 500
