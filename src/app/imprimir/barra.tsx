@@ -20,7 +20,7 @@ const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit"
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).
 // esperarAnexos: los botones se habilitan cuando los exámenes escaneados terminan de dibujarse (si no, saldrían en blanco).
 // trabajador: documento personal que también sale al celular del trabajador por WhatsApp (enlace de 7 días)
-export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio, trabajador, siguiente }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null; trabajador?: { consultaId: string; tipo: DocTrabajador; servicio: string } | null; siguiente?: React.ReactNode }) {
+export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio, trabajador, siguiente, alImprimir }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null; trabajador?: { consultaId: string; tipo: DocTrabajador; servicio: string } | null; siguiente?: React.ReactNode; alImprimir?: () => void }) {
   const [escritorio, setEscritorio] = useState(false);
   const fechaElegida = useFechaImpresion();
   const [ocupado, setOcupado] = useState<"imprimir" | "pdf" | null>(null);
@@ -39,7 +39,8 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio
     setError("");
     setOcupado(que);
     try {
-      if (que === "imprimir") await imprimirPagina();
+      // alImprimir: el escritorio imprime sin el evento «afterprint» del navegador; se avisa aquí al terminar
+      if (que === "imprimir") { await imprimirPagina(); alImprimir?.(); }
       else {
         const ruta = await guardarPdf(`${titulo} ${fechaElegida ? fechaArchivo(fechaElegida) : hoy()}`);
         if (ruta) setGuardado(ruta);

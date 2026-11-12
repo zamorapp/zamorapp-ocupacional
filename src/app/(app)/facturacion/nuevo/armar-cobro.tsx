@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { type Atencion, bs, ETIQUETA_UNIDAD, type ItemCobro, type Servicio, servicioParaMotivo, totales, usd } from "@/lib/facturacion-tipos";
 import { crearCobro } from "../acciones";
 
-type Props = { empresaId: string; desde: string; hasta: string; atenciones: Atencion[]; servicios: Servicio[]; tasa: number | null };
+type Props = { empresaId: string; desde: string; hasta: string; atenciones: Atencion[]; servicios: Servicio[]; tasa: number | null; aFactura?: boolean };
 
 const fecha = (iso: string) => iso.split("-").reverse().join("/");
 
-export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tasa }: Props) {
+export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tasa, aFactura = false }: Props) {
   // Cada atención propone el servicio de su motivo; se puede cambiar o excluir
   const [lineas, setLineas] = useState(() =>
     atenciones.map((a) => {
@@ -111,11 +111,11 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
           className="ml-auto"
           disabled={ocupado || items.length === 0 || sinServicio > 0}
           onClick={() => iniciar(async () => {
-            const r = await crearCobro({ empresaId, desde, hasta, tasaBcv: tasa, items });
+            const r = await crearCobro({ empresaId, desde, hasta, tasaBcv: tasa, items }, aFactura ? "factura" : "nota");
             if (r && !r.ok) setError(r.mensaje);
           })}
         >
-          {ocupado && <Loader2 className="animate-spin" />} Crear nota de cobro
+          {ocupado && <Loader2 className="animate-spin" />} {aFactura ? "Crear y pasar a la factura" : "Crear nota de cobro"}
         </Button>
       </div>
     </div>
