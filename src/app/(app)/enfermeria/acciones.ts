@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { hoyCaracas } from "@/lib/fecha";
-import { SIGNOS_ENFERMERIA, TIPOS_ENFERMERIA, tipoEnfermeria } from "@/lib/enfermeria-tipos";
+import { CLAVES_DECISION_ENFERMERIA, SIGNOS_ENFERMERIA, TIPOS_ENFERMERIA, tipoEnfermeria, type ClaveDecisionEnfermeria } from "@/lib/enfermeria-tipos";
 import { olvidar } from "@/lib/memo";
 import { listarConsultas } from "@/lib/consultas";
 import { invalidarSesion, obtenerSesion } from "@/lib/sesion";
@@ -96,12 +96,12 @@ export async function cumplirOrden(id: string, nota: string): Promise<Resultado>
   return { ok: true, mensaje: "Orden cumplida." };
 }
 
-// Las dos decisiones del médico: unir morbilidades y llevar los indicadores de enfermería a la vigilancia
-export async function guardarDecision(clave: "enfermeria_unida" | "enfermeria_vigilancia", valor: boolean): Promise<Resultado> {
+// Decisiones del médico: unir morbilidades, indicadores de enfermería en la vigilancia y tasas de su morbilidad
+export async function guardarDecision(clave: ClaveDecisionEnfermeria, valor: boolean): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
   if (sesion.rol !== "administrador" && sesion.rol !== "gerente_medico") return { ok: false, mensaje: "Solo el administrador o el gerente médico cambian esta decisión." };
-  if (clave !== "enfermeria_unida" && clave !== "enfermeria_vigilancia") return { ok: false, mensaje: "Opción desconocida." };
+  if (!CLAVES_DECISION_ENFERMERIA.includes(clave)) return { ok: false, mensaje: "Opción desconocida." };
   const supabase = await crearClienteServidor();
   // Solo cambia esa clave en la base (no reescribe los demás ajustes)
   const { error } = await supabase.rpc("guardar_decision_enfermeria", { p_org: sesion.orgId, p_clave: clave, p_valor: valor === true });

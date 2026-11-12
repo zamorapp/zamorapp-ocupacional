@@ -15,6 +15,8 @@ export type Columna = {
   clinico?: boolean; // dato clínico: vacío para quien no es personal de salud
   etiqueta?: "aptitud" | "origen" | "causa" | "ente" | "estado_cita" | "estado_trabajador" | "sexo" | "estado_consulta" | "tipo_enfermeria";
   opcional?: boolean; // solo aparece si se marca en «Mostrar» (parámetro ver=)
+  decimales?: number; // cifras siempre con estos decimales (18,0 · 4,0), para que la columna alinee
+  requiere?: "enfermeria_tasas"; // solo aparece si el médico lo activó (Enfermería › Tus decisiones); la base la calcula solo entonces
 };
 // Opción del reporte (parámetro o_<k>); "sql" la recibe la base en p_opciones, si no la usa la app
 export type Opcion = { k: string; t: string; valores: [string, string][]; sql?: boolean };
@@ -39,6 +41,7 @@ export type DefReporte = {
   opciones?: Opcion[];
   ranking?: boolean; // agrega posición y % sobre el total (morbilidad)
   nota?: string;
+  notaTasas?: string; // se suma a la nota cuando las tasas de enfermería están activadas
 };
 
 const PACIENTE: Columna[] = [
@@ -607,10 +610,15 @@ export const REPORTES: DefReporte[] = [
       { k: "e_18_39", t: "18-39", tipo: "num", total: true },
       { k: "e_40_59", t: "40-59", tipo: "num", total: true },
       { k: "e_60_mas", t: "60 +", tipo: "num", total: true },
+      { k: "nuevos", t: "Casos nuevos", tipo: "num", ancho: 10, total: true, requiere: "enfermeria_tasas" },
+      { k: "tasa_morbilidad", t: "Tasa por 100", tipo: "num", ancho: 9, decimales: 1, requiere: "enfermeria_tasas" },
+      { k: "prevalencia", t: "Prevalencia %", tipo: "num", ancho: 11, decimales: 1, requiere: "enfermeria_tasas" },
+      { k: "incidencia", t: "Incidencia %", tipo: "num", ancho: 11, decimales: 1, requiere: "enfermeria_tasas" },
     ],
     filtros: [],
     resumenes: [{ titulo: "Diez primeros motivos", por: "descripcion", valor: "casos" }],
     nota: "% atendidos: pacientes con el motivo sobre los pacientes que atendió enfermería en el período.",
+    notaTasas: "Tasas sobre la población de la nómina (la misma del informe de vigilancia; arriba y en cada grupo): tasa por 100 = casos por cada 100 trabajadores; prevalencia = % de trabajadores atendidos por ese motivo; incidencia = % con un caso nuevo (sin atención por ese motivo antes del período).",
   },
   {
     clave: "morbilidad-unida",
@@ -660,23 +668,23 @@ export function formatoCelda(c: Columna, v: string | number | null | undefined):
   if (v === null || v === undefined || v === "") return "";
   if (c.tipo === "fecha") return String(v).slice(0, 10).split("-").reverse().join("/");
   if (c.k === "historia") return String(v).padStart(9, "0");
-  if (c.tipo === "num") return Number(v).toLocaleString("es-VE");
+  if (c.tipo === "num") return Number(v).toLocaleString("es-VE", c.decimales === undefined ? undefined : { minimumFractionDigits: c.decimales, maximumFractionDigits: c.decimales });
   return String(v);
 }
 
 // Columnas que se muestran: sin acceso clínico se quitan las clínicas; las opcionales solo si se marcaron (ver);
 // la morbilidad agrega posición, % de casos y % de atendidos, y la columna de grupo solo si se agrupó.
-export function columnasVista(def: DefReporte, o: { sinClinico?: boolean; ver?: string[]; agrupado?: string } = {}): Columna[] {
+export function columnasVista(def: DefReporte, o: { sinClinico?: boolean; ver?: string[]; agrupado?: string; tasas?: boolean } = {}): Columna[] {
   const cols = def.columnas
-    .filter((c) => !(o.sinClinico && c.clinico) && (!c.opcional || o.ver?.includes(c.k)) && (c.k !== "grupo" || o.agrupado))
+    .filter((c) => !(o.sinClinico && c.clinico) && (!c.requiere || o.tasas) && (!c.opcional || o.ver?.includes(c.k)) && (c.k !== "grupo" || o.agrupado))
     .map((c) => (c.k === "grupo" && o.agrupado ? { ...c, t: o.agrupado === "empresa" ? "Empresa" : "Dependencia" } : c));
   if (!def.ranking) return cols;
   const i = cols.findIndex((c) => c.k === "pacientes");
   return [
     { k: "puesto", t: "#", tipo: "num", ancho: 5 },
     ...cols.slice(0, i + 1),
-    { k: "pct", t: "% casos", tipo: "num", ancho: 8 },
-    { k: "pct_atendidos", t: "% atendidos", tipo: "num", ancho: 10 },
+    { k: "pct", t: "% casos", tipo: "num", ancho: 8, decimales: 1 },
+    { k: "pct_atendidos", t: "% atendidos", tipo: "num", ancho: 10, decimales: 1 },
     ...cols.slice(i + 1),
   ];
 }

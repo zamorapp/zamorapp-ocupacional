@@ -160,7 +160,7 @@ export default async function Enfermeria({ searchParams }: { searchParams: Promi
             </CardHeader>
             <CardContent>
               <Decisiones editable={!sesion.demo}
-                valores={{ enfermeria_unida: ajustes.enfermeria_unida === true, enfermeria_vigilancia: ajustes.enfermeria_vigilancia === true }} />
+                valores={{ enfermeria_unida: ajustes.enfermeria_unida === true, enfermeria_vigilancia: ajustes.enfermeria_vigilancia === true, enfermeria_tasas: ajustes.enfermeria_tasas === true }} />
             </CardContent>
           </Card>
         )}

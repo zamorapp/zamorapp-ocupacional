@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ClaveDecisionEnfermeria as Clave } from "@/lib/enfermeria-tipos";
 import { guardarDecision } from "./acciones";
 
-type Clave = "enfermeria_unida" | "enfermeria_vigilancia";
 const OPCIONES: { k: Clave; titulo: string; si: string; no: string }[] = [
   {
     k: "enfermeria_unida",
@@ -19,9 +19,15 @@ const OPCIONES: { k: Clave; titulo: string; si: string; no: string }[] = [
     si: "El informe de vigilancia (pantalla e impreso) suma una sección de enfermería: atenciones, días, motivos y referidos.",
     no: "El informe de vigilancia queda solo con tus consultas.",
   },
+  {
+    k: "enfermeria_tasas",
+    titulo: "Tasas en la morbilidad de enfermería",
+    si: "«Morbilidad de enfermería» suma población, tasa por cada 100 trabajadores, prevalencia e incidencia. Usa la nómina de cada empresa: tenla al día.",
+    no: "Apagadas mientras depuras la nómina: sin ella las tasas saldrían falsas. El reporte sigue con casos, pacientes y % de atendidos.",
+  },
 ];
 
-// Las dos decisiones del médico, a la vista y de un clic. Las cambian el administrador y el gerente médico.
+// Las decisiones del médico, a la vista y de un clic. Las cambian el administrador y el gerente médico.
 export function Decisiones({ valores, editable }: { valores: Record<Clave, boolean>; editable: boolean }) {
   const [actual, setActual] = useState(valores);
   const [guardando, setGuardando] = useState<Clave | null>(null);

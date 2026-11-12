@@ -29,7 +29,7 @@ export default async function ConfiguracionEnfermeria() {
           <CardDescription>Cámbialas cuando quieras; no se pierde ningún dato.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Decisiones editable={!sesion.demo} valores={{ enfermeria_unida: ajustes.enfermeria_unida === true, enfermeria_vigilancia: ajustes.enfermeria_vigilancia === true }} />
+          <Decisiones editable={!sesion.demo} valores={{ enfermeria_unida: ajustes.enfermeria_unida === true, enfermeria_vigilancia: ajustes.enfermeria_vigilancia === true, enfermeria_tasas: ajustes.enfermeria_tasas === true }} />
         </CardContent>
       </Card>
     </div>
