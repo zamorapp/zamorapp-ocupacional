@@ -11,7 +11,7 @@ import { hoyCaracas } from "@/lib/fecha";
 import { actualizarTasaBcv } from "@/lib/tasa-bcv-actualizar";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, tasasDeHoy } from "@/lib/facturacion";
+import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, sugerenciasCobro, tasasDeHoy } from "@/lib/facturacion";
 import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
@@ -169,6 +169,8 @@ export default async function Facturacion({ searchParams }: Props) {
       {vista === "atendidos" && (async () => {
         const atenciones = sesion.demo ? [] : await listarAtenciones(empresaId, periodo.desde, periodo.hasta);
         const pendientes = atenciones.filter((a) => !a.cobroId).length;
+        // Vigilancia, evaluaciones de puestos… del período sin cobrar: también abren la pregunta de facturar
+        const otros = editable && empresaId && !sesion.demo ? (await sugerenciasCobro(empresaId, periodo.desde, periodo.hasta)).length : 0;
         const params = new URLSearchParams({ desde: periodo.desde, hasta: periodo.hasta, ...(empresaId ? { empresa: empresaId } : {}) });
         // Atajos de mes: se factura casi siempre el mes que terminó
         const esteMes = resolverPeriodo("mes");
@@ -176,8 +178,8 @@ export default async function Facturacion({ searchParams }: Props) {
         const atajos = [["Mes pasado", mesPasado], ["Este mes", esteMes]] as const;
         return (
           <div className="space-y-3">
-            {editable && empresa && pendientes > 0 && (
-              <AvisoFacturar empresa={empresa.razonSocial} empresaId={empresa.id} desde={periodo.desde} hasta={periodo.hasta} pendientes={pendientes} etiqueta={atajos.find(([, p]) => p.desde === periodo.desde && p.hasta === periodo.hasta)?.[1].etiqueta ?? `del ${fecha(periodo.desde)} al ${fecha(periodo.hasta)}`} />
+            {editable && empresa && pendientes + otros > 0 && (
+              <AvisoFacturar empresa={empresa.razonSocial} empresaId={empresa.id} desde={periodo.desde} hasta={periodo.hasta} pendientes={pendientes} otros={otros} etiqueta={atajos.find(([, p]) => p.desde === periodo.desde && p.hasta === periodo.hasta)?.[1].etiqueta ?? `del ${fecha(periodo.desde)} al ${fecha(periodo.hasta)}`} />
             )}
             <form className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="vista" value="atendidos" />
@@ -193,8 +195,8 @@ export default async function Facturacion({ searchParams }: Props) {
               <span className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Todas las empresas (elige una arriba para cobrar)"}</span>
               <div className="ml-auto flex gap-2">
                 <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Relación de pacientes</Link></Button>
-                {editable && empresaId && pendientes > 0 && (
-                  <Button asChild><Link href={`/facturacion/nuevo?${params}&factura=1`}><FilePlus2 /> Facturar ({pendientes})</Link></Button>
+                {editable && empresaId && pendientes + otros > 0 && (
+                  <Button asChild><Link href={`/facturacion/nuevo?${params}&factura=1`}><FilePlus2 /> Facturar ({pendientes + otros})</Link></Button>
                 )}
               </div>
             </form>

@@ -1,18 +1,21 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ClipboardList, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type Atencion, bs, ETIQUETA_UNIDAD, type ItemCobro, type Servicio, servicioParaMotivo, totales, usd } from "@/lib/facturacion-tipos";
+import { type Atencion, bs, ETIQUETA_UNIDAD, type ItemCobro, type Servicio, servicioParaCategoria, servicioParaMotivo, type SugerenciaCobro, totales, usd } from "@/lib/facturacion-tipos";
 import { crearCobro } from "../acciones";
 
-type Props = { empresaId: string; desde: string; hasta: string; atenciones: Atencion[]; servicios: Servicio[]; tasa: number | null; aFactura?: boolean };
+type Props = { empresaId: string; desde: string; hasta: string; atenciones: Atencion[]; servicios: Servicio[]; tasa: number | null; aFactura?: boolean; sugerencias?: SugerenciaCobro[] };
 
 const fecha = (iso: string) => iso.split("-").reverse().join("/");
 
-export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tasa, aFactura = false }: Props) {
+// Servicios que no salen de una consulta y que se ofrecen con un clic (asesorías, charlas, informes…)
+const OTRAS_CATEGORIAS = new Set(["asesoria", "formacion", "informe", "evaluacion_puesto", "otro"]);
+
+export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tasa, aFactura = false, sugerencias = [] }: Props) {
   // Cada atención propone el servicio de su motivo; se puede cambiar o excluir
   const [lineas, setLineas] = useState(() =>
     atenciones.map((a) => {
@@ -21,6 +24,9 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
     }),
   );
   const [extras, setExtras] = useState<ItemCobro[]>([]);
+  // «¿Facturar también…?»: lo hecho en el período para la empresa (vigilancia, puestos…). Se marca para agregarlo.
+  const [elegidas, setElegidas] = useState<Set<string>>(new Set());
+  const [preguntaVista, setPreguntaVista] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const porId = useMemo(() => new Map(servicios.map((s) => [s.id, s])), [servicios]);
@@ -34,13 +40,55 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
       cantidad: 1,
       precioUsd: l.precio,
     })),
+    ...sugerencias.filter((x) => elegidas.has(x.clave)).map((x) => {
+      const sv = servicioParaCategoria(servicios, x.categoria);
+      return { servicioId: sv?.id ?? null, consultaId: null, descripcion: sv?.nombre ?? x.titulo, detalle: x.detalle, cantidad: 1, precioUsd: sv?.precioUsd ?? 0 };
+    }),
     ...extras,
   ];
   const t = totales({ items, ivaPct: 0, igtfPct: 0, tasaBcv: tasa });
   const sinServicio = lineas.filter((l) => l.incluir && !l.servicioId).length;
 
+  const otros = servicios.filter((sv) => OTRAS_CATEGORIAS.has(sv.categoria));
+  const agregarServicio = (sv: Servicio) => setExtras([...extras, { servicioId: sv.id, consultaId: null, descripcion: sv.nombre, detalle: "", cantidad: 1, precioUsd: sv.precioUsd }]);
+  const alternar = (clave: string) => setElegidas((e) => { const n = new Set(e); if (n.has(clave)) n.delete(clave); else n.add(clave); return n; });
+
   return (
     <div className="space-y-4">
+      {preguntaVista && (sugerencias.length > 0 || otros.length > 0) && (
+        <div data-aviso="otros-servicios" className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <ClipboardList className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">¿Facturará también otros servicios?</div>
+              <div className="text-sm text-muted-foreground">{sugerencias.length > 0 ? "Se hizo esto para la empresa en el período y no está cobrado. Marque lo que quiere agregar." : "Agregue con un clic lo que aplique en esta factura."}</div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setPreguntaVista(false)}>Ignorar</Button>
+          </div>
+          {sugerencias.length > 0 && (
+            <ul className="divide-y rounded-lg border bg-card">
+              {sugerencias.map((x) => {
+                const sv = servicioParaCategoria(servicios, x.categoria);
+                return (
+                  <li key={x.clave}>
+                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
+                      <input type="checkbox" checked={elegidas.has(x.clave)} onChange={() => alternar(x.clave)} className="size-4 accent-[var(--primary)]" />
+                      <span className="min-w-0 flex-1"><span className="font-medium">{sv?.nombre ?? x.titulo}</span><span className="block text-xs text-muted-foreground">{x.detalle}</span></span>
+                      <span className="tabular-nums">{sv ? usd(sv.precioUsd) : <span className="text-xs text-aviso-texto">Sin servicio en «Servicios y precios»</span>}</span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {otros.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Agregar:</span>
+              {otros.map((sv) => <Button key={sv.id} size="sm" variant="outline" onClick={() => agregarServicio(sv)}><Plus /> {sv.nombre}</Button>)}
+            </div>
+          )}
+        </div>
+      )}
       <Card className="gap-0 py-0">
         <CardHeader className="border-b py-3"><CardTitle className="text-base">Atenciones del periodo ({lineas.length})</CardTitle></CardHeader>
         <CardContent className="px-0">

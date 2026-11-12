@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { Atencion, Cobro, Servicio } from "@/lib/facturacion-tipos";
+import type { Atencion, Cobro, Servicio, SugerenciaCobro } from "@/lib/facturacion-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
@@ -152,4 +152,33 @@ export async function listarMotivosCobro(): Promise<{ codigo: string; nombre: st
     vistos.add(codigo);
     return [{ codigo, nombre: m.nombre as string }];
   });
+}
+
+const fechaVe = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+const METODO_ERGO: Record<string, string> = { rula: "RULA", reba: "REBA", rosa: "ROSA", niosh: "NIOSH", deb: "DEB", ocra: "OCRA", kim: "KIM", libre: "inspección" };
+
+// Lo hecho para la empresa en el período (además de las consultas) que todavía no está en una nota de cobro.
+// Vigilancia: la del trimestre que termina en el período o que se preparó en el período. Cada consulta que falle
+// (por ejemplo, un rol que no puede leer esa tabla) simplemente no propone nada.
+export async function sugerenciasCobro(empresaId: string, desde: string, hasta: string): Promise<SugerenciaCobro[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  // Límites del período en hora de Caracas (UTC-4) para las columnas con hora
+  const ini = `${desde}T04:00:00Z`, fin = `${hasta}T23:59:59-04:00`;
+  const [vig, ergo, ries, psico, cobrado] = await Promise.all([
+    supabase.from("informes_vigilancia").select("id, desde, hasta, creado_en").eq("empresa_id", empresaId)
+      .or(`and(hasta.gte.${desde},hasta.lte.${hasta}),and(creado_en.gte."${ini}",creado_en.lte."${fin}")`).limit(20),
+    supabase.from("evaluaciones_ergonomicas").select("id, puesto, metodo, fecha").eq("empresa_id", empresaId).gte("fecha", desde).lte("fecha", hasta).limit(100),
+    supabase.from("evaluaciones_riesgos").select("id, titulo, fecha").eq("empresa_id", empresaId).gte("fecha", desde).lte("fecha", hasta).limit(100),
+    supabase.from("evaluaciones_psicosociales").select("id, titulo, inicio").eq("empresa_id", empresaId).gte("inicio", desde).lte("inicio", hasta).limit(50),
+    // Detalles ya cobrados a esta empresa (notas no anuladas)
+    supabase.from("cobro_items").select("detalle, cobros!inner(empresa_id, estado, tipo)").eq("cobros.empresa_id", empresaId).neq("cobros.estado", "anulada").eq("cobros.tipo", "cobro").not("detalle", "is", null).limit(5000),
+  ]);
+  const ya = new Set((cobrado.data ?? []).map((i) => String(i.detalle)));
+  const out: SugerenciaCobro[] = [];
+  for (const v of vig.data ?? []) out.push({ clave: `vig:${v.id}`, categoria: "informe", titulo: "Informe de vigilancia epidemiológica", detalle: `Vigilancia epidemiológica del ${fechaVe(v.desde)} al ${fechaVe(v.hasta)}`, fecha: v.hasta });
+  for (const e of ergo.data ?? []) out.push({ clave: `ergo:${e.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación ergonómica de puesto", detalle: `Puesto ${e.puesto} (${METODO_ERGO[e.metodo] ?? e.metodo}) · ${fechaVe(e.fecha)}`, fecha: e.fecha });
+  for (const r of ries.data ?? []) out.push({ clave: `ries:${r.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación de riesgos del puesto", detalle: `${r.titulo} · ${fechaVe(r.fecha)}`, fecha: r.fecha });
+  for (const p of psico.data ?? []) out.push({ clave: `psico:${p.id}`, categoria: "evaluacion_puesto", titulo: "Evaluación de riesgos psicosociales", detalle: `${p.titulo} · ${fechaVe(p.inicio)}`, fecha: p.inicio });
+  return out.filter((x) => !ya.has(x.detalle)).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
