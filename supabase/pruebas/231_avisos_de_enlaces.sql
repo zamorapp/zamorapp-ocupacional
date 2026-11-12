@@ -57,6 +57,21 @@ update public.depuraciones_nomina set enviado_en = public.ahora() + interval '1 
 select 'enviar otra vez enseguida no repite el aviso (debe 1): ' || count(*) from public.notificaciones
  where titulo = 'RR. HH. envió la depuración de nómina' and usuario_id = '00000000-0000-0000-0000-0000000000a1';
 
+-- 3b. Enlace del paciente (/registro): título parejo, la ruta queda la vigente (la de la 931000 si ya está)
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+insert into public.solicitudes_paciente (id,org_id,token_hash,nombre) values
+ ('23100000-0000-0000-0000-0000000000b1','10000000-0000-0000-0000-000000000001',sha256('reg-231-0123456789-0123456789-0123456789'),'Rosa');
+reset role;
+select set_config('request.jwt.claim.sub','',false) \g /dev/null
+update public.solicitudes_paciente set abierto_en = public.ahora() where id = '23100000-0000-0000-0000-0000000000b1';
+select 'paciente abre: «Paciente abrió su enlace» con la ruta de los enlaces (debe 1): ' || count(*) from public.notificaciones
+ where titulo = 'Paciente abrió su enlace' and texto = 'Rosa abrió el enlace que le enviaste.'
+   and enlace in ('/atencion/enlaces', '/atencion#enlaces-enviados') and usuario_id = '00000000-0000-0000-0000-0000000000a1';
+select 'el parche solo cambió los títulos (debe 0): ' || (position('Enlace abierto' in pg_get_functiondef('public.avisar_enlace_paciente()'::regprocedure)) > 0
+  or position('Documentos descargados' in pg_get_functiondef('public.avisar_enlace_paciente()'::regprocedure)) > 0)::int;
+delete from public.solicitudes_paciente where id = '23100000-0000-0000-0000-0000000000b1';
+
 -- 4. La puerta única: nadie de afuera la llama, y un aviso nunca hace fallar lo que se está haciendo
 select 'avisar_enlace no es pública (debe 0): ' || (has_function_privilege('anon', 'public.avisar_enlace(uuid,uuid,text,text,text)', 'execute')
   or has_function_privilege('authenticated', 'public.avisar_enlace(uuid,uuid,text,text,text)', 'execute'))::int;

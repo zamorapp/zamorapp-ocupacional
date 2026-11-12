@@ -135,17 +135,20 @@ revoke execute on function public.acuse_aviso_push(text, text, boolean) from pub
 grant execute on function public.acuse_aviso_push(text, text, boolean) to anon, authenticated;
 
 -- ===== 6. Títulos parejos (Diseño 12-nov): quién + qué, como los demás avisos de enlaces =====
--- Igual que 20261030918000, solo cambian los títulos («Enlace abierto» → «Paciente abrió su enlace»).
-create or replace function public.avisar_enlace_paciente()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare v_quien text := coalesce(nullif(btrim(coalesce(new.datos ->> 'nombres', '') || ' ' || coalesce(new.datos ->> 'apellidos', '')), ''), new.nombre, 'El paciente');
+-- Parche de texto sobre la función VIGENTE (la 931000 le cambió la ruta): solo cambian los dos títulos, nada más.
+do $$
+declare
+  v_def text := replace(pg_get_functiondef('public.avisar_enlace_paciente()'::regprocedure), chr(13), '');
+  v_par text[];
 begin
-  if old.abierto_en is null and new.abierto_en is not null then
-    perform public.notificar(new.org_id, null, 'servicio', 'Paciente abrió su enlace', v_quien || ' abrió el enlace que le enviaste.', '/atencion#enlaces-enviados');
-  end if;
-  if old.descarga_hasta is null and new.descarga_hasta is not null then
-    perform public.notificar(new.org_id, null, 'servicio', 'Paciente descargó sus documentos', v_quien || ' descargó sus documentos.', '/atencion#enlaces-enviados');
-  end if;
-  return new;
+  foreach v_par slice 1 in array array[
+    array['''Enlace abierto''', '''Paciente abrió su enlace'''],
+    array['''Documentos descargados''', '''Paciente descargó sus documentos''']] loop
+    if (length(v_def) - length(replace(v_def, v_par[1], ''))) / length(v_par[1]) <> 1 then
+      raise exception 'avisar_enlace_paciente cambió (% no aparece una sola vez): revisar 20261030932000', v_par[1];
+    end if;
+    v_def := replace(v_def, v_par[1], v_par[2]);
+  end loop;
+  execute v_def;
 end $$;
 revoke execute on function public.avisar_enlace_paciente() from public, anon, authenticated;
