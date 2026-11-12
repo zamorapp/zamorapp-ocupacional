@@ -14,7 +14,8 @@ import { BarraImpresion } from "../../barra";
 // leyenda legal empieza a los 13,5 cm: todo lo impreso cabe en la franja 33–135 mm desde el borde de arriba.
 const FRANJA = { arriba: 33, abajo: 135, lado: 10 };
 const ALTO = FRANJA.abajo - FRANJA.arriba;
-const ESCALA_MINIMA = 0.8;
+// Letra mínima (Diseño, 12-nov): renglones y texto a 9 pt, notas y datos de pago a 8 pt. Nunca se achica la letra:
+// si no cabe, primero se junta el interlineado y, si ni así, se avisa y no se imprime.
 // Corrimiento por impresora (cada equipo arrastra la hoja distinto): se guarda en este equipo, no en la nube
 const CLAVE = "zamorapp.factura-forma-libre.ajuste";
 type Ajuste = { arriba: number; izquierda: number };
@@ -28,7 +29,7 @@ type Renglon = { cantidad: number; descripcion: string; detalle: string; precio:
 
 // relacion: enlace a la relación de pacientes de esta nota (null si no trae trabajadores). Tras imprimir la factura se
 // ofrece imprimirla también (con «Ignorar»); además queda siempre un botón en la barra.
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null }) {
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null, condiciones = "" }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null; condiciones?: string }) {
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   // Una factura que todavía no tiene número se emite hoy (con la tasa de hoy); una ya numerada conserva su fecha
@@ -50,7 +51,7 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
   const [ajuste, setAjuste] = useState<Ajuste>({ arriba: 0, izquierda: 0 });
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
-  const [escala, setEscala] = useState(1);
+  const [compacto, setCompacto] = useState(false);
   const [desborde, setDesborde] = useState(false);
   const [ofrecerRelacion, setOfrecerRelacion] = useState(false);
   const contenido = useRef<HTMLDivElement>(null);
@@ -89,17 +90,17 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     return [...m.values()];
   }, [c.items, detallar]);
 
-  // Si no cabe en la franja, se reduce hasta un 80 %; si ni así cabe, se avisa (nunca se imprime sobre la leyenda)
+  // Si no cabe en la franja, se junta el interlineado; si ni así cabe, se avisa (nunca se imprime sobre la leyenda)
   useLayoutEffect(() => {
     const el = contenido.current;
     if (!el) return;
-    el.style.zoom = "";
-    const mm = el.scrollHeight / (96 / 25.4);
-    const z = mm > ALTO ? Math.max(ESCALA_MINIMA, Math.floor((ALTO / mm) * 100) / 100) : 1;
-    el.style.zoom = z < 1 ? String(z) : "";
-    setEscala(z);
-    setDesborde(mm * z > ALTO + 0.5);
-  }, [renglones, numero, emision, direccion, tasa]);
+    const alto = () => el.scrollHeight / (96 / 25.4);
+    el.dataset.compacto = "0";
+    let junto = false;
+    if (alto() > ALTO) { el.dataset.compacto = "1"; junto = true; }
+    setCompacto(junto);
+    setDesborde(alto() > ALTO + 0.5);
+  }, [renglones, numero, emision, direccion, tasa, condiciones, datosPago]);
 
   const guardarNumero = (alImprimir = false) => {
     // La tasa impresa queda anotada en la nota de cobro (si cambió)
@@ -190,11 +191,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
         {sinNumero && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Escribe el número de la factura del talonario para poder imprimir.</p>}
         {desborde && (
           <p className="flex items-start gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No cabe: {renglones.length} renglones. No cabe entre el membrete y la leyenda ni reducida al 80 %. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No caben {renglones.length} renglones en una hoja, ni con el interlineado junto. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
           </p>
         )}
         {!tasa && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Sin tasa BCV para el {fecha(emision)}: los montos salen solo en dólares. Escribe la tasa arriba para facturar en bolívares.</p>}
-        {escala < 1 && !desborde && <p className="text-xs text-muted-foreground">Letra reducida al {Math.round(escala * 100)} % para que quepa en la franja.</p>}
+        {compacto && !desborde && <p className="text-xs text-muted-foreground">Interlineado junto para que quepa en la franja (la letra no se achica).</p>}
       </div>
 
       {/* La hoja del talonario: en pantalla se dibujan en gris el membrete y la leyenda preimpresos (no se imprimen) */}
@@ -211,11 +212,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           style={{ top: `${FRANJA.arriba + ajuste.arriba}mm`, left: `${FRANJA.lado + ajuste.izquierda}mm`, width: `${206 - 2 * FRANJA.lado}mm`, height: `${ALTO}mm` }}
         >
           {guia && <span className="absolute right-1 top-0.5 font-mono text-[8px] text-neutral-500">franja 33–135 mm · {ajuste.arriba >= 0 ? "+" : ""}{ajuste.arriba} / {ajuste.izquierda >= 0 ? "+" : ""}{ajuste.izquierda} mm</span>}
-          <div ref={contenido} className="text-[10.5px] leading-snug">
+          <div ref={contenido} data-compacto="0" className="group/fl text-[9pt] leading-snug data-[compacto=1]:leading-tight">
             <div className="mb-1.5 flex items-baseline justify-between gap-4">
-              <div className="text-[13px] font-bold tracking-wide">FACTURA</div>
+              <div className="text-[11pt] font-bold tracking-wide">FACTURA</div>
               <div className="flex items-baseline gap-5">
-                <span>Nº <b className="font-mono text-[13px]">{limpiarNumeroFactura(numero) || "______"}</b></span>
+                <span>Nº <b className="font-mono text-[11pt]">{limpiarNumeroFactura(numero) || "______"}</b></span>
                 <span>Fecha de emisión: <b>{fecha(emision)}</b></span>
               </div>
             </div>
@@ -224,11 +225,11 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               <div><span className="text-neutral-600">RIF:</span> <b>{c.rif}</b></div>
               <div className="truncate"><span className="text-neutral-600">Domicilio fiscal:</span> {direccion || "—"}</div>
               <div>{telefono && <><span className="text-neutral-600">Teléfono:</span> {telefono}</>}</div>
-              {c.desde && <div className="col-span-2"><span className="text-neutral-600">Periodo:</span> del {fecha(c.desde)} al {fecha(c.hasta ?? c.desde)}</div>}
+              {c.desde && <div className="col-span-2"><span className="text-neutral-600">Período:</span> del {fecha(c.desde)} al {fecha(c.hasta ?? c.desde)}</div>}
             </div>
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-neutral-500 text-left text-[9.5px] uppercase tracking-wide text-neutral-700">
+                <tr className="border-b border-neutral-500 text-left text-[8pt] uppercase tracking-wide text-neutral-700">
                   <th className="w-[12mm] py-0.5 pr-2 text-right font-semibold">Cant.</th>
                   <th className="py-0.5 font-semibold">Descripción</th>
                   {tasa ? (
@@ -260,18 +261,20 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               </tbody>
             </table>
             <div className="mt-1.5 flex items-start justify-between gap-6">
-              <div className="max-w-[95mm] text-[9px] text-neutral-700">
+              <div className="max-w-[100mm] text-[8pt] text-neutral-700">
                 {c.ivaPct === 0 && <div>(E) Exento del IVA.</div>}
-                {tasa && <div>Tasa BCV: Bs. {cifraTasa(tasa)} por dólar{auto && auto.tasa === tasa ? ` (fecha valor ${fecha(auto.fecha)})` : ""}.</div>}
+                {/* La fecha solo cuando la tasa es la del BCV leída para ese día; una escrita a mano no se atribuye a una fecha */}
+                {tasa && <div>Tasa BCV{auto && auto.tasa === tasa ? ` del ${fecha(auto.fecha)}` : ""}: Bs. {cifraTasa(tasa)} por dólar.</div>}
+                {condiciones && <div className="font-semibold text-neutral-900">{condiciones}</div>}
                 {c.observacion && <div>{c.observacion}</div>}
-                {datosPago && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
+                {datosPago && <div className="mt-0.5 whitespace-pre-line text-[8pt] leading-tight"><b>Datos para el pago:</b>{"\n"}{datosPago}</div>}
               </div>
               <div className="w-[72mm] shrink-0 space-y-[1px]">
                 <div className="flex justify-between"><span>{c.ivaPct === 0 ? "Monto exento" : "Base imponible"}</span><span className="font-mono tabular-nums">{num(enMoneda(t.subtotal))}</span></div>
                 {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.iva))}</span></div>}
                 {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span className="font-mono tabular-nums">{num(enMoneda(t.igtf))}</span></div>}
-                <div className="flex justify-between border-t border-neutral-800 pt-0.5 text-[12px] font-bold"><span>TOTAL A PAGAR {moneda}</span><span className="font-mono tabular-nums">{num(enMoneda(t.total))}</span></div>
-                {tasa && <div className="flex justify-between text-[12px] font-bold"><span>TOTAL EN DÓLARES $</span><span className="font-mono tabular-nums">{num(t.total)}</span></div>}
+                <div className="flex justify-between border-t border-neutral-800 pt-0.5 text-[10pt] font-bold"><span>TOTAL A PAGAR {moneda}</span><span className="font-mono tabular-nums">{num(enMoneda(t.total))}</span></div>
+                {tasa && <div className="flex justify-between text-[10pt] font-bold"><span>TOTAL EN DÓLARES $</span><span className="font-mono tabular-nums">{num(t.total)}</span></div>}
               </div>
             </div>
           </div>

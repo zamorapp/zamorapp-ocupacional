@@ -171,7 +171,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
                 agrupar && (
                   <tr key={`g-${nombre}`} className="break-after-avoid">
                     <td colSpan={colsTabla.length} className="border border-doc-linea bg-[#eef5f3] px-1.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-doc-acento">
-                      {nombre} <span className="font-cifra font-medium normal-case text-doc-tenue">· {fs.length.toLocaleString("es-VE")} {fs.length === 1 ? "registro" : "registros"}</span>
+                      {nombre} <span className="font-cifra font-medium normal-case text-doc-tenue">· {fs.length.toLocaleString("es-VE")} {fs.length === 1 ? "registro" : "registros"}{l.tasas && fs[0]?.poblacion != null && ` · Población: ${Number(fs[0].poblacion).toLocaleString("es-VE")} trabajadores`}</span>
                     </td>
                   </tr>
                 ),
@@ -183,7 +183,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
           </table>
         )}
 
-        {def.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{def.nota}</p>}
+        {l.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{l.nota}</p>}
         <p className="mt-1 text-[9.5px] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
         <Pie d={{ impreso }} derecha={`zamorApp · ${def.corto}`} />
       </Hoja>

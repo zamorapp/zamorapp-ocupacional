@@ -11,8 +11,8 @@ import { DepurarTrabajadores } from "./depurar-trabajadores";
 
 export const metadata: Metadata = { title: "Pacientes" };
 
-export default async function Pacientes({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const [{ q }, sesion, trabajadores, empresas, tipos, activa, cargos] = await Promise.all([
+export default async function Pacientes({ searchParams }: { searchParams: Promise<{ q?: string; nuevo?: string; empresa?: string; nombres?: string; apellidos?: string; cargo?: string }> }) {
+  const [{ q, nuevo, empresa: empresaPedida, nombres, apellidos, cargo }, sesion, trabajadores, empresas, tipos, activa, cargos] = await Promise.all([
     searchParams,
     obtenerSesion(),
     listarTrabajadores(),
@@ -32,9 +32,11 @@ export default async function Pacientes({ searchParams }: { searchParams: Promis
         <NuevoPaciente
           habilitado={!sesion.demo && empresas.length > 0}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))}
-          empresaInicial={empresas.find((e) => e.id === activa)?.id ?? empresas[0]?.id ?? ""}
+          empresaInicial={empresas.find((e) => e.id === empresaPedida)?.id ?? empresas.find((e) => e.id === activa)?.id ?? empresas[0]?.id ?? ""}
           tipos={tipos}
           cargos={cargos}
+          // ?nuevo=1: llega abierto con los datos que mandó RR. HH. (depuración de nómina)
+          inicial={nuevo === "1" ? { nombres: nombres?.slice(0, 80), apellidos: apellidos?.slice(0, 80), cargo: cargo?.slice(0, 80) } : null}
         />
       )}
     />

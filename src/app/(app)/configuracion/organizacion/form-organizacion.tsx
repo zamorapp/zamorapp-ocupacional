@@ -205,12 +205,12 @@ function PasoServicio({ org, a }: { org: Org; a: Ajustes }) {
   );
 }
 
-// Condiciones de pago del recibo: vacío = no se imprimen; un toque repone el texto sugerido (tasa BCV)
+// Condiciones de pago de la nota de cobro, el recibo y la factura del talonario: vacío = no se imprimen; un toque repone el texto sugerido (tasa BCV)
 function CondicionesPago({ defecto }: { defecto: string }) {
   const [valor, setValor] = useState(defecto);
   return (
     <div className="sm:col-span-2">
-      <CampoTexto id="cobro_condiciones" etiqueta="Condiciones de pago" rows={2} value={valor} onChange={(e) => setValor(e.target.value)} />
+      <CampoTexto id="cobro_condiciones" etiqueta="Condiciones de pago (nota de cobro, recibo y factura)" rows={2} value={valor} onChange={(e) => setValor(e.target.value)} />
       <p className="mt-1 text-xs text-muted-foreground">
         Déjalo vacío para no imprimirlas.
         {!valor.trim() && <> <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setValor(CONDICION_PAGO_BCV)}>Usar el texto sugerido (tasa BCV)</button></>}

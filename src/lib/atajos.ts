@@ -109,6 +109,7 @@ const LISTAS: [string, string, string, boolean?][] = [
 
 const OTROS: Atajo[] = [
   { href: "/pacientes/importar", titulo: "Importar trabajadores desde Excel", donde: "Pacientes", icono: Users, palabras: "nomina cargar excel hoja lista masivo" },
+  { href: "/empresas", titulo: "Depurar nómina con RR. HH. por enlace", donde: "Empresas › ficha de la empresa", icono: Users, palabras: "depurar nomina rrhh recursos humanos enlace whatsapp ya no esta inactivar faltan trabajadores egreso sin cuenta" },
   { href: "/enfermeria", titulo: "Atención de enfermería", donde: "Enfermería", icono: HeartPulse, palabras: "enfermera tension arterial toma signos vitales tratamiento inyeccion ampolla vendaje cura curacion nebulizacion procedimiento primeros auxilios inspeccion morbilidad enfermeria", clinico: true },
   { href: "/reportes/tension", titulo: "Control de tensión arterial", donde: "Reportes", icono: HeartPulse, palabras: "presion arterial hipertension tomas control ta imprimir", clinico: true },
   { href: "/atencion/hojas", titulo: "Hojas para el paciente", donde: "Atención médica", icono: Stethoscope, palabras: "dieta dietas plan de alimentacion nutricion hipertension diabetes renal bienestar pausas lumbalgia tension arterial perfiles ordenes examenes ver", clinico: true },
