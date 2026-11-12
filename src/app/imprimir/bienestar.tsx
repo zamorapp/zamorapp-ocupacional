@@ -1,5 +1,6 @@
 import type { DatosDocumento } from "@/lib/documentos";
 import { EQUILIBRIO, PAUSAS, REGISTRO_PAUSAS, TEMAS, temasBienestar } from "@/lib/bienestar";
+import { IdentHojas } from "./documentos";
 import { DefsFiguras, FiguraEquilibrio, FiguraPausa, FiguraTema } from "./figuras";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
@@ -171,18 +172,6 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
   );
 }
 
-// Texto de una regla CSS a partir de datos del paciente: todo lo que no sea letra simple, número o espacio va como
-// escape CSS (\HHHH), así ningún nombre puede cerrar la cadena ni la etiqueta <style>
-const textoCss = (t: string) => Array.from(t).map((c) => (/[A-Za-z0-9 ]/.test(c) ? c : `\\${c.codePointAt(0)!.toString(16)} `)).join("");
-
-// Desde la 2.ª hoja: arriba «Nombre · C.I. · Folio» y «Hoja N de M», como pide Diseño para los impresos de varias hojas.
-// La 1.ª ya lleva membrete y ficha. Esta página imprime una sola hoja de bienestar (nunca va en lote ni en paquete).
-function IdentificacionHojas({ d }: { d: DatosDocumento }) {
-  const id = textoCss(`${d.trabajador.nombre} · C.I. ${d.trabajador.cedula} · Recomendaciones de bienestar · Folio ${folio("BI", d.datos.id)}`);
-  const css = `@page { @top-left { content: "${id}"; width: 75%; font: 7.5pt ui-monospace, Consolas, monospace; color: #55625f; } @top-right { content: "Hoja " counter(page) " de " counter(pages); font: 7.5pt ui-monospace, Consolas, monospace; color: #55625f; } } @page :first { @top-left { content: ""; } @top-right { content: ""; } }`;
-  return <style>{css}</style>;
-}
-
 // «MARÍA ALEJANDRA FERNÁNDEZ» → «María»: el saludo usa solo el primer nombre
 const primerNombre = (nombre: string) => {
   const p = nombre.trim().split(/\s+/)[0] ?? "";
@@ -202,7 +191,9 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
   return (
     <Hoja className={fluye ? "print:block" : ""}>
       <DefsFiguras />
-      {fluye && <IdentificacionHojas d={d} />}
+      {/* Desde la hoja 2: nombre, cédula, documento, folio y «Hoja N de M» (el mismo mecanismo del informe). Esta
+          página imprime una sola hoja de bienestar: nunca va en lote ni en paquete */}
+      {fluye && <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, "Recomendaciones de bienestar", `Folio ${folio("BI", d.datos.id)}`].join(" · ")} />}
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="BI" compacto sub={nombres}>
         Recomendaciones de bienestar
