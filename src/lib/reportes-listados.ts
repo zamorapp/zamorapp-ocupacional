@@ -53,10 +53,14 @@ function armarPivote(filas: Fila[], fil: string, col: string, titulo: string): P
 }
 
 // Indicadores de cabecera según el reporte
-function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: string; detalle?: string }[] {
+function indicadores(def: DefReporte, filas: Fila[], o: { tasas?: boolean; hasta?: string } = {}): { titulo: string; valor: string; detalle?: string }[] {
   const n = (x: number) => x.toLocaleString("es-VE");
   const unicos = (k: string) => new Set(filas.map((f) => f[k]).filter(Boolean)).size;
   const suma = (k: string) => filas.reduce((s, f) => s + Number(f[k] ?? 0), 0);
+  const porDefecto = () => [
+    { titulo: "Registros", valor: n(filas.length) },
+    ...(filas.some((f) => f.cedula) ? [{ titulo: "Pacientes", valor: n(unicos("cedula")) }] : []),
+  ];
   const cuenta = (k: string, v: string) => filas.filter((f) => f[k] === v).length;
   switch (def.clave) {
     case "atendidos":
@@ -157,11 +161,19 @@ function indicadores(def: DefReporte, filas: Fila[]): { titulo: string; valor: s
         { titulo: "Horas hombre", valor: n(hht), detalle: filas.some((f) => f.metodo !== "Nómina") ? "incluye horas estimadas" : "según nómina" },
       ];
     }
-    default:
+    case "morbilidad-enfermeria": {
+      if (!o.tasas) return porDefecto();
+      // La población es de la nómina (una por grupo), no de cada motivo: se muestra una sola vez arriba
+      const poblacion = [...new Map(filas.map((f) => [f.grupo, Number(f.poblacion ?? 0)])).values()].reduce((s, x) => s + x, 0);
       return [
-        { titulo: "Registros", valor: n(filas.length) },
-        ...(filas.some((f) => f.cedula) ? [{ titulo: "Pacientes", valor: n(unicos("cedula")) }] : []),
+        { titulo: "Casos", valor: n(suma("casos")), detalle: `${n(filas.length)} motivos` },
+        { titulo: "Pacientes atendidos", valor: n([...new Map(filas.map((f) => [f.grupo, Number(f.atendidos ?? 0)])).values()].reduce((s, x) => s + x, 0)) },
+        { titulo: "Casos nuevos", valor: n(suma("nuevos")) },
+        { titulo: "Población", valor: `${n(poblacion)} trabajadores`, detalle: o.hasta ? `nómina al ${o.hasta.split("-").reverse().join("/")}` : undefined },
       ];
+    }
+    default:
+      return porDefecto();
   }
 }
 
@@ -266,7 +278,8 @@ export async function cargarListado(clave: string, q: ConsultaReporte) {
     activos,
     busqueda,
     resumenes,
-    indicadores: indicadores(def, filas),
+    indicadores: indicadores(def, filas, { tasas, hasta: periodo.hasta }),
+    tasas,
     pivote: def.pivote ? armarPivote(filas, opc.filas || def.pivote.filas, def.pivote.columnas, def.columnas.find((c) => c.k === (opc.filas || def.pivote!.filas))?.t ?? "") : null,
     // Sin acceso clínico, un reporte clínico sale vacío por las reglas de la base: se avisa en pantalla
     sinAccesoClinico: Boolean(def.clinico && !sesion.clinico),
