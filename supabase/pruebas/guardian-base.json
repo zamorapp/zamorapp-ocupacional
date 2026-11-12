@@ -1,6 +1,7 @@
 {
   "migracionesAplicadasFueraDeOrden": [
-    "20261030899000"
+    "20261030899000",
+    "20261030929000"
   ],
   "pruebasRepetidas": [
     "80",
