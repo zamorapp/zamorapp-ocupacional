@@ -23,7 +23,7 @@ const sinTildes = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 
 type Estado = "esperando" | "por revisar" | "aceptada" | "descartada" | "vencido" | "anulado";
 const ESTADOS: { clave: Estado; nombre: string; color: string }[] = [
-  { clave: "esperando", nombre: "Esperando", color: "bg-primary/10 text-primary" },
+  { clave: "esperando", nombre: "Esperando", color: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200" },
   { clave: "por revisar", nombre: "Por revisar", color: "bg-aviso/20 text-aviso-texto" },
   { clave: "aceptada", nombre: "Aceptado", color: "bg-ok/15 text-ok-texto" },
   { clave: "vencido", nombre: "Vencido", color: "bg-muted text-muted-foreground" },
@@ -95,15 +95,15 @@ export function HistorialEnlaces({ enlaces, desde, hasta, hoy, ahora, mas, sinPr
 
   return (
     <div className="space-y-4">
-      {/* Filtros: Desde/Hasta (día de envío), atajos y estado */}
+      {/* Filtros: Desde/Hasta (día de envío; filtra al cambiar la fecha), atajos y estado */}
       <form className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3" onSubmit={(ev) => { ev.preventDefault(); ir(d, h); }}>
         <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Desde
-          <Input type="date" value={d} max={h || hoy} onChange={(ev) => setD(ev.target.value)} className="h-9 w-40" />
+          <Input type="date" value={d} max={h || hoy} onChange={(ev) => { setD(ev.target.value); if (ev.target.value && h && ev.target.value <= h) ir(ev.target.value, h); }} className="h-9 w-40" />
         </label>
         <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">Hasta
-          <Input type="date" value={h} min={d} max={hoy} onChange={(ev) => setH(ev.target.value)} className="h-9 w-40" />
+          <Input type="date" value={h} min={d} max={hoy} onChange={(ev) => { setH(ev.target.value); if (ev.target.value && d && d <= ev.target.value) ir(d, ev.target.value); }} className="h-9 w-40" />
         </label>
-        <Button type="submit" size="sm" className="h-9" disabled={cargando || !d || !h || d > h}>{cargando ? <Loader2 className="animate-spin" /> : <Search />} Ver</Button>
+        {cargando && <Loader2 className="mb-2 size-5 animate-spin text-muted-foreground" aria-label="Cargando" />}
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Atajos de fecha">
           {([[0, "Hoy"], [7, "7 días"], [30, "30 días"], [90, "90 días"]] as const).map(([n, t]) => (
             <button key={t} type="button" onClick={() => rapido(n)} disabled={cargando}
@@ -170,33 +170,38 @@ export function HistorialEnlaces({ enlaces, desde, hasta, hoy, ahora, mas, sinPr
                     {estado === "por revisar" && <Link href="/atencion#por-revisar" className="font-medium text-primary hover:underline">Revisar ahora</Link>}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-1.5 sm:grid sm:shrink-0 sm:grid-cols-[7.5rem_7.5rem_7.5rem_7rem] sm:gap-1.5">
+                  {/* Casillas fijas en escritorio: cada acción siempre en su columna (vacía si no aplica) */}
+                  {!alargable && <span className="hidden sm:block" aria-hidden />}
                   {alargable && (
-                    <label className="relative inline-flex">
+                    <label className="relative inline-flex sm:w-full">
                       <span className="sr-only">Alargar el enlace de {nombreDe(e)}</span>
                       <select value="" disabled={ocupado} onChange={(ev) => ev.target.value && alargar(e, estado, Number(ev.target.value))}
                         title={estado === "aceptada" ? "Más días para que envíe sus resultados" : "Más días para que llene el enlace"}
-                        className="h-9 appearance-none rounded-md border bg-background pr-3 pl-8 text-sm font-medium hover:border-primary">
+                        className="h-9 w-full appearance-none rounded-md border bg-background pr-3 pl-8 text-sm font-medium hover:border-primary">
                         <option value="">Alargar</option>
                         {DIAS_ALARGAR.map((n) => <option key={n} value={n}>+{n} días</option>)}
                       </select>
                       <CalendarPlus className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-primary" />
                     </label>
                   )}
+                  {!(estado === "esperando" || (estado === "aceptada" && vigente)) && <span className="hidden sm:block" aria-hidden />}
                   {(estado === "esperando" || (estado === "aceptada" && vigente)) && (
-                    <Button size="sm" variant="outline" className="h-9" disabled={ocupado} onClick={() => caducar(e, estado)}
+                    <Button size="sm" variant="outline" className="h-9 sm:w-full" disabled={ocupado} onClick={() => caducar(e, estado)}
                       title={estado === "aceptada" ? "Ya no podrá descargar ni enviar resultados" : "El enlace deja de servir ya"}>
                       <Ban className="text-alerta-texto" /> Caducar
                     </Button>
                   )}
+                  {!e.telefono && <span className="hidden sm:block" aria-hidden />}
                   {e.telefono && (
-                    <Button size="sm" variant="ghost" className="h-9" asChild title="Abrir el chat de WhatsApp con este paciente">
-                      <a href={`https://wa.me/${e.telefono}`} target="_blank" rel="noreferrer"><MessageCircle /> <span className="sm:sr-only">Escribirle</span></a>
+                    <Button size="sm" variant="ghost" className="h-9 sm:w-full sm:justify-start" asChild title="Abrir el chat de WhatsApp con este paciente">
+                      <a href={`https://wa.me/${e.telefono}`} target="_blank" rel="noreferrer"><MessageCircle /> Escribirle</a>
                     </Button>
                   )}
+                  {estado === "por revisar" && <span className="hidden sm:block" aria-hidden />}
                   {estado !== "por revisar" && (
-                    <Button size="sm" variant="ghost" className="h-9 text-muted-foreground hover:text-alerta-texto" disabled={ocupado} onClick={() => eliminar(e, estado)} aria-label={`Eliminar el enlace de ${nombreDe(e)}`} title="Borra el enlace. Su ficha y sus resultados se quedan.">
-                      <Trash2 /> <span className="sm:sr-only">Eliminar</span>
+                    <Button size="sm" variant="ghost" className="h-9 text-muted-foreground hover:text-alerta-texto sm:w-full sm:justify-start" disabled={ocupado} onClick={() => eliminar(e, estado)} aria-label={`Eliminar el enlace de ${nombreDe(e)}`} title="Borra el enlace. Su ficha y sus resultados se quedan.">
+                      <Trash2 /> Eliminar
                     </Button>
                   )}
                 </div>
