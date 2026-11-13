@@ -83,24 +83,6 @@ do $$ begin
 exception when insufficient_privilege then null; end $$;
 select 'la enfermera no anula (debe 1): ' || count(*) from public.indicaciones where id = '23200000-0000-0000-0000-0000000000d2' and estado = 'pendiente';
 
--- Investigación de accidente (NT-02): cerrada para enfermería
 reset role;
-insert into public.eventos (id,org_id,empresa_id,trabajador_id,tipo,fecha_hora,cie10,diagnostico) values
- ('23200000-0000-0000-0000-0000000000e1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','enfermedad','2026-06-01 08:00','M54.5','Lumbago');
-set role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
-do $$ begin
-  insert into public.investigaciones (org_id,evento_id,trabajador_id) values ('10000000-0000-0000-0000-000000000001','23200000-0000-0000-0000-0000000000e1','30000000-0000-0000-0000-00000000000a');
-  raise notice 'FALLA: enfermería escribió una investigación';
-exception when insufficient_privilege then null; end $$;
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a4',false) \g /dev/null
-insert into public.investigaciones (org_id,evento_id,trabajador_id,secciones) values ('10000000-0000-0000-0000-000000000001','23200000-0000-0000-0000-0000000000e1','30000000-0000-0000-0000-00000000000a','{"clinico":"Del médico"}');
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
-select 'la enfermera lee la investigación (debe 1): ' || count(*) from public.investigaciones where evento_id = '23200000-0000-0000-0000-0000000000e1';
-update public.investigaciones set secciones = '{"clinico":"Cambiado"}' where evento_id = '23200000-0000-0000-0000-0000000000e1';
-delete from public.investigaciones where evento_id = '23200000-0000-0000-0000-0000000000e1';
-reset role;
-select 'la investigación sigue igual (debe 1): ' || count(*) from clinico.investigaciones where evento_id = '23200000-0000-0000-0000-0000000000e1' and secciones ->> 'clinico' = 'Del médico';
-delete from clinico.investigaciones where evento_id = '23200000-0000-0000-0000-0000000000e1';
-delete from public.eventos where id = '23200000-0000-0000-0000-0000000000e1';
+-- La investigación de accidente: ver la prueba 233 (enfermería sí la escribe en su empresa)
 delete from clinico.indicaciones where id::text like '23200000-%';
