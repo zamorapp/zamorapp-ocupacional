@@ -358,7 +358,7 @@ function VistaEvento({ e, plazos }: { e: Evento; plazos: (ReturnType<typeof plaz
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-6">
         <div className="min-w-0 flex-1">
           <div className="text-lg font-semibold">#{e.numero} · {ETIQUETA_TIPO[e.tipo]}{e.subtipo === "in_itinere" && " (in itinere)"}</div>
-          <p className="text-sm text-muted-foreground">{e.trabajador ?? "Sin lesionado"} · {e.empresa} · {fechaHoraVE(e.fechaHora)} · {ETIQUETA_ESTADO_EVENTO[e.estado]}</p>
+          <p className="text-sm text-muted-foreground">{e.trabajador ?? "Sin lesionado"} · {e.empresa} · <span className="whitespace-nowrap">{fechaHoraVE(e.fechaHora)}</span> · {ETIQUETA_ESTADO_EVENTO[e.estado]}</p>
         </div>
         <span className="self-start rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">Solo lectura: lo completa el servicio médico</span>
       </div>
