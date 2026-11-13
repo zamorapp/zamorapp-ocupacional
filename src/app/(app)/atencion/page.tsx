@@ -148,7 +148,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       <section id="consultas" className="scroll-mt-20 space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-lg font-semibold">{ver ? `${ver.titulo} (${consultas.length})` : "Consultas de los últimos 30 días"}</h2>
-          {ver && <span className="text-sm text-muted-foreground">{ver.detalle}</span>}
+          {ver && <span className="text-sm text-muted-foreground">{ver.detalle}{consultas.length >= 500 ? " · se muestran las 500 más recientes" : ""}</span>}
           {ver && <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Ver las de 30 días</Link>}
           {!ver && activa && (todas
             ? <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Solo la empresa elegida</Link>
