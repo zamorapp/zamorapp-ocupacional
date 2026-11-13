@@ -296,12 +296,12 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
               <Opcion activo={alcance === "ultima"} onClick={() => { setAlcance("ultima"); setPagina(n - 1); }}>Última</Opcion>
               <Opcion activo={alcance === "todas"} onClick={() => setAlcance("todas")}>Todas</Opcion>
             </div>
-            <label htmlFor="tam-firma" className="mb-2 mt-4 block text-sm font-semibold">Tamaño ({Math.round(tam * 100)} %)</label>
+            <label htmlFor="tam-firma" className="mb-2 mt-4 block text-sm font-semibold">Tamaño ({Math.round(tam * 100)}{"\u00a0"}%)</label>
             <input id="tam-firma" type="range" min={0.5} max={1.8} step={0.05} value={tam} onChange={(e) => setTam(Number(e.target.value))} className="w-full accent-[var(--primary)]" />
             <p className="mb-2 mt-4 text-sm font-semibold">Posición</p>
             <div className="flex flex-wrap gap-2">
-              <Opcion activo={modo === "auto"} onClick={() => setModo("auto")}>Donde dice «Firma»</Opcion>
-              <Opcion activo={modo === "abajo"} onClick={() => setModo("abajo")}>Abajo a la derecha</Opcion>
+              <Opcion activo={modo === "auto" && !noEncontro} onClick={() => setModo("auto")}>Donde dice «Firma»</Opcion>
+              <Opcion activo={modo === "abajo" || (modo === "auto" && noEncontro)} onClick={() => setModo("abajo")}>Abajo a la derecha</Opcion>
               {modo === "manual" && <Opcion activo onClick={() => {}}>Donde la moví</Opcion>}
             </div>
             <div className="mt-5 grid gap-2">
