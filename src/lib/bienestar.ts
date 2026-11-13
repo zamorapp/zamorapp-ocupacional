@@ -127,6 +127,8 @@ export type TemaBienestar = {
   comparar?: ComparaTema[];
   ejercicios?: EjercicioTema[];
   nota?: string;
+  // Título de la sección de práctica (por omisión «Ejercicios · hágalos a diario»)
+  practica?: string;
   fuente: string;
 };
 
@@ -296,6 +298,11 @@ export const TEMAS: TemaBienestar[] = [
     clave: "higiene",
     boton: "Higiene mental",
     titulo: "Higiene mental: cuidar la mente cada día",
+    porque: [
+      "La salud mental no es solo no estar enfermo: es sentirse capaz de afrontar las tensiones normales de la vida, trabajar bien y aportar a los suyos.",
+      "Así como cepillarse los dientes a diario evita las caries, unos hábitos pequeños y diarios protegen la mente del desgaste.",
+      "Los pilares son el sueño, el movimiento, la luz del día, el contacto con otros, los límites sanos y algo que le dé sentido.",
+    ],
     grupos: [
       {
         items: [
@@ -311,12 +318,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "reloj-fijo", titulo: "Rutina estable", pasos: ["Horas fijas para dormir, comer, trabajar y descansar.", "La rutina da calma y orden."], dosis: ["Cada día"] },
+      { figura: "musica", titulo: "Un rato para disfrutar", pasos: ["Reserve un momento para algo que le guste: música, lectura, un oficio, la fe o la naturaleza.", "Anótelo en su día como una cita."], dosis: ["15 a 30 minutos", "Cada día"] },
+      { figura: "gratitud", titulo: "Tres cosas buenas", pasos: ["Cada noche, anote tres cosas buenas del día, aunque sean pequeñas.", "Entrena la mente a ver lo positivo."], dosis: ["5 minutos", "Cada noche"] },
+      { figura: "luz-manana", titulo: "Luz y movimiento", pasos: ["Salga a la luz del día por la mañana.", "Muévase todos los días."], dosis: ["15 minutos de sol", "30 minutos de movimiento"] },
+      { figura: "limites-no", titulo: "Poner límites", pasos: ["Diga que no con amabilidad cuando algo le sobrepasa.", "Decir que no a algo es decirse que sí a usted."], dosis: ["Cuando haga falta"] },
+      { figura: "metas-escalera", titulo: "Metas pequeñas", pasos: ["Divida lo que quiere lograr en pasos cortos.", "Celebre cada paso cumplido."], dosis: ["1 meta por semana"] },
+    ],
+    nota: "Si nota que por más de 2 semanas no disfruta, no duerme o está irritable, pida ayuda a tiempo.",
     fuente: "OMS, Informe mundial sobre salud mental: transformar la salud mental para todos (2022). OMS, En tiempos de estrés, haz lo que importa (2020).",
   },
   {
     clave: "meditacion",
     boton: "Meditación",
     titulo: "Meditación y atención plena",
+    porque: [
+      "Meditar es entrenar la atención: llevarla a un punto, como la respiración, notar cuando se va y traerla de vuelta sin juzgarse.",
+      "La práctica regular baja la ansiedad, el estrés y el dolor en muchas personas, y mejora la concentración. No hace falta dejar la mente en blanco.",
+      "Como un músculo, mejora con la constancia: poco tiempo cada día rinde más que mucho de vez en cuando.",
+    ],
     grupos: [
       {
         items: [
@@ -331,12 +353,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "postura-meditar", titulo: "Postura cómoda", pasos: ["Sentado, espalda recta, pies en el piso y manos sobre los muslos.", "Cierre los ojos o mire un punto en el piso."], dosis: ["5 minutos al empezar", "Hasta 20"] },
+      { figura: "contar-10", titulo: "Contar respiraciones", pasos: ["Cuente 1 al inhalar y 2 al exhalar, hasta 10.", "Al llegar a 10, vuelva a empezar."], dosis: ["5 a 10 minutos"] },
+      { figura: "volver-respiracion", titulo: "Volver a la respiración", pasos: ["Cuando aparezca un pensamiento, nótelo sin pelear con él.", "Vuelva con calma a la respiración. Eso es meditar."], dosis: ["Las veces que haga falta"] },
+      { figura: "recorrido-cuerpo", titulo: "Recorrido del cuerpo", pasos: ["Lleve la atención de los pies a la cabeza, parte por parte.", "Suelte la tensión que encuentre."], dosis: ["10 minutos", "Antes de dormir"] },
+      { figura: "comer-atento", titulo: "Atención en lo diario", pasos: ["Coma, camine o báñese con los cinco sentidos.", "Sin el teléfono."], dosis: ["1 actividad al día"] },
+      { figura: "calendario-checks", titulo: "Constancia", pasos: ["Marque en un calendario cada día que practique.", "Si falla un día, retome al siguiente sin culpa."], dosis: ["Todos los días"] },
+    ],
+    nota: "Si vivió un trauma o tiene depresión o ansiedad intensa, practique con la guía de un profesional.",
     fuente: "Goyal M y cols., Meditation programs for psychological stress and well-being, JAMA Intern Med 2014;174:357. NCCIH (EE. UU.), Meditation and Mindfulness: Effectiveness and Safety (2022).",
   },
   {
     clave: "estres",
     boton: "Manejo del estrés",
     titulo: "Manejo del estrés",
+    porque: [
+      "El estrés es la respuesta del cuerpo ante una exigencia: se acelera el corazón, se tensan los músculos y la mente se pone en alerta. En dosis cortas ayuda a resolver.",
+      "Cuando dura semanas sin descanso, agota: aparecen insomnio, dolor de cabeza o de espalda, irritabilidad, errores y más riesgo de accidentes y de tensión alta.",
+      "En el trabajo lo causan la carga excesiva, el poco control sobre las tareas, los conflictos y la falta de apoyo. Algunas cosas dependen de usted y otras de la empresa: ambas cuentan.",
+    ],
     grupos: [
       {
         items: [
@@ -352,12 +389,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "respiracion-46", titulo: "Respiración 4-6", pasos: ["Inhale por la nariz contando hasta 4.", "Bote el aire por la boca contando hasta 6. Exhalar más largo calma el corazón."], dosis: ["3 a 5 minutos", "Al sentir tensión"] },
+      { figura: "tres-prioridades", titulo: "Tres prioridades", pasos: ["Al empezar el día, escriba solo 3 tareas importantes.", "Haga una a la vez, empezando por la primera."], dosis: ["Cada mañana"] },
+      { figura: "cambiar-o-no", titulo: "Lo que puedo cambiar", pasos: ["Anote lo que le preocupa en dos columnas: lo que puede cambiar y lo que no depende de usted.", "Actúe sobre la primera; suelte la segunda."], dosis: ["1 vez por semana"] },
+      { figura: "caminar", titulo: "Moverse", pasos: ["Camine a paso rápido, de ser posible al aire libre.", "Baja las hormonas del estrés y mejora el ánimo."], dosis: ["30 minutos", "5 días por semana"] },
+      { figura: "hablar", titulo: "Hablarlo", pasos: ["Cuente a alguien de confianza lo que le pesa.", "Pedir apoyo a tiempo evita que el problema crezca."], dosis: ["Cuando lo necesite"] },
+      { figura: "desconectar", titulo: "Desconectarse", pasos: ["Fuera de la jornada, silencie el correo y los grupos del trabajo.", "Una hora antes de dormir, sin pantallas."], dosis: ["Cada día"] },
+    ],
+    nota: "Si el estrés no le deja dormir, rendir o disfrutar por más de 2 semanas, consulte al servicio médico: tiene solución.",
     fuente: "OMS, En tiempos de estrés, haz lo que importa: guía ilustrada (2020). OMS y OIT, Directrices sobre salud mental en el trabajo (2022).",
   },
   {
     clave: "sobrecarga",
     boton: "Sobrecarga de trabajo",
     titulo: "Si se siente agobiado por el trabajo",
+    porque: [
+      "La sobrecarga aparece cuando las tareas superan el tiempo, la fuerza o los recursos disponibles. Mantenida en el tiempo, lleva al agotamiento (burnout).",
+      "El burnout es un problema del trabajo reconocido por la OMS: cansancio que no se quita, distancia o rechazo hacia el trabajo y sensación de no rendir.",
+      "Organizar las tareas ayuda, pero la carga también se conversa con la empresa: la ley obliga a una jornada y descansos que protejan la salud.",
+    ],
     grupos: [
       {
         items: [
@@ -372,12 +424,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "matriz", titulo: "Ordenar lo pendiente", pasos: ["Clasifique cada tarea: urgente e importante, planificar, delegar o puede esperar.", "Empiece por la casilla anaranjada."], dosis: ["Cada mañana"] },
+      { figura: "hablar", titulo: "Hablar con el supervisor", pasos: ["Lleve su lista y pida ayuda para fijar prioridades y plazos realistas.", "Proponga qué puede esperar."], dosis: ["Cuando se acumule"] },
+      { figura: "metas-escalera", titulo: "Pasos pequeños", pasos: ["Divida la tarea grande en pasos cortos.", "Empiece solo por el primero."], dosis: ["Con cada tarea grande"] },
+      { figura: "pausa-reloj", titulo: "Respetar las pausas", pasos: ["Haga las pausas y la hora de almuerzo aunque haya mucho trabajo.", "Descansar evita errores."], dosis: ["Cada jornada"] },
+      { figura: "cerrar-jornada", titulo: "Cerrar la jornada", pasos: ["Antes de salir, anote lo pendiente para mañana.", "Deje el trabajo en el trabajo."], dosis: ["5 minutos", "Al salir"] },
+      { figura: "bateria", titulo: "Señales de agotamiento", pasos: ["Cansancio que no mejora, desgano, distancia con el trabajo, sentirse ineficaz.", "Si las nota, consulte al servicio médico."], dosis: ["No espere"] },
+    ],
+    nota: "La ley protege su jornada, sus descansos y sus vacaciones (LOPCYMAT y LOTTT).",
     fuente: "OMS, CIE-11, QD85 Síndrome de desgaste ocupacional (2019). OMS y OIT, Directrices sobre salud mental en el trabajo (2022). LOPCYMAT (2005), art. 53. LOTTT (2012).",
   },
   {
     clave: "acoso",
     boton: "Acoso laboral",
     titulo: "Acoso laboral: cómo reconocerlo y qué hacer",
+    porque: [
+      "El acoso laboral es un trato hostil o humillante que se repite y busca intimidar, aislar o sacar a una persona. Incluye el acoso sexual.",
+      "Daña la salud: ansiedad, insomnio, tristeza, dolores y hasta enfermedad. Por eso es un riesgo psicosocial que la empresa debe prevenir y corregir.",
+      "La ley venezolana y el Convenio 190 de la OIT lo prohíben. Nadie tiene por qué aguantarlo.",
+    ],
     grupos: [
       {
         titulo: "Cómo reconocerlo",
@@ -400,12 +467,24 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Qué hacer, paso a paso",
+    ejercicios: [
+      { figura: "anotar-hechos", titulo: "Anotar cada hecho", pasos: ["Fecha, hora, lugar, qué pasó, quién lo hizo y quién lo vio.", "Guarde mensajes y correos."], dosis: ["Cada vez que ocurra"] },
+      { figura: "denunciar", titulo: "Denunciar por escrito", pasos: ["Ante su supervisor, Recursos Humanos o el Comité de Seguridad y Salud Laboral.", "Pida copia sellada; también puede acudir al Delegado de Prevención o a INPSASEL."], dosis: ["Cuanto antes"] },
+      { figura: "hablar", titulo: "Buscar apoyo", pasos: ["Hable con su familia, compañeros de confianza y el servicio médico.", "El daño a la salud se atiende."], dosis: ["No lo cargue a solas"] },
+    ],
+    nota: "Si es testigo, apoye a la persona afectada y ofrézcase como testigo.",
     fuente: "LOPCYMAT (2005), art. 56, numeral 5. LOTTT (2012), art. 164. OIT, Convenio 190 sobre la violencia y el acoso (2019).",
   },
   {
     clave: "emocional",
     boton: "Inteligencia emocional",
     titulo: "Inteligencia emocional",
+    porque: [
+      "La inteligencia emocional es la capacidad de reconocer lo que uno siente, manejarlo y entender lo que sienten los demás.",
+      "No se nace con ella: se aprende. Mejora el trabajo en equipo, baja los conflictos y protege la salud mental.",
+      "Las emociones no son buenas ni malas: dan información. Lo que importa es qué hacemos con ellas.",
+    ],
     grupos: [
       {
         items: [
@@ -420,12 +499,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "nombrar-emocion", titulo: "Ponerle nombre", pasos: ["Pregúntese: ¿qué siento? Rabia, miedo, tristeza, frustración…", "Nombrar la emoción baja su intensidad."], dosis: ["Cuando la note"] },
+      { figura: "contar-10", titulo: "Pausa antes de reaccionar", pasos: ["Respire y cuente hasta 10 antes de responder.", "Si es muy fuerte, retírese unos minutos."], dosis: ["En cada discusión"] },
+      { figura: "escuchar", titulo: "Escuchar para entender", pasos: ["Deje terminar a la otra persona.", "Repita con sus palabras lo que entendió."], dosis: ["En cada conversación"] },
+      { figura: "yo-mensaje", titulo: "Hablar en primera persona", pasos: ["«Yo me siento… cuando… y necesito…».", "Sin atacar y sin callar."], dosis: ["En los desacuerdos"] },
+      { figura: "gratitud", titulo: "Diario de emociones", pasos: ["Cada noche: una situación, lo que sintió, cómo respondió y qué haría distinto."], dosis: ["5 minutos", "Cada noche"] },
+      { figura: "estrella", titulo: "Reconocer lo bueno", pasos: ["Agradezca y felicite a otros con hechos concretos.", "Mejora el clima del equipo."], dosis: ["1 vez al día"] },
+    ],
+    nota: "Si las emociones le desbordan seguido, hablarlo con un profesional ayuda.",
     fuente: "Mayer JD, Salovey P, What is emotional intelligence? (1997). Goleman D, Inteligencia emocional (1995). OMS, Habilidades para la vida (1997).",
   },
   {
     clave: "gerentes",
     boton: "Para gerentes",
     titulo: "Recomendaciones para gerentes y supervisores",
+    porque: [
+      "Quien dirige carga presión propia y, a la vez, influye mucho en la salud de su equipo: la forma de mandar es uno de los factores psicosociales más importantes.",
+      "La OMS y la OIT recomiendan formar a los gerentes para detectar el estrés, apoyar a su gente y organizar el trabajo de forma saludable.",
+      "Cuidarse no es un lujo: un líder agotado decide peor y contagia el estrés.",
+    ],
     grupos: [
       {
         titulo: "Su salud",
@@ -450,6 +544,16 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "control-anual", titulo: "Su control médico", pasos: ["Tensión, azúcar, colesterol, peso y cintura.", "Tome las vacaciones completas."], dosis: ["1 vez al año"] },
+      { figura: "delegar", titulo: "Delegar con claridad", pasos: ["Qué, para cuándo y con qué recursos.", "No cargue con todo."], dosis: ["Cada semana"] },
+      { figura: "reunion-corta", titulo: "Reuniones cortas", pasos: ["Con agenda y hora de fin.", "Reserve horas sin interrupciones."], dosis: ["Cada reunión"] },
+      { figura: "hablar", titulo: "Conversar a solas", pasos: ["Pregunte cómo está cada persona, no solo qué hizo.", "Escuche y refiera al servicio médico si nota estrés."], dosis: ["1 vez al mes"] },
+      { figura: "estrella", titulo: "Reconocer a tiempo", pasos: ["Felicite con hechos concretos.", "Corrija en privado y con respeto."], dosis: ["Cada semana"] },
+      { figura: "desconectar", titulo: "Respetar el horario", pasos: ["No escriba fuera de la jornada salvo urgencias.", "Dé el ejemplo con sus propios descansos."], dosis: ["Siempre"] },
+    ],
+    nota: "Actúe pronto ante conflictos, maltrato o acoso: el silencio del líder también comunica.",
     fuente: "OMS y OIT, Directrices sobre salud mental en el trabajo (2022), recomendación de formar a los gerentes. LOPCYMAT (2005), art. 56, deberes del empleador.",
   },
   // ===== Biblioteca 06-nov (Cesar): más afecciones musculoesqueléticas, heridas y piel, salud mental y estilo de vida
@@ -729,6 +833,11 @@ export const TEMAS: TemaBienestar[] = [
     clave: "ansiedad",
     boton: "Ansiedad",
     titulo: "Cuando la ansiedad aprieta",
+    porque: [
+      "La ansiedad es la alarma del cuerpo ante un peligro. Cuando se dispara sin peligro real o no se apaga, aparecen palpitaciones, falta de aire, temblor, nudo en el estómago y pensamientos que no paran.",
+      "No es debilidad ni locura: es frecuente y tiene tratamiento eficaz. Respirar lento y volver al presente le dicen al cuerpo que está a salvo.",
+      "El café, las bebidas energéticas, el alcohol y dormir poco la aumentan.",
+    ],
     grupos: [
       {
         titulo: "Lo que ayuda",
@@ -752,12 +861,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "respiracion-46", titulo: "Respiración lenta", pasos: ["Inhale contando hasta 4 y bote el aire contando hasta 6.", "Ponga una mano en el abdomen y sienta cómo sube y baja."], dosis: ["3 a 5 minutos", "Cuando aparezca"] },
+      { figura: "cinco-sentidos", titulo: "5-4-3-2-1", pasos: ["Nombre 5 cosas que ve, 4 que puede tocar, 3 que oye, 2 que huele y 1 que saborea.", "Lo trae al presente cuando la mente se acelera."], dosis: ["2 minutos"] },
+      { figura: "escribir-preocupacion", titulo: "Escribir la preocupación", pasos: ["En una hoja: lo que le preocupa a la izquierda.", "A la derecha, un paso pequeño y posible para cada cosa."], dosis: ["10 minutos", "1 vez al día"] },
+      { figura: "caminar", titulo: "Caminar a diario", pasos: ["Camine a paso cómodo, mejor al aire libre.", "Descarga la tensión del cuerpo."], dosis: ["30 minutos"] },
+      { figura: "sin-cafe", titulo: "Menos café, más agua", pasos: ["Baje el café y evite las bebidas energéticas y el alcohol.", "Tome agua durante la jornada."], dosis: ["Desde hoy"] },
+      { figura: "hablar", titulo: "No cargarlo a solas", pasos: ["Hable con alguien de confianza o con el servicio médico.", "Contar lo que siente baja la intensidad."], dosis: ["Cuando lo necesite"] },
+    ],
+    nota: "Estas herramientas ayudan, pero no reemplazan el tratamiento: si la ansiedad le impide trabajar o dormir, consulte.",
     fuente: "OMS, En tiempos de estrés, haz lo que importa (2020). OMS, Guía mhGAP de intervenciones para trastornos mentales (2.ª ed., 2016; actualización 2023). NICE CG113, Generalised anxiety disorder and panic disorder (2019).",
   },
   {
     clave: "animo",
     boton: "Ánimo bajo y depresión",
     titulo: "Cuando el ánimo está bajo",
+    porque: [
+      "La depresión es más que tristeza: es un ánimo bajo o la pérdida del gusto por las cosas que duran más de 2 semanas, con cansancio, cambios del sueño y del apetito, culpa o dificultad para concentrarse.",
+      "Es frecuente y tratable. No es flojera ni falta de voluntad: la química del cerebro y las circunstancias de la vida influyen.",
+      "Hacer pequeñas cosas aunque no tenga ganas ayuda a que las ganas vuelvan: primero la acción, después el ánimo.",
+    ],
     grupos: [
       {
         titulo: "Pasos que ayudan",
@@ -780,12 +904,27 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "reloj-fijo", titulo: "Rutina sencilla", pasos: ["Levántese, aséese y coma a horas fijas.", "Aunque cueste."], dosis: ["Cada día"] },
+      { figura: "calendario-checks", titulo: "Una actividad pequeña", pasos: ["Planee algo que antes le gustaba y hágalo, aunque no tenga ganas.", "Márquelo al cumplirlo."], dosis: ["1 al día"] },
+      { figura: "luz-manana", titulo: "Sol y caminata", pasos: ["Salga a la luz del día y camine un rato.", "Mejora el ánimo y el sueño."], dosis: ["15 a 30 minutos"] },
+      { figura: "hablar", titulo: "Estar en contacto", pasos: ["Hable con alguien de confianza.", "Cuente cómo se siente."], dosis: ["Cada día"] },
+      { figura: "sin-cafe", titulo: "Sin alcohol", pasos: ["Evite el alcohol y otras drogas: empeoran el ánimo.", "Tome agua."], dosis: ["Siempre"] },
+      { figura: "pastillero", titulo: "Seguir el tratamiento", pasos: ["Si le indicaron medicinas, tómelas como se las indicaron.", "No las deje sin hablar con su médico."], dosis: ["Cada día"] },
+    ],
+    nota: "Si piensa en hacerse daño, busque ayuda hoy mismo: acuda a emergencia o llame a su médico.",
     fuente: "OMS, Guía mhGAP de intervenciones para trastornos mentales (2.ª ed., 2016; actualización 2023). NICE NG222, Depression in adults (2022). OMS y OIT, Directrices sobre salud mental en el trabajo (2022).",
   },
   {
     clave: "sueno",
     boton: "Dormir mejor",
     titulo: "Dormir mejor",
+    porque: [
+      "Dormir repara el cuerpo y ordena la memoria y las emociones. Con menos de 7 horas bajan la atención y los reflejos y aumentan los errores y los accidentes; estar despierto 17 a 19 horas seguidas afecta tanto como haber bebido alcohol.",
+      "El reloj interno se guía por la luz y los horarios: la luz de la mañana lo despierta y la oscuridad de la noche prepara el sueño. Las pantallas de noche lo confunden.",
+      "El trabajo por turnos desordena ese reloj; por eso hay que proteger con más cuidado las horas de sueño.",
+    ],
     grupos: [
       {
         items: [
@@ -800,7 +939,17 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "Academia Americana de Medicina del Sueño, Healthy sleep habits. Edinger JD y cols., Behavioral treatments for chronic insomnia, J Clin Sleep Med 2021;17:255. NIOSH, Work schedules: shift work and long hours (2020).",
+    practica: "Herramientas para el día a día",
+    ejercicios: [
+      { figura: "reloj-fijo", titulo: "Horario fijo", pasos: ["Acuéstese y levántese a la misma hora.", "También el fin de semana."], dosis: ["Todos los días"] },
+      { figura: "luz-manana", titulo: "Luz de la mañana", pasos: ["Al levantarse, salga a la luz del día unos minutos.", "Ajusta el reloj interno."], dosis: ["10 a 15 minutos"] },
+      { figura: "pantallas-fuera", titulo: "Pantallas fuera", pasos: ["Deje el teléfono y la televisión una hora antes de dormir.", "Cárguelo fuera del cuarto."], dosis: ["Cada noche"] },
+      { figura: "cuarto-oscuro", titulo: "Cuarto para dormir", pasos: ["Oscuro, fresco y silencioso.", "La cama, solo para dormir."], dosis: ["Desde esta noche"] },
+      { figura: "cafe-hora", titulo: "Café con horario", pasos: ["Nada de café, té negro ni bebidas energéticas después de las 2 de la tarde.", "Cene liviano."], dosis: ["Cada día"] },
+      { figura: "levantarse-20", titulo: "Si no se duerme en 20 minutos", pasos: ["Levántese a algo tranquilo con luz baja.", "Vuelva a la cama cuando tenga sueño."], dosis: ["Las veces que haga falta"] },
+    ],
+    nota: "Si ronca fuerte, deja de respirar dormido o cabecea de día, consulte antes de manejar u operar equipos.",
+    fuente: "Academia Americana de Medicina del Sueño, Healthy sleep habits. Edinger JD y cols., Behavioral treatments for chronic insomnia, J Clin Sleep Med 2021;17:255. NIOSH, Work schedules: shift work and long hours (2020). Williamson AM, Feyer AM, Moderate sleep deprivation produces impairments comparable to alcohol intoxication, Occup Environ Med 2000;57:649. CDC (EE. UU.), About sleep.",
   },
   {
     clave: "vida-sana",

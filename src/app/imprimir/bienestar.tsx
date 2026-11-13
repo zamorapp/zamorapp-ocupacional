@@ -259,7 +259,7 @@ export function Bienestar({ d, temas, cambios }: { d: DatosDocumento; temas?: st
           )}
           {t.ejercicios && (
             <>
-              <div className="mt-1.5 mb-1 break-after-avoid text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">Ejercicios · hágalos a diario</div>
+              <div className="mt-1.5 mb-1 break-after-avoid text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{t.practica ?? "Ejercicios · hágalos a diario"}</div>
               <div className="grid grid-cols-3 gap-2">
                 {t.ejercicios.map((e, i) => (
                   <div key={e.figura} className="flex break-inside-avoid flex-col overflow-hidden rounded-xl border border-doc-linea bg-white">

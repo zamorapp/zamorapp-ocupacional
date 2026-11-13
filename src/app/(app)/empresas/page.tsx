@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Briefcase, Building2, Users } from "lucide-react";
+import { Briefcase, Building2, ClipboardCheck, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { datosLegalesFaltantes, listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { obtenerSesion } from "@/lib/sesion";
@@ -23,6 +24,9 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
   const empresas = todas.filter((e) => e.activa !== verInactivas);
   const total = empresas.reduce((s, e) => s + e.trabajadores, 0);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  // «Depurar nómina con RR. HH.» también en la tarjeta (Cesar no lo hallaba, 12-nov): abre la ficha con el cuadro abierto,
+  // porque la revisión de lo que marcó RR. HH. se ve en la ficha. Mismo permiso que en la ficha.
+  const depura = !sesion.demo && Boolean(sesion.orgId) && (sesion.clinico || sesion.rol === "administrador");
   // «Invitar a RR. HH.» en cada empresa (administrador): los contactos con WhatsApp salen como atajo
   let contactos: { empresa_id: string; nombre: string; telefono: string }[] = [];
   if (esAdmin && supabaseConfigurado && !verInactivas) {
@@ -89,13 +93,23 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
                   {!sesion.demo && e.activa && <AlertaLegal empresaId={e.id} faltan={faltan} ignorada={e.ignorarAlertaLegal} editable={esAdmin} />}
                   {!sesion.demo && e.activa && <PausarAvisos empresaId={e.id} apagados={e.avisosApagados} editable={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />}
                   {!sesion.demo && (
-                    <div className="-mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <EstadoEmpresa empresaId={e.id} nombre={e.razonSocial} trabajadores={e.trabajadores} activa={e.activa} editable={esAdmin} />
-                      <div className="flex flex-wrap items-center gap-2">
-                        {esAdmin && e.activa && (
-                          <InvitarRrhh tamano="sm" empresaId={e.id} empresa={e.razonSocial}
-                            contactos={contactos.filter((c) => c.empresa_id === e.id).map((c) => ({ nombre: c.nombre, telefono: c.telefono }))} />
-                        )}
+                    <div className="-mb-2 space-y-2">
+                      {/* Lo de RR. HH. en una fila propia, mitad y mitad: en el teléfono no se parte en renglones sueltos */}
+                      {e.activa && (esAdmin || depura) && (
+                        <div className="flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
+                          {esAdmin && (
+                            <InvitarRrhh tamano="sm" empresaId={e.id} empresa={e.razonSocial}
+                              contactos={contactos.filter((c) => c.empresa_id === e.id).map((c) => ({ nombre: c.nombre, telefono: c.telefono }))} />
+                          )}
+                          {depura && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/empresas/${e.id}?depurar=1`}><ClipboardCheck /> Depurar nómina</Link>
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <EstadoEmpresa empresaId={e.id} nombre={e.razonSocial} trabajadores={e.trabajadores} activa={e.activa} editable={esAdmin} />
                         {esAdmin && <FormEmpresa habilitado empresa={e} />}
                       </div>
                     </div>

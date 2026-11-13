@@ -74,7 +74,7 @@ export function EnviarInforme({ documento, empresaId, empresa, bloqueo }: EnvioI
     );
 
   return (
-    <Dialog open={abierto} onOpenChange={abrir}>
+    <Dialog open={abierto} onOpenChange={abrir} hayCambios={resultado?.ok ? false : undefined}>
       <DialogTrigger asChild>
         <Button variant="outline"><Send /> Enviar a la empresa</Button>
       </DialogTrigger>

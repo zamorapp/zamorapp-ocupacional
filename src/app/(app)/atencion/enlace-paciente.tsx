@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, Plus, Check, ClipboardCheck, Copy, ExternalLink, Eye, FileDown, History, Link2, Loader2, MessageCircle, MessagesSquare, PenLine, Share2, Stamp, Trash2, Undo2, UserCheck, UserPlus, X } from "lucide-react";
@@ -87,11 +88,13 @@ export function EnlacePaciente({ habilitado, empresas, perfiles = [], examenes =
 }) {
   const [abierto, setAbierto] = useState(false);
   // Desde el menú de botones (grupo «Enlaces»): /atencion?enlace=nuevo abre esta ventana de una vez
+  // Escucha la dirección (no solo al montar): estando ya en Atención, volver a elegirlo en el menú también la abre
+  const pedido = useSearchParams().get("enlace");
   useEffect(() => {
-    if (para || !habilitado || new URLSearchParams(window.location.search).get("enlace") !== "nuevo") return;
+    if (para || !habilitado || pedido !== "nuevo") return;
     setAbierto(true);
-    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-  }, [para, habilitado]);
+    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.hash);
+  }, [para, habilitado, pedido]);
   const [nombre, setNombre] = useState(para?.nombre ?? "");
   const [telefono, setTelefono] = useState(para?.telefono ?? "");
   const [empresa, setEmpresa] = useState(para?.empresaId ?? "");
