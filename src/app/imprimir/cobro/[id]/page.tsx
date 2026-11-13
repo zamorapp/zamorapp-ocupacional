@@ -32,6 +32,7 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
   const t = totales({ ...c, tasaBcv: c.tasaBcv ?? auto?.tasa ?? null });
   const tasaUsada = c.tasaBcv ?? auto?.tasa ?? null;
   const entrega = doc === "entrega";
+  const pagada = c.estado === "pagada";
   const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro";
 
   return (
@@ -123,8 +124,10 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
               <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
               {t.totalBs !== null && tasaUsada && (
                 <>
-                  <div className="flex justify-between font-semibold"><span>Total en bolívares</span><span>{bs(t.totalBs)}</span></div>
+                  {/* Sin pagar, los bolívares son solo una referencia: se paga a la tasa BCV del día del pago (Cesar, 13-nov) */}
+                  <div className="flex justify-between font-semibold"><span>{pagada ? "Total en bolívares" : "Referencia en bolívares"}</span><span>{bs(t.totalBs)}</span></div>
                   <div className="text-right text-[12px] text-neutral-600">Tasa BCV{auto ? ` del ${fechaCorta(auto.fecha)}` : ""}: Bs. {tasaUsada.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} por dólar</div>
+                  {!pagada && <div data-prueba="bs-referencial" className="text-right text-[12px] font-medium text-neutral-800">Monto referencial: en bolívares se paga a la tasa BCV del día del pago.</div>}
                 </>
               )}
             </div>
