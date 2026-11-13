@@ -57,7 +57,7 @@ update public.depuraciones_nomina set enviado_en = public.ahora() + interval '1 
 select 'enviar otra vez enseguida no repite el aviso (debe 1): ' || count(*) from public.notificaciones
  where titulo = 'RR. HH. envió la depuración de nómina' and usuario_id = '00000000-0000-0000-0000-0000000000a1';
 
--- 3b. Enlace del paciente (/registro): título parejo, la ruta queda la vigente (la de la 931000 si ya está)
+-- 3b. Enlace del paciente (/registro): título parejo y la ruta de la 931000 (/atencion/enlaces) intacta
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 insert into public.solicitudes_paciente (id,org_id,token_hash,nombre) values
@@ -67,7 +67,7 @@ select set_config('request.jwt.claim.sub','',false) \g /dev/null
 update public.solicitudes_paciente set abierto_en = public.ahora() where id = '23100000-0000-0000-0000-0000000000b1';
 select 'paciente abre: «Paciente abrió su enlace» con la ruta de los enlaces (debe 1): ' || count(*) from public.notificaciones
  where titulo = 'Paciente abrió su enlace' and texto = 'Rosa abrió el enlace que le enviaste.'
-   and enlace in ('/atencion/enlaces', '/atencion#enlaces-enviados') and usuario_id = '00000000-0000-0000-0000-0000000000a1';
+   and enlace = '/atencion/enlaces' and usuario_id = '00000000-0000-0000-0000-0000000000a1';
 select 'el parche solo cambió los títulos (debe 0): ' || (position('Enlace abierto' in pg_get_functiondef('public.avisar_enlace_paciente()'::regprocedure)) > 0
   or position('Documentos descargados' in pg_get_functiondef('public.avisar_enlace_paciente()'::regprocedure)) > 0)::int;
 delete from public.solicitudes_paciente where id = '23100000-0000-0000-0000-0000000000b1';

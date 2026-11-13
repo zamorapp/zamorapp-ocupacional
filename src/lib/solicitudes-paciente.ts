@@ -76,6 +76,8 @@ export type SolicitudPaciente = {
   descargo?: string | null;
   registrado?: boolean; // enlace enviado desde la ficha de un trabajador ya registrado
   soloRegistro?: boolean; // el paciente llenó solo sus datos de registro, sin consulta (20261030929000)
+  resultadosHasta?: string | null; // aceptado: hasta cuándo puede enviar resultados (alargable, 20261030931000)
+  documentos?: number; // cuántos documentos lleva (sin decir cuáles: eso es dato de salud)
 };
 
 // Paciente que ya tiene ficha con esa cédula (cualquier letra: V, E o P)
@@ -87,16 +89,17 @@ export const estadoEnlace = (s: Pick<SolicitudPaciente, "anulado" | "recibido" |
 // registrado: el trabajador ya tiene ficha; no escribe datos (salvo lo que le falte) y el enlace le sirve para sus
 // documentos y para enviar sus resultados (20261030918000)
 export function mensajePaciente(nombre: string | null, servicio: string, conDocumentos = false, registrado = false, soloRegistro = false) {
-  const primero = nombre?.trim().split(/\s+/)[0];
-  const hola = primero ? `Hola ${primero}, ` : "Hola, ";
+  // El nombre tal como lo escribió el servicio («Sra. Francis»), sin cortarlo
+  const completo = nombre?.trim().replace(/\s+/g, " ");
+  const hola = completo ? `Hola ${completo}, ` : "Hola, ";
   // Descarga única (20261030915000): el trabajador sabe desde el mensaje que tiene 30 minutos tras la primera descarga
-  const plazo = conDocumentos ? " Ojo: desde que descargues el primer documento tendrás 30 minutos para bajarlos todos; después, el enlace queda solo para enviar tus resultados." : "";
+  const plazo = conDocumentos ? " Ojo: desde que descargue el primer documento tendrá 30 minutos para bajarlos todos; después, el enlace queda solo para enviar sus resultados." : "";
   if (registrado) {
-    const que = conDocumentos ? "te envía tus documentos. Ábrelos con este enlace y, cuando tengas tus resultados, envíalos por el mismo enlace" : "te envía este enlace para que nos envíes tus resultados";
+    const que = conDocumentos ? "le envía sus documentos. Ábralos con este enlace y, cuando tenga sus resultados, envíelos por el mismo enlace" : "le envía este enlace para que nos envíe sus resultados";
     return `${hola}${servicio} ${que} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
   }
-  const para = conDocumentos ? "llenes tus datos y descargues los documentos que te preparamos" : soloRegistro ? "llenes tus datos de registro" : "llenes tus datos y pidas tu consulta";
-  return `${hola}${servicio} te envía este enlace para que ${para}. Toma ${soloRegistro ? "1 minuto" : "5 minutos"} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
+  const para = conDocumentos ? "llene sus datos y descargue los documentos que le preparamos" : soloRegistro ? "llene sus datos de registro" : "llene sus datos y pida su consulta";
+  return `${hola}${servicio} le envía este enlace para que ${para}. Toma ${soloRegistro ? "1 minuto" : "5 minutos"} (vale ${DIAS_ENLACE_PACIENTE} días).${plazo} Enlace:`;
 }
 
 // Edad cumplida a una fecha (aaaa-mm-dd), para mostrarla al revisar

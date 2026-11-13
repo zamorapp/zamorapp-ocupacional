@@ -11,16 +11,16 @@ import { EnviarResultados, type EstadoResultados } from "./resultados";
 import { MarcarAbierto } from "./abierto";
 import { DocumentosListos } from "./documentos-listos";
 
-export const metadata: Metadata = { title: "Pide tu consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Pida su consulta", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 type Vista = { estado: "vigente" | "usado" | "vencido" | "anulado"; servicio: string; telefono_servicio: string | null; nombre: string | null; empresa: string | null; motivos: { id: string; nombre: string }[] | null };
 
 
 const AVISO: Record<Exclude<Vista["estado"], "vigente">, { titulo: string; texto: string }> = {
-  usado: { titulo: "Tus datos ya se enviaron", texto: "El servicio médico los está revisando y te confirmará la cita por WhatsApp." },
-  vencido: { titulo: "Este enlace venció", texto: "Dura 7 días. Pide uno nuevo al servicio médico." },
-  anulado: { titulo: "Este enlace fue anulado", texto: "Pide uno nuevo al servicio médico." },
+  usado: { titulo: "Sus datos ya se enviaron", texto: "El servicio médico los está revisando y le confirmará la cita por WhatsApp." },
+  vencido: { titulo: "Este enlace venció", texto: "Dura 7 días. Pida uno nuevo al servicio médico." },
+  anulado: { titulo: "Este enlace fue anulado", texto: "Pida uno nuevo al servicio médico." },
 };
 
 // Enlace que el servicio manda por WhatsApp: el paciente escribe sus datos y lo que necesita. No crea nada en la
@@ -48,7 +48,7 @@ export default async function Registro({ params }: { params: Promise<{ token: st
         {!v ? (
           <TarjetaEnlace>
             <h1 className="text-xl font-semibold">Enlace no válido</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Revisa que lo abriste completo o pide uno nuevo al servicio médico.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Revise que lo abrió completo o pida uno nuevo al servicio médico.</p>
           </TarjetaEnlace>
         ) : docs ? (
           <>
@@ -60,8 +60,8 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           {/* Ya descargó: no se vuelven a bajar; para otra copia, el servicio manda un enlace nuevo */}
           <TarjetaEnlace role="status" className="space-y-3 text-center">
             <FileCheck2 className="mx-auto size-12 text-ok" />
-            <h1 className="text-xl font-semibold">El tiempo para descargar tus documentos terminó</h1>
-            <p className="text-sm text-muted-foreground">Tus documentos ya fueron descargados. Si necesitas descargarlos de nuevo, pídele un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
+            <h1 className="text-xl font-semibold">El tiempo para descargar sus documentos terminó</h1>
+            <p className="text-sm text-muted-foreground">Sus documentos ya fueron descargados. Si necesita descargarlos de nuevo, pida un enlace nuevo {aQuien(quien)}{v.telefono_servicio && <> al <a className="font-medium text-primary" href={`tel:${v.telefono_servicio}`}>{v.telefono_servicio}</a></>}.</p>
             {resultados && <a href="#resultados" className="inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-base font-medium text-primary-foreground sm:w-auto"><Upload className="size-5" /> Subir mis resultados</a>}
           </TarjetaEnlace>
           {resultados && <EnviarResultados token={token} servicio={v.servicio} telefono={v.telefono_servicio} estado={resultados} />}
@@ -79,18 +79,18 @@ export default async function Registro({ params }: { params: Promise<{ token: st
           <>
             <TarjetaEnlace className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary)_70%,black)] p-5 text-primary-foreground">
               <span aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-white/10" />
-              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.split(" ")[0]},` : "Hola,"} {catalogo?.registrado ? "tus documentos están listos" : catalogo?.solo_registro ? "regístrate en 1 minuto" : "pide tu consulta"}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{v.nombre ? `Hola ${v.nombre.trim().replace(/\s+/g, " ")},` : "Hola,"} {catalogo?.registrado ? "sus documentos están listos" : catalogo?.solo_registro ? "regístrese en 1 minuto" : "pida su consulta"}</h1>
               <p className="mt-1 text-sm opacity-90">{catalogo?.registrado
-                ? "Ábrelos y descárgalos. Cuando tengas tus resultados, vuelve a este mismo enlace para enviarlos."
-                : catalogo?.solo_registro ? "Llena tus datos y, si te prepararon documentos, te aparecen para descargar."
-                : "Llena tus datos para tu consulta y te confirmamos el día y la hora por WhatsApp."}</p>
+                ? "Ábralos y descárguelos. Cuando tenga sus resultados, vuelva a este mismo enlace para enviarlos."
+                : catalogo?.solo_registro ? "Llene sus datos y, si le prepararon documentos, le aparecen para descargar."
+                : "Llene sus datos para su consulta y le confirmamos el día y la hora por WhatsApp."}</p>
               <ul className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                 <li className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> {catalogo?.registrado ? (catalogo.faltan?.length ? "Toma 1 minuto" : "Toma 10 segundos") : catalogo?.solo_registro ? "Toma 1 minuto" : "Toma 5 minutos"}</li>
                 <li className="flex items-center gap-2"><Stethoscope className="size-4 shrink-0" /> Lo revisa el servicio</li>
                 <li className="flex items-center gap-2"><ShieldCheck className="size-4 shrink-0" /> Datos protegidos</li>
               </ul>
             </TarjetaEnlace>
-            <FormularioRegistro token={token} servicio={v.servicio} telefono={v.telefono_servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} />
+            <FormularioRegistro token={token} servicio={v.servicio} telefono={v.telefono_servicio} empresa={v.empresa} motivos={v.motivos ?? []} hoy={hoy} maximo={sumarDias(hoy, 90)} catalogo={catalogo} saludo={v.nombre} />
           </>
         )}
     </MarcoEnlace>
