@@ -38,8 +38,8 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
       titulo: "Tu consulta de hoy",
       tareas: [
         { titulo: "En espera ahora", valor: t.en_espera, detalle: "Llegaron y esperan consulta", href: "/atencion", urgente: t.en_espera > 0 },
-        ...(firma ? [{ titulo: "Por firmar", valor: t.por_firmar ?? 0, detalle: "Consultas cerradas sin firma", href: "/atencion" }] : []),
-        { titulo: "Consultas abiertas", valor: t.abiertas ?? 0, detalle: "Empezadas y sin cerrar", href: "/atencion" },
+        ...(firma ? [{ titulo: "Por firmar", valor: t.por_firmar ?? 0, detalle: "Consultas cerradas sin firma", href: "/atencion?ver=por-firmar#consultas" }] : []),
+        { titulo: "Consultas abiertas", valor: t.abiertas ?? 0, detalle: "Empezadas y sin cerrar", href: "/atencion?ver=abiertas#consultas" },
         { titulo: "Resultados por recibir", valor: t.por_recibir ?? 0, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
       ],
       acciones: ACCIONES_DE(sesion),

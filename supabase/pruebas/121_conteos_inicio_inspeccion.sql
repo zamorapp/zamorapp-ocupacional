@@ -31,8 +31,8 @@ insert into public.eventos (org_id,empresa_id,trabajador_id,tipo,fecha_hora,fech
 set role authenticated;
 -- Administrador (acceso clínico): todas las consultas
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select 'por firmar = consultas cerradas (debe 1): ' || ((public.inicio_conteos(null,false,true) -> 'tareas' ->> 'por_firmar')::int = (select count(*) from public.consultas where estado = 'cerrada'))::int;
-select 'abiertas = borradores (debe 1): ' || ((public.inicio_conteos(null,false,true) -> 'tareas' ->> 'abiertas')::int = (select count(*) from public.consultas where estado = 'borrador'))::int;
+select 'por firmar = consultas cerradas (debe 1): ' || ((public.inicio_conteos(null,false,true) -> 'tareas' ->> 'por_firmar')::int = (select count(*) from public.consultas where estado = 'cerrada' and origen is null))::int;
+select 'abiertas = borradores (debe 1): ' || ((public.inicio_conteos(null,false,true) -> 'tareas' ->> 'abiertas')::int = (select count(*) from public.consultas where estado = 'borrador' and origen is null))::int;
 select 'sin acceso clínico no cuenta consultas (debe 0): ' || ((public.inicio_conteos(null,false,false) -> 'tareas') ? 'por_firmar')::int;
 create temp table antes as select public.inicio_conteos(null,false,true) -> 'tareas' as t;
 grant select on antes to authenticated;
@@ -54,7 +54,7 @@ select 'resumen de D: activos y en reposo (debe 4): ' || (public.inicio_conteos(
 select 'vencimientos solo de la empresa activa (debe 1): ' || jsonb_array_length(public.inicio_conteos('20000000-0000-0000-0000-0000000000d1') -> 'vencimientos');
 -- Médico: solo sus consultas
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
-select 'médico: por firmar solo las suyas (debe 1): ' || ((public.inicio_conteos(null,true,true) -> 'tareas' ->> 'por_firmar')::int = (select count(*) from public.consultas where estado = 'cerrada' and medico_id = auth.uid()))::int;
+select 'médico: por firmar solo las suyas (debe 1): ' || ((public.inicio_conteos(null,true,true) -> 'tareas' ->> 'por_firmar')::int = (select count(*) from public.consultas where estado = 'cerrada' and origen is null and medico_id = auth.uid()))::int;
 -- Inspección de D
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 select 'notificación: total sin el egresado (debe 4): ' || (public.inspeccion_conteos('20000000-0000-0000-0000-0000000000d1','2026-07-01','2026-09-30') -> 'notificacion' ->> 'total');
