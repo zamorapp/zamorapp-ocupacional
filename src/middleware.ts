@@ -60,6 +60,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/c" || request.nextUrl.pathname.startsWith("/c/")) return conTiempo(respuesta);
   // Latido de los avisos de la campana al celular: sin sesión; la base exige la clave del servidor
   if (request.nextUrl.pathname === "/api/avisos/campana") return conTiempo(respuesta);
+  // Acuse del aviso push que manda el service worker del celular: sin sesión; la base exige la clave del servidor
+  if (request.nextUrl.pathname === "/api/avisos/acuse" && request.method === "POST") return conTiempo(respuesta);
   // Correo diario de constancias a RR. HH.: mismo latido, sin sesión; la base exige la clave del servidor
   if (request.nextUrl.pathname === "/api/envios/constancias-dia") return conTiempo(respuesta);
   // Tasa BCV automática (pg_cron, cron de Vercel y GitHub): sin sesión; la base exige la clave del servidor. Sin esta

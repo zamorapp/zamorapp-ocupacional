@@ -24,16 +24,32 @@ test("artículo correcto para el médico o el servicio", () => {
 });
 
 test("el WhatsApp dice cuánto toma llenarlo", () => {
-  assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /^Hola Gilberto, .*Toma 5 minutos/);
-  assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /30 minutos para bajarlos todos.*enviar tus resultados/);
+  assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /^Hola Gilberto Gómez, .*Toma 5 minutos/);
+  assert.match(mensajePaciente("Gilberto Gómez", "OcupaVida", true), /30 minutos para bajarlos todos.*enviar sus resultados/);
   assert.doesNotMatch(mensajePaciente("Gilberto Gómez", "OcupaVida", false), /30 minutos/);
   // Trabajador ya registrado: no llena datos; el enlace es para sus documentos y resultados
-  assert.match(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /^Hola Rosa, OcupaVida te envía tus documentos\..*resultados.*30 minutos/);
-  assert.doesNotMatch(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /llenes tus datos/);
+  assert.match(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /^Hola Rosa Mar, OcupaVida le envía sus documentos\..*resultados.*30 minutos/);
+  assert.doesNotMatch(mensajePaciente("Rosa Mar", "OcupaVida", true, true), /llene sus datos/);
+  // El nombre va tal como lo escribió el servicio (Cesar, 12-nov: saludaba «Hola Sra.,»)
+  assert.match(mensajePaciente("Sra. Francis", "OcupaVida"), /^Hola Sra\. Francis, /);
+  assert.match(mensajePaciente(null, "OcupaVida"), /^Hola, /);
+});
+
+test("la pantalla final saluda con el nombre completo o neutro", async () => {
+  const { saludoListo } = await jiti.import("../../src/lib/registro-documentos.ts");
+  assert.equal(saludoListo("Sra. Francis", "Francis María"), "¡Listo, Sra. Francis!");
+  assert.equal(saludoListo("  ", "Francis  María"), "¡Listo, Francis María!");
+  assert.equal(saludoListo(null, ""), "¡Listo!");
+});
+
+test("«Otros» exámenes escritos a mano: varios a la vez, sin repetir", async () => {
+  const { partirOtros } = await jiti.import("../../src/lib/registro-documentos.ts");
+  assert.deepEqual(partirOtros("Electrolitos, coprocultivo; urocultivo\nelectrolitos ,  ,x"), ["Electrolitos", "Coprocultivo", "Urocultivo"]);
+  assert.equal(partirOtros(Array.from({ length: 40 }, (_, i) => `Examen ${i}`).join(",")).length, 30);
 });
 
 test("«conversaste en consulta» solo cuando ya lo atendió", async () => {
   const { fraseIndicaciones } = await jiti.import("../../src/lib/registro-documentos.ts");
-  assert.equal(fraseIndicaciones("Dr. César Zamora", true), "Aquí tienes las indicaciones que conversaste en consulta con el Dr. César Zamora.");
-  assert.equal(fraseIndicaciones("Dr. César Zamora", false), "Aquí tienes las indicaciones que te envía el Dr. César Zamora.");
+  assert.equal(fraseIndicaciones("Dr. César Zamora", true), "Aquí tiene las indicaciones que conversó en consulta con el Dr. César Zamora.");
+  assert.equal(fraseIndicaciones("Dr. César Zamora", false), "Aquí tiene las indicaciones que le envía el Dr. César Zamora.");
 });

@@ -32,7 +32,7 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
     if (!lista?.length) return;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !clave) return setError("El servicio no está disponible. Intenta más tarde.");
+    if (!url || !clave) return setError("El servicio no está disponible. Intente más tarde.");
     const supabase = createClient(url, clave, { auth: { persistSession: false, autoRefreshToken: false } });
     setError(null);
     const hechos: string[] = [];
@@ -43,7 +43,7 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
         const r = await reservarResultado(token, archivo.type);
         if (!r.ruta) throw new Error(r.error ?? "No se pudo preparar la subida.");
         const { error: e } = await supabase.storage.from("adjuntos").upload(r.ruta, archivo, { contentType: archivo.type, upsert: false });
-        if (e) throw new Error(`No se pudo subir ${original.name}. Revisa tu conexión e inténtalo de nuevo.`);
+        if (e) throw new Error(`No se pudo subir ${original.name}. Revise su conexión e inténtelo de nuevo.`);
         const nombre = original.name.replace(/\.[^.]+$/, "").replace(/^(IMG|PXL|DSC|WhatsApp Image)[-_ ].*/i, "") || `Resultado ${estado.archivos.length + hechos.length + 1}`;
         const c = await confirmarResultado(token, r.ruta, nombre);
         if (!c.ok) throw new Error(c.mensaje);
@@ -67,10 +67,10 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
           <h2 id="titulo-resultados" className="text-lg font-semibold">Enviar mis resultados</h2>
           <p className="text-sm text-muted-foreground">
             {estado.puede
-              ? <>Cuando tengas tus resultados, súbelos aquí: fotos claras o PDF. Le llegan directo {aQuien(remitente)}.</>
+              ? <>Cuando tenga sus resultados, súbalos aquí: fotos claras o PDF. Le llegan directo {aQuien(remitente)}.</>
               : estado.motivo === "vencido"
-                ? <>El plazo para subir resultados con este enlace terminó. Escríbele a {servicio} y te enviará uno nuevo.</>
-                : <>Podrás subirlos aquí apenas {servicio} confirme tu cita. Guarda este enlace.</>}
+                ? <>El plazo para subir resultados con este enlace terminó. Escríbale a {servicio} y le enviará uno nuevo.</>
+                : <>Podrás subirlos aquí apenas {servicio} confirme su cita. Guarde este enlace.</>}
           </p>
         </div>
       </div>
@@ -78,8 +78,8 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
       {listos.length > 0 && (
         <div role="status" className="space-y-1 rounded-xl border border-ok/40 bg-ok/10 p-4 text-sm">
           <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 shrink-0 text-ok" /> ¡Recibidos!</p>
-          <p>Tus resultados ya fueron cargados en tu historia y se le avisó {aQuien(remitente)}. {pronombre(remitente)} te contactará para una nueva cita o para darte las recomendaciones directamente.</p>
-          <p className="pt-1 text-xs">Si te sientes mal o es urgente, no esperes: {telefono ? <>llama al <a className="font-medium text-primary" href={`tel:${telefono}`}>{telefono}</a></> : <>llama a {servicio}</>}.</p>
+          <p>Sus resultados ya fueron cargados en su historia y se le avisó {aQuien(remitente)}. {pronombre(remitente)} lo contactará para una nueva cita o para darle las recomendaciones directamente.</p>
+          <p className="pt-1 text-xs">Si se siente mal o es urgente, no espere: {telefono ? <>llame al <a className="font-medium text-primary" href={`tel:${telefono}`}>{telefono}</a></> : <>llame a {servicio}</>}.</p>
         </div>
       )}
 
@@ -96,13 +96,13 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
             </Button>
           </div>
           {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
-          <p className="text-xs text-muted-foreground">Hasta 10 MB por archivo. Puedes enviar hasta el {fechaCorta(estado.hasta)}.</p>
+          <p className="text-xs text-muted-foreground">Hasta 10 MB por archivo. Puede enviar hasta el {fechaCorta(estado.hasta)}.</p>
         </>
       )}
 
       {estado.archivos.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Ya enviaste</p>
+          <p className="text-xs font-medium text-muted-foreground">Ya envió</p>
           <ul className="space-y-1">
             {estado.archivos.map((a, i) => (
               <li key={i} className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">

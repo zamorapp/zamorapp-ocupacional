@@ -21,7 +21,7 @@
   - Identificador Tauri `com.tipuroservimedic.zamorapp`: **no cambiarlo** (datos y actualizador dependen de él).
   - Versión `0.1.<número de corrida del CI>`; se ve en el título de la ventana.
   - Se instala como «zamorApp Escritorio» y nunca pisa el acceso «zamorApp Ocupacional» de la web.
-- **Celular**: es la web (PWA). Avisos push con `web-push` (VAPID).
+- **Celular**: es la web (PWA). Avisos push con `web-push` (VAPID); cada aparato confirma el aviso (`/api/avisos/acuse`) y la campana avisa si deja de confirmar. El escritorio repite cada aviso nuevo de la campana como aviso de Windows (`tauri-plugin-notification`, solo `notify`). Los enlaces públicos avisan con `public.avisar_enlace()`.
 
 ## Carpetas del repo
 | Ruta | Contenido |
