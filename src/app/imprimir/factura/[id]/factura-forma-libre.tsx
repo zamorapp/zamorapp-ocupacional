@@ -230,8 +230,8 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
               <div className="rounded-md border bg-background p-3 text-foreground">
                 <div className="font-medium">¿Dividir en dos facturas?</div>
                 <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                  <li>Factura 1 (esta nota #{c.numero}): renglones 1 al {mitad}, total {moneda} {num(enMoneda(totalDe(renglones.slice(0, mitad))))}.</li>
-                  <li>Factura 2 (nota nueva): renglones {mitad + 1} al {renglones.length}, total {moneda} {num(enMoneda(totalDe(renglones.slice(mitad))))}.</li>
+                  <li>Factura 1 (esta nota #{c.numero}): renglones 1 al {mitad}.<b className="block font-mono text-foreground tabular-nums">Total {moneda} {num(enMoneda(totalDe(renglones.slice(0, mitad))))}</b></li>
+                  <li>Factura 2 (nota nueva): renglones {mitad + 1} al {renglones.length}.<b className="block font-mono text-foreground tabular-nums">Total {moneda} {num(enMoneda(totalDe(renglones.slice(mitad))))}</b></li>
                   <li>La segunda no continúa a la primera: cada una suma solo lo suyo y lleva el Nº siguiente del talonario.</li>
                 </ul>
                 <div className="mt-2 flex flex-wrap gap-2">

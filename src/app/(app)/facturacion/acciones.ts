@@ -190,15 +190,16 @@ export async function dividirCobro(id: string, mover: string[]): Promise<Resulta
   const ids = [...new Set(mover)].filter((i) => propios.has(i));
   if (!ids.length || ids.length !== new Set(mover).size || ids.length >= propios.size) return { ok: false, mensaje: "No se pudo dividir: los renglones cambiaron. Recarga la página." };
   const { data: nueva, error } = await c.supabase.from("cobros")
-    .insert({ org_id: n.org_id, empresa_id: n.empresa_id, tipo: "cobro", estado: n.estado, fecha: n.fecha, desde: n.desde, hasta: n.hasta, tasa_bcv: n.tasa_bcv, iva_pct: n.iva_pct, igtf_pct: n.igtf_pct, observacion: n.observacion, vence: n.vence })
+    .insert({ org_id: n.org_id, empresa_id: n.empresa_id, tipo: "cobro", estado: n.estado, fecha: n.fecha, desde: n.desde, hasta: n.hasta, tasa_bcv: n.tasa_bcv, iva_pct: n.iva_pct, igtf_pct: n.igtf_pct, observacion: n.observacion, vence: n.vence, presupuesto_id: n.presupuesto_id })
     .select("id, numero").single();
   if (error) return { ok: false, mensaje: error.message };
   const { data: movidos, error: e2 } = await c.supabase.from("cobro_items").update({ cobro_id: nueva.id }).in("id", ids).eq("cobro_id", id).select("id");
   if (e2 || movidos?.length !== ids.length) {
     // Sin renglones a medias: si no se movieron todos, se regresan y se borra la nota nueva
     await c.supabase.from("cobro_items").update({ cobro_id: id }).eq("cobro_id", nueva.id);
-    await c.supabase.from("cobros").delete().eq("id", nueva.id);
-    return { ok: false, mensaje: e2?.message ?? "No se pudo dividir: tu rol no puede mover los renglones." };
+    const { error: e3 } = await c.supabase.from("cobros").delete().eq("id", nueva.id);
+    const motivo = e2?.message ?? "No se pudo dividir: tu rol no puede mover los renglones.";
+    return { ok: false, mensaje: e3 ? `${motivo} Quedó una nota vacía #${nueva.numero}: anúlala.` : motivo };
   }
   revalidatePath("/facturacion");
   return { ok: true, mensaje: `Dividida: los últimos ${ids.length} renglones pasaron a la nota de cobro #${nueva.numero}.`, nuevoId: nueva.id as string, numero: nueva.numero as number };
