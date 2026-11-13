@@ -4,7 +4,16 @@
 -- Confirmar la pasa a la agenda normal (por_confirmar = false); Eliminar la cancela (con Deshacer en la app).
 -- No es dato clínico: RR. HH. sigue viendo las citas de su empresa como antes.
 
-alter table public.citas add column if not exists por_confirmar boolean not null default false;
+-- Solo la primera vez (al crear la columna): las que ya se agendaron como provisionales (la observación empieza
+-- con «Provisional») quedan por confirmar, para que salgan en la lista y su comprobante siga diciendo «Provisional».
+-- Repetir este archivo no vuelve a marcar una que ya confirmaste.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'citas' and column_name = 'por_confirmar') then
+    alter table public.citas add column por_confirmar boolean not null default false;
+    update public.citas set por_confirmar = true where estado = 'citado' and observacion ilike 'provisional%';
+  end if;
+end $$;
 create index if not exists citas_por_confirmar on public.citas (org_id, fecha) where por_confirmar;
 
 -- Columna nueva de citas: vistas al día
