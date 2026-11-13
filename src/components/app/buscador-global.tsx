@@ -169,8 +169,9 @@ export function BuscadorGlobal({ portal = false, clinico = false, rol = null, em
   const nSecciones = opciones.length - nPacientes;
 
   return (
-    <Dialog open={abierto} onOpenChange={(a) => (a ? setAbierto(true) : cerrar())}>
-      <DialogContent showCloseButton={false} className="top-[12%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-xl">
+    // Buscador, no formulario: un clic afuera lo cierra y nunca pregunta
+    <Dialog open={abierto} onOpenChange={(a) => (a ? setAbierto(true) : cerrar())} hayCambios={false}>
+      <DialogContent showCloseButton={false} cerrarAlTocarFuera className="top-[12%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogTitle className="sr-only">Buscar</DialogTitle>
         <DialogDescription className="sr-only">Busca un trabajador por cédula o nombre, una empresa, o una pantalla, función o configuración por su nombre.</DialogDescription>
         <label className="flex items-center gap-3 border-b px-4">
