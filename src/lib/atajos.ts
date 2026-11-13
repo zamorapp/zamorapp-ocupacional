@@ -45,6 +45,8 @@ export type Atajo = {
 
 const GERENCIA = ["administrador", "gerente_medico"];
 const ADMIN = ["administrador"];
+// Los mismos de public.puede_facturar (RLS de cobros)
+const FACTURAR = ["administrador", "gerente_medico", "recepcion"];
 // Configuración › Respaldos solo muestra su contenido a estos roles
 const RESPALDO = ["administrador", "gerente_medico", "medico", "enfermeria"];
 // = ROLES_ERGONOMIA de lib/ergonomia (no se importa: arrastraría sus tablas al buscador); la prueba vigila que coincidan
@@ -135,8 +137,8 @@ const FUNCIONES: Atajo[] = [
   { href: "/configuracion/usuarios#invitar", titulo: "Invitar a RR. HH.", donde: "Configuración › Usuarios y roles", icono: UserPlus, palabras: "enlace link invitacion portal empresa recursos humanos rrhh whatsapp", roles: ADMIN },
   { href: "/pacientes", titulo: "Registrar trabajador", donde: "Pacientes", icono: UserPlus, palabras: "nuevo paciente agregar crear ficha alta trabajador ingresar" },
   { href: "/facturacion/nuevo", titulo: "Nueva nota de cobro", donde: "Facturación", icono: Receipt, palabras: "facturar cobrar emitir factura nueva recibo" },
-  { href: "/configuracion/organizacion?paso=documentos&grupo=cobro", titulo: "Pagos: métodos y condiciones de pago", donde: "Configuración › Organización › Documentos impresos", icono: Settings, palabras: "pagos pago metodos formas datos bancarios cuentas bancarias banco pago movil binance zelle usdt divisas transferencia condiciones plazo tasa bcv presupuesto", roles: GERENCIA },
-  { href: "/facturacion?vista=cuentas", titulo: "Pagos recibidos: marcar nota pagada", donde: "Facturación › Cuentas por cobrar", icono: Receipt, palabras: "pagos pago recibido cobrado abono registrar marcar pagada deuda" },
+  { href: "/configuracion/organizacion?paso=documentos&grupo=cobro", titulo: "Pagos: métodos y condiciones de pago", donde: "Configuración › Organización › Nota de cobro y recibo", icono: Settings, palabras: "pagos pago metodos formas datos bancarios cuentas bancarias banco pago movil binance zelle usdt divisas transferencia condiciones plazo tasa bcv presupuesto", roles: GERENCIA },
+  { href: "/facturacion?vista=cuentas", titulo: "Pagos recibidos: marcar nota pagada", donde: "Facturación › Cuentas por cobrar", icono: Receipt, palabras: "pagos pago recibido cobrado abono registrar marcar pagada deuda", roles: FACTURAR },
   { href: "/accidentes", titulo: "Reportar accidente", donde: "Accidentes", icono: HardHat, palabras: "nuevo accidente incidente lesion declarar notificar inpsasel enfermedad ocupacional investigacion" },
   { href: "/riesgos", titulo: "Identificación de riesgos y mapa de riesgos", donde: "Evaluaciones de riesgos", icono: ShieldAlert, palabras: "mapa riesgo riesgos peligro peligros procesos peligrosos iper matriz identificar puesto puestos area plano croquis fisico quimico biologico mecanico seguridad nt-04 programa psst" },
   { href: "/evaluaciones#puestos", titulo: "Puestos de trabajo y su riesgo", donde: "Evaluaciones de riesgos", icono: ShieldAlert, palabras: "puesto puestos cargo cargos evaluacion de puesto matriz informe del puesto" },

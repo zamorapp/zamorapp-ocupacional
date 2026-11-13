@@ -27,6 +27,8 @@ test("«pagos» lleva a los métodos de pago y a marcar pagos recibidos", () => 
   const r = buscarSecciones("pagos", { clinico: true, rol: "administrador" }).map((x) => x.href);
   assert.equal(r[0], "/configuracion/organizacion?paso=documentos&grupo=cobro");
   assert.ok(r.includes("/facturacion?vista=cuentas"));
+  const medico = buscarSecciones("pagos", { clinico: true, rol: "medico" }).map((x) => x.titulo);
+  assert.ok(!medico.some((t) => t.startsWith("Pagos")), `médico ve ${medico}`);
   assert.equal(buscarSecciones("binance", { clinico: true, rol: "administrador" })[0].href, "/configuracion/organizacion?paso=documentos&grupo=cobro");
 });
 

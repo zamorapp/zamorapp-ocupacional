@@ -152,7 +152,7 @@ export function FormOrganizacion({ org, editable, logo }: { org: Org; editable: 
         if (paso) setAbierto(paso);
       }}
     >
-      <ol className="space-y-3" aria-label="Pasos de la configuración de la organización">
+      <ol className="space-y-3 pb-24 lg:pb-0" aria-label="Pasos de la configuración de la organización">
           {PASOS.map((p, i) => {
             const esAbierto = abierto === p.id;
             return (
