@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { resolverCatalogos } from "@/lib/catalogos-trabajador";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
@@ -117,19 +118,21 @@ function mapear(clinico: boolean) {
 }
 
 // Por revisar (todas) y los últimos enlaces enviados, para la bandeja de Atención médica
-export async function listarSolicitudesPaciente(): Promise<{ porRevisar: SolicitudPaciente[]; enviados: SolicitudPaciente[]; coincidencias: Record<string, Coincidencia> }> {
+// sinLeer: la nube no respondió (sin internet o corte a los 4 s); la bandeja lo dice y ofrece «Reintentar»
+export async function listarSolicitudesPaciente(): Promise<{ porRevisar: SolicitudPaciente[]; enviados: SolicitudPaciente[]; coincidencias: Record<string, Coincidencia>; sinLeer?: boolean }> {
   const vacio = { porRevisar: [], enviados: [], coincidencias: {} };
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return vacio;
   const supabase = await crearClienteServidor();
+  // La limpieza escribe en la nube: corre después de responder, nunca dentro de la espera de la pantalla
+  after(async () => { try { await supabase.rpc("purgar_solicitudes_paciente" as never); } catch { /* se repite en la próxima visita */ } });
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
     supabase.from("solicitudes_paciente").select(CAMPOS).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
     // Para el resumen de la tarjeta: los que siguen en uso (el historial completo está en /atencion/enlaces)
     supabase.from("solicitudes_paciente").select(CAMPOS).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
-    supabase.rpc("purgar_solicitudes_paciente" as never).abortSignal(AbortSignal.timeout(4000)),
   ]);
-  // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
-  if (error) return vacio;
+  // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la tarjeta lo dice con «Reintentar»
+  if (error) return { ...vacio, sinLeer: true };
   const mapa = mapear(sesion.clinico);
   const porRevisar = ((pendientes ?? []) as unknown as Fila[]).map(mapa);
   // ¿Ya tiene ficha? Por los dígitos de la cédula, con cualquier letra
@@ -271,8 +274,9 @@ export async function historialEnlacesPaciente(desde: string, hasta: string): Pr
   const consulta = (campos: string) => supabase.from("solicitudes_paciente").select(campos)
     .gte("creado_en", `${desde}T00:00:00-04:00`).lt("creado_en", `${sumarDias(hasta, 1)}T00:00:00-04:00`)
     .order("creado_en", { ascending: false }).limit(MAX_HISTORIAL + 1).abortSignal(AbortSignal.timeout(10_000));
-  // purgar: la misma limpieza de la bandeja (datos de descartados y hojas ya descargadas)
-  const [r] = await Promise.all([consulta(`${CAMPOS}, documentos, resultados_hasta`), supabase.rpc("purgar_solicitudes_paciente" as never)]);
+  // purgar: la misma limpieza de la bandeja (datos de descartados y hojas ya descargadas), después de responder
+  after(async () => { try { await supabase.rpc("purgar_solicitudes_paciente" as never); } catch { /* se repite en la próxima visita */ } });
+  const r = await consulta(`${CAMPOS}, documentos, resultados_hasta`);
   let { data, error } = r as unknown as { data: Fila[] | null; error: { message: string } | null };
   // Base todavía sin la migración 20261030931000: sin la columna de prórroga, igual se ve el historial
   let sinProrroga = false;
