@@ -16,6 +16,8 @@ base64 = "0.22"
 serde_json = "1"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
+# Una sola copia abierta: la segunda trae al frente la que ya está (sin esto se quedaba en «esperando la base»)
+tauri-plugin-single-instance = "2"
 
 # Mismas versiones que usa Tauri (wry) para hablar con el WebView2: diálogo de impresión y PDF.
 # Windows Hello (huella, rostro o PIN de Windows) usa el mismo crate windows para entrar sin escribir la clave.

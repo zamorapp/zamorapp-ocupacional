@@ -339,7 +339,8 @@ jobs:
           # Abre el programa, espera la puerta y la app, y lo cierra como Cesar (cerrando la ventana)
           # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
           # -imprimir: además abre el informe de vigilancia en su ventana, lo guarda en PDF y abre el diálogo de impresoras
-          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false, [bool]$imprimir = $false) {
+          # -doble: con el programa ya abierto se abre otra copia: debe cerrarse sola y traer al frente la abierta
+          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false, [bool]$imprimir = $false, [bool]$doble = $false) {
             $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
             $inicio = Get-Date
             $proc = Start-Process $exe.FullName -PassThru
@@ -370,6 +371,16 @@ jobs:
                 $r = Invoke-WebRequest "http://127.0.0.1:54331/auth/v1/token?grant_type=password" -Method Options -UseBasicParsing -SkipHttpErrorCheck -Headers @{
                   Origin = "http://127.0.0.1:54332"; "Access-Control-Request-Method" = "POST"; "Access-Control-Request-Headers" = "apikey,authorization,content-type,x-client-info,x-supabase-api-version" }
                 if ($r.StatusCode -ne 204 -or "$($r.Headers['Access-Control-Allow-Headers'])" -notmatch "x-supabase-api-version") { $ok = $false; Write-Host "::error::La pantalla de ingreso no podría hablar con la puerta (CORS)" }
+              }
+              if ($ok -and $doble) {
+                $segunda = Start-Process $exe.FullName -PassThru
+                if (-not $segunda.WaitForExit(15000)) { $ok = $false; Stop-Process -Id $segunda.Id -Force -ErrorAction SilentlyContinue; Write-Host "::error::$que`: una segunda copia del programa se quedó abierta" }
+                elseif ($proc.HasExited) { $ok = $false; Write-Host "::error::$que`: abrir otra copia cerró la que estaba abierta" }
+                elseif (-not (Select-String -Path "$registros/arranque.log" -Pattern "se pidió abrir otra copia" -SimpleMatch -Quiet)) { $ok = $false; Write-Host "::error::$que`: la copia abierta no se enteró de la segunda (no pasó al frente)" }
+                else {
+                  try { [void](Invoke-RestMethod http://127.0.0.1:54331/zamorapp/estado -TimeoutSec 5); Write-Host "   Segunda copia: se cerró sola y la abierta pasó al frente" }
+                  catch { $ok = $false; Write-Host "::error::$que`: tras abrir otra copia la puerta dejó de responder" }
+                }
               }
             } finally {
               if (-not $ok) {
@@ -452,7 +463,7 @@ jobs:
 
           # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
           $fallas = 0
-          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6) ($n -eq 6))) { $fallas++ } }
+          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6) ($n -eq 6) ($n -eq 2))) { $fallas++ } }
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
 

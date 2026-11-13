@@ -813,6 +813,16 @@ fn main() {
         Err(e) => anotar(&format!("WebView2 no disponible: {e}")),
     }
     let app = tauri::Builder::default()
+        // Va primero: si ya hay una copia abierta, esta se cierra al instante (antes de tocar la base o la puerta) y la
+        // abierta pasa al frente. Sin esto la segunda se quedaba en «esperando la base» (12-nov-2026).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            anotar("se pidió abrir otra copia: se trae al frente la que ya está abierta");
+            if let Some(v) = app.get_webview_window("principal") {
+                let _ = v.unminimize();
+                let _ = v.show();
+                let _ = v.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(Procesos::default()))
@@ -915,6 +925,9 @@ fn main() {
         RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "principal" => manejador.exit(0),
         RunEvent::Exit => {
             anotar("cerrando");
+            // Se suelta el candado de una sola copia antes de detener la base: si Cesar la vuelve a abrir mientras esta
+            // termina de cerrar, la nueva arranca y su puerta espera a que se libere el puerto (puerta/puerto.mjs)
+            tauri_plugin_single_instance::destroy(manejador);
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
             instalar_pendiente();
         }

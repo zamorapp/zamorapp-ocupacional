@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { resolverCatalogos } from "@/lib/catalogos-trabajador";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
@@ -101,10 +102,11 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return vacio;
   const supabase = await crearClienteServidor();
   const campos = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social), abierto_en, descarga_hasta, para_trabajador, solo_registro";
+  // La limpieza escribe en la nube: corre después de responder, nunca dentro de la espera de la pantalla
+  after(async () => { try { await supabase.rpc("purgar_solicitudes_paciente" as never); } catch { /* se repite en la próxima visita */ } });
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
     supabase.from("solicitudes_paciente").select(campos).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
     supabase.from("solicitudes_paciente").select(campos).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
-    supabase.rpc("purgar_solicitudes_paciente" as never).abortSignal(AbortSignal.timeout(4000)),
   ]);
   // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
   if (error) return vacio;

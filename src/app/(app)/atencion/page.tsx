@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpen, CalendarCog, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { Suspense } from "react";
+import { BookOpen, CalendarCog, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -47,7 +48,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   const desde = sumarDias(hoy, -30);
   // «Ver 30 días» desde Últimos atendidos (Inicio): las consultas de todas las empresas, sin la empresa activa
   const todas = verEmpresas === "todas";
-  const [consultas, citas, listas, solicitudes, org, , , empresas, activa, porEnlace] = await Promise.all([
+  const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
     sesion.demo ? [] : listarConsultas({ desde, todas }),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico", "recomendacion_paciente"]),
@@ -57,7 +58,6 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
     vigilarPlazos(sesion),
     listarEmpresas(),
     empresaActivaId(),
-    listarSolicitudesPaciente(),
   ]);
   // Campanita junto al nombre: trabajadores de la cola con una alerta para esta evaluación (solo personal clínico)
   const conAlerta = sesion.clinico ? [...await trabajadoresConAlerta([...new Set(citas.map((c) => c.trabajadorId))])] : [];
@@ -100,7 +100,11 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <PorRevisar {...porEnlace} empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} hoy={hoy} ahora={ahora()} />
+      {/* La bandeja del enlace se lee de la nube (en el escritorio no está en la copia: medido 12-nov, 3,5 s en la PC).
+          Llega aparte: la página, el botón «Enlace al paciente» y su ventana no la esperan. */}
+      <Suspense fallback={<BandejaCargando />}>
+        <BandejaEnlace empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} hoy={hoy} />
+      </Suspense>
 
       <Solicitudes solicitudes={solicitudes} contactos={contactos} servicio={org.nombre} url={URL_PUBLICA} />
 
@@ -185,5 +189,19 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </Card>
       </section>
     </div>
+  );
+}
+
+// Pacientes por enlace: se pide aparte para no frenar la página (ver arriba)
+async function BandejaEnlace(p: { empresas: { id: string; nombre: string }[]; motivos: { id: string; nombre: string }[]; hoy: string }) {
+  const porEnlace = await listarSolicitudesPaciente();
+  return <PorRevisar {...porEnlace} {...p} ahora={ahora()} />;
+}
+
+function BandejaCargando() {
+  return (
+    <p className="flex items-center gap-2 text-sm text-muted-foreground" aria-busy="true">
+      <Loader2 className="size-4 animate-spin" /> Buscando pacientes por enlace…
+    </p>
   );
 }
