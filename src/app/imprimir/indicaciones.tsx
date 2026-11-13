@@ -3,6 +3,9 @@ import type { DatosDocumento } from "@/lib/documentos";
 import { CONTROL_TA, PLANES } from "@/lib/indicaciones-preventivas";
 import { dietaDe, sumables } from "@/lib/dietas";
 import { IconoSalud } from "./iconos-salud";
+import { GUIA_TA, guiaDeDieta } from "@/lib/guias-salud";
+import { GuiaIlustrada } from "./guia-ilustrada";
+import { primerNombre } from "./bienestar";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, DatosPaciente, Ficha, FirmaMedico, Firmas, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
@@ -102,6 +105,15 @@ export function ControlTension({ d, dias = 7 }: { d: DatosDocumento; dias?: numb
           <Pie d={d} derecha={`Folio ${folio("TA", d.datos.id)}`} />
         </Hoja>
       ))}
+      {/* Al dorso: cómo tomarse la tensión (con dibujos) y qué la baja */}
+      <Hoja>
+        <Membrete d={d} compacto />
+        <Titulo d={d} prefijo="TA" compacto sub="Al dorso de su control · guárdela y léala con calma">
+          {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, así cuida su tensión` : "Así cuida su tensión"}
+        </Titulo>
+        <GuiaIlustrada g={GUIA_TA} />
+        <Pie d={d} derecha={`Folio ${folio("TA", d.datos.id)}`} />
+      </Hoja>
     </>
   );
 }
@@ -137,9 +149,11 @@ function Columna({ id, titulo, items, tono }: { id: string; titulo: string; item
 export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosDocumento; dieta?: string; planes?: string[]; cambios?: Cambios }) {
   const b = dietaDe(dieta);
   const extras = PLANES.filter((p) => planes.includes(p.clave) && sumables(b, p.clave));
+  const guia = guiaDeDieta(b.clave);
   // Letra de 9 pt como mínimo: fluye en dos hojas; con 0 o 1 indicación sumada, el «Día de ejemplo» abre la segunda
   // hoja para que la firma no quede sola arriba de una hoja en blanco
   return (
+    <>
     <Hoja className="print:block">
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="PA" compacto sub={extras.length ? `${b.boton} · con ${extras.map((p) => p.boton.toLowerCase()).join(", ")}` : b.boton}>
@@ -214,5 +228,17 @@ export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosD
       </Firmas>
       <Pie d={d} derecha={`Folio ${folio("PA", d.datos.id)}`} />
     </Hoja>
+    {/* Guía ilustrada (diabetes): hoja propia al final, con el nombre del trabajador */}
+    {guia && (
+      <Hoja>
+        <Membrete d={d} compacto />
+        <Titulo d={d} prefijo="PA" compacto sub="Guía para el día a día · guárdela y léala con calma">
+          {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, así cuida su diabetes` : "Así cuida su diabetes"}
+        </Titulo>
+        <GuiaIlustrada g={guia} cambios={cambios} />
+        <Pie d={d} derecha={`Folio ${folio("PA", d.datos.id)}`} />
+      </Hoja>
+    )}
+    </>
   );
 }

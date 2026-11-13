@@ -119,6 +119,38 @@ const DIBUJOS: Record<Icono, React.ReactNode> = {
       <path d="M26 14l-4 12 6 6v10M22 26l-6 16M25 16l8 6M24 16l-8 4-2 6" stroke="#2f7d6a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </>
   ),
+  pastilla: (
+    <>
+      <rect x="6" y="18" width="36" height="14" rx="7" fill="#fff" stroke="#2f7d6a" strokeWidth="3" />
+      <path d="M24 18v14" stroke="#2f7d6a" strokeWidth="3" />
+      <path d="M8.5 25a5.5 5.5 0 015.5-5.5h10v11H14a5.5 5.5 0 01-5.5-5.5z" fill="#5b9bd5" />
+      <circle cx="34" cy="40" r="5" fill="#f2c94c" /><circle cx="14" cy="9" r="4" fill="#f28b82" />
+    </>
+  ),
+  cigarro: (
+    <>
+      <rect x="4" y="26" width="32" height="8" rx="1.5" fill="#fff" stroke="#6b4423" strokeWidth="2" />
+      <rect x="4" y="26" width="9" height="8" rx="1.5" fill="#e8a25a" />
+      <rect x="36" y="26" width="6" height="8" rx="1" fill="#e0483e" />
+      <path d="M40 22c-3-4 3-6 0-10M44 22c-3-4 3-6 0-10" stroke="#9aa7a4" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </>
+  ),
+  alcohol: (
+    <>
+      <path d="M12 8h16l-2 14a6 6 0 01-12 0z" fill="#fff" stroke="#6b4423" strokeWidth="2.5" />
+      <path d="M13.5 14h13l-1.2 8a5 5 0 01-10.6 0z" fill="#b5413a" />
+      <path d="M20 28v12M14 41h12" stroke="#6b4423" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="32" y="14" width="10" height="28" rx="3" fill="#7a5a2a" /><rect x="34.5" y="7" width="5" height="9" rx="1.5" fill="#7a5a2a" />
+    </>
+  ),
+  cama: (
+    <>
+      <path d="M4 40V16M4 32h40v8" stroke="#2f7d6a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x="7" y="24" width="10" height="7" rx="3" fill="#cfe5e1" />
+      <path d="M17 24h24a3 3 0 013 3v5H17z" fill="#5b9bd5" />
+      <path d="M30 6h7l-7 8h7" stroke="#0f6f68" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
 };
 
 export function IconoSalud({ icono, no, className = "size-[12mm]" }: { icono: Icono; no?: boolean; className?: string }) {
