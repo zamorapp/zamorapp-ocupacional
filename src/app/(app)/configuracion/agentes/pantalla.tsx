@@ -75,8 +75,9 @@ function CrearLlave({ alCrear, llenas }: { alCrear: (n: Extract<LlaveNueva, { ok
           <Input id="llave-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={60} placeholder="Por ejemplo: Claude" className="h-11 max-w-xs sm:h-9" />
           {SUGERIDOS.map((s) => (
             <button key={s} type="button" onClick={() => setNombre(s)}
-              className={cn("min-h-11 rounded-full border px-3 text-sm transition hover:border-primary/50 hover:bg-primary/5 sm:min-h-8", nombre === s && "border-primary bg-primary/10 font-medium text-primary")}>
-              {s}
+              aria-pressed={nombre === s}
+              className={cn("inline-flex min-h-11 items-center gap-1 rounded-full border px-3 text-sm transition hover:border-primary/50 hover:bg-primary/5 sm:min-h-8", nombre === s && "border-primary bg-primary/10 font-medium text-primary")}>
+              {nombre === s ? <Check className="size-3.5" aria-hidden /> : null}{s}
             </button>
           ))}
         </div>
@@ -86,7 +87,7 @@ function CrearLlave({ alCrear, llenas }: { alCrear: (n: Extract<LlaveNueva, { ok
         <legend className="text-sm font-medium">2. ¿Qué puede hacer?</legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {([
-            { v: "consultar", icono: Eye, titulo: "Solo consultar", texto: "Busca y lee. No cambia nada." },
+            { v: "consultar", icono: Eye, titulo: "Solo consultar", texto: "Busca y lee. No cambia nada. Ve nombres y cédulas; nada de salud." },
             { v: "crear", icono: PencilLine, titulo: "Consultar y crear", texto: "Además crea empresas, presupuestos, trabajadores y citas." },
           ] as const).map(({ v, icono: Icono, titulo, texto }) => (
             <label key={v} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition hover:border-primary/40", permiso === v && "border-primary bg-primary/5 ring-1 ring-primary/30")}>
@@ -105,8 +106,8 @@ function CrearLlave({ alCrear, llenas }: { alCrear: (n: Extract<LlaveNueva, { ok
         <div className="flex flex-wrap gap-2">
           {DURACIONES.map((d) => (
             <button key={d.dias} type="button" aria-pressed={dias === d.dias} onClick={() => setDias(d.dias)}
-              className={cn("min-h-11 rounded-md border px-4 text-sm transition hover:border-primary/50 sm:min-h-9", dias === d.dias && "border-primary bg-primary/10 font-medium text-primary")}>
-              {d.texto}
+              className={cn("inline-flex min-h-11 items-center gap-1 rounded-md border px-4 text-sm transition hover:border-primary/50 sm:min-h-9", dias === d.dias && "border-primary bg-primary/10 font-medium text-primary")}>
+              {dias === d.dias ? <Check className="size-3.5" aria-hidden /> : null}{d.texto}
             </button>
           ))}
         </div>
@@ -127,7 +128,7 @@ function Copiar({ texto, etiqueta, principal = false }: { texto: string; etiquet
   const [fallo, setFallo] = useState(false);
   return (
     <div className="space-y-1">
-      <Button type="button" variant={principal ? "default" : "outline"} className="h-11 w-full sm:h-9 sm:w-auto"
+      <Button type="button" variant={principal ? "default" : "outline"} className="h-11 w-full max-sm:min-h-11 sm:h-9 sm:w-auto"
         onClick={async () => {
           try { await navigator.clipboard.writeText(texto); setCopiado(true); setFallo(false); setTimeout(() => setCopiado(false), 4000); } catch { setFallo(true); }
         }}>
@@ -142,6 +143,7 @@ export function LlaveRecienCreada({ nueva, cerrar }: { nueva: Extract<LlaveNueva
   const [ver, setVer] = useState(false);
   const [seguro, setSeguro] = useState(false);
   const router = useRouter();
+  const base = nueva.direccion.replace(/\/zk_[0-9a-f]+$/, "");
   return (
     <section aria-labelledby="llave-lista" className="space-y-4 rounded-xl border-2 border-primary/50 bg-primary/5 p-4">
       <div>
@@ -149,25 +151,30 @@ export function LlaveRecienCreada({ nueva, cerrar }: { nueva: Extract<LlaveNueva
         <p className="mt-1 flex items-start gap-2 text-sm text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span><strong className="font-medium">Se ve solo esta vez.</strong> Cópiala ahora. No la pegues en un chat ni la mandes por WhatsApp: quien la tenga puede entrar.</span></p>
       </div>
-      <ol className="list-decimal space-y-3 pl-5 text-sm">
-        <li className="space-y-2">
-          <span>Copia la dirección del conector.</span>
-          <Copiar texto={nueva.direccion} etiqueta="Copiar dirección del conector" principal />
-        </li>
-        <li>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
-        <li>Pega la dirección, ponle de nombre «zamorApp» y guarda.</li>
-        <li>Pídele al agente: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.</li>
-      </ol>
-      <details className="group text-sm" open={ver} onToggle={(e) => setVer((e.target as HTMLDetailsElement).open)}>
+      <div className="space-y-2 rounded-lg border bg-background p-3 text-sm">
+        <h3 className="font-medium">Forma recomendada: dirección y llave por separado</h3>
+        <p className="text-muted-foreground">Si tu agente tiene una casilla para la llave (cabecera «Authorization: Bearer»), usa esta: la llave no queda escrita en la dirección.</p>
+        <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">{base}</p>
+        <div className="flex flex-wrap gap-2">
+          <Copiar texto={base} etiqueta="Copiar dirección" />
+          <Copiar texto={nueva.llave} etiqueta="Copiar llave" principal />
+        </div>
+      </div>
+      <details className="group rounded-lg border bg-background p-3 text-sm" open={ver} onToggle={(e) => setVer((e.target as HTMLDetailsElement).open)}>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-primary hover:underline sm:min-h-0">
-          Otra forma: copiar solo la llave <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+          Mi agente solo acepta una dirección (Claude, por ejemplo) <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
         </summary>
         <div className="mt-2 space-y-2">
-          <p className="text-muted-foreground">Para plataformas que piden la dirección y la llave por separado (cabecera «Authorization: Bearer»). Dirección: <span className="break-all font-mono text-xs">{nueva.direccion.replace(/\/zk_[0-9a-f]+$/, "")}</span></p>
-          <p className="break-all rounded-md border bg-background p-2 font-mono text-xs">{nueva.llave}</p>
-          <Copiar texto={nueva.llave} etiqueta="Copiar llave" />
+          <p className="flex items-start gap-2 text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>Esta dirección lleva la llave adentro. {nueva.permiso === "crear" ? "Para esta forma conviene una llave «Solo consultar». " : ""}Si llegas a compartir la dirección, apaga la llave.</span></p>
+          <Copiar texto={nueva.direccion} etiqueta="Copiar dirección con llave" />
         </div>
       </details>
+      <ol className="list-decimal space-y-1.5 pl-5 text-sm">
+        <li>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
+        <li>Pega lo que copiaste, ponle de nombre «zamorApp» y guarda.</li>
+        <li>Pídele al agente: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.</li>
+      </ol>
       <p className="text-xs text-muted-foreground">Vence el {soloFecha(nueva.vence)}. Todo lo que haga queda en el registro de abajo.</p>
       {seguro ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
@@ -204,7 +211,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
         <h2 id="llaves" className="text-sm font-semibold uppercase tracking-[.08em] text-foreground/80">Llaves</h2>
         {apagadas > 0 ? (
           <button type="button" className="min-h-11 text-sm text-primary hover:underline sm:min-h-0" onClick={() => setVerTodas((v) => !v)}>
-            {verTodas ? "Ver solo las encendidas" : apagadas === 1 ? "Ver también la apagada o vencida" : `Ver también las ${apagadas} apagadas o vencidas`}
+            {verTodas ? "Ver solo las encendidas" : "Ver también las apagadas o vencidas"}
           </button>
         ) : null}
       </div>
@@ -294,7 +301,7 @@ function Registro({ estado, titulos }: { estado: EstadoAgentes; titulos: Record<
           <Label htmlFor="reg-hasta">Hasta</Label>
           <Input id="reg-hasta" type="date" name="hasta" defaultValue={estado.hasta} className="h-11 sm:h-9" />
         </div>
-        <Button type="submit" variant="outline" className="h-11 sm:h-9">Ver</Button>
+        <Button type="submit" variant="outline" className="h-11 max-sm:min-h-11 sm:h-9">Ver</Button>
       </form>
       {!estado.registro.length ? (
         <p className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">Ningún agente ha hecho nada entre esas fechas.</p>

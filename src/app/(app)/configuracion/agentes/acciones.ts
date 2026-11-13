@@ -5,7 +5,7 @@ import { URL_PUBLICA } from "@/lib/agentes/puerta";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-export type LlaveNueva = { ok: true; llave: string; direccion: string; nombre: string; vence: string } | { ok: false; mensaje: string };
+export type LlaveNueva = { ok: true; llave: string; direccion: string; nombre: string; permiso: "consultar" | "crear"; vence: string } | { ok: false; mensaje: string };
 
 function explicar(error: { code?: string; message: string }): string {
   if (error.code === "42501") return "Solo el administrador maneja la puerta para agentes.";
@@ -33,7 +33,7 @@ export async function crearLlave(nombre: string, permiso: "consultar" | "crear",
   if (error) return { ok: false, mensaje: explicar(error) };
   const d = data as unknown as { llave: string; vence_en: string };
   revalidatePath("/configuracion/agentes");
-  return { ok: true, llave: d.llave, direccion: `${URL_PUBLICA}/api/agentes/mcp/${d.llave}`, nombre: limpio, vence: d.vence_en };
+  return { ok: true, llave: d.llave, direccion: `${URL_PUBLICA}/api/agentes/mcp/${d.llave}`, nombre: limpio, permiso, vence: d.vence_en };
 }
 
 export async function apagarLlave(id: string): Promise<{ ok: boolean; mensaje: string }> {

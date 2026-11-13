@@ -579,8 +579,9 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Entra a Configuración › Puerta para agentes (solo el administrador).",
       "En «Crear una llave» escribe para quién es (Claude, ChatGPT, Gemini…), elige «Solo consultar» o «Consultar y crear», y cuánto dura: 7, 30 o 90 días. Pulsa «Crear llave».",
-      "Pulsa «Copiar dirección del conector». La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp.",
-      "En tu agente abre Conectores, elige agregar un conector personalizado, pega la dirección y guarda.",
+      "La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp. Si tu agente tiene casilla para la llave, usa «Copiar dirección» y «Copiar llave» (forma recomendada).",
+      "Si tu agente solo acepta una dirección (Claude, por ejemplo), abre «Mi agente solo acepta una dirección» y copia la dirección con llave. Para esa forma conviene una llave «Solo consultar»; si compartes la dirección, apaga la llave.",
+      "En tu agente abre Conectores, elige agregar un conector personalizado, pega lo que copiaste y guarda.",
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
       "En «Registro», con Desde y Hasta, ves cada cosa que hizo cada llave: qué, cuándo, en qué empresa y si fue un ensayo.",
@@ -588,6 +589,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Antes de crear, el agente hace un ensayo y te muestra lo que va a crear. Si repite la misma orden, no duplica.",
       "El presupuesto nace en borrador: lo revisas y lo envías tú.",
+      "Una llave «Solo consultar» ve nombres y cédulas de trabajadores, empresas, citas y presupuestos; nada de salud.",
       "Nunca ve ni toca historias, diagnósticos, aptitudes, reposos, tu firma ni tu sello. No borra ni cambia lo que ya existe.",
       "Si la cédula de un trabajador ya está en otra empresa, se detiene y te avisa: tú decides si lo cambias en Pacientes.",
       "Necesita internet: la puerta vive en la nube y lo creado baja a la PC con la sincronía. En la PC sin internet la pantalla lo avisa.",
