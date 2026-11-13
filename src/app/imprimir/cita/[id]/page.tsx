@@ -5,7 +5,7 @@ import { esRolEmpresa } from "@/lib/sesion-roles";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
-import { fechaCorta, fechaLarga, Ficha, Firmas, folio, Hoja, hora12, Membrete, Pie } from "../../componentes";
+import { fechaCorta, Ficha, Firmas, folio, Hoja, hora12, Membrete, Pie } from "../../componentes";
 import { docEmpresa } from "../../orden/doc-empresa";
 
 export const metadata: Metadata = { title: "Comprobante de cita" };
@@ -58,6 +58,8 @@ export default async function ImprimirCita({ params, searchParams }: { params: P
   const indicaciones = (c.observacion ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const titular = d.org.ajustes?.membrete_titular?.trim();
   const numero = folio("CITA", c.id);
+  // Sin campo propio para «provisional»: si la observación lo dice, la etiqueta también (nunca «Confirmada» en falso)
+  const estado = c.estado === "citado" && /provisional/i.test(c.observacion ?? "") ? "Provisional" : ESTADO[c.estado] ?? c.estado;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
@@ -71,12 +73,12 @@ export default async function ImprimirCita({ params, searchParams }: { params: P
         <button type="submit" className="h-10 rounded-md border bg-background px-4 text-sm font-medium hover:bg-muted">Usar</button>
       </form>
       <Hoja>
-        <Membrete d={d} />
+        <Membrete d={d} direccionCompleta />
         <div className="mt-5 mb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight">Comprobante de cita</h1>
             {c.motivo && <span className="mt-1.5 inline-block rounded bg-doc-suave px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-doc-acento">{c.motivo}</span>}
-            <span data-prueba="cita-estado" className="mt-1.5 ml-2 inline-block rounded border border-doc-acento px-2 py-[1px] text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{ESTADO[c.estado] ?? c.estado}</span>
+            <span data-prueba="cita-estado" className="mt-1.5 ml-2 inline-block rounded border border-doc-acento px-2 py-[1px] text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{estado}</span>
           </div>
           <div className="shrink-0 text-right font-cifra text-[10.5px] leading-relaxed text-doc-tenue">
             <div>Folio <b className="font-medium text-[#15201e]">{numero}</b></div>
@@ -103,7 +105,6 @@ export default async function ImprimirCita({ params, searchParams }: { params: P
           <div className="px-4 py-3">
             <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Lugar de la cita</div>
             <div className="text-[13px] font-semibold leading-snug">{lugar || "Lo indica el servicio médico"}</div>
-            <div className="mt-1 text-[11px] text-doc-tenue">Cita del {fechaLarga(c.fecha)}{titular ? ` con ${titular}` : ""}.</div>
           </div>
         </div>
 
@@ -116,7 +117,7 @@ export default async function ImprimirCita({ params, searchParams }: { params: P
           </div>
         )}
 
-        <div className="rounded-md border border-doc-linea px-3 py-2 text-[11.5px] leading-snug">
+        <div className="rounded-md border border-doc-linea px-3 py-2 text-[12px] leading-snug">
           <b>Traiga</b> su cédula de identidad y las órdenes de exámenes, si se las entregaron.
           {" "}<b>Si no puede asistir</b>, avise con 24 horas de anticipación para darle otra fecha{telefonoServicio ? ` (Tel. ${telefonoServicio})` : ""}.
         </div>
