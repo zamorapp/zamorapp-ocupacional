@@ -8,6 +8,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { fechaCorta, Hoja, Membrete, Pie } from "../../componentes";
 import { ahora } from "@/lib/fecha";
+import { AvisoColumnas } from "./aviso-columnas";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: reporte((await params).tipo)?.titulo ?? "Reporte" };
 }
 
-// 9 pt de cuerpo (Diseño, 13-nov). Las palabras largas se parten dentro de su celda para que la tabla quepa a lo ancho
+// 9 pt de cuerpo (Diseño, 13-nov). Las palabras se parten dentro de su celda SOLO si sin eso la tabla no cabe a lo ancho
+// (AvisoColumnas lo mide, marca la tabla con data-partir y lo avisa en pantalla); así no se cortan palabras sin necesidad,
 // sin achicar la letra. La hoja no pasa por AjusteHojas (ajustar={false}): un reporte fluye a varias hojas y nunca se reduce.
-const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold [overflow-wrap:anywhere] [hyphens:auto]";
-const td = "border border-doc-linea px-1.5 py-[3px] align-top [overflow-wrap:anywhere]";
+const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold [overflow-wrap:break-word] [hyphens:auto] group-data-[partir]/tabla:[overflow-wrap:anywhere]";
+const td = "border border-doc-linea px-1.5 py-[3px] align-top";
+// Solo el texto se parte; las cifras (cantidad, días, %, fechas, cédula) nunca se cortan (Diseño, 13-nov: «1.263 d» salía en dos renglones)
+// hyphens:auto (lang es-VE) separa en sílabas con guion cuando el navegador trae el diccionario; anywhere es el último recurso
+const texto = "[overflow-wrap:break-word] [hyphens:auto] group-data-[partir]/tabla:[overflow-wrap:anywhere]";
+const cifra = "whitespace-nowrap font-cifra";
 
 function Resumen({ titulo, filas, valor }: { titulo: string; filas: { nombre: string; n: number }[]; valor?: string }) {
   const total = filas.reduce((s, f) => s + f.n, 0);
@@ -31,9 +37,9 @@ function Resumen({ titulo, filas, valor }: { titulo: string; filas: { nombre: st
         <tbody>
           {filas.map((f) => (
             <tr key={f.nombre}>
-              <td className={td}>{f.nombre}</td>
-              <td className={`${td} w-12 text-right font-cifra`}>{f.n.toLocaleString("es-VE")}{valor === "dias_periodo" ? " d" : ""}</td>
-              <td className={`${td} w-12 text-right font-cifra text-doc-tenue`}>{total ? `${Math.round((f.n * 1000) / total) / 10}%` : ""}</td>
+              <td className={`${td} ${texto}`}>{f.nombre}</td>
+              <td className={`${td} w-[4.5em] text-right ${cifra}`}>{f.n.toLocaleString("es-VE")}{valor === "dias_periodo" ? " d" : ""}</td>
+              <td className={`${td} w-[4.5em] text-right ${cifra} text-doc-tenue`}>{total ? `${Math.round((f.n * 1000) / total) / 10}%` : ""}</td>
             </tr>
           ))}
         </tbody>
@@ -53,7 +59,7 @@ function Cabecera({ cols }: { cols: Columna[] }) {
 function Celdas({ cols, f }: { cols: Columna[]; f: Fila }) {
   return (
     <tr className="break-inside-avoid">
-      {cols.map((c) => <td key={c.k} className={`${td} ${c.tipo === "num" || c.tipo === "fecha" ? "whitespace-nowrap font-cifra" : ""} ${c.tipo === "num" ? "text-right" : ""}`}>{formatoCelda(c, f[c.k])}</td>)}
+      {cols.map((c) => <td key={c.k} className={`${td} ${c.tipo === "num" || c.tipo === "fecha" || c.k === "cedula" ? cifra : texto} ${c.tipo === "num" ? "text-right" : ""}`}>{formatoCelda(c, f[c.k])}</td>)}
     </tr>
   );
 }
@@ -89,13 +95,14 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
   const subtotal = (fs: Fila[]) => Object.fromEntries(colsTabla.filter((c) => c.total).map((c) => [c.k, fs.reduce((s, f) => s + Number(f[c.k] ?? 0), 0)]));
   const filaTotal = (t: Record<string, number>, etiqueta: string) => (
     <tr className="bg-doc-suave font-bold">
-      {colsTabla.map((c, i) => <td key={c.k} className={`${td} ${c.tipo === "num" ? "text-right font-cifra" : ""}`}>{c.k in t ? t[c.k].toLocaleString("es-VE") : i === 0 ? etiqueta : ""}</td>)}
+      {colsTabla.map((c, i) => <td key={c.k} className={`${td} ${c.tipo === "num" ? `text-right ${cifra}` : texto}`}>{c.k in t ? t[c.k].toLocaleString("es-VE") : i === 0 ? etiqueta : ""}</td>)}
     </tr>
   );
 
   return (
     <div className="min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
       <BarraImpresion volver={`/reportes/${def.clave}?${parametrosListado(q, empresa?.id ?? null)}`} titulo={def.titulo} />
+      <div className="px-4 print:hidden"><AvisoColumnas volver={`/reportes/${def.clave}?${parametrosListado(q, empresa?.id ?? null)}`} extras={l.ver.length > 0} /></div>
       <Hoja horizontal={def.horizontal} ajustar={false} className="!min-h-0">
         <Membrete d={membrete} compacto />
 
@@ -147,17 +154,17 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
                 <tbody>
                   {p.filas.map((f) => (
                     <tr key={f.nombre} className="break-inside-avoid">
-                      <td className={td}>{f.nombre}</td>
-                      {idx.map((i) => <td key={i} className={`${td} text-right font-cifra`}>{f.celdas[i] || ""}</td>)}
-                      <td className={`${td} text-right font-cifra font-bold`}>{f.total}</td>
-                      <td className={`${td} text-right font-cifra`}>{f.pacientes}</td>
+                      <td className={`${td} ${texto}`}>{f.nombre}</td>
+                      {idx.map((i) => <td key={i} className={`${td} text-right ${cifra}`}>{f.celdas[i] || ""}</td>)}
+                      <td className={`${td} text-right ${cifra} font-bold`}>{f.total}</td>
+                      <td className={`${td} text-right ${cifra}`}>{f.pacientes}</td>
                     </tr>
                   ))}
                   <tr className="bg-doc-suave font-bold">
                     <td className={td}>Totales</td>
-                    {idx.map((i) => <td key={i} className={`${td} text-right font-cifra`}>{p.totales[i]}</td>)}
-                    <td className={`${td} text-right font-cifra`}>{p.total}</td>
-                    <td className={`${td} text-right font-cifra`}>{p.pacientes}</td>
+                    {idx.map((i) => <td key={i} className={`${td} text-right ${cifra}`}>{p.totales[i]}</td>)}
+                    <td className={`${td} text-right ${cifra}`}>{p.total}</td>
+                    <td className={`${td} text-right ${cifra}`}>{p.pacientes}</td>
                   </tr>
                 </tbody>
               </table>
@@ -166,7 +173,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
         ) : l.filas.length === 0 ? (
           <p className="rounded-lg border border-dashed border-doc-linea py-8 text-center text-doc-tenue">Sin registros en el período con estos filtros.</p>
         ) : (
-          <table className="w-full border-collapse text-[9pt] leading-snug">
+          <table data-tabla-reporte className="group/tabla w-full border-collapse text-[9pt] leading-snug">
             <Cabecera cols={colsTabla} />
             <tbody>
               {grupos.map(([nombre, fs]) => [
