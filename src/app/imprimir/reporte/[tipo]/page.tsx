@@ -17,15 +17,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: reporte((await params).tipo)?.titulo ?? "Reporte" };
 }
 
-const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold";
-const td = "border border-doc-linea px-1.5 py-[3px] align-top";
+// 9 pt de cuerpo (Diseño, 13-nov). Las palabras largas se parten dentro de su celda para que la tabla quepa a lo ancho
+// sin achicar la letra; si ni así cabe, la pantalla avisa (nunca se achica en silencio).
+const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold [overflow-wrap:anywhere] [hyphens:auto]";
+const td = "border border-doc-linea px-1.5 py-[3px] align-top [overflow-wrap:anywhere]";
 
 function Resumen({ titulo, filas, valor }: { titulo: string; filas: { nombre: string; n: number }[]; valor?: string }) {
   const total = filas.reduce((s, f) => s + f.n, 0);
   return (
     <div className="break-inside-avoid">
-      <div className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[.11em] text-doc-acento">{titulo}</div>
-      <table className="w-full border-collapse text-[10px]">
+      <div className="mb-1 text-[8pt] font-extrabold uppercase tracking-[.11em] text-doc-acento">{titulo}</div>
+      <table className="w-full border-collapse text-[9pt]">
         <tbody>
           {filas.map((f) => (
             <tr key={f.nombre}>
@@ -100,23 +102,23 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
         <div className="mt-4 mb-3 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold leading-tight tracking-tight">{def.titulo}</h1>
-            <span className="mt-1 inline-block rounded bg-doc-suave px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-doc-acento">
+            <span className="mt-1 inline-block rounded bg-doc-suave px-2 py-0.5 text-[8pt] font-bold uppercase tracking-[.08em] text-doc-acento">
               {def.periodo === false ? "Situación actual" : periodo.etiqueta}
             </span>
           </div>
-          <div className="shrink-0 text-right font-cifra text-[10px] leading-relaxed text-doc-tenue">
+          <div className="shrink-0 text-right font-cifra text-[8pt] leading-relaxed text-doc-tenue">
             {def.periodo !== false && <div>Del <b className="font-medium text-[#15201e]">{fechaCorta(periodo.desde)}</b> al <b className="font-medium text-[#15201e]">{fechaCorta(periodo.hasta)}</b></div>}
             <div>Registros <b className="font-medium text-[#15201e]">{l.filas.length.toLocaleString("es-VE")}</b></div>
           </div>
         </div>
-        {filtros.length > 0 && <p className="mb-2 text-[10px] text-doc-tenue">Filtros: {filtros.join(" · ")}</p>}
+        {filtros.length > 0 && <p className="mb-2 text-[8pt] text-doc-tenue">Filtros: {filtros.join(" · ")}</p>}
 
         <div className="mb-3 grid grid-cols-4 overflow-hidden rounded-lg border border-doc-linea">
           {l.indicadores.map((i) => (
             <div key={i.titulo} className="border-r border-doc-linea px-3 py-1.5 last:border-r-0">
-              <div className="text-[8.5px] font-semibold uppercase tracking-[.11em] text-doc-tenue">{i.titulo}</div>
+              <div className="text-[8pt] font-semibold uppercase tracking-[.11em] text-doc-tenue">{i.titulo}</div>
               <div className="text-[15px] font-extrabold">{i.valor}</div>
-              {i.detalle && <div className="truncate text-[9px] text-doc-tenue">{i.detalle}</div>}
+              {i.detalle && <div className="truncate text-[8pt] text-doc-tenue">{i.detalle}</div>}
             </div>
           ))}
         </div>
@@ -133,7 +135,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
             const p = l.pivote!;
             const idx = p.columnas.map((_, i) => i).slice(b * 9, b * 9 + 9);
             return (
-              <table key={b} className="mb-3 w-full border-collapse text-[9.5px]">
+              <table key={b} className="mb-3 w-full border-collapse text-[9pt]">
                 <thead>
                   <tr>
                     <th className={`${th} w-48`}>{p.titulo}</th>
@@ -164,13 +166,13 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
         ) : l.filas.length === 0 ? (
           <p className="rounded-lg border border-dashed border-doc-linea py-8 text-center text-doc-tenue">Sin registros en el período con estos filtros.</p>
         ) : (
-          <table className="w-full border-collapse text-[9.5px] leading-snug">
+          <table className="w-full border-collapse text-[9pt] leading-snug">
             <Cabecera cols={colsTabla} />
             <tbody>
               {grupos.map(([nombre, fs]) => [
                 agrupar && (
                   <tr key={`g-${nombre}`} className="break-after-avoid">
-                    <td colSpan={colsTabla.length} className="border border-doc-linea bg-[#eef5f3] px-1.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-doc-acento">
+                    <td colSpan={colsTabla.length} className="border border-doc-linea bg-[#eef5f3] px-1.5 py-1 text-[9pt] font-extrabold uppercase tracking-wide text-doc-acento">
                       {nombre} <span className="font-cifra font-medium normal-case text-doc-tenue">· {fs.length.toLocaleString("es-VE")} {fs.length === 1 ? "registro" : "registros"}{l.tasas && fs[0]?.poblacion != null && ` · Población: ${Number(fs[0].poblacion).toLocaleString("es-VE")} trabajadores`}</span>
                     </td>
                   </tr>
@@ -183,8 +185,8 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
           </table>
         )}
 
-        {l.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{l.nota}</p>}
-        <p className="mt-1 text-[9.5px] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
+        {l.nota && <p className="mt-3 text-[8pt] italic text-doc-tenue">{l.nota}</p>}
+        <p className="mt-1 text-[8pt] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
         <Pie d={{ impreso }} derecha={`zamorApp · ${def.corto}`} />
       </Hoja>
     </div>
