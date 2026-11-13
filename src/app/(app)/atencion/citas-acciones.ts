@@ -188,7 +188,7 @@ export async function confirmarCitaPendiente(id: string): Promise<Resultado> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("citas").select("estado").eq("id", id).maybeSingle();
   if (error || !data) return { ok: false, mensaje: error?.message ?? "La cita ya no existe." };
-  const cambio = data.estado === "solicitada" ? { estado: "citado", propuesta_fecha: null } : { por_confirmar: false };
+  const cambio = data.estado === "solicitada" ? { estado: "citado", propuesta_fecha: null, por_confirmar: false } : { por_confirmar: false };
   const { error: e } = await supabase.from("citas").update(cambio).eq("id", id).in("estado", ["citado", "solicitada"]);
   if (e) return { ok: false, mensaje: e.code === "42501" ? "Tu rol no permite confirmar citas." : e.message };
   revalidatePath("/", "layout");

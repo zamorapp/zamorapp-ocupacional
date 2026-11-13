@@ -132,7 +132,7 @@ export function ListaPorConfirmar({ citas, hoy, servicio, plantilla }: { citas: 
         )}
       </Card>
       {visibles.some((c) => c.tipo === "solicitada") && (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarX2 className="size-3.5" aria-hidden /> Para proponer otra hora a la empresa usa «Solicitudes» en <Link href="/atencion" className="text-primary hover:underline">Atención médica</Link>.</p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarX2 className="size-3.5 shrink-0" aria-hidden /><span>Para proponer otra hora a la empresa usa «Solicitudes» en <Link href="/atencion" className="text-primary hover:underline">Atención médica</Link>.</span></p>
       )}
     </div>
   );
