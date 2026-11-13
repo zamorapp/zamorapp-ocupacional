@@ -84,7 +84,7 @@ prog as (
 ),
 -- ── 2) Enfermedades ocupacionales registradas (fecha del diagnóstico en el período)
 eo as (
-  -- Lo que el usuario puede leer de la tabla (el servicio) más lo de la vista sin datos clínicos (RR. HH., 937000).
+  -- Lo que el usuario puede leer de la tabla (el servicio) más lo de la vista sin datos clínicos (RR. HH., 943000).
   -- Son disjuntos: quien es RR. HH. en una organización no lee la tabla de esa organización.
   select ev.id, ev.org_id, ev.cie10, ev.fecha_declaracion, ev.fecha_informe_nt02, ev.en_anexo1,
          ev.certificacion_fecha, ev.estado_certificacion, true as con_detalle,
@@ -221,7 +221,7 @@ returns text language plpgsql immutable set search_path = public as $$
 declare v_def text := replace(p_def, chr(13), ''); v_viejo text := replace(p_viejo, chr(13), '');
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception '% cambió: revisar 20261030937000 antes de aplicarla (%)', p_donde, left(v_viejo, 60);
+    raise exception '% cambió: revisar 20261030943000 antes de aplicarla (%)', p_donde, left(v_viejo, 60);
   end if;
   return replace(v_def, v_viejo, replace(p_nuevo, chr(13), ''));
 end $$;
