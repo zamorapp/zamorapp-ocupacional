@@ -105,8 +105,13 @@ self.addEventListener("push", (e) => {
   const contar = (mostrado, error) => typeof d.prueba === "string"
     ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((l) => l.forEach((c) => c.postMessage({ tipo: "aviso-recibido", prueba: d.prueba, mostrado, error })))
     : Promise.resolve();
+  // Acuse a la nube (20261030932000): «me llegó» y si se pudo mostrar. Si un aparato deja de confirmar, la campana lo dice.
+  const acuse = (mostrado) => self.registration.pushManager.getSubscription()
+    .then((sub) => sub && fetch("/api/avisos/acuse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint, mostrado }) }))
+    .catch(() => {});
   e.waitUntil(mostrar.then(() => contar(true), (err) => contar(false, String(err && err.message || err)))
-    .then(() => Notification.permission === "granted" || contar(false, "permiso " + Notification.permission)));
+    .then(() => Notification.permission === "granted" || contar(false, "permiso " + Notification.permission))
+    .then(() => acuse(Notification.permission === "granted"), () => acuse(false)));
 });
 
 // Al tocar el aviso: abre zamorApp en la pantalla del aviso (reusa una pestaña abierta si la hay)

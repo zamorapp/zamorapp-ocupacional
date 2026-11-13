@@ -825,6 +825,9 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Aviso de Windows cuando llega algo nuevo a la campana (enlace abierto, RR. HH., plazos): lo pide la página
+        // (src/lib/escritorio.ts › avisoWindows). Solo «notify»: la página no puede leer ni borrar otros avisos.
+        .plugin(tauri_plugin_notification::init())
         .manage(Mutex::new(Procesos::default()))
         .manage(documentos::Guardados::default())
         .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf, voz::dictado_windows, espirometro::espirometria_winspiro])

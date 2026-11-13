@@ -9,6 +9,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { TRABAJADORES_DEMO } from "@/lib/pacientes";
 import { buscarPacientes } from "@/app/(app)/atencion/acciones";
 import { ultimosAtendidos, type Atendido } from "@/lib/ultimos-atendidos";
+import { ahora } from "@/lib/fecha";
 
 export async function salir() {
   if (supabaseConfigurado) {
@@ -43,6 +44,23 @@ export async function misNotificaciones(): Promise<Notificacion[]> {
   const pausadas = new Set((inactivas ?? []).map((e) => e.id as string));
   const visibles = (data ?? []).filter((n) => !n.empresa_id || !pausadas.has(n.empresa_id) || (n.enlace ?? "").startsWith("/accidentes/"));
   return visibles.slice(0, 30).map((n) => ({ id: n.id, titulo: n.titulo, texto: n.texto, enlace: n.enlace, leida: n.leida, creadoEn: n.creado_en, nivel: n.nivel ?? "info" }));
+}
+
+// Aparatos con avisos activos que no confirmaron el último aviso (acuse del service worker, 20261030932000): la nube
+// lo mandó hace más de 30 min y el aparato no dijo «me llegó», o dijo que le llegó pero no lo pudo mostrar.
+export type AparatoSinAcuse = { id: string; equipo: string; desde: string; bloqueado: boolean };
+const ESPERA_ACUSE_MS = 30 * 60e3;
+export async function aparatosSinAcuse(): Promise<AparatoSinAcuse[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("suscripciones_push").select("id, equipo, ultimo_aviso, ultimo_acuse, acuse_mostrado");
+  if (error || !data) return [];
+  const limite = ahora() - ESPERA_ACUSE_MS;
+  return data
+    .filter((s) => s.ultimo_aviso && (
+      (Date.parse(s.ultimo_aviso) < limite && (!s.ultimo_acuse || Date.parse(s.ultimo_acuse) < Date.parse(s.ultimo_aviso)))
+      || (s.acuse_mostrado === false && s.ultimo_acuse && Date.parse(s.ultimo_acuse) >= Date.parse(s.ultimo_aviso))))
+    .map((s) => ({ id: s.id as string, equipo: (s.equipo as string | null) || "Navegador", desde: s.ultimo_aviso as string, bloqueado: s.acuse_mostrado === false }));
 }
 
 export async function marcarLeidas(ids: string[]) {
