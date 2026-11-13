@@ -1,4 +1,4 @@
--- RR. HH. reporta accidentes de su empresa (20261030935000): solo crea el reporte inicial, solo en su empresa,
+-- RR. HH. reporta accidentes de su empresa (20261030942000): solo crea el reporte inicial, solo en su empresa,
 -- sin enfermedades ni declaración; no edita ni borra. El servicio recibe el aviso en la campana, RR. HH. no.
 \pset tuples_only on
 reset role;
