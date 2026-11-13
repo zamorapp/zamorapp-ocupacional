@@ -6,6 +6,7 @@ import { IconoSalud } from "./iconos-salud";
 import { GUIA_TA, guiaDeDieta } from "@/lib/guias-salud";
 import { GuiaIlustrada } from "./guia-ilustrada";
 import { primerNombre } from "./bienestar";
+import { IdentHojas } from "./documentos";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, DatosPaciente, Ficha, FirmaMedico, Firmas, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
@@ -65,6 +66,7 @@ export function ControlTension({ d, dias = 7 }: { d: DatosDocumento; dias?: numb
   const ta = d.datos.signos?.ta?.trim();
   return (
     <>
+      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, "Control de tensión arterial", `Folio ${folio("TA", d.datos.id)}`].join(" · ")} />
       {Array.from({ length: hojas }, (_, h) => (
         <Hoja key={h}>
           <Membrete d={d} compacto />
@@ -106,12 +108,11 @@ export function ControlTension({ d, dias = 7 }: { d: DatosDocumento; dias?: numb
         </Hoja>
       ))}
       {/* Al dorso: cómo tomarse la tensión (con dibujos) y qué la baja */}
-      <Hoja>
-        <Membrete d={d} compacto />
-        <Titulo d={d} prefijo="TA" compacto sub="Al dorso de su control · guárdela y léala con calma">
+      <Hoja ajustar={false}>
+        <Titulo d={d} prefijo="TA" compacto sub="Al dorso de su control · cómo tomarse la tensión y cómo bajarla">
           {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, así cuida su tensión` : "Así cuida su tensión"}
         </Titulo>
-        <GuiaIlustrada g={GUIA_TA} />
+        <GuiaIlustrada g={GUIA_TA} sinTitulo />
         <Pie d={d} derecha={`Folio ${folio("TA", d.datos.id)}`} />
       </Hoja>
     </>
@@ -160,7 +161,9 @@ export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosD
   // hoja para que la firma no quede sola arriba de una hoja en blanco
   return (
     <>
-    <Hoja className="print:block">
+    <Hoja className="print:block" ajustar={false}>
+      {/* Desde la hoja 2: nombre, cédula, documento, folio y «Hoja N de M» (como Bienestar; esta página imprime un solo plan) */}
+      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, "Plan de alimentación", `Folio ${folio("PA", d.datos.id)}`].join(" · ")} />
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="PA" compacto sub={extras.length ? `${b.boton} · con ${extras.map((p) => p.boton.toLowerCase()).join(", ")}` : b.boton}>
         {b.titulo}
@@ -239,8 +242,7 @@ export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosD
     </Hoja>
     {/* Guía ilustrada de la dieta: hoja propia al final, con el nombre del trabajador */}
     {guia && (
-      <Hoja>
-        <Membrete d={d} compacto />
+      <Hoja ajustar={false}>
         <Titulo d={d} prefijo="PA" compacto sub="Guía para el día a día · guárdela y léala con calma">
           {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, ${guia.para ?? "su guía"}` : (guia.para ?? "Su guía").replace(/^./, (c) => c.toUpperCase())}
         </Titulo>
