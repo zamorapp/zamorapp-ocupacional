@@ -84,5 +84,5 @@ exception when insufficient_privilege then null; end $$;
 select 'la enfermera no anula (debe 1): ' || count(*) from public.indicaciones where id = '23200000-0000-0000-0000-0000000000d2' and estado = 'pendiente';
 
 reset role;
--- La investigación de accidente: ver la prueba 233 (enfermería sí la escribe en su empresa)
+-- La investigación de accidente: ver la prueba 240 (enfermería sí la escribe en su empresa)
 delete from clinico.indicaciones where id::text like '23200000-%';
