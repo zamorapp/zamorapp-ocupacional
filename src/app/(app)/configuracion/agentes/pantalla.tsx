@@ -134,7 +134,12 @@ function Copiar({ texto, etiqueta, principal = false }: { texto: string; etiquet
         }}>
         {copiado ? <Check /> : <Copy />} {copiado ? "Copiado" : etiqueta}
       </Button>
-      {fallo ? <p className="text-xs text-alerta-texto">No se pudo copiar solo: selecciona el texto de abajo y cópialo a mano.</p> : null}
+      {fallo ? (
+        <>
+          <p className="text-xs text-alerta-texto">No se pudo copiar solo: toca el recuadro de abajo y cópialo a mano.</p>
+          <p className="select-all break-all rounded-md border bg-background p-2 font-mono text-xs">{texto}</p>
+        </>
+      ) : null}
     </div>
   );
 }
