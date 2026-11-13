@@ -10,7 +10,8 @@
 --    cargos y dias_cargados (salen de la incapacidad), potencial_discapacidad, discapacidad, discapacidad_pct,
 --    consulta_id, observaciones (texto libre del informe NT-02), origen y quién lo creó.
 --    Dentro: los hechos, la lesión (COVENIN 474), la declaración y los plazos legales (fecha_diagnostico y
---    en_anexo1 solo dicen cuándo vence el informe NT-02, no qué enfermedad es).
+--    en_anexo1 solo dicen cuándo vence el informe NT-02, no qué enfermedad es) y dias_cargados_indice
+--    (lo que suma el índice de severidad, ya neto).
 
 drop policy if exists eventos_sin_rrhh on public.eventos;
 create policy eventos_sin_rrhh on public.eventos as restrictive for select to authenticated
@@ -25,7 +26,11 @@ create or replace view public.eventos_empresa with (security_barrier = true) as
          e.fecha_aviso, e.fecha_declaracion, e.numero_declaracion,
          e.fecha_diagnostico, e.en_anexo1, e.fecha_informe_nt02,
          e.causas_inmediatas, e.causas_basicas, e.acto_inseguro, e.condicion_insegura, e.acciones,
-         e.estado, e.creado_en, e.actualizado_en
+         e.estado, e.creado_en, e.actualizado_en,
+         -- Días cargados ya netos para el índice de severidad (COVENIN 474, 4.4): el número que suma el índice,
+         -- sin decir el tipo de incapacidad. Así RR. HH. ve el mismo índice que el servicio.
+         case when e.incapacidad = 'parcial_permanente' then greatest(e.dias_cargados - e.dias_perdidos, 0)
+              else e.dias_cargados end as dias_cargados_indice
   from public.eventos e
   where e.org_id = any ((select public.orgs_con('{gerente_empresa}', p_sin_limite => true))::uuid[])
      or (e.org_id::text || e.empresa_id::text) = any ((select public.pares_limitados('{gerente_empresa}'))::text[]);
@@ -191,3 +196,51 @@ select jsonb_build_object(
               and exists (select 1 from trab t where t.id = x.id and public.es_servicio(t.org_id))))
 );
 $$;
+
+-- 4) Los reportes que corren con los permisos de quien llama (Inicio, índices, vigilancia, inspección, listados)
+--    leían public.eventos: con la regla 1, RR. HH. habría visto 0 accidentes sin aviso. eventos_visibles() da lo
+--    que el usuario lee de la tabla más lo de la vista, con lo clínico vacío. Son disjuntos (regla 1).
+--    Para RR. HH.: incapacidad vacía y dias_cargados = el neto del índice, así la fórmula de severidad
+--    (parcial permanente: cargados − perdidos) da el mismo número que al servicio.
+create or replace function public.eventos_visibles()
+returns setof public.eventos language sql stable set search_path = public as $$
+  select * from public.eventos
+  union all
+  select r.* from public.eventos_empresa v
+  cross join lateral jsonb_populate_record(null::public.eventos,
+    (to_jsonb(v) - 'dias_cargados_indice')
+    || jsonb_build_object('dias_cargados', v.dias_cargados_indice, 'potencial_discapacidad', false, 'cargos', '[]'::jsonb)) r
+$$;
+revoke execute on function public.eventos_visibles() from public, anon;
+grant execute on function public.eventos_visibles() to authenticated;
+
+-- Parches de texto sobre la versión vigente de cada función: falla si el texto no aparece exactamente una vez
+-- (mismo ayudante temporal que 931000; se borra al final)
+create or replace function public.parche_unico(p_def text, p_viejo text, p_nuevo text, p_donde text)
+returns text language plpgsql immutable set search_path = public as $$
+declare v_def text := replace(p_def, chr(13), ''); v_viejo text := replace(p_viejo, chr(13), '');
+begin
+  if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
+    raise exception '% cambió: revisar 20261030937000 antes de aplicarla (%)', p_donde, left(v_viejo, 60);
+  end if;
+  return replace(v_def, v_viejo, replace(p_nuevo, chr(13), ''));
+end $$;
+revoke execute on function public.parche_unico(text, text, text, text) from public, anon, authenticated;
+do $$
+begin
+  execute public.parche_unico(pg_get_functiondef('public.indices_accidentalidad(uuid,date,date)'::regprocedure),
+    'select * from public.eventos
+  where', 'select * from public.eventos_visibles()
+  where', 'indices_accidentalidad');
+  execute public.parche_unico(pg_get_functiondef('public.reporte_indicadores(text,uuid,date,date,jsonb)'::regprocedure),
+    'from public.eventos ev', 'from public.eventos_visibles() ev', 'reporte_indicadores');
+  execute public.parche_unico(pg_get_functiondef('public.reporte_vigilancia(uuid,date,date)'::regprocedure),
+    'select e.* from public.eventos e', 'select e.* from public.eventos_visibles() e', 'reporte_vigilancia');
+  execute public.parche_unico(pg_get_functiondef('public.inicio_conteos(uuid,boolean,boolean)'::regprocedure),
+    'from public.eventos e where', 'from public.eventos_visibles() e where', 'inicio_conteos');
+  execute public.parche_unico(pg_get_functiondef('public.inspeccion_conteos(uuid,date,date)'::regprocedure),
+    'select e.* from public.eventos e', 'select e.* from public.eventos_visibles() e', 'inspeccion_conteos');
+  execute public.parche_unico(pg_get_functiondef('public.reporte_listado(text,uuid,date,date,jsonb)'::regprocedure),
+    'from public.eventos ev', 'from public.eventos_visibles() ev', 'reporte_listado');
+end $$;
+drop function public.parche_unico(text, text, text, text);
