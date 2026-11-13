@@ -9,6 +9,7 @@ import { ETIQUETA_TIPO_ENFERMERIA, SIGNOS_ENFERMERIA, nivelTension } from "@/lib
 import { cn } from "@/lib/utils";
 import type { AtencionEnfermeria, OrdenEnfermeria } from "@/lib/enfermeria";
 import { borrarAtencion, cumplirOrden } from "./acciones";
+import { EditarAtencion } from "./editar-atencion";
 
 const fechaCorta = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
@@ -79,10 +80,13 @@ export function ListaAtenciones({ atenciones, puedeBorrarTodo, vacio = "Sin aten
                 <p className="text-xs text-muted-foreground">{fechaCorta(a.fecha)}{a.trabajador ? ` · ${a.empresa}` : ""}{a.registradoPor ? ` · ${a.registradoPor}` : ""}</p>
               </div>
               {(a.mia || puedeBorrarTodo) && (
-                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-alerta-texto" aria-label="Borrar esta atención"
-                  title="Para un error de tecleo: quien la registró, el mismo día" disabled={pendiente} onClick={() => borrar(a)}>
+                <div className="flex items-start gap-0.5">
+                <EditarAtencion a={a} />
+                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-alerta-texto max-sm:size-11" aria-label="Borrar esta atención"
+                  title="Borrar: quien la registró, en las primeras 24 horas" disabled={pendiente} onClick={() => borrar(a)}>
                   {borrando === a.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
                 </Button>
+                </div>
               )}
             </li>
           );
