@@ -21,7 +21,6 @@ export type TemaManual = {
 // La fecha de la novedad más reciente (o esta base, si el manual cambió sin novedad)
 export const MANUAL_ACTUALIZADO = ["2026-11-13", ...NOVEDADES.map((n) => n.fecha)].sort().at(-1)!;
 
-// Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 // Lo nuevo, arriba del manual: un archivo por novedad en src/lib/novedades/ (ver su LEEME.md), así dos cambios
 // nunca chocan en este archivo. "tema" lleva a la sección que lo explica.
 export { NOVEDADES };
