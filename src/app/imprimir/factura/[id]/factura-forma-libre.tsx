@@ -2,11 +2,12 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ListChecks, Loader2, Ruler, TriangleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ChevronDown, ListChecks, Loader2, Ruler, Split, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Cobro, limpiarNumeroFactura, totales } from "@/lib/facturacion-tipos";
-import { guardarNumeroFactura, guardarTasaCobro } from "@/app/(app)/facturacion/acciones";
+import { dividirCobro, guardarNumeroFactura, guardarTasaCobro } from "@/app/(app)/facturacion/acciones";
 import { leerTasaEscrita, tasaParaFecha } from "@/lib/tasa-bcv";
 import { BarraImpresion } from "../../barra";
 
@@ -25,11 +26,13 @@ const cifraTasa = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigi
 const fecha = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const fechaEnLetras = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-VE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
 
-type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number };
+type Renglon = { cantidad: number; descripcion: string; detalle: string; precio: number; ids: string[] };
 
 // relacion: enlace a la relación de pacientes de esta nota (null si no trae trabajadores). Tras imprimir la factura se
 // ofrece imprimirla también (con «Ignorar»); además queda siempre un botón en la barra.
-export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null, condiciones = "" }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null; condiciones?: string }) {
+// segunda: la nota que salió al dividir esta factura (13-nov, Cesar): se imprime después, con el Nº siguiente.
+export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, editable, datosPago = "", tasas = [], hoy, relacion = null, condiciones = "", segunda = null }: { cobro: Cobro; direccion: string; telefono: string; sugerido: string; editable: boolean; datosPago?: string; tasas?: { fecha: string; tasa: number }[]; hoy?: string; relacion?: string | null; condiciones?: string; segunda?: { id: string; numero: number } | null }) {
+  const router = useRouter();
   const [numero, setNumero] = useState(c.numeroFacturaFiscal || sugerido);
   const [guardado, setGuardado] = useState(c.numeroFacturaFiscal);
   // Una factura que todavía no tiene número se emite hoy (con la tasa de hoy); una ya numerada conserva su fecha
@@ -79,13 +82,13 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
 
   // Agrupados: los renglones iguales (mismo servicio y precio) se suman en uno; así 30 evaluaciones caben en una línea
   const renglones: Renglon[] = useMemo(() => {
-    if (detallar) return c.items.map((i) => ({ cantidad: i.cantidad, descripcion: i.descripcion, detalle: i.detalle, precio: i.precioUsd }));
+    if (detallar) return c.items.map((i) => ({ cantidad: i.cantidad, descripcion: i.descripcion, detalle: i.detalle, precio: i.precioUsd, ids: i.id ? [i.id] : [] }));
     const m = new Map<string, Renglon>();
     for (const i of c.items) {
       const k = `${i.descripcion.trim().toLowerCase()}|${i.precioUsd}`;
       const r = m.get(k);
-      if (r) r.cantidad += i.cantidad;
-      else m.set(k, { cantidad: i.cantidad, descripcion: i.descripcion, detalle: "", precio: i.precioUsd });
+      if (r) { r.cantidad += i.cantidad; if (i.id) r.ids.push(i.id); }
+      else m.set(k, { cantidad: i.cantidad, descripcion: i.descripcion, detalle: "", precio: i.precioUsd, ids: i.id ? [i.id] : [] });
     }
     return [...m.values()];
   }, [c.items, detallar]);
@@ -101,6 +104,21 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
     setCompacto(junto);
     setDesborde(alto() > ALTO + 0.5);
   }, [renglones, numero, emision, direccion, tasa, condiciones, datosPago]);
+
+  // Dividir en dos facturas: la primera mitad de los renglones (como salen impresos) se queda; la otra pasa a una nota
+  // nueva con su propio total. Cada factura totaliza solo lo suyo.
+  const [dividir, setDividir] = useState(false);
+  const [dividiendo, iniciarDivision] = useTransition();
+  const mitad = Math.ceil(renglones.length / 2);
+  const totalDe = (rs: Renglon[]) => rs.reduce((s, r) => s + r.cantidad * r.precio, 0);
+  const divisible = editable && !guardado && c.estado !== "pagada" && c.estado !== "anulada" && renglones.length >= 2 && renglones.every((r) => r.ids.length > 0);
+  const confirmarDivision = () => iniciarDivision(async () => {
+    const r = await dividirCobro(c.id, renglones.slice(mitad).flatMap((x) => x.ids));
+    if (!r.ok || !r.nuevoId) { setAviso(r); return; }
+    setDividir(false);
+    setAviso({ ok: true, mensaje: `Dividida en dos facturas. Imprime esta primero; la segunda (nota #${r.numero}) sale con el Nº siguiente.` });
+    router.replace(`/imprimir/factura/${c.id}?segunda=${r.nuevoId}`);
+  });
 
   const guardarNumero = (alImprimir = false) => {
     // La tasa impresa queda anotada en la nota de cobro (si cambió)
@@ -189,10 +207,40 @@ export function FacturaFormaLibre({ cobro: c, direccion, telefono, sugerido, edi
           </p>
         )}
         {sinNumero && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Escribe el número de la factura del talonario para poder imprimir.</p>}
+        {segunda && (
+          <div role="status" data-aviso="segunda" className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+            <Split className="size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-[14rem] flex-1">
+              <div className="font-medium text-foreground">Factura 1 de 2. Imprime esta primero.</div>
+              <div className="text-muted-foreground">{guardado ? `Después imprime la segunda (nota #${segunda.numero}): sale con el Nº siguiente al ${guardado}.` : `La segunda (nota #${segunda.numero}) toma el Nº siguiente cuando esta quede impresa.`} Cada una lleva su propio total.</div>
+            </div>
+            {guardado && <Button asChild><Link href={`/imprimir/factura/${segunda.id}`}><Split /> Imprimir factura 2</Link></Button>}
+          </div>
+        )}
         {desborde && (
-          <p className="flex items-start gap-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" /> No caben {renglones.length} renglones en una hoja, ni con el interlineado junto. {detallar ? "Desmarca «Un renglón por trabajador»" : "Divide la nota de cobro en dos"} para que entre en una hoja.
-          </p>
+          <div className="space-y-2 rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">
+            <p className="flex items-start gap-2">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>No caben {renglones.length} renglones en una hoja, ni con el interlineado junto. {detallar ? "Desmarca «Un renglón por trabajador» o divídela en dos facturas." : divisible ? "Divídela en dos facturas, cada una con su propio total." : guardado ? `Ya tiene el Nº ${guardado}: para dividirla, borra el número y sal del campo.` : "Divide la nota de cobro en dos para que entre en una hoja."}</span>
+            </p>
+            {divisible && !dividir && (
+              <Button size="sm" onClick={() => setDividir(true)}><Split /> Dividir en 2 facturas</Button>
+            )}
+            {divisible && dividir && (
+              <div className="rounded-md border bg-background p-3 text-foreground">
+                <div className="font-medium">¿Dividir en dos facturas?</div>
+                <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                  <li>Factura 1 (esta nota #{c.numero}): renglones 1 al {mitad}.<b className="block font-mono text-foreground tabular-nums">Total {moneda} {num(enMoneda(totalDe(renglones.slice(0, mitad))))}</b></li>
+                  <li>Factura 2 (nota nueva): renglones {mitad + 1} al {renglones.length}.<b className="block font-mono text-foreground tabular-nums">Total {moneda} {num(enMoneda(totalDe(renglones.slice(mitad))))}</b></li>
+                  <li>La segunda no continúa a la primera: cada una suma solo lo suyo y lleva el Nº siguiente del talonario.</li>
+                </ul>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" disabled={dividiendo} onClick={confirmarDivision}>{dividiendo ? <Loader2 className="animate-spin" /> : <Split />} Sí, dividir</Button>
+                  <Button size="sm" variant="ghost" disabled={dividiendo} onClick={() => setDividir(false)}>Cancelar</Button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
         {!tasa && <p className="rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">Sin tasa BCV para el {fecha(emision)}: los montos salen solo en dólares. Escribe la tasa arriba para facturar en bolívares.</p>}
         {compacto && !desborde && <p className="text-xs text-muted-foreground">Interlineado junto para que quepa en la franja (la letra no se achica).</p>}
