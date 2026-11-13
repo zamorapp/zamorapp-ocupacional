@@ -94,9 +94,9 @@ function resumen(id: IdPaso, f: HTMLFormElement | null, inicial: Record<string, 
 }
 
 // Un grupo de un paso que se despliega (sigue en el formulario aunque esté cerrado)
-function Grupo({ titulo, abierto, children }: { titulo: string; abierto?: boolean; children: React.ReactNode }) {
+function Grupo({ titulo, abierto, id, children }: { titulo: string; abierto?: boolean; id?: string; children: React.ReactNode }) {
   return (
-    <details open={abierto} className="group rounded-lg border bg-background">
+    <details open={abierto} data-grupo={id} className="group scroll-mt-24 rounded-lg border bg-background">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-4 shrink-0 text-muted-foreground transition group-open:rotate-90" />
         {titulo}
@@ -118,14 +118,27 @@ export function FormOrganizacion({ org, editable, logo }: { org: Org; editable: 
   // Al guardar bien, el aviso de «sin guardar» se apaga
   useEffect(() => { if (estado?.ok) setSinGuardar(false); }, [estado]);
   // El enlace del buscador puede abrir un paso: /configuracion/organizacion?paso=documentos
-  const pasoPedido = useSearchParams().get("paso");
+  // …y además un grupo de ese paso: ?paso=documentos&grupo=cobro (se abre y se muestra)
+  const params = useSearchParams();
+  const pasoPedido = params.get("paso");
+  const grupoPedido = params.get("grupo");
   useEffect(() => {
     if (pasoPedido && PASOS.some((x) => x.id === pasoPedido)) {
       setAbierto(pasoPedido as IdPaso);
-      requestAnimationFrame(() => formulario.current?.querySelector(`[data-paso="${pasoPedido}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+      porMostrar.current = true;
     }
     setVersion((n) => n + 1);
-  }, [pasoPedido]);
+  }, [pasoPedido, grupoPedido]);
+  // Se muestra cuando el paso ya está abierto en pantalla (antes de pintarse sigue oculto y no se puede bajar a él)
+  const porMostrar = useRef(false);
+  useEffect(() => {
+    if (!porMostrar.current || abierto !== pasoPedido) return;
+    porMostrar.current = false;
+    const paso = formulario.current?.querySelector(`[data-paso="${pasoPedido}"]`);
+    const grupo = grupoPedido && /^[a-z]+$/.test(grupoPedido) ? paso?.querySelector<HTMLDetailsElement>(`details[data-grupo="${grupoPedido}"]`) : null;
+    if (grupo) grupo.open = true;
+    requestAnimationFrame(() => (grupo ?? paso)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }, [abierto, pasoPedido, grupoPedido]);
 
   return (
     <form
@@ -260,7 +273,7 @@ function PasoDocumentos({ a }: { a: Ajustes }) {
           <Campo id="certificado_titulo" etiqueta="Título" ayuda="Vacío: se usa «Certificado de salud»." defaultValue={a.certificado_titulo ?? "Certificado de salud"} />
           <CampoTexto id="certificado_nota" etiqueta="Nota legal al pie (vacío para no imprimirla)" rows={2} className="sm:col-span-2" defaultValue={a.certificado_nota ?? NOTA_CERTIFICADO_SACS} />
         </Grupo>
-        <Grupo titulo="Nota de cobro y recibo">
+        <Grupo id="cobro" titulo="Nota de cobro y recibo">
           <CondicionesPago defecto={a.cobro_condiciones ?? CONDICION_PAGO_BCV} />
           <CampoTexto id="cobro_datos_pago" etiqueta="Datos para el pago (cuentas y pago móvil; una por línea)" rows={12} className="sm:col-span-2" defaultValue={a.cobro_datos_pago ?? ""}
             placeholder={"Titular: Nombre · C.I. V-…\nCuentas bancarias:\nMercantil · Cta. corriente 0105-…\nPago móvil:\nC.I. … · Tel. …\n0102 · Venezuela\nBinance:\nID · …"} />
