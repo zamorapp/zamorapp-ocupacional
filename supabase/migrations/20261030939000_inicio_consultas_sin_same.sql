@@ -7,7 +7,7 @@
 -- Se puede repetir: si ya tiene el filtro, no hace nada.
 do $$
 declare
-  v_def text := pg_get_functiondef('public.inicio_conteos(uuid, boolean, boolean)'::regprocedure);
+  v_def text := replace(pg_get_functiondef('public.inicio_conteos(uuid, boolean, boolean)'::regprocedure), chr(13), '');  -- sin retornos de carro (pegado desde Windows)
   v_viejo constant text := 'where c.estado in (''cerrada'', ''borrador'')';
   v_nuevo constant text := 'where c.estado in (''cerrada'', ''borrador'') and c.origen is null';
   v_veces int;
