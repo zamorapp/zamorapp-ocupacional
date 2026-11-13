@@ -22,9 +22,9 @@ export async function enviarRegistro(token: string, datos: Record<string, string
       .map((h) => ({ clave: texto(h?.clave, 60), valor: texto(h?.valor, 120) })).filter((h) => h.clave && h.valor.trim());
   }
   const supabase = clienteAnonimo();
-  if (!supabase) return { ok: false, mensaje: "El servicio no está disponible. Intenta más tarde." };
+  if (!supabase) return { ok: false, mensaje: "El servicio no está disponible. Intente más tarde." };
   const { data, error } = await supabase.rpc("enviar_solicitud_paciente", { p_token: token, p_datos: limpio });
-  if (error) return { ok: false, mensaje: "No se pudo enviar. Revisa tu conexión e inténtalo de nuevo." };
+  if (error) return { ok: false, mensaje: "No se pudo enviar. Revise su conexión e inténtelo de nuevo." };
   if (data !== "ok") return { ok: false, mensaje: String(data ?? "No se pudo enviar.") };
   const { data: docs } = await supabase.rpc("documentos_registro_paciente", { p_token: token });
   return { ok: true, mensaje: "", documentos: Boolean(docs) };
@@ -35,16 +35,16 @@ export async function enviarRegistro(token: string, datos: Record<string, string
 export async function reservarResultado(token: string, tipo: string): Promise<{ ruta?: string; error?: string }> {
   if (!TOKEN_REGISTRO.test(token)) return { error: "Enlace no válido." };
   const supabase = clienteAnonimo();
-  if (!supabase) return { error: "El servicio no está disponible. Intenta más tarde." };
+  if (!supabase) return { error: "El servicio no está disponible. Intente más tarde." };
   const { data, error } = await supabase.rpc("reservar_resultado_paciente", { p_token: token, p_tipo_mime: tipo });
-  if (error) return { error: "No se pudo preparar la subida. Revisa tu conexión." };
+  if (error) return { error: "No se pudo preparar la subida. Revise su conexión." };
   return data as { ruta?: string; error?: string };
 }
 
 export async function confirmarResultado(token: string, ruta: string, nombre: string): Promise<{ ok: boolean; mensaje: string }> {
   if (!TOKEN_REGISTRO.test(token) || typeof ruta !== "string" || ruta.length > 200) return { ok: false, mensaje: "Enlace no válido." };
   const supabase = clienteAnonimo();
-  if (!supabase) return { ok: false, mensaje: "El servicio no está disponible. Intenta más tarde." };
+  if (!supabase) return { ok: false, mensaje: "El servicio no está disponible. Intente más tarde." };
   const { data, error } = await supabase.rpc("confirmar_resultado_paciente", { p_token: token, p_ruta: ruta, p_nombre: texto(nombre, 120) });
   if (error) return { ok: false, mensaje: "No se pudo registrar el archivo. Inténtalo de nuevo." };
   revalidatePath(`/registro/${token}`);
