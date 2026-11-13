@@ -11,7 +11,10 @@ do $$
 begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'citas' and column_name = 'por_confirmar') then
     alter table public.citas add column por_confirmar boolean not null default false;
-    update public.citas set por_confirmar = true where estado = 'citado' and observacion ilike 'provisional%';
+    -- Solo en la nube: la copia local del escritorio recibe la marca al sincronizar
+    if not public.es_base_local() then
+      update public.citas set por_confirmar = true where estado = 'citado' and observacion ilike 'provisional%';
+    end if;
   end if;
 end $$;
 create index if not exists citas_por_confirmar on public.citas (org_id, fecha) where por_confirmar;
