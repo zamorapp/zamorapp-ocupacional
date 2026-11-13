@@ -5,7 +5,7 @@ import type { Sesion } from "@/lib/sesion";
 export type Tarea = { titulo: string; valor: number; detalle: string; href: string; urgente?: boolean };
 export type Enfoque = { titulo: string; tareas: Tarea[]; acciones: { titulo: string; href: string; icono: "consulta" | "paciente" | "accidente" | "constancia" | "cita" | "cobro" | "reporte" | "usuarios" }[] };
 
-export type Tareas = { citados: number; en_espera: number; solicitadas: number; eventos_abiertos: number; por_cobrar: number; por_firmar?: number; abiertas?: number; por_recibir?: number };
+export type Tareas = { citados: number; en_espera: number; solicitadas: number; eventos_abiertos: number; por_cobrar: number; por_firmar?: number; abiertas?: number; por_recibir?: number; por_confirmar?: number };
 
 const ACCIONES_DE = (sesion: Pick<Sesion, "rol" | "clinico">) =>
   sesion.rol === "enfermeria" ? ACCIONES.enfermeria : sesion.clinico ? ACCIONES.clinico : sesion.rol === "recepcion" ? ACCIONES.recepcion : sesion.rol === "coordinador_sst" ? ACCIONES.sst : ACCIONES.admin;
@@ -15,6 +15,12 @@ export const accionesDelRol = (sesion: Pick<Sesion, "rol" | "clinico">) => ACCIO
 
 // El médico ve solo sus consultas por firmar y abiertas; el gerente médico y el administrador, todas
 export const soloMias = (sesion: Pick<Sesion, "rol">) => sesion.rol !== "gerente_medico" && sesion.rol !== "administrador";
+
+// Provisionales (esperan a la empresa) + solicitadas por el portal (esperan al servicio): misma regla que la lista
+const porConfirmar = (t: Tareas): Tarea => {
+  const n = (t.por_confirmar ?? 0) + t.solicitadas;
+  return { titulo: "Citas por confirmar", valor: n, detalle: n ? "Esperan un sí" : "Nada pendiente", href: "/atencion/por-confirmar", urgente: n > 0 };
+};
 
 // Lo primero que ve cada rol al entrar. Los conteos llegan todos juntos de la base (inicio_conteos).
 export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
@@ -27,7 +33,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
       tareas: [
         { titulo: "En espera ahora", valor: 2, detalle: "Llegaron y esperan consulta", href: "/atencion", urgente: true },
         { titulo: "Por firmar", valor: 3, detalle: "Consultas cerradas sin firma", href: "/atencion" },
-        { titulo: "Solicitudes del portal", valor: 1, detalle: "Citas pedidas por empresas", href: "/atencion" },
+        { titulo: "Citas por confirmar", valor: 1, detalle: "Esperan un sí", href: "/atencion/por-confirmar", urgente: true },
       ],
       acciones: ACCIONES.clinico,
     };
@@ -41,6 +47,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
         ...(firma ? [{ titulo: "Por firmar", valor: t.por_firmar ?? 0, detalle: "Consultas cerradas sin firma", href: "/atencion?ver=por-firmar#consultas" }] : []),
         { titulo: "Consultas abiertas", valor: t.abiertas ?? 0, detalle: "Empezadas y sin cerrar", href: "/atencion?ver=abiertas#consultas" },
         { titulo: "Resultados por recibir", valor: t.por_recibir ?? 0, detalle: "Exámenes solicitados sin resultado", href: "/atencion#consultas" },
+        porConfirmar(t),
       ],
       acciones: ACCIONES_DE(sesion),
     };
@@ -52,7 +59,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
       tareas: [
         { titulo: "Por llegar", valor: t.citados, detalle: "Citados para hoy", href: "/atencion" },
         { titulo: "En espera", valor: t.en_espera, detalle: "Ya llegaron", href: "/atencion", urgente: t.en_espera > 0 },
-        { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Por confirmar", href: "/atencion", urgente: t.solicitadas > 0 },
+        porConfirmar(t),
       ],
       acciones: ACCIONES.recepcion,
     };
@@ -63,7 +70,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
       titulo: "Seguridad y salud",
       tareas: [
         { titulo: "Eventos abiertos", valor: t.eventos_abiertos, detalle: "Accidentes e incidentes sin cerrar", href: "/accidentes", urgente: t.eventos_abiertos > 0 },
-        { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Citas por confirmar", href: "/atencion" },
+        porConfirmar(t),
       ],
       acciones: ACCIONES.sst,
     };
@@ -74,7 +81,7 @@ export function enfoqueDelRol(sesion: Sesion, t: Tareas | null): Enfoque {
     titulo: "Operación",
     tareas: [
       { titulo: "Notas por cobrar", valor: t.por_cobrar, detalle: "Emitidas sin pagar", href: "/facturacion", urgente: t.por_cobrar > 0 },
-      { titulo: "Solicitudes del portal", valor: t.solicitadas, detalle: "Citas por confirmar", href: "/atencion" },
+      porConfirmar(t),
     ],
     acciones: ACCIONES.admin,
   };

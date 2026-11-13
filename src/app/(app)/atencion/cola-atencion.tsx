@@ -22,11 +22,13 @@ const minutosDesde = (iso: string | null, ahora: number) => (iso ? Math.max(0, M
 const ConAlerta = createContext<Set<string>>(new Set());
 
 function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React.ReactNode; detalle?: React.ReactNode; arrastrable?: boolean }) {
+  const provisional = c.porConfirmar && c.estado === "citado";
   return (
     <li
       draggable={arrastrable}
       onDragStart={arrastrable ? (e) => { e.dataTransfer.setData("text/cita", c.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
-      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing")}
+      // Provisional: borde punteado y la palabra «Por confirmar» (no solo el color)
+      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing", provisional && "mx-2 my-1 rounded-md border border-dashed border-aviso")}
     >
       <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora ?? "—"}</span>
       <div className="min-w-0 flex-1">
@@ -36,6 +38,7 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
             <BellRing className="size-3.5 text-aviso-texto" aria-hidden />
           </span>
         )}
+        {provisional && <Link href="/atencion/por-confirmar" className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px align-[1px] text-[11px] font-semibold whitespace-nowrap text-aviso-texto hover:underline">Por confirmar</Link>}
         <div className="text-xs text-muted-foreground">{[c.motivo, c.cedula].filter(Boolean).join(" · ")}{detalle}</div>
       </div>
       <div className="flex gap-1">{children}</div>
