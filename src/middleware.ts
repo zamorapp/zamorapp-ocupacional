@@ -76,6 +76,8 @@ export async function middleware(request: NextRequest) {
   // Su PDF con firma y sello (GET /api/pdf?registro=<token>): sin cuenta; la ruta valida el token con la base.
   // El POST de /api/pdf (envíos del servicio) sigue exigiendo sesión.
   if (request.nextUrl.pathname === "/api/pdf" && request.method === "GET") return conTiempo(respuesta);
+  // Puerta para agentes (MCP y por llave): sin sesión; la base valida la llave en cada llamada (public.agente)
+  if (request.nextUrl.pathname === "/api/agentes" || request.nextUrl.pathname.startsWith("/api/agentes/")) return conTiempo(respuesta);
   // Cola de envíos del escritorio: la llama la puerta local con la sesión de nube (Bearer), sin cookies; valida ella misma
   if (request.nextUrl.pathname === "/api/envios/correo") return conTiempo(respuesta);
 
