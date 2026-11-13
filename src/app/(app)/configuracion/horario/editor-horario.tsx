@@ -83,7 +83,7 @@ export function EditorHorario({ tramos: iniciales, minutos: m0, cupos: c0, bloqu
         </ul>
         <p className="text-xs text-muted-foreground">
           {tramos.length ? `${totalSemana} cupos por semana. ` : "Sin horario, RR. HH. escribe la hora que quiera (como hasta ahora). "}
-          Las citas que usted agenda en Atención médica no tienen límite; solo cuentan para el cupo.
+          Las citas que tú agendas en Atención médica no tienen límite; solo cuentan para el cupo.
         </p>
         {edita && (
           <div className="flex flex-wrap items-center gap-2">
