@@ -68,7 +68,9 @@ export function Titular({ ajustes }: { ajustes: unknown }) {
 }
 
 // Titular del servicio primero (Configuración › Organización: «Médico titular» y su especialidad), luego el servicio
-export function Membrete({ d, compacto, sinEmpresa }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean; sinEmpresa?: boolean }) {
+// direccionCompleta: el RIF y la dirección pueden ocupar dos renglones aunque haya titular (hojas cortas como el
+// comprobante de cita, donde sobra espacio). Los informes largos siguen en un renglón para no empujar las firmas.
+export function Membrete({ d, compacto, sinEmpresa, direccionCompleta }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean; sinEmpresa?: boolean; direccionCompleta?: boolean }) {
   if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
   const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
   const titular = a.membrete_titular?.trim();
@@ -86,7 +88,7 @@ export function Membrete({ d, compacto, sinEmpresa }: { d: Pick<DatosDocumento, 
         )}
         {!titular && !compacto && a.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{a.membrete_lema}</div>}
         {/* La dirección no pasa de dos líneas (una con titular o en el compacto): un membrete alto empuja las firmas a otra hoja */}
-        <div className={`${titular || compacto ? "line-clamp-1" : "line-clamp-2"} ${compacto ? "text-[10px]" : "text-[10.5px]"} text-doc-tenue`}>
+        <div className={`${(titular && !direccionCompleta) || compacto ? "line-clamp-1" : "line-clamp-2"} ${compacto ? "text-[10px]" : "text-[10.5px]"} text-doc-tenue`}>
           {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>

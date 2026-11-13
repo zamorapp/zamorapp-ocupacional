@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, UserCheck, UserX, X } from "lucide-react";
+import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, Ticket, UserCheck, UserX, X } from "lucide-react";
 import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +118,10 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
               {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
               <Button size="icon" variant="ghost" className="size-8 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
+              </Button>
+              {/* Comprobante de cita para el trabajador: fecha, hora, lugar e indicaciones, con el membrete del servicio */}
+              <Button size="icon" variant="ghost" className="size-8" asChild title="Comprobante de cita (imprimir o PDF)">
+                <Link href={`/imprimir/cita/${c.id}`} target="_blank" aria-label="Comprobante de cita"><Ticket /></Link>
               </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
               <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
