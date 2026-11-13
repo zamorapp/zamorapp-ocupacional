@@ -7,7 +7,8 @@ import { PLAN_BASE } from "./indicaciones-preventivas";
 export type Icono =
   | "verduras" | "pescado" | "fruta" | "agua" | "sal" | "refresco" | "arepa" | "huevo"
   | "rinon" | "reloj" | "balanza" | "aceite" | "granos" | "leche" | "caminar" | "azucar" | "corazon"
-  | "pastilla" | "cigarro" | "alcohol" | "cama";
+  | "pastilla" | "cigarro" | "alcohol" | "cama"
+  | "embutido" | "hierbas" | "frito" | "plancha" | "manteca" | "estomago" | "intestino" | "gota" | "higado" | "sol";
 
 export type Destacado = { icono: Icono; texto: string; no?: boolean };
 export type ParteDelPlato = { parte: string; color: string; texto: string; ejemplo: string };

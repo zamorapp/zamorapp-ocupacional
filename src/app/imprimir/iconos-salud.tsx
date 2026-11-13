@@ -151,6 +151,78 @@ const DIBUJOS: Record<Icono, React.ReactNode> = {
       <path d="M30 6h7l-7 8h7" stroke="#0f6f68" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </>
   ),
+  embutido: (
+    <>
+      <path d="M8 30c0-10 8-18 18-18h4c6 0 10 4 10 10s-4 10-10 10H10a2 2 0 01-2-2z" fill="#c0504d" />
+      <circle cx="18" cy="22" r="2" fill="#f2c4b8" /><circle cx="26" cy="26" r="1.8" fill="#f2c4b8" /><circle cx="32" cy="19" r="1.6" fill="#f2c4b8" />
+      <path d="M40 22c3 0 4 2 5 4" stroke="#6b4423" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <rect x="10" y="36" width="20" height="8" rx="2" fill="#9aa7a4" /><rect x="12" y="38" width="16" height="4" rx="1" fill="#fff" />
+    </>
+  ),
+  hierbas: (
+    <>
+      <path d="M14 44V22M14 30l-6-6M14 26l6-6" stroke="#3f9d5a" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="8" cy="22" rx="4" ry="6" fill="#4fb36a" transform="rotate(-40 8 22)" /><ellipse cx="20" cy="18" rx="4" ry="6" fill="#4fb36a" transform="rotate(40 20 18)" />
+      <circle cx="31" cy="34" r="9" fill="#f3efe4" stroke="#9a8a6a" strokeWidth="2" /><path d="M31 25c-1-4 1-7 3-8" stroke="#3f9d5a" strokeWidth="2" fill="none" />
+      <circle cx="38" cy="14" r="7" fill="#f2c94c" /><path d="M38 9v10M33 14h10" stroke="#e0b030" strokeWidth="1.5" />
+    </>
+  ),
+  frito: (
+    <>
+      <ellipse cx="22" cy="30" rx="18" ry="7" fill="#3a3f3e" /><path d="M40 30h7" stroke="#3a3f3e" strokeWidth="4" strokeLinecap="round" />
+      <ellipse cx="22" cy="28" rx="15" ry="4.5" fill="#e8a25a" />
+      <path d="M14 22l-2-5M22 20v-6M30 22l2-5" stroke="#e0b030" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="10" cy="14" r="1.8" fill="#e0b030" /><circle cx="34" cy="12" r="1.8" fill="#e0b030" />
+    </>
+  ),
+  plancha: (
+    <>
+      <rect x="4" y="22" width="40" height="18" rx="3" fill="#3a3f3e" />
+      <path d="M10 22v18M18 22v18M26 22v18M34 22v18" stroke="#5b605f" strokeWidth="2" />
+      <ellipse cx="24" cy="21" rx="13" ry="5" fill="#d9b48a" stroke="#8a5a2a" strokeWidth="1.5" />
+      <path d="M17 21l4-3M24 22l4-3M30 21l3-2" stroke="#8a5a2a" strokeWidth="2" strokeLinecap="round" />
+      <path d="M18 12c-2-3 2-4 0-7M28 12c-2-3 2-4 0-7" stroke="#9aa7a4" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </>
+  ),
+  manteca: (
+    <>
+      <path d="M6 32l8-12h28v12z" fill="#f6e08a" stroke="#c9a52a" strokeWidth="2" strokeLinejoin="round" />
+      <rect x="6" y="32" width="36" height="8" fill="#f2d35e" stroke="#c9a52a" strokeWidth="2" />
+      <path d="M4 42h40" stroke="#9aa7a4" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  estomago: (
+    <>
+      <path d="M18 6v8c0 4-8 6-10 14-2 10 6 16 16 16 10 0 18-6 18-16 0-6-4-10-10-10-4 0-6 2-8 0V6z" fill="#f28b82" stroke="#b5413a" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M16 30c4 4 12 4 18 0" stroke="#b5413a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+    </>
+  ),
+  intestino: (
+    <>
+      <rect x="6" y="8" width="36" height="34" rx="10" fill="none" stroke="#e0827a" strokeWidth="5" />
+      <path d="M14 18h18M14 26h20M14 34h16" stroke="#f2a59d" strokeWidth="4.5" strokeLinecap="round" />
+    </>
+  ),
+  gota: (
+    <>
+      <path d="M6 40c0-6 4-10 10-12l16-4c6-1 10 2 10 6v6c0 3-2 6-6 6H8a2 2 0 01-2-2z" fill="#f6e3d4" stroke="#8a5a3a" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="36" cy="30" r="6" fill="#e0483e" fillOpacity=".75" />
+      <path d="M36 18l2-6M42 22l5-3M30 20l-2-6" stroke="#e0483e" strokeWidth="2.5" strokeLinecap="round" />
+    </>
+  ),
+  higado: (
+    <>
+      <path d="M4 22c4-10 18-12 30-10 8 1 10 6 8 10-3 6-8 6-12 10-4 4-8 8-14 6-8-3-14-8-12-16z" fill="#a0522d" />
+      <path d="M26 14c-2 8-2 14 2 22" stroke="#7a3a1d" strokeWidth="2" fill="none" />
+      <circle cx="14" cy="22" r="2.5" fill="#f2c94c" /><circle cx="20" cy="28" r="2" fill="#f2c94c" /><circle cx="34" cy="20" r="2" fill="#f2c94c" />
+    </>
+  ),
+  sol: (
+    <>
+      <circle cx="24" cy="24" r="9" fill="#f2c94c" />
+      <path d="M24 5v6M24 37v6M5 24h6M37 24h6M10.5 10.5l4.2 4.2M33.3 33.3l4.2 4.2M10.5 37.5l4.2-4.2M33.3 14.7l4.2-4.2" stroke="#e8833a" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
 };
 
 export function IconoSalud({ icono, no, className = "size-[12mm]" }: { icono: Icono; no?: boolean; className?: string }) {
