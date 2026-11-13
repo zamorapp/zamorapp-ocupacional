@@ -6,14 +6,14 @@ import { after } from "next/server";
 import { resolverCatalogos } from "@/lib/catalogos-trabajador";
 import { invalidarEmpresas } from "@/lib/empresas";
 import { ESCRITORIO } from "@/lib/escritorio-actualizar";
-import { ahora, hoyCaracas } from "@/lib/fecha";
+import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
 import { URL_PUBLICA } from "@/lib/invitaciones";
 import { olvidar } from "@/lib/memo";
 import { numeroWhatsApp } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { ESTADO_CIVIL, LATERALIDAD, NIVEL_EDUCATIVO, mensajePaciente, soloDigitosCedula, type Coincidencia, type DatosPaciente, type SolicitudPaciente } from "@/lib/solicitudes-paciente";
-import { docsElegidos, type EleccionRegistro } from "@/lib/registro-documentos";
+import { docsElegidos, type DocumentosRegistro, type EleccionRegistro } from "@/lib/registro-documentos";
 import { armarDocumentosRegistro } from "@/lib/registro-documentos-servidor";
 
 // Enlace para que el paciente llene sus datos (20261030895000). Todo con la sesión del servicio: la RLS deja crear, ver
@@ -93,7 +93,29 @@ type Fila = {
   anulado_en: string | null; resultado: SolicitudPaciente["resultado"]; revisado_en: string | null; datos: DatosPaciente | Record<string, never>;
   trabajador_id: string | null; empresas: { razon_social: string } | null;
   abierto_en: string | null; descarga_hasta: string | null; para_trabajador: string | null; solo_registro: boolean;
+  resultados_hasta?: string | null; documentos?: Record<string, unknown> | null;
 };
+const CAMPOS = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social), abierto_en, descarga_hasta, para_trabajador, solo_registro";
+
+// Antecedentes y hábitos son datos de salud: solo los ve el personal clínico (recepción ve el resto para agendar)
+function mapear(clinico: boolean) {
+  const sinSaludSiNoClinico = (d: DatosPaciente): DatosPaciente => {
+    if (clinico) return d;
+    const { antecedentes: _a, habitos: _h, ...resto } = d;
+    void _a; void _h;
+    return resto;
+  };
+  return (f: Fila): SolicitudPaciente => ({
+    id: f.id, nombre: f.nombre, telefono: f.telefono, empresaSugerida: f.empresas?.razon_social ?? null, creado: f.creado_en, vence: f.vence,
+    recibido: f.recibido_en, anulado: Boolean(f.anulado_en), resultado: f.resultado, revisado: f.revisado_en,
+    datos: "cedula" in f.datos ? sinSaludSiNoClinico(f.datos as DatosPaciente) : null, trabajadorId: f.trabajador_id,
+    abierto: f.abierto_en, registrado: Boolean(f.para_trabajador), soloRegistro: Boolean(f.solo_registro),
+    // La descarga abre una ventana de 30 minutos: la primera descarga fue 30 minutos antes de su cierre
+    descargo: f.descarga_hasta ? new Date(Date.parse(f.descarga_hasta) - 30 * 60_000).toISOString() : null,
+    resultadosHasta: f.recibido_en ? f.resultados_hasta ?? new Date(Date.parse(f.recibido_en) + 30 * 86_400_000).toISOString() : null,
+    documentos: f.documentos ? docsElegidos(f.documentos as DocumentosRegistro).length : 0,
+  });
+}
 
 // Por revisar (todas) y los últimos enlaces enviados, para la bandeja de Atención médica
 // sinLeer: la nube no respondió (sin internet o corte a los 4 s); la bandeja lo dice y ofrece «Reintentar»
@@ -102,30 +124,16 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return vacio;
   const supabase = await crearClienteServidor();
-  const campos = "id, nombre, telefono, creado_en, vence, recibido_en, anulado_en, resultado, revisado_en, datos, trabajador_id, empresas(razon_social), abierto_en, descarga_hasta, para_trabajador, solo_registro";
   // La limpieza escribe en la nube: corre después de responder, nunca dentro de la espera de la pantalla
   after(async () => { try { await supabase.rpc("purgar_solicitudes_paciente" as never); } catch { /* se repite en la próxima visita */ } });
   const [{ data: pendientes, error }, { data: ultimos }] = await Promise.all([
-    supabase.from("solicitudes_paciente").select(campos).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
-    supabase.from("solicitudes_paciente").select(campos).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
+    supabase.from("solicitudes_paciente").select(CAMPOS).not("recibido_en", "is", null).is("resultado", null).order("recibido_en").limit(100).abortSignal(AbortSignal.timeout(4000)),
+    // Para el resumen de la tarjeta: los que siguen en uso (el historial completo está en /atencion/enlaces)
+    supabase.from("solicitudes_paciente").select(CAMPOS).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
   ]);
-  // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
+  // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la tarjeta lo dice con «Reintentar»
   if (error) return { ...vacio, sinLeer: true };
-  // Antecedentes y hábitos son datos de salud: solo los ve el personal clínico (recepción ve el resto para agendar)
-  const sinSaludSiNoClinico = (d: DatosPaciente): DatosPaciente => {
-    if (sesion.clinico) return d;
-    const { antecedentes: _a, habitos: _h, ...resto } = d;
-    void _a; void _h;
-    return resto;
-  };
-  const mapa = (f: Fila): SolicitudPaciente => ({
-    id: f.id, nombre: f.nombre, telefono: f.telefono, empresaSugerida: f.empresas?.razon_social ?? null, creado: f.creado_en, vence: f.vence,
-    recibido: f.recibido_en, anulado: Boolean(f.anulado_en), resultado: f.resultado, revisado: f.revisado_en,
-    datos: "cedula" in f.datos ? sinSaludSiNoClinico(f.datos as DatosPaciente) : null, trabajadorId: f.trabajador_id,
-    abierto: f.abierto_en, registrado: Boolean(f.para_trabajador), soloRegistro: Boolean(f.solo_registro),
-    // La descarga abre una ventana de 30 minutos: la primera descarga fue 30 minutos antes de su cierre
-    descargo: f.descarga_hasta ? new Date(Date.parse(f.descarga_hasta) - 30 * 60_000).toISOString() : null,
-  });
+  const mapa = mapear(sesion.clinico);
   const porRevisar = ((pendientes ?? []) as unknown as Fila[]).map(mapa);
   // ¿Ya tiene ficha? Por los dígitos de la cédula, con cualquier letra
   const coincidencias: Record<string, Coincidencia> = {};
@@ -253,6 +261,44 @@ export async function quitarEnlacePaciente(id: string) { return cambiar(id, "qui
 export async function volverEnlacePaciente(id: string) { return cambiar(id, "volver"); }
 
 // Eliminar borra el enlace y lo que el paciente escribió en él; su ficha, la cita y los resultados que subió no se tocan
+// Historial de enlaces enviados (20261030931000): todos los creados entre Desde y Hasta (días de Caracas), con o sin
+// «Quitar de la lista». Hasta 500; si hay más, se pide acortar las fechas.
+export type Historial = { ok: true; enlaces: SolicitudPaciente[]; mas: boolean; sinProrroga?: boolean } | { ok: false; mensaje: string };
+const MAX_HISTORIAL = 500;
+export async function historialEnlacesPaciente(desde: string, hasta: string): Promise<Historial> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "No disponible en modo demo." };
+  if (!sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return { ok: false, mensaje: "Solo el personal del servicio ve los enlaces." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta) || desde > hasta) return { ok: false, mensaje: "Revisa las fechas: «Desde» va antes que «Hasta»." };
+  const supabase = await crearClienteServidor();
+  const consulta = (campos: string) => supabase.from("solicitudes_paciente").select(campos)
+    .gte("creado_en", `${desde}T00:00:00-04:00`).lt("creado_en", `${sumarDias(hasta, 1)}T00:00:00-04:00`)
+    .order("creado_en", { ascending: false }).limit(MAX_HISTORIAL + 1).abortSignal(AbortSignal.timeout(10_000));
+  // purgar: la misma limpieza de la bandeja (datos de descartados y hojas ya descargadas), después de responder
+  after(async () => { try { await supabase.rpc("purgar_solicitudes_paciente" as never); } catch { /* se repite en la próxima visita */ } });
+  const r = await consulta(`${CAMPOS}, documentos, resultados_hasta`);
+  let { data, error } = r as unknown as { data: Fila[] | null; error: { message: string } | null };
+  // Base todavía sin la migración 20261030931000: sin la columna de prórroga, igual se ve el historial
+  let sinProrroga = false;
+  if (error && /resultados_hasta/.test(error.message)) {
+    ({ data, error } = (await consulta(`${CAMPOS}, documentos`)) as unknown as { data: Fila[] | null; error: { message: string } | null });
+    sinProrroga = true;
+  }
+  if (error) return { ok: false, mensaje: errorNube(`No se pudo leer el historial: ${error.message}`) };
+  const filas = data ?? [];
+  return { ok: true, enlaces: filas.slice(0, MAX_HISTORIAL).map(mapear(sesion.clinico)), mas: filas.length > MAX_HISTORIAL, ...(sinProrroga ? { sinProrroga } : {}) };
+}
+
+// Alargar (20261030931000): sin llenar = más días para llenarlo; aceptado = más días para enviar resultados. Tope: 30 días desde hoy
+export async function alargarEnlacePaciente(id: string, dias: number): Promise<R> {
+  const s = await servicio();
+  if ("error" in s) return { ok: false, mensaje: s.error! };
+  const { data, error } = await s.supabase.rpc("alargar_solicitud_paciente" as never, { p_id: id, p_dias: Math.round(dias) } as never);
+  if (error) return { ok: false, mensaje: /alargar_solicitud_paciente/.test(error.message) ? "Falta actualizar la base para alargar enlaces." : errorNube(error.message) };
+  revalidatePath("/atencion");
+  return data === "ok" ? { ok: true } : { ok: false, mensaje: String(data) };
+}
+
 export async function eliminarEnlacePaciente(id: string): Promise<R> {
   const s = await servicio();
   if ("error" in s) return { ok: false, mensaje: s.error! };

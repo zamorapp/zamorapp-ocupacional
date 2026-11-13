@@ -30,7 +30,7 @@ export function BandejaSinLeer() {
         <UserPlus className="size-5 text-primary" />
         <CardTitle className="text-base">Pacientes por enlace</CardTitle>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><WifiOff className="size-3.5" /> No se pudo leer la bandeja (sin internet)</span>
-        <Button variant="outline" size="sm" className="ml-auto" disabled={leyendo} onClick={() => iniciar(() => router.refresh())}>
+        <Button variant="outline" size="sm" className="ml-auto max-sm:min-h-11" disabled={leyendo} onClick={() => iniciar(() => router.refresh())}>
           {leyendo ? <Loader2 className="animate-spin" /> : <RefreshCw />} Reintentar
         </Button>
       </CardHeader>

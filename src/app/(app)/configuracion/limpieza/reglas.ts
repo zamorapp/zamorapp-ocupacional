@@ -26,6 +26,11 @@ export const TEXTOS: Record<string, { titulo: string; que: string; plazo: (d: nu
     que: "Enlaces que el paciente nunca llenó y ya vencieron o anulaste. No tienen datos de nadie.",
     plazo: (d) => `${d} días después de vencer o anularse`,
   },
+  enlaces_historial: {
+    titulo: "Enlaces al paciente ya terminados",
+    que: "Enlaces que el paciente llenó y ya terminaron (caducados, descartados o aceptados con el plazo de resultados cumplido). Su ficha, su cita y los resultados que subió se quedan.",
+    plazo: (d) => `${d} días después de terminar`,
+  },
   constancias_enviadas: {
     titulo: "Constancias del correo diario",
     que: "La copia del PDF que ya salió en el correo diario a RR. HH. La constancia se puede volver a imprimir cuando quieras.",

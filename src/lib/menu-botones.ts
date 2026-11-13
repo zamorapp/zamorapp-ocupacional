@@ -1,4 +1,4 @@
-import { Inbox, Link2, UserCheck, UserPlus, type LucideIcon } from "lucide-react";
+import { History, Inbox, Link2, UserCheck, UserPlus, type LucideIcon } from "lucide-react";
 import { type Atajo, ATAJOS, visibleAtajo } from "@/lib/atajos";
 import { SECCIONES, SECCIONES_EMPRESA, type Seccion } from "@/lib/navegacion";
 
@@ -28,6 +28,7 @@ type Enlace = Pick<Atajo, "href" | "titulo" | "icono" | "clinico" | "roles"> & {
 export const ENLACES: Enlace[] = [
   { href: "/atencion?enlace=nuevo", titulo: "Enlace para paciente nuevo", icono: Link2, clinico: true, descripcion: "Llena sus datos desde su celular y te llega a «Por revisar»; puede bajar su orden y subir resultados" },
   { href: "/pacientes", titulo: "Enlace a trabajador registrado", icono: UserCheck, clinico: true, descripcion: "Abre su ficha y toca «Enviar enlace»: los documentos salen llenos con sus datos" },
+  { href: "/atencion/enlaces", titulo: "Historial de enlaces", icono: History, clinico: true, descripcion: "Todo lo que enviaste, con Desde/Hasta: alargar, caducar o eliminar cada enlace" },
   { href: "/atencion#por-revisar", titulo: "Pacientes por revisar", icono: Inbox, clinico: true, descripcion: "Lo que llegó por los enlaces, para aceptarlo o descartarlo" },
   { href: "/configuracion/usuarios#invitar", titulo: "Invitar a RR. HH.", icono: UserPlus, roles: ["administrador"], descripcion: "Enlace por WhatsApp para que RR. HH. de una empresa entre a su portal" },
 ];

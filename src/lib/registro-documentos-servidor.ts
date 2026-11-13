@@ -1,10 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aplicarPerfilParaclinicos } from "@/app/(app)/atencion/[id]/perfiles";
-import { claseDe } from "@/lib/estudios";
+import { claseDe, claseDeducida } from "@/lib/estudios";
 import type { Item } from "@/lib/listas";
 import type { Sesion } from "@/lib/sesion";
-import { docsElegidos, MAX_RECOMENDACIONES, partesOrden, type DocumentosRegistro, type EleccionRegistro, type ExamenOrden } from "@/lib/registro-documentos";
+import { docsElegidos, MAX_RECOMENDACIONES, partesOrden, partirOtros, type DocumentosRegistro, type EleccionRegistro, type ExamenOrden } from "@/lib/registro-documentos";
 import { temasBienestar } from "@/lib/bienestar";
 
 export const FIRMANTES = new Set(["administrador", "gerente_medico", "medico"]);
@@ -19,7 +19,8 @@ export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: 
     // Perfil (opcional) y exámenes sueltos del catálogo: la orden lleva los dos, sin repetir
     const perfilId = el.orden.perfilId && /^[0-9a-f-]{36}$/i.test(el.orden.perfilId) ? el.orden.perfilId : null;
     const sueltos = [...new Set((Array.isArray(el.orden.sueltos) ? el.orden.sueltos : []).filter((x): x is string => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 60);
-    if (!perfilId && !sueltos.length) return "Elige un perfil o al menos un examen para la orden.";
+    const otros = partirOtros((Array.isArray(el.orden.otros) ? el.orden.otros : []).filter((x): x is string => typeof x === "string").join("\n"));
+    if (!perfilId && !sueltos.length && !otros.length) return "Elige un perfil o al menos un examen para la orden.";
     const { data } = await supabase.from("lista_items").select("id, lista, codigo, nombre, grupo, texto, orden, activo, datos")
       .eq("org_id", sesion.orgId!).in("lista", ["grupo_paraclinicos", "paraclinico"]).eq("activo", true);
     const items = (data ?? []) as (Item & { lista: string })[];
@@ -36,8 +37,15 @@ export async function armarDocumentosRegistro(supabase: SupabaseClient, sesion: 
       vistos.add(c.nombre.toLowerCase());
       return [{ nombre: c.nombre, ...(c.grupo ? { grupo: c.grupo } : {}), clase: claseDe(c) }];
     });
-    const examenes = [...delPerfil, ...extra].slice(0, 60);
-    if (!examenes.length) return perfil && !sin.size && !sueltos.length ? `El perfil «${perfil.nombre}» no tiene exámenes.` : "Deja marcado al menos un examen de la orden.";
+    // «Otros» escritos a mano: salen en la orden de su clase (por su nombre: «Rx de…» va a rayos X; si no dice, laboratorio)
+    const libres: ExamenOrden[] = otros.flatMap((nombre) => {
+      if (vistos.has(nombre.toLowerCase())) return [];
+      vistos.add(nombre.toLowerCase());
+      const c = catalogo.find((x) => x.nombre.toLowerCase() === nombre.toLowerCase());
+      return [c ? { nombre: c.nombre, ...(c.grupo ? { grupo: c.grupo } : {}), clase: claseDe(c) } : { nombre, clase: claseDeducida(nombre) }];
+    });
+    const examenes = [...delPerfil, ...extra, ...libres].slice(0, 60);
+    if (!examenes.length) return perfil && !sin.size && !sueltos.length && !otros.length ? `El perfil «${perfil.nombre}» no tiene exámenes.` : "Deja marcado al menos un examen de la orden.";
     d.orden = { examenes, ...(perfil ? { perfil: perfil.nombre } : {}), ...(el.orden.motivoId && /^[0-9a-f-]{36}$/i.test(el.orden.motivoId) ? { motivo_id: el.orden.motivoId } : {}) };
   }
   const rec = typeof el.recomendaciones === "string" ? el.recomendaciones.replace(/\r/g, "").trim() : "";

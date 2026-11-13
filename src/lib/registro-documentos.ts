@@ -57,7 +57,8 @@ export type DocumentosRegistro = {
 export type EleccionRegistro = {
   // sin: exámenes del perfil que el médico desmarcó para este paciente (p. ej. de «Rutina» solo hematología y glicemia)
   // sueltos: exámenes del catálogo elegidos uno a uno (ids), con o sin perfil (20261030929000)
-  orden: { perfilId: string | null; motivoId: string | null; sin?: string[]; sueltos?: string[] } | null;
+  // otros: exámenes escritos a mano que no están en el catálogo (electrolitos, coprocultivo…), varios a la vez
+  orden: { perfilId: string | null; motivoId: string | null; sin?: string[]; sueltos?: string[]; otros?: string[] } | null;
   controlTa: 7 | 14 | null;
   dieta: string | null;
   bienestar: boolean;
@@ -66,6 +67,18 @@ export type EleccionRegistro = {
   firma: boolean;
   conversadas?: boolean;
 };
+
+// «Otros» exámenes escritos a mano: separados por coma, punto y coma o renglón; sin repetir; hasta 120 letras cada uno
+export const MAX_OTROS = 30;
+export function partirOtros(texto: string): string[] {
+  const vistos = new Set<string>();
+  return texto.split(/[,;\n]+/).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 120)).map((x) => x.charAt(0).toUpperCase() + x.slice(1)).filter((x) => {
+    const k = x.toLowerCase();
+    if (x.length < 2 || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  }).slice(0, MAX_OTROS);
+}
 
 export const docsElegidos = (d: DocumentosRegistro | null | undefined): DocRegistro[] =>
   d ? (["orden", "recomendaciones", "control-ta", "dieta", "bienestar"] as const).filter((t) => (t === "control-ta" ? d.control_ta : d[t])) : [];
@@ -82,6 +95,8 @@ export function filasRegistro(d: DocumentosRegistro): FilaRegistro[] {
 type Medico = NonNullable<DatosDocumento["medicoDatos"]>;
 export type VistaRegistro = {
   folio: string;
+  // Nombre que escribió el servicio al crear el enlace («Sra. Francis»): el saludo lo usa tal cual (20261030931000)
+  saludo?: string | null;
   recibido: string;
   // Fin de la ventana de 30 minutos que abre el primer «Descargar PDF» (null = aún no descarga)
   descarga_hasta?: string | null;
@@ -103,7 +118,14 @@ export const remitente = (v: Pick<VistaRegistro, "org" | "medico">) =>
 
 // Frase de arriba de la lista: después de la consulta (Cesar, 06-nov) «conversaste con el Dr. …»; antes, «te envía»
 export const fraseIndicaciones = (quien: string, conversadas: boolean | undefined) =>
-  conversadas ? `Aquí tienes las indicaciones que conversaste en consulta con ${conArticulo(quien)}.` : `Aquí tienes las indicaciones que te envía ${conArticulo(quien)}.`;
+  conversadas ? `Aquí tiene las indicaciones que conversó en consulta con ${conArticulo(quien)}.` : `Aquí tiene las indicaciones que le envía ${conArticulo(quien)}.`;
+
+// «¡Listo, Sra. Francis!»: el nombre completo que escribió el servicio; si no escribió nada, los nombres del paciente;
+// si tampoco hay, «¡Listo!». Nunca se corta en la primera palabra (Cesar, 12-nov: saludaba «¡Listo, Sra!»).
+export const saludoListo = (saludo: string | null | undefined, nombres?: string | null) => {
+  const n = (saludo?.trim() || nombres?.trim() || "").replace(/\s+/g, " ");
+  return n ? `¡Listo, ${n}!` : "¡Listo!";
+};
 
 const fechaCaracas = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date(iso));
 
