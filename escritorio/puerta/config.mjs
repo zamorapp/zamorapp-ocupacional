@@ -63,7 +63,7 @@ export const RPC_SIN_ESPERA = new Set([
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([
-  "buscar_diagnosticos", "firma_sello", "indices_accidentalidad", "miembros_con_correo",
+  "buscar_diagnosticos", "firma_sello", "firma_de_documento", "indices_accidentalidad", "miembros_con_correo",
   "reporte_vigilancia", "requiere_dos_pasos", "falta_segundo_paso", "resumen_panel",
   "choques_agenda", "agenda_portal", // disponibilidad para citas (20261030790000)
 ]);

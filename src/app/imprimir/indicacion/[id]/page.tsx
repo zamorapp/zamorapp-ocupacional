@@ -25,7 +25,7 @@ export default async function ImprimirIndicacion({ params }: { params: Promise<{
   const supabase = await crearClienteServidor();
   const [{ data: org }, { data: medico }, { data: t }] = await Promise.all([
     datosDeOrg(x.orgId),
-    x.medicoId ? datosDeMedico(x.medicoId) : Promise.resolve({ data: null }),
+    x.medicoId ? datosDeMedico(x.medicoId, "indicacion", id) : Promise.resolve({ data: null }),
     supabase.from("trabajadores").select("nombres, apellidos, cedula, fecha_nacimiento").eq("id", x.trabajadorId).single(),
   ]);
   if (!t) notFound();
