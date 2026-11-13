@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Loader2, Monitor, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TIPOS_EVALUACION, type TipoEvaluacion } from "@/lib/riesgos-puesto";
@@ -72,7 +72,7 @@ export function NuevaIdentificacion({ empresas, empresaInicial, motivos, tipoIni
         </div>
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setAbierto(false)}>Cancelar</Button>
+          <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
           <Button disabled={creando || !empresaId} onClick={() => iniciar(async () => {
             const r = await crearEvaluacionRiesgos({ empresaId, titulo: titulo.trim() || (tipo === "oficina" ? "Oficinas administrativas" : `Identificación de riesgos · ${empresa}`), motivo, tipo });
             if (!r.ok || !r.id) { setError(r.mensaje); return; }

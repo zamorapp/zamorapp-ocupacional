@@ -110,7 +110,7 @@ export function AnotarVacaciones() {
                 <ul className="flex flex-wrap gap-1.5">
                   {anotadas.slice(0, 3).map((v) => (
                     <li key={v.id}>
-                      <button type="button" aria-pressed={editando === v.id} onClick={() => editando === v.id ? cancelarCorreccion() : corregir(v)}
+                      <button type="button" data-sin-cambios aria-pressed={editando === v.id} onClick={() => editando === v.id ? cancelarCorreccion() : corregir(v)}
                         className={`whitespace-nowrap rounded-full border px-2.5 py-1 hover:border-primary ${editando === v.id ? "border-primary bg-primary/10 font-medium text-primary" : ""}`}>
                         Del {corta(v.desde)} · vuelve el {corta(v.regreso)}
                       </button>

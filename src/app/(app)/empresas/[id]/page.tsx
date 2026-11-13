@@ -32,7 +32,7 @@ import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
 
-export default async function EmpresaDetalle({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmpresaDetalle({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ depurar?: string }> }) {
   const { id } = await params;
   const sesion = await obtenerSesion();
   const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(true), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
@@ -71,7 +71,7 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
         {/* En el teléfono los botones van debajo del título, a todo el ancho (no le quitan espacio al nombre) */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
           {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
-          {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} />}
+          {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} abrir={(await searchParams).depurar === "1"} />}
           {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
         </div>
       </div>

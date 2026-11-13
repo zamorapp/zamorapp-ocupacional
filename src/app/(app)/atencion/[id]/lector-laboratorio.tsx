@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Eye, Loader2, ScanText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { Paraclinico } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
 import { identidad, interpretar, normalizar, sinonimosDe, type ExamenCatalogo, type FilaLeida, type Linea } from "@/lib/ocr/interpretar";
@@ -150,7 +150,7 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
                   <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(((avance.paso + 0.5) / Math.max(1, avance.total)) * 100)}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground">La primera vez el lector tarda unos segundos en prepararse.</p>
-                <Button variant="ghost" onClick={() => { control.current?.abort(); onCerrar(); }}>Cancelar</Button>
+                <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
               </div>
             )}
           </div>
@@ -251,7 +251,7 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
           {error && filas && <span role="alert" className="text-sm text-alerta-texto">{error}</span>}
           {filas && verImagen && <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setVerImagen(false)}><X /> Ocultar imagen</Button>}
           <span className="ml-auto" />
-          <Button variant="ghost" onClick={() => { control.current?.abort(); onCerrar(); }}>Cancelar</Button>
+          <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
           {filas && (
             <Button onClick={registrar} disabled={registrando || !incluidas.length || porRevisar > 0 || identidadPendiente}>
               {registrando ? <Loader2 className="animate-spin" /> : <Check />}

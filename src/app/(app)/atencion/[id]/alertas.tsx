@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { BellRing, Check, FlaskConical, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { AlertaClinica, ParaclinicoPedido } from "@/lib/alertas-tipos";
@@ -235,7 +235,7 @@ export function NuevaAlerta({ abierta, onCerrar, consultaId, paraclinicos, hoy, 
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onCerrar}>Cancelar</Button>
+          <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
           <Button type="button" disabled={guardando || (!texto.trim() && !elegidos.length)} onClick={guardar}>
             {guardando ? <Loader2 className="animate-spin" /> : <BellRing />} Guardar alerta
           </Button>
@@ -309,7 +309,7 @@ export function CorregirAlerta({ alerta, onCerrar, puedeDescartar, consultaId = 
         {/* Móvil: Guardar a lo ancho, Cancelar debajo y «Descartar» al final, separado (acción peligrosa lejos de Guardar) */}
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
           <div className="order-1 flex flex-col-reverse gap-2 sm:order-2 sm:flex-row">
-            <Button type="button" variant="ghost" onClick={onCerrar}>Cancelar</Button>
+            <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
             <Button type="button" disabled={guardando || sinCambios || (!texto.trim() && !alerta.paraclinicos.length)} onClick={guardar}>
               {guardando ? <Loader2 className="animate-spin" /> : <Check />} Guardar
             </Button>
