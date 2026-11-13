@@ -46,7 +46,7 @@ function Lista({ valor, items, onChange }: { valor: string; items: Item[]; onCha
   );
 }
 
-export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Record<string, Item[]> }) {
+export function EditorEvento({ inicial, listas, editable = true }: { inicial: Evento; listas: Record<string, Item[]>; editable?: boolean }) {
   const [e, setE] = useState(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -87,7 +87,9 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               {e.trabajadorId ? <Link href={`/pacientes/${e.trabajadorId}`} className="hover:text-primary">{e.trabajador}</Link> : "Sin lesionado"} · {e.empresa} · {fechaHoraVE(e.fechaHora)} · {ETIQUETA_ESTADO_EVENTO[e.estado]}
             </p>
           </div>
-          {cerrado ? (
+          {!editable ? (
+            <div className="basis-full sm:basis-auto"><span className="inline-block rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">Solo lectura: lo completa el servicio médico</span></div>
+          ) : cerrado ? (
             <Button variant="outline" disabled={ocupado} onClick={() => iniciar(async () => { const r = await cerrarEvento(e.id, false); setAviso(r); if (r.ok) set("estado", "investigando"); })}><Lock /> Reabrir</Button>
           ) : (
             <div className="flex gap-2">
@@ -113,7 +115,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
         </div>
       )}
 
-      <fieldset disabled={cerrado} className="contents">
+      <fieldset disabled={cerrado || !editable} className="contents">
         <Seccion titulo={e.tipo === "enfermedad" ? "Caso" : "Hechos"}>
           <C etiqueta={e.tipo === "enfermedad" ? "Fecha del primer reporte" : "Fecha y hora"}>
             <Input type="datetime-local" value={aLocal(e.fechaHora)} onChange={(x) => set("fechaHora", deLocal(x.target.value) ?? e.fechaHora)} />

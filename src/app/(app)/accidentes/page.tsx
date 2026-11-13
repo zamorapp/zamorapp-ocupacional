@@ -8,6 +8,7 @@ import { listarEmpresas } from "@/lib/empresas";
 import { listarEventos } from "@/lib/eventos";
 import { ETIQUETA_ESTADO_EVENTO, ETIQUETA_TIPO, fechaHoraVE, plazoDeclaracion, plazoInformeNt02 } from "@/lib/eventos-tipos";
 import { obtenerSesion } from "@/lib/sesion";
+import { puedeReportarEvento } from "@/lib/sesion-roles";
 import { vigilarPlazos } from "@/lib/centinela";
 import { ReportarEvento } from "./reportar-evento";
 import { anioCaracas, hoyCaracas } from "@/lib/fecha";
@@ -32,7 +33,10 @@ export default async function Accidentes() {
             {pendientes > 0 && <> · <span className="font-medium text-alerta-texto">{pendientes} por declarar</span></>}
           </p>
         </div>
-        <ReportarEvento habilitado={!sesion.demo && empresas.length > 0} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} />
+        {/* Solo quien la base deja guardar: el servicio, SST, supervisor, delegado y RR. HH. (este, solo accidentes e incidentes) */}
+        {(sesion.demo || puedeReportarEvento(sesion.rol)) && (
+          <ReportarEvento habilitado={!sesion.demo && empresas.length > 0} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} deEmpresa={sesion.rol === "gerente_empresa"} />
+        )}
       </div>
 
       <Card className="overflow-hidden py-0">
