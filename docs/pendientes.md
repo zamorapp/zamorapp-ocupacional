@@ -10,6 +10,8 @@ Actualiza este archivo cada vez que algo se abra o se cierre.
 ## En curso
 - **#340** La X del escritorio pregunta «¿Desea salir de zamorApp?» (Salir/Cancelar). Falta: Windows CI verde, SÍ de Analizar y frase de Cesar.
 
+- **Puerta para agentes** (migración `…938000`): primera etapa en la web. Queda para después: operar el escritorio sin internet (puerta local), cambiar datos que ya existen (hoy solo crea), dividir permisos por acción y entrada con OAuth en vez de llave en la dirección.
+
 ## Esperando a Cesar (manual)
 - Firmar las evaluaciones pendientes de una empresa y sacar su PDF con la fecha de impresión que pidió el cliente.
 - Guardar el número de factura de una nota de cobro; calibrar la factura con «Hoja de prueba».
