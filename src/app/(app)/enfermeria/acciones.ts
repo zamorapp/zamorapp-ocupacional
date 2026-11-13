@@ -67,6 +67,41 @@ export async function registrarAtencion(_: Resultado | null, datos: FormData): P
   return { ok: true, mensaje: consultaId ? "Evolución guardada en la consulta del médico." : "Atención guardada." };
 }
 
+// Corregir una atención o evolución propia (la base solo deja a la autora, al gerente médico y al administrador; el
+// trabajador, el tipo y la consulta quedan fijos y la corrección queda en la bitácora con el antes y el después)
+export async function editarAtencion(id: string, _: Resultado | null, datos: FormData): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!sesion.clinico) return { ok: false, mensaje: "Solo el personal de salud corrige atenciones de enfermería." };
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, mensaje: "Atención desconocida." };
+  const fecha = texto(datos, "fecha");
+  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Revisa la fecha." };
+  if (fecha > hoyCaracas()) return { ok: false, mensaje: "La fecha no puede ser futura." };
+  const signos: Record<string, string> = {};
+  for (const s of SIGNOS_ENFERMERIA) {
+    const v = texto(datos, `s_${s.k}`, 12);
+    if (v) signos[s.k] = v.replace(",", ".");
+  }
+  if (signos.ta && !/^\d{2,3}\s*\/\s*\d{2,3}$/.test(signos.ta)) return { ok: false, mensaje: "Escribe la tensión así: 120/80." };
+  if (signos.ta) signos.ta = signos.ta.replace(/\s/g, "");
+  const tipo = texto(datos, "tipo");
+  if (tipo === "evolucion" && !texto(datos, "nota")) return { ok: false, mensaje: "Escribe la evolución de enfermería." };
+  const supabase = await crearClienteServidor();
+  // Solo cambia lo que el formulario muestra para ese tipo (la evolución no trae motivo; la cura, signos)
+  const cambios: Record<string, unknown> = { fecha, nota: texto(datos, "nota", 2000), referido_medico: datos.get("referido") === "on" };
+  if (datos.has("motivo")) cambios.motivo = texto(datos, "motivo", 200);
+  if (datos.has("s_ta")) cambios.signos = signos;
+  if (datos.has("tratamiento")) cambios.tratamiento = texto(datos, "tratamiento", 1000);
+  const { data, error } = await supabase.from("atenciones_enfermeria").update(cambios).eq("id", id).select("id, trabajador_id, consulta_id");
+  if (error) return { ok: false, mensaje: `No se guardó: ${error.message}` };
+  if (!data?.length) return { ok: false, mensaje: "Solo quien la registró, el gerente médico o el administrador la corrigen." };
+  olvidar("reporte");
+  revalidatePath("/enfermeria");
+  if (data[0].consulta_id) revalidatePath(`/atencion/${data[0].consulta_id}`);
+  if (data[0].trabajador_id) revalidatePath(`/pacientes/${data[0].trabajador_id}`);
+  return { ok: true, mensaje: "Corrección guardada." };
+}
+
 export async function borrarAtencion(id: string): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo) return { ok: false, mensaje: "En modo demo no se guardan datos." };
