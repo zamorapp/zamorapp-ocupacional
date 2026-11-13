@@ -80,7 +80,7 @@ reset role;
 -- Avisos: llevan al historial
 update public.solicitudes_paciente set abierto_en = now() where id = '5f000000-0000-0000-0000-000000000301';
 select 'el aviso lleva al historial (debe 1): ' || (count(*) > 0)::int from public.notificaciones
- where titulo = 'Enlace abierto' and texto like 'Uno abrió%' and enlace = '/atencion/enlaces';
+ where titulo = 'Paciente abrió su enlace' and texto like 'Uno abrió%' and enlace = '/atencion/enlaces';
 
 -- Autolimpieza: el caducado hace 200 días se borra; el aceptado con plazo vigente y el por revisar se quedan
 update public.solicitudes_paciente set anulado_en = now() - interval '200 days', recibido_en = now() - interval '201 days',

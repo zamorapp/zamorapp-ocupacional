@@ -82,3 +82,16 @@ export async function espirometriaWinspiro(pedido: number[]): Promise<number[] |
     throw new Error(mensaje(e));
   }
 }
+
+// Aviso de Windows (abajo a la derecha) cuando llega algo nuevo a la campana. Solo en el escritorio; en la web y el
+// celular los avisos llegan por push (public/sw.js). Nunca hace fallar nada: si Windows no lo muestra, queda la campana.
+export async function avisoWindows(titulo: string, cuerpo: string): Promise<boolean> {
+  const p = puente();
+  if (!p) return false;
+  try {
+    await p.invoke("plugin:notification|notify", { options: { title: titulo.slice(0, 80), body: cuerpo.slice(0, 240) } });
+    return true;
+  } catch {
+    return false;
+  }
+}
