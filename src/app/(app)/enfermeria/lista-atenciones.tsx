@@ -82,7 +82,7 @@ export function ListaAtenciones({ atenciones, puedeBorrarTodo, vacio = "Sin aten
               {(a.mia || puedeBorrarTodo) && (
                 <div className="flex items-start gap-0.5">
                 <EditarAtencion a={a} />
-                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-alerta-texto" aria-label="Borrar esta atención"
+                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-alerta-texto max-sm:size-11" aria-label="Borrar esta atención"
                   title="Borrar: quien la registró, en las primeras 24 horas" disabled={pendiente} onClick={() => borrar(a)}>
                   {borrando === a.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
                 </Button>

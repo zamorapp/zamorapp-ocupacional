@@ -27,7 +27,7 @@ export function EditarAtencion({ a }: { a: AtencionEnfermeria }) {
   return (
     <Dialog open={abierto} onOpenChange={setAbierto} hayCambios={estado?.ok ? false : undefined}>
       <DialogTrigger asChild>
-        <Button size="icon" variant="ghost" className="text-muted-foreground" aria-label="Corregir esta atención" title="Corregir lo anotado">
+        <Button size="icon" variant="ghost" className="text-muted-foreground max-sm:size-11" aria-label="Corregir esta atención" title="Corregir lo anotado">
           <Pencil />
         </Button>
       </DialogTrigger>
@@ -35,7 +35,7 @@ export function EditarAtencion({ a }: { a: AtencionEnfermeria }) {
         <DialogHeader>
           <DialogTitle>Corregir {evolucion ? "la evolución" : "la atención"}</DialogTitle>
           <DialogDescription>
-            {tipo.t}{a.trabajador ? ` · ${a.trabajador.nombre}` : ` · ${a.empresa}`}. El trabajador y el tipo no cambian: si se equivocó de paciente, bórrela y regístrela de nuevo. La corrección queda en la auditoría.
+            {tipo.t}{a.trabajador ? ` · ${a.trabajador.nombre}` : ` · ${a.empresa}`}. El trabajador y el tipo no cambian: si te equivocaste de paciente, bórrala y regístrala de nuevo (pasadas 24 horas, pídele al gerente médico o al administrador que la borre). Queda registrado quién la corrigió y cuándo.
           </DialogDescription>
         </DialogHeader>
         <form action={accion} className="space-y-4">
