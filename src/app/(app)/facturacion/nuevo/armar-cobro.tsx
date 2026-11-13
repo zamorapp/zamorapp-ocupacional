@@ -60,8 +60,8 @@ export function ArmarCobro({ empresaId, desde, hasta, atenciones, servicios, tas
           <div className="flex items-start gap-3">
             <ClipboardList className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium">¿Facturará también otros servicios?</div>
-              <div className="text-sm text-muted-foreground">Se hizo esto para la empresa en el período y no está cobrado. Marque lo que quiere agregar; lo demás (asesorías, charlas…) va con «Agregar» en «Otros servicios».</div>
+              <div className="font-medium">¿Facturarás también otros servicios?</div>
+              <div className="text-sm text-muted-foreground">Se hizo esto para la empresa en el período y no está cobrado. Marca lo que quieres agregar; lo demás (asesorías, charlas…) va con «Agregar» en «Otros servicios».</div>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setPreguntaVista(false)}>Ignorar</Button>
           </div>

@@ -527,6 +527,8 @@ const DOLOR: Record<string, React.ReactNode> = {
 const CAJAS_DOLOR = (nombre: string) => (nombre.startsWith("muneca-") ? "0 58 160 50" : /-(mal|bien)$/.test(nombre) ? "0 0 160 110" : "0 0 200 120");
 
 export function FiguraDolor({ nombre, className = "" }: { nombre: string; className?: string }) {
+  // Heridas, quemaduras y hábitos (tanda 5) y las guías de salud: 160 × 110; «i:…» usa un ícono de las dietas
+  if (nombre.startsWith("i:") || HERIDAS[nombre] || SALUD[nombre]) return <FiguraSalud nombre={nombre} className={className} />;
   // Un tema puede usar también las figuras de equilibrio (p. ej. «sentarse-pararse» en la rodilla)
   const f = DOLOR[nombre] ?? EQUILIBRIO[nombre];
   if (!f) return null;
@@ -592,7 +594,55 @@ export function FiguraSalud({ nombre, className = "" }: { nombre: string; classN
     const icono = nombre.slice(2).replace(/!$/, "") as Icono;
     return <IconoSalud icono={icono} no={nombre.endsWith("!")} className={className} />;
   }
-  const f = SALUD[nombre];
+  const f = SALUD[nombre] ?? HERIDAS[nombre];
   if (!f) return null;
   return <svg viewBox="0 0 160 110" className={`overflow-visible ${className}`} aria-hidden>{f}</svg>;
 }
+
+// ── Heridas, quemaduras y hábitos (tanda 5), 160 × 110 ──
+const AGUA = "#5b9bd5";
+const Antebrazo = () => <rect x={6} y={68} width={148} height={30} rx={15} fill={PIEL} stroke={T} strokeWidth={3.5} />;
+const Herida = ({ x = 66 }: { x?: number }) => <path d={`M${x} 83 L${x + 28} 83`} stroke={ROJO} strokeWidth={4.5} strokeLinecap="round" />;
+const Quemadura = () => <ellipse cx={80} cy={83} rx={26} ry={10} fill="#f19c8f" stroke={ROJO} strokeWidth={2.5} />;
+const Grifo = ({ x = 80 }: { x?: number }) => (
+  <><path d={`M${x - 52} 10 L${x - 8} 10 Q${x} 10 ${x} 18 L${x} 26`} stroke={T} strokeWidth={8} fill="none" strokeLinecap="round" /><path d={`M${x} 34 L${x} 62`} stroke={AGUA} strokeWidth={7} strokeDasharray="7 5" strokeLinecap="round" /></>
+);
+const Gasa = ({ x, y, w = 44, h = 30 }: { x: number; y: number; w?: number; h?: number }) => (
+  <><rect x={x} y={y} width={w} height={h} rx={3} fill="#fff" stroke={V} strokeWidth={3} /><path d={`M${x + w / 3} ${y} L${x + w / 3} ${y + h} M${x + (2 * w) / 3} ${y} L${x + (2 * w) / 3} ${y + h} M${x} ${y + h / 2} L${x + w} ${y + h / 2}`} stroke={G} strokeWidth={2} /></>
+);
+const Reloj = ({ x, y, r = 22 }: { x: number; y: number; r?: number }) => (
+  <><circle cx={x} cy={y} r={r} fill="#fff" stroke={V} strokeWidth={4} /><path d={`M${x} ${y} L${x} ${y - r * 0.65} M${x} ${y} L${x + r * 0.55} ${y + r * 0.25}`} stroke={V} strokeWidth={4} strokeLinecap="round" /></>
+);
+
+const HERIDAS: Record<string, React.ReactNode> = {
+  // Heridas
+  "lavar-manos": (<><Grifo x={78} /><Mano><rect x={44} y={58} width={36} height={46} rx={16} transform="rotate(-24 62 81)" /><rect x={76} y={58} width={36} height={46} rx={16} transform="rotate(24 94 81)" /></Mano>{[[40, 52, 7], [118, 54, 8], [128, 74, 5], [32, 72, 5]].map(([x, y, r]) => <circle key={x} cx={x} cy={y} r={r} fill="#fff" stroke={AGUA} strokeWidth={2.5} />)}<Rotulo x={112} y={30} t="20 s" /></>),
+  "herida-agua-bien": (<><Antebrazo /><Herida /><Grifo x={80} /><rect x={98} y={30} width={58} height={24} rx={10} fill="#fff" stroke={V} strokeWidth={3} /><text x={127} y={48} textAnchor="middle" fontSize={16} fontWeight={800} fill={V}>jabón</text></>),
+  "herida-alcohol-mal": (<><Antebrazo /><Herida /><g transform="rotate(35 58 30)"><rect x={40} y={8} width={34} height={46} rx={5} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={50} y={0} width={14} height={9} rx={2} fill={T} /></g><path d="M80 50 L80 64" stroke="#8a5a2a" strokeWidth={5} strokeDasharray="5 4" /><Tachar x={80} y={46} r={36} /></>),
+  "herida-costra-mal": (<><Antebrazo /><ellipse cx={80} cy={83} rx={16} ry={7} fill="#8a4b2a" /><Mano><rect x={84} y={34} width={14} height={40} rx={7} transform="rotate(-20 91 54)" /><rect x={100} y={36} width={14} height={40} rx={7} transform="rotate(-38 107 56)" /></Mano><F d="M118 24 L144 8" /><Tachar x={88} y={60} r={34} /></>),
+  "herida-tapada-bien": (<><Antebrazo /><rect x={52} y={70} width={56} height={26} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><rect x={66} y={75} width={28} height={16} rx={2} fill="#e6f2f0" /><path d="M48 34 L58 46 L80 22" stroke={V} strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" /></>),
+  "limpiar-herida": (<><Antebrazo /><Herida /><Gasa x={66} y={28} /><F d="M128 26 L128 62" doble /><Rotulo x={2} y={18} t="a toques" /></>),
+  "cambiar-aposito": (<><Antebrazo /><rect x={52} y={70} width={56} height={26} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><path d="M50 60 A22 22 0 1 1 94 60" stroke={N} strokeWidth={4.5} fill="none" strokeLinecap="round" markerEnd="url(#fig-flecha)" /><Rotulo x={112} y={34} t="cada" /><Rotulo x={112} y={52} t="día" /></>),
+  "revisar-herida": (<><Antebrazo /><ellipse cx={72} cy={83} rx={20} ry={9} fill="#f6b3a8" /><Herida x={58} /><path d="M58 60 q4 -6 0 -12 M72 58 q4 -6 0 -12 M86 60 q4 -6 0 -12" stroke={ROJO} strokeWidth={3} fill="none" strokeLinecap="round" /><circle cx={118} cy={40} r={22} fill="#e6f2f0" fillOpacity={0.6} stroke={V} strokeWidth={5} /><path d="M102 56 L88 72" stroke={V} strokeWidth={8} strokeLinecap="round" /></>),
+  "vacuna-tetanos": (<><g transform="rotate(-30 80 56)"><rect x={34} y={46} width={76} height={20} rx={4} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={40} y={50} width={40} height={12} fill="#cfe5e1" /><path d="M110 56 L140 56" stroke={T} strokeWidth={3} /><path d="M34 56 L18 56 M18 46 L18 66" stroke={T} strokeWidth={5} strokeLinecap="round" /></g><Rotulo x={86} y={104} t="10 años" /></>),
+  "sol-cicatriz": (<><circle cx={34} cy={30} r={16} fill="#f2c94c" /><path d="M34 4 L34 8 M10 30 L14 30 M16 12 L19 15 M52 12 L49 15 M58 30 L54 30" stroke="#f2a51a" strokeWidth={3.5} strokeLinecap="round" /><Antebrazo /><path d="M70 83 L94 83" stroke="#c98a8a" strokeWidth={3} strokeLinecap="round" /><rect x={98} y={12} width={30} height={46} rx={6} fill="#fff" stroke={V} strokeWidth={3.5} /><rect x={106} y={4} width={14} height={9} rx={2} fill={V} /><text x={113} y={42} textAnchor="middle" fontSize={16} fontWeight={800} fill={V}>FPS</text></>),
+  // Quemaduras
+  "quemadura-agua-bien": (<><Antebrazo /><Quemadura /><Grifo x={64} /><Reloj x={124} y={28} r={18} /><Rotulo x={100} y={62} t="20 min" /></>),
+  "quemadura-hielo-mal": (<><Antebrazo /><Quemadura />{[[46, 30], [70, 22], [62, 46]].map(([x, y]) => <rect key={x} x={x} y={y} width={20} height={20} rx={4} fill="#dff1fb" stroke={AGUA} strokeWidth={3} />)}<rect x={100} y={28} width={46} height={16} rx={6} fill="#fff" stroke={T} strokeWidth={3} /><rect x={92} y={31} width={10} height={10} rx={2} fill={T} /><Tachar x={92} y={44} r={34} /></>),
+  "ampolla-mal": (<><Antebrazo /><path d="M60 70 Q80 40 100 70 Z" fill="#fff6e6" stroke="#d9a35a" strokeWidth={3} /><path d="M140 14 L94 54" stroke={T} strokeWidth={3.5} strokeLinecap="round" /><circle cx={142} cy={12} r={4} fill={T} /><Tachar x={84} y={44} r={34} /></>),
+  "quemadura-gasa-bien": (<><Antebrazo /><Quemadura /><path d="M30 58 Q55 48 80 58 Q105 68 130 58 L130 104 L30 104 Z" fill="#fff" fillOpacity={0.7} stroke={V} strokeWidth={3.5} strokeDasharray="7 5" /><Rotulo x={56} y={38} t="suelta" /></>),
+  "enfriar-20": (<><Grifo x={56} /><Mano><rect x={26} y={62} width={60} height={30} rx={15} /></Mano><ellipse cx={56} cy={77} rx={14} ry={7} fill="#f19c8f" /><Reloj x={124} y={52} r={24} /><Rotulo x={98} y={104} t="20 min" /></>),
+  "quitar-anillos": (<><Mano><rect x={40} y={48} width={64} height={56} rx={18} /><rect x={46} y={10} width={13} height={46} rx={6.5} /><rect x={62} y={4} width={13} height={50} rx={6.5} /><rect x={78} y={8} width={13} height={46} rx={6.5} /><rect x={94} y={18} width={12} height={38} rx={6} /></Mano><rect x={74} y={24} width={21} height={8} rx={3} fill="#f2c94c" stroke="#b38a1a" strokeWidth={2} /><F d="M100 26 L140 6" /><rect x={30} y={88} width={84} height={14} rx={4} fill="#9fb8d6" stroke={T} strokeWidth={3} /><F d="M120 96 L150 96" /></>),
+  "medir-palma": (<><Mano><rect x={44} y={52} width={66} height={54} rx={18} /><rect x={48} y={12} width={13} height={46} rx={6.5} /><rect x={64} y={6} width={13} height={50} rx={6.5} /><rect x={80} y={10} width={13} height={46} rx={6.5} /><rect x={96} y={20} width={12} height={38} rx={6} /><rect x={14} y={62} width={36} height={14} rx={7} transform="rotate(-35 32 69)" /></Mano><Rotulo x={116} y={70} t="1 %" /></>),
+  "quimico-lavar": (<><rect x={14} y={30} width={40} height={60} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={24} y={20} width={20} height={11} rx={2} fill={T} /><path d="M34 46 L46 60 L34 74 L22 60 Z" fill="#fff" stroke={ROJO} strokeWidth={3} /><text x={34} y={66} textAnchor="middle" fontSize={16} fontWeight={900} fill={ROJO}>!</text><path d="M84 10 L150 10 M117 10 L117 22" stroke={T} strokeWidth={6} strokeLinecap="round" /><path d="M100 30 L92 70 M117 30 L117 74 M134 30 L142 70" stroke={AGUA} strokeWidth={5} strokeDasharray="7 5" strokeLinecap="round" /><Rotulo x={78} y={100} t="mucha agua" /></>),
+  "electricidad-cortar": (<><rect x={12} y={20} width={56} height={74} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><path d="M28 44 L52 44 M28 70 L52 70" stroke={G} strokeWidth={4} /><rect x={30} y={50} width={20} height={14} rx={3} fill={N} /><F d="M40 40 L40 26" /><path d="M118 8 L96 52 L114 52 L100 98 L138 42 L118 42 L132 8 Z" fill="#f2c94c" stroke="#b38a1a" strokeWidth={3} strokeLinejoin="round" /><Tachar x={118} y={52} r={36} /></>),
+  // Estilo de vida
+  "plato-sano": (<><circle cx={80} cy={56} r={50} fill="#fff" stroke={T} strokeWidth={4} /><path d="M80 10 A46 46 0 0 0 80 102 Z" fill="#7cc58f" /><path d="M80 10 A46 46 0 0 1 126 56 L80 56 Z" fill="#e8b27a" /><path d="M126 56 A46 46 0 0 1 80 102 L80 56 Z" fill="#f3e7b5" /><text x={56} y={62} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">½</text><text x={100} y={44} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">¼</text><text x={100} y={82} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">¼</text></>),
+};
+
+// Encabezados de tema de la tanda 5 (120 × 80), en el mismo registro que los demás
+Object.assign(TEMAS_FIG, {
+  heridas: (<><rect x={6} y={44} width={108} height={26} rx={13} fill={PIEL} stroke={T} strokeWidth={3} /><rect x={38} y={46} width={44} height={22} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><rect x={50} y={50} width={20} height={14} rx={2} fill="#e6f2f0" /><path d="M60 6 L60 34 M46 20 L74 20" stroke={ROJO} strokeWidth={7} strokeLinecap="round" /></>),
+  quemaduras: (<><path d="M40 72 Q14 60 22 36 Q28 50 36 46 Q30 22 50 6 Q50 28 62 34 Q70 48 58 72 Z" fill="#f6a04a" stroke="#c4561a" strokeWidth={3} strokeLinejoin="round" /><path d="M90 14 Q74 40 74 52 A16 16 0 0 0 106 52 Q106 40 90 14 Z" fill="#cfe3f5" stroke={AGUA} strokeWidth={3.5} /></>),
+  "vida-sana": (<><path d="M50 74 C14 52 14 18 36 18 C46 18 50 26 50 32 C50 26 54 18 64 18 C86 18 86 52 50 74 Z" fill="#fdd9bd" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><path d="M86 70 Q84 34 112 14 Q116 50 86 70 Z M86 70 Q96 46 108 28" fill="#7cc58f" stroke="#2f7d4a" strokeWidth={3} strokeLinejoin="round" /></>),
+});

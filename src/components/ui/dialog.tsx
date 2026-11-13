@@ -10,7 +10,8 @@ import { confirmar } from "@/components/app/confirmar"
 
 // ─── Ventanas a prueba de descuidos (Cesar, 12-nov) ───
 // Ninguna ventana se cierra al hacer clic afuera. La X, «Cancelar» (DialogClose) y Escape cierran, pero si hay algo
-// escrito o marcado sin guardar, antes preguntan «¿Desea cerrar?» (Cerrar / Seguir editando).
+// escrito o marcado sin guardar, antes preguntan «¿Cerrar sin guardar?» (Cerrar / Seguir editando).
+// Sin «tú» ni «usted»: la misma ventana sale en las pantallas del servicio (tú) y en el portal de la empresa (usted).
 // Los cambios se notan solos: un campo en el que se escribió o un control que se marcó y que SIGUE en la ventana.
 // Así, cuando el formulario se cambia por «Listo, enviado» (los campos desaparecen), cerrar ya no pregunta.
 // Para decidirlo a mano: <Dialog hayCambios={…}> o useCambiosDialogo().limpiar() cuando lo hecho ya quedó guardado.
@@ -24,8 +25,8 @@ export function useCambiosDialogo(): Pick<Guardia, "limpiar"> {
 }
 
 export const PREGUNTA_CERRAR = {
-  titulo: "¿Desea cerrar?",
-  texto: "Se perderán los cambios que no ha guardado.",
+  titulo: "¿Cerrar sin guardar?",
+  texto: "Se perderán los cambios sin guardar.",
   accion: "Cerrar",
   cancelar: "Seguir editando",
   peligro: true,

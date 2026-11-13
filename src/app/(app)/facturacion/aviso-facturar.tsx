@@ -22,7 +22,7 @@ export function AvisoFacturar({ empresa, empresaId, desde, hasta, pendientes, ot
     <div role="status" data-aviso="facturar" className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
       <Receipt className="size-5 shrink-0 text-primary" aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="font-medium">¿Desea facturar este período?</div>
+        <div className="font-medium">¿Quieres facturar este período?</div>
         <div className="text-sm text-muted-foreground">
           {empresa} · {etiqueta}: {[
             pendientes > 0 && `${pendientes} ${pendientes === 1 ? "paciente atendido" : "pacientes atendidos"}`,

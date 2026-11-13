@@ -8,6 +8,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
 import { fechaCorta, Hoja, Membrete, Pie } from "../../componentes";
 import { ahora } from "@/lib/fecha";
+import { AvisoColumnas } from "./aviso-columnas";
 
 export const dynamic = "force-dynamic";
 
@@ -17,21 +18,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: reporte((await params).tipo)?.titulo ?? "Reporte" };
 }
 
-const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold";
+// 9 pt de cuerpo (Diseño, 13-nov). Las palabras se parten dentro de su celda SOLO si sin eso la tabla no cabe a lo ancho
+// (AvisoColumnas lo mide, marca la tabla con data-partir y lo avisa en pantalla); así no se cortan palabras sin necesidad,
+// sin achicar la letra. La hoja no pasa por AjusteHojas (ajustar={false}): un reporte fluye a varias hojas y nunca se reduce.
+const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold [overflow-wrap:break-word] [hyphens:auto] group-data-[partir]/tabla:[overflow-wrap:anywhere]";
 const td = "border border-doc-linea px-1.5 py-[3px] align-top";
+// Solo el texto se parte; las cifras (cantidad, días, %, fechas, cédula) nunca se cortan (Diseño, 13-nov: «1.263 d» salía en dos renglones)
+// hyphens:auto (lang es-VE) separa en sílabas con guion cuando el navegador trae el diccionario; anywhere es el último recurso
+const texto = "[overflow-wrap:break-word] [hyphens:auto] group-data-[partir]/tabla:[overflow-wrap:anywhere]";
+const cifra = "whitespace-nowrap font-cifra";
 
 function Resumen({ titulo, filas, valor }: { titulo: string; filas: { nombre: string; n: number }[]; valor?: string }) {
   const total = filas.reduce((s, f) => s + f.n, 0);
   return (
     <div className="break-inside-avoid">
-      <div className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[.11em] text-doc-acento">{titulo}</div>
-      <table className="w-full border-collapse text-[10px]">
+      <div className="mb-1 text-[8pt] font-extrabold uppercase tracking-[.11em] text-doc-acento">{titulo}</div>
+      <table className="w-full border-collapse text-[9pt]">
         <tbody>
           {filas.map((f) => (
             <tr key={f.nombre}>
-              <td className={td}>{f.nombre}</td>
-              <td className={`${td} w-12 text-right font-cifra`}>{f.n.toLocaleString("es-VE")}{valor === "dias_periodo" ? " d" : ""}</td>
-              <td className={`${td} w-12 text-right font-cifra text-doc-tenue`}>{total ? `${Math.round((f.n * 1000) / total) / 10}%` : ""}</td>
+              <td className={`${td} ${texto}`}>{f.nombre}</td>
+              <td className={`${td} w-[4.5em] text-right ${cifra}`}>{f.n.toLocaleString("es-VE")}{valor === "dias_periodo" ? " d" : ""}</td>
+              <td className={`${td} w-[4.5em] text-right ${cifra} text-doc-tenue`}>{total ? `${Math.round((f.n * 1000) / total) / 10}%` : ""}</td>
             </tr>
           ))}
         </tbody>
@@ -51,7 +59,7 @@ function Cabecera({ cols }: { cols: Columna[] }) {
 function Celdas({ cols, f }: { cols: Columna[]; f: Fila }) {
   return (
     <tr className="break-inside-avoid">
-      {cols.map((c) => <td key={c.k} className={`${td} ${c.tipo === "num" || c.tipo === "fecha" ? "whitespace-nowrap font-cifra" : ""} ${c.tipo === "num" ? "text-right" : ""}`}>{formatoCelda(c, f[c.k])}</td>)}
+      {cols.map((c) => <td key={c.k} className={`${td} ${c.tipo === "num" || c.tipo === "fecha" || c.k === "cedula" ? cifra : texto} ${c.tipo === "num" ? "text-right" : ""}`}>{formatoCelda(c, f[c.k])}</td>)}
     </tr>
   );
 }
@@ -87,36 +95,37 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
   const subtotal = (fs: Fila[]) => Object.fromEntries(colsTabla.filter((c) => c.total).map((c) => [c.k, fs.reduce((s, f) => s + Number(f[c.k] ?? 0), 0)]));
   const filaTotal = (t: Record<string, number>, etiqueta: string) => (
     <tr className="bg-doc-suave font-bold">
-      {colsTabla.map((c, i) => <td key={c.k} className={`${td} ${c.tipo === "num" ? "text-right font-cifra" : ""}`}>{c.k in t ? t[c.k].toLocaleString("es-VE") : i === 0 ? etiqueta : ""}</td>)}
+      {colsTabla.map((c, i) => <td key={c.k} className={`${td} ${c.tipo === "num" ? `text-right ${cifra}` : texto}`}>{c.k in t ? t[c.k].toLocaleString("es-VE") : i === 0 ? etiqueta : ""}</td>)}
     </tr>
   );
 
   return (
     <div className="min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
       <BarraImpresion volver={`/reportes/${def.clave}?${parametrosListado(q, empresa?.id ?? null)}`} titulo={def.titulo} />
-      <Hoja horizontal={def.horizontal} className="!min-h-0">
+      <div className="px-4 print:hidden"><AvisoColumnas volver={`/reportes/${def.clave}?${parametrosListado(q, empresa?.id ?? null)}`} extras={l.ver.length > 0} /></div>
+      <Hoja horizontal={def.horizontal} ajustar={false} className="!min-h-0">
         <Membrete d={membrete} compacto />
 
         <div className="mt-4 mb-3 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold leading-tight tracking-tight">{def.titulo}</h1>
-            <span className="mt-1 inline-block rounded bg-doc-suave px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-doc-acento">
+            <span className="mt-1 inline-block rounded bg-doc-suave px-2 py-0.5 text-[8pt] font-bold uppercase tracking-[.08em] text-doc-acento">
               {def.periodo === false ? "Situación actual" : periodo.etiqueta}
             </span>
           </div>
-          <div className="shrink-0 text-right font-cifra text-[10px] leading-relaxed text-doc-tenue">
+          <div className="shrink-0 text-right font-cifra text-[8pt] leading-relaxed text-doc-tenue">
             {def.periodo !== false && <div>Del <b className="font-medium text-[#15201e]">{fechaCorta(periodo.desde)}</b> al <b className="font-medium text-[#15201e]">{fechaCorta(periodo.hasta)}</b></div>}
             <div>Registros <b className="font-medium text-[#15201e]">{l.filas.length.toLocaleString("es-VE")}</b></div>
           </div>
         </div>
-        {filtros.length > 0 && <p className="mb-2 text-[10px] text-doc-tenue">Filtros: {filtros.join(" · ")}</p>}
+        {filtros.length > 0 && <p className="mb-2 text-[8pt] text-doc-tenue">Filtros: {filtros.join(" · ")}</p>}
 
         <div className="mb-3 grid grid-cols-4 overflow-hidden rounded-lg border border-doc-linea">
           {l.indicadores.map((i) => (
             <div key={i.titulo} className="border-r border-doc-linea px-3 py-1.5 last:border-r-0">
-              <div className="text-[8.5px] font-semibold uppercase tracking-[.11em] text-doc-tenue">{i.titulo}</div>
+              <div className="text-[8pt] font-semibold uppercase tracking-[.11em] text-doc-tenue">{i.titulo}</div>
               <div className="text-[15px] font-extrabold">{i.valor}</div>
-              {i.detalle && <div className="truncate text-[9px] text-doc-tenue">{i.detalle}</div>}
+              {i.detalle && <div className="truncate text-[8pt] text-doc-tenue">{i.detalle}</div>}
             </div>
           ))}
         </div>
@@ -133,7 +142,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
             const p = l.pivote!;
             const idx = p.columnas.map((_, i) => i).slice(b * 9, b * 9 + 9);
             return (
-              <table key={b} className="mb-3 w-full border-collapse text-[9.5px]">
+              <table key={b} className="mb-3 w-full border-collapse text-[9pt]">
                 <thead>
                   <tr>
                     <th className={`${th} w-48`}>{p.titulo}</th>
@@ -145,17 +154,17 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
                 <tbody>
                   {p.filas.map((f) => (
                     <tr key={f.nombre} className="break-inside-avoid">
-                      <td className={td}>{f.nombre}</td>
-                      {idx.map((i) => <td key={i} className={`${td} text-right font-cifra`}>{f.celdas[i] || ""}</td>)}
-                      <td className={`${td} text-right font-cifra font-bold`}>{f.total}</td>
-                      <td className={`${td} text-right font-cifra`}>{f.pacientes}</td>
+                      <td className={`${td} ${texto}`}>{f.nombre}</td>
+                      {idx.map((i) => <td key={i} className={`${td} text-right ${cifra}`}>{f.celdas[i] || ""}</td>)}
+                      <td className={`${td} text-right ${cifra} font-bold`}>{f.total}</td>
+                      <td className={`${td} text-right ${cifra}`}>{f.pacientes}</td>
                     </tr>
                   ))}
                   <tr className="bg-doc-suave font-bold">
                     <td className={td}>Totales</td>
-                    {idx.map((i) => <td key={i} className={`${td} text-right font-cifra`}>{p.totales[i]}</td>)}
-                    <td className={`${td} text-right font-cifra`}>{p.total}</td>
-                    <td className={`${td} text-right font-cifra`}>{p.pacientes}</td>
+                    {idx.map((i) => <td key={i} className={`${td} text-right ${cifra}`}>{p.totales[i]}</td>)}
+                    <td className={`${td} text-right ${cifra}`}>{p.total}</td>
+                    <td className={`${td} text-right ${cifra}`}>{p.pacientes}</td>
                   </tr>
                 </tbody>
               </table>
@@ -164,13 +173,13 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
         ) : l.filas.length === 0 ? (
           <p className="rounded-lg border border-dashed border-doc-linea py-8 text-center text-doc-tenue">Sin registros en el período con estos filtros.</p>
         ) : (
-          <table className="w-full border-collapse text-[9.5px] leading-snug">
+          <table data-tabla-reporte className="group/tabla w-full border-collapse text-[9pt] leading-snug">
             <Cabecera cols={colsTabla} />
             <tbody>
               {grupos.map(([nombre, fs]) => [
                 agrupar && (
                   <tr key={`g-${nombre}`} className="break-after-avoid">
-                    <td colSpan={colsTabla.length} className="border border-doc-linea bg-[#eef5f3] px-1.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-doc-acento">
+                    <td colSpan={colsTabla.length} className="border border-doc-linea bg-[#eef5f3] px-1.5 py-1 text-[9pt] font-extrabold uppercase tracking-wide text-doc-acento">
                       {nombre} <span className="font-cifra font-medium normal-case text-doc-tenue">· {fs.length.toLocaleString("es-VE")} {fs.length === 1 ? "registro" : "registros"}{l.tasas && fs[0]?.poblacion != null && ` · Población: ${Number(fs[0].poblacion).toLocaleString("es-VE")} trabajadores`}</span>
                     </td>
                   </tr>
@@ -183,8 +192,8 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
           </table>
         )}
 
-        {l.nota && <p className="mt-3 text-[9.5px] italic text-doc-tenue">{l.nota}</p>}
-        <p className="mt-1 text-[9.5px] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
+        {l.nota && <p className="mt-3 text-[8pt] italic text-doc-tenue">{l.nota}</p>}
+        <p className="mt-1 text-[8pt] italic text-doc-tenue">Solo cuentan las consultas cerradas o firmadas.{def.clinico ? " Documento con datos médicos confidenciales." : ""}</p>
         <Pie d={{ impreso }} derecha={`zamorApp · ${def.corto}`} />
       </Hoja>
     </div>

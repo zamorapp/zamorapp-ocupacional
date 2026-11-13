@@ -60,7 +60,7 @@ export async function guardarTasa(fecha: string, tasa: number): Promise<Resultad
   return { ok: true, mensaje: "Tasa guardada." };
 }
 
-// siguiente: "factura" (desde «¿Desea facturar este período?») abre de una vez la factura del talonario
+// siguiente: "factura" (desde «¿Quieres facturar este período?») abre de una vez la factura del talonario
 export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }, siguiente: "nota" | "factura" = "nota"): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
