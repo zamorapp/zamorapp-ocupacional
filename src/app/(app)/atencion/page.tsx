@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BookOpen, CalendarCog, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, Loader2, ShieldAlert } from "lucide-react";
+import { BookOpen, CalendarCog, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,6 +27,7 @@ import { NuevaConsulta } from "./nueva-consulta";
 import { Solicitudes, type Contacto } from "./solicitudes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { EnlacePaciente, PorRevisar } from "./enlace-paciente";
+import { BandejaCargando, BandejaSinLeer } from "./bandeja-enlace";
 import { listarSolicitudesPaciente } from "./paciente-enlace-acciones";
 import { extrasEnlace, resumenPerfiles } from "@/lib/registro-documentos-servidor";
 import { URL_PUBLICA } from "@/lib/invitaciones";
@@ -192,16 +193,10 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   );
 }
 
-// Pacientes por enlace: se pide aparte para no frenar la página (ver arriba)
+// Pacientes por enlace: se pide aparte para no frenar la página (ver arriba). Nunca lanza dentro del Suspense:
+// si la nube no responde, la tarjeta lo dice con «Reintentar» en vez de girar para siempre.
 async function BandejaEnlace(p: { empresas: { id: string; nombre: string }[]; motivos: { id: string; nombre: string }[]; hoy: string }) {
-  const porEnlace = await listarSolicitudesPaciente();
+  const { sinLeer, ...porEnlace } = await listarSolicitudesPaciente().catch(() => ({ porRevisar: [], enviados: [], coincidencias: {}, sinLeer: true }));
+  if (sinLeer) return <BandejaSinLeer />;
   return <PorRevisar {...porEnlace} {...p} ahora={ahora()} />;
-}
-
-function BandejaCargando() {
-  return (
-    <p className="flex items-center gap-2 text-sm text-muted-foreground" aria-busy="true">
-      <Loader2 className="size-4 animate-spin" /> Buscando pacientes por enlace…
-    </p>
-  );
 }

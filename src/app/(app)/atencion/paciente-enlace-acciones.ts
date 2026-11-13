@@ -96,7 +96,8 @@ type Fila = {
 };
 
 // Por revisar (todas) y los últimos enlaces enviados, para la bandeja de Atención médica
-export async function listarSolicitudesPaciente(): Promise<{ porRevisar: SolicitudPaciente[]; enviados: SolicitudPaciente[]; coincidencias: Record<string, Coincidencia> }> {
+// sinLeer: la nube no respondió (sin internet o corte a los 4 s); la bandeja lo dice y ofrece «Reintentar»
+export async function listarSolicitudesPaciente(): Promise<{ porRevisar: SolicitudPaciente[]; enviados: SolicitudPaciente[]; coincidencias: Record<string, Coincidencia>; sinLeer?: boolean }> {
   const vacio = { porRevisar: [], enviados: [], coincidencias: {} };
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES_SERVICIO.has(sesion.rol)) return vacio;
@@ -109,7 +110,7 @@ export async function listarSolicitudesPaciente(): Promise<{ porRevisar: Solicit
     supabase.from("solicitudes_paciente").select(campos).is("oculto_en", null).order("creado_en", { ascending: false }).limit(15).abortSignal(AbortSignal.timeout(4000)),
   ]);
   // Tabla aún sin migrar o sin internet en el escritorio (corte a los 4 s): la pantalla sigue sin la bandeja
-  if (error) return vacio;
+  if (error) return { ...vacio, sinLeer: true };
   // Antecedentes y hábitos son datos de salud: solo los ve el personal clínico (recepción ve el resto para agendar)
   const sinSaludSiNoClinico = (d: DatosPaciente): DatosPaciente => {
     if (sesion.clinico) return d;
