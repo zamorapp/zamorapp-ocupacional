@@ -34,7 +34,7 @@ export function AvisoColumnas({ volver, extras }: { volver: string; extras: bool
   return (
     <div role="status" className="mx-auto mb-3 flex max-w-[279mm] flex-wrap items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm text-aviso-texto print:hidden">
       <TriangleAlert className="size-5 shrink-0" aria-hidden />
-      <span className="min-w-[14rem] flex-1">Con tantas columnas, algunas palabras se cortan dentro de su celda para que la tabla quepa a lo ancho sin achicar la letra (9 pt).{extras ? " Para que se lean enteras, quita columnas adicionales." : ""}</span>
+      <span className="min-w-[14rem] flex-1">Con tantas columnas la tabla no se lee bien en papel.{extras ? " Quita columnas adicionales para que se lean enteras." : ""}</span>
       <Button variant="ghost" size="sm" onClick={() => setIgnorado(true)}>Ignorar</Button>
       {extras && <Button size="sm" asChild><Link href={volver}>Quitar columnas</Link></Button>}
     </div>
