@@ -31,11 +31,12 @@ export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/
 
 // corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
 // horizontal: carta apaisada (récipe del Integral), usa la página con nombre «apaisada» de globals.css
-export function Hoja({ children, className = "", media, horizontal, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean }) {
+// ajustar={false}: hoja que fluye a varias páginas a propósito; no se reduce nunca (la letra queda en su tamaño)
+export function Hoja({ children, className = "", media, horizontal, corte = true, ajustar = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean; ajustar?: boolean }) {
   return (
     <section
       // Hojas de carta completas: AjusteHojas las reduce un poco si se pasan, para que la firma no quede sola en otra hoja
-      data-ajustar={corte && !media ? (horizontal ? "apaisada" : "vertical") : undefined}
+      data-ajustar={corte && !media && ajustar ? (horizontal ? "apaisada" : "vertical") : undefined}
       className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full ${horizontal ? "max-w-[279mm] [page:apaisada]" : "max-w-[216mm]"} flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${horizontal ? "min-h-[216mm] print:min-h-[186mm]" : media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
     >
       {children}
