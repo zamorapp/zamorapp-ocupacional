@@ -49,3 +49,11 @@ test("al guardar, las señales de alarma no se pueden quitar ni dejar en blanco"
   // Heridas, quemaduras, ansiedad y ánimo traen alarmas
   for (const k of ["heridas", "quemaduras", "ansiedad", "animo"]) assert.ok(TEMAS.find((t) => t.clave === k).grupos.some((g) => g.alarma), k);
 });
+
+test("dieta: los pasos del recuadro de azúcar baja no se pueden vaciar (Analizar #358)", () => {
+  const dm = hojaEditable("dieta-diabetes");
+  assert.equal(alarmasQuitadas(dm, { "g-dm-a1": "" }), true);
+  assert.equal(alarmasQuitadas(dm, { "g-dm-a0": "   " }), true);
+  assert.equal(alarmasQuitadas(dm, { "g-dm-a0": "Tome 15 g de azúcar." }), false);
+  assert.equal(alarmasQuitadas(dm, { "g-dm-nota": "" }), false, "lo que no es alarma sí se puede vaciar");
+});

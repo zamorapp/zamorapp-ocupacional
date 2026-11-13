@@ -52,6 +52,13 @@
 - **Migraciones de datos**: protegidas con `es_base_local()` e insertando solo lo nuevo (modelo `…870000`); nunca `copiar_listas_base`.
 - **Tareas programadas**: `pg_cron` en Supabase (avisos cada 5 min, constancias cada 15, tasa BCV cada 30); GitHub Actions y un cron de Vercel quedan de respaldo.
 
+## Puerta para agentes
+Entrada única para agentes de IA (Claude, ChatGPT, Gemini…), apagada por defecto. Migración `…938000`.
+- **Web**: `/api/agentes/mcp` (MCP, HTTP sin estado; la llave en `Authorization: Bearer` o como último tramo de la dirección) y `/api/agentes` (GET catálogo, POST `{accion, datos, ensayo}`). Código en `src/lib/agentes/`. La web solo traduce: llama a la base como anónimo, sin clave de servicio.
+- **Base**: `public.agente(llave, acción, datos, ensayo)` es lo único que ve un agente: lista cerrada de acciones (consultar y crear), filtra por la organización de la llave y actúa como el administrador que la creó. Nunca toca el esquema `clinico`, grupo sanguíneo, discapacidad, firma ni sello; no borra ni modifica; no mueve una cédula de otra empresa. Acción nueva = función `agente_<nombre>` + lista en `agente()` + `src/lib/agentes/acciones.ts` + prueba 237 (la prueba de scripts compara ambas listas).
+- **Llaves**: `agentes_llaves` guarda solo la huella SHA-256; se crean y apagan en Configuración › Puerta para agentes (solo administrador), vencen en 7/30/90 días. `agentes_registro` anota cada llamada y se autolimpia.
+- **Escritorio**: las llaves viven solo en la nube (`agentes_estado` va siempre a la nube); lo que el agente crea baja por la sincronía. Sin internet no hay puerta.
+
 ## Integraciones
 - **SAME** (SQL Server 2014, base «Integral»): solo lectura; ya migrado el 26-oct-2026. No repetir la migración.
 - **winspiroPRO**: intercambio por archivos GDT (`WPROZAMO.GDT` / `ZAMOWPRO.GDT`); `src/lib/gdt.ts`.

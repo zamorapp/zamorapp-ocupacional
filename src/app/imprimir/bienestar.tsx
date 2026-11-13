@@ -173,7 +173,7 @@ function Equilibrio({ cambios }: { cambios?: Cambios }) {
 }
 
 // «MARÍA ALEJANDRA FERNÁNDEZ» → «María»: el saludo usa solo el primer nombre
-const primerNombre = (nombre: string) => {
+export const primerNombre = (nombre: string) => {
   const p = nombre.trim().split(/\s+/)[0] ?? "";
   return p ? p.charAt(0).toLocaleUpperCase("es") + p.slice(1).toLocaleLowerCase("es") : "";
 };

@@ -31,7 +31,7 @@ export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/
 
 // corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
 // horizontal: carta apaisada (récipe del Integral), usa la página con nombre «apaisada» de globals.css
-// ajustar=false: documento que fluye a varias hojas (reportes): AjusteHojas nunca lo reduce, la letra queda como se escribió
+// ajustar={false}: hoja que fluye a varias páginas a propósito; no se reduce nunca (la letra queda en su tamaño)
 export function Hoja({ children, className = "", media, horizontal, corte = true, ajustar = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean; ajustar?: boolean }) {
   return (
     <section

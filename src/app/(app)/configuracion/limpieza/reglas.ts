@@ -61,6 +61,11 @@ export const TEXTOS: Record<string, { titulo: string; que: string; plazo: (d: nu
     que: "Los renglones de «se respaldó tal día». Los archivos de respaldo de la PC y de Google Drive no se tocan.",
     plazo: (d) => `${d} días`,
   },
+  agentes_registro: {
+    titulo: "Registro de la puerta para agentes",
+    que: "Las líneas de «tal agente hizo tal cosa» y las llaves que ya vencieron o apagaste. Lo que el agente creó (empresas, presupuestos, citas) no se toca.",
+    plazo: (d) => `${d} días`,
+  },
 };
 
 export const NUNCA = [
