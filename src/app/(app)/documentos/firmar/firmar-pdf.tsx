@@ -7,6 +7,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { imprimirPagina } from "@/lib/escritorio";
+import { crearClienteNavegador } from "@/lib/supabase/client";
 import { cajasAbajo, cajasDondeDiceFirma, estamparPdf, type Caja, type Colocacion, type Imagen } from "@/lib/firmar-pdf";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +40,12 @@ function Opcion({ activo, onClick, children }: { activo: boolean; onClick: () =>
   );
 }
 
-export function FirmarPdf({ firma, sello }: { firma: string | null; sello: string | null }) {
+// Las imágenes se guardan como data URL (Mi perfil). Si alguna vez llega otra cosa (un enlace), no se puede estampar.
+const esDataUrl = (u: string | null) => Boolean(u && /^data:image\/(png|jpe?g);base64,/i.test(u));
+
+export function FirmarPdf({ firma: firmaUrl, sello: selloUrl, orgId }: { firma: string | null; sello: string | null; orgId: string | null }) {
+  const firma = esDataUrl(firmaUrl) ? firmaUrl : null, sello = esDataUrl(selloUrl) ? selloUrl : null;
+  const imagenRara = (firmaUrl && !firma) || (selloUrl && !sello);
   const [archivo, setArchivo] = useState<{ nombre: string; bytes: ArrayBuffer; kb: number } | null>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [pagina, setPagina] = useState(0);
@@ -149,6 +155,17 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
     return estamparPdf(archivo!.bytes.slice(0), { firma: f?.url ?? null, sello: s?.url ?? null }, paginas(), colocacion);
   };
 
+  // Rastro en la bitácora (archivo, páginas y hora del servidor); el PDF no sale del equipo. Nunca bloquea:
+  // sin internet o con un error, el PDF firmado igual se descarga o imprime.
+  const anotar = () => {
+    if (!orgId || !archivo) return;
+    try {
+      void crearClienteNavegador().rpc("registrar_firma_pdf", {
+        p_org: orgId, p_archivo: archivo.nombre, p_paginas: paginas().map((i) => i + 1), p_total: doc?.numPages ?? 0,
+      }).then(() => {}, () => {});
+    } catch { /* sin conexión configurada: el PDF igual sale */ }
+  };
+
   const nombreFirmado = () => `${archivo!.nombre.replace(/\.pdf$/i, "")}-firmado.pdf`;
 
   const descargar = async () => {
@@ -163,6 +180,7 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
       setHecho(`Listo: ${nombreFirmado()} quedó en tu carpeta Descargas.`);
+      anotar();
     } catch {
       setError("No se pudo firmar ese PDF. Si está protegido, ábrelo, guárdalo de nuevo como PDF y vuelve a intentar.");
     } finally {
@@ -190,6 +208,7 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
       setImpresion(urls);
       await new Promise((r) => setTimeout(r, 150));
       await imprimirPagina();
+      anotar();
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : "No se pudo imprimir. Usa «Descargar» y ábrelo para imprimir.");
     } finally {
@@ -252,6 +271,11 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
         </Button>
       </div>
 
+      {imagenRara && (
+        <p role="alert" className="rounded-lg border border-aviso/40 bg-aviso/10 p-3 text-sm text-aviso-texto">
+          {firmaUrl && !firma ? "Tu firma" : "Tu sello"} no se pudo leer. Vuelve a cargarlo en <a href="/configuracion/perfil" className="underline">Mi perfil</a>.
+        </p>
+      )}
       {error && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       {hecho && <p role="status" className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm">{hecho}</p>}
 
@@ -302,7 +326,7 @@ export function FirmarPdf({ firma, sello }: { firma: string | null; sello: strin
             <div className="flex flex-wrap gap-2">
               <Opcion activo={modo === "auto" && !noEncontro} onClick={() => setModo("auto")}>Donde dice «Firma»</Opcion>
               <Opcion activo={modo === "abajo" || (modo === "auto" && noEncontro)} onClick={() => setModo("abajo")}>Abajo a la derecha</Opcion>
-              {modo === "manual" && <Opcion activo onClick={() => {}}>Donde la moví</Opcion>}
+              {modo === "manual" && <Opcion activo onClick={() => {}}>Donde la dejé</Opcion>}
             </div>
             <div className="mt-5 grid gap-2">
               <Button type="button" size="lg" onClick={() => void descargar()} disabled={nada || ocupado !== ""}>

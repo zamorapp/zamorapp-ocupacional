@@ -42,7 +42,7 @@ export default async function FirmarYSellar() {
           <Button asChild><Link href="/configuracion/perfil">Cargarlos en Mi perfil</Link></Button>
         </Card>
       ) : (
-        <FirmarPdf firma={firma} sello={sello} />
+        <FirmarPdf firma={firma} sello={sello} orgId={sesion.orgId ?? null} />
       )}
     </div>
   );
