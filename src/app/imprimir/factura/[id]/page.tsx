@@ -12,12 +12,13 @@ export const metadata: Metadata = { title: "Factura" };
 export const dynamic = "force-dynamic";
 
 // Factura sobre el talonario de forma libre: SIN membrete (ya viene impreso). Solo número, cliente, renglones y totales.
-export default async function ImprimirFactura({ params }: { params: Promise<{ id: string }> }) {
+export default async function ImprimirFactura({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ segunda?: string }> }) {
   const { id } = await params;
+  const { segunda: idSegunda } = await searchParams;
   const [c, sesion] = await Promise.all([obtenerCobro(id), obtenerSesion()]);
   if (!c || !sesion.orgId || c.tipo !== "cobro") notFound();
   const supabase = await crearClienteServidor();
-  const [{ data: emp }, { data: previas }, { data: org }, tasas] = await Promise.all([
+  const [{ data: emp }, { data: previas }, { data: org }, tasas, { data: seg }] = await Promise.all([
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
     // Para proponer el siguiente número del talonario
     supabase.from("cobros").select("numero_factura_fiscal").not("numero_factura_fiscal", "is", null).order("numero", { ascending: false }).limit(200),
@@ -25,6 +26,8 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
     supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId).maybeSingle(),
     // Tasas BCV para que la factura tome la de su fecha de emisión (aunque se mueva la fecha unas semanas)
     tasasBcv(sumarDias(c.fecha, -40)),
+    // La nota que salió al dividir esta factura (misma empresa): se ofrece imprimirla después
+    /^[0-9a-f-]{36}$/i.test(idSegunda ?? "") ? supabase.from("cobros").select("id, numero").eq("id", idSegunda!).eq("empresa_id", c.empresaId).eq("tipo", "cobro").maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   return (
@@ -36,6 +39,7 @@ export default async function ImprimirFactura({ params }: { params: Promise<{ id
       editable={editable}
       tasas={tasas}
       hoy={hoyCaracas()}
+      segunda={seg ? { id: seg.id as string, numero: seg.numero as number } : null}
       relacion={c.items.some((i) => i.consultaId) ? `/imprimir/atendidos?cobro=${c.id}` : null}
       datosPago={String((org?.ajustes as { factura_datos_pago?: string | null } | null)?.factura_datos_pago ?? "").trim()}
       // La misma condición de pago de la nota de cobro (Configuración › Organización › Documentos); vacío = no se imprime
