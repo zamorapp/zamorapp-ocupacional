@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // 9 pt de cuerpo (Diseño, 13-nov). Las palabras largas se parten dentro de su celda para que la tabla quepa a lo ancho
-// sin achicar la letra; si ni así cabe, la pantalla avisa (nunca se achica en silencio).
+// sin achicar la letra. La hoja no pasa por AjusteHojas (ajustar={false}): un reporte fluye a varias hojas y nunca se reduce.
 const th = "border border-doc-linea bg-doc-suave px-1.5 py-1 text-left font-bold [overflow-wrap:anywhere] [hyphens:auto]";
 const td = "border border-doc-linea px-1.5 py-[3px] align-top [overflow-wrap:anywhere]";
 
@@ -96,7 +96,7 @@ export default async function ImprimirReporte({ params, searchParams }: Props) {
   return (
     <div className="min-h-dvh bg-neutral-100 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:bg-white">
       <BarraImpresion volver={`/reportes/${def.clave}?${parametrosListado(q, empresa?.id ?? null)}`} titulo={def.titulo} />
-      <Hoja horizontal={def.horizontal} className="!min-h-0">
+      <Hoja horizontal={def.horizontal} ajustar={false} className="!min-h-0">
         <Membrete d={membrete} compacto />
 
         <div className="mt-4 mb-3 flex items-end justify-between gap-4">
