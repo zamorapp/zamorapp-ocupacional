@@ -8,11 +8,12 @@
 -- cambiar de trabajador, de tipo ni de consulta, y cada corrección queda en la bitácora con el antes y el después.
 
 -- ─── 1) Historia médica: enfermería no crea, cambia ni borra ───
+-- La investigación de accidente (NT-02) también queda cerrada mientras Cesar no decida que la enfermera investigue.
 -- Restrictivas: se suman a las demás reglas; solo afectan a quien tiene el rol «enfermeria» en esa organización.
 do $$
 declare t text;
 begin
-  foreach t in array array['diagnosticos', 'aptitudes', 'reposos', 'adjuntos', 'historia_laboral'] loop
+  foreach t in array array['diagnosticos', 'aptitudes', 'reposos', 'adjuntos', 'historia_laboral', 'investigaciones'] loop
     execute format('drop policy if exists %1$s_enfermeria_no_crea on clinico.%1$s', t);
     execute format('create policy %1$s_enfermeria_no_crea on clinico.%1$s as restrictive for insert
                       with check (not org_id = any ((select public.orgs_con(''{enfermeria}''))::uuid[]))', t);
@@ -24,6 +25,13 @@ begin
                       using (not org_id = any ((select public.orgs_con(''{enfermeria}''))::uuid[]))', t);
   end loop;
 end $$;
+
+-- Órdenes y récipes del médico: enfermería no los emite (además del disparador proteger_indicacion, que ya lo exige).
+-- Al marcar «Cumplida», proteger_indicacion deja fijo todo lo escrito al emitirla (tratamiento, indicaciones, fecha,
+-- médico…) y solo acepta pendiente → cumplida con su nota; anular es del médico. La prueba 232 lo comprueba.
+drop policy if exists indicaciones_enfermeria_no_crea on clinico.indicaciones;
+create policy indicaciones_enfermeria_no_crea on clinico.indicaciones as restrictive for insert
+  with check (not org_id = any ((select public.orgs_con('{enfermeria}'))::uuid[]));
 
 -- ─── 2) Corregir su atención o evolución: lo que identifica el registro no cambia ───
 create or replace function public.fijar_atencion_enfermeria()
