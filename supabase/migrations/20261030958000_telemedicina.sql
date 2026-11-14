@@ -85,6 +85,8 @@ begin
     if new.consentimiento = 'pendiente' then new.consentimiento_en := null;
     elsif not v_bandeja or new.consentimiento_en is null then new.consentimiento_en := public.ahora(); end if;
     new.control_id := null;
+    -- El enlace dura 7 días desde que se crea (hora de la nube, nunca la del equipo)
+    new.enlace_vence := case when new.enlace_hash is null then null else public.ahora() + interval '7 days' end;
     if not v_bandeja or new.creado_por is null then new.creado_por := v_uid; end if;
     if not v_bandeja then new.creado_en := public.ahora(); end if;
     return new;
@@ -113,6 +115,13 @@ begin
     new.identidad := old.identidad; new.fallas := old.fallas; new.enlace_hash := old.enlace_hash; new.enlace_vence := old.enlace_vence;
     new.control_id := old.control_id;
     return new;
+  end if;
+
+  -- Enlace nuevo: 7 días desde ahora; sin enlace, sin vencimiento
+  if new.enlace_hash is distinct from old.enlace_hash then
+    new.enlace_vence := case when new.enlace_hash is null then null else public.ahora() + interval '7 days' end;
+  else
+    new.enlace_vence := old.enlace_vence;
   end if;
 
   -- La consulta de control se enlaza una sola vez y debe ser del mismo paciente

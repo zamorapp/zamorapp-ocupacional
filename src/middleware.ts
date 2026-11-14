@@ -52,6 +52,8 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/e/")) return conTiempo(respuesta);
   // Lo mismo para los documentos personales que se le envían al trabajador (récipe, indicaciones, dieta…)
   if (request.nextUrl.pathname.startsWith("/t/")) return conTiempo(respuesta);
+  // Consentimiento de la consulta a distancia (/consentimiento/<enlace>): el paciente lo acepta sin cuenta
+  if (request.nextUrl.pathname.startsWith("/consentimiento/")) return conTiempo(respuesta);
   // Latido del workflow «Calentar» (C4): sin sesión, responde como anónimo; no se manda a /login
   if (request.nextUrl.pathname === "/api/salud") return conTiempo(respuesta);
   // Hora de la nube para el reloj del celular sin internet: sin datos, también sin sesión

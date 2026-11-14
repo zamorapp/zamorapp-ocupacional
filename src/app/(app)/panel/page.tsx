@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { barrerConstancias } from "@/lib/constancias-listas";
 import Link from "next/link";
+import { seguimientosDistancia } from "@/lib/telemedicina";
+import { datosOrganizacion } from "@/lib/organizacion";
+import { SalaEspera } from "../atencion/a-distancia/sala";
 import { Suspense } from "react";
-import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock, CalendarPlus, CheckCircle2, ClipboardPlus, FilePlus2, FileSpreadsheet, HardHat, Phone, Plus, Receipt, UserPlus, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +20,7 @@ import { obtenerSesion, primerNombre, type Sesion } from "@/lib/sesion";
 import { recordarResultados } from "@/lib/recordatorios";
 import { vigilarPlazos } from "@/lib/centinela";
 import { estadoRespaldo } from "@/lib/respaldo";
-import { ahora } from "@/lib/fecha";
+import { ahora, hoyCaracas } from "@/lib/fecha";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { OfertaAvisosCelular } from "@/components/app/avisos-celular";
 import { ultimosAtendidos } from "@/lib/ultimos-atendidos";
@@ -72,6 +75,9 @@ export default async function Panel() {
 
       {/* Últimos atendidos de todas las empresas: a un toque, sin buscar (solo personal de salud) */}
       {sesion.clinico && !sesion.demo && <Suspense fallback={<div role="status" aria-label="Cargando los últimos atendidos" className="h-48 animate-pulse rounded-xl border bg-muted/40" />}><UltimosAtendidos /></Suspense>}
+
+      {/* Telemedicina: consultas a distancia que esperan que el paciente vuelva (no ocupa lugar si nadie espera) */}
+      {sesion.clinico && !sesion.demo && <Suspense fallback={null}><SalaDistanciaInicio /></Suspense>}
 
       <Suspense fallback={null}><PrimerosPasos /></Suspense>
 
@@ -186,6 +192,22 @@ const ESTADO_ATENDIDO: Record<string, [string, string]> = {
   cerrada: ["Por firmar", "bg-aviso/15 text-aviso-texto"],
   firmada: ["Firmada", "bg-ok/15 text-ok-texto"],
 };
+
+async function SalaDistanciaInicio() {
+  const [lista, org] = await Promise.all([seguimientosDistancia().catch(() => []), datosOrganizacion()]);
+  if (lista.length === 0) return null;
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-center gap-2 border-b px-5 py-3">
+        <Phone className="size-5 text-primary" aria-hidden />
+        <CardTitle className="text-base">Sala de espera a distancia</CardTitle>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{lista.length}</span>
+        <Button variant="ghost" size="sm" className="-my-1 ml-auto" asChild><Link href="/atencion/a-distancia">Ver todo</Link></Button>
+      </CardHeader>
+      <div className="px-5"><SalaEspera lista={lista} hoy={hoyCaracas()} servicio={org.nombre} max={3} /></div>
+    </Card>
+  );
+}
 
 async function UltimosAtendidos() {
   let atendidos;

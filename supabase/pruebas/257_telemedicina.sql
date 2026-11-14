@@ -28,7 +28,10 @@ select 'de palabra queda con su hora (debe 1): ' || count(*) from public.telecon
 update public.teleconsultas set consentimiento = 'escrito' where id = '25700000-0000-0000-0000-000000000001';
 select 'escrito a mano no se acepta (debe 1): ' || count(*) from public.teleconsultas where id = '25700000-0000-0000-0000-000000000001' and consentimiento = 'verbal';
 update public.teleconsultas set consentimiento = 'pendiente', enlace_hash = sha256(convert_to('EnlaceDePruebaTelemedicina_0123456789abcdef', 'UTF8')),
-       enlace_vence = now() + interval '7 days' where id = '25700000-0000-0000-0000-000000000001';
+       enlace_vence = now() + interval '90 days' where id = '25700000-0000-0000-0000-000000000001';
+
+select 'el enlace vence a los 7 días, lo pone la base (debe 1): ' || count(*) from public.teleconsultas
+ where id = '25700000-0000-0000-0000-000000000001' and enlace_vence between now() + interval '6 days' and now() + interval '8 days';
 
 -- Enfermería y RR. HH. no la registran; RR. HH. no la ve
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
