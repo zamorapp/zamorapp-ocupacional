@@ -46,7 +46,32 @@ export type Cobro = {
   vence: string | null;
   presupuestoId: string | null;
   items: ItemCobro[];
+  pagos: PagoCobro[];
 };
+
+// Abono o pago de una nota de cobro: cómo se pagó, con qué referencia y cuánto (en $; si fue en Bs, a la tasa del día)
+export type MetodoPago = "transferencia" | "pago_movil" | "zelle" | "binance" | "efectivo_usd" | "efectivo_bs" | "otro";
+export type PagoCobro = { id: string; fecha: string; metodo: MetodoPago; referencia: string; montoUsd: number; tasaBcv: number | null };
+
+export const ETIQUETA_METODO: Record<MetodoPago, string> = {
+  transferencia: "Transferencia en Bs",
+  pago_movil: "Pago móvil",
+  zelle: "Zelle",
+  binance: "Binance",
+  efectivo_usd: "Efectivo en $",
+  efectivo_bs: "Efectivo en Bs",
+  otro: "Otro",
+};
+// Métodos que se cobran en bolívares: piden la tasa del día del pago
+export const METODO_EN_BS: MetodoPago[] = ["transferencia", "pago_movil", "efectivo_bs"];
+
+// Lo abonado y lo que falta; «cubierta» con medio centavo de holgura por redondeo
+export function saldo(c: Pick<Cobro, "items" | "ivaPct" | "igtfPct" | "tasaBcv" | "pagos">) {
+  const total = totales(c).total;
+  const pagado = Math.round(c.pagos.reduce((s, p) => s + p.montoUsd, 0) * 100) / 100;
+  const falta = Math.max(0, Math.round((total - pagado) * 100) / 100);
+  return { total, pagado, falta, cubierta: pagado > 0 && falta < 0.005 };
+}
 
 export type Atencion = {
   id: string;

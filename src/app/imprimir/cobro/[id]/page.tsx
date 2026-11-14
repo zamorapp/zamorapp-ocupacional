@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { obtenerCobro, tasasBcv } from "@/lib/facturacion";
 import { sumarDias } from "@/lib/fecha";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
-import { bs, totales, usd } from "@/lib/facturacion-tipos";
+import { bs, ETIQUETA_METODO, saldo, totales, usd } from "@/lib/facturacion-tipos";
 import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -33,7 +33,8 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
   const tasaUsada = c.tasaBcv ?? auto?.tasa ?? null;
   const entrega = doc === "entrega";
   const pagada = c.estado === "pagada";
-  const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro";
+  const abonos = c.tipo === "cobro" ? saldo(c) : null;
+  const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : c.pagos.length ? "Recibo de abono" : "Nota de cobro";
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
@@ -131,6 +132,39 @@ export default async function ImprimirCobro({ params, searchParams }: { params: 
                 </>
               )}
             </div>
+
+            {/* Pagos y abonos recibidos (Cesar, 14-nov-2026): cómo se pagó, con qué referencia y lo que falta */}
+            {abonos && c.pagos.length > 0 && (
+              <div data-prueba="pagos-recibidos" className="mt-5 break-inside-avoid">
+                <div className="mb-1 font-bold">{c.pagos.length === 1 && abonos.cubierta ? "Pago recibido" : "Pagos recibidos"}</div>
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr className="bg-teal-50">
+                      <th className="w-24 border border-neutral-300 px-2 py-1 text-left">Fecha</th>
+                      <th className="border border-neutral-300 px-2 py-1 text-left">Forma de pago</th>
+                      <th className="border border-neutral-300 px-2 py-1 text-left">Referencia</th>
+                      <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Monto $</th>
+                      <th className="w-36 border border-neutral-300 px-2 py-1 text-right">En bolívares</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.pagos.map((p) => (
+                      <tr key={p.id}>
+                        <td className="border border-neutral-300 px-2 py-0.5 whitespace-nowrap">{fechaCorta(p.fecha)}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5">{ETIQUETA_METODO[p.metodo]}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5">{p.referencia || "—"}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5 text-right whitespace-nowrap tabular-nums">{p.montoUsd.toFixed(2)}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5 text-right whitespace-nowrap tabular-nums">{p.tasaBcv ? <>{bs(p.montoUsd * p.tasaBcv)}<div className="text-[10.5px] text-neutral-600">tasa {p.tasaBcv.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div></> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="ml-auto mt-1 w-72 space-y-0.5 text-sm">
+                  <div className="flex justify-between"><span>Total pagado</span><span className="whitespace-nowrap">{usd(abonos.pagado)}</span></div>
+                  <div className="flex justify-between font-bold"><span>Saldo pendiente</span><span className="whitespace-nowrap">{usd(abonos.falta)}</span></div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
