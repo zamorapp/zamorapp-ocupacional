@@ -113,7 +113,7 @@ begin
       v := public.reporte_listado('reposos', per.empresa_id, per.desde, per.hasta);
       v_res := jsonb_build_object('total', public.agente_vig_n(jsonb_array_length(v)),
         'dias', (select sum(coalesce((e ->> 'dias_periodo')::numeric, (e ->> 'dias')::numeric, 0)) from jsonb_array_elements(v) e),
-        'por_causa', public.agente_rep_contar(v, 'causa', 'dias_periodo'),
+        'por_causa', public.agente_rep_contar(v, 'causa', 'dias_periodo', true),  -- prenatal, postnatal, lactancia: confidenciales
         'por_dependencia', public.agente_rep_contar(v, 'dependencia', 'dias_periodo'));
     elsif v_clave = 'interconsultas' then
       v := public.reporte_listado('interconsultas', per.empresa_id, per.desde, per.hasta);
@@ -162,4 +162,31 @@ begin
         when ''ver_reporte'' then public.agente_vig_reporte(k.org_id, d)');
   v_def := replace(v_def, v_lista, 'Las de vigilancia: ver_reporte, vigilancia_cifras,');
   execute v_def;
+end $$;
+
+-- ===== 4. Embarazo y parto nunca salen por nombre (revisión de Analizar, 14-nov) =====
+-- Las causas de reposo son códigos (prenatal, postnatal, lactancia) que el filtro de la 960 no atrapaba, y en
+-- vigilancia_cifras › ausentismo › por_causa no se pedía el filtro. Ambos se parchean por texto, con guarda.
+do $$
+declare
+  v_def text := replace(pg_get_functiondef('public.agente_vig_lista(jsonb, text, boolean)'::regprocedure), chr(13), '');
+  v_ancla text := 'mental|comportamiento|embarazo|parto|puerperio|vih|inmunodeficiencia';
+begin
+  if position('prenatal' in v_def) > 0 then return; end if;  -- repetir la migración no la suma dos veces
+  if (length(v_def) - length(replace(v_def, v_ancla, ''))) / length(v_ancla) <> 1 then
+    raise exception 'agente_vig_lista cambió: revisar 20261030964000 antes de aplicarla';
+  end if;
+  execute replace(v_def, v_ancla, v_ancla || '|prenatal|postnatal|lactancia|maternidad|obstetric');
+end $$;
+
+do $$
+declare
+  v_def text := replace(pg_get_functiondef('public.agente_vig_cifras(uuid, jsonb)'::regprocedure), chr(13), '');
+  v_ancla text := '''por_causa'', public.agente_vig_lista(r #> ''{ausentismo,por_causa}'')';
+begin
+  if position('{ausentismo,por_causa}'', ''nombre'', true)' in v_def) > 0 then return; end if;
+  if (length(v_def) - length(replace(v_def, v_ancla, ''))) / length(v_ancla) <> 1 then
+    raise exception 'agente_vig_cifras cambió: revisar 20261030964000 antes de aplicarla';
+  end if;
+  execute replace(v_def, v_ancla, '''por_causa'', public.agente_vig_lista(r #> ''{ausentismo,por_causa}'', ''nombre'', true)');
 end $$;

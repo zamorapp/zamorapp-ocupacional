@@ -14,6 +14,11 @@ select ('26200000-0000-0000-0000-00000000020' || i)::uuid,'10000000-0000-0000-00
 from generate_series(1,4) i;
 insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion)
 select '10000000-0000-0000-0000-000000000001',('26200000-0000-0000-0000-00000000020' || i)::uuid,'K29.7','Gastritis rara' from generate_series(1,4) i;
+-- Tres reposos prenatales: nunca deben salir con su nombre (embarazo y parto son confidenciales)
+insert into clinico.reposos (id,org_id,trabajador_id,causa,desde,hasta)
+select ('26200000-0000-0000-0000-00000000030' || i)::uuid,'10000000-0000-0000-0000-000000000001',
+       ('26200000-0000-0000-0000-00000000010' || i)::uuid,'prenatal','2024-06-03','2024-06-20'
+from generate_series(1,3) i;
 
 -- Llave con la casilla
 set role authenticated;
@@ -32,7 +37,15 @@ select public.puerta_vigilancia(:'kr', 'ver_reporte', '{"reporte":"pacientes","e
 select public.puerta_vigilancia(:'kr', 'ver_reporte', '{"reporte":"morbilidad","empresa_id":"20000000-0000-0000-0000-00000000000a","desde":"2024-06-01","hasta":"2024-06-30"}') as m \gset
 select public.puerta_vigilancia(:'kr', 'ver_reporte', '{"reporte":"discapacidad","empresa_id":"20000000-0000-0000-0000-00000000000a","desde":"2024-06-01","hasta":"2024-06-30"}') as x \gset
 select public.puerta_vigilancia(:'kr', 'ver_reporte', '{"reporte":"atendidos","empresa_id":"20000000-0000-0000-0000-0000000000ff","desde":"2024-06-01","hasta":"2024-06-30"}') as o \gset
+select public.puerta_vigilancia(:'kr', 'ver_reporte', '{"reporte":"reposos","empresa_id":"20000000-0000-0000-0000-00000000000a","desde":"2024-06-01","hasta":"2024-06-30"}') as rp \gset
+select public.puerta_vigilancia(:'kr', 'vigilancia_cifras', '{"empresa_id":"20000000-0000-0000-0000-00000000000a","anio":2024,"trimestre":2}') as vc \gset
 reset role;
+
+select 'reposos: 3 en el total (debe 1): ' || ((:'rp'::jsonb) #>> '{resultado,total}' = '3')::int;
+select 'reposos: prenatal no sale por nombre (debe 0): ' || ((:'rp'::jsonb)::text ~* 'prenatal|postnatal|lactancia|embarazo')::int;
+select 'reposos: va a Otros (debe 1): ' || ((:'rp'::jsonb) #> '{resultado,por_causa}' @> '[{"n": 3}]' and (:'rp'::jsonb) #>> '{resultado,por_causa,0,nombre}' like 'Otros%')::int;
+select 'vigilancia: ausentismo sin prenatal (debe 0): ' || ((:'vc'::jsonb)::text ~* 'prenatal|postnatal|lactancia|embarazo')::int;
+select 'vigilancia: el filtro común atrapa los códigos (debe 1): ' || (public.agente_vig_lista('[{"nombre":"prenatal","n":5},{"nombre":"Lactancia","n":4}]', 'nombre', true) #>> '{0,nombre}' like 'Otros%')::int;
 
 select 'atendidos: lista con los 4 pacientes (debe 4): ' || (select count(*) from jsonb_array_elements((:'a'::jsonb) #> '{resultado,filas}') f where f ->> 'cedula' like 'V-6620000%');
 select 'atendidos: sin diagnósticos ni aptitud (debe 0): ' || ((:'a'::jsonb)::text ~* 'K29|gastritis|diagnostic|aptitud')::int;
@@ -62,6 +75,7 @@ select 'ayudantes cerrados (debe 0): ' || count(*) from pg_proc p join pg_namesp
    and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'));
 select 'queda en el registro (debe 1): ' || (count(*) > 0)::int from public.agentes_registro where llave_id = :'krid' and accion = 'ver_reporte' and ok;
 
+delete from clinico.reposos where id::text like '26200000-%';
 delete from clinico.diagnosticos where consulta_id::text like '26200000-%';
 delete from clinico.consultas where id::text like '26200000-%';
 delete from public.trabajadores where id::text like '26200000-%';
