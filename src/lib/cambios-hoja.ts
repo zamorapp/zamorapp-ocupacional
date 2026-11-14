@@ -7,7 +7,8 @@ export type Cambios = Record<string, string | string[]>;
 
 // Topes: la URL no debe crecer sin control (y lo que llega de una URL es dato externo)
 export const MAX_C = 8000;
-const MAX_CLAVES = 80;
+// Una dieta con su guía ilustrada tiene más de 80 textos editables: con 80 se perdían claves en silencio (Analizar #358)
+const MAX_CLAVES = 160;
 const MAX_RENGLONES = 40;
 const MAX_TEXTO = 600;
 const CLAVE = /^[a-z0-9-]{1,40}$/;

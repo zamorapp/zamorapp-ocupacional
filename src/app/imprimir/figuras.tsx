@@ -2,6 +2,9 @@
 // salgan iguales en la web, en el escritorio sin internet y en el PDF. Trazo oscuro = cuerpo, naranja = movimiento,
 // verde = objetos y miradas. Cada figura se nombra en lib/bienestar.ts (campo «figura»).
 
+import type { Icono } from "@/lib/dietas";
+import { IconoSalud } from "./iconos-salud";
+
 const T = "#16302d"; // cuerpo
 const N = "#e8833a"; // movimiento
 const V = "#0f6f68"; // objetos y miradas
@@ -524,8 +527,122 @@ const DOLOR: Record<string, React.ReactNode> = {
 const CAJAS_DOLOR = (nombre: string) => (nombre.startsWith("muneca-") ? "0 58 160 50" : /-(mal|bien)$/.test(nombre) ? "0 0 160 110" : "0 0 200 120");
 
 export function FiguraDolor({ nombre, className = "" }: { nombre: string; className?: string }) {
+  // Heridas, quemaduras y hábitos (tanda 5) y las guías de salud: 160 × 110; «i:…» usa un ícono de las dietas
+  if (nombre.startsWith("i:") || HERIDAS[nombre] || SALUD[nombre]) return <FiguraSalud nombre={nombre} className={className} />;
   // Un tema puede usar también las figuras de equilibrio (p. ej. «sentarse-pararse» en la rodilla)
   const f = DOLOR[nombre] ?? EQUILIBRIO[nombre];
   if (!f) return null;
   return <svg viewBox={DOLOR[nombre] ? CAJAS_DOLOR(nombre) : CAJAS[nombre] ?? "0 0 200 120"} className={`overflow-visible ${className}`} aria-hidden>{f}</svg>;
 }
+
+// ── Guías de salud (tanda 4): tensión arterial y diabetes, 160 × 110 ──
+const PIEL = "#f6e3d4";
+const ROJO = "#c62828";
+const Tachar = ({ x, y, r }: { x: number; y: number; r: number }) => (
+  <><circle cx={x} cy={y} r={r} fill="none" stroke={ROJO} strokeWidth={4} /><path d={`M${x - r * 0.7} ${y - r * 0.7} L${x + r * 0.7} ${y + r * 0.7}`} stroke={ROJO} strokeWidth={4} strokeLinecap="round" /></>
+);
+const SillaRespaldo = () => <path d="M24 20 L24 80 M24 80 L68 80 M28 80 L28 106 M64 80 L64 106" stroke={G} strokeWidth={5} strokeLinecap="round" fill="none" />;
+const Mesa = () => <path d="M86 60 L156 60 M150 60 L150 106" stroke={G} strokeWidth={5} strokeLinecap="round" fill="none" />;
+const Monitor = ({ x, y }: { x: number; y: number }) => (
+  <><rect x={x} y={y} width={30} height={20} rx={3} fill="#e6f2f0" stroke={V} strokeWidth={3} /><rect x={x + 5} y={y + 4} width={20} height={8} rx={1.5} fill={V} /></>
+);
+// Brazo de cerca: del hombro (izquierda) al codo y el antebrazo (derecha)
+const Brazo = ({ manga }: { manga?: boolean }) => (
+  <>
+    <rect x={98} y={42} width={58} height={28} rx={14} fill={PIEL} stroke={T} strokeWidth={3.5} />
+    <rect x={4} y={36} width={104} height={38} rx={17} fill={manga ? "#9fb8d6" : PIEL} stroke={T} strokeWidth={3.5} />
+    <path d="M100 46 Q104 56 100 66" stroke={T} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+  </>
+);
+const Manguito = ({ x = 34 }: { x?: number }) => (
+  <><rect x={x} y={30} width={54} height={50} rx={6} fill="#cfe5e1" stroke={V} strokeWidth={4} /><path d={`M${x + 27} 30 L${x + 27} 8`} stroke={V} strokeWidth={3} /></>
+);
+const Mano = ({ children }: { children: React.ReactNode }) => <g stroke={T} strokeWidth={3.5} strokeLinejoin="round" fill={PIEL}>{children}</g>;
+
+const SALUD: Record<string, React.ReactNode> = {
+  // Tensión arterial
+  "ta-postura": (<><SillaRespaldo /><Mesa /><Piso x1={8} x2={156} y={108} /><Cab x={42} y={18} r={10} /><L d="M40 29 L34 78 L80 80 L82 104 L96 104" /><L d="M38 38 L76 54 L114 54" /><path d="M48 42 L66 50" stroke={V} strokeWidth={12} /><path d="M70 56 Q92 74 120 56" stroke={V} strokeWidth={2.5} fill="none" /><Monitor x={118} y={34} /></>),
+  "ta-mal": (<><path d="M24 80 L68 80 M28 80 L28 106 M64 80 L64 106" stroke={G} strokeWidth={5} strokeLinecap="round" fill="none" /><Piso x1={8} x2={156} y={108} /><Cab x={66} y={26} r={10} /><L d="M44 80 Q38 54 60 36" /><L d="M44 80 L90 78 L94 104" /><L d="M48 80 L92 70 L116 88" /><L d="M52 46 L50 84" /><path d="M51 54 L51 70" stroke={V} strokeWidth={12} /><path d="M84 8 h50 a6 6 0 0 1 6 6 v14 a6 6 0 0 1 -6 6 h-38 l-8 8 v-8 h-4 a6 6 0 0 1 -6 -6 v-14 a6 6 0 0 1 6 -6 z" fill="#fff" stroke={N} strokeWidth={3} /><text x={110} y={27} textAnchor="middle" fontSize={17} fontWeight={800} fill={N}>bla</text></>),
+  "ta-manguito": (<><Brazo /><Manguito /><path d="M88 82 L88 92 M100 82 L100 92 M88 87 L100 87" stroke={N} strokeWidth={3} strokeLinecap="round" /><Rotulo x={56} y={110} t="2 a 3 cm" /></>),
+  "ta-ropa": (<><Brazo manga /><path d="M14 36 L14 74 M24 36 L24 74" stroke="#7d9cc4" strokeWidth={3} /><Manguito /><Tachar x={130} y={22} r={14} /></>),
+  "ta-reposo": (<><SillaRespaldo /><Piso x1={8} x2={156} y={108} /><Cab x={42} y={18} r={10} /><L d="M40 29 L34 78 L80 80 L82 104 L96 104" /><L d="M38 40 L56 64 L76 70" /><circle cx={124} cy={42} r={24} fill="#fff" stroke={V} strokeWidth={4} /><path d="M124 42 L124 26 M124 42 L136 48" stroke={V} strokeWidth={4} strokeLinecap="round" /><Rotulo x={100} y={92} t="5 min" /></>),
+  "ta-sin-cafe": (<><path d="M14 40 L20 82 L50 82 L56 40 Z" fill="#fff" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><path d="M18 48 L52 48 L49 74 L21 74 Z" fill="#6b4423" /><path d="M56 50 Q70 52 62 68 L52 70" stroke={T} strokeWidth={3.5} fill="none" /><path d="M28 32 q-6 -8 0 -16 M40 32 q-6 -8 0 -16" stroke={G} strokeWidth={3} fill="none" strokeLinecap="round" /><Tachar x={36} y={56} r={30} /><rect x={92} y={52} width={52} height={10} rx={2} fill="#fff" stroke="#6b4423" strokeWidth={2.5} /><rect x={92} y={52} width={14} height={10} rx={2} fill="#e8a25a" /><rect x={142} y={52} width={8} height={10} rx={1} fill="#e0483e" /><Tachar x={120} y={57} r={30} /><Rotulo x={50} y={108} t="30 min antes" /></>),
+  "ta-callado": (<><Cab x={56} y={56} r={34} /><circle cx={44} cy={48} r={3.5} fill={T} /><circle cx={68} cy={48} r={3.5} fill={T} /><path d="M44 72 L68 72" stroke={T} strokeWidth={4} strokeLinecap="round" /><path d="M104 16 h44 a6 6 0 0 1 6 6 v18 a6 6 0 0 1 -6 6 h-30 l-8 8 v-8 h-6 a6 6 0 0 1 -6 -6 v-18 a6 6 0 0 1 6 -6 z" fill="#fff" stroke={N} strokeWidth={3} /><text x={126} y={38} textAnchor="middle" fontSize={17} fontWeight={800} fill={N}>bla</text><Tachar x={126} y={32} r={26} /><rect x={110} y={70} width={22} height={36} rx={4} fill={V} /><Tachar x={121} y={88} r={20} /></>),
+  "ta-dos-tomas": (<><rect x={6} y={20} width={50} height={56} rx={6} fill="#e6f2f0" stroke={V} strokeWidth={3.5} /><rect x={12} y={28} width={38} height={26} rx={3} fill="#fff" stroke={V} strokeWidth={2} /><text x={31} y={47} textAnchor="middle" fontSize={17} fontWeight={800} fill={V}>1.ª</text><rect x={104} y={20} width={50} height={56} rx={6} fill="#e6f2f0" stroke={V} strokeWidth={3.5} /><rect x={110} y={28} width={38} height={26} rx={3} fill="#fff" stroke={V} strokeWidth={2} /><text x={129} y={47} textAnchor="middle" fontSize={17} fontWeight={800} fill={V}>2.ª</text><F d="M62 48 L96 48" /><Rotulo x={56} y={102} t="1 minuto" /></>),
+  // Porciones con la mano
+  "mano-palma": (<Mano><rect x={54} y={10} width={12} height={44} rx={6} /><rect x={68} y={4} width={12} height={50} rx={6} /><rect x={82} y={8} width={12} height={46} rx={6} /><rect x={96} y={16} width={11} height={38} rx={5.5} /><rect x={22} y={62} width={40} height={14} rx={7} transform="rotate(-35 42 69)" /><rect x={50} y={42} width={60} height={62} rx={16} /><ellipse cx={80} cy={72} rx={22} ry={18} fill="#c98a5a" stroke="#7a4a24" strokeWidth={3} /></Mano>),
+  "mano-puno": (<Mano><rect x={60} y={80} width={40} height={28} rx={6} /><rect x={42} y={22} width={76} height={64} rx={22} /><path d="M62 24 L62 48 M80 22 L80 48 M98 24 L98 48" fill="none" /><path d="M46 62 Q72 52 100 64" fill="none" /></Mano>),
+  "mano-dos": (<><circle cx={52} cy={50} r={15} fill="#3f9d5a" /><circle cx={76} cy={40} r={17} fill="#4fb36a" /><circle cx={102} cy={46} r={16} fill="#3a8f52" /><circle cx={120} cy={58} r={12} fill="#4fb36a" /><circle cx={38} cy={60} r={11} fill="#4fb36a" /><Mano><path d="M14 58 Q18 104 80 104 Q142 104 146 58 Z" /><path d="M80 62 L80 104" fill="none" /></Mano></>),
+  "mano-pulgar": (<><Mano><rect x={56} y={50} width={56} height={54} rx={16} /><rect x={58} y={8} width={22} height={52} rx={11} /><path d="M80 62 L108 62 M80 76 L108 76 M80 90 L108 90" fill="none" /></Mano><path d="M60.5 26 L60.5 19 A10 10 0 0 1 77.5 19 L77.5 26 Z" fill="#f2c94c" stroke="none" /><F d="M128 22 L92 22" /></>),
+  // Pies
+  "dm-pies": (<><Mano><path d="M58 104 Q36 100 38 72 Q40 44 58 34 Q78 26 86 44 Q92 64 84 84 Q80 104 58 104 Z" /><circle cx={50} cy={22} r={8} /><circle cx={64} cy={16} r={6} /><circle cx={76} cy={18} r={5.5} /><circle cx={86} cy={24} r={5} /><circle cx={93} cy={32} r={4.5} /></Mano><circle cx={116} cy={58} r={22} fill="#e6f2f0" fillOpacity={0.6} stroke={V} strokeWidth={5} /><path d="M132 74 L150 96" stroke={V} strokeWidth={8} strokeLinecap="round" /></>),
+  "dm-zapato": (<><path d="M14 92 L14 60 Q14 48 28 48 L56 48 Q62 64 86 66 L128 72 Q146 76 146 92 Z" fill="#cfe5e1" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><rect x={12} y={92} width={136} height={9} rx={3} fill={T} /><path d="M66 64 L72 56 M78 66 L84 58 M90 68 L96 60" stroke={V} strokeWidth={3} strokeLinecap="round" /><F d="M40 6 L40 38" /></>),
+  "dm-unas": (<><Mano><rect x={46} y={18} width={64} height={90} rx={30} /></Mano><rect x={60} y={26} width={36} height={30} rx={7} fill="#fff" stroke={T} strokeWidth={3} /><path d="M54 24 L102 24" stroke={N} strokeWidth={4} strokeDasharray="6 4" /><Rotulo x={108} y={20} t="recto" /></>),
+  // Azúcar baja: 15 g y 15 minutos
+  "dm-15": (<><path d="M20 22 L28 86 L60 86 L68 22 Z" fill="#fff" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><path d="M23.5 46 L64.5 46 L60.5 82 L27.5 82 Z" fill="#f6b24a" /><Rotulo x={22} y={106} t="15 g" /><F d="M76 54 L94 54" /><circle cx={124} cy={52} r={26} fill="#fff" stroke={V} strokeWidth={4} /><path d="M124 52 L124 34 M124 52 L140 52" stroke={V} strokeWidth={4} strokeLinecap="round" /><path d="M124 26 A26 26 0 0 1 150 52 L124 52 Z" fill={V} fillOpacity={0.25} /><Rotulo x={96} y={106} t="15 min" /></>),
+  // Dietas: sal, etiqueta, lonchera y remojo de víveres
+  "sal-5g": (<><path d="M70 56 L156 44" stroke={T} strokeWidth={8} strokeLinecap="round" /><path d="M6 52 Q8 86 40 86 Q72 86 74 52 Z" fill="#e6f2f0" stroke={T} strokeWidth={4} strokeLinejoin="round" /><path d="M10 52 Q40 22 70 52 Z" fill="#fff" stroke={G} strokeWidth={2.5} /><circle cx={28} cy={46} r={2.5} fill={G} /><circle cx={42} cy={38} r={2.5} fill={G} /><circle cx={54} cy={46} r={2.5} fill={G} /><Rotulo x={90} y={84} t="5 g" /><Rotulo x={8} y={108} t="1 cucharadita rasa" /></>),
+  "etiqueta": (<><rect x={30} y={4} width={100} height={102} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><text x={80} y={24} textAnchor="middle" fontSize={17} fontWeight={800} fill={T}>por 100 g</text><path d="M40 32 L120 32" stroke={G} strokeWidth={2} /><text x={40} y={52} fontSize={17} fill={T}>Grasa</text><text x={120} y={52} textAnchor="end" fontSize={17} fill={T}>3 g</text><rect x={36} y={60} width={88} height={24} rx={4} fill="#fdecea" stroke={ROJO} strokeWidth={3} /><text x={42} y={78} fontSize={17} fontWeight={800} fill={ROJO}>Sal</text><text x={118} y={78} textAnchor="end" fontSize={17} fontWeight={800} fill={ROJO}>1,8 g</text><text x={40} y={100} fontSize={17} fill={T}>Azúcar</text><text x={120} y={100} textAnchor="end" fontSize={17} fill={T}>2 g</text></>),
+  "lonchera": (<><path d="M58 26 Q58 10 80 10 Q102 10 102 26" stroke={V} strokeWidth={5} fill="none" /><rect x={14} y={26} width={132} height={78} rx={10} fill="#e6f2f0" stroke={V} strokeWidth={4} /><path d="M80 32 L80 98 M84 64 L140 64" stroke={V} strokeWidth={3} /><circle cx={38} cy={52} r={11} fill="#3f9d5a" /><circle cx={56} cy={48} r={12} fill="#4fb36a" /><circle cx={46} cy={72} r={12} fill="#3a8f52" /><circle cx={64} cy={78} r={10} fill="#4fb36a" /><ellipse cx={112} cy={46} rx={22} ry={12} fill="#d9b48a" stroke="#8a5a2a" strokeWidth={2} /><ellipse cx={112} cy={82} rx={20} ry={11} fill="#f3e7b5" stroke="#b39a3a" strokeWidth={2} /></>),
+  "etiqueta-fosfato": (<><rect x={20} y={4} width={120} height={102} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><text x={30} y={26} fontSize={17} fontWeight={800} fill={T}>Ingredientes:</text><path d="M30 40 L130 40 M30 54 L100 54" stroke={G} strokeWidth={5} strokeLinecap="round" /><rect x={26} y={64} width={108} height={24} rx={4} fill="#fdecea" stroke={ROJO} strokeWidth={3} /><text x={80} y={82} textAnchor="middle" fontSize={17} fontWeight={800} fill={ROJO}>…fosfato…</text><path d="M30 98 L118 98" stroke={G} strokeWidth={5} strokeLinecap="round" /></>),
+  "remojo": (<><path d="M16 40 L24 104 L120 104 L128 40 Z" fill="#e6f2f0" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><path d="M20 54 L124 54" stroke="#5b9bd5" strokeWidth={3} /><path d="M21 56 L124 56 L119 102 L25 102 Z" fill="#cfe3f5" /><rect x={40} y={68} width={18} height={16} rx={3} fill="#f3e7b5" stroke="#b39a3a" strokeWidth={2} /><rect x={66} y={74} width={18} height={16} rx={3} fill="#f3e7b5" stroke="#b39a3a" strokeWidth={2} /><rect x={90} y={64} width={18} height={16} rx={3} fill="#f3e7b5" stroke="#b39a3a" strokeWidth={2} /><F d="M134 50 Q152 66 140 96" /><Rotulo x={98} y={24} t="bote el agua" /></>),
+};
+
+// «i:sal» usa el dibujo de un ícono de las dietas; «i:sal!» lo tacha (lo que debe evitar)
+export function FiguraSalud({ nombre, className = "" }: { nombre: string; className?: string }) {
+  if (nombre.startsWith("i:")) {
+    const icono = nombre.slice(2).replace(/!$/, "") as Icono;
+    return <IconoSalud icono={icono} no={nombre.endsWith("!")} className={className} />;
+  }
+  const f = SALUD[nombre] ?? HERIDAS[nombre];
+  if (!f) return null;
+  return <svg viewBox="0 0 160 110" className={`overflow-visible ${className}`} aria-hidden>{f}</svg>;
+}
+
+// ── Heridas, quemaduras y hábitos (tanda 5), 160 × 110 ──
+const AGUA = "#5b9bd5";
+const Antebrazo = () => <rect x={6} y={68} width={148} height={30} rx={15} fill={PIEL} stroke={T} strokeWidth={3.5} />;
+const Herida = ({ x = 66 }: { x?: number }) => <path d={`M${x} 83 L${x + 28} 83`} stroke={ROJO} strokeWidth={4.5} strokeLinecap="round" />;
+const Quemadura = () => <ellipse cx={80} cy={83} rx={26} ry={10} fill="#f19c8f" stroke={ROJO} strokeWidth={2.5} />;
+const Grifo = ({ x = 80 }: { x?: number }) => (
+  <><path d={`M${x - 52} 10 L${x - 8} 10 Q${x} 10 ${x} 18 L${x} 26`} stroke={T} strokeWidth={8} fill="none" strokeLinecap="round" /><path d={`M${x} 34 L${x} 62`} stroke={AGUA} strokeWidth={7} strokeDasharray="7 5" strokeLinecap="round" /></>
+);
+const Gasa = ({ x, y, w = 44, h = 30 }: { x: number; y: number; w?: number; h?: number }) => (
+  <><rect x={x} y={y} width={w} height={h} rx={3} fill="#fff" stroke={V} strokeWidth={3} /><path d={`M${x + w / 3} ${y} L${x + w / 3} ${y + h} M${x + (2 * w) / 3} ${y} L${x + (2 * w) / 3} ${y + h} M${x} ${y + h / 2} L${x + w} ${y + h / 2}`} stroke={G} strokeWidth={2} /></>
+);
+const Reloj = ({ x, y, r = 22 }: { x: number; y: number; r?: number }) => (
+  <><circle cx={x} cy={y} r={r} fill="#fff" stroke={V} strokeWidth={4} /><path d={`M${x} ${y} L${x} ${y - r * 0.65} M${x} ${y} L${x + r * 0.55} ${y + r * 0.25}`} stroke={V} strokeWidth={4} strokeLinecap="round" /></>
+);
+
+const HERIDAS: Record<string, React.ReactNode> = {
+  // Heridas
+  "lavar-manos": (<><Grifo x={78} /><Mano><rect x={44} y={58} width={36} height={46} rx={16} transform="rotate(-24 62 81)" /><rect x={76} y={58} width={36} height={46} rx={16} transform="rotate(24 94 81)" /></Mano>{[[40, 52, 7], [118, 54, 8], [128, 74, 5], [32, 72, 5]].map(([x, y, r]) => <circle key={x} cx={x} cy={y} r={r} fill="#fff" stroke={AGUA} strokeWidth={2.5} />)}<Rotulo x={112} y={30} t="20 s" /></>),
+  "herida-agua-bien": (<><Antebrazo /><Herida /><Grifo x={80} /><rect x={98} y={30} width={58} height={24} rx={10} fill="#fff" stroke={V} strokeWidth={3} /><text x={127} y={48} textAnchor="middle" fontSize={16} fontWeight={800} fill={V}>jabón</text></>),
+  "herida-alcohol-mal": (<><Antebrazo /><Herida /><g transform="rotate(35 58 30)"><rect x={40} y={8} width={34} height={46} rx={5} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={50} y={0} width={14} height={9} rx={2} fill={T} /></g><path d="M80 50 L80 64" stroke="#8a5a2a" strokeWidth={5} strokeDasharray="5 4" /><Tachar x={80} y={46} r={36} /></>),
+  "herida-costra-mal": (<><Antebrazo /><ellipse cx={80} cy={83} rx={16} ry={7} fill="#8a4b2a" /><Mano><rect x={84} y={34} width={14} height={40} rx={7} transform="rotate(-20 91 54)" /><rect x={100} y={36} width={14} height={40} rx={7} transform="rotate(-38 107 56)" /></Mano><F d="M118 24 L144 8" /><Tachar x={88} y={60} r={34} /></>),
+  "herida-tapada-bien": (<><Antebrazo /><rect x={52} y={70} width={56} height={26} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><rect x={66} y={75} width={28} height={16} rx={2} fill="#e6f2f0" /><path d="M48 34 L58 46 L80 22" stroke={V} strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" /></>),
+  "limpiar-herida": (<><Antebrazo /><Herida /><Gasa x={66} y={28} /><F d="M128 26 L128 62" doble /><Rotulo x={2} y={18} t="a toques" /></>),
+  "cambiar-aposito": (<><Antebrazo /><rect x={52} y={70} width={56} height={26} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><path d="M50 60 A22 22 0 1 1 94 60" stroke={N} strokeWidth={4.5} fill="none" strokeLinecap="round" markerEnd="url(#fig-flecha)" /><Rotulo x={112} y={34} t="cada" /><Rotulo x={112} y={52} t="día" /></>),
+  "revisar-herida": (<><Antebrazo /><ellipse cx={72} cy={83} rx={20} ry={9} fill="#f6b3a8" /><Herida x={58} /><path d="M58 60 q4 -6 0 -12 M72 58 q4 -6 0 -12 M86 60 q4 -6 0 -12" stroke={ROJO} strokeWidth={3} fill="none" strokeLinecap="round" /><circle cx={118} cy={40} r={22} fill="#e6f2f0" fillOpacity={0.6} stroke={V} strokeWidth={5} /><path d="M102 56 L88 72" stroke={V} strokeWidth={8} strokeLinecap="round" /></>),
+  "vacuna-tetanos": (<><g transform="rotate(-30 80 56)"><rect x={34} y={46} width={76} height={20} rx={4} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={40} y={50} width={40} height={12} fill="#cfe5e1" /><path d="M110 56 L140 56" stroke={T} strokeWidth={3} /><path d="M34 56 L18 56 M18 46 L18 66" stroke={T} strokeWidth={5} strokeLinecap="round" /></g><Rotulo x={86} y={104} t="10 años" /></>),
+  "sol-cicatriz": (<><circle cx={34} cy={30} r={16} fill="#f2c94c" /><path d="M34 4 L34 8 M10 30 L14 30 M16 12 L19 15 M52 12 L49 15 M58 30 L54 30" stroke="#f2a51a" strokeWidth={3.5} strokeLinecap="round" /><Antebrazo /><path d="M70 83 L94 83" stroke="#c98a8a" strokeWidth={3} strokeLinecap="round" /><rect x={98} y={12} width={30} height={46} rx={6} fill="#fff" stroke={V} strokeWidth={3.5} /><rect x={106} y={4} width={14} height={9} rx={2} fill={V} /><text x={113} y={42} textAnchor="middle" fontSize={16} fontWeight={800} fill={V}>FPS</text></>),
+  // Quemaduras
+  "quemadura-agua-bien": (<><Antebrazo /><Quemadura /><Grifo x={64} /><Reloj x={124} y={28} r={18} /><Rotulo x={100} y={62} t="20 min" /></>),
+  "quemadura-hielo-mal": (<><Antebrazo /><Quemadura />{[[46, 30], [70, 22], [62, 46]].map(([x, y]) => <rect key={x} x={x} y={y} width={20} height={20} rx={4} fill="#dff1fb" stroke={AGUA} strokeWidth={3} />)}<rect x={100} y={28} width={46} height={16} rx={6} fill="#fff" stroke={T} strokeWidth={3} /><rect x={92} y={31} width={10} height={10} rx={2} fill={T} /><Tachar x={92} y={44} r={34} /></>),
+  "ampolla-mal": (<><Antebrazo /><path d="M60 70 Q80 40 100 70 Z" fill="#fff6e6" stroke="#d9a35a" strokeWidth={3} /><path d="M140 14 L94 54" stroke={T} strokeWidth={3.5} strokeLinecap="round" /><circle cx={142} cy={12} r={4} fill={T} /><Tachar x={84} y={44} r={34} /></>),
+  "quemadura-gasa-bien": (<><Antebrazo /><Quemadura /><path d="M30 58 Q55 48 80 58 Q105 68 130 58 L130 104 L30 104 Z" fill="#fff" fillOpacity={0.7} stroke={V} strokeWidth={3.5} strokeDasharray="7 5" /><Rotulo x={56} y={38} t="suelta" /></>),
+  "enfriar-20": (<><Grifo x={56} /><Mano><rect x={26} y={62} width={60} height={30} rx={15} /></Mano><ellipse cx={56} cy={77} rx={14} ry={7} fill="#f19c8f" /><Reloj x={124} y={52} r={24} /><Rotulo x={98} y={104} t="20 min" /></>),
+  "quitar-anillos": (<><Mano><rect x={40} y={48} width={64} height={56} rx={18} /><rect x={46} y={10} width={13} height={46} rx={6.5} /><rect x={62} y={4} width={13} height={50} rx={6.5} /><rect x={78} y={8} width={13} height={46} rx={6.5} /><rect x={94} y={18} width={12} height={38} rx={6} /></Mano><rect x={74} y={24} width={21} height={8} rx={3} fill="#f2c94c" stroke="#b38a1a" strokeWidth={2} /><F d="M100 26 L140 6" /><rect x={30} y={88} width={84} height={14} rx={4} fill="#9fb8d6" stroke={T} strokeWidth={3} /><F d="M120 96 L150 96" /></>),
+  "medir-palma": (<><Mano><rect x={44} y={52} width={66} height={54} rx={18} /><rect x={48} y={12} width={13} height={46} rx={6.5} /><rect x={64} y={6} width={13} height={50} rx={6.5} /><rect x={80} y={10} width={13} height={46} rx={6.5} /><rect x={96} y={20} width={12} height={38} rx={6} /><rect x={14} y={62} width={36} height={14} rx={7} transform="rotate(-35 32 69)" /></Mano><Rotulo x={116} y={70} t="1 %" /></>),
+  "quimico-lavar": (<><rect x={14} y={30} width={40} height={60} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><rect x={24} y={20} width={20} height={11} rx={2} fill={T} /><path d="M34 46 L46 60 L34 74 L22 60 Z" fill="#fff" stroke={ROJO} strokeWidth={3} /><text x={34} y={66} textAnchor="middle" fontSize={16} fontWeight={900} fill={ROJO}>!</text><path d="M84 10 L150 10 M117 10 L117 22" stroke={T} strokeWidth={6} strokeLinecap="round" /><path d="M100 30 L92 70 M117 30 L117 74 M134 30 L142 70" stroke={AGUA} strokeWidth={5} strokeDasharray="7 5" strokeLinecap="round" /><Rotulo x={78} y={100} t="mucha agua" /></>),
+  "electricidad-cortar": (<><rect x={12} y={20} width={56} height={74} rx={6} fill="#fff" stroke={T} strokeWidth={3.5} /><path d="M28 44 L52 44 M28 70 L52 70" stroke={G} strokeWidth={4} /><rect x={30} y={50} width={20} height={14} rx={3} fill={N} /><F d="M40 40 L40 26" /><path d="M118 8 L96 52 L114 52 L100 98 L138 42 L118 42 L132 8 Z" fill="#f2c94c" stroke="#b38a1a" strokeWidth={3} strokeLinejoin="round" /><Tachar x={118} y={52} r={36} /></>),
+  // Estilo de vida
+  "plato-sano": (<><circle cx={80} cy={56} r={50} fill="#fff" stroke={T} strokeWidth={4} /><path d="M80 10 A46 46 0 0 0 80 102 Z" fill="#7cc58f" /><path d="M80 10 A46 46 0 0 1 126 56 L80 56 Z" fill="#e8b27a" /><path d="M126 56 A46 46 0 0 1 80 102 L80 56 Z" fill="#f3e7b5" /><text x={56} y={62} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">½</text><text x={100} y={44} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">¼</text><text x={100} y={82} textAnchor="middle" fontSize={16} fontWeight={800} fill="#16302d">¼</text></>),
+};
+
+// Encabezados de tema de la tanda 5 (120 × 80), en el mismo registro que los demás
+Object.assign(TEMAS_FIG, {
+  heridas: (<><rect x={6} y={44} width={108} height={26} rx={13} fill={PIEL} stroke={T} strokeWidth={3} /><rect x={38} y={46} width={44} height={22} rx={4} fill="#fff" stroke={V} strokeWidth={3} /><rect x={50} y={50} width={20} height={14} rx={2} fill="#e6f2f0" /><path d="M60 6 L60 34 M46 20 L74 20" stroke={ROJO} strokeWidth={7} strokeLinecap="round" /></>),
+  quemaduras: (<><path d="M40 72 Q14 60 22 36 Q28 50 36 46 Q30 22 50 6 Q50 28 62 34 Q70 48 58 72 Z" fill="#f6a04a" stroke="#c4561a" strokeWidth={3} strokeLinejoin="round" /><path d="M90 14 Q74 40 74 52 A16 16 0 0 0 106 52 Q106 40 90 14 Z" fill="#cfe3f5" stroke={AGUA} strokeWidth={3.5} /></>),
+  "vida-sana": (<><path d="M50 74 C14 52 14 18 36 18 C46 18 50 26 50 32 C50 26 54 18 64 18 C86 18 86 52 50 74 Z" fill="#fdd9bd" stroke={T} strokeWidth={3.5} strokeLinejoin="round" /><path d="M86 70 Q84 34 112 14 Q116 50 86 70 Z M86 70 Q96 46 108 28" fill="#7cc58f" stroke="#2f7d4a" strokeWidth={3} strokeLinejoin="round" /></>),
+});

@@ -26,6 +26,8 @@ export async function crearCita(_: Resultado | null, datos: FormData): Promise<R
   if (!t) return { ok: false, mensaje: "Paciente no encontrado." };
   // "Llegó ahora": entra directo a la cola de espera
   const llegoYa = datos.get("en_espera") === "on";
+  // Provisional (espera el sí de la empresa): sale en «Citas por confirmar» hasta confirmarla o eliminarla
+  const porConfirmar = !llegoYa && datos.get("por_confirmar") === "on";
   const { error } = await supabase.from("citas").insert({
     org_id: sesion.orgId,
     empresa_id: t.empresa_id,
@@ -34,11 +36,12 @@ export async function crearCita(_: Resultado | null, datos: FormData): Promise<R
     hora: texto(datos, "hora"),
     motivo_id: texto(datos, "motivo_id"),
     observacion: texto(datos, "observacion"),
+    ...(porConfirmar ? { por_confirmar: true } : {}),
     ...(llegoYa ? { estado: "en_espera", llegada: new Date(ahora()).toISOString() } : {}),
   });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite agendar citas." : error.message };
   revalidatePath("/", "layout");
-  return { ok: true, mensaje: llegoYa ? "Paciente en la cola de espera." : "Cita agendada." };
+  return { ok: true, mensaje: llegoYa ? "Paciente en la cola de espera." : porConfirmar ? "Cita por confirmar agendada." : "Cita agendada." };
 }
 
 export async function cambiarEstadoCita(id: string, estado: EstadoCita): Promise<Resultado> {
@@ -174,6 +177,49 @@ export async function rechazarSolicitudes(ids: string[]): Promise<Resultado> {
   if (!ids.length) return { ok: false, mensaje: "Nada que rechazar." };
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("citas").update({ estado: "cancelada", propuesta_fecha: null }).in("id", ids).eq("estado", "solicitada");
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// ─── Citas por confirmar (Inicio › «Citas por confirmar», 20261030940000) ───
+// Confirmar: la provisional pasa a la agenda normal; la pedida por la empresa queda citada en su día y hora.
+export async function confirmarCitaPendiente(id: string): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("citas").select("estado").eq("id", id).maybeSingle();
+  if (error || !data) return { ok: false, mensaje: error?.message ?? "La cita ya no existe." };
+  const cambio = data.estado === "solicitada" ? { estado: "citado", propuesta_fecha: null, por_confirmar: false } : { por_confirmar: false };
+  const { error: e } = await supabase.from("citas").update(cambio).eq("id", id).in("estado", ["citado", "solicitada"]);
+  if (e) return { ok: false, mensaje: e.code === "42501" ? "Tu rol no permite confirmar citas." : e.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// Eliminar = cancelar (queda en el historial de la agenda; «Deshacer» la devuelve tal como estaba)
+export async function eliminarCitaPendiente(id: string): Promise<Resultado & { antes?: "citado" | "solicitada" }> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("citas").select("estado").eq("id", id).maybeSingle();
+  if (!data || !["citado", "solicitada"].includes(data.estado)) return { ok: false, mensaje: "La cita ya cambió: recarga la página." };
+  const { error } = await supabase.from("citas").update({ estado: "cancelada", propuesta_fecha: null }).eq("id", id).eq("estado", data.estado);
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite eliminar citas." : error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "", antes: data.estado };
+}
+
+export async function deshacerEliminarCita(id: string, antes: "citado" | "solicitada"): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ estado: antes }).eq("id", id).eq("estado", "cancelada");
+  if (error) return { ok: false, mensaje: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// Cambiar fecha (sobre todo de las vencidas): sigue por confirmar hasta que la confirmes
+export async function cambiarFechaCitaPendiente(id: string, fecha: string, hora: string | null): Promise<Resultado> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Indica el día." };
+  if (fecha < hoyCaracas()) return { ok: false, mensaje: "Elige hoy o un día que venga." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("citas").update({ fecha, hora: hora || null }).eq("id", id).in("estado", ["citado", "solicitada"]);
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };

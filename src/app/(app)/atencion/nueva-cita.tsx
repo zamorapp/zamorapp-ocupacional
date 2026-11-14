@@ -28,6 +28,8 @@ export function NuevaCita({ habilitado, fecha, motivos, empresas, empresaActiva 
   const [paciente, setPaciente] = useState<PacienteEncontrado | null>(null);
   const [buscando, iniciar] = useTransition();
   const [estado, accion, enviando] = useActionState(crearCita, null);
+  const [porConfirmar, setPorConfirmar] = useState(false);
+  const [llego, setLlego] = useState(false);
 
   useEffect(() => {
     if (paciente) return;
@@ -44,6 +46,8 @@ export function NuevaCita({ habilitado, fecha, motivos, empresas, empresaActiva 
       setAbierto(false);
       setPaciente(null);
       setTexto("");
+      setPorConfirmar(false);
+      setLlego(false);
     }
   }, [estado]);
 
@@ -101,8 +105,12 @@ export function NuevaCita({ habilitado, fecha, motivos, empresas, empresaActiva 
             {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
           </CampoSelect>
           <Campo id="observacion" etiqueta="Observación" className="sm:col-span-2" />
+          <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm sm:col-span-2">
+            <input type="checkbox" name="por_confirmar" checked={porConfirmar} onChange={(e) => { setPorConfirmar(e.target.checked); if (e.target.checked) setLlego(false); }} className="mt-0.5 size-4 accent-[var(--primary)]" />
+            <span><b className="font-medium">Por confirmar</b><span className="block text-xs text-muted-foreground">Provisional: espera el sí de la empresa (p. ej. el presupuesto). Sale en «Citas por confirmar» del Inicio hasta que la confirmes o la elimines.</span></span>
+          </label>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input type="checkbox" name="en_espera" className="size-4 accent-[var(--primary)]" /> Llegó ahora (pasa a la cola de espera)
+            <input type="checkbox" name="en_espera" checked={llego} onChange={(e) => { setLlego(e.target.checked); if (e.target.checked) setPorConfirmar(false); }} className="size-4 accent-[var(--primary)]" /> Llegó ahora (pasa a la cola de espera)
           </label>
           <div className="flex items-center gap-2 sm:col-span-2">
             <Aviso resultado={estado && !estado.ok ? estado : null} />

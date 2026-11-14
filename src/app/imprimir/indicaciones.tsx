@@ -1,8 +1,12 @@
 import { Fragment } from "react";
 import type { DatosDocumento } from "@/lib/documentos";
 import { CONTROL_TA, PLANES } from "@/lib/indicaciones-preventivas";
-import { dietaDe, sumables } from "@/lib/dietas";
+import { type Icono, dietaDe, sumables } from "@/lib/dietas";
 import { IconoSalud } from "./iconos-salud";
+import { GUIA_TA, guiaDeDieta } from "@/lib/guias-salud";
+import { GuiaIlustrada } from "./guia-ilustrada";
+import { primerNombre } from "./bienestar";
+import { IdentHojas } from "./documentos";
 import { ListaEditable, TextoEditable } from "./lista-editable";
 import { type Cambios, lista, texto } from "@/lib/cambios-hoja";
 import { Bloque, DatosPaciente, Ficha, FirmaMedico, Firmas, Hoja, Membrete, Pie, Titulo, folio } from "./componentes";
@@ -62,6 +66,7 @@ export function ControlTension({ d, dias = 7 }: { d: DatosDocumento; dias?: numb
   const ta = d.datos.signos?.ta?.trim();
   return (
     <>
+      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, "Control de tensión arterial", `Folio ${folio("TA", d.datos.id)}`].join(" · ")} />
       {Array.from({ length: hojas }, (_, h) => (
         <Hoja key={h}>
           <Membrete d={d} compacto />
@@ -102,6 +107,14 @@ export function ControlTension({ d, dias = 7 }: { d: DatosDocumento; dias?: numb
           <Pie d={d} derecha={`Folio ${folio("TA", d.datos.id)}`} />
         </Hoja>
       ))}
+      {/* Al dorso: cómo tomarse la tensión (con dibujos) y qué la baja */}
+      <Hoja ajustar={false}>
+        <Titulo d={d} prefijo="TA" compacto sub="Al dorso de su control · cómo tomarse la tensión y cómo bajarla">
+          {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, así cuida su tensión` : "Así cuida su tensión"}
+        </Titulo>
+        <GuiaIlustrada g={GUIA_TA} sinTitulo />
+        <Pie d={d} derecha={`Folio ${folio("TA", d.datos.id)}`} />
+      </Hoja>
     </>
   );
 }
@@ -132,15 +145,25 @@ function Columna({ id, titulo, items, tono }: { id: string; titulo: string; item
   );
 }
 
+// Dibujo de cada indicación sumada al plan (se ve de un vistazo de qué trata)
+const ICONO_PLAN: Record<string, Icono> = {
+  hta: "sal", diabetes: "azucar", insulina: "caminar", renal: "rinon", lipidos: "corazon", peso: "balanza",
+  gastrico: "estomago", colon: "intestino", "acido-urico": "gota", higado: "higado", turnos: "reloj", calor: "sol",
+};
+
 // Plan de alimentación: la dieta completa del caso que eligió el médico (?dieta=) y, abajo, las indicaciones cortas
 // de otras condiciones que quiera sumar (?plan=). Cada renglón se cambia, se quita o se agrega antes de imprimir.
 export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosDocumento; dieta?: string; planes?: string[]; cambios?: Cambios }) {
   const b = dietaDe(dieta);
   const extras = PLANES.filter((p) => planes.includes(p.clave) && sumables(b, p.clave));
+  const guia = guiaDeDieta(b.clave);
   // Letra de 9 pt como mínimo: fluye en dos hojas; con 0 o 1 indicación sumada, el «Día de ejemplo» abre la segunda
   // hoja para que la firma no quede sola arriba de una hoja en blanco
   return (
-    <Hoja className="print:block">
+    <>
+    <Hoja className="print:block" ajustar={false}>
+      {/* Desde la hoja 2: nombre, cédula, documento, folio y «Hoja N de M» (como Bienestar; esta página imprime un solo plan) */}
+      <IdentHojas texto={[d.trabajador.nombre.toUpperCase(), d.trabajador.cedula, "Plan de alimentación", `Folio ${folio("PA", d.datos.id)}`].join(" · ")} />
       <Membrete d={d} compacto />
       <Titulo d={d} prefijo="PA" compacto sub={extras.length ? `${b.boton} · con ${extras.map((p) => p.boton.toLowerCase()).join(", ")}` : b.boton}>
         {b.titulo}
@@ -183,10 +206,13 @@ export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosD
       </div>
 
       {extras.map((p) => (
-        <div key={p.clave} data-prueba={`plan-${p.clave}`} className="mb-2 break-inside-avoid rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
-          <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{p.titulo}</div>
-          <ListaEditable id={`extra-${p.clave}`} items={lista(cambios, `extra-${p.clave}`, p.items)} columnas className="text-[12px] leading-[1.3]" />
-          <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {p.fuente}</p>
+        <div key={p.clave} data-prueba={`plan-${p.clave}`} className="mb-2 flex break-inside-avoid gap-2.5 rounded-lg border-l-[3px] border-doc-acento bg-doc-suave/60 px-3 py-1.5">
+          {ICONO_PLAN[p.clave] && <IconoSalud icono={ICONO_PLAN[p.clave]!} className="mt-0.5 size-[10mm]" />}
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-doc-acento">{p.titulo}</div>
+            <ListaEditable id={`extra-${p.clave}`} items={lista(cambios, `extra-${p.clave}`, p.items)} columnas className="text-[12px] leading-[1.3]" />
+            <p className="mt-0.5 text-[7pt] leading-tight text-doc-tenue">Fuente: {p.fuente}</p>
+          </div>
         </div>
       ))}
 
@@ -214,5 +240,16 @@ export function PlanAlimentacion({ d, dieta, planes = [], cambios }: { d: DatosD
       </Firmas>
       <Pie d={d} derecha={`Folio ${folio("PA", d.datos.id)}`} />
     </Hoja>
+    {/* Guía ilustrada de la dieta: hoja propia al final, con el nombre del trabajador */}
+    {guia && (
+      <Hoja ajustar={false}>
+        <Titulo d={d} prefijo="PA" compacto sub="Guía para el día a día · guárdela y léala con calma">
+          {primerNombre(d.trabajador.nombre) ? `${primerNombre(d.trabajador.nombre)}, ${guia.para ?? "su guía"}` : (guia.para ?? "Su guía").replace(/^./, (c) => c.toUpperCase())}
+        </Titulo>
+        <GuiaIlustrada g={guia} cambios={cambios} />
+        <Pie d={d} derecha={`Folio ${folio("PA", d.datos.id)}`} />
+      </Hoja>
+    )}
+    </>
   );
 }
