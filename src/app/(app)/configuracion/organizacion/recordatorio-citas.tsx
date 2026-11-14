@@ -8,23 +8,25 @@ const ORDEN = ["Primer aviso", "Segundo aviso", "Último aviso"];
 
 function Paso({ i, valor, unidad, activo }: { i: number; valor: number; unidad: UnidadRecordatorio; activo: boolean }) {
   const [u, setU] = useState(unidad);
+  const [n, setN] = useState(String(valor));
   const [encendido, setEncendido] = useState(activo);
+  const uno = Number(n) === 1;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b py-2.5 last:border-0">
-      <label className="flex min-w-36 flex-1 items-center gap-2 text-sm">
+      <label className="flex w-40 items-center gap-2 text-sm">
         <input type="checkbox" name={`rc_activo_${i}`} defaultChecked={activo} onChange={(e) => setEncendido(e.target.checked)} className="size-4 accent-[var(--primary)]" />
         {ORDEN[i]}
       </label>
       <div className={`flex items-center gap-2 text-sm ${encendido ? "" : "opacity-50"}`}>
         <input
-          type="number" name={`rc_valor_${i}`} aria-label={`${ORDEN[i]}: cuánto antes`} defaultValue={valor} min={TOPES[u].min} max={TOPES[u].max}
+          type="number" name={`rc_valor_${i}`} aria-label={`${ORDEN[i]}: cuánto antes`} value={n} onChange={(e) => setN(e.target.value)} min={TOPES[u].min} max={TOPES[u].max}
           className="h-10 w-16 rounded-md border bg-transparent px-2 text-center font-cifra text-sm"
         />
         <select name={`rc_unidad_${i}`} aria-label={`${ORDEN[i]}: unidad`} value={u} onChange={(e) => setU(e.target.value as UnidadRecordatorio)}
           className="h-10 rounded-md border bg-transparent px-2 text-sm">
-          <option value="dias">días antes</option>
-          <option value="horas">horas antes</option>
-          <option value="minutos">minutos antes</option>
+          <option value="dias">{uno ? "día antes" : "días antes"}</option>
+          <option value="horas">{uno ? "hora antes" : "horas antes"}</option>
+          <option value="minutos">{uno ? "minuto antes" : "minutos antes"}</option>
         </select>
       </div>
     </div>
@@ -38,7 +40,7 @@ export function RecordatorioCitasCampos({ ajustes }: { ajustes: unknown }) {
     <div data-grupo="recordatorio-citas" className="scroll-mt-24 space-y-2 rounded-lg border bg-background p-3">
       <div className="flex items-center gap-2 text-sm font-medium"><BellRing className="size-4 text-primary" />Recordatorios de citas</div>
       <p className="text-xs text-muted-foreground">
-        Te avisa en la campana, en Windows y en el celular. Los avisos de días juntan todas las citas de ese día en uno; los de horas o minutos van por hora de cita. 0 días = el mismo día.
+        Los avisos por días juntan todas las citas de ese día en un solo aviso. Los avisos por horas llegan cita por cita. Pon 0 días si quieres el aviso el mismo día.
       </p>
       <div>{rc.avisos.map((p, i) => <Paso key={i} i={i} {...p} />)}</div>
       <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
