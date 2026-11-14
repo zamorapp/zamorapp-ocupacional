@@ -5,7 +5,7 @@ import { Home, SearchX } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export const metadata = { title: "Página no encontrada · zamorApp Ocupacional" };
+export const metadata = { title: "Página no encontrada" };
 
 export default function NoEncontrada() {
   return (
