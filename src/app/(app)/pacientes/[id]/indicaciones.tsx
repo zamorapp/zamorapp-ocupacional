@@ -114,7 +114,8 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
 
   return (
     <Sheet open onOpenChange={(v) => { if (!v) onCerrar(); }}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+      {/* Sin foco automático en la primera opción: parecía marcada otra además de la elegida (Diseño, 14-nov) */}
+      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
         <SheetHeader>
           <SheetTitle>{inicial ? "Revisar y emitir" : "Indicación o récipe"}</SheetTitle>
           <SheetDescription data-estado={consultaId ? "adjunto" : "suelto"}>{nombre} · {consultaId ? `Se agrega a ${consultaSel ? nombreConsulta(consultaSel) : "la consulta que indicó el agente"}.` : "No abre consulta ni cuenta en morbilidad."} Queda en su historial y se imprime con tu firma.</SheetDescription>
@@ -134,7 +135,7 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
               ["examenes", FlaskConical, "Orden de exámenes", "Laboratorio, imagen u otros"],
             ] as const).map(([k, Icono, titulo, sub]) => (
               <button key={k} type="button" role="radio" aria-checked={tipo === k} data-tipo={k} onClick={() => { setTipo(k); setError(null); }}
-                className={cn("flex items-start gap-3 rounded-xl border p-3 text-left transition",
+                className={cn("flex items-start gap-3 rounded-xl border p-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring",
                   tipo === k ? "border-primary bg-primary/10 ring-1 ring-primary" : "hover:border-primary/50 hover:bg-muted/40")}>
                 <Icono className={cn("mt-0.5 size-5 shrink-0", tipo === k ? "text-primary" : "text-muted-foreground")} aria-hidden />
                 <span><span className="block text-sm font-semibold">{titulo}</span><span className="block text-xs text-muted-foreground">{sub}</span></span>
@@ -231,7 +232,7 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
               {consultaId && consultas && !consultas.some((c) => c.id === consultaId) && <option value={consultaId}>Adjunto a la consulta que indicó el agente</option>}
             </select>
           </div>
-          {inicial && inicial.envio !== "imprimir" && <EnvioPedido inicial={inicial} correo={correo} setCorreo={(c) => { setCorreo(c); setCorreoConfirmado(false); }} dudoso={correoDudoso} />}
+          {inicial && inicial.envio !== "imprimir" && <EnvioPedido inicial={inicial} correo={correo} setCorreo={(c) => { setCorreo(c); setCorreoConfirmado(false); }} dudoso={correoDudoso && confirmarCorreo === null} />}
           {confirmarCorreo !== null && (
             <div role="alertdialog" aria-labelledby="confirmar-correo-txt" className="rounded-lg border border-aviso/50 bg-aviso/10 p-3 text-sm" data-estado="confirmar-correo">
               <p id="confirmar-correo-txt" className="flex items-start gap-1.5 font-medium text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />Este correo no es del paciente ni del personal de salud registrado de la empresa.</p>
@@ -247,9 +248,9 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
 
         {/* En el celular: «Guardar e imprimir» a todo lo ancho y fijo abajo; debajo «Cancelar · Guardar» */}
         <SheetFooter className="sticky bottom-0 mt-auto grid grid-cols-2 gap-2 border-t bg-background sm:flex sm:flex-row sm:justify-end sm:border-t-0">
-          <Button type="button" className="col-span-2 sm:order-3" disabled={guardando} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> {inicial ? "Emitir e imprimir" : "Guardar e imprimir"}</Button>
+          <Button type="button" className="col-span-2 sm:order-3" disabled={guardando || confirmarCorreo !== null} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> {inicial ? "Emitir e imprimir" : "Guardar e imprimir"}</Button>
           <Button type="button" variant="ghost" className="sm:order-1" onClick={onCerrar}>Cancelar</Button>
-          <Button type="button" variant="outline" className="sm:order-2" disabled={guardando} onClick={() => guardar(false)} data-accion="guardar-indicacion">
+          <Button type="button" variant="outline" className="sm:order-2" disabled={guardando || confirmarCorreo !== null} onClick={() => guardar(false)} data-accion="guardar-indicacion">
             {guardando && <Loader2 className="animate-spin" />} {inicial ? "Emitir" : "Guardar"}
           </Button>
         </SheetFooter>
