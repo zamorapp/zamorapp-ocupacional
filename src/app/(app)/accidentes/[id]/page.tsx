@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { obtenerEvento } from "@/lib/eventos";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
+import { ROLES_EDITAN_EVENTOS } from "@/lib/sesion-roles";
 import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { EditorEvento } from "./editor-evento";
 
@@ -21,6 +22,8 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
   ]);
   if (!evento) notFound();
   const admin = !sesion.demo && sesion.rol === "administrador" && sesion.clinico;
+  // RR. HH., auditor, recepción y trabajador lo leen; completarlo, declararlo e investigarlo es del servicio y de SST
+  const editable = sesion.demo || Boolean(sesion.rol && ROLES_EDITAN_EVENTOS.includes(sesion.rol));
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -36,7 +39,7 @@ export default async function Evento({ params }: { params: Promise<{ id: string 
         )}
         </div>
       </div>
-      <EditorEvento inicial={evento} listas={listas} />
+      <EditorEvento inicial={evento} listas={listas} editable={editable} />
     </div>
   );
 }

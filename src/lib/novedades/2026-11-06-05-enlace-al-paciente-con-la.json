@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-06",
+  "tema": "enlace-paciente",
+  "texto": "Enlace al paciente con la imagen de tu firma y tu sello: si lo creas con «Firmados a mi nombre», cada hoja que baja el paciente es un PDF que zamorApp arma en el servidor con tu firma y tu sello ya puestos (además de «Firmado digitalmente» con folio y cédula). La imagen original nunca viaja al teléfono del paciente: solo el PDF. «Ver cómo lo verá el paciente» la muestra igual. Requiere que tu organización tenga activados los avisos al celular (Configuración); si no, sale como antes, sin la imagen"
+}
