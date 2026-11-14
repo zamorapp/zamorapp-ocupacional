@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-14",
+  "tema": "pacientes",
+  "texto": "Tu agente te prepara récipes y órdenes de exámenes: en Configuración › Puerta para agentes enciende «Prepara récipes y órdenes» en la llave. Dile, por ejemplo, «récipe para Ana Pérez con ibuprofeno 400 mg cada 8 horas por 5 días» y si va suelto o con una consulta. Queda como borrador en «Borradores del agente» (tarjeta del Inicio): lo revisas, corriges y emites; sale con tu firma y sello. El agente nunca imprime ni envía. También nuevo: «Orden de exámenes» sin consulta en «Indicación / récipe», adjuntar cualquiera a una consulta del paciente y «Fecha del documento», que puede ser pasada o futura"
+}

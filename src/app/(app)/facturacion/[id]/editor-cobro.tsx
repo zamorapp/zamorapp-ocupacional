@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CheckCircle2, ChevronDown, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { actualizarCobro, convertirPresupuesto, eliminarCobro, guardarNumeroFact
 import { confirmar } from "@/components/app/confirmar";
 import { hoyCaracas } from "@/lib/fecha";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
+import { PagosCobro } from "./pagos-cobro";
+import type { ResultadoPago } from "../acciones";
 
 const f = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
@@ -62,6 +64,14 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
       if (r.ok) { setC(siguiente); setGuardado(JSON.stringify(siguiente)); }
     });
 
+  // Al registrar o borrar un abono: la nota puede pasar a pagada (o volver a emitida) sin recargar la página
+  const trasPago = (r: ResultadoPago) => {
+    if (!r.pagos) return;
+    const cambio = { estado: r.estado ?? c.estado, fechaPago: r.fechaPago ?? null, pagos: r.pagos };
+    setC((x) => ({ ...x, ...cambio }));
+    setGuardado((g) => JSON.stringify({ ...(JSON.parse(g) as Cobro), ...cambio }));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -79,7 +89,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
               <DropdownMenuItem asChild><Link href={`/imprimir/factura/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Factura en el talonario</span><span className="text-xs text-muted-foreground">Forma libre, sin membrete. Pide el Nº de factura.</span></Link></DropdownMenuItem>
               {c.items.some((i) => i.consultaId) && <DropdownMenuItem asChild><Link href={`/imprimir/atendidos?cobro=${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Relación de pacientes</span><span className="text-xs text-muted-foreground">Trabajadores de esta nota: cargo, fecha y resultado. Sin diagnósticos.</span></Link></DropdownMenuItem>}
               <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}?doc=entrega`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Nota de entrega</span><span className="text-xs text-muted-foreground">Recibo de evaluaciones con membrete, sin montos, con «Recibido por».</span></Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">{c.estado === "pagada" ? "Recibo de pago" : "Nota de cobro"}</span><span className="text-xs text-muted-foreground">Con membrete y montos.</span></Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">{c.estado === "pagada" ? "Recibo de pago" : c.pagos.length ? "Recibo de abono" : "Nota de cobro"}</span><span className="text-xs text-muted-foreground">{c.pagos.length ? "Con membrete, montos, pagos recibidos y saldo." : "Con membrete y montos."}</span></Link></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -151,6 +161,8 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
         </Card>
       </div>
 
+      <PagosCobro c={c} editable={editable} tasas={tasas} alCambiar={trasPago} />
+
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
           {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
@@ -159,7 +171,6 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
             {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Anular esta nota de cobro?", texto: "Queda registrada como anulada y deja de contar como deuda.", accion: "Anular", peligro: true })) && guardar("anulada")}><XCircle /> Anular</Button>}
             <Button variant="outline" disabled={ocupado || !cambios} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
             {borrador && <Button disabled={ocupado || c.items.length === 0} onClick={() => guardar("emitida")}><Send /> {presupuesto ? "Marcar enviado" : "Emitir"}</Button>}
-            {!presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("pagada")}><CheckCircle2 /> Marcar pagada</Button>}
             {presupuesto && c.estado === "emitida" && <Button variant="outline" disabled={ocupado} onClick={() => guardar("rechazado")}><ThumbsDown /> Rechazado</Button>}
             {presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("aprobado")}><ThumbsUp /> Aprobado</Button>}
             {presupuesto && c.estado === "aprobado" && <Button disabled={ocupado} onClick={() => iniciar(async () => { const r = await convertirPresupuesto(c.id); if (r && !r.ok) setAviso(r); })}><ArrowRightLeft /> Convertir en nota de cobro</Button>}

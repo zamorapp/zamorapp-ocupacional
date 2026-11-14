@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { Atencion, Cobro, Servicio, SugerenciaCobro } from "@/lib/facturacion-tipos";
+import type { Atencion, Cobro, PagoCobro, Servicio, SugerenciaCobro } from "@/lib/facturacion-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
 import { tasaParaFecha } from "@/lib/tasa-bcv";
@@ -86,7 +86,7 @@ export async function listarAtenciones(empresaId: string | null, desde: string, 
   }));
 }
 
-type FilaCobro = Record<string, unknown> & { empresas: { razon_social: string; rif: string } | null; cobro_items?: Record<string, unknown>[] };
+type FilaCobro = Record<string, unknown> & { empresas: { razon_social: string; rif: string } | null; cobro_items?: Record<string, unknown>[]; cobro_pagos?: Record<string, unknown>[] };
 
 function aCobro(c: FilaCobro): Cobro {
   return {
@@ -119,6 +119,16 @@ function aCobro(c: FilaCobro): Cobro {
         cantidad: Number(i.cantidad),
         precioUsd: Number(i.precio_usd),
       })),
+    pagos: (c.cobro_pagos ?? [])
+      .map((p) => ({
+        id: (p.id as string) ?? "",
+        fecha: (p.fecha as string) ?? "",
+        metodo: ((p.metodo as string) ?? "otro") as PagoCobro["metodo"],
+        referencia: (p.referencia as string | null) ?? "",
+        montoUsd: Number(p.monto_usd),
+        tasaBcv: p.tasa_bcv == null ? null : Number(p.tasa_bcv),
+      }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
   };
 }
 
@@ -127,7 +137,7 @@ export async function listarCobros(): Promise<Cobro[]> {
   const supabase = await crearClienteServidor();
   const { data } = await supabase
     .from("cobros")
-    .select("*, empresas(razon_social, rif), cobro_items(cantidad, precio_usd, orden)")
+    .select("*, empresas(razon_social, rif), cobro_items(cantidad, precio_usd, orden), cobro_pagos(monto_usd, fecha)")
     .order("numero", { ascending: false })
     .limit(300);
   return ((data ?? []) as unknown as FilaCobro[]).map(aCobro);
@@ -136,7 +146,7 @@ export async function listarCobros(): Promise<Cobro[]> {
 export async function obtenerCobro(id: string): Promise<Cobro | null> {
   if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("cobros").select("*, empresas(razon_social, rif), cobro_items(*)").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("cobros").select("*, empresas(razon_social, rif), cobro_items(*), cobro_pagos(*)").eq("id", id).maybeSingle();
   return data ? aCobro(data as unknown as FilaCobro) : null;
 }
 

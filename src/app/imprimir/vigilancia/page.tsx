@@ -4,6 +4,7 @@ import type { ConsultaPeriodo } from "@/lib/periodos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { cargarVigilancia } from "@/lib/vigilancia";
+import { programasConCumplimiento } from "@/lib/vigilancia-programas";
 import { InformeVigilancia, type OrgInforme } from "./informe";
 
 export const metadata: Metadata = { title: "Informe de vigilancia epidemiológica" };
@@ -26,5 +27,7 @@ export default async function Vigilancia({ searchParams }: Props) {
     s0 && sesion.orgId ? s0.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single().then(({ data }) => data as OrgInforme) : null,
     s0 && empresaId ? s0.from("empresas").select("logo").eq("id", empresaId).maybeSingle().then(({ data }) => (data?.logo as string | null) ?? null) : null,
   ]);
-  return <InformeVigilancia v={v} org={org} logoEmpresa={logoEmpresa} paraEmpresa={paraEmpresa} puedeEnviar={Boolean(sesion.clinico || sesion.rol === "administrador")} />;
+  // Programas de vigilancia activos de la empresa con su cobertura en el período (solo cifras agregadas)
+  const programas = s0 && empresaId ? await programasConCumplimiento(empresaId, v.periodo.desde, v.periodo.hasta) : [];
+  return <InformeVigilancia v={v} org={org} logoEmpresa={logoEmpresa} programas={programas} paraEmpresa={paraEmpresa} puedeEnviar={Boolean(sesion.clinico || sesion.rol === "administrador")} />;
 }

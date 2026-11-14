@@ -50,10 +50,21 @@ test("sin llave responde 401 y no llama a la base", async () => {
 test("el catálogo es la misma lista cerrada de la base", () => {
   const sql = fs.readFileSync(new URL("../../supabase/migrations/20261030938000_puerta_agentes.sql", import.meta.url), "utf8");
   const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
-  const leen = lista(/when v_acc in \(([^)]+)\) then false/);
-  const crean = lista(/when v_acc in \(([^)]+)\) then true/);
-  assert.deepEqual(ACCIONES.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
-  assert.deepEqual(ACCIONES.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
+  // La 20261030959000 suma acciones a la lista de la base (reemplazo contado en public.agente)
+  const sql959 = fs.readFileSync(new URL("../../supabase/migrations/20261030959000_agentes_borradores.sql", import.meta.url), "utf8");
+  const suma = (antes) => [...sql959.matchAll(new RegExp(`'when v_acc in \\(''([a-z_]+)'', ''${antes}'', '`, "g"))].map((m) => m[1]);
+  const leen = [...lista(/when v_acc in \(([^)]+)\) then false/), ...suma("resumen")].sort();
+  const crean = [...lista(/when v_acc in \(([^)]+)\) then true/), ...suma("crear_empresa")].sort();
+  const generales = ACCIONES.filter((a) => !a.vigilancia);
+  assert.deepEqual(generales.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
+  assert.deepEqual(generales.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
+  // Las de vigilancia van a su propia puerta (public.puerta_vigilancia, 20261030960000) con su lista cerrada
+  const vig = fs.readFileSync(new URL("../../supabase/migrations/20261030960000_vigilancia_agentes.sql", import.meta.url), "utf8");
+  const listaV = (re) => [...vig.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+  const vigilancia = ACCIONES.filter((a) => a.vigilancia);
+  assert.ok(vigilancia.every((a) => a.rpc === "puerta_vigilancia"));
+  assert.deepEqual(vigilancia.filter((a) => !a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then false/));
+  assert.deepEqual(vigilancia.filter((a) => a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then true/));
   for (const a of ACCIONES) {
     assert.equal(a.esquema.additionalProperties, false, a.nombre);
     assert.equal("ensayo" in a.esquema.properties, a.crea, `${a.nombre}: solo lo que crea lleva ensayo`);
@@ -133,4 +144,15 @@ test("la respuesta nunca repite la llave", async () => {
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("cache-control"), "no-store");
   assert.ok(!(await r.text()).includes(LLAVE));
+});
+
+test("récipes del agente: «aviso» trae el enlace para revisar y uno de WhatsApp sin número (el doctor elige chat o grupo)", async () => {
+  respuesta = () => ({ ok: true, accion: "preparar_documento", ensayo: false, resultado: { borrador_id: "b", ruta: "/borradores", aviso: "Tienes por revisar: Récipe para Ana Pérez." } });
+  const r = await llamarPuerta(LLAVE, "preparar_documento", { tipo: "recipe" }, false);
+  assert.equal(r.resultado.enlace, "https://zamorapp-ocupacional.vercel.app/borradores");
+  assert.ok(r.resultado.whatsapp.startsWith("https://wa.me/?text="), r.resultado.whatsapp);
+  assert.equal(decodeURIComponent(r.resultado.whatsapp.split("text=")[1]), "Tienes por revisar: Récipe para Ana Pérez. https://zamorapp-ocupacional.vercel.app/borradores");
+  const pa = ACCIONES.find((a) => a.nombre === "preparar_documento");
+  assert.deepEqual(pa.esquema.required, ["trabajador_id", "tipo", "adjuntar"], "suelto o con consulta lo dice el doctor");
+  assert.ok(ACCIONES.filter((a) => a.documentos).every((a) => ["preparar_documento", "ver_preparados"].includes(a.nombre)));
 });

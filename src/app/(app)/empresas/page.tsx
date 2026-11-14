@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Briefcase, Building2, ClipboardCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { AlertaLegal } from "./alerta-legal";
 import { PausarAvisos } from "./pausar-avisos";
 import { FormEmpresa } from "./nueva-empresa";
 import { EstadoEmpresa } from "./estado-empresa";
+import { CumplimientoEmpresa, EsqueletoCumplimiento } from "./cumplimiento-empresa";
+import { puntajeDemo } from "@/lib/cumplimiento";
 import { InvitarRrhh } from "./invitar-rrhh";
 import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -64,7 +67,7 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {empresas.map((e) => {
+          {empresas.map((e, i) => {
             const faltan = datosLegalesFaltantes(e);
             return (
               <Card key={e.id} className={cn("gap-3 py-5", !e.activa && "border-dashed bg-muted/30")}>
@@ -90,6 +93,11 @@ export default async function Empresas({ searchParams }: { searchParams: Promise
                       </Link>
                     )}
                   </div>
+                  {e.activa && (sesion.demo || sesion.orgId) && (
+                    <Suspense fallback={<EsqueletoCumplimiento />}>
+                      <CumplimientoEmpresa empresaId={e.id} demo={sesion.demo ? puntajeDemo(i) : undefined} />
+                    </Suspense>
+                  )}
                   {!sesion.demo && e.activa && <AlertaLegal empresaId={e.id} faltan={faltan} ignorada={e.ignorarAlertaLegal} editable={esAdmin} />}
                   {!sesion.demo && e.activa && <PausarAvisos empresaId={e.id} apagados={e.avisosApagados} editable={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />}
                   {!sesion.demo && (
