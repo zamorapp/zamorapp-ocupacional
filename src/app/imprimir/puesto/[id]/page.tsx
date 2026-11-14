@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { supabaseConfigurado } from "@/lib/config";
-import type { AjustesDocumentos } from "@/lib/documentos";
+import { firmaDeDocumento, type AjustesDocumentos } from "@/lib/documentos";
 import { todas } from "@/lib/paginar";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -36,7 +36,7 @@ export default async function EvaluacionPuesto({ params }: { params: Promise<{ i
     p.evaluado_por
       ? Promise.all([
           supabase.from("perfiles").select("nombre_completo, especialidad, mpps, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", p.evaluado_por).maybeSingle(),
-          supabase.rpc("firma_sello", { p_usuario: p.evaluado_por }).maybeSingle(),
+          firmaDeDocumento(p.evaluado_por, "puesto", id).then((data) => ({ data })),
         ]).then(([{ data: perfil }, { data: img }]) => (perfil ? { ...perfil, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null))
       : Promise.resolve(null),
   ]);

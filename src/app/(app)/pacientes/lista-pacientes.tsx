@@ -74,14 +74,15 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
             {inactivos > 0 && <button type="button" className="ml-1 underline-offset-2 hover:underline" onClick={() => { setEstado("inactivo"); setMostrar(100); setMostrarMovil(25); }}>· {inactivos} inactivos</button>}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Principal («Nuevo paciente») a la derecha en PC y primero en el celular */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {depurar}
           {importar && (
             <Button variant="outline" asChild>
               <Link href="/pacientes/importar"><FileSpreadsheet /> {clinico ? "Actualizar nómina" : "Importar Excel"}</Link>
             </Button>
           )}
-          {nuevo}
+          <div className="max-sm:order-first max-sm:basis-full max-sm:[&_a]:w-full max-sm:[&_button]:w-full">{nuevo}</div>
         </div>
       </div>
 

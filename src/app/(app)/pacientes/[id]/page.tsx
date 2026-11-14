@@ -52,6 +52,8 @@ import { periodosDeTrabajador } from "../acciones";
 import type { Vacacion } from "./vacaciones-acciones";
 import { atencionesDeTrabajador } from "@/lib/enfermeria";
 import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
+import { lineaDeTiempo, MARCAS_DEMO, marcasDeConsultas, type MarcaTiempo } from "@/lib/linea-tiempo";
+import { LineaTiempo } from "./linea-tiempo";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -67,6 +69,10 @@ export default async function FichaPaciente({ params }: Props) {
   const consultas = sesion.demo
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
+  // Línea de tiempo: solo fecha, tipo y resultado (nada clínico); cada rol con lo que su RLS le deja leer
+  const marcasTiempo: MarcaTiempo[] = sesion.demo
+    ? [...marcasDeConsultas(consultas), ...(MARCAS_DEMO[t.id] ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    : await lineaDeTiempo(t.id, sesion.clinico, sesion.rol ?? null, consultas);
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
   // Atenciones y evolución de enfermería: parte de su historia, solo para el personal de salud
   const enfermeria = sesion.clinico && !sesion.demo ? await atencionesDeTrabajador(t.id) : [];
@@ -248,6 +254,7 @@ export default async function FichaPaciente({ params }: Props) {
         </TabsList>
 
         <TabsContent value="resumen" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <LineaTiempo marcas={marcasTiempo} hoy={hoyCaracas()} />
           <Card>
             <CardHeader><CardTitle className="text-base">Datos personales</CardTitle></CardHeader>
             <CardContent>

@@ -53,6 +53,24 @@ export async function GET() {
       });
       if (e2) console.error("resultado del correo de propuesta:", e2.message);
     }
+    // Recordatorios de citas por correo (20261030955000): la lista del día al personal que lo pidió. Si falla se
+    // reintenta en los latidos siguientes; al 3.er fallo la campana dice «No salió el correo de tus citas».
+    const { data: agendas } = await supabase.rpc("correos_recordatorio_citas", { p_clave: clave });
+    for (const c of (agendas ?? []) as { id: string; para: string; asunto: string; texto: string }[]) {
+      let error: string | null = null;
+      try {
+        await enviarCorreo({
+          para: c.para, asunto: c.asunto, nombreRemitente: "zamorApp avisos", adjuntos: [],
+          texto: `${c.texto}\n\nVer la agenda: ${URL_PUBLICA}/atencion\n\nPuedes cambiar o apagar este recordatorio en Configuración › Organización › Plazos y avisos.`,
+        });
+        correos++;
+      } catch (e) {
+        error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+        console.error("correo de recordatorio de citas:", error);
+      }
+      const { error: e3 } = await supabase.rpc("resultado_correo_recordatorio", { p_clave: clave, p_id: c.id, p_error: error });
+      if (e3) console.error("resultado del correo de citas:", e3.message);
+    }
   }
   return NextResponse.json({ ok: true, enviados, correos }, { headers: { "Cache-Control": "no-store" } });
 }
