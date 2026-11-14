@@ -45,7 +45,7 @@ export type Cobro = {
   tipo: TipoCobro;
   vence: string | null;
   presupuestoId: string | null;
-  porAgente?: string | null; // nombre de la llave del agente que la armó en borrador (20261030954000)
+  porAgente?: string | null; // nombre de la llave del agente que la armó en borrador (20261030961000)
   items: ItemCobro[];
 };
 

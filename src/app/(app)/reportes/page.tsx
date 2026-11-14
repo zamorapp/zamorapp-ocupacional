@@ -19,6 +19,10 @@ import { EditorInforme } from "./editor-informe";
 import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { ExploradorCausas } from "./explorador-causas";
 import { SelectorPeriodo } from "./selector-periodo";
+import { AvisoPropuestas } from "./aviso-propuestas";
+import { ProgramasVigilancia } from "./programas";
+import { contarPropuestas, revisaPropuestas } from "@/lib/agentes/propuestas";
+import { programasConCumplimiento } from "@/lib/vigilancia-programas";
 
 export const metadata: Metadata = { title: "Reportes" };
 export const dynamic = "force-dynamic";
@@ -76,6 +80,10 @@ export default async function Reportes({ searchParams }: Props) {
   const contra = "período anterior";
   const params = new URLSearchParams({ ...parametrosPeriodo(periodo), ...(empresaId ? { empresa: empresaId } : {}) });
   const enlaceImprimir = `/imprimir/vigilancia?${params}`;
+  const [pendientes, programas] = await Promise.all([
+    empresaId && revisaPropuestas(sesion) ? contarPropuestas(empresaId) : Promise.resolve(0),
+    programasConCumplimiento(empresaId, periodo.desde, periodo.hasta),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -90,6 +98,7 @@ export default async function Reportes({ searchParams }: Props) {
       </div>
 
       <SelectorPeriodo key={`${periodo.desde}${periodo.hasta}${empresaId}`} periodo={periodo} inicioEmpresa={empresa?.mesInicioGestion ?? 1} empresa={empresa?.razonSocial ?? null} />
+      <AvisoPropuestas n={pendientes} />
 
       {!r ? (
         <div className="flex items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
@@ -125,6 +134,8 @@ export default async function Reportes({ searchParams }: Props) {
               </CardContent>
             </Card>
           )}
+
+          {empresaId ? <ProgramasVigilancia programas={programas} empresaId={empresaId} /> : null}
 
           {r.poblacion.total > 0 && r.poblacion.total < 10 && (
             <p className="rounded-md bg-aviso/10 px-4 py-2 text-sm">Población menor a 10 trabajadores: los índices tienen baja comparabilidad.</p>

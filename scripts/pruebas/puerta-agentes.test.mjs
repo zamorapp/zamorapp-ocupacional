@@ -67,6 +67,7 @@ test("el catálogo es la misma lista cerrada de la base", () => {
     assert.deepEqual(acciones.filter((a) => !a.crea).map((a) => a.nombre).sort(), lista(/when v_acc in \(([^)]+)\) then false/), rpc);
     assert.deepEqual(acciones.filter((a) => a.crea).map((a) => a.nombre).sort(), lista(/when v_acc in \(([^)]+)\) then true/), rpc);
   }
+  assert.ok(ACCIONES.filter((a) => a.vigilancia).every((a) => a.rpc === "puerta_vigilancia"));
   for (const a of ACCIONES) {
     assert.equal(a.esquema.additionalProperties, false, a.nombre);
     assert.equal("ensayo" in a.esquema.properties, a.crea, `${a.nombre}: solo lo que crea lleva ensayo`);

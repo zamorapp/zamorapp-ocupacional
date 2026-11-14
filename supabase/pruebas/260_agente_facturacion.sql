@@ -1,4 +1,4 @@
--- Facturar con el agente (20261030954000): casilla «Cobros y precios» apagada por defecto, notas EN BORRADOR (varias
+-- Facturar con el agente (20261030961000): casilla «Cobros y precios» apagada por defecto, notas EN BORRADOR (varias
 -- empresas a la vez), atendidos sin datos clínicos, descuento como renglón aparte, sin duplicar, nada que modifique
 -- o borre, y precios que solo cambian cuando el doctor aprueba la propuesta.
 \pset tuples_only on
@@ -108,12 +108,29 @@ select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select public.puerta_facturacion(:'kf', 'proponer_precio', '{"servicio_id":"70000000-0000-0000-0000-0000000000f1","precio_usd":30,"motivo":"Pedido del doctor"}') -> 'resultado' ->> 'propuesta_id' as pg \gset
 select public.puerta_facturacion(:'kf', 'proponer_precio', '{"servicio_id":"70000000-0000-0000-0000-0000000000f2","precio_usd":90,"empresa_id":"20000000-0000-0000-0000-00000000000b"}') -> 'resultado' ->> 'propuesta_id' as pe \gset
 select 'repetir la propuesta no duplica (debe 1): ' || ((public.puerta_facturacion(:'kf', 'proponer_precio', '{"servicio_id":"70000000-0000-0000-0000-0000000000f1","precio_usd":30}') -> 'resultado' ->> 'ya_existia') = 'true')::int;
+select 'otro precio para el mismo servicio se acepta (debe 1): ' || ((public.puerta_facturacion(:'kf', 'proponer_precio', '{"servicio_id":"70000000-0000-0000-0000-0000000000f1","precio_usd":28}', true) ->> 'ok') = 'true')::int;
 select 'la llave de consulta no propone (debe 1): ' || ((public.puerta_facturacion(:'kfc', 'proponer_precio', '{"servicio_id":"70000000-0000-0000-0000-0000000000f1","precio_usd":31}') ->> 'ok') = 'false')::int;
 reset role;
 select 'proponer no cambia el precio (debe 25): ' || precio_usd::int from public.servicios where id = '70000000-0000-0000-0000-0000000000f1';
 select 'ni el de la empresa (debe 80): ' || precio_usd::int from public.precios_empresa where servicio_id = '70000000-0000-0000-0000-0000000000f2';
 select 'la propuesta guarda antes 25 y después 30 (debe 1): ' || ((antes ->> 'precio_usd')::numeric = 25 and (propuesto ->> 'precio_usd')::numeric = 30)::int from public.agentes_propuestas where id = :'pg';
 
+-- Quién ve las propuestas de precio: quien factura; nunca enfermería (aunque sea servicio médico)
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+select 'enfermería no ve propuestas de precio (debe 0): ' || count(*) from public.agentes_propuestas where tipo ~ '^precio_';
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
+select 'el médico (no factura) tampoco (debe 0): ' || count(*) from public.agentes_propuestas where tipo ~ '^precio_';
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
+select 'el administrador sí (debe 2): ' || count(*) from public.agentes_propuestas where tipo ~ '^precio_';
+reset role;
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000c7','recFac@x') on conflict do nothing;
+insert into public.miembros (org_id,usuario_id,rol,empresas_permitidas) values ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000c7','recepcion',null);
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000c7',false) \g /dev/null
+select 'recepción sí (debe 2): ' || count(*) from public.agentes_propuestas where tipo ~ '^precio_';
+reset role;
+delete from public.miembros where usuario_id = '00000000-0000-0000-0000-0000000000c7';
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 do $$ begin

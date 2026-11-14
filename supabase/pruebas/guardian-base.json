@@ -56,6 +56,8 @@
     "public.olvidar_equipos()",
     "public.paraclinicos_pendientes(p jsonb)",
     "public.puede_enviar(p_org uuid)",
+    "public.puerta_facturacion(p_llave text, p_accion text, p_datos jsonb, p_ensayo boolean)",
+    "public.puerta_vigilancia(p_llave text, p_accion text, p_datos jsonb, p_ensayo boolean)",
     "public.quitar_agregado_depuracion_nomina(p_token text, p_dispositivo text, p_id uuid)",
     "public.quitar_suscripcion_vencida_clave(p_endpoint text, p_clave text)",
     "public.requiere_dos_pasos()",

@@ -7,7 +7,7 @@ import { GRUPOS_REPORTE, REPORTES } from "@/lib/reportes-catalogo";
 import { cn } from "@/lib/utils";
 
 // Barra de reportes: vigilancia + los del SAME. Conserva el período elegido al cambiar de reporte.
-export function NavReportes({ unida = false }: { unida?: boolean }) {
+export function NavReportes({ unida = false, propuestas = 0 }: { unida?: boolean; propuestas?: number }) {
   const ruta = usePathname();
   const q = useSearchParams();
   const periodo = new URLSearchParams([...q.entries()].filter(([k]) => ["p", "desde", "hasta", "anio", "t", "inicio", "mes"].includes(k)));
@@ -24,6 +24,11 @@ export function NavReportes({ unida = false }: { unida?: boolean }) {
     <nav ref={barra} aria-label="Reportes" className="relative -mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
       <div className="flex w-max items-center gap-1.5">
         <Link href={`/reportes${sufijo}`} aria-current={ruta === "/reportes" ? "page" : undefined} className={pastilla(ruta === "/reportes")}>Vigilancia epidemiológica</Link>
+        {propuestas > 0 || ruta === "/reportes/propuestas" ? (
+          <Link href="/reportes/propuestas" aria-current={ruta === "/reportes/propuestas" ? "page" : undefined} className={pastilla(ruta === "/reportes/propuestas")}>
+            Propuestas del agente{propuestas > 0 ? <span className="ml-1.5 rounded-full bg-aviso/20 px-1.5 text-xs font-semibold text-aviso-texto">{propuestas}</span> : null}
+          </Link>
+        ) : null}
         {GRUPOS_REPORTE.map((g) => (
           <div key={g} className="flex items-center gap-1.5">
             <span className="mx-1 h-5 border-l" aria-hidden />

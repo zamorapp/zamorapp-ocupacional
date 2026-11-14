@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { apagarLlave, cambiarCobros, crearLlave, type LlaveNueva } from "./acciones";
+import { apagarLlave, cambiarCobros, cambiarVigilancia, crearLlave, type LlaveNueva } from "./acciones";
 
-type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean; cobros?: boolean };
+type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean; vigilancia?: boolean; cobros?: boolean };
 type Linea = { id: number; en: string; llave: string; accion: string; ensayo: boolean; ok: boolean; empresa: string | null; resumen: string | null; error: string | null };
 export type EstadoAgentes = { local: boolean; desde: string; hasta: string; llaves: Llave[]; registro: Linea[]; total: number };
 
@@ -18,7 +18,7 @@ const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle:
 const soloFecha = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "medium", timeZone: "America/Caracas" }).format(new Date(iso));
 const SUGERIDOS = ["Claude", "ChatGPT", "Gemini"];
 const DURACIONES = [{ dias: 7, texto: "7 días" }, { dias: 30, texto: "30 días" }, { dias: 90, texto: "90 días" }];
-const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada", casilla_cobros: "Casilla de cobros y precios" };
+const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada", casilla_vigilancia: "Casilla de vigilancia", casilla_cobros: "Casilla de cobros y precios" };
 
 export function PantallaAgentes({ estado, titulos, consultas, creaciones }: { estado: EstadoAgentes; titulos: Record<string, string>; consultas: string[]; creaciones: string[] }) {
   const encendidas = estado.llaves.filter((l) => l.encendida);
@@ -243,6 +243,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
                   <Button variant="outline" className="h-11 sm:h-9" onClick={() => { setError(""); setPorApagar(l.id); }}><Power /> Apagar</Button>
                 ) : null}
               </div>
+              {l.encendida ? <CasillaVigilancia llave={l} /> : null}
               {l.encendida ? <CasillaCobros llave={l} /> : null}
               {porApagar === l.id ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
@@ -340,6 +341,36 @@ function Registro({ estado, titulos }: { estado: EstadoAgentes; titulos: Record<
   );
 }
 
+// Casilla de cada llave: el agente lee los TOTALES de la vigilancia y propone programas, ajustes y el borrador del
+// informe (tú los apruebas en Reportes › Propuestas del agente)
+function CasillaVigilancia({ llave }: { llave: Llave }) {
+  const [error, setError] = useState("");
+  const [ocupado, iniciar] = useTransition();
+  const router = useRouter();
+  const sinInternet = useSinInternet();
+  const si = Boolean(llave.vigilancia);
+  const cambiar = () => iniciar(async () => {
+    setError("");
+    const r = await cambiarVigilancia(llave.id, !si);
+    if (!r.ok) setError(r.mensaje); else router.refresh();
+  });
+  return (
+    <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 sm:min-h-0">
+        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={si} disabled={ocupado || sinInternet} onChange={cambiar}
+          data-accion="casilla-vigilancia" />
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-sm font-medium">Vigilancia y reportes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
+          <span className="block text-sm text-muted-foreground">
+            Lee los totales de la vigilancia, sin nombres, cédulas ni casos. Propone programas, ajustes de la empresa y el borrador del informe. Tú lo apruebas en Reportes › Propuestas del agente.
+          </span>
+        </span>
+      </label>
+      {error ? <p role="alert" className="mt-2 text-sm text-alerta-texto">{error}</p> : null}
+    </div>
+  );
+}
+
 // Casilla de cada llave: notas de cobro EN BORRADOR (también varias empresas a la vez) y propuestas de precio
 function CasillaCobros({ llave }: { llave: Llave }) {
   const [error, setError] = useState("");
@@ -361,7 +392,7 @@ function CasillaCobros({ llave }: { llave: Llave }) {
           <span className="flex items-center gap-2 text-sm font-medium">Cobros y precios {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
           <span className="block text-sm text-muted-foreground">
             {llave.permiso === "crear"
-              ? "Arma notas de cobro en borrador (con descuento si se lo pides) y te propone precios nuevos. Tú emites e imprimes la factura; un precio cambia solo cuando lo apruebas."
+              ? "Arma notas de cobro en borrador (con descuento si se lo pides) y te propone precios nuevos. Tú emites e imprimes la factura; un precio cambia solo cuando lo apruebas en Reportes › Propuestas del agente."
               : "Ve las notas de cobro y los atendidos por cobrar. Para que arme notas, la llave tiene que ser de «Consulta y crea»."}
           </span>
         </span>

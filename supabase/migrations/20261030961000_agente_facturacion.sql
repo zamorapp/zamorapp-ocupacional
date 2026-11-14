@@ -12,7 +12,7 @@
 --                        La nota queda marcada «del agente» (cobros.por_agente). La factura es esa misma nota: el Nº
 --                        del talonario se pone cuando el doctor pulsa «Imprimir factura».
 --   proponer_precio      propuesta en public.agentes_propuestas (953): precio general del servicio o el de una
---                        empresa. Solo cambia cuando el doctor pulsa «Aprobar» (aplicar_propuesta, con SU sesión).
+--                        empresa. Solo cambia cuando el doctor pulsa «Aprobar» en Reportes › Propuestas (aplicar_propuesta).
 -- Seguridad: como public.agente, es security definer y NO pasa por la RLS; cada ayudante filtra por la organización
 -- de la llave a mano. Ninguna nota puede emitirse con total negativo (disparador cobro_total_no_negativo).
 -- Lo que NO hace: poner el Nº de factura, emitir, imprimir, enviar, registrar pagos o abonos, elegir la tasa BCV,
@@ -22,7 +22,7 @@
 -- ===== 1. Marca «del agente» en la nota y alcance de la llave =====
 alter table public.cobros add column if not exists por_agente text;
 comment on column public.cobros.por_agente is
-  'Nombre de la llave del agente que armó esta nota en borrador (20261030954000). Null = la hizo una persona.';
+  'Nombre de la llave del agente que armó esta nota en borrador (20261030961000). Null = la hizo una persona.';
 -- Casilla de la llave «Cobros y precios», APAGADA por defecto (igual que «documentos» de 950 y «vigilancia» de 953)
 alter table public.agentes_llaves add column if not exists cobros boolean not null default false;
 
@@ -56,7 +56,7 @@ declare
   v_viejo text := '''permiso'', l.permiso,';
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception 'agentes_estado cambió: revisar 20261030954000 antes de aplicarla';
+    raise exception 'agentes_estado cambió: revisar 20261030961000 antes de aplicarla';
   end if;
   execute replace(v_def, v_viejo, v_viejo || ' ''cobros'', l.cobros,');
 end $$;
@@ -341,8 +341,8 @@ begin
           jsonb_build_object('precio_usd', v_antes), jsonb_build_object('precio_usd', v_precio), v_motivo)
   returning * into pp;
   return jsonb_build_object('propuesta_id', pp.id, 'propuesta', v_titulo || ': ' || v_antes || ' → ' || v_precio || ' USD',
-    'ya_existia', false, 'aviso', 'El precio NO cambió todavía: el doctor lo aprueba en Configuración > Puerta para agentes > Propuestas.',
-    'ruta', '/configuracion/agentes', '_empresa', e.id, '_resumen', 'Propuso ' || v_titulo || ': ' || v_antes || ' → ' || v_precio || ' USD');
+    'ya_existia', false, 'aviso', 'El precio NO cambió todavía: el doctor lo aprueba en Reportes > Propuestas del agente.',
+    'ruta', '/reportes/propuestas', '_empresa', e.id, '_resumen', 'Propuso ' || v_titulo || ': ' || v_antes || ' → ' || v_precio || ' USD');
 end $$;
 
 do $$
@@ -438,43 +438,148 @@ begin
   return jsonb_build_object('ok', true, 'accion', v_acc, 'ensayo', v_ensayo and v_escribe, 'resultado', v_res - '_empresa' - '_resumen');
 end $$;
 comment on function public.puerta_facturacion(text, text, jsonb, boolean) is
-  'Puerta para agentes, cobros y precios: notas en borrador y propuestas de precio, con llave y alcance «cobros». La ejecuta un anónimo A PROPÓSITO (la llave es la credencial) (20261030954000).';
+  'Puerta para agentes, cobros y precios: notas en borrador y propuestas de precio, con llave y alcance «cobros». La ejecuta un anónimo A PROPÓSITO (la llave es la credencial) (20261030961000).';
 revoke execute on function public.puerta_facturacion(text, text, jsonb, boolean) from public;
 grant execute on function public.puerta_facturacion(text, text, jsonb, boolean) to anon, authenticated;
 
--- ===== 4. «Aprobar» un precio propuesto: con la sesión del doctor (security INVOKER: manda la RLS de servicios y
---          precios_empresa, que exige poder facturar). p_datos.precio_usd permite corregir el precio al aprobar. =====
-create or replace function public.aplicar_propuesta_precio(p_id uuid, p_datos jsonb default null)
-returns jsonb language plpgsql security invoker set search_path = public as $$
+-- ===== 4. Bandeja (20261030960000): aprobar, reemplazar y quién ve las propuestas de precio =====
+-- 4a. aplicar_propuesta: la de 960 ENTERA, con la rama de precios antes del «else» final.
+create or replace function public.aplicar_propuesta(p_id uuid, p_datos jsonb default null)
+returns jsonb language plpgsql set search_path = public as $$
 declare
-  pp public.agentes_propuestas;
-  v numeric;
+  pr public.agentes_propuestas;
+  d jsonb;
+  v_id uuid;
+  v_inf public.informes_vigilancia;
+  v_sec jsonb;
+  k text;
+  v_precio numeric;
 begin
-  select * into pp from public.agentes_propuestas where id = p_id;
-  if not found then raise exception 'No encuentro esa propuesta.' using errcode = 'P0001'; end if;
-  if pp.tipo not in ('precio_servicio', 'precio_empresa') then raise exception 'No es una propuesta de precio.' using errcode = 'P0001'; end if;
-  if pp.estado <> 'pendiente' then raise exception 'Esa propuesta ya se resolvió.' using errcode = 'P0001'; end if;
-  if not public.puede_facturar(pp.org_id) then raise exception 'Solo quien factura aprueba precios.' using errcode = '42501'; end if;
-  begin
-    v := coalesce(nullif(p_datos ->> 'precio_usd', '')::numeric, (pp.propuesto ->> 'precio_usd')::numeric);
-  exception when others then raise exception 'El precio no es un número.' using errcode = 'P0001';
-  end;
-  if v is null or v < 0 or v > 100000 then raise exception 'El precio debe estar entre 0 y 100000 USD.' using errcode = 'P0001'; end if;
-  if pp.tipo = 'precio_servicio' then
-    update public.servicios set precio_usd = v where id = pp.objeto_id and org_id = pp.org_id;
-    if not found then raise exception 'Ese servicio ya no existe.' using errcode = 'P0001'; end if;
-  else
-    if pp.empresa_id is null or not exists (select 1 from public.servicios s where s.id = pp.objeto_id and s.org_id = pp.org_id) then
-      raise exception 'Ese servicio o esa empresa ya no existen.' using errcode = 'P0001';
+  select * into pr from public.agentes_propuestas where id = p_id for update;
+  if not found then raise exception 'Propuesta no encontrada.' using errcode = 'P0001'; end if;
+  if pr.estado <> 'pendiente' then raise exception 'Esta propuesta ya se resolvió.' using errcode = 'P0001'; end if;
+  d := coalesce(p_datos, pr.propuesto);
+
+  if pr.tipo = 'programa_vigilancia' then
+    if pr.objeto_id is null then
+      insert into public.vigilancia_programas (org_id, empresa_id, nombre, proyecto, riesgo, condiciones, dependencia_ids, puesto_ids, examenes, metas)
+      values (pr.org_id, pr.empresa_id, d ->> 'nombre', d ->> 'proyecto', d ->> 'riesgo', d ->> 'condiciones',
+              coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(coalesce(d -> 'dependencia_ids', '[]')) x), '{}'),
+              coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(coalesce(d -> 'puesto_ids', '[]')) x), '{}'),
+              coalesce(d -> 'examenes', '[]'), coalesce(d -> 'metas', '[]'))
+      returning id into v_id;
+    else
+      update public.vigilancia_programas set
+        nombre = d ->> 'nombre', proyecto = d ->> 'proyecto', riesgo = d ->> 'riesgo', condiciones = d ->> 'condiciones',
+        dependencia_ids = coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(coalesce(d -> 'dependencia_ids', '[]')) x), '{}'),
+        puesto_ids = coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(coalesce(d -> 'puesto_ids', '[]')) x), '{}'),
+        examenes = coalesce(d -> 'examenes', '[]'), metas = coalesce(d -> 'metas', '[]')
+      where id = pr.objeto_id and empresa_id = pr.empresa_id
+      returning id into v_id;
     end if;
-    insert into public.precios_empresa (empresa_id, servicio_id, org_id, precio_usd) values (pp.empresa_id, pp.objeto_id, pp.org_id, v)
-    on conflict (empresa_id, servicio_id) do update set precio_usd = excluded.precio_usd;
+    if v_id is null then raise exception 'No tienes permiso para configurar programas de esta empresa.' using errcode = '42501'; end if;
+
+  elsif pr.tipo = 'ajuste_empresa' then
+    update public.empresas e set
+      proyecto = case when d ? 'proyecto' then nullif(btrim(d ->> 'proyecto'), '') else e.proyecto end,
+      mes_inicio_gestion = case when d ? 'mes_inicio_gestion' then (d ->> 'mes_inicio_gestion')::smallint else e.mes_inicio_gestion end
+    where e.id = pr.empresa_id and e.org_id = pr.org_id
+    returning e.id into v_id;
+    if v_id is null then raise exception 'No tienes permiso para cambiar los datos de esta empresa.' using errcode = '42501'; end if;
+
+  elsif pr.tipo = 'informe_vigilancia' then
+    v_sec := coalesce(d -> 'secciones', '{}');
+    select * into v_inf from public.informes_vigilancia
+     where org_id = pr.org_id and empresa_id = pr.empresa_id
+       and desde = (pr.propuesto ->> 'desde')::date and hasta = (pr.propuesto ->> 'hasta')::date;
+    if v_inf.id is null then
+      insert into public.informes_vigilancia (org_id, empresa_id, desde, hasta)
+      values (pr.org_id, pr.empresa_id, (pr.propuesto ->> 'desde')::date, (pr.propuesto ->> 'hasta')::date)
+      returning * into v_inf;
+    end if;
+    for k in select jsonb_object_keys(v_sec) loop
+      if not public.propuesta_seccion_valida(k) then
+        raise exception 'Sección no válida: %', k using errcode = 'P0001';
+      end if;
+    end loop;
+    update public.informes_vigilancia i set
+      resumen = case when v_sec ? 'resumen' then v_sec ->> 'resumen' else i.resumen end,
+      conclusiones = case when v_sec ? 'conclusiones' then v_sec ->> 'conclusiones' else i.conclusiones end,
+      recomendaciones_medicas = case when v_sec ? 'recomendaciones_medicas' then v_sec ->> 'recomendaciones_medicas' else i.recomendaciones_medicas end,
+      recomendaciones = case when v_sec ? 'recomendaciones' then v_sec ->> 'recomendaciones' else i.recomendaciones end,
+      factores_riesgo = case when v_sec ? 'factores_riesgo' then v_sec ->> 'factores_riesgo' else i.factores_riesgo end,
+      medidas_control = case when v_sec ? 'medidas_control' then v_sec ->> 'medidas_control' else i.medidas_control end,
+      analisis = coalesce(i.analisis, '{}'::jsonb) || coalesce(d -> 'analisis', '{}'::jsonb)
+    where i.id = v_inf.id
+    returning i.id into v_id;
+    if v_id is null then raise exception 'No tienes permiso para redactar el informe de esta empresa.' using errcode = '42501'; end if;
+
+  elsif pr.tipo in ('precio_servicio', 'precio_empresa') then
+    -- Precio propuesto por un agente (20261030961000). Con la sesión de quien aprueba: la RLS de servicios y
+    -- precios_empresa exige poder facturar. p_datos.precio_usd permite corregirlo al aprobar.
+    if not public.puede_facturar(pr.org_id) then raise exception 'Solo quien factura aprueba precios.' using errcode = '42501'; end if;
+    begin
+      v_precio := (d ->> 'precio_usd')::numeric;
+    exception when others then raise exception 'El precio no es un número.' using errcode = 'P0001';
+    end;
+    if v_precio is null or v_precio < 0 or v_precio > 100000 then raise exception 'El precio debe estar entre 0 y 100000 USD.' using errcode = 'P0001'; end if;
+    if pr.tipo = 'precio_servicio' then
+      update public.servicios set precio_usd = v_precio where id = pr.objeto_id and org_id = pr.org_id returning id into v_id;
+    elsif pr.empresa_id is not null and exists (select 1 from public.servicios s where s.id = pr.objeto_id and s.org_id = pr.org_id) then
+      insert into public.precios_empresa (empresa_id, servicio_id, org_id, precio_usd) values (pr.empresa_id, pr.objeto_id, pr.org_id, v_precio)
+      on conflict (empresa_id, servicio_id) do update set precio_usd = excluded.precio_usd
+      returning servicio_id into v_id;
+    end if;
+    if v_id is null then raise exception 'Ese servicio o esa empresa ya no existen.' using errcode = 'P0001'; end if;
+
+  else
+    raise exception 'Este tipo de propuesta todavía no se aplica aquí (%).', pr.tipo using errcode = 'P0001';
   end if;
-  update public.agentes_propuestas set estado = 'aprobada', resuelto_por = auth.uid(), resuelto_en = public.ahora() where id = pp.id;
-  return jsonb_build_object('ok', true, 'precio_usd', v);
+
+  update public.agentes_propuestas set estado = 'aprobada' where id = p_id;
+  if not found then raise exception 'No tienes permiso para aprobar esta propuesta.' using errcode = '42501'; end if;
+  return jsonb_build_object('ok', true, 'tipo', pr.tipo, 'id', v_id);
 end $$;
-revoke execute on function public.aplicar_propuesta_precio(uuid, jsonb) from public, anon;
-grant execute on function public.aplicar_propuesta_precio(uuid, jsonb) to authenticated;
+revoke execute on function public.aplicar_propuesta(uuid, jsonb) from public, anon;
+grant execute on function public.aplicar_propuesta(uuid, jsonb) to authenticated;
+
+-- 4b. Una propuesta de precio nueva reemplaza a la pendiente de la misma llave, servicio y empresa
+create or replace function public.agentes_propuestas_reemplazar()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if coalesce(current_setting('sync.cambio_id', true), '') <> '' or new.estado <> 'pendiente' then return new; end if;
+  update public.agentes_propuestas x set estado = 'descartada'
+   where x.org_id = new.org_id and x.llave_id is not distinct from new.llave_id and x.estado = 'pendiente'
+     and x.tipo = new.tipo and x.empresa_id is not distinct from new.empresa_id and x.objeto_id is not distinct from new.objeto_id
+     and case new.tipo
+           when 'programa_vigilancia' then lower(x.propuesto ->> 'nombre') = lower(new.propuesto ->> 'nombre')
+           when 'informe_vigilancia' then x.propuesto ->> 'desde' = new.propuesto ->> 'desde' and x.propuesto ->> 'hasta' = new.propuesto ->> 'hasta'
+           when 'ajuste_empresa' then true
+           when 'precio_servicio' then true
+           when 'precio_empresa' then true
+           else false
+         end;
+  return new;
+end $$;
+revoke all on function public.agentes_propuestas_reemplazar() from public, anon, authenticated;
+
+-- 4c. Las de precio las ven y resuelven quienes facturan (administrador, gerente médico, recepción), NUNCA enfermería;
+--     las demás siguen con la regla de 960. Se arma desde la regla vigente para no copiarla a mano.
+do $$
+declare
+  v_leer text; v_using text; v_check text;
+  v_fact text := 'org_id = any ((select public.orgs_con(''{administrador,gerente_medico,recepcion}''))::uuid[])';
+begin
+  select qual into v_leer from pg_policies where schemaname = 'public' and tablename = 'agentes_propuestas' and policyname = 'agentes_propuestas_leer';
+  select qual, with_check into v_using, v_check from pg_policies where schemaname = 'public' and tablename = 'agentes_propuestas' and policyname = 'agentes_propuestas_resolver';
+  if v_leer is null or v_using is null or v_check is null then raise exception 'Falta la bandeja de 20261030960000: aplicarla antes'; end if;
+  if v_leer like '%precio%' then return; end if;  -- ya aplicada
+  execute 'drop policy agentes_propuestas_leer on public.agentes_propuestas';
+  execute format('create policy agentes_propuestas_leer on public.agentes_propuestas for select using ((tipo !~ ''^precio_'' and (%s)) or (tipo ~ ''^precio_'' and %s))', v_leer, v_fact);
+  execute 'drop policy agentes_propuestas_resolver on public.agentes_propuestas';
+  execute format('create policy agentes_propuestas_resolver on public.agentes_propuestas for update using ((tipo !~ ''^precio_'' and (%s)) or (tipo ~ ''^precio_'' and %s)) with check ((tipo !~ ''^precio_'' and (%s)) or (tipo ~ ''^precio_'' and %s))',
+                 v_using, v_fact, v_check, v_fact);
+end $$;
 
 -- ===== 5. Ninguna nota de cobro sale (emitida o pagada) con total negativo: un descuento mayor que la nota se frena
 --          aquí aunque el renglón negativo lo haya escrito una persona (el editor ya avisa antes). =====

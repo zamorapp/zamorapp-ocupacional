@@ -8,6 +8,7 @@ import { fechaCorta as corta, parametrosPeriodo } from "@/lib/periodos";
 import { tasasEnfermedadOcupacional, textoMetodoHoras, type Causa, type Reporte } from "@/lib/reportes";
 import { sensible } from "@/lib/vigilancia-ia";
 import type { cargarVigilancia } from "@/lib/vigilancia";
+import { porciento, type Cumplimiento, type Programa } from "@/lib/vigilancia-programas";
 import { ETIQUETA_TIPO_ENFERMERIA } from "@/lib/enfermeria-tipos";
 import { mencionaDiscapacidad, totales, type SeccionAnalisis } from "@/lib/vigilancia-analisis";
 import { CAUSAS_REPOSO, filasArt34 } from "@/lib/vigilancia-integral";
@@ -227,8 +228,9 @@ function Prioridades({ texto }: { texto: string }) {
 }
 
 // El informe impreso completo. paraEmpresa: la versión que se envía a RR. HH. (sin discapacidad ni cifras pequeñas)
-export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnviar }: {
+export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnviar, programas = [] }: {
   v: Awaited<ReturnType<typeof cargarVigilancia>>;
+  programas?: (Programa & { cumplimiento: Cumplimiento | null })[];
   org: OrgInforme;
   logoEmpresa: string | null;
   paraEmpresa: boolean;
@@ -572,6 +574,33 @@ export function InformeVigilancia({ v, org, logoEmpresa, paraEmpresa, puedeEnvia
             </Panel>
           )}
           <Analisis texto={a.resultados_exposicion} titulo="Audiometría y espirometría por exposición" />
+          {programas.length > 0 && (
+            <Panel ancla="i-programas" titulo="Programas de vigilancia" nota="Cobertura en el período: trabajadores del grupo con al menos una consulta, y exámenes hechos por nombre.">
+              <div className="space-y-3">
+                {programas.map((p) => {
+                  const c = p.cumplimiento;
+                  const cob = c ? porciento(c.evaluados, c.poblacion) : null;
+                  return (
+                    <div key={p.id} className="break-inside-avoid">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="font-bold">{p.nombre}</span>
+                        {p.riesgo && <span className="text-doc-tenue">· Riesgo: {p.riesgo}</span>}
+                        {p.proyecto && <span className="text-doc-tenue">· {p.proyecto}</span>}
+                        {c && <span className="ml-auto whitespace-nowrap font-cifra">{cif(c.evaluados)} de {cif(c.poblacion)} evaluados{cob !== null ? ` (${num(cob)} %)` : ""}</span>}
+                      </div>
+                      {c && c.examenes.length > 0 && (
+                        <T columnas={["Examen", "Cada", "Hechos", "Pendientes"]} texto={[1]} porcentaje={false} total={false} cerosTenues
+                          filas={c.examenes.map((e) => [e.nombre, e.cada_meses ? `${e.cada_meses} meses` : "—", e.hechos, Math.max(c.poblacion - e.hechos, 0)])} />
+                      )}
+                      {p.metas.length > 0 && (
+                        <p className="mt-1 text-[10px]"><span className="font-bold">Metas: </span>{p.metas.map((m) => `${m.indicador}${m.meta ? `: ${m.meta}` : ""}`).join(" · ")}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+          )}
         </Seccion>
 
         <Seccion ancla="s-art34" n="7" titulo="Resumen del artículo 34 del Reglamento Parcial de la LOPCYMAT">
