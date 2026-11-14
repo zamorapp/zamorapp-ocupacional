@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { HardHat, Loader2, Search, X } from "lucide-react";
+import { Check, HardHat, Loader2, Search, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,7 +14,8 @@ import { horaLocalCaracas } from "@/lib/fecha";
 // Ahora en hora de Venezuela, para el campo datetime-local
 const ahoraLocal = () => horaLocalCaracas();
 
-export function ReportarEvento({ habilitado, empresas }: { habilitado: boolean; empresas: { id: string; nombre: string }[] }) {
+// `deEmpresa`: RR. HH. reporta solo accidentes e incidentes (la enfermedad ocupacional la registra el médico)
+export function ReportarEvento({ habilitado, empresas, deEmpresa = false }: { habilitado: boolean; empresas: { id: string; nombre: string }[]; deEmpresa?: boolean }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [tipo, setTipo] = useState("accidente");
@@ -45,14 +46,18 @@ export function ReportarEvento({ habilitado, empresas }: { habilitado: boolean; 
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Reportar evento</DialogTitle>
-          <DialogDescription>Regístralo apenas ocurra: el plazo de 24 h para declarar ante el INPSASEL empieza a correr.</DialogDescription>
+          <DialogDescription>
+            {deEmpresa
+              ? "Repórtelo apenas ocurra: el servicio médico recibe el aviso al momento y lo declara ante el INPSASEL (plazo de 24 h)."
+              : "Regístralo apenas ocurra: el plazo de 24 h para declarar ante el INPSASEL empieza a correr."}
+          </DialogDescription>
         </DialogHeader>
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="grid grid-cols-3 gap-2 sm:col-span-2">
-            {[["accidente", "Accidente"], ["incidente", "Incidente"], ["enfermedad", "Enfermedad ocupacional"]].map(([k, t]) => (
-              <label key={k} className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-center text-sm font-medium transition ${tipo === k ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}>
+          <div className={`grid gap-2 sm:col-span-2 ${deEmpresa ? "grid-cols-2" : "grid-cols-3"}`}>
+            {[["accidente", "Accidente"], ["incidente", "Incidente"], ...(deEmpresa ? [] : [["enfermedad", "Enfermedad ocupacional"]])].map(([k, t]) => (
+              <label key={k} className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-2 text-center text-sm font-medium transition has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50 ${tipo === k ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
                 <input type="radio" name="tipo" value={k} checked={tipo === k} onChange={() => setTipo(k)} className="sr-only" />
-                {t}
+                {tipo === k && <Check className="size-4 shrink-0" strokeWidth={3} />}{t}
               </label>
             ))}
           </div>

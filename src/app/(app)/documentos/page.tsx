@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Printer } from "lucide-react";
+import { FileText, PenLine, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MAX_LOTE } from "@/lib/envios-tipos";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { listarConsultas } from "@/lib/consultas";
 import { fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
+import { puedeFirmarRegistro } from "@/lib/registro-documentos-servidor";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { FiltrosDocumentos } from "./filtros";
 
@@ -20,6 +21,7 @@ const LIMITE = 1000;
 export default async function Documentos({ searchParams }: { searchParams: Promise<{ desde?: string; hasta?: string; impreso?: string }> }) {
   const sesion = await obtenerSesion();
   const p = await searchParams;
+  const puedeFirmar = !sesion.demo && puedeFirmarRegistro(sesion);
   const hoy = hoyCaracas();
   const porDefecto = sumarDias(hoy, -90);
   const desde = p.desde && ISO.test(p.desde) ? p.desde : porDefecto;
@@ -50,11 +52,14 @@ export default async function Documentos({ searchParams }: { searchParams: Promi
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+       <div className="min-w-0 flex-1">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Documentos</h1>
         <p className="text-muted-foreground">
           Constancias, reposos, informes y récipes de las consultas cerradas. Elige las fechas; con los botones de cada grupo sacas todas las de un día y una empresa en un solo documento.
         </p>
+       </div>
+        {puedeFirmar && <Button asChild variant="outline"><Link href="/documentos/firmar"><PenLine /> Firmar y sellar PDF</Link></Button>}
       </div>
 
       <FiltrosDocumentos desde={desde} hasta={hasta} impreso={impreso} hoy={hoy} porDefecto={porDefecto} />
