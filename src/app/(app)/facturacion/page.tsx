@@ -12,7 +12,7 @@ import { actualizarTasaBcv } from "@/lib/tasa-bcv-actualizar";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, sugerenciasCobro, tasasDeHoy } from "@/lib/facturacion";
-import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
+import { bs, type Cobro, etiquetaEstado, saldo, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
 import { periodoAnterior } from "@/lib/periodos";
@@ -66,22 +66,26 @@ export default async function Facturacion({ searchParams }: Props) {
         <TasaBcv actual={tasa.hoy} proxima={tasa.proxima} hoy={hoyCaracas()} editable={editable} />
       </div>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+      {/* Celular: las pestañas en UNA fila que se desliza de lado (antes ocupaban 3 renglones) */}
+      <nav aria-label="Secciones de facturación" className="-mx-1 overflow-x-auto px-1 sm:mx-0 sm:px-0">
+      <div className="flex w-max gap-1 rounded-lg border bg-card p-1 sm:w-auto sm:flex-wrap">
         {VISTAS.map(([k, t]) => (
-          <Link key={k} href={`/facturacion?vista=${k}`} className={cn("rounded-md px-3 py-1.5 text-sm transition", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
+          <Link key={k} href={`/facturacion?vista=${k}`} aria-current={vista === k ? "page" : undefined}
+            className={cn("flex items-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition max-sm:min-h-11", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
         ))}
       </div>
+      </nav>
 
       {vista === "servicios" && <Servicios servicios={await listarServicios()} motivos={await listarMotivosCobro()} editable={editable} />}
 
       {vista === "cuentas" && (async () => {
-        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad
+        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad; cuenta solo lo que falta (descontados los abonos)
         const hoy = hoyCaracas();
         const abiertas = (await listarCobros()).filter((c) => c.tipo === "cobro" && c.estado === "emitida" && (!empresaId || c.empresaId === empresaId));
         const porEmpresa = new Map<string, { empresa: string; tramos: number[]; total: number; notas: number }>();
         for (const c of abiertas) {
           const e = porEmpresa.get(c.empresaId) ?? { empresa: c.empresa, tramos: [0, 0, 0, 0], total: 0, notas: 0 };
-          const t = totales(c).total, d = dias(c.fecha, hoy);
+          const t = saldo(c).falta, d = dias(c.fecha, hoy);
           e.tramos[d <= 30 ? 0 : d <= 60 ? 1 : d <= 90 ? 2 : 3] += t;
           e.total += t; e.notas += 1;
           porEmpresa.set(c.empresaId, e);
@@ -154,7 +158,7 @@ export default async function Facturacion({ searchParams }: Props) {
                         <TableCell><Link href={`/facturacion/${c.id}`} className="hover:text-primary">{c.empresa}</Link></TableCell>
                         <TableCell className="text-sm">{tipo === "presupuesto" ? fecha(c.vence) : c.desde ? `${fecha(c.desde)} al ${fecha(c.hasta)}` : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums"><div className="font-medium">{usd(t.total)}</div>{t.totalBs !== null && <div className="text-xs text-muted-foreground">{bs(t.totalBs)}</div>}</TableCell>
-                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span></TableCell>
+                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span>{c.estado === "emitida" && c.pagos.length > 0 && <div className="mt-0.5 text-xs text-muted-foreground">Falta {usd(saldo(c).falta)}</div>}</TableCell>
                       </TableRow>
                     );
                   })}

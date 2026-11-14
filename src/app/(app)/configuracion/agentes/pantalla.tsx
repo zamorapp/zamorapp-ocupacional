@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { apagarLlave, cambiarVigilancia, crearLlave, type LlaveNueva } from "./acciones";
+import { apagarLlave, cambiarDocumentos, cambiarVigilancia, crearLlave, type LlaveNueva } from "./acciones";
 
-type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean; vigilancia?: boolean };
+type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean; documentos?: boolean; vigilancia?: boolean };
 type Linea = { id: number; en: string; llave: string; accion: string; ensayo: boolean; ok: boolean; empresa: string | null; resumen: string | null; error: string | null };
 export type EstadoAgentes = { local: boolean; desde: string; hasta: string; llaves: Llave[]; registro: Linea[]; total: number };
 
@@ -18,7 +18,7 @@ const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle:
 const soloFecha = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "medium", timeZone: "America/Caracas" }).format(new Date(iso));
 const SUGERIDOS = ["Claude", "ChatGPT", "Gemini"];
 const DURACIONES = [{ dias: 7, texto: "7 días" }, { dias: 30, texto: "30 días" }, { dias: 90, texto: "90 días" }];
-const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada", casilla_vigilancia: "Casilla de vigilancia" };
+const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada", casilla_documentos: "Casilla de récipes y órdenes", casilla_vigilancia: "Casilla de vigilancia" };
 
 export function PantallaAgentes({ estado, titulos, consultas, creaciones }: { estado: EstadoAgentes; titulos: Record<string, string>; consultas: string[]; creaciones: string[] }) {
   const encendidas = estado.llaves.filter((l) => l.encendida);
@@ -157,27 +157,28 @@ export function LlaveRecienCreada({ nueva, cerrar }: { nueva: Extract<LlaveNueva
           <span><strong className="font-medium">Se ve solo esta vez.</strong> Cópiala ahora. No la pegues en un chat ni la mandes por WhatsApp: quien la tenga puede entrar.</span></p>
       </div>
       <div className="space-y-2 rounded-lg border bg-background p-3 text-sm">
-        <h3 className="font-medium">Forma recomendada: dirección y llave por separado</h3>
-        <p className="text-muted-foreground">Si tu agente tiene una casilla para la llave (cabecera «Authorization: Bearer»), usa esta: la llave no queda escrita en la dirección.</p>
-        <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">{base}</p>
-        <div className="flex flex-wrap gap-2">
-          <Copiar texto={base} etiqueta="Copiar dirección" />
-          <Copiar texto={nueva.llave} etiqueta="Copiar llave" principal />
-        </div>
+        <h3 className="font-medium">1. Copia la dirección del conector</h3>
+        <p className="text-muted-foreground">Sirve para Claude y para cualquier agente que pida una sola dirección. Ya lleva la llave adentro: es larga y termina en un código que empieza por «zk_».</p>
+        <Copiar texto={nueva.direccion} etiqueta="Copiar dirección del conector" principal />
+        <p className="flex items-start gap-2 text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>{nueva.permiso === "crear" ? "Con esta forma conviene una llave «Solo consultar». " : ""}Si llegas a compartir la dirección, apaga la llave.</span></p>
       </div>
       <details className="group rounded-lg border bg-background p-3 text-sm" open={ver} onToggle={(e) => setVer((e.target as HTMLDetailsElement).open)}>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-primary hover:underline sm:min-h-0">
-          Mi agente solo acepta una dirección (Claude, por ejemplo) <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+          Mi agente tiene una casilla aparte para la llave (más seguro) <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
         </summary>
         <div className="mt-2 space-y-2">
-          <p className="flex items-start gap-2 text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>Esta dirección lleva la llave adentro. {nueva.permiso === "crear" ? "Para esta forma conviene una llave «Solo consultar». " : ""}Si llegas a compartir la dirección, apaga la llave.</span></p>
-          <Copiar texto={nueva.direccion} etiqueta="Copiar dirección con llave" />
+          <p className="text-muted-foreground">Solo si tu agente pide la dirección y la llave por separado (cabecera «Authorization: Bearer»). Claude no la tiene: si pegas esta dirección sola, dirá «Problema de conexión».</p>
+          <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">{base}</p>
+          <div className="flex flex-wrap gap-2">
+            <Copiar texto={base} etiqueta="Copiar dirección sin llave" />
+            <Copiar texto={nueva.llave} etiqueta="Copiar llave" />
+          </div>
         </div>
       </details>
       <ol className="list-decimal space-y-1.5 pl-5 text-sm">
-        <li>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
-        <li>Pega lo que copiaste, ponle de nombre «zamorApp» y guarda.</li>
+        <li value={2}>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
+        <li>Pega la dirección, ponle de nombre «zamorApp» y guarda.</li>
         <li>Pídele al agente: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.</li>
       </ol>
       <p className="text-xs text-muted-foreground">Vence el {soloFecha(nueva.vence)}. Todo lo que haga queda en el registro de abajo.</p>
@@ -222,6 +223,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
       </div>
       {error ? <p role="alert" className="rounded-md border border-alerta/40 bg-alerta/5 px-3 py-2 text-sm text-alerta-texto">{error}</p> : null}
       {!visibles.length ? <p className="text-sm text-muted-foreground">No hay llaves encendidas.</p> : null}
+      {verTodas && apagadas > 0 ? <p className="text-xs text-muted-foreground">Las apagadas o vencidas se borran solas: al día siguiente si nunca se usaron, a los 7 días si se usaron. Su registro se guarda un año.</p> : null}
       <ul className="space-y-2">
         {visibles.map((l) => {
           const estado = l.encendida ? "Encendida" : l.revocada_en ? "Apagada" : "Vencida";
@@ -243,6 +245,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
                   <Button variant="outline" className="h-11 sm:h-9" onClick={() => { setError(""); setPorApagar(l.id); }}><Power /> Apagar</Button>
                 ) : null}
               </div>
+              {l.encendida && l.permiso === "crear" ? <CasillaDocumentos llave={l} /> : null}
               {l.encendida ? <CasillaVigilancia llave={l} /> : null}
               {porApagar === l.id ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
@@ -362,6 +365,35 @@ function CasillaVigilancia({ llave }: { llave: Llave }) {
           <span className="flex items-center gap-2 text-sm font-medium">Vigilancia y reportes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
           <span className="block text-sm text-muted-foreground">
             Lee los totales de la vigilancia, sin nombres ni cédulas: las causas (CIE-10) van agrupadas, solo con 3 casos o más y nunca de salud mental, VIH ni embarazo. Propone programas, ajustes de la empresa y el borrador del informe. Tú lo apruebas en Reportes › Propuestas del agente.
+          </span>
+        </span>
+      </label>
+      {error ? <p role="alert" className="mt-2 text-sm text-alerta-texto">{error}</p> : null}
+    </div>
+  );
+}
+
+// Casilla de cada llave que crea: el agente deja BORRADORES de récipe u orden de exámenes (tú los emites, firmas y envías)
+function CasillaDocumentos({ llave }: { llave: Llave }) {
+  const [error, setError] = useState("");
+  const [ocupado, iniciar] = useTransition();
+  const router = useRouter();
+  const sinInternet = useSinInternet();
+  const si = Boolean(llave.documentos);
+  const cambiar = () => iniciar(async () => {
+    setError("");
+    const r = await cambiarDocumentos(llave.id, !si);
+    if (!r.ok) setError(r.mensaje); else router.refresh();
+  });
+  return (
+    <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 sm:min-h-0">
+        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={si} disabled={ocupado || sinInternet} onChange={cambiar}
+          data-accion="casilla-documentos" />
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-sm font-medium">Prepara récipes y órdenes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
+          <span className="block text-sm text-muted-foreground">
+            Deja borradores de récipe u orden de exámenes con lo que le dictes. Tú los revisas en «Borradores del agente», los emites con tu firma y sello, y los envías tú.
           </span>
         </span>
       </label>

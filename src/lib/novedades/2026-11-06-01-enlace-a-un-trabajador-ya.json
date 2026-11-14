@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-06",
+  "tema": "enlace-paciente",
+  "texto": "Enlace a un trabajador ya registrado: en su ficha, «Enviar enlace». Si su ficha está completa no escribe nada y recibe sus documentos llenos; si falta algo, solo se le pide eso. En «Enlaces enviados» ves si lo abrió, si envió sus datos y si descargó, con fecha y hora, y te avisa la campana. Al crear cualquier enlace puedes desmarcar exámenes del perfil solo para esa orden"
+}
