@@ -35,7 +35,7 @@ export function ListaPropuestas({ pendientes, resueltas, abierta, secciones, ana
         <section className="flex items-start gap-3 rounded-xl border bg-muted/30 p-4">
           <Bot className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="text-sm">
-            <p className="font-medium">No hay propuestas por revisar.</p>
+            <p className="font-medium">Tu agente no tiene propuestas por revisar.</p>
             <p className="text-muted-foreground">Cuando tu agente proponga un programa, un ajuste o un borrador del informe, aparece aquí. La llave necesita la casilla «Vigilancia y reportes» (Configuración › Puerta para agentes).</p>
           </div>
         </section>
@@ -211,9 +211,9 @@ function Informe({ p, secciones, analisis }: { p: Propuesta; secciones: Par[]; a
               <h3 className="text-sm font-medium">{i.titulo}</h3>
               <div role="radiogroup" aria-label={`Qué texto queda en ${i.titulo}`} className="inline-flex rounded-md border p-0.5 text-sm">
                 <button type="button" role="radio" aria-checked={si} onClick={() => setUsar({ ...usar, [k]: true })}
-                  className={cn("min-h-9 rounded px-3", si ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>Usar el del agente</button>
+                  className={cn("min-h-9 rounded px-3 max-sm:min-h-11", si ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>Usar el del agente</button>
                 <button type="button" role="radio" aria-checked={!si} onClick={() => setUsar({ ...usar, [k]: false })}
-                  className={cn("min-h-9 rounded px-3", !si ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>Dejar el mío</button>
+                  className={cn("min-h-9 rounded px-3 max-sm:min-h-11", !si ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>Dejar el mío</button>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">

@@ -361,7 +361,7 @@ function CasillaVigilancia({ llave }: { llave: Llave }) {
         <span className="min-w-0">
           <span className="flex items-center gap-2 text-sm font-medium">Vigilancia y reportes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
           <span className="block text-sm text-muted-foreground">
-            Lee los totales de la vigilancia, sin nombres, cédulas ni casos. Propone programas, ajustes de la empresa y el borrador del informe. Tú lo apruebas en Reportes › Propuestas del agente.
+            Lee los totales de la vigilancia, sin nombres ni cédulas: las causas (CIE-10) van agrupadas, solo con 3 casos o más y nunca de salud mental, VIH ni embarazo. Propone programas, ajustes de la empresa y el borrador del informe. Tú lo apruebas en Reportes › Propuestas del agente.
           </span>
         </span>
       </label>

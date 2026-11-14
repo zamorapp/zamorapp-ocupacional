@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,9 +103,23 @@ function Formulario({ form, setForm, dependencias, puestos, ocupado, error, onGu
         {dependencias.length + puestos.length === 0 ? (
           <p className="text-sm text-muted-foreground">La empresa no tiene dependencias ni puestos todavía: cubrirá a todos.</p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {dependencias.map((d) => <Ficha key={d.id} si={form.dependencia_ids.includes(d.id)} onClick={() => alternar("dependencia_ids", d.id)}>{d.nombre}</Ficha>)}
-            {puestos.map((p) => <Ficha key={p.id} si={form.puesto_ids.includes(p.id)} onClick={() => alternar("puesto_ids", p.id)} puesto>{p.nombre}</Ficha>)}
+          <div className="space-y-2">
+            {dependencias.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Dependencias</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {dependencias.map((d) => <Ficha key={d.id} si={form.dependencia_ids.includes(d.id)} onClick={() => alternar("dependencia_ids", d.id)}>{d.nombre}</Ficha>)}
+                </div>
+              </div>
+            )}
+            {puestos.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Cargos</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {puestos.map((p) => <Ficha key={p.id} si={form.puesto_ids.includes(p.id)} onClick={() => alternar("puesto_ids", p.id)}>{p.nombre}</Ficha>)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Campo>
@@ -166,12 +180,12 @@ function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: string
   );
 }
 
-function Ficha({ si, puesto, onClick, children }: { si: boolean; puesto?: boolean; onClick: () => void; children: React.ReactNode }) {
+function Ficha({ si, onClick, children }: { si: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" aria-pressed={si} onClick={onClick}
-      className={cn("rounded-full border px-3 py-1 text-xs transition-colors",
-        si ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted",
-        puesto && !si && "border-dashed")}>
+      className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors max-sm:min-h-11",
+        si ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}>
+      {si && <Check className="size-3.5" aria-hidden />}
       {children}
     </button>
   );

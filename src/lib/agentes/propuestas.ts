@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { Sesion } from "@/lib/sesion";
+import { ROLES_PROPUESTAS } from "@/lib/agentes/roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 // Bandeja de propuestas de agentes (public.agentes_propuestas, 20261030960000): lo que un agente PROPONE y el
@@ -33,8 +34,8 @@ export const SECCIONES_PROPUESTA: [string, string][] = [
   ["medidas_control", "Medidas de control en la fuente, el ambiente y los trabajadores"],
 ];
 
-// Mismo criterio que la regla RLS: servicio médico (gerente médico, médico, enfermería) o administrador
-export const revisaPropuestas = (s: Sesion) => !s.demo && Boolean(s.orgId) && (s.clinico || s.rol === "administrador");
+// Mismo criterio que la regla RLS: administrador, gerente médico y médico. Enfermería no (solo edita lo suyo)
+export const revisaPropuestas = (s: Sesion) => !s.demo && Boolean(s.orgId) && ROLES_PROPUESTAS.includes(s.rol ?? "");
 
 export async function contarPropuestas(empresaId?: string | null): Promise<number> {
   if (!supabaseConfigurado) return 0;

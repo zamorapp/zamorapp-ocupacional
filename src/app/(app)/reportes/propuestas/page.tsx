@@ -18,11 +18,11 @@ export default async function Propuestas({ searchParams }: { searchParams: Promi
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Propuestas del agente</h1>
         <p className="text-muted-foreground">
-          Lo que tu agente preparó por la puerta para agentes. Nada cambia hasta que lo apruebas. Si no lo revisas, se borra solo a los 30 días.
+          Lo que te propone tu agente. Nada cambia hasta que lo apruebes. Si no lo revisas, se borra solo a los 30 días.
         </p>
       </div>
       {!puede ? (
-        <p className="rounded-lg border bg-muted/40 p-4 text-sm">Las propuestas del agente las revisa el servicio médico o el administrador.</p>
+        <p className="rounded-lg border bg-muted/40 p-4 text-sm">Las propuestas del agente las revisa el médico o el administrador.</p>
       ) : (
         <ListaPropuestas pendientes={pendientes} resueltas={resueltas} abierta={q.id ?? null}
           secciones={SECCIONES_PROPUESTA} analisis={SECCIONES_ANALISIS.map(([k, t]) => [k, t] as [string, string])} />

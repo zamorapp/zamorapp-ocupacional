@@ -8,6 +8,7 @@ import { claveAvisos, pushConfigurado } from "@/lib/push";
 
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas } from "@/lib/fecha";
+import { ROLES_PROGRAMAS } from "@/lib/agentes/roles";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -144,7 +145,7 @@ const corto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().sli
 export async function guardarPrograma(empresaId: string, p: ProgramaEntrada): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
-  if (!(sesion.clinico || ["administrador", "coordinador_sst"].includes(sesion.rol ?? ""))) return { ok: false, mensaje: "Tu rol no permite editar programas de vigilancia." };
+  if (!ROLES_PROGRAMAS.includes(sesion.rol ?? "")) return { ok: false, mensaje: "Tu rol no permite editar programas de vigilancia." };
   if (!UUID.test(empresaId) || (p.id && !UUID.test(p.id))) return { ok: false, mensaje: "Datos no válidos." };
   const nombre = corto(p.nombre, 120);
   if (nombre.length < 3) return { ok: false, mensaje: "Escribe el nombre del programa (3 letras o más)." };
