@@ -169,7 +169,9 @@ export function ordenarDictado(texto: string, opciones: {
       d.textos.enfermedadActual = sumar(d.textos.enfermedadActual, `Antecedentes: ${limpio}`);
     } else if (t.destino === "signos" || t.destino === "funcional" || t.destino === "fisico") {
       // Lo dicho tras «signos vitales» ya se leyó como números; lo general del examen va a la enfermedad actual
-      if (t.destino !== "signos" && !ES_NORMAL.test(soloLetras(limpio))) d.textos.enfermedadActual = sumar(d.textos.enfermedadActual, limpio);
+      // Va marcado para que el médico lo pase a la región que corresponda (no hay campo libre del examen)
+      if (t.destino !== "signos" && !ES_NORMAL.test(soloLetras(limpio)))
+        d.textos.enfermedadActual = sumar(d.textos.enfermedadActual, `${t.destino === "fisico" ? "Examen físico" : "Examen funcional"}: ${limpio}`);
       if (t.destino !== "signos" && ES_NORMAL.test(soloLetras(limpio)))
         for (const f of opciones[t.destino]) if (f.normal && !d[t.destino][f.clave]) d[t.destino][f.clave] = f.normal;
     } else {

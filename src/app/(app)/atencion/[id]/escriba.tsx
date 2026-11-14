@@ -281,17 +281,20 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             {/* Micrófono */}
             <div className="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
+              <span className="relative grid shrink-0 place-items-center">
+              {grabando && <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-alerta/40 motion-reduce:hidden" />}
               <button
                 type="button"
                 onClick={alternar}
                 aria-label={grabando ? "Detener" : conversacion ? "Empezar a grabar" : "Empezar a dictar"}
                 className={cn(
-                  "grid size-14 shrink-0 place-items-center rounded-full shadow-sm transition",
-                  grabando ? "animate-pulse bg-alerta text-white motion-reduce:animate-none" : "bg-primary text-primary-foreground hover:bg-primary/90",
+                  "relative grid size-14 shrink-0 place-items-center rounded-full shadow-sm transition",
+                  grabando ? "bg-alerta text-white" : "bg-primary text-primary-foreground hover:bg-primary/90",
                 )}
               >
                 {grabando ? <Square className="size-5 fill-current" /> : <Mic className="size-6" />}
               </button>
+              </span>
               <div className="min-w-0 flex-1 text-sm">
                 <p className="font-medium">
                   {windows ? "Toca el micrófono y habla. Windows escribe abajo. Para parar: Win + H"

@@ -111,3 +111,8 @@ test("la conversación se ubica sola", () => {
 test("una frase que ya dice su sección no se cambia", () => {
   assert.equal(etiquetarConversacion("Examen físico abdomen normal"), "Examen físico abdomen normal");
 });
+
+test("el examen sin región queda marcado en la enfermedad actual", () => {
+  const d = ordenarDictado(etiquetarConversacion("Tengo dolor en la muñeca derecha. Se observa Phalen positivo."), opciones);
+  assert.match(d.textos.enfermedadActual, /Examen físico: Se observa Phalen positivo/);
+});
