@@ -41,6 +41,14 @@ do $$ begin
   raise notice 'método desconocido: FALLA';
 exception when check_violation then null; end $$;
 
+-- creado_por no se falsea
+insert into public.cobro_pagos (id,org_id,cobro_id,metodo,monto_usd,creado_por) values
+ ('24800000-0000-0000-0000-0000000000f1','10000000-0000-0000-0000-000000000001','24800000-0000-0000-0000-0000000000e1','zelle',1,'00000000-0000-0000-0000-0000000000a1');
+select 'el autor del abono es quien lo registra (debe 1): ' || count(*) from public.cobro_pagos where id='24800000-0000-0000-0000-0000000000f1' and creado_por='24800000-0000-0000-0000-0000000000c1';
+update public.cobro_pagos set creado_por='00000000-0000-0000-0000-0000000000a1' where id='24800000-0000-0000-0000-0000000000f1';
+select 'y no se cambia después (debe 1): ' || count(*) from public.cobro_pagos where id='24800000-0000-0000-0000-0000000000f1' and creado_por='24800000-0000-0000-0000-0000000000c1';
+delete from public.cobro_pagos where id='24800000-0000-0000-0000-0000000000f1';
+
 -- 2. El administrador ve y abona la nota de B; recepción de A no ve ese abono
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
 insert into public.cobro_pagos (org_id,cobro_id,metodo,referencia,monto_usd) values
@@ -63,9 +71,19 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','24800000-0000-0000-0000-0000000000c1',false) \g /dev/null
 delete from public.cobro_pagos where cobro_id='24800000-0000-0000-0000-0000000000e1';
 select 'recepción borra el abono de una nota pagada (debe 0): ' || count(*) from public.cobro_pagos where cobro_id='24800000-0000-0000-0000-0000000000e1';
+-- En una nota anulada el abono se ve pero no se cambia ni se borra
+reset role;
+insert into public.cobro_pagos (id,org_id,cobro_id,metodo,monto_usd) values
+ ('24800000-0000-0000-0000-0000000000f2','10000000-0000-0000-0000-000000000001','24800000-0000-0000-0000-0000000000e1','zelle',5);
+update public.cobros set estado='anulada' where id='24800000-0000-0000-0000-0000000000e1';
+set role authenticated;
+select set_config('request.jwt.claim.sub','24800000-0000-0000-0000-0000000000c1',false) \g /dev/null
+update public.cobro_pagos set monto_usd=99 where id='24800000-0000-0000-0000-0000000000f2';
+delete from public.cobro_pagos where id='24800000-0000-0000-0000-0000000000f2';
+select 'en nota anulada el abono queda intacto (debe 1): ' || count(*) from public.cobro_pagos where id='24800000-0000-0000-0000-0000000000f2' and monto_usd=5;
 reset role;
 select 'la tabla se replica en el escritorio (debe 1): ' || count(*) from sync.tablas where nombre='public.cobro_pagos' and subible;
-select 'el alta y el borrado del abono quedan en la bitácora (debe 1): ' || (count(*) >= 2)::int from public.bitacora where tabla='cobro_pagos';
+select 'el alta y el borrado del abono quedan en la bitácora (debe 1): ' || (count(*) >= 2)::int from public.bitacora where tabla='public.cobro_pagos';
 select 'cada cambio queda anotado para el escritorio (debe 1): ' || (count(*) >= 3)::int from sync.registro where tabla='public.cobro_pagos';
 
 -- 5. Sin sesión, nada

@@ -17,14 +17,44 @@ create table if not exists public.cobro_pagos (
 create index if not exists cobro_pagos_cobro on public.cobro_pagos (cobro_id, fecha);
 
 alter table public.cobro_pagos enable row level security;
--- Quien factura (administrador, gerente médico, recepción) y ve la nota; solo en notas emitidas o pagadas
+-- Quien factura (administrador, gerente médico, recepción) y ve la nota. Ver: en cualquier nota suya; registrar,
+-- cambiar o borrar: solo en notas emitidas o pagadas (Analizar, 14-nov)
 drop policy if exists cobro_pagos_todo on public.cobro_pagos;
-create policy cobro_pagos_todo on public.cobro_pagos for all
+drop policy if exists cobro_pagos_ver on public.cobro_pagos;
+create policy cobro_pagos_ver on public.cobro_pagos for select
   using (public.puede_facturar(org_id)
-         and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id))
+         and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id));
+drop policy if exists cobro_pagos_crear on public.cobro_pagos;
+create policy cobro_pagos_crear on public.cobro_pagos for insert
   with check (public.puede_facturar(org_id)
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
                      and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
+drop policy if exists cobro_pagos_cambiar on public.cobro_pagos;
+create policy cobro_pagos_cambiar on public.cobro_pagos for update
+  using (public.puede_facturar(org_id)
+         and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
+                     and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')))
+  with check (public.puede_facturar(org_id)
+         and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
+                     and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
+drop policy if exists cobro_pagos_borrar on public.cobro_pagos;
+create policy cobro_pagos_borrar on public.cobro_pagos for delete
+  using (public.puede_facturar(org_id)
+         and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
+                     and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
+
+-- Quién anotó el abono no se puede falsear: con sesión, siempre quien lo registra; al cambiarlo, el original
+create or replace function public.cobro_pagos_autor() returns trigger language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    if auth.uid() is not null then new.creado_por := auth.uid(); end if;
+  else
+    new.creado_por := old.creado_por;
+  end if;
+  return new;
+end $$;
+drop trigger if exists autor on public.cobro_pagos;
+create trigger autor before insert or update on public.cobro_pagos for each row execute function public.cobro_pagos_autor();
 grant select, insert, update, delete on public.cobro_pagos to authenticated;
 
 -- Réplica en el escritorio, igual que cobros y cobro_items

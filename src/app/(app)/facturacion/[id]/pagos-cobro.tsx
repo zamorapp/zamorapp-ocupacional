@@ -71,7 +71,7 @@ export function PagosCobro({ c, editable, tasas, alCambiar }: { c: Cobro; editab
               {p.tasaBcv && <span className="block text-xs text-muted-foreground tabular-nums">{bs(p.montoUsd * p.tasaBcv)}</span>}
             </span>
             {editable ? (
-              <button type="button" aria-label="Borrar este abono" className="text-muted-foreground hover:text-destructive" disabled={ocupado}
+              <button type="button" aria-label="Borrar este abono" className="grid size-11 place-items-center rounded-md text-muted-foreground hover:text-destructive sm:size-8" disabled={ocupado}
                 onClick={async () => (await confirmar({ titulo: "¿Borrar este abono?", texto: s.cubierta ? "La nota vuelve a quedar pendiente de pago." : "Deja de contar como pagado.", accion: "Borrar", peligro: true })) && iniciar(async () => tras(await eliminarPago(p.id, c.id)))}>
                 <Trash2 className="size-4" />
               </button>
@@ -101,15 +101,15 @@ export function PagosCobro({ c, editable, tasas, alCambiar }: { c: Cobro; editab
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <Label className="mb-1.5">Tasa BCV del día del pago</Label>
-                  <Input type="number" step="0.0001" value={tasa} placeholder={tasaDelDia ? num(tasaDelDia.tasa, 4) : "Se toma la del BCV"} onChange={(e) => setTasa(e.target.value)} />
-                  {tasaDelDia && !tasa && <p className="mt-1 text-xs text-muted-foreground">BCV del {f(tasaDelDia.fecha)}.</p>}
+                  <Input type="number" step="0.0001" value={tasa} placeholder="Vacía: la del BCV" onChange={(e) => setTasa(e.target.value)} />
+                  {!tasa && <p className="mt-1 text-xs text-muted-foreground">{tasaDelDia ? `Vacía: se usa la del BCV del ${f(tasaDelDia.fecha)} (${num(tasaDelDia.tasa, 4)}).` : "Vacía: se usa la del BCV del día del pago."}</p>}
                 </div>
                 {tasaUsada && montoN > 0 && <div className="flex items-end pb-2 text-sm">Recibes <b className="ml-1 tabular-nums">{bs(montoN * tasaUsada)}</b></div>}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
               {aviso && !aviso.ok && <span className="text-sm text-destructive">{aviso.mensaje}</span>}
-              <div className="ml-auto flex gap-2">
+              <div className="ml-auto flex gap-2 max-sm:w-full max-sm:flex-col-reverse max-sm:[&>*]:w-full">
                 <Button variant="ghost" disabled={ocupado} onClick={() => setAbierto(false)}><X /> Cancelar</Button>
                 <Button disabled={ocupado || !metodo || !(montoN > 0)} onClick={guardar}>{ocupado ? <Loader2 className="animate-spin" /> : <Banknote />} Guardar pago</Button>
               </div>
