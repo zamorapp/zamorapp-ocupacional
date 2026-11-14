@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Evento } from "@/lib/eventos-tipos";
+import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 type Fila = Record<string, unknown> & {
@@ -68,10 +69,16 @@ function aEvento(f: Fila): Evento {
 
 const COLUMNAS = "*, trabajadores(nombres, apellidos, cedula), empresas(razon_social)";
 
+// RR. HH. no lee la tabla (regla eventos_sin_rrhh): lee la vista sin diagnóstico, CIE-10, incapacidad ni discapacidad.
+// Lo que falta en la vista llega vacío a aEvento y la pantalla lo muestra como «lo completa el servicio médico».
+async function tabla(): Promise<"eventos" | "eventos_empresa"> {
+  return (await obtenerSesion()).rol === "gerente_empresa" ? "eventos_empresa" : "eventos";
+}
+
 export async function listarEventos(opciones: { abiertos?: boolean } = {}): Promise<Evento[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  let q = supabase.from("eventos").select(COLUMNAS).order("fecha_hora", { ascending: false }).limit(500);
+  let q = supabase.from(await tabla()).select(COLUMNAS).order("fecha_hora", { ascending: false }).limit(500);
   const empresa = await empresaActivaId();
   if (empresa) q = q.eq("empresa_id", empresa);
   if (opciones.abiertos) q = q.neq("estado", "cerrado");
@@ -83,7 +90,7 @@ export async function listarEventos(opciones: { abiertos?: boolean } = {}): Prom
 export async function obtenerEvento(id: string): Promise<Evento | null> {
   if (!supabaseConfigurado || !/^[0-9a-f-]{36}$/i.test(id)) return null;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("eventos").select(COLUMNAS).eq("id", id).maybeSingle();
+  const { data } = await supabase.from(await tabla()).select(COLUMNAS).eq("id", id).maybeSingle();
   return data ? aEvento(data as unknown as Fila) : null;
 }
 
@@ -91,7 +98,7 @@ export async function obtenerEvento(id: string): Promise<Evento | null> {
 export async function eventosDeEmpresa(empresaId: string, desde: string, hasta: string): Promise<Evento[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.from("eventos").select(COLUMNAS).eq("empresa_id", empresaId)
+  const { data, error } = await supabase.from(await tabla()).select(COLUMNAS).eq("empresa_id", empresaId)
     .gte("fecha_hora", `${desde}T00:00:00-04:00`).lte("fecha_hora", `${hasta}T23:59:59-04:00`).order("fecha_hora").limit(1000);
   if (error) throw error;
   return ((data ?? []) as unknown as Fila[]).map(aEvento);
