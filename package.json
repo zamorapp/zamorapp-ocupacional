@@ -10,7 +10,7 @@
     "revisar-diseno": "node scripts/revisar-diseno.mjs"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.7.5",
+    "@huggingface/transformers": "3.7.5",
     "@sparticuz/chromium": "153.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",

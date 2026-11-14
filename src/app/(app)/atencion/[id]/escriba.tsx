@@ -75,7 +75,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const cancelarLectura = () => { worker.current?.terminate(); worker.current = null; setLectura(null); };
   const abrirAudio = async (archivo: File) => {
     setErrorAudio("");
-    if (grabando) alternar();
+    if (dictando) alternarDictado();
     setLectura({ nombre: archivo.name, fase: "lectura", avance: 0 });
     let audio: Float32Array;
     try {
@@ -109,12 +109,70 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   };
 
   // En el escritorio dicta Windows (Win + H) escribiendo en «Lo que escuché», que entonces queda siempre a la vista
-  const { soportado, grabando, error, aviso, windows, alternar } = useDictado("escriba-consulta", (t) => {
+  const { soportado, grabando: dictando, error: errorDictado, aviso: avisoDictado, windows: windowsDictado, alternar: alternarDictado } = useDictado("escriba-consulta", (t) => {
     // En conversación cada frase va en su renglón: así se ubica sola
     const nuevo = textoRef.current ? `${textoRef.current.trimEnd()}${conversacionRef.current ? "\n" : " "}${t.trim()}` : t.trim();
     textoRef.current = nuevo;
     setTexto(nuevo);
   }, true, "escriba-texto");
+
+  // Conversación por micrófono (Analizar, 14-nov): se GRABA en esta PC y al terminar se lee con Whisper, igual que
+  // «Abrir audio». El audio nunca sale del equipo (el dictado en vivo, en cambio, lo procesa Google o Microsoft).
+  const [grabandoLocal, setGrabandoLocal] = useState(false);
+  const [segundos, setSegundos] = useState(0);
+  const [errorMic, setErrorMic] = useState("");
+  const [puedeGrabar, setPuedeGrabar] = useState(false);
+  useEffect(() => setPuedeGrabar(Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== "undefined"), []);
+  const grabadora = useRef<{ rec: MediaRecorder; reloj: number } | null>(null);
+  const permisoPedido = useRef(false);
+  // leer=false: se descarta lo grabado (cerrar el panel, salir de la consulta)
+  const detenerGrabacion = (leer = true) => {
+    const g = grabadora.current;
+    if (!g) return;
+    window.clearInterval(g.reloj);
+    if (!leer) g.rec.onstop = () => g.rec.stream.getTracks().forEach((t) => t.stop());
+    g.rec.stop();
+    grabadora.current = null;
+    setGrabandoLocal(false);
+  };
+  useEffect(() => () => detenerGrabacion(false), []);
+  const empezarGrabacion = async () => {
+    setErrorMic("");
+    setErrorAudio("");
+    if (!permisoPedido.current) {
+      const si = await confirmar({ titulo: "¿El paciente aceptó que se grabe la consulta?", texto: "Pídele permiso antes de grabar. El audio se queda en esta PC: se convierte en texto y se descarta.", accion: "Sí, aceptó" });
+      if (!si) return;
+      permisoPedido.current = true;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return setErrorMic("No se pudo abrir el micrófono. Revisa que esté conectado y permitido para zamorApp.");
+    }
+    const rec = new MediaRecorder(stream);
+    const partes: Blob[] = [];
+    rec.ondataavailable = (e) => { if (e.data.size) partes.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(partes, { type: rec.mimeType || "audio/webm" });
+      if (blob.size) void abrirAudio(new File([blob], "grabación de la consulta", { type: blob.type }));
+    };
+    rec.start(1000);
+    setSegundos(0);
+    // Contador de la grabación (solo duración; ninguna fecha depende de él). A los 90 min se detiene sola.
+    const reloj = window.setInterval(() => setSegundos((x) => x + 1), 1000);
+    grabadora.current = { rec, reloj };
+    setGrabandoLocal(true);
+  };
+
+  useEffect(() => { if (segundos >= 90 * 60) detenerGrabacion(); }, [segundos]);
+  const grabando = conversacion ? grabandoLocal : dictando;
+  const alternar = conversacion ? () => (grabandoLocal ? detenerGrabacion() : void empezarGrabacion()) : alternarDictado;
+  const windows = !conversacion && windowsDictado;
+  const error = conversacion ? errorMic : errorDictado;
+  const aviso = conversacion ? "" : avisoDictado;
+  const reloj = `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
 
   const dictado = useMemo(
     () => ordenarDictado(conversacion ? etiquetarConversacion(texto) : texto, { funcional: d.examenFuncional, fisico: d.examenFisico, motivos }),
@@ -145,7 +203,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
   const elegidas = propuestas.filter(marcado);
   const falta = texto ? faltantes(dictado, { fisico: d.examenFisico, preventivo }) : [];
 
-  const cerrar = () => { if (grabando) alternar(); cancelarLectura(); setAbierto(false); };
+  const cerrar = () => { if (dictando) alternarDictado(); detenerGrabacion(false); cancelarLectura(); setAbierto(false); };
   const borrar = async () => {
     if (await confirmar({ titulo: "¿Borrar todo lo dictado?", texto: "Se pierde lo que escuché en esta consulta. Lo que ya pasaste a la consulta no cambia.", accion: "Borrar", peligro: true })) empezarDeNuevo();
   };
@@ -168,12 +226,13 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
     setAntes({ antes: d, despues });
     try { localStorage.setItem(CLAVE_USADO, "1"); } catch {}
     onCambiar(despues);
-    if (grabando) alternar();
+    if (dictando) alternarDictado();
+    detenerGrabacion(false);
     setAbierto(false);
     empezarDeNuevo();
   };
 
-  if (!soportado) return null;
+  if (!soportado && !puedeGrabar) return null;
 
   return (
     <>
@@ -198,13 +257,13 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
             <SheetTitle>{conversacion ? "Grabar la conversación" : "Dictar la consulta"}</SheetTitle>
             <SheetDescription>
               {conversacion
-                ? "Conversa con el paciente como siempre: cada frase se ubica sola en su casilla. Revisa antes de pasar. No se guarda el audio; lo procesa Google o Microsoft: necesita internet."
-                : "Habla de corrido y di el nombre de cada parte al empezarla. El audio lo procesa Google o Microsoft: necesita internet."}
+                ? "Conversa con el paciente como siempre o abre una grabación: cada frase se ubica sola en su casilla. Revisa antes de pasar."
+                : "Habla de corrido y di el nombre de cada parte al empezarla."}
             </SheetDescription>
             <div role="radiogroup" aria-label="Cómo dictar" className="mt-1 inline-flex w-fit rounded-lg border bg-muted/40 p-0.5 text-sm">
               {([[true, "Conversación"], [false, "Por secciones"]] as const).map(([c, n]) => (
                 <button key={n} type="button" role="radio" aria-checked={conversacion === c} onClick={() => elegirModo(c)}
-                  className={cn("rounded-md px-3 py-1", conversacion === c ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  className={cn("rounded-md px-3 py-1 max-sm:h-11", conversacion === c ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                   {n}
                 </button>
               ))}
@@ -236,14 +295,19 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
               <div className="min-w-0 flex-1 text-sm">
                 <p className="font-medium">
                   {windows ? "Toca el micrófono y habla. Windows escribe abajo. Para parar: Win + H"
-                    : grabando ? "Escuchando… toca para pausar" : texto ? `En pausa. Toca para seguir ${conversacion ? "grabando" : "dictando"}` : "Toca para empezar"}
+                    : conversacion
+                      ? grabando ? `Grabando ${reloj}… toca para terminar y leer` : texto ? "Toca para grabar otra parte" : "Toca para empezar a grabar"
+                      : grabando ? "Escuchando… toca para pausar" : texto ? "En pausa. Toca para seguir dictando" : "Toca para empezar"}
                 </p>
                 <p aria-live="polite" className={cn("flex items-center gap-1 text-xs", error ? "text-alerta-texto" : "text-muted-foreground")}>
                   {error || (aviso && <><Mic aria-hidden className="size-3.5 shrink-0" /> {aviso}</>) || (texto ? `${texto.split(/\s+/).length} palabras` : conversacion ? "Ej.: «me duele la espalda desde hace tres días… tensión 130 sobre 85… le indico diclofenac…»" : "Ej.: «motivo evaluación preempleo… examen físico abdomen normal… aptitud apto»")}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  {conversacion ? "Se graba y se lee en esta PC: el audio no sale. Pide permiso al paciente." : "Usa Google o Microsoft: necesita internet. No se guarda el audio."}
+                </p>
                 <AyudaMicrofono error={error} />
               </div>
-              {texto && !grabando && <Button type="button" size="sm" variant="ghost" className="text-alerta-texto hover:text-alerta-texto" onClick={borrar}>Borrar</Button>}
+              {texto && !grabando && !lectura && <Button type="button" size="sm" variant="ghost" className="text-alerta-texto hover:text-alerta-texto" onClick={borrar}>Borrar</Button>}
             </div>
 
             {/* Abrir audio: en conversación, una grabación entra igual que lo dicho por el micrófono */}
@@ -259,7 +323,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                         {lectura.fase === "descarga" ? "Bajando el lector de voz (solo la primera vez)…" : `Leyendo «${lectura.nombre}»…`}
                       </span>
                       <span className="tabular-nums text-muted-foreground">{Math.round(lectura.avance * 100)} %</span>
-                      <Button type="button" size="icon" variant="ghost" className="size-7" aria-label="Cancelar lectura" onClick={cancelarLectura}><X /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="size-11 sm:size-7" aria-label="Cancelar lectura" onClick={cancelarLectura}><X /></Button>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.round(lectura.avance * 100)}%` }} /></div>
                     <p className="text-xs text-muted-foreground">El audio no sale de esta PC. Puedes seguir trabajando; el texto aparece por partes.</p>
@@ -270,7 +334,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                     <FileAudio className="size-5 shrink-0 text-primary" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className="font-medium">Abrir audio</span>
-                      <span className="block text-xs text-muted-foreground">Nota de voz o grabación de la consulta. Se lee en esta PC: el audio no sale.</span>
+                      <span className="block text-xs text-muted-foreground">Nota de voz o grabación de la consulta. Se lee en esta PC, sin internet: el audio no sale.</span>
                     </span>
                   </button>
                 )}
@@ -316,7 +380,7 @@ export function Escriba({ d, motivos, preventivo, etiquetaAptitud, conMotivo, on
                 return (
                   <div key={p.id}>
                     {titulo && <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>}
-                    <div className={cn("flex items-start gap-3 rounded-md border px-3 py-2", !marcado(p) && "opacity-50", p.id === "sin" && "border-dashed")}>
+                    <div className={cn("flex items-start gap-3 rounded-md border px-3 py-2", !marcado(p) && p.id !== "sin" && "opacity-50", p.id === "sin" && "border-dashed", !marcado(p) && p.id === "sin" && "text-muted-foreground")}>
                       <input
                         type="checkbox"
                         aria-label={`Pasar ${p.etiqueta}`}
