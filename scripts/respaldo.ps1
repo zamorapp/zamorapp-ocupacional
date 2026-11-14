@@ -81,9 +81,15 @@ if (Test-Path (Join-Path $raiz ".git")) {
   $despues = (& git -C $raiz rev-parse --short HEAD 2>$null)
   if ($codigoPull -ne 0) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no pude poner al día los scripts del respaldo ($antes): $pull" | Add-Content $registro
+    # Que se vea en el Inicio (respaldo en amarillo) y no solo en este registro que nadie abre
+    $cambiados = (& git -C $raiz status --porcelain --untracked-files=no 2>$null | Select-Object -First 5) -join ", "
+    $motivo = if ($cambiados) { "hay archivos cambiados a mano en la carpeta ($cambiados)" } else { "sin internet o GitHub no respondió" }
+    $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se pusieron al día (versión $antes): $motivo"
   } elseif ($antes -ne $despues) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm') Scripts del respaldo puestos al día: $antes -> $despues" | Add-Content $registro
   }
+} else {
+  $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no están en una copia de GitHub y no se ponen al día solos"
 }
 # La salida de error de node se lee aparte: con ErrorActionPreference=Stop, «2>&1» la convierte en excepción
 $ErrorActionPreference = "Continue"
@@ -109,7 +115,9 @@ Write-Host $archivos
 # Prueba de restauración semanal: el último respaldo se restaura en una base temporal con el PostgreSQL portátil de
 # zamorApp Escritorio (otro puerto, solo 127.0.0.1; no toca la base del programa ni el SAME) y se borra al terminar.
 # Con poca memoria libre se pospone y se intenta en el próximo respaldo. El resultado se ve en el Inicio.
-$marca = Join-Path $carpeta "ultima-restauracion.txt"
+# Archivo nuevo desde el 14-nov: la versión vieja escribía «ultima-restauracion.txt» aun cuando la prueba fallaba y así
+# daba por probada la semana; con otro nombre esa marca vieja ya no cuenta y la prueba se repite hasta salir bien.
+$marca = Join-Path $carpeta "ultima-restauracion-buena.txt"
 $vencida = -not (Test-Path $marca) -or ((Get-Item $marca).LastWriteTime -lt (Get-Date).AddDays(-7))
 if ($vencida) {
   $instalado = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
