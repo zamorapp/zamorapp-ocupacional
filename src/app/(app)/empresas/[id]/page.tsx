@@ -29,6 +29,7 @@ import { revisionDepuracion } from "./depurar-nomina-acciones";
 import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
 import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
 import { programasDeEmpresa } from "@/lib/vigilancia-programas";
+import { ROLES_PROGRAMAS } from "@/lib/agentes/roles";
 import { ProgramasVigilancia } from "./programas";
 
 export const metadata: Metadata = { title: "Empresa" };
@@ -51,9 +52,9 @@ export default async function EmpresaDetalle({ params, searchParams }: { params:
   const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
   const contactosWa = contactos.filter((c) => c.telefono).map((c) => ({ nombre: c.nombre, telefono: c.telefono! }));
   // Revisión de nómina con RR. HH. por enlace: la maneja quien actualiza la nómina (administrador o personal de salud)
-  // Programas de vigilancia: los ve quien ve la empresa; los editan servicio médico, administrador y coordinador SST (misma regla que la RLS)
+  // Programas de vigilancia: los ve quien ve la empresa; los editan administrador, gerente médico, médico y coordinador SST (misma regla que la RLS)
   const programas = sesion.demo ? [] : await programasDeEmpresa(id);
-  const editaProgramas = !sesion.demo && (sesion.clinico || ["administrador", "coordinador_sst"].includes(sesion.rol ?? ""));
+  const editaProgramas = !sesion.demo && ROLES_PROGRAMAS.includes(sesion.rol ?? "");
   const depura = !sesion.demo && Boolean(sesion.orgId) && (sesion.clinico || sesion.rol === "administrador");
   const revision = depura ? await revisionDepuracion(id) : null;
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;

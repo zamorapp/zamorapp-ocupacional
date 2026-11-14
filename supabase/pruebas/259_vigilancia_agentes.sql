@@ -95,8 +95,26 @@ do $$ begin
   raise notice 'RR. HH. no aprueba (debe 1): 0';
 exception when others then raise notice 'RR. HH. no aprueba (debe 1): 1';
 end $$;
+-- Enfermería no ve ni aprueba propuestas, ni edita programas (Cesar: enfermería edita SOLO lo suyo)
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+select 'enfermería no ve las propuestas (debe 0): ' || count(*) from public.agentes_propuestas;
+do $$ begin
+  perform public.aplicar_propuesta((select current_setting('prueba.pp', true))::uuid);
+  raise notice 'enfermería no aprueba (debe 1): 0';
+exception when others then raise notice 'enfermería no aprueba (debe 1): 1';
+end $$;
+do $$ begin
+  insert into public.vigilancia_programas (org_id, empresa_id, nombre) values ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'Hecho por enfermería');
+  raise notice 'enfermería no crea programas (debe 1): 0';
+exception when insufficient_privilege then raise notice 'enfermería no crea programas (debe 1): 1';
+end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 select 'el médico de A ve las de A (debe 4): ' || count(*) from public.agentes_propuestas;
+do $$ begin
+  update public.agentes_propuestas set estado = 'aprobada' where id = (select current_setting('prueba.pp', true))::uuid;
+  raise notice 'aprobar a mano sin aplicar (debe 1): 0';
+exception when insufficient_privilege then raise notice 'aprobar a mano sin aplicar (debe 1): 1';
+end $$;
 do $$ begin
   insert into public.agentes_propuestas (org_id, llave_nombre, tipo, titulo, propuesto) values ('10000000-0000-0000-0000-000000000001', 'x', 'otro', 'Hecha a mano', '{}');
   raise notice 'FALLA: la app insertó una propuesta';
