@@ -48,15 +48,26 @@ const datosOrg = cache(async (id: string) =>
 const datosHistorico = cache(async (id: string) =>
   (await crearClienteServidor()).from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", id).maybeSingle()
     .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null })));
-const datosMedico = cache(async (id: string) => {
-  const supabase = await crearClienteServidor();
-  const [{ data: p }, { data: img }] = await Promise.all([
-    supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", id).maybeSingle(),
-    // Firma y sello: privados, solo para personal clínico (firma_sello)
-    supabase.rpc("firma_sello", { p_usuario: id }).maybeSingle(),
-  ]);
-  return { data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null };
+export type TipoDocumentoFirmado = "consulta" | "indicacion" | "ergonomia" | "riesgos" | "psicosocial" | "puesto";
+type Imagenes = { firma_url: string | null; sello_url: string | null };
+const SIN_IMAGENES: Imagenes = { firma_url: null, sello_url: null };
+// La firma propia se pide una vez por petición (un lote de 150 constancias del mismo médico no la repite)
+const firmaPropia = cache(async (id: string) =>
+  ((await (await crearClienteServidor()).rpc("firma_sello", { p_usuario: id }).maybeSingle()).data as Imagenes | null) ?? SIN_IMAGENES);
+// Firma y sello de quien firmó ESE documento (20261030951000): el firmante siempre; el resto del personal clínico solo
+// si el documento ya está cerrado. La base toma el firmante del propio documento: nadie elige de quién.
+export const firmaDeDocumento = cache(async (firmante: string, tipo: TipoDocumentoFirmado, docId: string): Promise<Imagenes> => {
+  const sesion = await obtenerSesion();
+  if (firmante === sesion.usuarioId) return firmaPropia(firmante);
+  const { data } = await (await crearClienteServidor()).rpc("firma_de_documento", { p_tipo: tipo, p_id: docId }).maybeSingle();
+  return (data as Imagenes | null) ?? SIN_IMAGENES;
 });
+const perfilMedico = cache(async (id: string) =>
+  (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", id).maybeSingle());
+const datosMedico = async (id: string, tipo: TipoDocumentoFirmado, docId: string) => {
+  const [{ data: p }, img] = await Promise.all([perfilMedico(id), firmaDeDocumento(id, tipo, docId)]);
+  return { data: p ? { ...p, ...img } : null };
+};
 const datosMotivo = cache(async (id: string) => (await crearClienteServidor()).from("lista_items").select("nombre, codigo, grupo").eq("id", id).maybeSingle());
 const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo, proyecto").eq("id", id).single());
 const datosDependencia = cache(async (id: string) => (await crearClienteServidor()).from("dependencias").select("nombre").eq("id", id).maybeSingle());
@@ -77,7 +88,7 @@ export async function obtenerDocumento(consultaId: string) {
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
     datosOrg(c.org_id),
     // Consulta importada del SAME atendida por un médico sin cuenta: se muestra su nombre, nunca firma ni sello
-    c.origen && c.medico_historico_id ? datosHistorico(c.medico_historico_id) : c.medico_id ? datosMedico(c.medico_id) : Promise.resolve({ data: null }),
+    c.origen && c.medico_historico_id ? datosHistorico(c.medico_historico_id) : c.medico_id ? datosMedico(c.medico_id, "consulta", consultaId) : Promise.resolve({ data: null }),
     c.motivo_id ? datosMotivo(c.motivo_id) : Promise.resolve({ data: null }),
     datosEmpresa(c.empresa_id),
     c.dependencia_id ? datosDependencia(c.dependencia_id) : Promise.resolve({ data: null }),

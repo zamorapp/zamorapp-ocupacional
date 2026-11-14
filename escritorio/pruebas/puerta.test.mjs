@@ -153,17 +153,21 @@ test("C13: el avance de la copia llega al total y /zamorapp/estado lo da sin nom
 
 test("catálogos al día: la firma y el sello cargados después de la copia y los ajustes de la organización llegan a la PC", { skip: omitir }, async () => {
   // 04-nov-2026: «Firmar y cerrar» en el escritorio imprimía sin firma ni sello. La copia de perfiles no traía firma_url
-  // (columna privada) y los catálogos bajaban solo en la copia completa.
+  // (columna privada) y los catálogos bajaban solo en la copia completa. Desde 20261030951000 solo baja la firma de quien
+  // sincroniza (aquí el administrador a1): la de otro médico no llega a esta PC.
   const marca = `data:image/png;base64,F${Date.now()}`;
   const lema = `Lema ${Date.now()}`;
-  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1, sello_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1, sello_url = $1 where id = '00000000-0000-0000-0000-0000000000a1'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [`${marca}ajena`]);
   await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
   replicaObj.revisarCatalogos();
   await replicaObj.ciclo();
   assert.equal(replicaObj.error, null);
-  const [p] = await enLocal("select firma_url, sello_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+  const [p] = await enLocal("select firma_url, sello_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
   assert.equal(p.firma_url, marca, "la firma llegó a la copia");
   assert.equal(p.sello_url, marca, "el sello llegó a la copia");
+  const [ajena] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+  assert.notEqual(ajena?.firma_url, `${marca}ajena`, "la firma de otro médico no baja a esta PC");
   const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
   assert.equal(o.lema, lema, "los ajustes de la organización llegaron a la copia");
   assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles al día/.test(l)));
@@ -177,7 +181,7 @@ test("catálogos al día: la firma y el sello cargados después de la copia y lo
 test("un catálogo que falla al bajar no frena a los demás ni al ciclo, y se reintenta en el ciclo siguiente", { skip: omitir }, async () => {
   const marca = `data:image/png;base64,R${Date.now()}`;
   const lema = `Reintento ${Date.now()}`;
-  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a1'", [marca]);
   await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
   const rpc = nubeObj.rpc.bind(nubeObj);
   let cortes = 0;
@@ -192,12 +196,12 @@ test("un catálogo que falla al bajar no frena a los demás ni al ciclo, y se re
     assert.equal(cortes, 1);
     const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
     assert.equal(o.lema, lema, "los demás catálogos sí bajaron");
-    const [p1] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    const [p1] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
     assert.notEqual(p1.firma_url, marca, "el que falló quedó como estaba");
     assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles no se pudo bajar \(HTTP 503\)/.test(l)));
     assert.ok(!lineasReplica.some((l) => /corte simulado/.test(l)), "el texto del error no va al registro");
     await replicaObj.ciclo(); // sin revisarCatalogos ni esperar 2 min: el fallo pide reintento
-    const [p2] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    const [p2] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
     assert.equal(p2.firma_url, marca, "en el ciclo siguiente llegó");
   } finally { nubeObj.rpc = rpc; }
 });
