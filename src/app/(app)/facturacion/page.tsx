@@ -154,7 +154,7 @@ export default async function Facturacion({ searchParams }: Props) {
                         <TableCell><Link href={`/facturacion/${c.id}`} className="hover:text-primary">{c.empresa}</Link></TableCell>
                         <TableCell className="text-sm">{tipo === "presupuesto" ? fecha(c.vence) : c.desde ? `${fecha(c.desde)} al ${fecha(c.hasta)}` : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums"><div className="font-medium">{usd(t.total)}</div>{t.totalBs !== null && <div className="text-xs text-muted-foreground">{bs(t.totalBs)}</div>}</TableCell>
-                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span></TableCell>
+                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span>{c.porAgente ? <span className="ml-1.5 rounded-full border border-primary/40 px-2 py-0.5 text-xs text-primary" title={`La armó el agente «${c.porAgente}»`}>Del agente</span> : null}</TableCell>
                       </TableRow>
                     );
                   })}

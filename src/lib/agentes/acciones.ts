@@ -3,7 +3,9 @@
 // ella valida la llave, la organización y cada dato. Una acción que no esté allá no existe aunque se escriba aquí.
 
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema };
+// «rpc»: la función de la base que la atiende (por defecto public.agente). Cada familia nueva va en su propia
+// función (puerta_facturacion, puerta_vigilancia…) para que no se pisen.
+export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema; rpc?: string };
 
 const texto = (description: string) => ({ type: "string", description });
 const id = (description: string) => ({ type: "string", format: "uuid", description });
@@ -72,6 +74,33 @@ export const ACCIONES: AccionAgente[] = [
     descripcion: "Agenda una cita para un trabajador (de hoy a un año). Si ya tiene cita ese día no crea otra ni la cambia.",
     esquema: objeto({ trabajador_id: id("Trabajador"), fecha: fecha("Día de la cita"), hora: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", description: "Hora en 24 horas, HH:MM" },
       motivo_id: id("Motivo de consulta (catalogo, tipo motivos)"), observacion: texto("Nota de la cita"), ensayo: ENSAYO }, ["trabajador_id", "fecha"]) },
+  // ───── Cobros y precios (public.puerta_facturacion, migración 20261030954000): la llave necesita «Cobros y precios» ─────
+  { nombre: "listar_cobros", titulo: "Listar notas de cobro", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Notas de cobro (prefacturas y facturas) con estado, total, Nº de factura y enlace (hasta 100; por defecto los últimos 3 meses).",
+    esquema: objeto({ empresa_id: id("Solo esta empresa"), estado: { type: "string", enum: ["borrador", "emitida", "pagada", "anulada"], description: "Solo este estado" },
+      desde: fecha("Desde"), hasta: fecha("Hasta") }) },
+  { nombre: "atendidos_por_cobrar", titulo: "Atendidos por cobrar", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Pacientes atendidos en un período que aún no están en ninguna nota, agrupados por servicio y empresa, con su precio. Sin nombres ni datos clínicos.",
+    esquema: objeto({ desde: fecha("Desde"), hasta: fecha("Hasta"), empresa_id: id("Solo esta empresa") }, ["desde", "hasta"]) },
+  { nombre: "crear_notas_cobro", titulo: "Crear notas de cobro", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Crea de 1 a 20 notas de cobro EN BORRADOR, una por empresa (sirven de prefactura; la factura es la misma nota cuando el doctor pulsa «Imprimir factura», que le pone el Nº del talonario). Cada nota puede llevar los atendidos del período, un presupuesto, renglones del catálogo o libres, y un descuento SOLO si el doctor lo pidió. Precio de cada servicio: el convenido con la empresa o, si no hay, el del catálogo. Repetir la misma orden el mismo día no duplica.",
+    esquema: objeto({ notas: { type: "array", minItems: 1, maxItems: 20, description: "Una nota por empresa",
+      items: { type: "object", additionalProperties: false, required: ["empresa_id"], properties: {
+        empresa_id: id("Empresa"), desde: fecha("Inicio del período"), hasta: fecha("Fin del período"),
+        atendidos: { type: "boolean", description: "true = incluir los atendidos del período que aún no están en otra nota" },
+        presupuesto_id: id("Copiar los renglones de este presupuesto de la misma empresa"),
+        renglones: { type: "array", maxItems: 30, description: "Renglones adicionales",
+          items: { type: "object", additionalProperties: false, properties: { servicio_id: id("Servicio del catálogo"), descripcion: texto("Descripción (si no hay servicio, o para cambiar su nombre)"),
+            detalle: texto("Detalle que sale debajo"), cantidad: { type: "number", exclusiveMinimum: 0, description: "Cantidad (por defecto 1)" },
+            precio_usd: { type: "number", minimum: 0, description: "Precio unitario en USD (por defecto, el de la empresa o el del servicio)" } } } },
+        descuento: { type: "object", additionalProperties: false, description: "Solo si el doctor lo pidió: porcentaje O monto_usd, y el motivo",
+          properties: { porcentaje: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Porcentaje sobre el total de la nota" },
+            monto_usd: { type: "number", exclusiveMinimum: 0, description: "Monto fijo en USD" }, motivo: texto("Motivo, sale debajo del descuento") } },
+        observacion: texto("Observación de la nota") } } }, ensayo: ENSAYO }, ["notas"]) },
+  { nombre: "proponer_precio", titulo: "Proponer precio", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Propone un precio nuevo para un servicio: el general del catálogo o, con empresa_id, solo para esa empresa. NO cambia nada: el doctor lo aprueba en zamorApp. Úsalo solo cuando el doctor pida cambiar un precio.",
+    esquema: objeto({ servicio_id: id("Servicio (catalogo, tipo servicios)"), precio_usd: { type: "number", minimum: 0, description: "Precio nuevo en USD" },
+      empresa_id: id("Solo para esta empresa (si no, cambia el precio general)"), motivo: texto("Por qué (por ejemplo «pedido del doctor»)"), ensayo: ENSAYO }, ["servicio_id", "precio_usd"]) },
 ];
 
 export const ACCION = new Map(ACCIONES.map((a) => [a.nombre, a]));
@@ -83,6 +112,7 @@ export const INSTRUCCIONES = [
   "No inventes datos (RIF, cédulas, precios, fechas): si falta uno, pregúntalo.",
   "Los nombres de exámenes van tal como te los dan; no traduzcas ni expliques siglas.",
   "Esta puerta no lee ni escribe historias, diagnósticos, firma ni sello, y no borra ni modifica lo que ya existe: eso lo hace el doctor en la aplicación.",
+  "Cobros: las notas quedan en borrador; tú nunca pones el Nº de factura, emites, cobras ni eliges la tasa BCV. Los precios solo se proponen. Descuentos, solo si el doctor los pide.",
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
 ].join("\n");

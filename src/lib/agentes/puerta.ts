@@ -43,7 +43,7 @@ export async function llamarPuerta(llave: string, accion: string, datos: Record<
   if (!url || !anon) return { ok: false, error: "La aplicación no tiene base configurada." };
   if (!ACCION.has(accion)) return { ok: false, error: `Acción desconocida. Las que hay: ${ACCIONES.map((a) => a.nombre).join(", ")}.` };
   try {
-    const r = await fetch(`${url}/rest/v1/rpc/agente`, {
+    const r = await fetch(`${url}/rest/v1/rpc/${ACCION.get(accion)!.rpc ?? "agente"}`, {
       method: "POST",
       headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
       body: JSON.stringify({ p_llave: llave, p_accion: accion, p_datos: datos, p_ensayo: ensayo }),

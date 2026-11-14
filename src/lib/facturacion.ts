@@ -108,6 +108,7 @@ function aCobro(c: FilaCobro): Cobro {
     tipo: ((c.tipo as string | null) ?? "cobro") as Cobro["tipo"],
     vence: (c.vence as string | null) ?? null,
     presupuestoId: (c.presupuesto_id as string | null) ?? null,
+    porAgente: (c.por_agente as string | null) ?? null,
     items: (c.cobro_items ?? [])
       .sort((a, b) => (a.orden as number) - (b.orden as number))
       .map((i) => ({

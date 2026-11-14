@@ -46,3 +46,15 @@ export async function apagarLlave(id: string): Promise<{ ok: boolean; mensaje: s
   revalidatePath("/configuracion/agentes");
   return { ok: true, mensaje: "Llave apagada." };
 }
+
+// Casilla «Cobros y precios» (20261030954000): apagada al crear la llave; la enciende el administrador
+export async function cambiarCobros(id: string, si: boolean): Promise<{ ok: boolean; mensaje: string }> {
+  const o = await organizacion();
+  if ("no" in o) return { ok: false, mensaje: o.no };
+  if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, mensaje: "Llave no válida." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("agentes_llave_cobros" as never, { p_org: o.org, p_llave: id, p_si: si } as never);
+  if (error) return { ok: false, mensaje: explicar(error) };
+  revalidatePath("/configuracion/agentes");
+  return { ok: true, mensaje: si ? "Ya puede armar notas de cobro y proponer precios." : "Ya no arma notas de cobro ni propone precios." };
+}
