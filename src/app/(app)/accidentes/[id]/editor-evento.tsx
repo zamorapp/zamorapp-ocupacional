@@ -46,7 +46,7 @@ function Lista({ valor, items, onChange }: { valor: string; items: Item[]; onCha
   );
 }
 
-export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Record<string, Item[]> }) {
+export function EditorEvento({ inicial, listas, editable = true }: { inicial: Evento; listas: Record<string, Item[]>; editable?: boolean }) {
   const [e, setE] = useState(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -69,6 +69,9 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
   const testigo = (i: number, c: Partial<Testigo>) => set("testigosDetalle", e.testigosDetalle.map((t, j) => (j === i ? { ...t, ...c } : t)));
   const cargo = (i: number, c: Partial<Cargo>) => set("cargos", e.cargos.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const accion = (i: number, c: Partial<Accion>) => set("acciones", e.acciones.map((a, j) => (j === i ? { ...a, ...c } : a)));
+
+  // Quien no lo completa (RR. HH., auditor, recepción, trabajador) lo lee como texto, sin campos ni botones
+  if (!editable) return <VistaEvento e={e} plazos={[declaracion, informe, investigacion && !investigacion.cumplido ? investigacion : null]} />;
 
   const guardar = () =>
     iniciar(async () => {
@@ -327,6 +330,64 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
           })}
         </Seccion>
       </fieldset>
+    </div>
+  );
+}
+
+// Vista de solo lectura (Diseño, 13-nov): etiqueta arriba y valor abajo; lo vacío dice quién lo completa.
+// Sin diagnóstico ni CIE-10: en la enfermedad ocupacional solo se ven los hechos y los plazos.
+const TURNO: Record<string, string> = { diurno: "Diurno", nocturno: "Nocturno", mixto: "Mixto" };
+const GRAVEDAD: Record<string, string> = { leve: "Leve", moderado: "Moderado", grave: "Grave", mortal: "Mortal" };
+
+function Dato({ etiqueta, valor, ancho }: { etiqueta: string; valor: string | null | undefined; ancho?: boolean }) {
+  return (
+    <div className={ancho ? "sm:col-span-2" : ""}>
+      <div className="text-xs font-medium text-muted-foreground">{etiqueta}</div>
+      {valor ? <div className="mt-0.5 whitespace-pre-line text-sm">{valor}</div> : <div className="mt-0.5 text-sm italic text-muted-foreground">Pendiente: lo completa el servicio médico</div>}
+    </div>
+  );
+}
+
+function VistaEvento({ e, plazos }: { e: Evento; plazos: (ReturnType<typeof plazoDeclaracion> | null)[] }) {
+  const accidente = e.tipo === "accidente";
+  const testigos = e.testigosDetalle.length
+    ? e.testigosDetalle.map((t) => `${t.nombre}${t.cedula ? ` (${t.cedula})` : ""} · ${t.tipo === "presencial" ? "lo vio" : "se enteró"}`).join("\n")
+    : e.testigos;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-6">
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-semibold">#{e.numero} · {ETIQUETA_TIPO[e.tipo]}{e.subtipo === "in_itinere" && " (in itinere)"}</div>
+          <p className="text-sm text-muted-foreground">{e.trabajador ?? "Sin lesionado"} · {e.empresa} · <span className="whitespace-nowrap">{fechaHoraVE(e.fechaHora)}</span> · {ETIQUETA_ESTADO_EVENTO[e.estado]}</p>
+        </div>
+        <span className="self-start rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">Solo lectura: lo completa el servicio médico</span>
+      </div>
+      {plazos.some(Boolean) && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {plazos.filter(Boolean).map((p) => (
+            <div key={p!.texto} className={cn("flex items-center gap-3 rounded-xl border-2 px-4 py-3", p!.estado === "alerta" ? "border-alerta/50 bg-alerta/10" : p!.estado === "aviso" ? "border-aviso/60 bg-aviso/10" : "border-ok/40 bg-ok/10")}>
+              {p!.cumplido ? <CheckCircle2 className="size-6 text-ok-texto" /> : <Clock className={cn("size-6", p!.estado === "alerta" ? "text-alerta-texto" : "text-aviso-texto")} />}
+              <div className="font-semibold">{p!.texto}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Seccion titulo={e.tipo === "enfermedad" ? "Caso" : "Hechos"}>
+        <Dato etiqueta="Fecha y hora" valor={fechaHoraVE(e.fechaHora)} />
+        <Dato etiqueta="Lugar" valor={e.lugar} />
+        {accidente && <Dato etiqueta="Turno" valor={TURNO[e.turno] ?? ""} />}
+        {accidente && <Dato etiqueta="Actividad que realizaba" valor={e.actividadMomento} />}
+        <Dato etiqueta="Qué pasó" valor={e.descripcion} ancho />
+        {accidente && <Dato etiqueta="Lesiones presentadas" valor={e.lesiones} ancho />}
+        {e.tipo !== "enfermedad" && <Dato etiqueta="Testigos" valor={testigos} ancho />}
+      </Seccion>
+      {e.tipo !== "enfermedad" && (
+        <Seccion titulo="Lesión y declaración">
+          <Dato etiqueta="Parte del cuerpo" valor={e.parteCuerpo} />
+          <Dato etiqueta="Gravedad" valor={GRAVEDAD[e.gravedad] ?? ""} />
+          <Dato etiqueta="Declarado ante el INPSASEL" valor={e.fechaDeclaracion ? `${fechaHoraVE(e.fechaDeclaracion)}${e.numeroDeclaracion ? ` · Nº ${e.numeroDeclaracion}` : ""}` : ""} />
+        </Seccion>
+      )}
     </div>
   );
 }
