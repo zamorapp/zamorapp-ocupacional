@@ -118,6 +118,8 @@ create table if not exists clinico.agentes_borradores (
   tratamiento jsonb not null default '[]' check (jsonb_typeof(tratamiento) = 'array' and jsonb_array_length(tratamiento) <= 20),
   examenes jsonb not null default '[]' check (jsonb_typeof(examenes) = 'array' and jsonb_array_length(examenes) <= 40),
   indicaciones text not null default '' check (length(indicaciones) <= 2000),
+  -- Fecha que llevará el documento (Cesar, 14-nov: pasada o futura, sin trabas). Vacía = el día en que se emite
+  fecha date check (fecha is null or fecha between date '2000-01-01' and date '2100-12-31'),
   -- Lo decide el médico (el agente lo pregunta): suelto o adjunto a una consulta del paciente
   adjuntar text not null check (adjuntar in ('suelto', 'consulta')),
   consulta_id uuid references clinico.consultas (id) on delete set null,
@@ -180,7 +182,7 @@ begin
 
   -- Lo escrito por el agente no cambia: la corrección del médico queda en la indicación que emite
   new.id := old.id; new.org_id := old.org_id; new.empresa_id := old.empresa_id; new.trabajador_id := old.trabajador_id;
-  new.tipo := old.tipo; new.tratamiento := old.tratamiento; new.examenes := old.examenes; new.indicaciones := old.indicaciones;
+  new.tipo := old.tipo; new.tratamiento := old.tratamiento; new.examenes := old.examenes; new.indicaciones := old.indicaciones; new.fecha := old.fecha;
   new.adjuntar := old.adjuntar; new.consulta_id := old.consulta_id; new.envio := old.envio; new.correo := old.correo;
   new.llave_id := old.llave_id; new.llave_nombre := old.llave_nombre; new.creado_en := old.creado_en;
   new.actualizado_en := public.ahora();
@@ -250,6 +252,7 @@ declare
   v_tipo text := lower(btrim(coalesce(d ->> 'tipo', '')));
   v_adj text := lower(btrim(coalesce(d ->> 'adjuntar', '')));
   v_fecha_c date := public.agente_fecha(d, 'consulta_fecha');
+  v_fecha date := public.agente_fecha(d, 'fecha');
   v_envio text := lower(btrim(coalesce(nullif(d ->> 'envio', ''), 'imprimir')));
   v_correo text := nullif(lower(btrim(coalesce(d ->> 'correo', ''))), '');
   v_texto text := left(btrim(coalesce(d ->> 'indicaciones', '')), 2000);
@@ -271,6 +274,10 @@ begin
   if v_tipo not in ('recipe', 'examenes') then perform public.agente_no('«tipo» va «recipe» (récipe) o «examenes» (orden de exámenes).'); end if;
   if v_adj not in ('suelto', 'consulta') then
     perform public.agente_no('Falta «adjuntar»: pregúntale al doctor si va suelto (sin consulta) o adjunto a una consulta del paciente.');
+  end if;
+  -- Pasada o futura vale (Cesar, 14-nov); solo se frena un año imposible (error de dictado)
+  if v_fecha is not null and v_fecha not between date '2000-01-01' and date '2100-12-31' then
+    perform public.agente_no('«fecha» fuera de rango: confírmala con el doctor.');
   end if;
   if v_envio not in ('imprimir', 'whatsapp', 'correo') then perform public.agente_no('«envio» va «imprimir», «whatsapp» o «correo».'); end if;
   if v_envio = 'correo' and (v_correo is null or v_correo !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' or length(v_correo) > 200) then
@@ -318,12 +325,13 @@ begin
   end if;
 
   v_que := case v_tipo when 'recipe' then 'Récipe' else 'Orden de exámenes' end || ' para ' || v_nombre
-        || case when v_adj = 'consulta' then ' (adjunto a una consulta)' else ' (suelto, sin consulta)' end;
+        || case when v_adj = 'consulta' then ' (adjunto a una consulta)' else ' (suelto, sin consulta)' end
+        || case when v_fecha is not null then ' con fecha ' || to_char(v_fecha, 'DD/MM/YYYY') else '' end;
 
   -- Sin duplicar: el mismo pedido por revisar en los últimos 30 minutos es el mismo borrador
   select * into b from clinico.agentes_borradores ab
    where ab.org_id = o and ab.trabajador_id = t.id and ab.tipo = v_tipo and ab.estado = 'por_revisar'
-     and ab.tratamiento = v_meds and ab.examenes = v_exs and ab.indicaciones = v_texto
+     and ab.tratamiento = v_meds and ab.examenes = v_exs and ab.indicaciones = v_texto and ab.fecha is not distinct from v_fecha
      and ab.creado_en > public.ahora() - interval '30 minutes'
    limit 1;
   if found then
@@ -332,16 +340,16 @@ begin
   end if;
 
   if p_ensayo then
-    return jsonb_build_object('se_crearia', v_que, 'medicamentos', v_meds, 'examenes', v_exs, 'indicaciones', v_texto,
+    return jsonb_build_object('se_crearia', v_que, 'medicamentos', v_meds, 'examenes', v_exs, 'indicaciones', v_texto, 'fecha', v_fecha,
       'envio', v_envio, 'correo', v_correo, 'faltan', to_jsonb(v_faltan), 'ya_existia', false,
       'nota', 'Queda como BORRADOR: el doctor lo revisa, lo emite con su firma y sello y lo envía. Nada sale solo.',
       '_empresa', t.empresa_id, '_resumen', 'Prepararía: ' || v_que);
   end if;
 
   perform set_config('zamorapp.agente_borrador', '1', true);
-  insert into clinico.agentes_borradores (org_id, trabajador_id, tipo, tratamiento, examenes, indicaciones, adjuntar, consulta_id,
+  insert into clinico.agentes_borradores (org_id, trabajador_id, tipo, tratamiento, examenes, indicaciones, fecha, adjuntar, consulta_id,
                                           envio, correo, llave_id, llave_nombre)
-  values (o, t.id, v_tipo, v_meds, v_exs, v_texto, v_adj, v_cons, v_envio, v_correo, p_llave, left(p_llave_nombre, 60))
+  values (o, t.id, v_tipo, v_meds, v_exs, v_texto, v_fecha, v_adj, v_cons, v_envio, v_correo, p_llave, left(p_llave_nombre, 60))
   returning * into b;
   perform set_config('zamorapp.agente_borrador', '', true);
   return jsonb_build_object('borrador_id', b.id, 'ya_existia', false, 'faltan', to_jsonb(v_faltan),

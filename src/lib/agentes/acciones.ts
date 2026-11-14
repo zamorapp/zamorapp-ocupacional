@@ -81,6 +81,7 @@ export const ACCIONES: AccionAgente[] = [
       tipo: { type: "string", enum: ["recipe", "examenes"], description: "recipe = récipe; examenes = orden de exámenes" },
       adjuntar: { type: "string", enum: ["suelto", "consulta"], description: "Lo decide el doctor: suelto (sin consulta) o adjunto a una consulta del paciente" },
       consulta_fecha: fecha("Si va adjunto: día de la consulta (si no se dice, la más reciente)"),
+      fecha: fecha("Fecha que lleva el documento si el doctor la dice; puede ser pasada o futura. Si no la dice, va la del día en que él lo emite"),
       medicamentos: { type: "array", maxItems: 20, description: "Para el récipe",
         items: { type: "object", additionalProperties: false, required: ["medicina"], properties: {
           medicina: texto("Nombre del medicamento"), concentracion: texto("Concentración, por ejemplo 400 mg"), presentacion: texto("Tabletas, cápsulas, jarabe…"),

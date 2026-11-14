@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bot, FileText, FlaskConical, Loader2, Mail, MessageCircle, Paperclip, Printer, X } from "lucide-react";
+import { Bot, CalendarDays, FileText, FlaskConical, Loader2, Mail, MessageCircle, Paperclip, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { lineaOrden } from "@/lib/indicaciones-sueltas";
@@ -36,7 +36,7 @@ export function ListaBorradores({ items }: { items: BorradorAgente[] }) {
         <FormIndicacion trabajadorId={abierto.trabajadorId} nombre={abierto.paciente} onCerrar={() => setAbierto(null)}
           inicial={{
             borradorId: abierto.id, tipo: abierto.tipo, tratamiento: abierto.tratamiento, examenes: abierto.examenes, indicaciones: abierto.indicaciones,
-            consultaId: abierto.consultaId, envio: abierto.envio, correo: abierto.correo, correoTrabajador: abierto.correoTrabajador, agente: abierto.agente,
+            consultaId: abierto.consultaId, envio: abierto.envio, correo: abierto.correo, correoTrabajador: abierto.correoTrabajador, agente: abierto.agente, fecha: abierto.fecha,
           }} />
       )}
     </>
@@ -73,6 +73,7 @@ function Fila({ b, revisar }: { b: BorradorAgente; revisar: () => void }) {
           </ul>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5"><Paperclip className="size-3" aria-hidden />{b.adjuntar === "consulta" ? "Con consulta" : "Suelto"}</span>
+            {b.fecha && <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5" data-chip="fecha"><CalendarDays className="size-3" aria-hidden />Fecha {b.fecha.split("-").reverse().join("/")}</span>}
             <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5", b.envio === "correo" && "font-medium")}>
               <IconoEnvio className="size-3" aria-hidden />{envio}{b.envio === "correo" && b.correo ? `: ${b.correo}` : ""}
             </span>

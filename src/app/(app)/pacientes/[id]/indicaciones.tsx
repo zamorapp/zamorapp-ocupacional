@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Bot, CheckCircle2, FileText, FlaskConical, Loader2, Mail, Pill, Plus, Printer, Syringe, Trash2 } from "lucide-react";
+import { Ban, Bot, TriangleAlert, CheckCircle2, FileText, FlaskConical, Loader2, Mail, Pill, Plus, Printer, Syringe, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,23 +12,28 @@ import type { Medicamento } from "@/lib/consultas-tipos";
 import type { Item } from "@/lib/listas";
 import { concentracionEnNombre, faltantesMedicinas, CAMPOS_RECIPE } from "@/lib/recipe";
 import { abrirEnVentana } from "@/lib/escritorio";
+import { hoyCaracas } from "@/lib/fecha";
 import { cn } from "@/lib/utils";
 import {
   ETIQUETA_ESTADO_INDICACION, ETIQUETA_TIPO, limpiarExamenes, lineaOrden, medicinaVacia, type IndicacionSuelta, type TipoIndicacion,
 } from "@/lib/indicaciones-sueltas";
 import { BuscadorMedicina } from "../../atencion/[id]/buscador-diagnostico";
 import { indicacionPreestablecida } from "../../atencion/[id]/perfiles";
-import { anularIndicacion, consultasParaAdjuntar, cumplirIndicacion, emitirIndicacion, listasIndicacion } from "./indicaciones-acciones";
+import { type ConsultaAdjuntable, anularIndicacion, consultasParaAdjuntar, cumplirIndicacion, emitirIndicacion, listasIndicacion } from "./indicaciones-acciones";
 
 // Lo que preparó un agente (puerta para agentes): el formulario abre lleno; el médico corrige, emite, firma y envía
 export type InicialIndicacion = {
   borradorId: string; tipo: "recipe" | "examenes"; tratamiento: Medicamento[]; examenes: string[]; indicaciones: string;
   consultaId: string | null; envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; correoTrabajador: string | null; agente: string;
+  fecha?: string | null;
 };
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nombreCampo = (c: string) => CAMPOS_RECIPE.find(([k]) => k === c)?.[1] ?? c;
 const fechaCorta = (f: string) => f.slice(0, 10).split("-").reverse().join("/");
+// «la consulta del 12/11 (Pre-empleo)»: así Cesar sabe cuál es sin abrirla
+const nombreConsulta = (c: ConsultaAdjuntable) => `la consulta del ${f2(c.fecha)}${c.motivo ? ` (${c.motivo})` : ""}`;
+const f2 = (f: string) => { const [a, m, d] = f.slice(0, 10).split("-"); return `${d}/${m}/${a.slice(2)}`; };
 const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(iso));
 
 // Botón de la ficha: «Indicación / récipe» sin abrir consulta (no cuenta como morbilidad)
@@ -51,8 +56,13 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
   const [examenes, setExamenes] = useState((inicial?.examenes ?? []).join("\n"));
   // Suelta (sin consulta) o adjunta a una consulta del paciente: lo decide el médico
   const [consultaId, setConsultaId] = useState<string>(inicial?.consultaId ?? "");
-  const [consultas, setConsultas] = useState<{ id: string; fecha: string; estado: string }[] | null>(null);
+  const [consultas, setConsultas] = useState<ConsultaAdjuntable[] | null>(null);
+  const consultaSel = consultaId ? (consultas ?? []).find((c) => c.id === consultaId) : undefined;
   const [texto, setTexto] = useState(inicial?.indicaciones ?? "");
+  // Fecha del documento: por defecto hoy; pasada o futura sin trabas (Cesar, 14-nov)
+  const [hoy] = useState(() => hoyCaracas());
+  const [fecha, setFecha] = useState(inicial?.fecha || hoy);
+  const [avisoFechaVisto, setAvisoFechaVisto] = useState(false);
   const [indicadoPor, setIndicadoPor] = useState("");
   const [listas, setListas] = useState<Record<string, Item[]> | null>(null);
   const [propias, setPropias] = useState<Item[]>([]);
@@ -63,9 +73,9 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
   useEffect(() => {
     let vivo = true;
     listasIndicacion().then((l) => { if (vivo) setListas(l); }).catch(() => { if (vivo) setListas({}); });
-    consultasParaAdjuntar(trabajadorId).then((c) => { if (vivo) setConsultas(c); }).catch(() => { if (vivo) setConsultas([]); });
+    consultasParaAdjuntar(trabajadorId, inicial?.consultaId).then((c) => { if (vivo) setConsultas(c); }).catch(() => { if (vivo) setConsultas([]); });
     return () => { vivo = false; };
-  }, [trabajadorId]);
+  }, [trabajadorId, inicial?.consultaId]);
   const lista = (k: string) => listas?.[k] ?? [];
   const medicinas = [...propias, ...lista("medicina")];
   const cambiar = (i: number, c: Partial<Medicamento>) => setMeds((x) => x.map((m, j) => (j === i ? { ...m, ...c } : m)));
@@ -73,7 +83,7 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
 
   const datos = () => ({
     trabajadorId, tipo, tratamiento: meds, indicaciones: texto, indicadoPor: tipo === "enfermeria" ? indicadoPor : "",
-    examenes: limpiarExamenes([examenes]), consultaId: consultaId || null, borradorId: inicial?.borradorId ?? null,
+    examenes: limpiarExamenes([examenes]), consultaId: consultaId || null, borradorId: inicial?.borradorId ?? null, fecha,
   });
   const guardar = (imprimir: boolean) => {
     setError(null);
@@ -99,7 +109,7 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>{inicial ? "Revisar y emitir" : "Indicación o récipe"}</SheetTitle>
-          <SheetDescription>{nombre} · No abre consulta ni cuenta en morbilidad. Queda en su historial y se imprime con tu firma.</SheetDescription>
+          <SheetDescription data-estado={consultaId ? "adjunto" : "suelto"}>{nombre} · {consultaId ? `Se agrega a ${consultaSel ? nombreConsulta(consultaSel) : "la consulta que indicó el agente"}.` : "No abre consulta ni cuenta en morbilidad."} Queda en su historial y se imprime con tu firma.</SheetDescription>
         </SheetHeader>
 
         <div className="space-y-5 px-4">
@@ -192,10 +202,22 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
               placeholder={tipo === "recipe" ? "Ej.: continuar tratamiento crónico; control en 3 meses" : tipo === "examenes" ? "Ej.: en ayunas de 8 horas" : "Ej.: colocar hoy, observar 15 minutos"} />
           </div>
           <div>
+            <Label htmlFor="fecha-indicacion" className="mb-1.5">Fecha del documento</Label>
+            <Input id="fecha-indicacion" type="date" value={fecha} min="2000-01-01" max="2100-12-31" className="w-44"
+              onChange={(e) => { setFecha(e.target.value || hoy); setAvisoFechaVisto(false); }} data-campo="fecha" />
+            {fecha !== hoy && !avisoFechaVisto && (
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground" data-estado={fecha > hoy ? "fecha-futura" : "fecha-pasada"}>
+                <span>{fecha > hoy ? "Fecha futura" : "Fecha pasada"}: la hoja saldrá con el {fechaCorta(fecha)}.</span>
+                <button type="button" className="underline underline-offset-2" onClick={() => setAvisoFechaVisto(true)}>Ignorar</button>
+                <button type="button" className="underline underline-offset-2" onClick={() => setFecha(hoy)}>Usar hoy</button>
+              </p>
+            )}
+          </div>
+          <div>
             <Label htmlFor="adjuntar-consulta" className="mb-1.5">¿Va suelto o con una consulta?</Label>
             <select id="adjuntar-consulta" value={consultaId} onChange={(e) => setConsultaId(e.target.value)} className={SELECT} data-campo="adjuntar">
               <option value="">Suelto, sin consulta</option>
-              {(consultas ?? []).map((c) => <option key={c.id} value={c.id}>Adjunto a la consulta del {fechaCorta(c.fecha)}{c.estado === "borrador" ? " (abierta)" : ""}</option>)}
+              {(consultas ?? []).map((c) => <option key={c.id} value={c.id}>Adjunto a {nombreConsulta(c)}{c.estado === "borrador" ? " (abierta)" : ""}</option>)}
               {consultaId && consultas && !consultas.some((c) => c.id === consultaId) && <option value={consultaId}>Adjunto a la consulta que indicó el agente</option>}
             </select>
           </div>
@@ -226,7 +248,7 @@ function EnvioPedido({ inicial }: { inicial: InicialIndicacion }) {
         <>
           <p className="mt-1 flex items-center gap-2 break-all text-base font-semibold"><Mail className="size-4 shrink-0 text-primary" aria-hidden />{inicial.correo}</p>
           <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en tu correo.</p>
-          {otro && <p className="mt-1 text-aviso-texto" data-estado="correo-distinto">No es el correo registrado del paciente{inicial.correoTrabajador ? ` (${inicial.correoTrabajador})` : ""}. Revísalo antes de enviar.</p>}
+          {otro && <p className="mt-1 flex items-start gap-1.5 text-aviso-texto" data-estado="correo-distinto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /><span>No es el correo registrado del paciente{inicial.correoTrabajador ? ` (${inicial.correoTrabajador})` : ""}. Revísalo antes de enviar.</span></p>}
         </>
       ) : (
         <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en WhatsApp, en el chat o grupo que elijas.</p>

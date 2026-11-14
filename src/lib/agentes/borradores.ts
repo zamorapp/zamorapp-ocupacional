@@ -10,7 +10,7 @@ import type { Medicamento } from "@/lib/consultas-tipos";
 export type BorradorAgente = {
   id: string; tipo: "recipe" | "examenes"; trabajadorId: string; paciente: string; cedula: string; correoTrabajador: string | null;
   tratamiento: Medicamento[]; examenes: string[]; indicaciones: string; adjuntar: "suelto" | "consulta"; consultaId: string | null;
-  envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; agente: string; creadoEn: string;
+  envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; agente: string; creadoEn: string; fecha: string | null;
 };
 
 const EMITEN = ["administrador", "gerente_medico", "medico"];
@@ -19,7 +19,7 @@ export const revisaBorradores = (s: Sesion) => !s.demo && Boolean(s.orgId) && s.
 type Fila = {
   id: string; tipo: "recipe" | "examenes"; trabajador_id: string; tratamiento: Medicamento[] | null; examenes: string[] | null;
   indicaciones: string; adjuntar: "suelto" | "consulta"; consulta_id: string | null; envio: "imprimir" | "whatsapp" | "correo";
-  correo: string | null; llave_nombre: string; creado_en: string;
+  correo: string | null; llave_nombre: string; creado_en: string; fecha: string | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string; correo: string | null } | null;
 };
 
@@ -28,7 +28,7 @@ export async function borradoresPorRevisar(): Promise<BorradorAgente[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("agentes_borradores")
-    .select("id, tipo, trabajador_id, tratamiento, examenes, indicaciones, adjuntar, consulta_id, envio, correo, llave_nombre, creado_en, trabajadores(nombres, apellidos, cedula, correo)")
+    .select("id, tipo, trabajador_id, tratamiento, examenes, indicaciones, adjuntar, consulta_id, envio, correo, llave_nombre, creado_en, fecha, trabajadores(nombres, apellidos, cedula, correo)")
     .eq("estado", "por_revisar").order("creado_en", { ascending: false }).limit(100);
   if (error || !data) return [];
   return (data as unknown as Fila[]).map((f) => ({
@@ -37,7 +37,7 @@ export async function borradoresPorRevisar(): Promise<BorradorAgente[]> {
     correoTrabajador: f.trabajadores?.correo ?? null,
     tratamiento: Array.isArray(f.tratamiento) ? f.tratamiento : [], examenes: Array.isArray(f.examenes) ? f.examenes : [],
     indicaciones: f.indicaciones, adjuntar: f.adjuntar, consultaId: f.consulta_id, envio: f.envio, correo: f.correo,
-    agente: f.llave_nombre, creadoEn: f.creado_en,
+    agente: f.llave_nombre, creadoEn: f.creado_en, fecha: f.fecha,
   }));
 }
 

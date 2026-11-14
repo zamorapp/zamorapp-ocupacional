@@ -38,6 +38,13 @@ select 'correo sin dirección no (debe 1): ' || ((public.agente(:'k249', 'prepar
 -- Ensayo: dice lo que haría y no guarda; marca lo que falta para el récipe MPPS
 select 'el ensayo avisa lo que falta (debe 1): ' || jsonb_array_length(public.agente(:'k249', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg"}]}', true) -> 'resultado' -> 'faltan');
+-- Fechas pasadas o futuras sin trabas (Cesar, 14-nov); solo un año imposible se frena
+select 'fecha futura vale (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+  '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"2099-11-19"}', true) -> 'resultado' ->> 'fecha') = '2099-11-19')::int;
+select 'fecha pasada vale (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+  '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"2001-01-02"}', true) -> 'resultado' ->> 'fecha') = '2001-01-02')::int;
+select 'año imposible no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+  '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"1926-11-19"}', true) ->> 'ok') = 'false')::int;
 reset role;
 select 'el ensayo no guarda (debe 0): ' || count(*) from clinico.agentes_borradores;
 set role anon;

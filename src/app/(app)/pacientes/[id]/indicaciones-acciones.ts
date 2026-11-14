@@ -36,7 +36,7 @@ const limpiarMed = (m: Medicamento): Medicamento => ({
 // borradorId: venía preparada por un agente (puerta para agentes): al emitirla, el borrador queda «emitido».
 export async function emitirIndicacion(entrada: {
   trabajadorId: string; tipo: TipoIndicacion; tratamiento: Medicamento[]; indicaciones: string; indicadoPor: string;
-  examenes?: string[]; consultaId?: string | null; borradorId?: string | null;
+  examenes?: string[]; consultaId?: string | null; borradorId?: string | null; fecha?: string | null;
 }): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase." };
@@ -45,6 +45,8 @@ export async function emitirIndicacion(entrada: {
   const uuid = /^[0-9a-f-]{36}$/i;
   const consultaId = entrada.consultaId && uuid.test(entrada.consultaId) ? entrada.consultaId : null;
   const borradorId = entrada.borradorId && uuid.test(entrada.borradorId) ? entrada.borradorId : null;
+  // Fecha del documento: pasada o futura vale (Cesar, 14-nov); vacía = hoy (la pone la base en hora de Caracas)
+  const fecha = entrada.fecha && /^\d{4}-\d{2}-\d{2}$/.test(entrada.fecha) && entrada.fecha >= "2000-01-01" && entrada.fecha <= "2100-12-31" ? entrada.fecha : null;
   const examenes = entrada.tipo === "examenes" ? limpiarExamenes(entrada.examenes ?? []) : [];
   const tratamiento = entrada.tipo === "examenes" ? [] : (entrada.tratamiento ?? []).map(limpiarMed).filter((m) => m.medicina).slice(0, 20);
   const indicaciones = (entrada.indicaciones ?? "").trim().slice(0, 2000);
@@ -60,7 +62,7 @@ export async function emitirIndicacion(entrada: {
   }
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("indicaciones").insert({
-    org_id: sesion.orgId, trabajador_id: entrada.trabajadorId, tipo: entrada.tipo, tratamiento, examenes, indicaciones,
+    org_id: sesion.orgId, trabajador_id: entrada.trabajadorId, tipo: entrada.tipo, tratamiento, examenes, indicaciones, ...(fecha ? { fecha } : {}),
     consulta_id: consultaId, indicado_por: entrada.tipo === "enfermeria" ? (entrada.indicadoPor ?? "").trim().slice(0, 200) || null : null,
   }).select("id").single();
   if (error) {
@@ -106,11 +108,24 @@ export async function anularIndicacion(id: string, trabajadorId: string, motivo:
 }
 
 // Consultas del paciente para «Adjuntar a una consulta» (las 12 más recientes; solo fecha y motivo)
-export async function consultasParaAdjuntar(trabajadorId: string): Promise<{ id: string; fecha: string; estado: string }[]> {
+export type ConsultaAdjuntable = { id: string; fecha: string; estado: string; motivo: string };
+// Últimas 12 consultas del trabajador (y la que indicó el agente, si es más vieja), con su motivo para nombrarla
+export async function consultasParaAdjuntar(trabajadorId: string, incluir?: string | null): Promise<ConsultaAdjuntable[]> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId || !sesion.clinico || !/^[0-9a-f-]{36}$/i.test(trabajadorId)) return [];
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("consultas").select("id, fecha, estado").eq("trabajador_id", trabajadorId)
+  const COLS = "id, fecha, estado, motivo_id, motivo_texto";
+  type F = { id: string; fecha: string; estado: string; motivo_id: string | null; motivo_texto: string | null };
+  const { data } = await supabase.from("consultas").select(COLS).eq("trabajador_id", trabajadorId)
     .order("fecha", { ascending: false }).limit(12);
-  return (data ?? []) as { id: string; fecha: string; estado: string }[];
+  const filas = (data ?? []) as F[];
+  if (incluir && /^[0-9a-f-]{36}$/i.test(incluir) && !filas.some((f) => f.id === incluir)) {
+    const { data: extra } = await supabase.from("consultas").select(COLS).eq("id", incluir).eq("trabajador_id", trabajadorId).maybeSingle();
+    if (extra) filas.push(extra as F);
+  }
+  const mids = [...new Set(filas.map((f) => f.motivo_id).filter((x): x is string => !!x))];
+  const { data: items } = mids.length ? await supabase.from("lista_items").select("id, nombre").in("id", mids) : { data: [] };
+  const nombre = new Map((items ?? []).map((i) => [i.id as string, i.nombre as string]));
+  return filas.map((f) => ({ id: f.id, fecha: f.fecha, estado: f.estado,
+    motivo: (f.motivo_id ? nombre.get(f.motivo_id) : null) ?? (f.motivo_texto ?? "").trim().slice(0, 40) }));
 }
