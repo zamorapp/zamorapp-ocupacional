@@ -496,6 +496,7 @@ export const MANUAL: TemaManual[] = [
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
       "En «Registro», con Desde y Hasta, ves cada cosa que hizo cada llave: qué, cuándo, en qué empresa y si fue un ensayo.",
+      "Vigilancia: marca «Vigilancia y reportes» en la llave. Pídele, por ejemplo: «prepara la vigilancia del primer trimestre de la empresa X con el programa de ruido». Revisa lo que propuso en Reportes › Propuestas del agente y pulsa «Aprobar» o «Usar lo elegido».",
     ],
     consejos: [
       "Antes de crear, el agente hace un ensayo y te muestra lo que va a crear. Si repite la misma orden, no duplica.",
@@ -507,8 +508,10 @@ export const MANUAL: TemaManual[] = [
       "Necesita internet: la puerta vive en la nube y lo creado baja a la PC con la sincronía. En la PC sin internet la pantalla lo avisa.",
       "Una llave por plataforma: así apagas una sin afectar a las demás y el registro te dice cuál hizo cada cosa.",
       "El registro se guarda un año y se limpia solo (Configuración › Limpieza).",
+      "Con «Vigilancia y reportes» el agente ve solo cifras agrupadas, nunca nombres ni diagnósticos de una persona, y no ve precios. Lo que propone se borra solo a los 30 días si no lo revisas.",
+      "Los programas de vigilancia (riesgo, a quién cubre, exámenes y cada cuántos meses, metas) se crean y corrigen a mano en Empresas › ficha › Programas de vigilancia.",
     ],
-    claves: "agente agentes claude chatgpt gemini ia inteligencia artificial robot llave conector mcp api automatizar",
+    claves: "agente agentes vigilancia programa propuesta borrador informe claude chatgpt gemini ia inteligencia artificial robot llave conector mcp api automatizar",
   },
   {
     id: "portal",
