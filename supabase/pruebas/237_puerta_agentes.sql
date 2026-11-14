@@ -58,8 +58,13 @@ reset role;
 select 'la base guarda la huella, no la llave (debe 0): ' || count(*) from public.agentes_llaves where huella = :'k' or to_jsonb(agentes_llaves)::text like '%' || :'k' || '%';
 select 'ninguna ayuda la ejecuta un anónimo ni un usuario (debe 0): ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public' and p.proname like 'agente\_%' and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'));
+-- Desde la 950000 (récipes que prepara el agente) hay UNA excepción, revisada por Analizar: escribir sus propios
+-- borradores (clinico.agentes_borradores) y ubicar la consulta de un día por su fecha (clinico.consultas, solo id y fecha)
 select 'ninguna acción nombra lo clínico (debe 0): ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
- where n.nspname = 'public' and (p.proname like 'agente\_%' or p.proname = 'agente') and p.prosrc ~* '(clinico\.|grupo_sanguineo|discapacidad|firma_|sello_)';
+ where n.nspname = 'public' and (p.proname like 'agente\_%' or p.proname = 'agente')
+   and regexp_replace(p.prosrc, case p.proname when 'agente_preparar_documento' then 'clinico\.(agentes_borradores|consultas)\M'
+                                               when 'agente_ver_borradores' then 'clinico\.agentes_borradores\M' else '^$' end, '', 'g')
+       ~* '(clinico\.|grupo_sanguineo|discapacidad|firma_|sello_)';
 select 'ninguna acción borra ni modifica (debe 0): ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public' and (p.proname like 'agente\_%' or p.proname = 'agente')
    and (p.prosrc ~* 'delete\s+from' or regexp_replace(p.prosrc, 'update public\.agentes_llaves', '', 'g') ~* '\mupdate\s+(public|clinico)\.');
