@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { apagarLlave, crearLlave, type LlaveNueva } from "./acciones";
+import { apagarLlave, cambiarVigilancia, crearLlave, type LlaveNueva } from "./acciones";
 
-type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean };
+type Llave = { id: string; nombre: string; final: string; permiso: "consultar" | "crear"; creada_en: string; vence_en: string; revocada_en: string | null; ultimo_uso_en: string | null; usos: number; encendida: boolean; vigilancia?: boolean };
 type Linea = { id: number; en: string; llave: string; accion: string; ensayo: boolean; ok: boolean; empresa: string | null; resumen: string | null; error: string | null };
 export type EstadoAgentes = { local: boolean; desde: string; hasta: string; llaves: Llave[]; registro: Linea[]; total: number };
 
@@ -18,7 +18,7 @@ const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle:
 const soloFecha = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "medium", timeZone: "America/Caracas" }).format(new Date(iso));
 const SUGERIDOS = ["Claude", "ChatGPT", "Gemini"];
 const DURACIONES = [{ dias: 7, texto: "7 días" }, { dias: 30, texto: "30 días" }, { dias: 90, texto: "90 días" }];
-const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada" };
+const PROPIAS: Record<string, string> = { llave_creada: "Llave creada", llave_apagada: "Llave apagada", casilla_vigilancia: "Casilla de vigilancia" };
 
 export function PantallaAgentes({ estado, titulos, consultas, creaciones }: { estado: EstadoAgentes; titulos: Record<string, string>; consultas: string[]; creaciones: string[] }) {
   const encendidas = estado.llaves.filter((l) => l.encendida);
@@ -243,6 +243,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
                   <Button variant="outline" className="h-11 sm:h-9" onClick={() => { setError(""); setPorApagar(l.id); }}><Power /> Apagar</Button>
                 ) : null}
               </div>
+              {l.encendida ? <CasillaVigilancia llave={l} /> : null}
               {porApagar === l.id ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-2 text-sm text-aviso-texto">
                   <span className="flex-1 basis-56">¿Apagar la llave de «{l.nombre}»? Deja de servir al instante y no se puede volver a encender; lo que creó se queda.</span>
@@ -336,5 +337,35 @@ function Registro({ estado, titulos }: { estado: EstadoAgentes; titulos: Record<
       )}
       <p className="text-xs text-muted-foreground">El registro se guarda un año y luego se limpia solo (Configuración › Limpieza).</p>
     </section>
+  );
+}
+
+// Casilla de cada llave: el agente lee los TOTALES de la vigilancia y propone programas, ajustes y el borrador del
+// informe (tú los apruebas en Reportes › Propuestas del agente)
+function CasillaVigilancia({ llave }: { llave: Llave }) {
+  const [error, setError] = useState("");
+  const [ocupado, iniciar] = useTransition();
+  const router = useRouter();
+  const sinInternet = useSinInternet();
+  const si = Boolean(llave.vigilancia);
+  const cambiar = () => iniciar(async () => {
+    setError("");
+    const r = await cambiarVigilancia(llave.id, !si);
+    if (!r.ok) setError(r.mensaje); else router.refresh();
+  });
+  return (
+    <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 sm:min-h-0">
+        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={si} disabled={ocupado || sinInternet} onChange={cambiar}
+          data-accion="casilla-vigilancia" />
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-sm font-medium">Vigilancia y reportes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
+          <span className="block text-sm text-muted-foreground">
+            Lee los totales de la vigilancia, sin nombres, cédulas ni casos. Propone programas, ajustes de la empresa y el borrador del informe. Tú lo apruebas en Reportes › Propuestas del agente.
+          </span>
+        </span>
+      </label>
+      {error ? <p role="alert" className="mt-2 text-sm text-alerta-texto">{error}</p> : null}
+    </div>
   );
 }

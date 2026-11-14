@@ -21,6 +21,7 @@ export const MANUAL_ACTUALIZADO = "2026-11-13";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-14", texto: "Vigilancia con tu agente: en Configuración › Puerta para agentes, marca «Vigilancia y reportes» en una llave. Tu agente lee las cifras de vigilancia de una empresa sin nombres, cédulas ni diagnósticos de nadie (los grupos de menos de 3 van a «Otros»), propone programas de vigilancia (p. ej. conservación auditiva, con exámenes y metas) y redacta el borrador del informe. Nada cambia hasta que lo apruebas en Reportes › Propuestas del agente, donde comparas su texto con el tuyo sección por sección. Los programas se editan en la ficha de la empresa y salen en el informe impreso. Todavía no trabaja sin internet, y no imprime, firma, sella ni envía nada", tema: "agentes" },
   { fecha: "2026-11-13", texto: "Firmar y sellar PDF: en Documentos, el botón «Firmar y sellar PDF» abre cualquier PDF (de otro programa, de un laboratorio o escaneado), pone tu firma y tu sello donde dice «Firma» (o abajo a la derecha), los arrastras si quieres y eliges esta página, la última o todas. «Descargar PDF firmado» lo deja en Descargas; «Imprimir» lo manda a la impresora. El PDF no se sube a ningún lado. Solo el médico lo ve; PDF con contraseña no se pueden firmar", tema: "documentos" },
   { fecha: "2026-11-13", texto: "Privacidad en accidentes: RR. HH. ve de los accidentes y enfermedades de su empresa los hechos, la lesión, la declaración y los plazos, pero nunca el diagnóstico, el CIE-10, la incapacidad ni la discapacidad; tampoco pidiéndolos fuera de la aplicación. Sus cifras de accidentes en el Inicio y los índices son las mismas que ve el médico.", tema: "accidentes" },
   { fecha: "2026-11-13", texto: "RR. HH. reporta accidentes: en su portal, Accidentes › «Reportar evento» registra un accidente o incidente de su empresa (nunca una enfermedad ocupacional) y al servicio le llega al momento «Accidente reportado por RR. HH.» en la campana. Después RR. HH. lo ve en solo lectura: completarlo, declararlo ante el INPSASEL e investigarlo sigue siendo del servicio", tema: "accidentes" },
@@ -599,6 +600,7 @@ export const MANUAL: TemaManual[] = [
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
       "En «Registro», con Desde y Hasta, ves cada cosa que hizo cada llave: qué, cuándo, en qué empresa y si fue un ensayo.",
+      "Vigilancia: marca «Vigilancia y reportes» en la llave. Pídele, por ejemplo: «prepara la vigilancia del primer trimestre de la empresa X con el programa de ruido». Revisa lo que propuso en Reportes › Propuestas del agente y pulsa «Aprobar» o «Usar lo elegido».",
     ],
     consejos: [
       "Antes de crear, el agente hace un ensayo y te muestra lo que va a crear. Si repite la misma orden, no duplica.",
@@ -609,8 +611,10 @@ export const MANUAL: TemaManual[] = [
       "Necesita internet: la puerta vive en la nube y lo creado baja a la PC con la sincronía. En la PC sin internet la pantalla lo avisa.",
       "Una llave por plataforma: así apagas una sin afectar a las demás y el registro te dice cuál hizo cada cosa.",
       "El registro se guarda un año y se limpia solo (Configuración › Limpieza).",
+      "Con «Vigilancia y reportes» el agente ve solo cifras agrupadas, nunca nombres ni diagnósticos de una persona, y no ve precios. Lo que propone se borra solo a los 30 días si no lo revisas.",
+      "Los programas de vigilancia (riesgo, a quién cubre, exámenes y cada cuántos meses, metas) se crean y corrigen a mano en Empresas › ficha › Programas de vigilancia.",
     ],
-    claves: "agente agentes claude chatgpt gemini ia inteligencia artificial robot llave conector mcp api automatizar",
+    claves: "agente agentes vigilancia programa propuesta borrador informe claude chatgpt gemini ia inteligencia artificial robot llave conector mcp api automatizar",
   },
   {
     id: "portal",

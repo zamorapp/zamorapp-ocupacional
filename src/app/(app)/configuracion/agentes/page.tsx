@@ -42,7 +42,7 @@ export default async function Agentes({ searchParams }: { searchParams: Promise<
         <p role="alert" className="rounded-lg border border-alerta/40 bg-alerta/5 p-4 text-sm text-alerta-texto">{error}</p>
       ) : estado ? (
         <PantallaAgentes estado={estado} titulos={Object.fromEntries(ACCIONES.map((a) => [a.nombre, a.titulo]))}
-          consultas={ACCIONES.filter((a) => !a.crea).map((a) => a.titulo)} creaciones={ACCIONES.filter((a) => a.crea).map((a) => a.titulo)} />
+          consultas={ACCIONES.filter((a) => !a.crea && !a.vigilancia).map((a) => a.titulo)} creaciones={ACCIONES.filter((a) => a.crea && !a.vigilancia).map((a) => a.titulo)} />
       ) : null}
     </div>
   );

@@ -28,6 +28,8 @@ import { BotonDepurarNomina, DepurarNomina } from "./depurar-nomina";
 import { revisionDepuracion } from "./depurar-nomina-acciones";
 import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
 import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
+import { programasDeEmpresa } from "@/lib/vigilancia-programas";
+import { ProgramasVigilancia } from "./programas";
 
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
@@ -49,6 +51,9 @@ export default async function EmpresaDetalle({ params, searchParams }: { params:
   const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
   const contactosWa = contactos.filter((c) => c.telefono).map((c) => ({ nombre: c.nombre, telefono: c.telefono! }));
   // Revisión de nómina con RR. HH. por enlace: la maneja quien actualiza la nómina (administrador o personal de salud)
+  // Programas de vigilancia: los ve quien ve la empresa; los editan servicio médico, administrador y coordinador SST (misma regla que la RLS)
+  const programas = sesion.demo ? [] : await programasDeEmpresa(id);
+  const editaProgramas = !sesion.demo && (sesion.clinico || ["administrador", "coordinador_sst"].includes(sesion.rol ?? ""));
   const depura = !sesion.demo && Boolean(sesion.orgId) && (sesion.clinico || sesion.rol === "administrador");
   const revision = depura ? await revisionDepuracion(id) : null;
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
@@ -107,6 +112,13 @@ export default async function EmpresaDetalle({ params, searchParams }: { params:
           <Card className="h-fit">
             <CardHeader><CardTitle className="text-base">Horas hombre trabajadas</CardTitle></CardHeader>
             <CardContent><HorasTrabajadas empresaId={id} inicial={horas} trabajadoresActuales={empresa.trabajadores} editable={editaPuestos} /></CardContent>
+          </Card>
+          <Card id="programas" className="h-fit scroll-mt-20">
+            <CardHeader><CardTitle className="text-base">Programas de vigilancia</CardTitle></CardHeader>
+            <CardContent>
+              <ProgramasVigilancia empresaId={id} programas={programas} dependencias={dependencias} editable={editaProgramas}
+                puestos={puestos.map((p) => ({ id: p.id, nombre: p.nombre }))} />
+            </CardContent>
           </Card>
         </div>
 

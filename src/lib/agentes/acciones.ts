@@ -2,8 +2,11 @@
 // Es solo la descripción para el agente; quien manda es la base (public.agente, migración 20261030938000):
 // ella valida la llave, la organización y cada dato. Una acción que no esté allá no existe aunque se escriba aquí.
 
+import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
+
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema };
+// rpc: la función de la base que la atiende (por defecto public.agente). vigilancia: necesita la casilla «Vigilancia y reportes».
+export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema; rpc?: "puerta_vigilancia"; vigilancia?: true };
 
 const texto = (description: string) => ({ type: "string", description });
 const id = (description: string) => ({ type: "string", format: "uuid", description });
@@ -72,6 +75,43 @@ export const ACCIONES: AccionAgente[] = [
     descripcion: "Agenda una cita para un trabajador (de hoy a un año). Si ya tiene cita ese día no crea otra ni la cambia.",
     esquema: objeto({ trabajador_id: id("Trabajador"), fecha: fecha("Día de la cita"), hora: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", description: "Hora en 24 horas, HH:MM" },
       motivo_id: id("Motivo de consulta (catalogo, tipo motivos)"), observacion: texto("Nota de la cita"), ensayo: ENSAYO }, ["trabajador_id", "fecha"]) },
+
+  // ───── Vigilancia epidemiológica (20261030953000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
+  ...([
+    { nombre: "vigilancia_cifras", titulo: "Cifras de vigilancia", crea: false,
+      descripcion: "Totales de la vigilancia de una empresa en un período: población, consultas, morbilidad por sistema y primeras causas, ausentismo, aptitud, referencias, accidentes, exámenes periódicos, riesgos de los cargos y cobertura de cada programa. Sin personas: los grupos de menos de 3 y los diagnósticos confidenciales vienen juntos en «Otros» y \"<3\" es 1 o 2. Período: desde y hasta, o anio y trimestre (el trimestre cuenta desde el mes en que empieza la gestión de la empresa).",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión (1 a 4)" } }, ["empresa_id"]) },
+    { nombre: "ver_programas", titulo: "Ver programas de vigilancia", crea: false,
+      descripcion: "Programas de vigilancia de una empresa (riesgo, condiciones, dependencias, cargos, exámenes y metas), su proyecto, el mes en que empieza su gestión, y los nombres de sus dependencias y cargos.",
+      esquema: objeto({ empresa_id: id("Empresa") }, ["empresa_id"]) },
+    { nombre: "ver_informe", titulo: "Ver informe de vigilancia", crea: false,
+      descripcion: "Lo que el doctor ya escribió en el informe de vigilancia de esa empresa y período (secciones y análisis de cada cuadro). Léelo antes de redactar: tu borrador se compara con esto.",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión" } }, ["empresa_id"]) },
+    { nombre: "ver_propuestas", titulo: "Ver mis propuestas", crea: false,
+      descripcion: "Las propuestas de vigilancia que dejó esta llave y si el doctor las aprobó o descartó.",
+      esquema: objeto({}) },
+    { nombre: "proponer_programa", titulo: "Proponer programa de vigilancia", crea: true,
+      descripcion: "PROPONE un programa de vigilancia para una empresa (no lo crea: el doctor lo aprueba en zamorApp). Dependencias y cargos van por su nombre exacto (ver_programas los lista); vacíos = toda la empresa. Para cambiar uno existente manda su programa_id.",
+      esquema: objeto({ empresa_id: id("Empresa"), programa_id: id("Programa existente que se cambiaría"), nombre: texto("Nombre, por ejemplo «Conservación auditiva»"),
+        proyecto: texto("Proyecto u obra"), riesgo: texto("Riesgo o condición, por ejemplo «Ruido mayor de 85 dB»"), condiciones: texto("Condiciones de la vigilancia, en palabras"),
+        dependencias: { type: "array", items: { type: "string" }, maxItems: 60, description: "Nombres de las dependencias que cubre" },
+        cargos: { type: "array", items: { type: "string" }, maxItems: 60, description: "Nombres de los cargos que cubre" },
+        examenes: { type: "array", maxItems: 30, description: "Exámenes del programa", items: { type: "object", additionalProperties: false, properties: { nombre: texto("Examen, tal como te lo dieron"), cada_meses: { type: "integer", minimum: 1, maximum: 60, description: "Cada cuántos meses" } }, required: ["nombre"] } },
+        metas: { type: "array", maxItems: 20, description: "Indicadores y metas", items: { type: "object", additionalProperties: false, properties: { indicador: texto("Indicador"), meta: texto("Meta, por ejemplo «100 %»") }, required: ["indicador"] } },
+        motivo: texto("Por qué lo propones (lo lee el doctor)"), ensayo: ENSAYO }, ["empresa_id", "nombre"]) },
+    { nombre: "proponer_ajuste_empresa", titulo: "Proponer ajuste de empresa", crea: true,
+      descripcion: "PROPONE cambiar el proyecto u obra de la empresa o el mes en que empieza su gestión (de él salen los trimestres). No cambia nada: el doctor lo aprueba.",
+      esquema: objeto({ empresa_id: id("Empresa"), proyecto: texto("Proyecto u obra"), mes_inicio_gestion: { type: "integer", minimum: 1, maximum: 12, description: "Mes en que empieza la gestión (1 = enero)" },
+        motivo: texto("Por qué lo propones"), ensayo: ENSAYO }, ["empresa_id"]) },
+    { nombre: "redactar_informe", titulo: "Redactar informe de vigilancia", crea: true,
+      descripcion: "Deja un BORRADOR del informe de vigilancia de una empresa y período. El doctor lo compara con lo suyo y elige sección por sección qué usar. Secciones: resumen, conclusiones, recomendaciones_medicas, recomendaciones (de seguridad y salud para la empresa), factores_riesgo, medidas_control. Escribe solo con vigilancia_cifras; nunca nombres ni casos de personas, ni diagnósticos que vinieron en «Otros». Repetirlo reemplaza tu borrador anterior de ese período.",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión" },
+        secciones: { type: "object", additionalProperties: false, description: "Texto de cada sección (hasta 8000 letras)",
+          properties: Object.fromEntries(["resumen", "conclusiones", "recomendaciones_medicas", "recomendaciones", "factores_riesgo", "medidas_control"].map((k) => [k, { type: "string" }])) },
+        analisis: { type: "object", additionalProperties: false, description: "Opcional: análisis de cada cuadro del informe impreso (hasta 4000 letras cada uno)",
+          properties: Object.fromEntries(SECCIONES_ANALISIS.map(([k, t]) => [k, { type: "string", description: t }])) },
+        motivo: texto("Nota para el doctor"), ensayo: ENSAYO }, ["empresa_id"]) },
+  ] satisfies Omit<AccionAgente, "rpc" | "vigilancia">[]).map((a) => ({ ...a, rpc: "puerta_vigilancia" as const, vigilancia: true as const })),
 ];
 
 export const ACCION = new Map(ACCIONES.map((a) => [a.nombre, a]));
@@ -82,7 +122,8 @@ export const INSTRUCCIONES = [
   "Antes de crear algo: búscalo (no dupliques), llama la acción con ensayo: true, muéstrale al doctor lo que se crearía y crea solo con su visto bueno.",
   "No inventes datos (RIF, cédulas, precios, fechas): si falta uno, pregúntalo.",
   "Los nombres de exámenes van tal como te los dan; no traduzcas ni expliques siglas.",
-  "Esta puerta no lee ni escribe historias, diagnósticos, firma ni sello, y no borra ni modifica lo que ya existe: eso lo hace el doctor en la aplicación.",
+  "Esta puerta no lee ni escribe historias ni diagnósticos de personas, firma ni sello, y no borra ni modifica lo que ya existe: eso lo hace el doctor en la aplicación.",
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
+  "Vigilancia epidemiológica (si la llave tiene la casilla): para «créame la vigilancia del trimestre…», busca la empresa (si no existe, créala con su visto bueno), mira ver_programas, propone el programa o el ajuste que falte, lee vigilancia_cifras y ver_informe, y deja el borrador con redactar_informe. Todo queda como propuesta: el doctor la aprueba. No inventes cifras ni nombres; lo que vino en «Otros» no se nombra. Aquí no hay precios.",
 ].join("\n");

@@ -123,3 +123,54 @@ export async function guardarEnvioAuto(empresaId: string, activo: boolean, hora:
 }
 
 const horaVE = (h: number) => `${h % 12 || 12}:00 ${h < 12 ? "a. m." : "p. m."}`;
+
+// ── Programas de vigilancia (public.vigilancia_programas, 20261030953000). La regla RLS decide; esto solo limpia ──
+export type ProgramaEntrada = {
+  id?: string | null;
+  nombre: string;
+  proyecto: string;
+  riesgo: string;
+  condiciones: string;
+  dependencia_ids: string[];
+  puesto_ids: string[];
+  examenes: { nombre: string; cada_meses: number | null }[];
+  metas: { indicador: string; meta: string }[];
+  activo: boolean;
+};
+
+const UUID = /^[0-9a-f-]{36}$/i;
+const corto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+export async function guardarPrograma(empresaId: string, p: ProgramaEntrada): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "En modo demo no se guardan datos." };
+  if (!(sesion.clinico || ["administrador", "coordinador_sst"].includes(sesion.rol ?? ""))) return { ok: false, mensaje: "Tu rol no permite editar programas de vigilancia." };
+  if (!UUID.test(empresaId) || (p.id && !UUID.test(p.id))) return { ok: false, mensaje: "Datos no válidos." };
+  const nombre = corto(p.nombre, 120);
+  if (nombre.length < 3) return { ok: false, mensaje: "Escribe el nombre del programa (3 letras o más)." };
+  const fila = {
+    nombre,
+    proyecto: corto(p.proyecto, 200) || null,
+    riesgo: corto(p.riesgo, 200) || null,
+    condiciones: corto(p.condiciones, 4000) || null,
+    dependencia_ids: (p.dependencia_ids ?? []).filter((x) => UUID.test(x)).slice(0, 200),
+    puesto_ids: (p.puesto_ids ?? []).filter((x) => UUID.test(x)).slice(0, 500),
+    examenes: (p.examenes ?? []).map((e) => ({ nombre: corto(e.nombre, 120), cada_meses: e.cada_meses && e.cada_meses > 0 ? Math.min(Math.round(e.cada_meses), 120) : null })).filter((e) => e.nombre).slice(0, 40),
+    metas: (p.metas ?? []).map((m) => ({ indicador: corto(m.indicador, 200), meta: corto(m.meta, 120) || null })).filter((m) => m.indicador).slice(0, 40),
+    activo: p.activo !== false,
+  };
+  const supabase = await crearClienteServidor();
+  const tabla = supabase.from("vigilancia_programas" as never);
+  const { error } = p.id
+    ? await tabla.update(fila as never).eq("id", p.id).eq("empresa_id", empresaId)
+    : await tabla.insert({ ...fila, org_id: sesion.orgId, empresa_id: empresaId } as never);
+  if (error) {
+    if (error.code === "23505") return { ok: false, mensaje: "Ya hay un programa con ese nombre en esta empresa." };
+    if (error.code === "42501") return { ok: false, mensaje: "No tienes permiso para editar programas en esta empresa." };
+    if (error.code === "42P01" || error.code === "PGRST205") return { ok: false, mensaje: "Falta aplicar la actualización de la base (vigilancia con agentes)." };
+    return { ok: false, mensaje: error.message };
+  }
+  revalidatePath(`/empresas/${empresaId}`);
+  revalidatePath("/reportes", "layout");
+  return { ok: true, mensaje: p.id ? "Programa guardado." : "Programa creado." };
+}
