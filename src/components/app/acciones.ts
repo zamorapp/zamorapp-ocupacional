@@ -53,14 +53,23 @@ const ESPERA_ACUSE_MS = 30 * 60e3;
 export async function aparatosSinAcuse(): Promise<AparatoSinAcuse[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.from("suscripciones_push").select("id, equipo, ultimo_aviso, ultimo_acuse, acuse_mostrado");
+  const { data, error } = await supabase.from("suscripciones_push").select("id, equipo, ultimo_aviso, ultimo_acuse, acuse_mostrado, acuse_ignorado");
   if (error || !data) return [];
   const limite = ahora() - ESPERA_ACUSE_MS;
   return data
-    .filter((s) => s.ultimo_aviso && (
+    // «Ignorar» guardado en la nube (20261030946000): vale en todos los equipos hasta que salga otro aviso
+    .filter((s) => s.ultimo_aviso && !(s.acuse_ignorado && Date.parse(s.acuse_ignorado) >= Date.parse(s.ultimo_aviso)) && (
       (Date.parse(s.ultimo_aviso) < limite && (!s.ultimo_acuse || Date.parse(s.ultimo_acuse) < Date.parse(s.ultimo_aviso)))
       || (s.acuse_mostrado === false && s.ultimo_acuse && Date.parse(s.ultimo_acuse) >= Date.parse(s.ultimo_aviso))))
     .map((s) => ({ id: s.id as string, equipo: (s.equipo as string | null) || "Navegador", desde: s.ultimo_aviso as string, bloqueado: s.acuse_mostrado === false }));
+}
+
+// «Ignorar» del aviso de un aparato sin acuse: lo guarda la nube para ese aviso (solo el dueño del aparato)
+export async function ignorarAparato(id: string) {
+  if (!supabaseConfigurado) return;
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("ignorar_aparato_sin_acuse", { p_id: id });
+  if (error) throw new Error("No se pudo guardar «Ignorar»");
 }
 
 export async function marcarLeidas(ids: string[]) {
