@@ -54,7 +54,7 @@ const SIN_IMAGENES: Imagenes = { firma_url: null, sello_url: null };
 // La firma propia se pide una vez por petición (un lote de 150 constancias del mismo médico no la repite)
 const firmaPropia = cache(async (id: string) =>
   ((await (await crearClienteServidor()).rpc("firma_sello", { p_usuario: id }).maybeSingle()).data as Imagenes | null) ?? SIN_IMAGENES);
-// Firma y sello de quien firmó ESE documento (20261030945000): el firmante siempre; el resto del personal clínico solo
+// Firma y sello de quien firmó ESE documento (20261030951000): el firmante siempre; el resto del personal clínico solo
 // si el documento ya está cerrado. La base toma el firmante del propio documento: nadie elige de quién.
 export const firmaDeDocumento = cache(async (firmante: string, tipo: TipoDocumentoFirmado, docId: string): Promise<Imagenes> => {
   const sesion = await obtenerSesion();

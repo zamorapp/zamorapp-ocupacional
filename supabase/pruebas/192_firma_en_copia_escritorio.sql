@@ -14,7 +14,7 @@ select 'el médico baja su firma y sello a la PC (debe 1): ' || count(*)
   from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000192','s192','public.perfiles')->'filas') f
  where f->>'id'='00000000-0000-0000-0000-0000000000a2' and f->>'firma_url' like '%FIRMA192' and f->>'sello_url' like '%SELLO192';
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
--- Desde 20261030945000 la firma ajena no baja a otra PC: se imprime con firma_de_documento (en línea)
+-- Desde 20261030951000 la firma ajena no baja a otra PC: se imprime con firma_de_documento (en línea)
 select 'la firma del médico no baja a la PC de enfermería (debe 0): ' || count(*)
   from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000192','s192','public.perfiles')->'filas') f
  where f->>'id'='00000000-0000-0000-0000-0000000000a2' and f->>'firma_url' like '%FIRMA192';
