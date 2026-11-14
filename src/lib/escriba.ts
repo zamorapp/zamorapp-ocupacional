@@ -191,6 +191,38 @@ export function ordenarDictado(texto: string, opciones: {
   return d;
 }
 
+// «Grabar la conversación» (Cesar, 14-nov): el médico conversa con el paciente sin decir las secciones. Cada frase
+// se ubica por lo que dice y se le antepone su sección; después ordenarDictado hace lo de siempre. Es una propuesta:
+// el médico revisa cada casilla antes de pasarla. Sin IA ni costo, y el audio no se guarda. El orden importa: el
+// examen va antes que la enfermedad actual («abdomen no doloroso» no es un síntoma).
+const POR_LO_QUE_DICE: [RegExp, string][] = [
+  [/\b(?:tension|presion)(?: arterial)?(?: de)? \d|\bpulso (?:de )?\d|\btemperatura\b|\bsaturacion\b|\bpesa\b|\bpeso (?:de )?\d|\btalla\b|\bmide \d/, "signos vitales"],
+  [/\b(?:no )?apto\b|\b(?:no )?elegible\b|\bdiferido\b/, "aptitud"],
+  [/\bausculta|\bpalpacion\b|\bruidos (?:cardiacos|respiratorios|hidroaereos)|\bmurmullo vesicular|\bdepresible\b|\bpupilas\b|\bconjuntivas\b|\borofaringe\b|\bmucosas\b|\bedema\b|\bpulsos perifericos|\breflejos\b|\bfuerza muscular|\blasegue\b|\bphalen\b|\btinel\b|\bse observa\b|\bse palpa\b/, "examen fisico"],
+  [/\ble (?:indico|receto|mando|voy a (?:mandar|indicar|dar|recetar|pedir))\b|\bva(?:s)? a tomar\b|\btome\b|\btomar\b|\bcada \d+ horas\b|\b\d+ ?(?:mg|miligramos)\b|\btabletas?\b|\bcapsulas?\b|\bjarabe\b|\bampollas?\b|\breposo\b|\bcontrol en\b|\bregres[ae] en\b|\bme trae\b|\bexamenes de\b/, "indicaciones"],
+  [/\ble recomiendo\b|\bdebe (?:usar|evitar)\b|\bevite\b|\bpausas activas\b|\bhidratarse\b|\bprotector(?:es)? auditivo|\bequipo de proteccion\b|\bfaja\b/, "recomendaciones al trabajador"],
+  [/\balergi(?:co|ca|a)\b|\boperad[oa]\b|\bcirugia\b|\bfuma\b|\bfumador|\b(?:toma|bebe) alcohol\b|\bhipertens[oa]\b|\bdiabetic[oa]\b|\bdiabetes\b|\basmatic[oa]\b|\bantecedente|\bsu (?:mama|papa|madre|padre)\b|\ben la familia\b|\bvacuna/, "antecedentes"],
+  [/\bduele\b|\bdolor\b|\bdesde hace\b|\bdesde (?:ayer|anoche|antier)\b|\bfiebre\b|\btos\b|\bmareo|\bnausea|\bvomit|\bdiarrea\b|\bcefalea\b|\bpicazon\b|\bardor\b|\bhinchad|\bse (?:cayo|golpeo|corto|lesiono)\b|\bme siento\b|\bse siente\b|\bmolestia/, "enfermedad actual"],
+];
+const SECCION_DICHA = new RegExp(`^(?:${SECCIONES.flatMap(([f]) => f).sort((a, b) => b.length - a.length).join("|")})\\b`);
+
+export function etiquetarConversacion(texto: string): string {
+  return texto
+    .split(/\n+|(?<=[.?!])\s+/)
+    .map((frase) => {
+      const f = frase.trim();
+      const t = soloLetras(f);
+      // Una frase que ya empieza por su sección («examen físico…») queda como está
+      if (!t || SECCION_DICHA.test(t)) return f;
+      const regla = POR_LO_QUE_DICE.find(([re]) => re.test(t));
+      // Cada frase cierra con punto: si no, al juntarse en un campo se pegan («…derecha Soy hipertenso…»)
+      const cerrada = /[.?!:;]$/.test(f) ? f : `${f}.`;
+      return regla ? `${regla[1]} ${cerrada}` : cerrada;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 // Campos que conviene revisar porque el dictado no los trajo (se marcan en ámbar; nunca bloquean)
 export function faltantes(d: Dictado, opciones: { fisico: FilaExamen[]; preventivo: boolean }) {
   const falta: string[] = [];

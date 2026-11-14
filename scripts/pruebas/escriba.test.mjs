@@ -7,7 +7,7 @@ import { createJiti } from "jiti";
 
 const raiz = fileURLToPath(new URL("../../src/", import.meta.url));
 const jiti = createJiti(import.meta.url, { alias: { "@/": raiz } });
-const { ordenarDictado, aplicarDictado, faltantes, leerSignos, leerAptitud } = await jiti.import("../../src/lib/escriba.ts");
+const { ordenarDictado, aplicarDictado, faltantes, leerSignos, leerAptitud, etiquetarConversacion } = await jiti.import("../../src/lib/escriba.ts");
 
 const fila = (clave, nombre, normal) => ({ clave, nombre, valor: normal, normal });
 const fisico = [
@@ -90,4 +90,24 @@ test("aplicar no borra lo escrito", () => {
   assert.equal(c.examenFisico[0].valor, "Adenopatía cervical.", "la fila intacta se reemplaza");
   assert.equal(c.examenFisico[1].valor, "Escrito a mano.\nHernia umbilical.", "la fila escrita a mano se conserva");
   assert.equal(c.aptitud.clasificacion, "elegible");
+});
+
+// «Grabar la conversación»: sin decir secciones, cada frase va a su casilla por lo que dice
+test("la conversación se ubica sola", () => {
+  const conv = ["Buenos días, siéntese por favor", "Doctor, me duele la espalda desde hace tres días", "Soy hipertenso y tomo losartán",
+    "Tensión 130 sobre 85, pulso 78, peso 82 kilos", "Abdomen blando, depresible, no doloroso",
+    "Le voy a indicar diclofenac 50 mg cada 8 horas y reposo de 48 horas", "Le recomiendo usar la faja", "Queda apto con restricciones para cargar peso"].join("\n");
+  const d = ordenarDictado(etiquetarConversacion(conv), opciones);
+  assert.equal(d.sinUbicar, "Buenos días, siéntese por favor.");
+  assert.match(d.textos.enfermedadActual, /me duele la espalda desde hace tres días/);
+  assert.match(d.textos.enfermedadActual, /Antecedentes: Soy hipertenso/);
+  assert.deepEqual(d.signos, { ta: "130/85", fc: "78", peso: "82" });
+  assert.equal(d.fisico.abdomen, "Blando, depresible, no doloroso.");
+  assert.match(d.textos.indicaciones, /diclofenac 50 mg/);
+  assert.match(d.textos.recomendacionesTrabajador, /faja/);
+  assert.equal(d.aptitud.clasificacion, "elegible_con_restricciones");
+});
+
+test("una frase que ya dice su sección no se cambia", () => {
+  assert.equal(etiquetarConversacion("Examen físico abdomen normal"), "Examen físico abdomen normal");
 });
