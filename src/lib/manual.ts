@@ -589,8 +589,8 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Entra a Configuración › Puerta para agentes (solo el administrador).",
       "En «Crear una llave» escribe para quién es (Claude, ChatGPT, Gemini…), elige «Solo consultar» o «Consultar y crear», y cuánto dura: 7, 30 o 90 días. Pulsa «Crear llave».",
-      "La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp. Si tu agente tiene casilla para la llave, usa «Copiar dirección» y «Copiar llave» (forma recomendada).",
-      "Si tu agente solo acepta una dirección (Claude, por ejemplo), abre «Mi agente solo acepta una dirección» y copia la dirección con llave. Para esa forma conviene una llave «Solo consultar»; si compartes la dirección, apaga la llave.",
+      "La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp. Pulsa «Copiar dirección del conector»: es larga, termina en un código que empieza por «zk_» y sirve para Claude y para cualquier agente que pida una sola dirección.",
+      "Solo si tu agente tiene una casilla aparte para la llave, abre «Mi agente tiene una casilla aparte para la llave» y copia la dirección sin llave y la llave. En Claude esa dirección sola da «Problema de conexión».",
       "En tu agente abre Conectores, elige agregar un conector personalizado, pega lo que copiaste y guarda.",
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
@@ -599,6 +599,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Antes de crear, el agente hace un ensayo y te muestra lo que va a crear. Si repite la misma orden, no duplica.",
       "El presupuesto nace en borrador: lo revisas y lo envías tú.",
+      "Las llaves apagadas o vencidas se borran solas de la lista: al día siguiente si nunca se usaron, a los 7 días si se usaron. El registro de lo que hicieron se guarda un año.",
       "Una llave «Solo consultar» ve nombres y cédulas de trabajadores, empresas, citas y presupuestos; nada de salud.",
       "Nunca ve ni toca historias, diagnósticos, aptitudes, reposos, tu firma ni tu sello. No borra ni cambia lo que ya existe.",
       "Si la cédula de un trabajador ya está en otra empresa, se detiene y te avisa: tú decides si lo cambias en Pacientes.",

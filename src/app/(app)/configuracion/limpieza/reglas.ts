@@ -63,7 +63,7 @@ export const TEXTOS: Record<string, { titulo: string; que: string; plazo: (d: nu
   },
   agentes_registro: {
     titulo: "Registro de la puerta para agentes",
-    que: "Las líneas de «tal agente hizo tal cosa» y las llaves que ya vencieron o apagaste. Lo que el agente creó (empresas, presupuestos, citas) no se toca.",
+    que: "Las líneas de «tal agente hizo tal cosa». Las llaves apagadas o vencidas se borran antes: al día siguiente si nunca se usaron, a los 7 días si se usaron. Lo que el agente creó (empresas, presupuestos, citas) no se toca.",
     plazo: (d) => `${d} días`,
   },
 };
