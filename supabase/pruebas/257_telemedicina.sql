@@ -67,6 +67,9 @@ insert into public.alertas_clinicas (id, org_id, trabajador_id, consulta_id, tex
 values ('25700000-0000-0000-0000-0000000000a1', '10000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-00000000000a',
         '40000000-0000-0000-0000-00000000000a', 'Seguimiento a distancia', public.hoy_caracas() - 1);
 select 'está en la sala de espera (debe 1): ' || count(*) from public.seguimientos_distancia() where alerta_id = '25700000-0000-0000-0000-0000000000a1' and medio = 'llamada';
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a5',false) \g /dev/null
+select 'enfermería no archiva (debe 0): ' || public.archivar_seguimientos_distancia();
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false) \g /dev/null
 select 'archiva lo vencido (debe 1): ' || public.archivar_seguimientos_distancia();
 select 'pasa a archivados (debe 1): ' || count(*) from public.seguimientos_distancia(true) where alerta_id = '25700000-0000-0000-0000-0000000000a1';
 select 'ya no espera (debe 0): ' || count(*) from public.seguimientos_distancia() where alerta_id = '25700000-0000-0000-0000-0000000000a1';

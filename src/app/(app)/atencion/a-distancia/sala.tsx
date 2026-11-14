@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Archive, CalendarPlus, Loader2, MessageCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { abrirEnVentana } from "@/lib/escritorio";
 import { enlaceWhatsApp } from "@/lib/mensajes";
 import { NOMBRE_MEDIO, type Seguimiento } from "@/lib/telemedicina-tipos";
-import { cn } from "@/lib/utils";
 import { abrirControl, archivarSala, extenderSala } from "../telemedicina-acciones";
 
 const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
@@ -53,18 +53,18 @@ function Fila({ s, hoy, servicio, onCambio }: { s: Seguimiento; hoy: string; ser
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={ocupado} onClick={() => correr("control", async () => { const r = await abrirControl(s.consultaId); if (r && !r.ok) setError(r.mensaje); })}>
+        <Button size="sm" className="max-sm:h-11" disabled={ocupado} onClick={() => correr("control", async () => { const r = await abrirControl(s.consultaId); if (r && !r.ok) setError(r.mensaje); })}>
           {ocupado && accion === "control" ? <Loader2 className="animate-spin" /> : <Phone />} Abrir control
         </Button>
-        <Button size="sm" variant="outline" onClick={() => abrirEnVentana(enlaceWhatsApp(s.telefono, recordatorio))}><MessageCircle /> Recordarle</Button>
-        <Button size="sm" variant="outline" disabled={ocupado} onClick={() => correr("mas", async () => {
+        <Button size="sm" className="max-sm:h-11" variant="outline" onClick={() => abrirEnVentana(enlaceWhatsApp(s.telefono, recordatorio))}><MessageCircle /> Recordarle</Button>
+        <Button size="sm" className="max-sm:h-11" variant="outline" disabled={ocupado} onClick={() => correr("mas", async () => {
           const r = await extenderSala(s.alertaId, 15);
           if (!r.ok || !r.revisarAntes) return setError(r.mensaje);
           onCambio({ ...s, revisarAntes: r.revisarAntes });
         })}>
           {ocupado && accion === "mas" ? <Loader2 className="animate-spin" /> : <CalendarPlus />} 15 días más
         </Button>
-        <Button size="sm" variant="ghost" disabled={ocupado} className={cn("text-muted-foreground")} onClick={() => correr("archivar", async () => {
+        <Button size="sm" variant="ghost" disabled={ocupado} className="text-muted-foreground max-sm:h-11" onClick={() => correr("archivar", async () => {
           const r = await archivarSala(s.alertaId);
           if (!r.ok) return setError(r.mensaje);
           onCambio(null);
@@ -73,5 +73,21 @@ function Fila({ s, hoy, servicio, onCambio }: { s: Seguimiento; hoy: string; ser
         </Button>
       </div>
     </li>
+  );
+}
+
+// Tarjeta del Inicio: se oculta si nadie espera; muestra 3 y «Ver todo» lleva a /atencion/a-distancia
+export function TarjetaSalaDistancia({ lista, hoy, servicio }: { lista: Seguimiento[]; hoy: string; servicio: string }) {
+  if (lista.length === 0) return null;
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-center gap-2 border-b px-5 py-3">
+        <Phone className="size-5 text-primary" aria-hidden />
+        <CardTitle className="text-base">Sala de espera a distancia</CardTitle>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{lista.length}</span>
+        <Button variant="ghost" size="sm" className="-my-1 ml-auto max-sm:h-11" asChild><Link href="/atencion/a-distancia">Ver todo</Link></Button>
+      </CardHeader>
+      <div className="px-5"><SalaEspera lista={lista} hoy={hoy} servicio={servicio} max={3} /></div>
+    </Card>
   );
 }

@@ -20,13 +20,14 @@ export function BotonConsulta({ trabajadorId, habilitado, distancia = false }: {
     });
   };
   return (
-    <div className="flex flex-1 flex-col xl:flex-none">
-      <div className="flex gap-2">
-        <Button className="flex-1 xl:flex-none" disabled={!habilitado || abriendo} onClick={() => abrir("normal")}>
+    <div className="flex basis-full flex-col sm:flex-1 sm:basis-auto xl:flex-none">
+      {/* En el celular «Nueva consulta» va primero y a todo el ancho; «A distancia» debajo */}
+      <div className="flex flex-wrap gap-2">
+        <Button className="w-full sm:w-auto sm:flex-1 xl:flex-none" disabled={!habilitado || abriendo} onClick={() => abrir("normal")}>
           {abriendo && cual === "normal" ? <Loader2 className="animate-spin" /> : <ClipboardPlus />} Nueva consulta
         </Button>
         {distancia && (
-          <Button variant="outline" disabled={!habilitado || abriendo} onClick={() => abrir("distancia")} title="Consulta por llamada, videollamada, WhatsApp o nota de voz">
+          <Button variant="outline" className="flex-1 sm:flex-none" disabled={!habilitado || abriendo} onClick={() => abrir("distancia")} title="Consulta por llamada, videollamada, WhatsApp o nota de voz">
             {abriendo && cual === "distancia" ? <Loader2 className="animate-spin" /> : <Phone />} A distancia
           </Button>
         )}

@@ -30,10 +30,10 @@ export function AvisoDistancia({ seguimiento: s }: { seguimiento: Seguimiento })
         {" "}No volvió en el plazo y quedó archivada. ¿Abrir una consulta de control enlazada?
       </p>
       <div className="flex gap-2">
-        <Button size="sm" disabled={abriendo} onClick={() => iniciar(async () => { const r = await abrirControl(s.consultaId); if (r && !r.ok) setError(r.mensaje); })}>
+        <Button size="sm" className="max-sm:h-11" disabled={abriendo} onClick={() => iniciar(async () => { const r = await abrirControl(s.consultaId); if (r && !r.ok) setError(r.mensaje); })}>
           {abriendo ? <Loader2 className="animate-spin" /> : <Phone />} Abrir control
         </Button>
-        <Button size="sm" variant="ghost" onClick={ignorar}>Ignorar</Button>
+        <Button size="sm" variant="ghost" className="max-sm:h-11" onClick={ignorar}>Ignorar</Button>
       </div>
       {error && <p role="alert" className="w-full text-xs text-destructive">{error}</p>}
     </section>

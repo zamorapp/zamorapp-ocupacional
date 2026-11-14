@@ -183,9 +183,13 @@ function Formulario({ consultaId, paciente, telefonoFicha, tele, sala, firmada, 
               <div className="space-y-1.5">
                 <Label htmlFor="tele-duracion">Duración (minutos)</Label>
                 <Input id="tele-duracion" inputMode="numeric" value={duracion} onChange={(e) => setDuracion(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Ej. 15" />
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {DURACIONES.map((n) => (
-                    <button key={n} type="button" onClick={() => setDuracion(String(n))} className={cn("min-h-8 rounded-full border px-3 text-xs tabular-nums", duracion === String(n) && "border-primary bg-primary/10 text-primary")}>{n}</button>
+                    <button key={n} type="button" aria-pressed={duracion === String(n)} onClick={() => setDuracion(String(n))}
+                      className={cn("inline-flex min-h-8 items-center justify-center gap-1 rounded-full border px-3 text-xs tabular-nums max-sm:min-h-11 max-sm:min-w-11",
+                        duracion === String(n) ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/40")}>
+                      {duracion === String(n) && <Check className="size-3.5" aria-hidden />}{n}
+                    </button>
                   ))}
                 </div>
               </div>

@@ -232,8 +232,9 @@ begin
     select a.id from clinico.alertas_clinicas a
       join clinico.teleconsultas t on t.consulta_id = a.consulta_id
      where a.estado = 'pendiente' and a.revisar_antes is not null and a.revisar_antes < public.hoy_caracas()
-       and (a.org_id = any (public.orgs_con(p_clinico => true, p_sin_limite => true))
-            or (a.org_id::text || a.empresa_id::text) = any (public.pares_limitados(p_clinico => true)))
+       -- Solo médico, gerente médico o administrador (enfermería no actúa sobre lo que no es suyo)
+       and (a.org_id = any (public.orgs_con('{administrador,gerente_medico,medico}', p_sin_limite => true))
+            or (a.org_id::text || a.empresa_id::text) = any (public.pares_limitados('{administrador,gerente_medico,medico}')))
      limit 100
   loop
     perform set_config('zamorapp.cierre_automatico', 'on', true);

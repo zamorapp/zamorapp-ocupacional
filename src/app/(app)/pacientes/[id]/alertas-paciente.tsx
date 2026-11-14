@@ -32,7 +32,7 @@ export function AlertasPaciente({ alertas, puedeDescartar }: { alertas: AlertaCl
           </p>
           {/* Sala de espera de telemedicina: el paciente volvió → control enlazado a la consulta a distancia */}
           {a.texto === TEXTO_SALA && a.consultaId && puedeDescartar && (
-            <Button type="button" size="sm" className="h-7 shrink-0" disabled={abriendo}
+            <Button type="button" size="sm" className="h-7 shrink-0 max-sm:h-11" disabled={abriendo}
               onClick={() => iniciar(async () => { const r = await abrirControl(a.consultaId!); if (r && !r.ok) setError(r.mensaje); })}>
               {abriendo ? <Loader2 className="animate-spin" /> : <Phone />} Abrir control
             </Button>
