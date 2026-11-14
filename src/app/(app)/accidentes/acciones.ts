@@ -40,9 +40,13 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
     consultaId = c?.id ?? null;
   }
 
-  const { data, error } = await supabase
+  // El id lo pone el servidor y el alta no pide la fila de vuelta: RR. HH. reporta pero no lee la tabla
+  // (regla eventos_sin_rrhh); con .select() su reporte fallaría aunque la base lo dejara crear.
+  const id = crypto.randomUUID();
+  const { error } = await supabase
     .from("eventos")
     .insert({
+      id,
       org_id: sesion.orgId,
       empresa_id: empresaId,
       trabajador_id: trabajadorId,
@@ -56,14 +60,12 @@ export async function reportarEvento(_: Resultado | null, datos: FormData): Prom
       gravedad: texto(datos, "gravedad"),
       // Si se registra desde una consulta, queda enlazado a ella
       consulta_id: consultaId,
-    })
-    .select("id")
-    .single();
+    });
   if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite registrar eventos." : error.message };
   revalidatePath("/", "layout");
   olvidar("");
   await vigilarPlazos(sesion);
-  return { ok: true, mensaje: "Evento registrado.", id: data.id };
+  return { ok: true, mensaje: "Evento registrado.", id };
 }
 
 export async function guardarEvento(e: Evento): Promise<Resultado> {

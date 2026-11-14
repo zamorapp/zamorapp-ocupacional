@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-06",
+  "tema": "enlace-paciente",
+  "texto": "Enlace al paciente con documentos: al crearlo marca qué descarga al terminar su registro (orden de exámenes con un perfil y el tipo de examen, control de tensión, recomendaciones nutricionales o de bienestar). Apenas envía sus datos ve «Puede descargar la información que le envía…» con cada hoja llena con su nombre, cédula y empresa, y la baja en PDF. Si eres médico, salen firmados a tu nombre (nombre, MPPS y «Firmado digitalmente» con folio y cédula del paciente; sin la imagen de la firma, que nunca sale por un enlace público). Los guarda 7 días"
+}
