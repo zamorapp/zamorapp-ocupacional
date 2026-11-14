@@ -46,6 +46,8 @@ declare
   v_def text := replace(pg_get_functiondef('public.agentes_estado(uuid, date, date)'::regprocedure), chr(13), '');
   v_viejo text := '''permiso'', l.permiso,';
 begin
+  -- Ya aplicada (se pegó dos veces): no se toca
+  if position('''documentos'', l.documentos' in v_def) > 0 then return; end if;
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
     raise exception 'agentes_estado cambió: revisar 20261030959000 antes de aplicarla';
   end if;
@@ -97,6 +99,7 @@ declare
     end if;']];
   i int;
 begin
+  if position('new.examenes := old.examenes' in v_def) > 0 then return; end if; -- ya aplicada
   for i in 1 .. array_length(v_cambios, 1) loop
     if (length(v_def) - length(replace(v_def, v_cambios[i][1], ''))) / length(v_cambios[i][1]) <> 1 then
       raise exception 'proteger_indicacion cambió (cambio %): revisar 20261030959000 antes de aplicarla', i;
@@ -406,6 +409,7 @@ declare
         when ''resumen'' then public.agente_resumen(k.org_id)']];
   i int;
 begin
+  if position('agente_preparar_documento' in v_def) > 0 then return; end if; -- ya aplicada
   for i in 1 .. array_length(v_cambios, 1) loop
     if (length(v_def) - length(replace(v_def, v_cambios[i][1], ''))) / length(v_cambios[i][1]) <> 1 then
       raise exception 'public.agente cambió (cambio %): revisar 20261030959000 antes de aplicarla', i;
@@ -426,6 +430,7 @@ declare
   v_def text := replace(pg_get_functiondef('public.limpieza_correr(boolean)'::regprocedure), chr(13), '');
   v_viejo text := 'clave := ''agentes_registro''; cantidad := n; bytes := b; return next;';
 begin
+  if position('clinico.agentes_borradores' in v_def) > 0 then return; end if; -- ya aplicada
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
     raise exception 'limpieza_correr cambió: revisar 20261030959000 antes de aplicarla';
   end if;
