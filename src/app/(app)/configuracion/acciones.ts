@@ -13,6 +13,7 @@ import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
 import { CLASES } from "@/lib/estudios";
 import { esCategoria } from "@/lib/recomendaciones-categorias";
 import { ahora } from "@/lib/fecha";
+import { recordatorioCitasDeFormulario } from "@/lib/recordatorio-citas";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -235,6 +236,8 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
       // Consulta: aviso (no bloquea) si la fecha de la evaluación pasa de N días hacia adelante
       dias_aviso_fecha_futura: Math.min(3650, Math.max(1, Math.round(Number(texto(datos, "dias_aviso_fecha_futura") ?? 90)) || 90)),
+      // Recordatorios de citas (20261030955000): 3 avisos editables, celular, correo y hora de los avisos de días
+      recordatorio_citas: recordatorioCitasDeFormulario(datos),
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
       // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)

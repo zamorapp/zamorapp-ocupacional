@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Campo, CampoSelect, CampoTexto } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { guardarOrganizacion } from "../acciones";
+import { RecordatorioCitasCampos } from "./recordatorio-citas";
+import { describirPaso, leerRecordatorioCitas } from "@/lib/recordatorio-citas";
 import { CERTIFICACION_TRABAJADOR, CONDICION_PAGO_BCV, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH, NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
 
 type Ajustes = {
@@ -87,10 +89,24 @@ function resumen(id: IdPaso, f: HTMLFormElement | null, inicial: Record<string, 
   switch (id) {
     case "servicio": return unir(v("nombre") || "Falta el nombre", v("rif") && `RIF ${v("rif")}`, v("membrete_titular"));
     case "documentos": return unir(`Aptitud: ${v("palabra_aptitud") || "Elegible"}`, v("constancia_copia") ? "constancia con copia" : "constancia sin copia", v("firma_sello_separados") ? "firma y sello separados" : "firma y sello juntos");
-    case "plazos": return unir(`Periódico cada ${v("meses_examen_periodico") || 12} meses`, v("recordatorio_resultados_dias") === "0" ? "sin recordar resultados" : `recordar resultados cada ${v("recordatorio_resultados_dias") || 3} días`, v("centinela_correo") ? "plazos legales por correo" : "plazos legales solo en la campana");
+    case "plazos": return unir(`Periódico cada ${v("meses_examen_periodico") || 12} meses`, citasAntes(f, inicial), v("recordatorio_resultados_dias") === "0" ? "sin recordar resultados" : `recordar resultados cada ${v("recordatorio_resultados_dias") || 3} días`, v("centinela_correo") ? "plazos legales por correo" : "plazos legales solo en la campana");
     case "privacidad": return unir(v("dias_equipo_confianza") === "0" ? "Código en cada entrada" : `Código cada ${v("dias_equipo_confianza") || 30} días`, v("celda_minima_empresa") === "0" ? "la empresa ve todas las cifras" : `la empresa no ve cifras menores de ${v("celda_minima_empresa") || 3}`);
     case "mensajes": return "3 mensajes: cita, resultado e invitación";
   }
+}
+
+// «citas: 3 días, 1 día y 1 hora antes», con lo que hoy está escrito
+function citasAntes(f: HTMLFormElement | null, inicial: Record<string, unknown>): string {
+  const guardado = leerRecordatorioCitas(inicial);
+  const pasos = guardado.avisos.map((p, i) => {
+    const el = (n: string) => f?.elements.namedItem(`${n}_${i}`) as HTMLInputElement | HTMLSelectElement | null;
+    const activo = el("rc_activo") ? (el("rc_activo") as HTMLInputElement).checked : p.activo;
+    const valor = el("rc_valor") ? Number(el("rc_valor")!.value) : p.valor;
+    const unidad = (el("rc_unidad")?.value ?? p.unidad) as typeof p.unidad;
+    return activo && Number.isFinite(valor) ? describirPaso({ valor, unidad }) : null;
+  }).filter(Boolean) as string[];
+  if (!pasos.length) return "sin recordar citas";
+  return `citas: ${pasos.length > 1 ? pasos.slice(0, -1).join(", ") + " y " + pasos.at(-1) : pasos[0]} antes`;
 }
 
 // Un grupo de un paso que se despliega (sigue en el formulario aunque esté cerrado)
@@ -310,6 +326,7 @@ function PasoPlazos({ a }: { a: Ajustes }) {
         <Campo id="dias_aviso_fecha_futura" etiqueta="Avisar si la fecha de la evaluación va más de estos días adelante" ayuda="Solo avisa, no impide guardar." type="number" min={1} max={3650} defaultValue={a.dias_aviso_fecha_futura ?? 90} />
         <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días)" ayuda="0 = no recordar." type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
       </div>
+      <RecordatorioCitasCampos ajustes={a} />
       <div className="space-y-1">
         <Casilla id="centinela_correo" etiqueta="Avisar por correo los plazos legales (declaración ante el INPSASEL, informe NT-02, investigación del accidente)" defecto={a.centinela_correo ?? false} />
         <p className="pl-6 text-xs text-muted-foreground">Viene apagado. Llega al personal de salud y SST de cada empresa con el número de evento, la empresa y el plazo: nunca el nombre del trabajador ni el diagnóstico. Sale cuando un administrador o gerente médico abre zamorApp. La campana avisa siempre.</p>
