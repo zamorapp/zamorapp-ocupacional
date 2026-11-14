@@ -3,13 +3,15 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, Printer, ShieldCheck } from "lucide-react";
 import { BotonNotificarTrabajadores } from "@/components/app/notificacion-riesgos";
+import { AnilloCumplimiento } from "@/components/app/anillo-cumplimiento";
 import { Semaforo } from "@/components/app/semaforo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CRITERIOS_DEMO, queFalta } from "@/lib/cumplimiento";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { CLAVES_CRITERIOS, periodoInspeccion, resumenInspeccion } from "@/lib/inspeccion";
+import { CLAVES_CRITERIOS, periodoInspeccion, resumenInspeccion, type Criterio } from "@/lib/inspeccion";
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { obtenerSesion, type Sesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
@@ -55,8 +57,10 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
         <Button type="submit" variant="outline">Ver</Button>
       </form>
 
-      {!medir ? (
-        <p className="rounded-xl border p-6 text-sm text-muted-foreground">{sesion.demo ? "Conecta Supabase para medir el cumplimiento." : "Elige una empresa."}</p>
+      {sesion.demo ? (
+        <Criterios sesion={sesion} empresaId="" desde={desde} hasta={hasta} />
+      ) : !medir ? (
+        <p className="rounded-xl border p-6 text-sm text-muted-foreground">Elige una empresa.</p>
       ) : (
         // El encabezado y el formulario salen al instante; los criterios llegan cuando la base termina de contar
         <Suspense key={`${empresaId}${desde}${hasta}`} fallback={<EsqueletoCriterios />}>
@@ -68,19 +72,18 @@ export default async function Inspeccion({ searchParams }: { searchParams: Promi
 }
 
 async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; empresaId: string; desde: string; hasta: string }) {
-  const d = await resumenInspeccion(empresaId, desde, hasta);
+  const d = sesion.demo ? demoResumen() : await resumenInspeccion(empresaId, desde, hasta);
   if (!d) return <p className="rounded-xl border p-6 text-sm text-muted-foreground">Elige una empresa.</p>;
   const sinNotificar = d.pendientes.filter((t) => t.con_puesto);
   // Nunca notificados o desactualizados: necesitan una notificación nueva (los que solo deben el acuse, no)
+  const falta = queFalta(d.criterios);
   const porNotificar = sinNotificar.filter((t) => !t.notificado_en || t.firmado_en).map((t) => t.id);
   return (
     <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
             <Card className="items-center justify-center gap-2 py-6 text-center">
-              <div className={cn("text-5xl font-bold tabular-nums", d.puntaje === null ? "text-muted-foreground" : d.puntaje >= 100 ? "text-ok-texto" : d.puntaje >= 80 ? "text-aviso-texto" : "text-alerta-texto")}>
-                {d.puntaje === null ? "—" : `${d.puntaje} %`}
-              </div>
-              <div className="text-sm text-muted-foreground">Índice de cumplimiento</div>
+              <AnilloCumplimiento puntaje={d.puntaje} />
+              <div className="text-sm text-muted-foreground">Índice de cumplimiento, de 0 a 100</div>
               <div className="text-xs text-muted-foreground">{fecha(desde)} al {fecha(hasta)}</div>
             </Card>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -102,6 +105,34 @@ async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; 
               ))}
             </div>
           </div>
+
+          {falta.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Qué falta para subir el puntaje</CardTitle></CardHeader>
+              <CardContent>
+                <ol className="divide-y">
+                  {falta.map((c) => {
+                    const destino = c.href ?? (c.clave === "notificacion" && sinNotificar.length > 0 ? "#sin-notificar" : null);
+                    return (
+                      <li key={c.clave} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                        <span className="w-10 shrink-0 font-mono text-sm font-semibold tabular-nums text-primary">+{c.sube}</span>
+                        <div className="min-w-0 flex-1 basis-56">
+                          <div className="text-sm font-medium">{c.titulo}</div>
+                          <div className="text-xs text-muted-foreground">{c.cumplidos} de {c.total} · {c.detalle}</div>
+                        </div>
+                        {destino && (
+                          <Button variant="outline" size="sm" className="max-sm:min-h-11 max-sm:w-full" asChild>
+                            <Link href={destino}>Corregir <ArrowRight /></Link>
+                          </Button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="mt-2 text-xs text-muted-foreground">El número es cuánto sube el puntaje si ese punto queda completo.</p>
+              </CardContent>
+            </Card>
+          )}
 
           {sinNotificar.length > 0 && (
             <Card id="sin-notificar" className="scroll-mt-20">
@@ -125,6 +156,13 @@ async function Criterios({ sesion, empresaId, desde, hasta }: { sesion: Sesion; 
           )}
     </>
   );
+}
+
+function demoResumen() {
+  const criterios = CRITERIOS_DEMO.map((c) => ({ ...c })) as Criterio[];
+  const aplican = criterios.filter((c) => c.estado !== "no_aplica");
+  const puntaje = Math.round((aplican.reduce((s, c) => s + c.cumplidos / c.total, 0) / aplican.length) * 100);
+  return { criterios, puntaje, pendientes: [] as { id: string; nombre: string; con_puesto: boolean; notificado_en: string | null; firmado_en: string | null }[] };
 }
 
 function EsqueletoCriterios() {
