@@ -525,7 +525,7 @@ fn texto_salida(estado: Option<&serde_json::Value>, descargando: bool, actualiza
     }
     if descargando { avisos.push("• Se está descargando una actualización. Si sales, se vuelve a ofrecer la próxima vez.".into()); }
     if actualizacion_lista { avisos.push("• Al salir se instala la actualización que ya está lista; zamorApp se vuelve a abrir solo en unos segundos.".into()); }
-    if avisos.is_empty() { "¿Desea salir de zamorApp?".into() } else { format!("¿Desea salir de zamorApp?\n\n{}", avisos.join("\n")) }
+    if avisos.is_empty() { "¿Quieres salir de zamorApp?".into() } else { format!("¿Quieres salir de zamorApp?\n\n{}", avisos.join("\n")) }
 }
 
 fn sincronizar_ahora(app: AppHandle) {

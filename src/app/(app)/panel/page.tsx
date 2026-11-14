@@ -157,7 +157,7 @@ async function Tareas({ sesion }: { sesion: Sesion }) {
   return (
       <section aria-label={enfoque.titulo} className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">{enfoque.titulo}</h2>
-        <div className={cn("grid grid-cols-1 gap-3", enfoque.tareas.length === 3 ? "sm:grid-cols-3" : enfoque.tareas.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2")}>
+        <div className={cn("grid grid-cols-1 gap-3", enfoque.tareas.length === 3 ? "sm:grid-cols-3" : enfoque.tareas.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : enfoque.tareas.length === 5 ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" : "sm:grid-cols-2")}>
           {enfoque.tareas.map((t) => (
             <Link
               key={t.titulo}

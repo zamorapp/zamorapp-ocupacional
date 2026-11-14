@@ -26,7 +26,8 @@ export function soloDeLaHoja(h: HojaEditable, cambios: Cambios): Cambios {
 // grupo de alarma cambiado no puede quedar vacío ni con renglones en blanco (Analizar #286)
 export const SIN_ALARMAS = "Las señales de alarma no se pueden quitar. Puedes cambiar su texto, pero cada grupo de alarma debe tener al menos un renglón.";
 export function alarmasQuitadas(h: HojaEditable, cambios: Cambios): boolean {
-  if (h.tipo !== "bienestar") return false;
+  // Dietas: los pasos del recuadro de azúcar baja (g-<guía>-a0, a1…) no pueden quedar vacíos (Analizar #358)
+  if (h.tipo === "dieta") return Object.entries(cambios).some(([k, v]) => /^g-[a-z0-9-]+-a\d+$/.test(k) && (typeof v !== "string" || !v.trim()));
   if (h.clave === "equilibrio") {
     const v = cambios["equilibrio-alarma"];
     return Array.isArray(v) && (!v.length || v.some((x) => !x.trim()));

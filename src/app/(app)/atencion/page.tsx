@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { soloMias } from "@/lib/panel-rol";
 import { BookOpen, CalendarCog, History, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,15 +43,25 @@ const ESTILO_ESTADO = {
   firmada: "bg-primary/15 text-primary",
 };
 
-export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string; empresas?: string }> }) {
-  const [{ dia: diaParam, empresas: verEmpresas }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
+const FILTROS_INICIO = {
+  abiertas: { estado: "borrador", titulo: "Consultas abiertas", detalle: "Empezadas y sin cerrar · todas las empresas", vacio: "No hay consultas abiertas." },
+  "por-firmar": { estado: "cerrada", titulo: "Consultas por firmar", detalle: "Cerradas sin firma · todas las empresas", vacio: "No hay consultas por firmar." },
+} as const;
+
+export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string; empresas?: string; ver?: string }> }) {
+  const [{ dia: diaParam, empresas: verEmpresas, ver: verParam }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
   const hoy = hoyCaracas();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = sumarDias(hoy, -30);
   // «Ver 30 días» desde Últimos atendidos (Inicio): las consultas de todas las empresas, sin la empresa activa
   const todas = verEmpresas === "todas";
+  // «Consultas abiertas» y «Por firmar» del Inicio: la lista exacta que cuenta la tarjeta (misma regla que inicio_conteos)
+  const ver = verParam && verParam in FILTROS_INICIO ? FILTROS_INICIO[verParam as keyof typeof FILTROS_INICIO] : null;
+  const listaConsultas = () => ver
+    ? listarConsultas({ estados: [ver.estado], sinImportadas: true, todas: true, limite: 500, medicoId: soloMias(sesion) ? sesion.usuarioId : undefined })
+    : listarConsultas({ desde, todas });
   const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
-    sesion.demo ? [] : listarConsultas({ desde, todas }),
+    sesion.demo ? [] : listaConsultas(),
     sesion.demo ? [] : listarCitas(dia),
     opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico", "recomendacion_paciente"]),
     sesion.demo ? [] : listarSolicitudes(),
@@ -65,7 +76,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
   // Para registrar ahí mismo a un paciente nuevo (la misma lista que ya pidió el menú: va una sola consulta)
   const opcionesEmpresa = empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }));
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
-  const abiertas = consultas.filter((c) => c.estado === "borrador").length;
+  const abiertas = ver ? null : consultas.filter((c) => c.estado === "borrador").length;
   // Contacto de cada empresa con teléfono: el WhatsApp de un toque al proponer otra hora
   const contactos: Record<string, Contacto> = {};
   const empresasSolicitud = [...new Set(solicitudes.map((c) => c.empresaId))];
@@ -81,7 +92,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Atención médica</h1>
-          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={ahora()} /></p>
+          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{ver ? ver.titulo : <>{deHoy} consultas hoy · {abiertas} en curso</>} <RefrescarAlVolver generada={ahora()} /></p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
@@ -136,8 +147,10 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       {/* Consultas recientes */}
       <section id="consultas" className="scroll-mt-20 space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3">
-          <h2 className="text-lg font-semibold">Consultas de los últimos 30 días</h2>
-          {activa && (todas
+          <h2 className="text-lg font-semibold">{ver ? `${ver.titulo} (${consultas.length})` : "Consultas de los últimos 30 días"}</h2>
+          {ver && <span className="text-sm text-muted-foreground">{ver.detalle}{consultas.length >= 500 ? " · se muestran las 500 más recientes" : ""}</span>}
+          {ver && <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Ver las de 30 días</Link>}
+          {!ver && activa && (todas
             ? <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Solo la empresa elegida</Link>
             : <Link href="/atencion?empresas=todas#consultas" className="text-sm text-primary hover:underline">Ver todas las empresas</Link>)}
           {todas && <span className="text-sm text-muted-foreground">De todas las empresas</span>}
@@ -146,7 +159,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           {consultas.length === 0 ? (
             <div className="grid place-items-center gap-2 py-12 text-center text-muted-foreground">
               <ClipboardList className="size-8" />
-              Aún no hay consultas. Atiende desde la cola, con Nueva consulta o desde la ficha de un paciente.
+              {ver ? ver.vacio : "Aún no hay consultas. Atiende desde la cola, con Nueva consulta o desde la ficha de un paciente."}
             </div>
           ) : (
             <Table>

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, UserCheck, UserX, X } from "lucide-react";
+import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, Ticket, UserCheck, UserX, X } from "lucide-react";
 import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,11 +22,13 @@ const minutosDesde = (iso: string | null, ahora: number) => (iso ? Math.max(0, M
 const ConAlerta = createContext<Set<string>>(new Set());
 
 function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React.ReactNode; detalle?: React.ReactNode; arrastrable?: boolean }) {
+  const provisional = c.porConfirmar && c.estado === "citado";
   return (
     <li
       draggable={arrastrable}
       onDragStart={arrastrable ? (e) => { e.dataTransfer.setData("text/cita", c.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
-      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing")}
+      // Provisional: borde punteado y la palabra «Por confirmar» (no solo el color)
+      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing", provisional && "mx-2 my-1 rounded-md border border-dashed border-aviso")}
     >
       <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora ?? "—"}</span>
       <div className="min-w-0 flex-1">
@@ -36,6 +38,7 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
             <BellRing className="size-3.5 text-aviso-texto" aria-hidden />
           </span>
         )}
+        {provisional && <Link href="/atencion/por-confirmar" className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px align-[1px] text-[11px] font-semibold whitespace-nowrap text-aviso-texto hover:underline">Por confirmar</Link>}
         <div className="text-xs text-muted-foreground">{[c.motivo, c.cedula].filter(Boolean).join(" · ")}{detalle}</div>
       </div>
       <div className="flex gap-1">{children}</div>
@@ -118,6 +121,10 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
               {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
               <Button size="icon" variant="ghost" className="size-8 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
+              </Button>
+              {/* Comprobante de cita para el trabajador: fecha, hora, lugar e indicaciones, con el membrete del servicio */}
+              <Button size="icon" variant="ghost" className="size-8" asChild title="Comprobante de cita (imprimir o PDF)">
+                <Link href={`/imprimir/cita/${c.id}`} target="_blank" aria-label="Comprobante de cita"><Ticket /></Link>
               </Button>
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
               <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>

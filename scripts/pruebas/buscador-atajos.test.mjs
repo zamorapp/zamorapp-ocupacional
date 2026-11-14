@@ -23,6 +23,15 @@ test("se encuentran los precios de servicios", () => {
   assert.equal(buscarSecciones("dónde coloco los precios", { rol: "recepcion" })[0].href, "/facturacion?vista=servicios");
 });
 
+test("«pagos» lleva a los métodos de pago y a marcar pagos recibidos", () => {
+  const r = buscarSecciones("pagos", { clinico: true, rol: "administrador" }).map((x) => x.href);
+  assert.equal(r[0], "/configuracion/organizacion?paso=documentos&grupo=cobro");
+  assert.ok(r.includes("/facturacion?vista=cuentas"));
+  const medico = buscarSecciones("pagos", { clinico: true, rol: "medico" }).map((x) => x.titulo);
+  assert.ok(!medico.some((t) => t.startsWith("Pagos")), `médico ve ${medico}`);
+  assert.equal(buscarSecciones("binance", { clinico: true, rol: "administrador" })[0].href, "/configuracion/organizacion?paso=documentos&grupo=cobro");
+});
+
 test("el portal de empresas no ve atajos, solo su menú", () => {
   const permitidas = new Set(SECCIONES_EMPRESA.map((s) => s.href));
   for (const h of todo({ portal: true, rol: "gerente_empresa" })) assert.ok(permitidas.has(h), `portal ve ${h}`);
