@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { numeroWhatsApp } from "@/lib/mensajes";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +44,17 @@ async function ver(token: string): Promise<Datos | null> {
   return (data as Datos | null) ?? null;
 }
 
+// El teléfono se toca para llamar; si es celular venezolano (58 4xx), también se ofrece WhatsApp
+function contacto(telefono: string | null | undefined) {
+  const n = numeroWhatsApp(telefono);
+  if (!telefono) return "";
+  if (!n) return `: ${html(telefono)}`;
+  const wa = n.startsWith("584") ? ` o escríbale por <a href="https://wa.me/${n}">WhatsApp</a>` : "";
+  return `: <a href="tel:+${n}">${html(telefono)}</a>${wa}`;
+}
+
 const noDisponible = (d?: Datos | null) =>
-  pagina("Enlace no disponible", `<p class="marca">${html(d?.servicio ?? "Servicio médico")}</p><h1>Este enlace ya no está disponible</h1><p>Venció (dura 7 días) o no existe. Pida uno nuevo al servicio médico${d?.telefono_servicio ? `: ${html(d.telefono_servicio)}` : ""}.</p>`, 404);
+  pagina("Enlace no disponible", `<p class="marca">${html(d?.servicio ?? "Servicio médico")}</p><h1>Este enlace ya no está disponible</h1><p>Venció (dura 7 días) o no existe. Pida uno nuevo al servicio médico${contacto(d?.telefono_servicio)}.</p>`, 404);
 
 const aceptado = (d: Datos) =>
   pagina("Consentimiento aceptado", `<p class="marca">${html(d.servicio)}</p><h1 class="ok">Consentimiento aceptado</h1><p>Quedó registrado${d.aceptado_en ? ` el ${html(hora(d.aceptado_en))}` : ""}. Gracias. Puede cerrar esta página.</p>`);
