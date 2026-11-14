@@ -151,6 +151,20 @@ function revisarCatalogo(actualizar) {
   // e) vistas con permisos del dueño (no aplican la RLS de quien consulta): deben filtrar ellas mismas
   const vistas = psql(db, `select n.nspname || '.' || c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname in ('public', 'clinico') and c.relkind = 'v' and not coalesce(c.reloptions::text[] @> '{security_invoker=true}', false) order by 1`);
+  // f) auth.uid(), auth.role() o current_setting() sueltos en una política: se recalculan por CADA fila (aviso
+  //    «auth_rls_initplan» de Supabase). Envueltos en (select …) se calculan una vez por consulta (mig 963).
+  for (const p of psql(db, `select schemaname || '.' || tablename || ' ' || policyname from pg_policies
+      where schemaname in ${esquemas} and regexp_replace(coalesce(qual, '') || ' ' || coalesce(with_check, ''),
+        'SELECT (auth\\.(uid|role|jwt)\\(\\)|current_setting\\([^()]*\\))', '', 'gi') ~* '(auth\\.(uid|role|jwt)\\(\\)|current_setting\\()' order by 1`))
+    error("supabase/migrations", 1, `${p}: la política llama auth.uid()/auth.role()/current_setting() por cada fila. Escribe «(select auth.uid())»`);
+  // g) llaves foráneas sin índice que las cubra: filtros por empresa/trabajador y borrados del «padre» recorren toda la tabla (mig 963)
+  for (const f of psql(db, `select n.nspname || '.' || t.relname || ' ' || c.conname from pg_constraint c
+      join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace
+      where c.contype = 'f' and n.nspname in ${esquemas} and t.relkind = 'r'
+        and not exists (select 1 from pg_index i where i.indrelid = c.conrelid
+          and (i.indkey::int2[])[0:cardinality(c.conkey) - 1] @> c.conkey
+          and (i.indkey::int2[])[0:cardinality(c.conkey) - 1] <@ c.conkey) order by 1`))
+    error("supabase/migrations", 1, `${f}: llave foránea sin índice. Agrega «create index on … (columna)» en la misma migración`);
   psql("postgres", `drop database if exists ${db}`);
 
   const base = leerBase();
