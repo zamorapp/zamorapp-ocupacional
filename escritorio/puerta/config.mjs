@@ -57,8 +57,9 @@ export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacaci
 // vez de 0,1 s). Lo que crean baja a la copia en la sincronía normal (30 s).
 export const RPC_SIN_ESPERA = new Set([
   "recordar_resultados", "recordar_alertas", "recordar_post_vacacional", "purgar_solicitudes_paciente",
-  "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio",
+  "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio", "registrar_firma_pdf",
   "crear_llave_agente", "revocar_llave_agente", "agentes_llave_documentos", // puerta para agentes: llaves que la copia no trae
+  "ignorar_aparato_sin_acuse", // campanita: suscripciones_push no está en la copia (20261030946000)
 ]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
