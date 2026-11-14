@@ -132,8 +132,8 @@ function Formulario({ form, setForm, dependencias, puestos, ocupado, error, onGu
           agregar="Agregar examen"
           render={(e, cambiar) => (
             <>
-              <Input value={e.nombre} onChange={(x) => cambiar({ ...e, nombre: x.target.value })} placeholder="Audiometría" maxLength={120} className="h-9 flex-1" />
-              <Input type="number" min={1} max={120} inputMode="numeric" value={e.cada_meses ?? ""} aria-label="Cada cuántos meses"
+              <Input value={e.nombre} onChange={(x) => cambiar({ ...e, nombre: x.target.value })} placeholder="Audiometría" maxLength={120} aria-label="Examen" className="h-9 min-w-0 flex-1" />
+              <Input type="number" min={1} max={120} inputMode="numeric" value={e.cada_meses ?? ""} aria-label="Meses entre exámenes"
                 onChange={(x) => cambiar({ ...e, cada_meses: x.target.value ? Number(x.target.value) : null })} className="h-9 w-20" />
               <span className="text-xs text-muted-foreground">meses</span>
             </>
@@ -149,8 +149,8 @@ function Formulario({ form, setForm, dependencias, puestos, ocupado, error, onGu
           agregar="Agregar meta"
           render={(m, cambiar) => (
             <>
-              <Input value={m.indicador} onChange={(x) => cambiar({ ...m, indicador: x.target.value })} placeholder="Trabajadores evaluados" maxLength={200} className="h-9 flex-1" />
-              <Input value={m.meta} onChange={(x) => cambiar({ ...m, meta: x.target.value })} placeholder="100 %" maxLength={120} className="h-9 w-24" />
+              <Input value={m.indicador} onChange={(x) => cambiar({ ...m, indicador: x.target.value })} placeholder="Trabajadores evaluados" maxLength={200} aria-label="Meta" className="h-9 min-w-0 flex-1 max-sm:basis-full" />
+              <Input value={m.meta} onChange={(x) => cambiar({ ...m, meta: x.target.value })} placeholder="100 %" maxLength={120} aria-label="Valor de la meta (%)" className="h-9 w-24" />
             </>
           )}
         />
@@ -197,7 +197,7 @@ function Filas<T>({ filas, vacia, onCambio, agregar, render }: {
   return (
     <div className="space-y-2">
       {filas.map((f, i) => (
-        <div key={i} className="flex items-center gap-2">
+        <div key={i} className="flex flex-wrap items-center gap-2">
           {render(f, (n) => onCambio(filas.map((x, j) => (j === i ? n : x))))}
           <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label="Quitar" onClick={() => onCambio(filas.filter((_, j) => j !== i))}><Trash2 /></Button>
         </div>
