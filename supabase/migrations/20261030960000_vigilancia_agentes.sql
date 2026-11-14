@@ -43,12 +43,13 @@ end $$;
 revoke execute on function public.agentes_llave_vigilancia(uuid, uuid, boolean) from public, anon;
 grant execute on function public.agentes_llave_vigilancia(uuid, uuid, boolean) to authenticated;
 
--- agentes_estado devuelve la casilla de cada llave (mismo ancla que 950: cada parche suma su clave detrás)
+-- agentes_estado devuelve la casilla de cada llave (mismo ancla que 959: cada parche suma su clave detrás)
 do $$
 declare
   v_def text := replace(pg_get_functiondef('public.agentes_estado(uuid, date, date)'::regprocedure), chr(13), '');
   v_viejo text := '''permiso'', l.permiso,';
 begin
+  if position('''vigilancia'', l.vigilancia' in v_def) > 0 then return; end if;
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
     raise exception 'agentes_estado cambió: revisar 20261030960000 antes de aplicarla';
   end if;
@@ -847,6 +848,8 @@ declare
   v_def text := replace(pg_get_functiondef('public.limpieza_correr(boolean)'::regprocedure), chr(13), '');
   v_viejo text := 'clave := ''registros_respaldo''; cantidad := n; bytes := b; return next;';
 begin
+  -- Repetir la migración no la suma dos veces
+  if position('clave := ''agentes_propuestas''' in v_def) > 0 then return; end if;
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
     raise exception 'limpieza_correr cambió: revisar 20261030960000 antes de aplicarla';
   end if;
