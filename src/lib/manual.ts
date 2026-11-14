@@ -17,10 +17,11 @@ export type TemaManual = {
   claves?: string;
 };
 
-export const MANUAL_ACTUALIZADO = "2026-11-13";
+export const MANUAL_ACTUALIZADO = "2026-11-14";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-14", texto: "Tu agente te prepara récipes y órdenes de exámenes: en Configuración › Puerta para agentes enciende «Prepara récipes y órdenes» en la llave. Dile, por ejemplo, «récipe para Ana Pérez con ibuprofeno 400 mg cada 8 horas por 5 días» y si va suelto o con una consulta. Queda como borrador en «Borradores del agente» (tarjeta del Inicio): lo revisas, corriges y emites; sale con tu firma y sello. El agente nunca imprime ni envía. También nuevo: «Orden de exámenes» sin consulta en «Indicación / récipe», y adjuntar cualquiera a una consulta del paciente", tema: "pacientes" },
   { fecha: "2026-11-13", texto: "Privacidad en accidentes: RR. HH. ve de los accidentes y enfermedades de su empresa los hechos, la lesión, la declaración y los plazos, pero nunca el diagnóstico, el CIE-10, la incapacidad ni la discapacidad; tampoco pidiéndolos fuera de la aplicación. Sus cifras de accidentes en el Inicio y los índices son las mismas que ve el médico.", tema: "accidentes" },
   { fecha: "2026-11-13", texto: "RR. HH. reporta accidentes: en su portal, Accidentes › «Reportar evento» registra un accidente o incidente de su empresa (nunca una enfermedad ocupacional) y al servicio le llega al momento «Accidente reportado por RR. HH.» en la campana. Después RR. HH. lo ve en solo lectura: completarlo, declararlo ante el INPSASEL e investigarlo sigue siendo del servicio", tema: "accidentes" },
   { fecha: "2026-11-13", texto: "Citas por confirmar: al agendar marca «Por confirmar» si la cita espera el sí de la empresa (p. ej. el presupuesto). En el Inicio, la tarjeta «Citas por confirmar» cuenta esas y las que piden las empresas por el portal; ábrela para ver nombre, cédula, empresa, cargo, día y hora, y toca Confirmar, Cambiar fecha, WhatsApp o Eliminar (con Deshacer). El número sube al agendar y baja al confirmar o eliminar. En la agenda del día la provisional sale con borde punteado y la palabra «Por confirmar». Las de días pasados dicen «Venció»", tema: "atencion" },

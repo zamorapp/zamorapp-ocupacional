@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, CheckCircle2, FileText, Loader2, Pill, Plus, Printer, Syringe, Trash2 } from "lucide-react";
+import { Ban, Bot, CheckCircle2, FileText, FlaskConical, Loader2, Mail, Pill, Plus, Printer, Syringe, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,11 +14,17 @@ import { concentracionEnNombre, faltantesMedicinas, CAMPOS_RECIPE } from "@/lib/
 import { abrirEnVentana } from "@/lib/escritorio";
 import { cn } from "@/lib/utils";
 import {
-  ETIQUETA_ESTADO_INDICACION, ETIQUETA_TIPO, lineaOrden, medicinaVacia, type IndicacionSuelta, type TipoIndicacion,
+  ETIQUETA_ESTADO_INDICACION, ETIQUETA_TIPO, limpiarExamenes, lineaOrden, medicinaVacia, type IndicacionSuelta, type TipoIndicacion,
 } from "@/lib/indicaciones-sueltas";
 import { BuscadorMedicina } from "../../atencion/[id]/buscador-diagnostico";
 import { indicacionPreestablecida } from "../../atencion/[id]/perfiles";
-import { anularIndicacion, cumplirIndicacion, emitirIndicacion, listasIndicacion } from "./indicaciones-acciones";
+import { anularIndicacion, consultasParaAdjuntar, cumplirIndicacion, emitirIndicacion, listasIndicacion } from "./indicaciones-acciones";
+
+// Lo que preparó un agente (puerta para agentes): el formulario abre lleno; el médico corrige, emite, firma y envía
+export type InicialIndicacion = {
+  borradorId: string; tipo: "recipe" | "examenes"; tratamiento: Medicamento[]; examenes: string[]; indicaciones: string;
+  consultaId: string | null; envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; correoTrabajador: string | null; agente: string;
+};
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
 const nombreCampo = (c: string) => CAMPOS_RECIPE.find(([k]) => k === c)?.[1] ?? c;
@@ -38,11 +44,15 @@ export function BotonIndicacion({ trabajadorId, nombre }: { trabajadorId: string
   );
 }
 
-function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: string; nombre: string; onCerrar: () => void }) {
+export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { trabajadorId: string; nombre: string; onCerrar: () => void; inicial?: InicialIndicacion }) {
   const router = useRouter();
-  const [tipo, setTipo] = useState<TipoIndicacion>("enfermeria");
-  const [meds, setMeds] = useState<Medicamento[]>([medicinaVacia()]);
-  const [texto, setTexto] = useState("");
+  const [tipo, setTipo] = useState<TipoIndicacion>(inicial?.tipo ?? "enfermeria");
+  const [meds, setMeds] = useState<Medicamento[]>(inicial?.tratamiento.length ? inicial.tratamiento.map((m) => ({ ...medicinaVacia(), ...m })) : [medicinaVacia()]);
+  const [examenes, setExamenes] = useState((inicial?.examenes ?? []).join("\n"));
+  // Suelta (sin consulta) o adjunta a una consulta del paciente: lo decide el médico
+  const [consultaId, setConsultaId] = useState<string>(inicial?.consultaId ?? "");
+  const [consultas, setConsultas] = useState<{ id: string; fecha: string; estado: string }[] | null>(null);
+  const [texto, setTexto] = useState(inicial?.indicaciones ?? "");
   const [indicadoPor, setIndicadoPor] = useState("");
   const [listas, setListas] = useState<Record<string, Item[]> | null>(null);
   const [propias, setPropias] = useState<Item[]>([]);
@@ -53,14 +63,18 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
   useEffect(() => {
     let vivo = true;
     listasIndicacion().then((l) => { if (vivo) setListas(l); }).catch(() => { if (vivo) setListas({}); });
+    consultasParaAdjuntar(trabajadorId).then((c) => { if (vivo) setConsultas(c); }).catch(() => { if (vivo) setConsultas([]); });
     return () => { vivo = false; };
-  }, []);
+  }, [trabajadorId]);
   const lista = (k: string) => listas?.[k] ?? [];
   const medicinas = [...propias, ...lista("medicina")];
   const cambiar = (i: number, c: Partial<Medicamento>) => setMeds((x) => x.map((m, j) => (j === i ? { ...m, ...c } : m)));
   const faltan = tipo === "recipe" ? new Map(faltantesMedicinas(meds).map((f) => [f.indice, f.campos])) : new Map<number, string[]>();
 
-  const datos = () => ({ trabajadorId, tipo, tratamiento: meds, indicaciones: texto, indicadoPor: tipo === "enfermeria" ? indicadoPor : "" });
+  const datos = () => ({
+    trabajadorId, tipo, tratamiento: meds, indicaciones: texto, indicadoPor: tipo === "enfermeria" ? indicadoPor : "",
+    examenes: limpiarExamenes([examenes]), consultaId: consultaId || null, borradorId: inicial?.borradorId ?? null,
+  });
   const guardar = (imprimir: boolean) => {
     setError(null);
     if (imprimir) {
@@ -84,15 +98,22 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
     <Sheet open onOpenChange={(v) => { if (!v) onCerrar(); }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>Indicación o récipe</SheetTitle>
+          <SheetTitle>{inicial ? "Revisar y emitir" : "Indicación o récipe"}</SheetTitle>
           <SheetDescription>{nombre} · No abre consulta ni cuenta en morbilidad. Queda en su historial y se imprime con tu firma.</SheetDescription>
         </SheetHeader>
 
         <div className="space-y-5 px-4">
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Qué vas a emitir">
+          {inicial && (
+            <p className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm" data-estado="borrador-agente">
+              <Bot className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <span>Lo preparó <b>{inicial.agente}</b>. Revísalo y corrige lo que haga falta: al emitirlo es tuyo y sale con tu firma y sello.</span>
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Qué vas a emitir">
             {([
               ["enfermeria", Syringe, "Orden a enfermería", "Para que la enfermera coloque el tratamiento"],
               ["recipe", FileText, "Récipe", "Para que compre la medicina"],
+              ["examenes", FlaskConical, "Orden de exámenes", "Laboratorio, imagen u otros"],
             ] as const).map(([k, Icono, titulo, sub]) => (
               <button key={k} type="button" role="radio" aria-checked={tipo === k} data-tipo={k} onClick={() => { setTipo(k); setError(null); }}
                 className={cn("flex items-start gap-3 rounded-xl border p-3 text-left transition",
@@ -103,6 +124,14 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
             ))}
           </div>
 
+          {tipo === "examenes" ? (
+            <div>
+              <Label htmlFor="examenes-orden" className="mb-1.5">Exámenes (uno por línea)</Label>
+              <Textarea id="examenes-orden" rows={6} value={examenes} onChange={(e) => setExamenes(e.target.value)} data-campo="examenes"
+                placeholder={"Ej.:\nHematología completa\nGlicemia\nRx de tórax PA"} />
+              <p className="mt-1 text-xs text-muted-foreground">Se imprimen tal como los escribes. Hasta 40.</p>
+            </div>
+          ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Medicinas</Label>
@@ -149,6 +178,8 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
             ))}
           </div>
 
+          )}
+
           {tipo === "enfermeria" && (
             <div>
               <Label htmlFor="indicado-por" className="mb-1.5">Indicado por (médico externo, opcional)</Label>
@@ -156,23 +187,51 @@ function FormIndicacion({ trabajadorId, nombre, onCerrar }: { trabajadorId: stri
             </div>
           )}
           <div>
-            <Label htmlFor="texto-indicacion" className="mb-1.5">{tipo === "recipe" ? "Otras indicaciones al paciente" : "Indicación a enfermería"}</Label>
+            <Label htmlFor="texto-indicacion" className="mb-1.5">{tipo === "enfermeria" ? "Indicación a enfermería" : "Otras indicaciones al paciente"}</Label>
             <Textarea id="texto-indicacion" rows={3} value={texto} maxLength={2000} onChange={(e) => setTexto(e.target.value)}
-              placeholder={tipo === "recipe" ? "Ej.: continuar tratamiento crónico; control en 3 meses" : "Ej.: colocar hoy, observar 15 minutos"} />
+              placeholder={tipo === "recipe" ? "Ej.: continuar tratamiento crónico; control en 3 meses" : tipo === "examenes" ? "Ej.: en ayunas de 8 horas" : "Ej.: colocar hoy, observar 15 minutos"} />
           </div>
+          <div>
+            <Label htmlFor="adjuntar-consulta" className="mb-1.5">¿Va suelto o con una consulta?</Label>
+            <select id="adjuntar-consulta" value={consultaId} onChange={(e) => setConsultaId(e.target.value)} className={SELECT} data-campo="adjuntar">
+              <option value="">Suelto, sin consulta</option>
+              {(consultas ?? []).map((c) => <option key={c.id} value={c.id}>Adjunto a la consulta del {fechaCorta(c.fecha)}{c.estado === "borrador" ? " (abierta)" : ""}</option>)}
+              {consultaId && consultas && !consultas.some((c) => c.id === consultaId) && <option value={consultaId}>Adjunto a la consulta que indicó el agente</option>}
+            </select>
+          </div>
+          {inicial && inicial.envio !== "imprimir" && <EnvioPedido inicial={inicial} />}
           {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         </div>
 
         {/* En el celular: «Guardar e imprimir» a todo lo ancho y fijo abajo; debajo «Cancelar · Guardar» */}
         <SheetFooter className="sticky bottom-0 mt-auto grid grid-cols-2 gap-2 border-t bg-background sm:flex sm:flex-row sm:justify-end sm:border-t-0">
-          <Button type="button" className="col-span-2 sm:order-3" disabled={guardando} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> Guardar e imprimir</Button>
+          <Button type="button" className="col-span-2 sm:order-3" disabled={guardando} onClick={() => guardar(true)} data-accion="guardar-imprimir-indicacion"><Printer /> {inicial ? "Emitir e imprimir" : "Guardar e imprimir"}</Button>
           <Button type="button" variant="ghost" className="sm:order-1" onClick={onCerrar}>Cancelar</Button>
           <Button type="button" variant="outline" className="sm:order-2" disabled={guardando} onClick={() => guardar(false)} data-accion="guardar-indicacion">
-            {guardando && <Loader2 className="animate-spin" />} Guardar
+            {guardando && <Loader2 className="animate-spin" />} {inicial ? "Emitir" : "Guardar"}
           </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// Por dónde pidió el médico que saliera (lo dijo al agente). El correo se ve grande y avisa si no es el del paciente.
+function EnvioPedido({ inicial }: { inicial: InicialIndicacion }) {
+  const otro = inicial.envio === "correo" && inicial.correo && inicial.correo !== (inicial.correoTrabajador ?? "").toLowerCase();
+  return (
+    <div className="rounded-lg border p-3 text-sm" data-envio={inicial.envio}>
+      <p className="font-medium">Envío pedido: {inicial.envio === "whatsapp" ? "WhatsApp" : "correo"}</p>
+      {inicial.envio === "correo" ? (
+        <>
+          <p className="mt-1 flex items-center gap-2 break-all text-base font-semibold"><Mail className="size-4 shrink-0 text-primary" aria-hidden />{inicial.correo}</p>
+          <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en tu correo.</p>
+          {otro && <p className="mt-1 text-aviso-texto" data-estado="correo-distinto">No es el correo registrado del paciente{inicial.correoTrabajador ? ` (${inicial.correoTrabajador})` : ""}. Revísalo antes de enviar.</p>}
+        </>
+      ) : (
+        <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en WhatsApp, en el chat o grupo que elijas.</p>
+      )}
+    </div>
   );
 }
 
@@ -201,8 +260,8 @@ function FilaIndicacion({ x, trabajadorId, puedeAnular, compacta }: { x: Indicac
   const [nota, setNota] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, iniciar] = useTransition();
-  const Icono = x.tipo === "recipe" ? FileText : Syringe;
-  const lineas = x.tratamiento.filter((m) => m.medicina?.trim()).map(lineaOrden);
+  const Icono = x.tipo === "recipe" ? FileText : x.tipo === "examenes" ? FlaskConical : Syringe;
+  const lineas = x.tipo === "examenes" ? x.examenes : x.tratamiento.filter((m) => m.medicina?.trim()).map(lineaOrden);
   const confirmar = () => iniciar(async () => {
     const r = modo === "cumplir" ? await cumplirIndicacion(x.id, trabajadorId, nota) : await anularIndicacion(x.id, trabajadorId, nota);
     if (!r.ok) return setError(r.mensaje);
@@ -211,7 +270,7 @@ function FilaIndicacion({ x, trabajadorId, puedeAnular, compacta }: { x: Indicac
 
   return (
     <li className={cn("flex flex-wrap items-start gap-3 py-3", !compacta && "px-5")} data-indicacion={x.estado}>
-      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", x.tipo === "recipe" ? "bg-muted" : "bg-primary/10 text-primary")}><Icono className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", x.tipo === "enfermeria" ? "bg-primary/10 text-primary" : "bg-muted")}><Icono className="size-4" aria-hidden /></span>
       <div className="min-w-0 flex-1 basis-60">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{ETIQUETA_TIPO[x.tipo]}</span>
@@ -223,7 +282,7 @@ function FilaIndicacion({ x, trabajadorId, puedeAnular, compacta }: { x: Indicac
           {x.indicaciones && <li className="whitespace-pre-line text-muted-foreground">{x.indicaciones}</li>}
         </ul>
         <p className="mt-1 text-xs text-muted-foreground">
-          {[x.medico && `Emitió ${x.medico}`, x.indicadoPor && `indicado por ${x.indicadoPor}`].filter(Boolean).join(" · ")}
+          {[x.medico && `Emitió ${x.medico}`, x.indicadoPor && `indicado por ${x.indicadoPor}`, x.consultaFecha && `adjunto a la consulta del ${fechaCorta(x.consultaFecha)}`].filter(Boolean).join(" · ")}
           {x.estado === "cumplida" && <> · Cumplida{x.cumplidaPor && ` por ${x.cumplidaPor}`}{x.cumplidaEn && ` el ${fechaHora(x.cumplidaEn)}`}{x.notaCumplimiento && `: ${x.notaCumplimiento}`}</>}
           {x.estado === "anulada" && x.motivoAnulacion && <> · Anulada: {x.motivoAnulacion}</>}
         </p>

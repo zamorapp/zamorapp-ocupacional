@@ -63,7 +63,7 @@ select 'ninguna ayuda la ejecuta un anónimo ni un usuario (debe 0): ' || count(
 select 'ninguna acción nombra lo clínico (debe 0): ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public' and (p.proname like 'agente\_%' or p.proname = 'agente')
    and regexp_replace(p.prosrc, case p.proname when 'agente_preparar_documento' then 'clinico\.(agentes_borradores|consultas)\M'
-                                               when 'agente_ver_borradores' then 'clinico\.agentes_borradores\M' else '^$' end, '', 'g')
+                                               when 'agente_ver_preparados' then 'clinico\.agentes_borradores\M' else '^$' end, '', 'g')
        ~* '(clinico\.|grupo_sanguineo|discapacidad|firma_|sello_)';
 select 'ninguna acción borra ni modifica (debe 0): ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public' and (p.proname like 'agente\_%' or p.proname = 'agente')

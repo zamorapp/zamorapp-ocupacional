@@ -6,7 +6,7 @@ import { MitadRecipe, type DatosHojaRecipe } from "../documentos";
 const fechaHora = (iso: string) => new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(iso));
 
 // Hoja de la indicación o récipe sin consulta: el récipe como el de la consulta (dos mitades, Res. MPPS 028/031);
-// la orden a enfermería en media carta, con la casilla de cumplimiento (se llena sola si ya está cumplida)
+// la orden de exámenes y la orden a enfermería en media carta, con la casilla de cumplimiento (se llena sola si ya está cumplida)
 export function HojaIndicacion({ d, x }: { d: DatosHojaRecipe & { impreso: { por: string; el: string } }; x: IndicacionSuelta }) {
   const meds = x.tratamiento.filter((m) => m.medicina?.trim());
   return x.tipo === "recipe" ? (
@@ -21,6 +21,14 @@ export function HojaIndicacion({ d, x }: { d: DatosHojaRecipe & { impreso: { por
         </MitadRecipe>
       </div>
       <Pie d={d} derecha={`Folio ${folio("RS", x.id)}`} />
+    </Hoja>
+  ) : x.tipo === "examenes" ? (
+    <Hoja media>
+      <MitadRecipe d={d} titulo="Orden de exámenes" vence={false}>
+        {x.examenes.map((e, i) => `${i + 1}. ${e}`).join("\n")}
+        {x.indicaciones && `\n\n${x.indicaciones}`}
+      </MitadRecipe>
+      <Pie d={d} derecha={`Folio ${folio("OX", x.id)}`} />
     </Hoja>
   ) : (
     <Hoja media>

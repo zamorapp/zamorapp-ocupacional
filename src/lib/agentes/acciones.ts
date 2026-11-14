@@ -3,7 +3,8 @@
 // ella valida la llave, la organización y cada dato. Una acción que no esté allá no existe aunque se escriba aquí.
 
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema };
+// documentos: necesita la casilla «Prepara récipes y órdenes» de la llave (apagada por defecto; migración 20261030950000)
+export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; documentos?: true; esquema: Esquema };
 
 const texto = (description: string) => ({ type: "string", description });
 const id = (description: string) => ({ type: "string", format: "uuid", description });
@@ -72,6 +73,26 @@ export const ACCIONES: AccionAgente[] = [
     descripcion: "Agenda una cita para un trabajador (de hoy a un año). Si ya tiene cita ese día no crea otra ni la cambia.",
     esquema: objeto({ trabajador_id: id("Trabajador"), fecha: fecha("Día de la cita"), hora: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", description: "Hora en 24 horas, HH:MM" },
       motivo_id: id("Motivo de consulta (catalogo, tipo motivos)"), observacion: texto("Nota de la cita"), ensayo: ENSAYO }, ["trabajador_id", "fecha"]) },
+  { nombre: "preparar_documento", titulo: "Preparar récipe u orden de exámenes", crea: true, documentos: true,
+    descripcion: "Deja un BORRADOR de récipe o de orden de exámenes para un paciente, con lo que el doctor te dicte. No se imprime ni se envía: el doctor lo revisa en zamorApp, lo corrige, lo emite con su firma y sello, y él lo envía. "
+      + "Pregúntale SIEMPRE si va suelto (sin consulta) o adjunto a una consulta del paciente; no lo des por hecho. No inventes concentraciones ni dosis: si faltan, el doctor las completa. "
+      + "Devuelve el enlace para que el doctor lo revise y un enlace de WhatsApp con el aviso ya escrito (él elige el chat o grupo).",
+    esquema: objeto({ trabajador_id: id("Paciente (buscar_trabajadores)"),
+      tipo: { type: "string", enum: ["recipe", "examenes"], description: "recipe = récipe; examenes = orden de exámenes" },
+      adjuntar: { type: "string", enum: ["suelto", "consulta"], description: "Lo decide el doctor: suelto (sin consulta) o adjunto a una consulta del paciente" },
+      consulta_fecha: fecha("Si va adjunto: día de la consulta (si no se dice, la más reciente)"),
+      medicamentos: { type: "array", maxItems: 20, description: "Para el récipe",
+        items: { type: "object", additionalProperties: false, required: ["medicina"], properties: {
+          medicina: texto("Nombre del medicamento"), concentracion: texto("Concentración, por ejemplo 400 mg"), presentacion: texto("Tabletas, cápsulas, jarabe…"),
+          via: texto("Vía: oral, intramuscular…"), dosis: texto("Dosis, por ejemplo 1 tableta"), frecuencia: texto("Cada cuánto, por ejemplo cada 8 horas"),
+          duracion: texto("Por cuánto tiempo, por ejemplo 5 días"), observacion: texto("Nota al paciente, por ejemplo después de comer") } } },
+      examenes: { type: "array", items: { type: "string" }, maxItems: 40, description: "Para la orden de exámenes: cada examen tal como lo dijo el doctor" },
+      indicaciones: texto("Otras indicaciones al paciente (hasta 2000 letras)"),
+      envio: { type: "string", enum: ["imprimir", "whatsapp", "correo"], description: "Por dónde quiere el doctor enviarlo (lo envía él). Por defecto: imprimir" },
+      correo: texto("Si envio es correo: la dirección que dio el doctor"), ensayo: ENSAYO }, ["trabajador_id", "tipo", "adjuntar"]) },
+  { nombre: "ver_preparados", titulo: "Ver borradores preparados", crea: false, documentos: true,
+    descripcion: "Estado de los récipes y órdenes que preparaste (por revisar, emitido por el doctor o descartado), con el enlace para abrirlos. No muestra medicinas ni exámenes.",
+    esquema: objeto({ trabajador_id: id("Solo los de este paciente") }) },
 ];
 
 export const ACCION = new Map(ACCIONES.map((a) => [a.nombre, a]));
@@ -83,6 +104,7 @@ export const INSTRUCCIONES = [
   "No inventes datos (RIF, cédulas, precios, fechas): si falta uno, pregúntalo.",
   "Los nombres de exámenes van tal como te los dan; no traduzcas ni expliques siglas.",
   "Esta puerta no lee ni escribe historias, diagnósticos, firma ni sello, y no borra ni modifica lo que ya existe: eso lo hace el doctor en la aplicación.",
+  "Si la llave tiene la casilla «Prepara récipes y órdenes», puedes dejar BORRADORES de récipe u orden de exámenes con preparar_documento: pregunta siempre si va suelto o adjunto a una consulta; el doctor los emite, firma y envía.",
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
 ].join("\n");

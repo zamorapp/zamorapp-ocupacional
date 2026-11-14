@@ -11,8 +11,8 @@
 --    Se borra solo a los 30 días (limpieza «agentes_borradores»); lo emitido queda en clinico.indicaciones.
 -- 3. clinico.indicaciones: tipo nuevo «examenes» (orden de exámenes sin consulta, lista libre de nombres) y
 --    consulta_id opcional: el médico decide si el documento va suelto o adjunto a una consulta del paciente.
--- 4. Acciones nuevas de la puerta: preparar_documento (escribe) y ver_borradores (estado de lo preparado). Ninguna lee
---    historias, diagnósticos, firma ni sello; ver_borradores no devuelve medicinas ni exámenes.
+-- 4. Acciones nuevas de la puerta: preparar_documento (escribe) y ver_preparados (estado de lo preparado). Ninguna lee
+--    historias, diagnósticos, firma ni sello; ver_preparados no devuelve medicinas ni exámenes.
 
 -- ===== 1. Casilla de la llave =====
 alter table public.agentes_llaves add column if not exists documentos boolean not null default false;
@@ -258,7 +258,6 @@ declare
   v_faltan text[] := '{}';
   t public.trabajadores;
   v_cons uuid;
-  v_cons_fecha date;
   b clinico.agentes_borradores;
   m jsonb;
   x text;
@@ -308,18 +307,18 @@ begin
   end if;
 
   if v_adj = 'consulta' then
-    -- La consulta de ese día (o la más reciente) del trabajador; solo se usa su fecha
-    select c.id, c.fecha into v_cons, v_cons_fecha from clinico.consultas c
+    -- La consulta de ese día (o la más reciente) del trabajador; al agente no se le dice cuál
+    select c.id into v_cons from clinico.consultas c
      where c.trabajador_id = t.id and c.org_id = o and (v_fecha_c is null or c.fecha = v_fecha_c)
      order by c.fecha desc, c.creado_en desc limit 1;
     if v_cons is null then
-      perform public.agente_no(case when v_fecha_c is null then 'Ese paciente no tiene consultas: pregúntale al doctor si va suelto.'
-                                    else 'Ese paciente no tiene consulta el ' || to_char(v_fecha_c, 'DD/MM/YYYY') || '.' end);
+      -- Lo mínimo (Analizar): sin decir fechas de consultas del paciente
+      perform public.agente_no('No se pudo adjuntar a una consulta: pregúntale al doctor si va suelto o qué día fue la consulta.');
     end if;
   end if;
 
   v_que := case v_tipo when 'recipe' then 'Récipe' else 'Orden de exámenes' end || ' para ' || v_nombre
-        || case when v_adj = 'consulta' then ' (adjunto a la consulta del ' || to_char(v_cons_fecha, 'DD/MM/YYYY') || ')' else ' (suelto, sin consulta)' end;
+        || case when v_adj = 'consulta' then ' (adjunto a una consulta)' else ' (suelto, sin consulta)' end;
 
   -- Sin duplicar: el mismo pedido por revisar en los últimos 30 minutos es el mismo borrador
   select * into b from clinico.agentes_borradores ab
@@ -351,7 +350,7 @@ begin
     '_empresa', t.empresa_id, '_resumen', 'Preparó: ' || v_que);
 end $$;
 
-create or replace function public.agente_ver_borradores(o uuid, d jsonb)
+create or replace function public.agente_ver_preparados(o uuid, d jsonb)
 returns jsonb language plpgsql stable set search_path = public as $$
 declare
   v_trab uuid := public.agente_uuid(d, 'trabajador_id');
@@ -376,7 +375,7 @@ do $$
 declare f record;
 begin
   for f in select p.oid::regprocedure as firma from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname = 'public' and p.proname in ('agente_medicina', 'agente_preparar_documento', 'agente_ver_borradores') loop
+            where n.nspname = 'public' and p.proname in ('agente_medicina', 'agente_preparar_documento', 'agente_ver_preparados') loop
     execute format('revoke execute on function %s from public, anon, authenticated', f.firma);
   end loop;
 end $$;
@@ -386,16 +385,16 @@ do $$
 declare
   v_def text := replace(pg_get_functiondef('public.agente(text, text, jsonb, boolean)'::regprocedure), chr(13), '');
   v_cambios text[][] := array[
-    array['when v_acc in (''resumen'', ', 'when v_acc in (''ver_borradores'', ''resumen'', '],
+    array['when v_acc in (''resumen'', ', 'when v_acc in (''ver_preparados'', ''resumen'', '],
     array['when v_acc in (''crear_empresa'', ', 'when v_acc in (''preparar_documento'', ''crear_empresa'', '],
-    array['Acción desconocida. Las que hay: resumen, ', 'Acción desconocida. Las que hay: preparar_documento, ver_borradores, resumen, '],
+    array['Acción desconocida. Las que hay: resumen, ', 'Acción desconocida. Las que hay: preparar_documento, ver_preparados, resumen, '],
     array['  elsif v_escribe and k.permiso <> ''crear'' then',
-          '  elsif v_acc in (''preparar_documento'', ''ver_borradores'') and not k.documentos then
+          '  elsif v_acc in (''preparar_documento'', ''ver_preparados'') and not k.documentos then
     v_err := ''Esta llave no prepara récipes ni órdenes. El doctor enciende «Prepara récipes y órdenes» en Configuración > Puerta para agentes.'';
   elsif v_escribe and k.permiso <> ''crear'' then'],
     array['when ''resumen'' then public.agente_resumen(k.org_id)',
           'when ''preparar_documento'' then public.agente_preparar_documento(k.org_id, d, v_ensayo, k.id, k.nombre)
-        when ''ver_borradores'' then public.agente_ver_borradores(k.org_id, d)
+        when ''ver_preparados'' then public.agente_ver_preparados(k.org_id, d)
         when ''resumen'' then public.agente_resumen(k.org_id)']];
   i int;
 begin

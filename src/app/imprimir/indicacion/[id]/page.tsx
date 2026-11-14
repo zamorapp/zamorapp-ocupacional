@@ -41,7 +41,7 @@ export default async function ImprimirIndicacion({ params }: { params: Promise<{
   };
   const meds = x.tratamiento.filter((m) => m.medicina?.trim());
   const volver = `/pacientes/${x.trabajadorId}`;
-  const titulo = x.tipo === "recipe" ? "Récipe" : "Orden de enfermería";
+  const titulo = x.tipo === "recipe" ? "Récipe" : x.tipo === "examenes" ? "Orden de exámenes" : "Orden de enfermería";
 
   // Lo que pide la Res. MPPS 028 al récipe: si falta, se dice qué y dónde se completa (nunca una hoja incompleta)
   const faltan: { texto: string; href: string | null }[] = [];

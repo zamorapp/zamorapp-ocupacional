@@ -431,6 +431,33 @@ test("sin internet: guardar en la PC queda pendiente y sube al volver la conexi�
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.pendientes, 0);
 });
 
+test("borrador del agente: el médico lo emite sin internet y la marca sube a la nube con su sesión", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const B = crypto.randomUUID();
+  const I = crypto.randomUUID();
+  // Lo deja el agente en la nube (solo la puerta crea borradores: se simula su marca) y baja a la PC
+  await enNube(`with marca as (select set_config('zamorapp.agente_borrador', '1', true))
+    insert into clinico.agentes_borradores (id, org_id, trabajador_id, tipo, examenes, adjuntar, llave_nombre)
+    select $1, '10000000-0000-0000-0000-000000000001', $2, 'examenes', '["Glicemia"]', 'suelto', 'Claude' from marca`, [B, TRAB]);
+  await replicaObj.ciclo();
+  const visto = await pedir(`/rest/v1/agentes_borradores?id=eq.${B}&select=estado`, { token: tokenMed });
+  assert.deepEqual(visto.json, [{ estado: "por_revisar" }], JSON.stringify(visto.json));
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  // Sin internet: emite la orden (suya, con su firma) y marca el borrador emitido
+  const ind = await pedir("/rest/v1/indicaciones", { metodo: "POST", token: tokenMed, cuerpo: { id: I, org_id: "10000000-0000-0000-0000-000000000001", trabajador_id: TRAB, tipo: "examenes", examenes: ["Glicemia"] } });
+  assert.ok([200, 201].includes(ind.status), JSON.stringify(ind.json));
+  const m = await pedir(`/rest/v1/agentes_borradores?id=eq.${B}`, { metodo: "PATCH", token: tokenMed, cuerpo: { estado: "emitido", indicacion_id: I } });
+  assert.ok([200, 204].includes(m.status), JSON.stringify(m.json));
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [n] = await enNube("select estado, indicacion_id, revisado_por from clinico.agentes_borradores where id = $1", [B]);
+  assert.deepEqual(n, { estado: "emitido", indicacion_id: I, revisado_por: "00000000-0000-0000-0000-0000000000a2" }, "subió con la sesión del médico");
+  const [e] = await enNube("select tipo, estado, medico_id from clinico.indicaciones where id = $1", [I]);
+  assert.deepEqual(e, { tipo: "examenes", estado: "emitida", medico_id: "00000000-0000-0000-0000-0000000000a2" });
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
+});
+
 test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y queda en Conflictos", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   await replicaObj.ciclo();
   nube.estado.caida = true;

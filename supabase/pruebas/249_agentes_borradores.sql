@@ -1,6 +1,6 @@
 -- Récipes y órdenes que PREPARA el agente (20261030950000): casilla de la llave apagada por defecto, solo borradores,
 -- «suelto o adjunto a consulta» lo dice el médico, sin duplicar, el médico emite (con su sesión) o descarta,
--- lo escrito por el agente no cambia, RR. HH. y enfermería no ven los borradores, ver_borradores sin medicinas.
+-- lo escrito por el agente no cambia, RR. HH. y enfermería no ven los borradores, ver_preparados sin medicinas.
 \pset tuples_only on
 reset role;
 set role authenticated;
@@ -14,7 +14,7 @@ set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 select 'con la casilla apagada no prepara (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg"}]}') ->> 'error') like 'Esta llave no prepara%')::int;
-select 'ni ve borradores (debe 1): ' || ((public.agente(:'k249', 'ver_borradores') ->> 'ok') = 'false')::int;
+select 'ni ve borradores (debe 1): ' || ((public.agente(:'k249', 'ver_preparados') ->> 'ok') = 'false')::int;
 
 -- Solo el administrador enciende la casilla
 set role authenticated;
@@ -51,9 +51,10 @@ select 'repetirlo no duplica (debe 1): ' || (public.agente(:'k249', 'preparar_do
 select public.agente(:'k249', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"consulta","examenes":["Hematología completa"," Hematología completa ","Glicemia"],"envio":"correo","correo":"Salud@Ejemplo.com"}') -> 'resultado' ->> 'borrador_id' as b2 \gset
 select 'adjuntar a consulta sin consultas no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
-  '{"trabajador_id":"30000000-0000-0000-0000-00000000000b","tipo":"examenes","adjuntar":"consulta","consulta_fecha":"2030-01-01","examenes":["Orina"]}') ->> 'error') like 'Ese paciente no tiene consulta%')::int;
-select 'ver_borradores no devuelve medicinas ni exámenes (debe 0): ' || (public.agente(:'k249', 'ver_borradores')::text ~* '(ibuprofeno|glicemia|hematolog)')::int;
-select 'ver_borradores da el estado (debe 2): ' || jsonb_array_length(public.agente(:'k249', 'ver_borradores') -> 'resultado' -> 'borradores');
+  '{"trabajador_id":"30000000-0000-0000-0000-00000000000b","tipo":"examenes","adjuntar":"consulta","consulta_fecha":"2030-01-01","examenes":["Orina"]}') ->> 'error') like 'No se pudo adjuntar a una consulta%')::int;
+select 'al agente no se le dicen fechas de consultas (debe 0): ' || (public.agente(:'k249', 'ver_preparados')::text ~ '\(adjunto a la consulta del')::int;
+select 'ver_preparados no devuelve medicinas ni exámenes (debe 0): ' || (public.agente(:'k249', 'ver_preparados')::text ~* '(ibuprofeno|glicemia|hematolog)')::int;
+select 'ver_preparados da el estado (debe 2): ' || jsonb_array_length(public.agente(:'k249', 'ver_preparados') -> 'resultado' -> 'borradores');
 select 'el agente no inserta directo (debe 1): ' || (not has_table_privilege('anon', 'public.agentes_borradores', 'insert'))::int;
 reset role;
 select 'guardó el récipe limpio, suelto y por revisar (debe 1): ' || count(*) from clinico.agentes_borradores

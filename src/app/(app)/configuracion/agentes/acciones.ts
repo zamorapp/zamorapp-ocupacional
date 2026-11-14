@@ -46,3 +46,15 @@ export async function apagarLlave(id: string): Promise<{ ok: boolean; mensaje: s
   revalidatePath("/configuracion/agentes");
   return { ok: true, mensaje: "Llave apagada." };
 }
+
+// Casilla «Prepara récipes y órdenes» (20261030950000): apagada al crear la llave; la enciende el administrador
+export async function cambiarDocumentos(id: string, si: boolean): Promise<{ ok: boolean; mensaje: string }> {
+  const o = await organizacion();
+  if ("no" in o) return { ok: false, mensaje: o.no };
+  if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, mensaje: "Llave no válida." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("agentes_llave_documentos" as never, { p_org: o.org, p_llave: id, p_si: si } as never);
+  if (error) return { ok: false, mensaje: explicar(error) };
+  revalidatePath("/configuracion/agentes");
+  return { ok: true, mensaje: si ? "Ya puede preparar récipes y órdenes." : "Ya no prepara récipes ni órdenes." };
+}
