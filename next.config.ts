@@ -39,6 +39,8 @@ const nextConfig: NextConfig = {
   // y cada despliegue ocupaba más de 500 MB de «Functions Storage» en el plan gratis de Vercel.
   outputFileTracingIncludes: {
     "/api/pdf": ["./node_modules/@sparticuz/chromium/bin/**"],
+    // «Lo nuevo» del manual se lee de estos archivos al abrir /ayuda
+    "/ayuda": ["./src/lib/novedades/*.json"],
   },
   async headers() {
     const reglas = [{ source: "/:path*", headers: SEGURIDAD }];
