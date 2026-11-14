@@ -12,6 +12,7 @@
     "public.abrir_enlace(p_token text, p_agente text)",
     "public.abrir_enlace_trabajador(p_token text, p_documento text, p_cedula text, p_agente text)",
     "public.acuse_aviso_push(p_endpoint text, p_clave text, p_mostrado boolean)",
+    "public.agente(p_llave text, p_accion text, p_datos jsonb, p_ensayo boolean)",
     "public.agregar_depuracion_nomina(p_token text, p_dispositivo text, p_nombres text, p_apellidos text, p_cedula text, p_cargo text)",
     "public.ahora()",
     "public.ahora_de_la_puerta()",

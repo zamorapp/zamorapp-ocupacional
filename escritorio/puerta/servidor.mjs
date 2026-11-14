@@ -62,7 +62,10 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // estado_respaldo y limpieza_estado leen tablas que la copia no trae (respaldos, limpieza): en local salían vacías y el
   // Inicio decía «Aún no hay respaldos registrados» en rojo en cada apertura (Cesar 06-nov)
   const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo",
-    "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado"];
+    "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado",
+    // Puerta para agentes: las llaves y su registro viven solo en la nube (la copia no los trae). Sin internet la
+    // copia responde vacío con «local: true» y la pantalla dice que requiere internet
+    "/rest/v1/rpc/agentes_estado"];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
   // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía

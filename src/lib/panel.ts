@@ -88,11 +88,8 @@ export async function alertasInicio(): Promise<Alerta[]> {
   if (!supabaseConfigurado) return ALERTAS_DEMO;
   const [c, empresas, eventos] = await Promise.all([conteosInicio(), listarEmpresas(), listarEventos({ abiertos: true })]);
   const venc = await vencimientosConAviso(c?.vencimientos ?? []);
-  const solicitudes = c?.tareas.solicitadas ?? 0;
+  // Las solicitudes de cita de las empresas ya salen en la tarjeta «Citas por confirmar» (arriba): no se repiten aquí
   const alertas: Alerta[] = [];
-  if (solicitudes) {
-    alertas.push({ texto: "Solicitudes de cita de empresas", sujeto: `${solicitudes} por confirmar`, plazo: "Responder", estado: "aviso", href: "/atencion" });
-  }
   // Plazos legales de accidentes y enfermedades: primero, porque vencen en horas
   for (const ev of eventos) {
     for (const p of [plazoDeclaracion(ev), plazoInformeNt02(ev), plazoInvestigacion(ev)]) {

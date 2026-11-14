@@ -766,6 +766,11 @@ export const TEMAS: TemaBienestar[] = [
     clave: "heridas",
     boton: "Cuidado de heridas",
     titulo: "Cuidado de una herida",
+    porque: [
+      "La piel se repara sola por etapas: primero un coágulo tapa la herida, luego crece piel nueva desde los bordes y al final queda la cicatriz. Una herida pequeña tarda de 1 a 3 semanas.",
+      "Lo que más la retrasa es la infección. Una herida limpia y tapada cierra más rápido y deja menos marca que una herida al aire o «curada» con remedios caseros.",
+      "La diabetes, el cigarro y comer mal hacen que sane más lento: por eso esas heridas se vigilan más de cerca.",
+    ],
     grupos: [
       {
         titulo: "Cuidados diarios",
@@ -798,12 +803,33 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "OMS, Directrices mundiales para la prevención de la infección del sitio quirúrgico (2018). NICE NG125, Surgical site infections (2020). CDC, Tetanus: wound management.",
+    comparar: [
+      { figura: "herida-alcohol-mal", bien: false, texto: "Alcohol, yodo, café, hierbas o polvos sobre la herida." },
+      { figura: "herida-agua-bien", bien: true, texto: "Agua potable y jabón suave; secar a toques." },
+      { figura: "herida-costra-mal", bien: false, texto: "Arrancar la costra o los puntos." },
+      { figura: "herida-tapada-bien", bien: true, texto: "Gasa o apósito limpio que cubra los bordes." },
+    ],
+    practica: "Paso a paso para curarla",
+    ejercicios: [
+      { figura: "lavar-manos", titulo: "Lávese las manos", pasos: ["Con agua y jabón, antes y después de tocar la herida."], dosis: ["20 segundos", "Siempre"] },
+      { figura: "limpiar-herida", titulo: "Limpie y seque", pasos: ["Agua potable o solución fisiológica sobre la herida.", "Seque con gasa a toques, sin frotar."], dosis: ["1 vez al día"] },
+      { figura: "cambiar-aposito", titulo: "Tápela y cambie el apósito", pasos: ["Gasa limpia o apósito que cubra todos los bordes.", "Cámbielo antes si se moja o se ensucia."], dosis: ["Cada día"] },
+      { figura: "revisar-herida", titulo: "Revísela en cada cura", pasos: ["Mire si está más roja, caliente o hinchada, o si sale pus.", "Si tiene diabetes, no espere: consulte."], dosis: ["En cada cura"] },
+      { figura: "vacuna-tetanos", titulo: "Vacuna antitetánica", pasos: ["Si se cortó con algo sucio u oxidado, revise que la tenga al día.", "El refuerzo es cada 10 años."], dosis: ["Pregunte hoy"] },
+      { figura: "sol-cicatriz", titulo: "Cicatriz a la sombra", pasos: ["Tápela o use protector solar cuando esté al sol.", "Así no se oscurece."], dosis: ["6 meses"] },
+    ],
+    nota: "En el trabajo: los guantes y la protección adecuada evitan la mayoría de las cortaduras. Si se corta, avise al servicio médico para curarla y registrar el accidente.",
+    fuente: "OMS, Directrices mundiales para la prevención de la infección del sitio quirúrgico (2018). NICE NG125, Surgical site infections (2020). CDC, Tetanus: wound management. OMS, Higiene de las manos (2009). Cruz Roja / IFRC, Guías internacionales de primeros auxilios (2020).",
   },
   {
     clave: "quemaduras",
     boton: "Quemaduras leves",
     titulo: "Quemaduras leves: primeros cuidados",
+    porque: [
+      "El calor sigue dañando la piel unos minutos después de retirarse. Por eso el agua fresca por 20 minutos es lo que más ayuda: baja el daño, el dolor y la cicatriz.",
+      "Una quemadura leve (roja, dolorosa, a veces con ampollas pequeñas) sana sola en 1 a 3 semanas si se mantiene limpia. La ampolla es un apósito natural: protege la piel de abajo.",
+      "El hielo, la pasta dental, el aceite o el café no enfrían: encierran el calor, dañan más la piel y la pueden infectar.",
+    ],
     grupos: [
       {
         titulo: "Primeros cuidados",
@@ -827,7 +853,23 @@ export const TEMAS: TemaBienestar[] = [
         ],
       },
     ],
-    fuente: "OMS, Quemaduras: nota descriptiva (2023). Cruz Roja / IFRC, Guías internacionales de primeros auxilios (2020). Directrices europeas de primeros auxilios ERC 2021.",
+    comparar: [
+      { figura: "quemadura-hielo-mal", bien: false, texto: "Hielo, pasta dental, aceite, mantequilla, café o clara de huevo." },
+      { figura: "quemadura-agua-bien", bien: true, texto: "Agua corriente fresca, no helada, por 20 minutos." },
+      { figura: "ampolla-mal", bien: false, texto: "Reventar las ampollas." },
+      { figura: "quemadura-gasa-bien", bien: true, texto: "Gasa limpia o plástico de cocina, suelto, sin apretar." },
+    ],
+    practica: "Qué hacer en el momento",
+    ejercicios: [
+      { figura: "enfriar-20", titulo: "Enfríe con agua", pasos: ["Agua corriente fresca sobre la quemadura, cuanto antes.", "Sirve aún en las primeras 3 horas."], dosis: ["20 minutos", "De inmediato"] },
+      { figura: "quitar-anillos", titulo: "Quite anillos y reloj", pasos: ["Y la ropa cerca de la quemadura, antes de que se hinche.", "Si algo está pegado a la piel, no lo arranque."], dosis: ["Al principio"] },
+      { figura: "medir-palma", titulo: "Mídala con su palma", pasos: ["Su palma con los dedos es cerca del 1 % de su piel.", "Más grande que una palma: a emergencia."], dosis: ["Para decidir"] },
+      { figura: "quimico-lavar", titulo: "Si es por un químico", pasos: ["Quítese la ropa manchada y lave con mucha agua.", "Lleve a emergencia la hoja de seguridad del producto."], dosis: ["20 minutos o más", "Y a emergencia"] },
+      { figura: "electricidad-cortar", titulo: "Si es por electricidad", pasos: ["Primero corte la corriente; no toque a la persona antes.", "Siempre a emergencia, aunque se vea pequeña."], dosis: ["Siempre"] },
+      { figura: "i:pastilla", titulo: "Para el dolor", pasos: ["El analgésico que le indique su médico.", "No se ponga cremas ni remedios sin indicación."], dosis: ["Si duele"] },
+    ],
+    nota: "En el trabajo: guantes, careta y ropa de protección según la tarea. Sepa dónde está la ducha o el lavaojos de emergencia, y avise al servicio médico de toda quemadura.",
+    fuente: "OMS, Quemaduras: nota descriptiva (2023). Cruz Roja / IFRC, Guías internacionales de primeros auxilios (2020). Directrices europeas de primeros auxilios ERC 2021. ISBI, Practice Guidelines for Burn Care (2016).",
   },
   {
     clave: "ansiedad",
@@ -955,6 +997,10 @@ export const TEMAS: TemaBienestar[] = [
     clave: "vida-sana",
     boton: "Estilo de vida saludable",
     titulo: "Estilo de vida saludable",
+    porque: [
+      "La mayoría de los infartos, los derrames, la diabetes tipo 2 y varios cánceres se pueden prevenir con lo que hacemos cada día: movernos, comer bien, no fumar y dormir.",
+      "No hace falta cambiar todo de una vez. Un hábito pequeño que se mantiene vale más que un gran cambio que dura una semana.",
+    ],
     grupos: [
       {
         titulo: "Cada día",
@@ -976,6 +1022,15 @@ export const TEMAS: TemaBienestar[] = [
           "Protegerse del sol con gorra, manga larga y protector solar.",
         ],
       },
+    ],
+    practica: "Sus hábitos de cada día",
+    ejercicios: [
+      { figura: "caminar", titulo: "Muévase", pasos: ["Caminar rápido, bailar o subir escaleras: todo cuenta."], dosis: ["30 minutos", "5 días a la semana"] },
+      { figura: "plato-sano", titulo: "Arme su plato", pasos: ["Mitad vegetales y frutas, un cuarto proteína, un cuarto granos o tubérculos."], dosis: ["Cada comida"] },
+      { figura: "i:agua", titulo: "Agua, no refresco", pasos: ["Lleve su botella de agua; deje los refrescos y jugos azucarados."], dosis: ["Todo el día"] },
+      { figura: "i:cama", titulo: "Duerma bien", pasos: ["Horario fijo para acostarse y levantarse."], dosis: ["7 a 8 horas"] },
+      { figura: "i:cigarro!", titulo: "Sin cigarro", pasos: ["Si fuma, el servicio médico le ayuda a dejarlo."], dosis: ["Desde hoy"] },
+      { figura: "control-anual", titulo: "Chequeo anual", pasos: ["Tensión, azúcar, colesterol y cintura."], dosis: ["1 vez al año"] },
     ],
     fuente: "OMS, Directrices sobre actividad física y comportamientos sedentarios (2020). OMS, Alimentación sana: nota descriptiva (2020). OMS, HEARTS: paquete técnico para las enfermedades cardiovasculares (2018).",
   },

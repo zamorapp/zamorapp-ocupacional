@@ -76,6 +76,12 @@ export async function middleware(request: NextRequest) {
   // Su PDF con firma y sello (GET /api/pdf?registro=<token>): sin cuenta; la ruta valida el token con la base.
   // El POST de /api/pdf (envíos del servicio) sigue exigiendo sesión.
   if (request.nextUrl.pathname === "/api/pdf" && request.method === "GET") return conTiempo(respuesta);
+  // Los agentes (Claude, ChatGPT…) preguntan aquí si la puerta usa OAuth. No lo usa (va por llave): se responde 404
+  // en JSON. Sin esto recibían la página de ingreso con 200 y el conector fallaba al leerla.
+  if (request.nextUrl.pathname.startsWith("/.well-known/oauth-") || request.nextUrl.pathname.startsWith("/.well-known/openid-configuration"))
+    return NextResponse.json({ error: "not_found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  // Puerta para agentes (MCP y por llave): sin sesión; la base valida la llave en cada llamada (public.agente)
+  if (request.nextUrl.pathname === "/api/agentes" || request.nextUrl.pathname.startsWith("/api/agentes/")) return conTiempo(respuesta);
   // Cola de envíos del escritorio: la llama la puerta local con la sesión de nube (Bearer), sin cookies; valida ella misma
   if (request.nextUrl.pathname === "/api/envios/correo") return conTiempo(respuesta);
 

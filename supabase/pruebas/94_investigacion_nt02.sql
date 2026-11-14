@@ -27,7 +27,7 @@ do $$ begin
 exception when check_violation or insufficient_privilege then raise notice 'informe con trabajador ajeno rechazado (ok)'; end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false) \g /dev/null
 select 'RRHH no ve el informe clínico (debe 0): ' || count(*) from public.investigaciones;
-select 'RRHH sí ve el evento (debe 1): ' || count(*) from public.eventos where id='60000000-0000-0000-0000-0000000000e1';
+select 'RRHH sí ve el evento, por la vista sin datos clínicos (debe 1): ' || count(*) from public.eventos_empresa where id='60000000-0000-0000-0000-0000000000e1';
 reset role;
 with x as (update clinico.investigaciones set estado='terminado' where evento_id='60000000-0000-0000-0000-0000000000e1' returning version)
 select 'versión de sincronía tras dos ediciones (debe 3): ' || version from x;

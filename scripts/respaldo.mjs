@@ -78,6 +78,11 @@ for (const carpeta of guardados) {
   }
 }
 
+// Si respaldo.ps1 no pudo poner al día los programas del respaldo, el Inicio lo muestra en amarillo: una copia atrasada
+// repite errores ya arreglados (la prueba de restauración falló del 6 al 13-nov con scripts del 5-nov sin que nadie lo viera)
+const avisoScripts = (process.env.ZAMORAPP_AVISO_SCRIPTS ?? "").trim().slice(0, 400);
+if (avisoScripts) errores.push(avisoScripts);
+
 // ok: en la PC y en la copia externa; aviso: solo en una carpeta (Google Drive cerrado o con error); fallo: en ninguna
 const estado = guardados.length === 0 ? "fallo" : guardados.length < 2 || errores.length ? "aviso" : "ok";
 const detalle = [...errores, ...(carpetas.length < 2 ? ["Google Drive no estaba abierto: el respaldo quedó solo en la PC y subirá a Drive en el próximo"] : [])].join(" · ");

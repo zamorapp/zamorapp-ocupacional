@@ -60,7 +60,7 @@ export async function guardarTasa(fecha: string, tasa: number): Promise<Resultad
   return { ok: true, mensaje: "Tasa guardada." };
 }
 
-// siguiente: "factura" (desde «¿Desea facturar este período?») abre de una vez la factura del talonario
+// siguiente: "factura" (desde «¿Quieres facturar este período?») abre de una vez la factura del talonario
 export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }, siguiente: "nota" | "factura" = "nota"): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
@@ -173,6 +173,36 @@ export async function convertirPresupuesto(id: string): Promise<Resultado> {
   await c.supabase.from("cobros").update({ estado: "convertido" }).eq("id", id);
   revalidatePath("/facturacion");
   redirect(`/facturacion/${nuevo.id}`);
+}
+
+// Factura que no cabe en una hoja del talonario: la nota se divide en dos notas de cobro, cada una con sus renglones y su
+// propio total (la segunda NO es continuación de la primera). Los renglones `mover` pasan a una nota nueva con la misma
+// empresa, período, tasa e impuestos. Solo si la nota aún no tiene Nº de factura y no está pagada ni anulada: así el
+// registro de facturas queda igual que el papel. La nota nueva toma el siguiente Nº del talonario al imprimirla.
+export async function dividirCobro(id: string, mover: string[]): Promise<Resultado & { nuevoId?: string; numero?: number }> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data: n } = await c.supabase.from("cobros").select("*, cobro_items(id)").eq("id", id).eq("tipo", "cobro").maybeSingle();
+  if (!n) return { ok: false, mensaje: "Nota de cobro no encontrada." };
+  if (n.estado === "pagada" || n.estado === "anulada") return { ok: false, mensaje: "Una nota pagada o anulada no se divide." };
+  if (n.numero_factura_fiscal) return { ok: false, mensaje: `Esta nota ya tiene la factura Nº ${n.numero_factura_fiscal}. Quita el número para dividirla.` };
+  const propios = new Set(((n.cobro_items ?? []) as { id: string }[]).map((i) => i.id));
+  const ids = [...new Set(mover)].filter((i) => propios.has(i));
+  if (!ids.length || ids.length !== new Set(mover).size || ids.length >= propios.size) return { ok: false, mensaje: "No se pudo dividir: los renglones cambiaron. Recarga la página." };
+  const { data: nueva, error } = await c.supabase.from("cobros")
+    .insert({ org_id: n.org_id, empresa_id: n.empresa_id, tipo: "cobro", estado: n.estado, fecha: n.fecha, desde: n.desde, hasta: n.hasta, tasa_bcv: n.tasa_bcv, iva_pct: n.iva_pct, igtf_pct: n.igtf_pct, observacion: n.observacion, vence: n.vence, presupuesto_id: n.presupuesto_id })
+    .select("id, numero").single();
+  if (error) return { ok: false, mensaje: error.message };
+  const { data: movidos, error: e2 } = await c.supabase.from("cobro_items").update({ cobro_id: nueva.id }).in("id", ids).eq("cobro_id", id).select("id");
+  if (e2 || movidos?.length !== ids.length) {
+    // Sin renglones a medias: si no se movieron todos, se regresan y se borra la nota nueva
+    await c.supabase.from("cobro_items").update({ cobro_id: id }).eq("cobro_id", nueva.id);
+    const { error: e3 } = await c.supabase.from("cobros").delete().eq("id", nueva.id);
+    const motivo = e2?.message ?? "No se pudo dividir: tu rol no puede mover los renglones.";
+    return { ok: false, mensaje: e3 ? `${motivo} Quedó una nota vacía #${nueva.numero}: anúlala.` : motivo };
+  }
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: `Dividida: los últimos ${ids.length} renglones pasaron a la nota de cobro #${nueva.numero}.`, nuevoId: nueva.id as string, numero: nueva.numero as number };
 }
 
 // Nº de la factura de forma libre (talonario de imprenta autorizada): se escribe al imprimir y queda en la nota de cobro.
