@@ -5,7 +5,8 @@
 --    instantanea() de perfiles pasa por aquí: la copia del escritorio solo baja la firma del dueño de la sesión.
 -- 2) firma_de_documento(tipo, id): para imprimir un documento, la firma de quien lo firmó, tomada del propio documento
 --    (nadie elige de quién). Al firmante se la da siempre; al resto del personal clínico de la organización solo si el
---    documento ya está cerrado (Cesar: «Sí, solo lo que usted ya cerró»). RR. HH. y roles no clínicos: nunca.
+--    documento ya está cerrado (Cesar: «Sí, solo lo que usted ya cerró») y es de una empresa que puede ver. RR. HH. y roles
+--    no clínicos: nunca.
 create or replace function public.firma_sello(p_usuario uuid)
 returns table (firma_url text, sello_url text)
 language sql stable security definer set search_path = public as $$
@@ -23,32 +24,35 @@ declare
   v_org uuid;
   v_firmante uuid;
   v_cerrado boolean;
+  v_empresa uuid;
 begin
   if auth.uid() is null then return; end if;
   case p_tipo
     when 'consulta' then
-      select c.org_id, c.medico_id, c.estado in ('cerrada', 'firmada') into v_org, v_firmante, v_cerrado
+      select c.org_id, c.medico_id, c.estado in ('cerrada', 'firmada'), c.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from clinico.consultas c where c.id = p_id;
     when 'indicacion' then
-      select i.org_id, i.medico_id, i.estado in ('emitida', 'cumplida') into v_org, v_firmante, v_cerrado
+      select i.org_id, i.medico_id, i.estado in ('emitida', 'cumplida'), i.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from clinico.indicaciones i where i.id = p_id;
     when 'ergonomia' then
-      select e.org_id, e.evaluado_por, e.estado = 'cerrada' into v_org, v_firmante, v_cerrado
+      select e.org_id, e.evaluado_por, e.estado = 'cerrada', e.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from public.evaluaciones_ergonomicas e where e.id = p_id;
     when 'riesgos' then
-      select e.org_id, e.evaluado_por, e.estado = 'cerrada' into v_org, v_firmante, v_cerrado
+      select e.org_id, e.evaluado_por, e.estado = 'cerrada', e.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from public.evaluaciones_riesgos e where e.id = p_id;
     when 'psicosocial' then
-      select e.org_id, e.creado_por, e.estado = 'cerrada' into v_org, v_firmante, v_cerrado
+      select e.org_id, e.creado_por, e.estado = 'cerrada', e.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from public.evaluaciones_psicosociales e where e.id = p_id;
     when 'puesto' then
-      select p.org_id, p.evaluado_por, p.evaluado_en is not null into v_org, v_firmante, v_cerrado
+      select p.org_id, p.evaluado_por, p.evaluado_en is not null, p.empresa_id into v_org, v_firmante, v_cerrado, v_empresa
       from public.puestos p where p.id = p_id;
     else return;
   end case;
   if v_firmante is null then return; end if;
   if v_firmante <> auth.uid() then
     if not coalesce(v_cerrado, false) or not public.es_clinico(v_org) then return; end if;
+    -- Quien está limitado a algunas empresas solo la recibe para documentos de esas empresas
+    if not public.puede_ver_empresa(v_org, v_empresa) then return; end if;
     -- El firmante debe seguir activo en esa organización
     if not exists (select 1 from public.miembros m where m.org_id = v_org and m.usuario_id = v_firmante and m.activo) then return; end if;
   end if;
