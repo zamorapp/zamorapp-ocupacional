@@ -109,14 +109,19 @@ create trigger vigilancia_programas_validar before insert or update on public.vi
 alter table public.vigilancia_programas enable row level security;
 drop policy if exists vigilancia_programas_leer on public.vigilancia_programas;
 create policy vigilancia_programas_leer on public.vigilancia_programas for select
-  using (public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con(p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados())::text[]));
 -- Los configura el servicio médico (y el administrador o el coordinador de SST), como el informe de vigilancia
 drop policy if exists vigilancia_programas_editar on public.vigilancia_programas;
 create policy vigilancia_programas_editar on public.vigilancia_programas for all
-  using ((public.es_clinico(org_id) or public.mi_rol(org_id) in ('administrador', 'coordinador_sst'))
-         and public.puede_ver_empresa(org_id, empresa_id))
-  with check ((public.es_clinico(org_id) or public.mi_rol(org_id) in ('administrador', 'coordinador_sst'))
-              and public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con('{administrador,coordinador_sst}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,coordinador_sst}'))::text[]))
+  with check (org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con('{administrador,coordinador_sst}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador,coordinador_sst}'))::text[]));
 grant select, insert, update, delete on public.vigilancia_programas to authenticated;
 revoke all on public.vigilancia_programas from anon;
 
@@ -184,14 +189,26 @@ alter table public.agentes_propuestas enable row level security;
 -- La ven y la resuelven el servicio médico y el administrador (con la empresa a su alcance). RR. HH. no.
 drop policy if exists agentes_propuestas_leer on public.agentes_propuestas;
 create policy agentes_propuestas_leer on public.agentes_propuestas for select
-  using ((public.es_clinico(org_id) or public.es_admin(org_id))
-         and (empresa_id is null or public.puede_ver_empresa(org_id, empresa_id)));
+  using (org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con('{administrador}', p_sin_limite => true))::uuid[])
+         or (empresa_id is null and (org_id = any ((select public.orgs_con(p_clinico => true))::uuid[])
+                                     or org_id = any ((select public.orgs_con('{administrador}'))::uuid[])))
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador}'))::text[]));
 drop policy if exists agentes_propuestas_resolver on public.agentes_propuestas;
 create policy agentes_propuestas_resolver on public.agentes_propuestas for update
-  using ((public.es_clinico(org_id) or public.es_admin(org_id))
-         and (empresa_id is null or public.puede_ver_empresa(org_id, empresa_id)))
-  with check ((public.es_clinico(org_id) or public.es_admin(org_id))
-              and (empresa_id is null or public.puede_ver_empresa(org_id, empresa_id)));
+  using (org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con('{administrador}', p_sin_limite => true))::uuid[])
+         or (empresa_id is null and (org_id = any ((select public.orgs_con(p_clinico => true))::uuid[])
+                                     or org_id = any ((select public.orgs_con('{administrador}'))::uuid[])))
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador}'))::text[]))
+  with check (org_id = any ((select public.orgs_con(p_clinico => true, p_sin_limite => true))::uuid[])
+         or org_id = any ((select public.orgs_con('{administrador}', p_sin_limite => true))::uuid[])
+         or (empresa_id is null and (org_id = any ((select public.orgs_con(p_clinico => true))::uuid[])
+                                     or org_id = any ((select public.orgs_con('{administrador}'))::uuid[])))
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados(p_clinico => true))::text[])
+         or (org_id::text || empresa_id::text) = any ((select public.pares_limitados('{administrador}'))::text[]));
 revoke all on public.agentes_propuestas from anon, authenticated;
 grant select on public.agentes_propuestas to authenticated;
 -- Lo escrito por el agente no se cambia: solo se resuelve
@@ -260,6 +277,8 @@ create or replace function public.propuesta_seccion_valida(p text)
 returns boolean language sql immutable set search_path = public as $$
   select p in ('resumen', 'conclusiones', 'recomendaciones_medicas', 'recomendaciones', 'factores_riesgo', 'medidas_control')
 $$;
+revoke execute on function public.propuesta_seccion_valida(text) from public, anon;
+grant execute on function public.propuesta_seccion_valida(text) to authenticated;
 
 -- Aprobar: hace el cambio con la sesión de quien aprueba. p_datos (opcional) trae lo editado o elegido:
 --   programa_vigilancia: el programa corregido; ajuste_empresa: los campos que se aceptan;
