@@ -37,12 +37,14 @@ export type Cita = {
   respuestaEmpresa: "aceptada" | "pidio_otra" | null;
   // Orden de evaluación del portal (20261030925000), solo en las solicitudes
   orden?: { id: string; numero: number } | null;
+  // Provisional: espera el sí de la empresa (20261030940000). Sale en «Citas por confirmar» y punteada en la agenda
+  porConfirmar?: boolean;
 };
 
 
 type Fila = {
   id: string; fecha: string; hora: string | null; estado: EstadoCita; llegada: string | null; trabajador_id: string;
-  motivo_id: string | null; consulta_id: string | null; observacion: string | null;
+  motivo_id: string | null; consulta_id: string | null; observacion: string | null; por_confirmar?: boolean;
   empresa_id?: string; propuesta_fecha?: string | null; propuesta_desde?: string | null; propuesta_hasta?: string | null;
   propuesta_modo?: ModoPropuesta | null; propuesta_nota?: string | null; propuesta_en?: string | null; respuesta_empresa?: Cita["respuestaEmpresa"];
   propuesta_correo_estado?: EstadoCorreoPropuesta | null; propuesta_correo_error?: string | null;
@@ -75,7 +77,7 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
   const supabase = await crearClienteServidor();
   let q = supabase
     .from("citas")
-    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, creado_en, confirmada_en, en_consulta_en, atendida_en, cerrada_en, ${PROPUESTA}, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
+    .select(`id, fecha, hora, estado, llegada, trabajador_id, motivo_id, consulta_id, observacion, por_confirmar, creado_en, confirmada_en, en_consulta_en, atendida_en, cerrada_en, ${PROPUESTA}, trabajadores(nombres, apellidos, cedula, telefono), empresas(razon_social), motivo:lista_items(nombre)`)
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha")
@@ -100,6 +102,42 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
     motivo: c.motivo?.nombre ?? null,
     consultaId: c.consulta_id,
     observacion: c.observacion,
+    porConfirmar: c.por_confirmar ?? false,
+  }));
+}
+
+// «Citas por confirmar» del Inicio: las provisionales citadas (cualquier fecha: las pasadas salen «Venció») y las
+// que pidieron las empresas por el portal desde hoy. Misma regla que cuenta inicio_conteos; todas las empresas.
+export type CitaPorConfirmar = {
+  id: string; fecha: string; hora: string | null; tipo: "provisional" | "solicitada"; paciente: string; cedula: string;
+  telefono: string | null; empresa: string; cargo: string | null; motivo: string | null; observacion: string | null;
+};
+export async function listarPorConfirmar(): Promise<CitaPorConfirmar[]> {
+  if (!supabaseConfigurado) return [];
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("citas")
+    .select("id, fecha, hora, estado, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula, telefono, puestos(nombre)), empresas(razon_social), motivo:lista_items(nombre)")
+    .or(`and(estado.eq.citado,por_confirmar.eq.true),and(estado.eq.solicitada,fecha.gte.${hoyCaracas()})`)
+    .order("fecha")
+    .order("hora", { nullsFirst: false })
+    .limit(500);
+  if (error) throw error;
+  type FilaPC = { id: string; fecha: string; hora: string | null; estado: EstadoCita; observacion: string | null; nota_empresa: string | null;
+    trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null; puestos: { nombre: string } | null } | null;
+    empresas: { razon_social: string } | null; motivo: { nombre: string } | null };
+  return ((data ?? []) as unknown as FilaPC[]).map((c) => ({
+    id: c.id,
+    fecha: c.fecha,
+    hora: c.hora?.slice(0, 5) ?? null,
+    tipo: c.estado === "solicitada" ? "solicitada" : "provisional",
+    paciente: c.trabajadores ? `${c.trabajadores.nombres} ${c.trabajadores.apellidos}` : "",
+    cedula: c.trabajadores?.cedula ?? "",
+    telefono: c.trabajadores?.telefono ?? null,
+    empresa: c.empresas?.razon_social ?? "",
+    cargo: c.trabajadores?.puestos?.nombre ?? null,
+    motivo: c.motivo?.nombre ?? null,
+    observacion: c.nota_empresa ?? c.observacion,
   }));
 }
 

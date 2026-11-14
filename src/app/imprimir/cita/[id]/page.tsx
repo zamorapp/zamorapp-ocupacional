@@ -19,13 +19,13 @@ const DIA = new Intl.DateTimeFormat("es-VE", { weekday: "long", timeZone: "UTC" 
 const diaSemana = (iso: string) => DIA.format(new Date(iso + "T00:00:00Z"));
 
 type CitaComprobante = {
-  id: string; fecha: string; hora: string | null; estado: string; observacion: string | null; empresaId: string;
+  id: string; fecha: string; hora: string | null; estado: string; observacion: string | null; empresaId: string; porConfirmar: boolean;
   paciente: string; cedula: string; telefono: string | null; cargo: string | null; motivo: string | null;
 };
 
 async function leerCita(id: string, demo: boolean): Promise<CitaComprobante | null> {
   if (!supabaseConfigurado || demo) {
-    return { id: "00000000-0000-4000-8000-000000000000", fecha: "2026-11-16", hora: "09:00", estado: "citado", empresaId: "", paciente: "José Pérez",
+    return { id: "00000000-0000-4000-8000-000000000000", fecha: "2026-11-16", hora: "09:00", estado: "citado", porConfirmar: false, empresaId: "", paciente: "José Pérez",
       cedula: "V-12345678", telefono: null, cargo: "Vendedor", motivo: "Pre-empleo",
       observacion: "Laboratorio 7:30 a. m. en ayunas de 12 horas, con la primera orina de la mañana.\nRayos X 8:00 a. m." };
   }
@@ -33,13 +33,13 @@ async function leerCita(id: string, demo: boolean): Promise<CitaComprobante | nu
   const supabase = await crearClienteServidor();
   // Solo datos administrativos de la cita (RLS de citas: cada rol ve las de sus empresas). Nunca datos médicos.
   const { data } = await supabase.from("citas")
-    .select("id, fecha, hora, estado, observacion, empresa_id, trabajadores(nombres, apellidos, cedula, telefono, puestos(nombre)), motivo:lista_items(nombre)")
+    .select("id, fecha, hora, estado, observacion, por_confirmar, empresa_id, trabajadores(nombres, apellidos, cedula, telefono, puestos(nombre)), motivo:lista_items(nombre)")
     .eq("id", id).maybeSingle();
   if (!data) return null;
   const t = data.trabajadores as unknown as { nombres: string; apellidos: string; cedula: string; telefono: string | null; puestos: { nombre: string } | null } | null;
   const m = data.motivo as unknown as { nombre: string } | null;
   return {
-    id: data.id, fecha: data.fecha, hora: data.hora?.slice(0, 5) ?? null, estado: data.estado, observacion: data.observacion, empresaId: data.empresa_id,
+    id: data.id, fecha: data.fecha, hora: data.hora?.slice(0, 5) ?? null, estado: data.estado, observacion: data.observacion, porConfirmar: data.por_confirmar === true, empresaId: data.empresa_id,
     paciente: t ? `${t.nombres} ${t.apellidos}`.trim() : "", cedula: t?.cedula ?? "", telefono: t?.telefono ?? null, cargo: t?.puestos?.nombre ?? null, motivo: m?.nombre ?? null,
   };
 }
@@ -58,8 +58,8 @@ export default async function ImprimirCita({ params, searchParams }: { params: P
   const indicaciones = (c.observacion ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const titular = d.org.ajustes?.membrete_titular?.trim();
   const numero = folio("CITA", c.id);
-  // Sin campo propio para «provisional»: si la observación lo dice, la etiqueta también (nunca «Confirmada» en falso)
-  const estado = c.estado === "citado" && /provisional/i.test(c.observacion ?? "") ? "Provisional" : ESTADO[c.estado] ?? c.estado;
+  // «Provisional» sale de la marca «Por confirmar» de la cita (20261030940000), nunca de adivinar por el texto
+  const estado = c.estado === "citado" && c.porConfirmar ? "Provisional" : ESTADO[c.estado] ?? c.estado;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
