@@ -60,6 +60,7 @@ set role authenticated;
 -- RR. HH. de la empresa: ve conteos de enfermedades registradas, pero nunca resultados ni sospechas (datos clínicos)
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000002a6',false) \g /dev/null
 select 'RR. HH. ve la enfermedad registrada (debe 1): ' || (v -> 'enfermedades' ->> 'registradas') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
+select 'RR. HH. sin grupo del Anexo 1, que sale del CIE-10 (debe 0): ' || jsonb_array_length(v -> 'enfermedades' -> 'por_grupo') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
 select 'RR. HH. sin resultados de estudios (debe 0): ' || jsonb_array_length(v -> 'resultados') from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
 select 'RR. HH. sin sospechas ni expuestos sin estudio (debe 0): ' || ((v -> 'enfermedades' ->> 'sospechas_sin_registro')::int + (v -> 'expuestos_sin_estudio' ->> 'ruido')::int) from public.vigilancia_legal('20000000-0000-0000-0000-000000000206','2027-07-01','2027-09-30') v;
 reset role;

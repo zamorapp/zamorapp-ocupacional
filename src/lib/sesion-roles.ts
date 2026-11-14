@@ -19,6 +19,11 @@ export const esRolEmpresa = (rol: Rol | null | undefined) => Boolean(rol && ROLE
 // De los roles de empresa, solo RR. HH. (gerente_empresa) pide citas, carga nómina y hace solicitudes (la base exige es_empresa)
 export const empresaSoloLectura = (rol: Rol | null | undefined) => esRolEmpresa(rol) && rol !== "gerente_empresa";
 
+// Accidentes (misma lista que la regla eventos_editar de la base): quién completa, declara e investiga un evento.
+// RR. HH. solo reporta accidentes e incidentes de su empresa (eventos_reportar_rrhh, Cesar 13-nov-2026).
+export const ROLES_EDITAN_EVENTOS: Rol[] = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst", "supervisor", "delegado_prevencion"];
+export const puedeReportarEvento = (rol: Rol | null | undefined) => Boolean(rol && (ROLES_EDITAN_EVENTOS.includes(rol) || rol === "gerente_empresa"));
+
 export const ETIQUETA_ROL: Record<Rol, string> = {
   administrador: "Administrador",
   gerente_medico: "Gerente médico",
