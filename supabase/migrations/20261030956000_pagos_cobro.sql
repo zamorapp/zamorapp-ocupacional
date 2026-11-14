@@ -17,29 +17,29 @@ create table if not exists public.cobro_pagos (
 create index if not exists cobro_pagos_cobro on public.cobro_pagos (cobro_id, fecha);
 
 alter table public.cobro_pagos enable row level security;
--- Quien factura (administrador, gerente médico, recepción) y ve la nota. Ver: en cualquier nota suya; registrar,
+-- Quien factura (administrador, gerente médico, recepción; = puede_facturar, en una sola consulta: C14) y ve la nota. Ver: en cualquier nota suya; registrar,
 -- cambiar o borrar: solo en notas emitidas o pagadas (Analizar, 14-nov)
 drop policy if exists cobro_pagos_todo on public.cobro_pagos;
 drop policy if exists cobro_pagos_ver on public.cobro_pagos;
 create policy cobro_pagos_ver on public.cobro_pagos for select
-  using (public.puede_facturar(org_id)
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,recepcion}'))::uuid[])
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id));
 drop policy if exists cobro_pagos_crear on public.cobro_pagos;
 create policy cobro_pagos_crear on public.cobro_pagos for insert
-  with check (public.puede_facturar(org_id)
+  with check (org_id = any ((select public.orgs_con('{administrador,gerente_medico,recepcion}'))::uuid[])
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
                      and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
 drop policy if exists cobro_pagos_cambiar on public.cobro_pagos;
 create policy cobro_pagos_cambiar on public.cobro_pagos for update
-  using (public.puede_facturar(org_id)
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,recepcion}'))::uuid[])
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
                      and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')))
-  with check (public.puede_facturar(org_id)
+  with check (org_id = any ((select public.orgs_con('{administrador,gerente_medico,recepcion}'))::uuid[])
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
                      and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
 drop policy if exists cobro_pagos_borrar on public.cobro_pagos;
 create policy cobro_pagos_borrar on public.cobro_pagos for delete
-  using (public.puede_facturar(org_id)
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico,recepcion}'))::uuid[])
          and exists (select 1 from public.cobros c where c.id = cobro_id and c.org_id = cobro_pagos.org_id
                      and c.tipo = 'cobro' and c.estado in ('emitida', 'pagada')));
 
