@@ -11,6 +11,8 @@ export type BorradorAgente = {
   id: string; tipo: "recipe" | "examenes"; trabajadorId: string; paciente: string; cedula: string; correoTrabajador: string | null;
   tratamiento: Medicamento[]; examenes: string[]; indicaciones: string; adjuntar: "suelto" | "consulta"; consultaId: string | null;
   envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; agente: string; creadoEn: string; fecha: string | null;
+  // Correos que pueden recibir lo clínico: el del paciente y el personal de salud registrado de su empresa (Analizar, 14-nov)
+  correosAutorizados: string[];
 };
 
 const EMITEN = ["administrador", "gerente_medico", "medico"];
@@ -19,7 +21,7 @@ export const revisaBorradores = (s: Sesion) => !s.demo && Boolean(s.orgId) && s.
 type Fila = {
   id: string; tipo: "recipe" | "examenes"; trabajador_id: string; tratamiento: Medicamento[] | null; examenes: string[] | null;
   indicaciones: string; adjuntar: "suelto" | "consulta"; consulta_id: string | null; envio: "imprimir" | "whatsapp" | "correo";
-  correo: string | null; llave_nombre: string; creado_en: string; fecha: string | null;
+  correo: string | null; llave_nombre: string; creado_en: string; fecha: string | null; empresa_id: string | null;
   trabajadores: { nombres: string; apellidos: string; cedula: string; correo: string | null } | null;
 };
 
@@ -28,16 +30,26 @@ export async function borradoresPorRevisar(): Promise<BorradorAgente[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("agentes_borradores")
-    .select("id, tipo, trabajador_id, tratamiento, examenes, indicaciones, adjuntar, consulta_id, envio, correo, llave_nombre, creado_en, fecha, trabajadores(nombres, apellidos, cedula, correo)")
+    .select("id, tipo, trabajador_id, tratamiento, examenes, indicaciones, adjuntar, consulta_id, envio, correo, llave_nombre, creado_en, fecha, empresa_id, trabajadores(nombres, apellidos, cedula, correo)")
     .eq("estado", "por_revisar").order("creado_en", { ascending: false }).limit(100);
   if (error || !data) return [];
-  return (data as unknown as Fila[]).map((f) => ({
+  const filas = data as unknown as Fila[];
+  const empresas = [...new Set(filas.filter((f) => f.envio === "correo" && f.empresa_id).map((f) => f.empresa_id as string))];
+  const { data: contactos } = empresas.length
+    ? await supabase.from("empresa_contactos").select("empresa_id, correo").in("empresa_id", empresas).eq("activo", true).eq("recibe_consulta", true)
+    : { data: [] };
+  const salud = new Map<string, string[]>();
+  for (const c of (contactos ?? []) as { empresa_id: string; correo: string | null }[]) {
+    if (c.correo) salud.set(c.empresa_id, [...(salud.get(c.empresa_id) ?? []), c.correo.trim().toLowerCase()]);
+  }
+  return filas.map((f) => ({
     id: f.id, tipo: f.tipo, trabajadorId: f.trabajador_id,
     paciente: f.trabajadores ? `${f.trabajadores.nombres} ${f.trabajadores.apellidos}` : "", cedula: f.trabajadores?.cedula ?? "",
     correoTrabajador: f.trabajadores?.correo ?? null,
     tratamiento: Array.isArray(f.tratamiento) ? f.tratamiento : [], examenes: Array.isArray(f.examenes) ? f.examenes : [],
     indicaciones: f.indicaciones, adjuntar: f.adjuntar, consultaId: f.consulta_id, envio: f.envio, correo: f.correo,
     agente: f.llave_nombre, creadoEn: f.creado_en, fecha: f.fecha,
+    correosAutorizados: [...(f.trabajadores?.correo ? [f.trabajadores.correo.trim().toLowerCase()] : []), ...(f.empresa_id ? salud.get(f.empresa_id) ?? [] : [])],
   }));
 }
 

@@ -25,7 +25,7 @@ import { type ConsultaAdjuntable, anularIndicacion, consultasParaAdjuntar, cumpl
 export type InicialIndicacion = {
   borradorId: string; tipo: "recipe" | "examenes"; tratamiento: Medicamento[]; examenes: string[]; indicaciones: string;
   consultaId: string | null; envio: "imprimir" | "whatsapp" | "correo"; correo: string | null; correoTrabajador: string | null; agente: string;
-  fecha?: string | null;
+  fecha?: string | null; correosAutorizados?: string[];
 };
 
 const SELECT = "h-9 w-full rounded-md border bg-transparent px-2 text-sm";
@@ -67,6 +67,12 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
   const [listas, setListas] = useState<Record<string, Item[]> | null>(null);
   const [propias, setPropias] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Correo dictado al agente: si no es del paciente ni del personal de salud registrado, se confirma (no bloquea)
+  const [correo, setCorreo] = useState(inicial?.correo ?? "");
+  const [correoConfirmado, setCorreoConfirmado] = useState(false);
+  const [confirmarCorreo, setConfirmarCorreo] = useState<null | boolean>(null);
+  const correoDudoso = inicial?.envio === "correo" && !!correo.trim()
+    && !(inicial.correosAutorizados ?? (inicial.correoTrabajador ? [inicial.correoTrabajador.toLowerCase()] : [])).includes(correo.trim().toLowerCase());
   const [guardando, iniciar] = useTransition();
 
   // Las listas (vademécum, vías, frecuencias) se piden al abrir: la ficha no las carga en cada visita
@@ -85,8 +91,10 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
     trabajadorId, tipo, tratamiento: meds, indicaciones: texto, indicadoPor: tipo === "enfermeria" ? indicadoPor : "",
     examenes: limpiarExamenes([examenes]), consultaId: consultaId || null, borradorId: inicial?.borradorId ?? null, fecha,
   });
-  const guardar = (imprimir: boolean) => {
+  const guardar = (imprimir: boolean, confirmado = false) => {
     setError(null);
+    if (correoDudoso && !correoConfirmado && !confirmado) { setConfirmarCorreo(imprimir); return; }
+    setConfirmarCorreo(null);
     if (imprimir) {
       // La ventana se abre con el clic (si no, el navegador la bloquea) y se dirige al guardar
       void abrirEnVentana(async () => {
@@ -206,11 +214,13 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
             <Input id="fecha-indicacion" type="date" value={fecha} min="2000-01-01" max="2100-12-31" className="w-44"
               onChange={(e) => { setFecha(e.target.value || hoy); setAvisoFechaVisto(false); }} data-campo="fecha" />
             {fecha !== hoy && !avisoFechaVisto && (
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground" data-estado={fecha > hoy ? "fecha-futura" : "fecha-pasada"}>
-                <span>{fecha > hoy ? "Fecha futura" : "Fecha pasada"}: la hoja saldrá con el {fechaCorta(fecha)}.</span>
-                <button type="button" className="underline underline-offset-2" onClick={() => setAvisoFechaVisto(true)}>Ignorar</button>
-                <button type="button" className="underline underline-offset-2" onClick={() => setFecha(hoy)}>Usar hoy</button>
-              </p>
+              <div className="mt-1.5 text-xs text-muted-foreground" data-estado={fecha > hoy ? "fecha-futura" : "fecha-pasada"}>
+                <p>{fecha > hoy ? "Fecha futura" : "Fecha pasada"}: la hoja saldrá con el {fechaCorta(fecha)}.</p>
+                <div className="mt-1 flex gap-2">
+                  <Button type="button" variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setAvisoFechaVisto(true)}>Ignorar</Button>
+                  <Button type="button" variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setFecha(hoy)}>Usar hoy</Button>
+                </div>
+              </div>
             )}
           </div>
           <div>
@@ -221,7 +231,17 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
               {consultaId && consultas && !consultas.some((c) => c.id === consultaId) && <option value={consultaId}>Adjunto a la consulta que indicó el agente</option>}
             </select>
           </div>
-          {inicial && inicial.envio !== "imprimir" && <EnvioPedido inicial={inicial} />}
+          {inicial && inicial.envio !== "imprimir" && <EnvioPedido inicial={inicial} correo={correo} setCorreo={(c) => { setCorreo(c); setCorreoConfirmado(false); }} dudoso={correoDudoso} />}
+          {confirmarCorreo !== null && (
+            <div role="alertdialog" aria-labelledby="confirmar-correo-txt" className="rounded-lg border border-aviso/50 bg-aviso/10 p-3 text-sm" data-estado="confirmar-correo">
+              <p id="confirmar-correo-txt" className="flex items-start gap-1.5 font-medium text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />Este correo no es del paciente ni del personal de salud registrado de la empresa.</p>
+              <p className="mt-1 text-muted-foreground">El documento lleva datos de salud. ¿Lo envías igual a {correo.trim()}?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button type="button" size="sm" className="max-sm:min-h-11" onClick={() => { setCorreoConfirmado(true); guardar(confirmarCorreo, true); }} data-accion="enviar-igual">Enviar igual</Button>
+                <Button type="button" size="sm" variant="outline" className="max-sm:min-h-11" onClick={() => { setConfirmarCorreo(null); document.getElementById("correo-envio")?.focus(); }} data-accion="cambiar-correo">Cambiar correo</Button>
+              </div>
+            </div>
+          )}
           {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         </div>
 
@@ -239,16 +259,17 @@ export function FormIndicacion({ trabajadorId, nombre, onCerrar, inicial }: { tr
 }
 
 // Por dónde pidió el médico que saliera (lo dijo al agente). El correo se ve grande y avisa si no es el del paciente.
-function EnvioPedido({ inicial }: { inicial: InicialIndicacion }) {
-  const otro = inicial.envio === "correo" && inicial.correo && inicial.correo !== (inicial.correoTrabajador ?? "").toLowerCase();
+function EnvioPedido({ inicial, correo, setCorreo, dudoso }: { inicial: InicialIndicacion; correo: string; setCorreo: (c: string) => void; dudoso: boolean }) {
   return (
     <div className="rounded-lg border p-3 text-sm" data-envio={inicial.envio}>
       <p className="font-medium">Envío pedido: {inicial.envio === "whatsapp" ? "WhatsApp" : "correo"}</p>
       {inicial.envio === "correo" ? (
         <>
-          <p className="mt-1 flex items-center gap-2 break-all text-base font-semibold"><Mail className="size-4 shrink-0 text-primary" aria-hidden />{inicial.correo}</p>
+          <label htmlFor="correo-envio" className="sr-only">Correo al que lo envías</label>
+          <div className="mt-1 flex items-center gap-2"><Mail className="size-4 shrink-0 text-primary" aria-hidden />
+            <Input id="correo-envio" type="email" value={correo} maxLength={200} onChange={(e) => setCorreo(e.target.value)} className="h-9 text-base font-semibold" /></div>
           <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en tu correo.</p>
-          {otro && <p className="mt-1 flex items-start gap-1.5 text-aviso-texto" data-estado="correo-distinto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /><span>No es el correo registrado del paciente{inicial.correoTrabajador ? ` (${inicial.correoTrabajador})` : ""}. Revísalo antes de enviar.</span></p>}
+          {dudoso && <p className="mt-1 flex items-start gap-1.5 text-aviso-texto" data-estado="correo-distinto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /><span>No es del paciente{inicial.correoTrabajador ? ` (${inicial.correoTrabajador})` : ""} ni del personal de salud registrado de la empresa. Revísalo antes de enviar.</span></p>}
         </>
       ) : (
         <p className="mt-1 text-muted-foreground">Al emitirlo se abre la hoja: guarda el PDF y adjúntalo en WhatsApp, en el chat o grupo que elijas.</p>

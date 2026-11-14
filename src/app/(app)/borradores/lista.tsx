@@ -36,7 +36,7 @@ export function ListaBorradores({ items }: { items: BorradorAgente[] }) {
         <FormIndicacion trabajadorId={abierto.trabajadorId} nombre={abierto.paciente} onCerrar={() => setAbierto(null)}
           inicial={{
             borradorId: abierto.id, tipo: abierto.tipo, tratamiento: abierto.tratamiento, examenes: abierto.examenes, indicaciones: abierto.indicaciones,
-            consultaId: abierto.consultaId, envio: abierto.envio, correo: abierto.correo, correoTrabajador: abierto.correoTrabajador, agente: abierto.agente, fecha: abierto.fecha,
+            consultaId: abierto.consultaId, envio: abierto.envio, correo: abierto.correo, correoTrabajador: abierto.correoTrabajador, agente: abierto.agente, fecha: abierto.fecha, correosAutorizados: abierto.correosAutorizados,
           }} />
       )}
     </>
