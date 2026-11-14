@@ -46,9 +46,10 @@ export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta
 // recordar_resultados (la campana de resultados pendientes) también: sus avisos salen en la PC al momento y, al subir,
 // la nube la vuelve a calcular y la PC borra los suyos (bandeja.mjs).
 // recordar_post_vacacional (el aviso del post vacacional) igual: suena en la PC sin internet.
-export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados", "recordar_post_vacacional"]);
+// recordar_citas (recordatorios de citas, 20261030955000) igual: «mañana tienes 4 citas» y «cita a las 9:00» suenan sin internet.
+export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados", "recordar_post_vacacional", "recordar_citas"]);
 // Constancias que son la campana: sus avisos hechos en la PC se borran cuando la nube hace los suyos
-export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacacional"]);
+export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacacional", "recordar_citas"]);
 
 // Funciones que van a la nube pero no cambian lo que la pantalla lee enseguida: avisos de la campana que corren
 // después de mostrar la página (after() en recordatorios.ts), limpiezas de vencidos y vistas previas que solo leen
@@ -56,7 +57,7 @@ export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacaci
 // llama recordar_alertas en cada visita, así que casi toda la app leía de la nube (medido 6-nov: 1 s por pantalla en
 // vez de 0,1 s). Lo que crean baja a la copia en la sincronía normal (30 s).
 export const RPC_SIN_ESPERA = new Set([
-  "recordar_resultados", "recordar_alertas", "recordar_post_vacacional", "purgar_solicitudes_paciente",
+  "recordar_resultados", "recordar_alertas", "recordar_post_vacacional", "recordar_citas", "purgar_solicitudes_paciente",
   "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio", "registrar_firma_pdf",
   "crear_llave_agente", "revocar_llave_agente", // puerta para agentes: llaves que la copia no trae
 ]);

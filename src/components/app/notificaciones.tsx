@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Bell, Clock, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { aparatosSinAcuse, marcarLeidas, misNotificaciones, type AparatoSinAcuse, type Notificacion } from "./acciones";
+import { recordarCitas } from "./recordar-citas";
 import { avisoWindows, enEscritorio } from "@/lib/escritorio";
 import { ahora } from "@/lib/fecha";
 
@@ -52,7 +53,13 @@ const HORA = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day
 export function Notificaciones() {
   const [lista, setLista] = useState<Notificacion[]>([]);
   const [sinAcuse, setSinAcuse] = useState<AparatoSinAcuse[]>([]);
+  const ultimoRecordatorio = useRef(0);
   const cargar = useCallback(async () => {
+    // Recordatorios de citas: una vez por minuto (antes de leer, para que el aviso nuevo salga en esta misma vuelta)
+    if (ahora() - ultimoRecordatorio.current >= 60e3) {
+      ultimoRecordatorio.current = ahora();
+      await recordarCitas().catch(() => {});
+    }
     const [l, a] = await Promise.all([misNotificaciones(), aparatosSinAcuse().catch(() => [])]);
     setLista(l);
     const ignorados = new Set(leerIgnorados());
