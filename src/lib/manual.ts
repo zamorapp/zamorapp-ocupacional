@@ -455,9 +455,10 @@ export const MANUAL: TemaManual[] = [
       "La tasa BCV se carga sola cada tarde, cuando el BCV publica la del día siguiente, y queda el historial por fecha. Si un día no llegó, «Escribir a mano» en Facturación (la escrita a mano manda sobre la automática).",
       "La factura del talonario toma sola la tasa de su fecha de emisión y trae cada renglón en dólares y en bolívares, el total a pagar en bolívares y el total en dólares. La tasa se puede corregir ahí mismo antes de imprimir.",
       "«Nuevo cobro»: eliges empresa y período, marcas las atenciones y se arma la nota de cobro. Una atención no se puede cobrar dos veces.",
-      "Desde el cobro lo imprimes y marcas cuando se pague. En el borrador puedes agregar servicios del catálogo (asesorías por hora, evaluaciones de puesto…).",
+      "Desde el cobro lo imprimes. En el borrador puedes agregar servicios del catálogo (asesorías por hora, evaluaciones de puesto…).",
+      "Pagos y abonos: en la nota emitida, «Pagos recibidos» › «Registrar pago»: fecha, forma de pago (pago móvil, transferencia, Zelle, Binance, efectivo), referencia y monto en dólares (si fue en bolívares, la tasa BCV de ese día; vacía, se usa la del BCV). Si paga por partes, registra cada abono; cuando lo abonado cubre el total, la nota queda pagada sola. Imprimir › «Recibo de abono» o «Recibo de pago» trae cada pago con su referencia, el total pagado y el saldo. Un abono equivocado se borra con la papelera de su fila.",
       "Presupuestos: elige la empresa arriba, crea el presupuesto, agrega servicios y cantidades, imprímelo y márcalo enviado. Si lo aprueban, «Convertir en nota de cobro».",
-      "Cuentas por cobrar: lo que debe cada empresa en notas emitidas sin pagar, por antigüedad (0-30, 31-60, 61-90 y más de 90 días).",
+      "Cuentas por cobrar: lo que falta por pagar de cada empresa (ya descontados los abonos), por antigüedad (0-30, 31-60, 61-90 y más de 90 días).",
     ],
   },
   {
