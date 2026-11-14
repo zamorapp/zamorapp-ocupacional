@@ -252,7 +252,10 @@ function Precio({ p }: { p: Propuesta }) {
   const pct = antes > 0 ? Math.round(((nuevo - antes) / antes) * 100) : null;
   return (
     <Filas filas={[
-      ["Precio", <span key="p" className="tabular-nums whitespace-nowrap"><span className="text-muted-foreground line-through decoration-muted-foreground/50">{dolares(antes)}</span> → <span className="font-medium">{dolares(nuevo)}</span>{pct !== null ? <span className={cn("ml-2 text-xs", pct > 0 ? "text-aviso-texto" : "text-ok-texto")}>{pct > 0 ? "+" : ""}{pct} %</span> : null}</span>],
+      ["Precio", <span key="p" className="tabular-nums whitespace-nowrap">{antes > 0
+        ? <span className="text-muted-foreground line-through decoration-muted-foreground/50">{dolares(antes)}</span>
+        : <span className="text-muted-foreground">Sin precio</span>} → <span className="font-medium">{dolares(nuevo)}</span>{pct !== null && pct !== 0
+        ? <span className="ml-2 text-xs text-muted-foreground">{pct > 0 ? `sube ${pct} %` : `baja ${-pct} %`}</span> : null}</span>],
       ["Aplica a", p.tipo === "precio_empresa" ? `Solo ${p.empresa ?? "esta empresa"}` : "Todas las empresas sin precio convenido"],
       ["Notas ya hechas", "No cambian: el precio nuevo vale para lo que factures después."],
     ]} />
