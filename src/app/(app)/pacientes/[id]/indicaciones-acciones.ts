@@ -6,7 +6,7 @@ import { opciones, type Item } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { faltantesMedicinas, textoFalta } from "@/lib/recipe";
-import type { TipoIndicacion } from "@/lib/indicaciones-sueltas";
+import { limpiarExamenes, type TipoIndicacion } from "@/lib/indicaciones-sueltas";
 
 type Resultado = { ok: boolean; mensaje: string; id?: string };
 
@@ -32,31 +32,51 @@ const limpiarMed = (m: Medicamento): Medicamento => ({
 });
 
 // Emite la orden a enfermería o el récipe. No crea consulta: no cuenta en morbilidad ni en estadísticas.
+// examenes: orden de exámenes (14-nov). consultaId: el médico la adjunta a una consulta del paciente (si no, va suelta).
+// borradorId: venía preparada por un agente (puerta para agentes): al emitirla, el borrador queda «emitido».
 export async function emitirIndicacion(entrada: {
   trabajadorId: string; tipo: TipoIndicacion; tratamiento: Medicamento[]; indicaciones: string; indicadoPor: string;
+  examenes?: string[]; consultaId?: string | null; borradorId?: string | null; fecha?: string | null;
 }): Promise<Resultado> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase." };
   if (!sesion.clinico || !EMITEN.includes(sesion.rol ?? "")) return { ok: false, mensaje: "La indicación o el récipe los emite el médico." };
-  if (entrada.tipo !== "enfermeria" && entrada.tipo !== "recipe") return { ok: false, mensaje: "Tipo no válido." };
-  const tratamiento = (entrada.tratamiento ?? []).map(limpiarMed).filter((m) => m.medicina).slice(0, 20);
+  if (!["enfermeria", "recipe", "examenes"].includes(entrada.tipo)) return { ok: false, mensaje: "Tipo no válido." };
+  const uuid = /^[0-9a-f-]{36}$/i;
+  const consultaId = entrada.consultaId && uuid.test(entrada.consultaId) ? entrada.consultaId : null;
+  const borradorId = entrada.borradorId && uuid.test(entrada.borradorId) ? entrada.borradorId : null;
+  // Fecha del documento: pasada o futura vale (Cesar, 14-nov); vacía = hoy (la pone la base en hora de Caracas)
+  const fecha = entrada.fecha && /^\d{4}-\d{2}-\d{2}$/.test(entrada.fecha) && entrada.fecha >= "2000-01-01" && entrada.fecha <= "2100-12-31" ? entrada.fecha : null;
+  const examenes = entrada.tipo === "examenes" ? limpiarExamenes(entrada.examenes ?? []) : [];
+  const tratamiento = entrada.tipo === "examenes" ? [] : (entrada.tratamiento ?? []).map(limpiarMed).filter((m) => m.medicina).slice(0, 20);
   const indicaciones = (entrada.indicaciones ?? "").trim().slice(0, 2000);
   if (entrada.tipo === "recipe") {
     if (!tratamiento.length) return { ok: false, mensaje: "Agrega al menos una medicina." };
     // Res. MPPS 028/031: sin estos datos la farmacia no despacha; se avisa antes de guardar, no al imprimir
     const faltan = faltantesMedicinas(tratamiento);
     if (faltan.length) return { ok: false, mensaje: `Para el récipe falta: ${faltan.map(textoFalta).join("; ")}.` };
+  } else if (entrada.tipo === "examenes") {
+    if (!examenes.length) return { ok: false, mensaje: "Escribe al menos un examen." };
   } else if (!tratamiento.length && !indicaciones) {
     return { ok: false, mensaje: "Escribe la medicina o la indicación para enfermería." };
   }
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("indicaciones").insert({
-    org_id: sesion.orgId, trabajador_id: entrada.trabajadorId, tipo: entrada.tipo, tratamiento, indicaciones,
-    indicado_por: (entrada.indicadoPor ?? "").trim().slice(0, 200) || null,
+    org_id: sesion.orgId, trabajador_id: entrada.trabajadorId, tipo: entrada.tipo, tratamiento, examenes, indicaciones, ...(fecha ? { fecha } : {}),
+    consulta_id: consultaId, indicado_por: entrada.tipo === "enfermeria" ? (entrada.indicadoPor ?? "").trim().slice(0, 200) || null : null,
   }).select("id").single();
-  if (error) return { ok: false, mensaje: error.code === "42501" ? "La indicación o el récipe los emite el médico." : "No se pudo guardar. Revisa los datos e intenta de nuevo." };
+  if (error) {
+    return { ok: false, mensaje: error.code === "42501" ? "La indicación o el récipe los emite el médico."
+      : error.message?.includes("consulta no es de este trabajador") ? "Esa consulta no es de este paciente." : "No se pudo guardar. Revisa los datos e intenta de nuevo." };
+  }
+  // El borrador del agente queda «emitido» con esta indicación. Si falla (ya lo revisó otra PC), la indicación vale igual.
+  if (borradorId) {
+    await supabase.from("agentes_borradores").update({ estado: "emitido", indicacion_id: data.id })
+      .eq("id", borradorId).eq("trabajador_id", entrada.trabajadorId).eq("estado", "por_revisar");
+    revalidatePath("/borradores");
+  }
   revalidatePath(`/pacientes/${entrada.trabajadorId}`);
-  return { ok: true, mensaje: entrada.tipo === "recipe" ? "Récipe emitido." : "Orden enviada a enfermería.", id: data.id };
+  return { ok: true, mensaje: entrada.tipo === "recipe" ? "Récipe emitido." : entrada.tipo === "examenes" ? "Orden de exámenes emitida." : "Orden enviada a enfermería.", id: data.id };
 }
 
 // Enfermería (o el médico) la marca «Cumplida», con una nota corta: dónde se colocó, reacción…
@@ -85,4 +105,27 @@ export async function anularIndicacion(id: string, trabajadorId: string, motivo:
   if (!data) return { ok: false, mensaje: "Ya estaba cumplida o anulada." };
   revalidatePath(`/pacientes/${trabajadorId}`);
   return { ok: true, mensaje: "Anulada." };
+}
+
+// Consultas del paciente para «Adjuntar a una consulta» (las 12 más recientes; solo fecha y motivo)
+export type ConsultaAdjuntable = { id: string; fecha: string; estado: string; motivo: string };
+// Últimas 12 consultas del trabajador (y la que indicó el agente, si es más vieja), con su motivo para nombrarla
+export async function consultasParaAdjuntar(trabajadorId: string, incluir?: string | null): Promise<ConsultaAdjuntable[]> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId || !sesion.clinico || !/^[0-9a-f-]{36}$/i.test(trabajadorId)) return [];
+  const supabase = await crearClienteServidor();
+  const COLS = "id, fecha, estado, motivo_id, motivo_texto";
+  type F = { id: string; fecha: string; estado: string; motivo_id: string | null; motivo_texto: string | null };
+  const { data } = await supabase.from("consultas").select(COLS).eq("trabajador_id", trabajadorId)
+    .order("fecha", { ascending: false }).limit(12);
+  const filas = (data ?? []) as F[];
+  if (incluir && /^[0-9a-f-]{36}$/i.test(incluir) && !filas.some((f) => f.id === incluir)) {
+    const { data: extra } = await supabase.from("consultas").select(COLS).eq("id", incluir).eq("trabajador_id", trabajadorId).maybeSingle();
+    if (extra) filas.push(extra as F);
+  }
+  const mids = [...new Set(filas.map((f) => f.motivo_id).filter((x): x is string => !!x))];
+  const { data: items } = mids.length ? await supabase.from("lista_items").select("id, nombre").in("id", mids) : { data: [] };
+  const nombre = new Map((items ?? []).map((i) => [i.id as string, i.nombre as string]));
+  return filas.map((f) => ({ id: f.id, fecha: f.fecha, estado: f.estado,
+    motivo: (f.motivo_id ? nombre.get(f.motivo_id) : null) ?? (f.motivo_texto ?? "").trim().slice(0, 40) }));
 }
