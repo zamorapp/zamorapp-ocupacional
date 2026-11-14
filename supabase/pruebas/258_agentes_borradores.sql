@@ -1,20 +1,20 @@
--- Récipes y órdenes que PREPARA el agente (20261030950000): casilla de la llave apagada por defecto, solo borradores,
+-- Récipes y órdenes que PREPARA el agente (20261030959000): casilla de la llave apagada por defecto, solo borradores,
 -- «suelto o adjunto a consulta» lo dice el médico, sin duplicar, el médico emite (con su sesión) o descarta,
 -- lo escrito por el agente no cambia, RR. HH. y enfermería no ven los borradores, ver_preparados sin medicinas.
 \pset tuples_only on
 reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select public.crear_llave_agente('10000000-0000-0000-0000-000000000001', 'Recetas', 'crear', 7) ->> 'llave' as k249 \gset
-select (public.agentes_estado('10000000-0000-0000-0000-000000000001') -> 'llaves' -> 0 ->> 'id') as k249id \gset
+select public.crear_llave_agente('10000000-0000-0000-0000-000000000001', 'Recetas', 'crear', 7) ->> 'llave' as k258 \gset
+select (public.agentes_estado('10000000-0000-0000-0000-000000000001') -> 'llaves' -> 0 ->> 'id') as k258id \gset
 select 'la casilla viene apagada (debe 0): ' || (select count(*) from jsonb_array_elements(public.agentes_estado('10000000-0000-0000-0000-000000000001') -> 'llaves') l
   where (l ->> 'documentos')::boolean);
 
 set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
-select 'con la casilla apagada no prepara (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'con la casilla apagada no prepara (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg"}]}') ->> 'error') like 'Esta llave no prepara%')::int;
-select 'ni ve borradores (debe 1): ' || ((public.agente(:'k249', 'ver_preparados') ->> 'ok') = 'false')::int;
+select 'ni ve borradores (debe 1): ' || ((public.agente(:'k258', 'ver_preparados') ->> 'ok') = 'false')::int;
 
 -- Solo el administrador enciende la casilla
 set role authenticated;
@@ -25,43 +25,43 @@ do $$ begin
 exception when insufficient_privilege then raise notice 'el médico no enciende la casilla (debe 1): 1';
 end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false) \g /dev/null
-select 'el administrador la enciende (debe 1): ' || (public.agentes_llave_documentos('10000000-0000-0000-0000-000000000001', :'k249id', true) ->> 'documentos' = 'true')::int;
+select 'el administrador la enciende (debe 1): ' || (public.agentes_llave_documentos('10000000-0000-0000-0000-000000000001', :'k258id', true) ->> 'documentos' = 'true')::int;
 
 set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
-select 'sin «adjuntar» pregunta al doctor (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'sin «adjuntar» pregunta al doctor (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","medicamentos":[{"medicina":"Ibuprofeno"}]}') ->> 'error') like 'Falta «adjuntar»%')::int;
-select 'trabajador de otra organización no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'trabajador de otra organización no (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-0000000000f2","tipo":"recipe","adjuntar":"suelto","medicamentos":[{"medicina":"Ibuprofeno"}]}') ->> 'ok') = 'false')::int;
-select 'correo sin dirección no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'correo sin dirección no (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Hematología completa"],"envio":"correo"}') ->> 'ok') = 'false')::int;
 -- Ensayo: dice lo que haría y no guarda; marca lo que falta para el récipe MPPS
-select 'el ensayo avisa lo que falta (debe 1): ' || jsonb_array_length(public.agente(:'k249', 'preparar_documento',
+select 'el ensayo avisa lo que falta (debe 1): ' || jsonb_array_length(public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg"}]}', true) -> 'resultado' -> 'faltan');
 -- Fechas pasadas o futuras sin trabas (Cesar, 14-nov); solo un año imposible se frena
-select 'fecha futura vale (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'fecha futura vale (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"2099-11-19"}', true) -> 'resultado' ->> 'fecha') = '2099-11-19')::int;
-select 'fecha pasada vale (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'fecha pasada vale (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"2001-01-02"}', true) -> 'resultado' ->> 'fecha') = '2001-01-02')::int;
-select 'año imposible no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'año imposible no (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"suelto","examenes":["Orina"],"fecha":"1926-11-19"}', true) ->> 'ok') = 'false')::int;
 reset role;
 select 'el ensayo no guarda (debe 0): ' || count(*) from clinico.agentes_borradores;
 set role anon;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
-select public.agente(:'k249', 'preparar_documento',
+select public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","envio":"whatsapp","indicaciones":"Después de comer",
     "medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg","presentacion":"Tabletas","via":"Oral","dosis":"1 tableta","frecuencia":"Cada 8 horas","duracion":"5 días","hackeo":"x"}]}') -> 'resultado' ->> 'borrador_id' as b1 \gset
-select 'repetirlo no duplica (debe 1): ' || (public.agente(:'k249', 'preparar_documento',
+select 'repetirlo no duplica (debe 1): ' || (public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"recipe","adjuntar":"suelto","envio":"whatsapp","indicaciones":"Después de comer",
     "medicamentos":[{"medicina":"Ibuprofeno","concentracion":"400 mg","presentacion":"Tabletas","via":"Oral","dosis":"1 tableta","frecuencia":"Cada 8 horas","duracion":"5 días"}]}') -> 'resultado' ->> 'borrador_id' = :'b1')::int;
-select public.agente(:'k249', 'preparar_documento',
+select public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000a","tipo":"examenes","adjuntar":"consulta","examenes":["Hematología completa"," Hematología completa ","Glicemia"],"envio":"correo","correo":"Salud@Ejemplo.com"}') -> 'resultado' ->> 'borrador_id' as b2 \gset
-select 'adjuntar a consulta sin consultas no (debe 1): ' || ((public.agente(:'k249', 'preparar_documento',
+select 'adjuntar a consulta sin consultas no (debe 1): ' || ((public.agente(:'k258', 'preparar_documento',
   '{"trabajador_id":"30000000-0000-0000-0000-00000000000b","tipo":"examenes","adjuntar":"consulta","consulta_fecha":"2030-01-01","examenes":["Orina"]}') ->> 'error') like 'No se pudo adjuntar a una consulta%')::int;
-select 'al agente no se le dicen fechas de consultas (debe 0): ' || (public.agente(:'k249', 'ver_preparados')::text ~ '\(adjunto a la consulta del')::int;
-select 'ver_preparados no devuelve medicinas ni exámenes (debe 0): ' || (public.agente(:'k249', 'ver_preparados')::text ~* '(ibuprofeno|glicemia|hematolog)')::int;
-select 'ver_preparados da el estado (debe 2): ' || jsonb_array_length(public.agente(:'k249', 'ver_preparados') -> 'resultado' -> 'borradores');
+select 'al agente no se le dicen fechas de consultas (debe 0): ' || (public.agente(:'k258', 'ver_preparados')::text ~ '\(adjunto a la consulta del')::int;
+select 'ver_preparados no devuelve medicinas ni exámenes (debe 0): ' || (public.agente(:'k258', 'ver_preparados')::text ~* '(ibuprofeno|glicemia|hematolog)')::int;
+select 'ver_preparados da el estado (debe 2): ' || jsonb_array_length(public.agente(:'k258', 'ver_preparados') -> 'resultado' -> 'borradores');
 select 'el agente no inserta directo (debe 1): ' || (not has_table_privilege('anon', 'public.agentes_borradores', 'insert'))::int;
 reset role;
 select 'guardó el récipe limpio, suelto y por revisar (debe 1): ' || count(*) from clinico.agentes_borradores

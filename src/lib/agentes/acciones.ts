@@ -3,7 +3,7 @@
 // ella valida la llave, la organización y cada dato. Una acción que no esté allá no existe aunque se escriba aquí.
 
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-// documentos: necesita la casilla «Prepara récipes y órdenes» de la llave (apagada por defecto; migración 20261030950000)
+// documentos: necesita la casilla «Prepara récipes y órdenes» de la llave (apagada por defecto; migración 20261030959000)
 export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; documentos?: true; esquema: Esquema };
 
 const texto = (description: string) => ({ type: "string", description });

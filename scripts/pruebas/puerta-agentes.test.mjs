@@ -50,9 +50,9 @@ test("sin llave responde 401 y no llama a la base", async () => {
 test("el catálogo es la misma lista cerrada de la base", () => {
   const sql = fs.readFileSync(new URL("../../supabase/migrations/20261030938000_puerta_agentes.sql", import.meta.url), "utf8");
   const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
-  // La 20261030950000 suma acciones a la lista de la base (reemplazo contado en public.agente)
-  const sql950 = fs.readFileSync(new URL("../../supabase/migrations/20261030950000_agentes_borradores.sql", import.meta.url), "utf8");
-  const suma = (antes) => [...sql950.matchAll(new RegExp(`'when v_acc in \\(''([a-z_]+)'', ''${antes}'', '`, "g"))].map((m) => m[1]);
+  // La 20261030959000 suma acciones a la lista de la base (reemplazo contado en public.agente)
+  const sql959 = fs.readFileSync(new URL("../../supabase/migrations/20261030959000_agentes_borradores.sql", import.meta.url), "utf8");
+  const suma = (antes) => [...sql959.matchAll(new RegExp(`'when v_acc in \\(''([a-z_]+)'', ''${antes}'', '`, "g"))].map((m) => m[1]);
   const leen = [...lista(/when v_acc in \(([^)]+)\) then false/), ...suma("resumen")].sort();
   const crean = [...lista(/when v_acc in \(([^)]+)\) then true/), ...suma("crear_empresa")].sort();
   assert.deepEqual(ACCIONES.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);

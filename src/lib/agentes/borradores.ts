@@ -4,7 +4,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Sesion } from "@/lib/sesion";
 import type { Medicamento } from "@/lib/consultas-tipos";
 
-// Borradores que dejó un agente por la puerta (récipe u orden de exámenes, migración 20261030950000).
+// Borradores que dejó un agente por la puerta (récipe u orden de exámenes, migración 20261030959000).
 // Los lee solo el médico (RLS: administrador con acceso clínico, gerente médico y médico).
 
 export type BorradorAgente = {

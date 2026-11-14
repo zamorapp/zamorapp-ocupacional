@@ -47,7 +47,7 @@ declare
   v_viejo text := '''permiso'', l.permiso,';
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception 'agentes_estado cambió: revisar 20261030950000 antes de aplicarla';
+    raise exception 'agentes_estado cambió: revisar 20261030959000 antes de aplicarla';
   end if;
   execute replace(v_def, v_viejo, v_viejo || ' ''documentos'', l.documentos,');
 end $$;
@@ -99,7 +99,7 @@ declare
 begin
   for i in 1 .. array_length(v_cambios, 1) loop
     if (length(v_def) - length(replace(v_def, v_cambios[i][1], ''))) / length(v_cambios[i][1]) <> 1 then
-      raise exception 'proteger_indicacion cambió (cambio %): revisar 20261030950000 antes de aplicarla', i;
+      raise exception 'proteger_indicacion cambió (cambio %): revisar 20261030959000 antes de aplicarla', i;
     end if;
     v_def := replace(v_def, v_cambios[i][1], v_cambios[i][2]);
   end loop;
@@ -142,7 +142,7 @@ create table if not exists clinico.agentes_borradores (
   check (envio <> 'correo' or correo is not null)
 );
 comment on table clinico.agentes_borradores is
-  'Récipes y órdenes que PREPARA un agente; el médico los emite (clinico.indicaciones) o los descarta. Los inserta solo public.agente (20261030950000).';
+  'Récipes y órdenes que PREPARA un agente; el médico los emite (clinico.indicaciones) o los descarta. Los inserta solo public.agente (20261030959000).';
 create index if not exists agentes_borradores_por_revisar on clinico.agentes_borradores (org_id, creado_en desc) where estado = 'por_revisar';
 create index if not exists agentes_borradores_trabajador on clinico.agentes_borradores (trabajador_id, creado_en desc);
 
@@ -408,7 +408,7 @@ declare
 begin
   for i in 1 .. array_length(v_cambios, 1) loop
     if (length(v_def) - length(replace(v_def, v_cambios[i][1], ''))) / length(v_cambios[i][1]) <> 1 then
-      raise exception 'public.agente cambió (cambio %): revisar 20261030950000 antes de aplicarla', i;
+      raise exception 'public.agente cambió (cambio %): revisar 20261030959000 antes de aplicarla', i;
     end if;
     v_def := replace(v_def, v_cambios[i][1], v_cambios[i][2]);
   end loop;
@@ -427,11 +427,11 @@ declare
   v_viejo text := 'clave := ''agentes_registro''; cantidad := n; bytes := b; return next;';
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception 'limpieza_correr cambió: revisar 20261030950000 antes de aplicarla';
+    raise exception 'limpieza_correr cambió: revisar 20261030959000 antes de aplicarla';
   end if;
   execute replace(v_def, v_viejo, v_viejo || '
 
-  -- Borradores que dejó un agente (20261030950000): lo emitido ya está en clinico.indicaciones
+  -- Borradores que dejó un agente (20261030959000): lo emitido ya está en clinico.indicaciones
   select count(*), coalesce(sum(pg_column_size(x.*)), 0) into n, b from clinico.agentes_borradores x
    where x.creado_en < public.ahora() - public.limpieza_dias(''agentes_borradores'');
   if p_borrar then
