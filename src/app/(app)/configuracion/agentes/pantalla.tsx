@@ -157,27 +157,28 @@ export function LlaveRecienCreada({ nueva, cerrar }: { nueva: Extract<LlaveNueva
           <span><strong className="font-medium">Se ve solo esta vez.</strong> Cópiala ahora. No la pegues en un chat ni la mandes por WhatsApp: quien la tenga puede entrar.</span></p>
       </div>
       <div className="space-y-2 rounded-lg border bg-background p-3 text-sm">
-        <h3 className="font-medium">Forma recomendada: dirección y llave por separado</h3>
-        <p className="text-muted-foreground">Si tu agente tiene una casilla para la llave (cabecera «Authorization: Bearer»), usa esta: la llave no queda escrita en la dirección.</p>
-        <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">{base}</p>
-        <div className="flex flex-wrap gap-2">
-          <Copiar texto={base} etiqueta="Copiar dirección" />
-          <Copiar texto={nueva.llave} etiqueta="Copiar llave" principal />
-        </div>
+        <h3 className="font-medium">1. Copia la dirección del conector</h3>
+        <p className="text-muted-foreground">Sirve para Claude y para cualquier agente que pida una sola dirección. Ya lleva la llave adentro: es larga y termina en un código que empieza por «zk_».</p>
+        <Copiar texto={nueva.direccion} etiqueta="Copiar dirección del conector" principal />
+        <p className="flex items-start gap-2 text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>{nueva.permiso === "crear" ? "Con esta forma conviene una llave «Solo consultar». " : ""}Si llegas a compartir la dirección, apaga la llave.</span></p>
       </div>
       <details className="group rounded-lg border bg-background p-3 text-sm" open={ver} onToggle={(e) => setVer((e.target as HTMLDetailsElement).open)}>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-primary hover:underline sm:min-h-0">
-          Mi agente solo acepta una dirección (Claude, por ejemplo) <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+          Mi agente tiene una casilla aparte para la llave (más seguro) <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
         </summary>
         <div className="mt-2 space-y-2">
-          <p className="flex items-start gap-2 text-aviso-texto"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>Esta dirección lleva la llave adentro. {nueva.permiso === "crear" ? "Para esta forma conviene una llave «Solo consultar». " : ""}Si llegas a compartir la dirección, apaga la llave.</span></p>
-          <Copiar texto={nueva.direccion} etiqueta="Copiar dirección con llave" />
+          <p className="text-muted-foreground">Solo si tu agente pide la dirección y la llave por separado (cabecera «Authorization: Bearer»). Claude no la tiene: si pegas esta dirección sola, dirá «Problema de conexión».</p>
+          <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">{base}</p>
+          <div className="flex flex-wrap gap-2">
+            <Copiar texto={base} etiqueta="Copiar dirección sin llave" />
+            <Copiar texto={nueva.llave} etiqueta="Copiar llave" />
+          </div>
         </div>
       </details>
       <ol className="list-decimal space-y-1.5 pl-5 text-sm">
-        <li>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
-        <li>Pega lo que copiaste, ponle de nombre «zamorApp» y guarda.</li>
+        <li value={2}>En tu agente (Claude, ChatGPT, Gemini…) abre <strong className="font-medium">Conectores</strong> y elige <strong className="font-medium">agregar conector personalizado</strong>.</li>
+        <li>Pega la dirección, ponle de nombre «zamorApp» y guarda.</li>
         <li>Pídele al agente: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.</li>
       </ol>
       <p className="text-xs text-muted-foreground">Vence el {soloFecha(nueva.vence)}. Todo lo que haga queda en el registro de abajo.</p>
@@ -222,6 +223,7 @@ function Llaves({ llaves }: { llaves: Llave[] }) {
       </div>
       {error ? <p role="alert" className="rounded-md border border-alerta/40 bg-alerta/5 px-3 py-2 text-sm text-alerta-texto">{error}</p> : null}
       {!visibles.length ? <p className="text-sm text-muted-foreground">No hay llaves encendidas.</p> : null}
+      {verTodas && apagadas > 0 ? <p className="text-xs text-muted-foreground">Las apagadas o vencidas se borran solas: al día siguiente si nunca se usaron, a los 7 días si se usaron. Su registro se guarda un año.</p> : null}
       <ul className="space-y-2">
         {visibles.map((l) => {
           const estado = l.encendida ? "Encendida" : l.revocada_en ? "Apagada" : "Vencida";

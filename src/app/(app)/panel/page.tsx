@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowRight, History, BarChart3, Building2, CalendarClock
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Semaforo } from "@/components/app/semaforo";
+import { NOMBRE_ESTADO, Semaforo } from "@/components/app/semaforo";
 import { accidentabilidadInicio, agendaInicio, alertasInicio, aptitudInicio, indicadoresInicio, panelVacio, tareasInicio, vencimientosInicio } from "@/lib/panel";
 import { accionesDelRol } from "@/lib/panel-rol";
 import { AccidentabilidadAnual, VencimientosPorEmpresa } from "./tableros";
@@ -268,7 +268,11 @@ async function Indicadores() {
                 {i.titulo}
               </div>
               <div className="text-3xl font-semibold tracking-tight">{i.valor}</div>
-              <div className="text-xs text-muted-foreground">{i.detalle}</div>
+              <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                {i.detalle}
+                {/* El estado también en palabra, no solo en color */}
+                {i.estado !== "ok" && <span className={cn("font-semibold", i.estado === "alerta" ? "text-alerta-texto" : "text-aviso-texto")}>· {NOMBRE_ESTADO[i.estado]}</span>}
+              </div>
             </CardContent>
           </Card>
         ))}

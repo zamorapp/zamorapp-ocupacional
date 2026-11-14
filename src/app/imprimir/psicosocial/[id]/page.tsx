@@ -11,7 +11,7 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { documentoBase } from "../../base";
 import { BarraImpresion } from "../../barra";
-import type { DatosDocumento } from "@/lib/documentos";
+import { firmaDeDocumento, type DatosDocumento } from "@/lib/documentos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Bloque, fechaCorta, Ficha, FirmaMedico, Firmas, folio, Hoja, Membrete, Pie } from "../../componentes";
 
@@ -39,12 +39,12 @@ function BarraPapel({ d, n }: { d: Dimension; n: number }) {
 }
 
 type Medico = NonNullable<DatosDocumento["medicoDatos"]>;
-async function datosMedico(usuario: string | null, conImagenes: boolean): Promise<Medico | null> {
+async function datosMedico(usuario: string | null, conImagenes: boolean, evaluacion: string): Promise<Medico | null> {
   if (!usuario) return null;
   const supabase = await crearClienteServidor();
   const [{ data: p }, img] = await Promise.all([
     supabase.from("perfiles").select("nombre_completo, cedula, especialidad, mpps, colegio_medicos, registro_inpsasel, correo, mostrar_firma, mostrar_sello").eq("id", usuario).maybeSingle(),
-    conImagenes ? supabase.rpc("firma_sello", { p_usuario: usuario }).maybeSingle() : Promise.resolve({ data: null }),
+    conImagenes ? firmaDeDocumento(usuario, "psicosocial", evaluacion).then((data) => ({ data })) : Promise.resolve({ data: null }),
   ]);
   if (!p) return null;
   return { ...(p as Omit<Medico, "firma_url" | "sello_url">), ...((img.data as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) };
@@ -101,7 +101,7 @@ export default async function ImprimirPsicosocial({ params, searchParams }: { pa
   const [res, base, medico] = await Promise.all([
     resultadosPsicosociales(id),
     sesion.demo ? Promise.resolve(null) : documentoBase(sesion),
-    datosMedico(ev.creadoPor, !empresaRol && !sesion.demo),
+    datosMedico(ev.creadoPor, !empresaRol && !sesion.demo, id),
   ]);
   const doc = {
     org: base?.org ?? { nombre: sesion.organizacion || "Servicio de salud ocupacional", rif: null, direccion: null, telefono: null, correo: null, logo: null, ajustes: {} },
