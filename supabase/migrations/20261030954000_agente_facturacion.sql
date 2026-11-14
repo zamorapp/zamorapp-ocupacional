@@ -490,3 +490,4 @@ end $$;
 drop trigger if exists cobro_total_no_negativo on public.cobros;
 create trigger cobro_total_no_negativo before update of estado on public.cobros
   for each row execute function public.cobro_total_no_negativo();
+revoke execute on function public.cobro_total_no_negativo() from public, anon;
