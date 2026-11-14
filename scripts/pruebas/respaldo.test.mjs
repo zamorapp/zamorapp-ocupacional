@@ -133,7 +133,7 @@ test("programas de la PC atrasados: el respaldo se guarda pero queda en «aviso�
   url.searchParams.set("sslmode", "disable");
   const r = await new Promise((fin) => {
     const p = spawn(process.execPath, [SCRIPT, a, b], { env: { ...process.env, DATABASE_URL: url.toString(), RESPALDO_ESPERA_MS: "100",
-      ZAMORAPP_AVISO_SCRIPTS: "Los programas del respaldo de esta PC no se pusieron al día (versión 06d2d5e): sin internet" } });
+      ZAMORAPP_AVISO_SCRIPTS: "Los programas del respaldo de esta PC no se pusieron al día: hay 2 archivos cambiados a mano en la carpeta de zamorApp. El respaldo de hoy se hizo igual. Avísale al soporte para ponerlos al día." } });
     let salida = "";
     p.stdout.on("data", (x) => (salida += x));
     p.stderr.on("data", (x) => (salida += x));
@@ -146,5 +146,5 @@ test("programas de la PC atrasados: el respaldo se guarda pero queda en «aviso�
   await c.end();
   assert.equal(x.destinos, 2); // las dos carpetas: sin el aviso sería «ok»
   assert.equal(x.estado, "aviso");
-  assert.match(x.detalle, /no se pusieron al día \(versión 06d2d5e\)/);
+  assert.match(x.detalle, /no se pusieron al día: hay 2 archivos cambiados a mano/);
 });

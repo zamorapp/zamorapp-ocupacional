@@ -82,14 +82,16 @@ if (Test-Path (Join-Path $raiz ".git")) {
   if ($codigoPull -ne 0) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no pude poner al día los scripts del respaldo ($antes): $pull" | Add-Content $registro
     # Que se vea en el Inicio (respaldo en amarillo) y no solo en este registro que nadie abre
-    $cambiados = (& git -C $raiz status --porcelain --untracked-files=no 2>$null | Select-Object -First 5) -join ", "
-    $motivo = if ($cambiados) { "hay archivos cambiados a mano en la carpeta ($cambiados)" } else { "sin internet o GitHub no respondió" }
-    $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se pusieron al día (versión $antes): $motivo"
+    $cambiados = @(& git -C $raiz status --porcelain --untracked-files=no 2>$null).Count
+    $motivo = if ($cambiados -eq 1) { "hay 1 archivo cambiado a mano en la carpeta de zamorApp" }
+      elseif ($cambiados -gt 1) { "hay $cambiados archivos cambiados a mano en la carpeta de zamorApp" }
+      else { "no había internet o GitHub no respondió" }
+    $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se pusieron al día: $motivo. El respaldo de hoy se hizo igual. Avísale al soporte para ponerlos al día."
   } elseif ($antes -ne $despues) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm') Scripts del respaldo puestos al día: $antes -> $despues" | Add-Content $registro
   }
 } else {
-  $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no están en una copia de GitHub y no se ponen al día solos"
+  $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se ponen al día solos. El respaldo se hizo igual; avísale al soporte."
 }
 # La salida de error de node se lee aparte: con ErrorActionPreference=Stop, «2>&1» la convierte en excepción
 $ErrorActionPreference = "Continue"
