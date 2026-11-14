@@ -26,6 +26,12 @@ drop trigger if exists sin_retorno_de_carro on public.lista_items;
 create trigger sin_retorno_de_carro before insert or update of texto, nombre on public.lista_items
   for each row execute function public.sin_retorno_de_carro();
 
--- Limpieza única (el disparador hace el reemplazo; 54 renglones en producción al 14-nov)
-update public.lista_items set texto = texto
- where position(chr(13) in coalesce(texto, '')) > 0 or position(chr(13) in coalesce(nombre, '')) > 0;
+-- Limpieza única (el disparador hace el reemplazo; 54 renglones en producción al 14-nov). Solo en la nube: en el
+-- escritorio estas filas llegan ya limpias por la sincronía, y limpiarlas ahí las subiría como cambios locales.
+do $$
+begin
+  if not public.es_base_local() then
+    update public.lista_items set texto = texto
+     where position(chr(13) in coalesce(texto, '')) > 0 or position(chr(13) in coalesce(nombre, '')) > 0;
+  end if;
+end $$;
