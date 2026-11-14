@@ -115,6 +115,11 @@ jobs:
           Copy-Item -Recurse .next/standalone "$r/app"
           Copy-Item -Recurse .next/static "$r/app/.next/static"
           Copy-Item -Recurse public "$r/app/public"
+          # «Lo nuevo» del manual se lee de src/lib/novedades/*.json al abrir /ayuda (#371): si no entran, /ayuda falla
+          $novedades = @(Get-ChildItem "$r/app/src/lib/novedades" -Filter *.json -ErrorAction SilentlyContinue).Count
+          $esperadas = @(Get-ChildItem src/lib/novedades -Filter *.json).Count
+          if ($novedades -lt 1 -or $novedades -ne $esperadas) { throw "Faltan novedades en el escritorio: $novedades de $esperadas" }
+          Write-Host "Novedades en el escritorio: $novedades de $esperadas"
           Copy-Item -Recurse supabase/migrations "$r/migraciones"
           Copy-Item supabase/pruebas/00_stubs_supabase.sql "$r/stubs.sql"
           New-Item -ItemType Directory -Force "$r/puerta" | Out-Null

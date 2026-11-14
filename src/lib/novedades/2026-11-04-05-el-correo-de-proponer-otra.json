@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-04",
+  "tema": "atencion",
+  "texto": "El correo de «Proponer otra hora» se reintenta solo si falla. En la solicitud ves «Correo enviado a RR. HH.», «se reintenta solo» o, si al final no salió, el motivo en rojo y te llega el aviso «No salió el correo de la propuesta» para que avises por WhatsApp"
+}
