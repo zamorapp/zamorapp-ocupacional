@@ -132,6 +132,21 @@ select 'las dos quedan aprobadas (debe 2): ' || count(*) from public.agentes_pro
 select 'las notas ya hechas no cambian (debe 80): ' || i.precio_usd::int from public.cobro_items i join public.cobros c on c.id = i.cobro_id
  where c.por_agente is not null and i.servicio_id = '70000000-0000-0000-0000-0000000000f2';
 
+-- Una nota con total negativo no se emite
+insert into public.cobros (id,org_id,empresa_id) values ('80000000-0000-0000-0000-0000000000f9','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000b');
+insert into public.cobro_items (cobro_id,org_id,descripcion,precio_usd) values
+ ('80000000-0000-0000-0000-0000000000f9','10000000-0000-0000-0000-000000000001','Charla',10),
+ ('80000000-0000-0000-0000-0000000000f9','10000000-0000-0000-0000-000000000001','Descuento',-11);
+do $$ begin
+  update public.cobros set estado = 'emitida' where id = '80000000-0000-0000-0000-0000000000f9';
+  raise notice 'FALLA: se emitió una nota en negativo';
+exception when others then raise notice 'nota en negativo no se emite (debe 1): 1';
+end $$;
+update public.cobro_items set precio_usd = -10 where cobro_id = '80000000-0000-0000-0000-0000000000f9' and descripcion = 'Descuento';
+update public.cobros set estado = 'emitida' where id = '80000000-0000-0000-0000-0000000000f9';
+select 'en cero sí se emite (debe 1): ' || count(*) from public.cobros where id = '80000000-0000-0000-0000-0000000000f9' and estado = 'emitida';
+delete from public.cobros where id = '80000000-0000-0000-0000-0000000000f9';
+
 -- Limpieza
 delete from public.agentes_propuestas where id in (:'pg', :'pe');
 delete from public.cobros where por_agente is not null or id = '80000000-0000-0000-0000-0000000000f1';

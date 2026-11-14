@@ -13,6 +13,8 @@
 --                        del talonario se pone cuando el doctor pulsa «Imprimir factura».
 --   proponer_precio      propuesta en public.agentes_propuestas (953): precio general del servicio o el de una
 --                        empresa. Solo cambia cuando el doctor pulsa «Aprobar» (aplicar_propuesta, con SU sesión).
+-- Seguridad: como public.agente, es security definer y NO pasa por la RLS; cada ayudante filtra por la organización
+-- de la llave a mano. Ninguna nota puede emitirse con total negativo (disparador cobro_total_no_negativo).
 -- Lo que NO hace: poner el Nº de factura, emitir, imprimir, enviar, registrar pagos o abonos, elegir la tasa BCV,
 -- tocar notas que ya existen, cambiar un precio, borrar, ni leer nada clínico (los atendidos salen de la vista
 -- public.atenciones, la misma de Facturación, sin aptitud ni diagnósticos).
@@ -398,6 +400,9 @@ begin
   elsif v_escribe and k.permiso <> 'crear' then
     v_err := 'Esta llave solo consulta. Para crear, el doctor genera una llave con permiso de crear.';
   else
+    -- OJO: esto NO activa la RLS (la función es security definer y la salta). Sirve para que auth.uid() sea el
+    -- administrador que creó la llave en la bitácora, los disparadores y el filtro de la vista public.atenciones.
+    -- La frontera real es el filtro «org_id = k.org_id» que cada ayudante agente_fac_* pone a mano.
     perform set_config('request.jwt.claims', jsonb_build_object('sub', k.creada_por, 'role', 'authenticated')::text, true);
     perform set_config('request.jwt.claim.sub', k.creada_por::text, true);
     perform set_config('request.jwt.claim.role', 'authenticated', true);
@@ -470,3 +475,18 @@ begin
 end $$;
 revoke execute on function public.aplicar_propuesta_precio(uuid, jsonb) from public, anon;
 grant execute on function public.aplicar_propuesta_precio(uuid, jsonb) to authenticated;
+
+-- ===== 5. Ninguna nota de cobro sale (emitida o pagada) con total negativo: un descuento mayor que la nota se frena
+--          aquí aunque el renglón negativo lo haya escrito una persona (el editor ya avisa antes). =====
+create or replace function public.cobro_total_no_negativo()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.tipo = 'cobro' and new.estado in ('emitida', 'pagada') and old.estado = 'borrador'
+     and (select coalesce(sum(round(i.cantidad * i.precio_usd, 2)), 0) from public.cobro_items i where i.cobro_id = new.id) < 0 then
+    raise exception 'El total de la nota queda en negativo. Revisa el descuento antes de emitirla.' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists cobro_total_no_negativo on public.cobros;
+create trigger cobro_total_no_negativo before update of estado on public.cobros
+  for each row execute function public.cobro_total_no_negativo();

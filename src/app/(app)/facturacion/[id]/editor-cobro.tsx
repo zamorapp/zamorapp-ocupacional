@@ -54,13 +54,19 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
     });
   };
 
-  const guardar = (nuevoEstado?: EstadoCobro) =>
+  const guardar = (nuevoEstado?: EstadoCobro) => {
+    // Un descuento mayor que la nota la dejaría en negativo: no se emite (la base también lo impide)
+    if (nuevoEstado === "emitida" && !presupuesto && t.total < 0) {
+      setAviso({ ok: false, mensaje: "El total queda en negativo. Revisa el descuento antes de emitir." });
+      return;
+    }
     iniciar(async () => {
       const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: hoyCaracas() } : {}) };
       const r = await actualizarCobro(siguiente);
       setAviso(r);
       if (r.ok) { setC(siguiente); setGuardado(JSON.stringify(siguiente)); }
     });
+  };
 
   return (
     <div className="space-y-4">
