@@ -47,7 +47,7 @@ export async function apagarLlave(id: string): Promise<{ ok: boolean; mensaje: s
   return { ok: true, mensaje: "Llave apagada." };
 }
 
-// Casilla «Vigilancia y reportes» (20261030953000): apagada al crear la llave; la enciende el administrador
+// Casilla «Vigilancia y reportes» (20261030960000): apagada al crear la llave; la enciende el administrador
 export async function cambiarVigilancia(id: string, si: boolean): Promise<{ ok: boolean; mensaje: string }> {
   const o = await organizacion();
   if ("no" in o) return { ok: false, mensaje: o.no };

@@ -76,7 +76,7 @@ export const ACCIONES: AccionAgente[] = [
     esquema: objeto({ trabajador_id: id("Trabajador"), fecha: fecha("Día de la cita"), hora: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", description: "Hora en 24 horas, HH:MM" },
       motivo_id: id("Motivo de consulta (catalogo, tipo motivos)"), observacion: texto("Nota de la cita"), ensayo: ENSAYO }, ["trabajador_id", "fecha"]) },
 
-  // ───── Vigilancia epidemiológica (20261030953000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
+  // ───── Vigilancia epidemiológica (20261030960000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
   ...([
     { nombre: "vigilancia_cifras", titulo: "Cifras de vigilancia", crea: false,
       descripcion: "Totales de la vigilancia de una empresa en un período: población, consultas, morbilidad por sistema y primeras causas, ausentismo, aptitud, referencias, accidentes, exámenes periódicos, riesgos de los cargos y cobertura de cada programa. Sin personas: los grupos de menos de 3 y los diagnósticos confidenciales vienen juntos en «Otros» y \"<3\" es 1 o 2. Período: desde y hasta, o anio y trimestre (el trimestre cuenta desde el mes en que empieza la gestión de la empresa).",

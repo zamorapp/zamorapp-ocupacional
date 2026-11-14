@@ -1,4 +1,4 @@
--- Vigilancia con agentes (20261030953000): casilla propia en la llave, solo totales (sin personas ni diagnósticos
+-- Vigilancia con agentes (20261030960000): casilla propia en la llave, solo totales (sin personas ni diagnósticos
 -- confidenciales), propuestas que nadie aplica sin aprobar, aprobar con las reglas de quien aprueba, programas por
 -- empresa con su cobertura, y autolimpieza.
 \pset tuples_only on
@@ -6,27 +6,27 @@ reset role;
 select set_config('request.jwt.claim.sub','',false) \g /dev/null
 -- Empresa A: dos dependencias, un cargo, cinco trabajadores con consultas en el I trimestre 2025
 insert into public.dependencias (id,org_id,empresa_id,nombre) values
- ('25200000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Taller'),
- ('25200000-0000-0000-0000-0000000000d2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Oficina');
+ ('25900000-0000-0000-0000-0000000000d1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Taller'),
+ ('25900000-0000-0000-0000-0000000000d2','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Oficina');
 insert into public.puestos (id,org_id,empresa_id,nombre,riesgos) values
- ('25200000-0000-0000-0000-0000000000c1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Mecánico','{"fisico":["Ruido"]}');
+ ('25900000-0000-0000-0000-0000000000c1','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','Mecánico','{"fisico":["Ruido"]}');
 insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos,sexo,dependencia_id,creado_en)
-select ('25200000-0000-0000-0000-00000000010' || i)::uuid,'10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',
+select ('25900000-0000-0000-0000-00000000010' || i)::uuid,'10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',
        'V-7700000' || i,'Persona' || i,'Prueba',(case when i <= 3 then 'M' else 'F' end)::sexo,
-       case when i <= 4 then '25200000-0000-0000-0000-0000000000d1'::uuid else '25200000-0000-0000-0000-0000000000d2'::uuid end,'2020-01-01'
+       case when i <= 4 then '25900000-0000-0000-0000-0000000000d1'::uuid else '25900000-0000-0000-0000-0000000000d2'::uuid end,'2020-01-01'
 from generate_series(1,5) i;
 insert into clinico.consultas (id,org_id,empresa_id,trabajador_id,estado,fecha,paraclinicos)
-select ('25200000-0000-0000-0000-00000000020' || i)::uuid,'10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',
-       ('25200000-0000-0000-0000-00000000010' || i)::uuid,'cerrada','2025-02-10',
+select ('25900000-0000-0000-0000-00000000020' || i)::uuid,'10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a',
+       ('25900000-0000-0000-0000-00000000010' || i)::uuid,'cerrada','2025-02-10',
        case when i <= 2 then '[{"nombre":"Audiometría tonal"}]'::jsonb else '[]'::jsonb end
 from generate_series(1,5) i;
 -- Tres lumbagos (se nombran), un resfriado (va a «Otros») y tres depresiones (confidencial: nunca por nombre)
 insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion)
-select '10000000-0000-0000-0000-000000000001',('25200000-0000-0000-0000-00000000020' || i)::uuid,'M54.5','Lumbago' from generate_series(1,3) i;
+select '10000000-0000-0000-0000-000000000001',('25900000-0000-0000-0000-00000000020' || i)::uuid,'M54.5','Lumbago' from generate_series(1,3) i;
 insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion) values
- ('10000000-0000-0000-0000-000000000001','25200000-0000-0000-0000-000000000204','J00','Rinofaringitis');
+ ('10000000-0000-0000-0000-000000000001','25900000-0000-0000-0000-000000000204','J00','Rinofaringitis');
 insert into clinico.diagnosticos (org_id,consulta_id,cie10,descripcion)
-select '10000000-0000-0000-0000-000000000001',('25200000-0000-0000-0000-00000000020' || i)::uuid,'F32','Episodio depresivo' from generate_series(3,5) i;
+select '10000000-0000-0000-0000-000000000001',('25900000-0000-0000-0000-00000000020' || i)::uuid,'F32','Episodio depresivo' from generate_series(3,5) i;
 
 -- ===== Llaves y casilla =====
 set role authenticated;
@@ -56,7 +56,9 @@ select 'la depresión nunca se nombra (debe 0): ' || ((:'c'::jsonb)::text ~* 'F3
 select 'el resfriado de 1 caso no se nombra (debe 0): ' || ((:'c'::jsonb)::text ~* 'J00|rinofaring')::int;
 select 'lo apartado va a «Otros» (debe 1): ' || ((:'c'::jsonb) #>> '{resultado,morbilidad,primeras_causas}' like '%Otros diagnósticos%')::int;
 select 'sin cédulas ni nombres de personas (debe 0): ' || ((:'c'::jsonb)::text ~* 'V-7700000|Persona[0-9]')::int;
-select 'sin división por sexo con menos de 3 mujeres (debe 0): ' || ((:'c'::jsonb) #> '{resultado,poblacion}' ? 'mujeres')::int;
+-- La división por sexo sale solo si ambos sexos tienen 3 o más (con más datos de otras pruebas puede salir o no)
+select 'sin división por sexo con menos de 3 de un sexo (debe 0): ' || (((:'c'::jsonb) #> '{resultado,poblacion}' ? 'mujeres')
+  and least(((:'c'::jsonb) #>> '{resultado,poblacion,mujeres}')::int, ((:'c'::jsonb) #>> '{resultado,poblacion,hombres}')::int) < 3)::int;
 select 'riesgos de los cargos (debe 1): ' || ((:'c'::jsonb) #>> '{resultado,riesgos_de_los_cargos}' like '%Ruido%')::int;
 select 'otra organización: no (debe 0): ' || (public.puerta_vigilancia(:'kv', 'vigilancia_cifras', '{"empresa_id":"20000000-0000-0000-0000-0000000000f2","anio":2025,"trimestre":1}') ->> 'ok')::boolean::int;
 select 'llave falsa: no (debe 0): ' || (public.puerta_vigilancia('zk_' || repeat('0', 64), 'ver_programas', '{}') ->> 'ok')::boolean::int;
@@ -106,7 +108,7 @@ do $$ begin
 exception when insufficient_privilege then raise notice 'lo propuesto no se cambia (debe 1): 1';
 end $$;
 select 'el médico aprueba el programa (debe 1): ' || (public.aplicar_propuesta(:'pp') ->> 'ok')::boolean::int;
-select 'el programa quedó con su dependencia (debe 1): ' || count(*) from public.vigilancia_programas where nombre = 'Conservación auditiva' and '25200000-0000-0000-0000-0000000000d1' = any (dependencia_ids);
+select 'el programa quedó con su dependencia (debe 1): ' || count(*) from public.vigilancia_programas where nombre = 'Conservación auditiva' and '25900000-0000-0000-0000-0000000000d1' = any (dependencia_ids);
 do $$ begin
   perform public.aplicar_propuesta((select id from public.agentes_propuestas where tipo = 'programa_vigilancia' and estado = 'aprobada'));
   raise notice 'FALLA: se aprobó dos veces';

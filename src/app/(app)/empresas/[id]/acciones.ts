@@ -124,7 +124,7 @@ export async function guardarEnvioAuto(empresaId: string, activo: boolean, hora:
 
 const horaVE = (h: number) => `${h % 12 || 12}:00 ${h < 12 ? "a. m." : "p. m."}`;
 
-// ── Programas de vigilancia (public.vigilancia_programas, 20261030953000). La regla RLS decide; esto solo limpia ──
+// ── Programas de vigilancia (public.vigilancia_programas, 20261030960000). La regla RLS decide; esto solo limpia ──
 export type ProgramaEntrada = {
   id?: string | null;
   nombre: string;

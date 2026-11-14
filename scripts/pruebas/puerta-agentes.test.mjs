@@ -52,8 +52,16 @@ test("el catálogo es la misma lista cerrada de la base", () => {
   const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
   const leen = lista(/when v_acc in \(([^)]+)\) then false/);
   const crean = lista(/when v_acc in \(([^)]+)\) then true/);
-  assert.deepEqual(ACCIONES.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
-  assert.deepEqual(ACCIONES.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
+  const generales = ACCIONES.filter((a) => !a.vigilancia);
+  assert.deepEqual(generales.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
+  assert.deepEqual(generales.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
+  // Las de vigilancia van a su propia puerta (public.puerta_vigilancia, 20261030960000) con su lista cerrada
+  const vig = fs.readFileSync(new URL("../../supabase/migrations/20261030960000_vigilancia_agentes.sql", import.meta.url), "utf8");
+  const listaV = (re) => [...vig.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+  const vigilancia = ACCIONES.filter((a) => a.vigilancia);
+  assert.ok(vigilancia.every((a) => a.rpc === "puerta_vigilancia"));
+  assert.deepEqual(vigilancia.filter((a) => !a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then false/));
+  assert.deepEqual(vigilancia.filter((a) => a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then true/));
   for (const a of ACCIONES) {
     assert.equal(a.esquema.additionalProperties, false, a.nombre);
     assert.equal("ensayo" in a.esquema.properties, a.crea, `${a.nombre}: solo lo que crea lleva ensayo`);

@@ -3,7 +3,7 @@ import { supabaseConfigurado } from "@/lib/config";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-// Bandeja de propuestas de agentes (public.agentes_propuestas, 20261030953000): lo que un agente PROPONE y el
+// Bandeja de propuestas de agentes (public.agentes_propuestas, 20261030960000): lo que un agente PROPONE y el
 // médico aprueba o descarta. Aprobar = public.aplicar_propuesta con la sesión de quien aprueba.
 
 export type Propuesta = {

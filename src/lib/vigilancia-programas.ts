@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-// Programas de vigilancia por empresa (public.vigilancia_programas, 20261030953000): riesgo, a quién cubre, exámenes
+// Programas de vigilancia por empresa (public.vigilancia_programas, 20261030960000): riesgo, a quién cubre, exámenes
 // con su frecuencia y metas. Son configuración: se editan en la ficha de la empresa y el agente solo los propone.
 
 export type ExamenPrograma = { nombre: string; cada_meses?: number | null };

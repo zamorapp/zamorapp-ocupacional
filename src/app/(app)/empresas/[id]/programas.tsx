@@ -90,7 +90,7 @@ function Formulario({ form, setForm, dependencias, puestos, ocupado, error, onGu
       <Campo etiqueta="Nombre del programa">
         <Input autoFocus value={form.nombre} onChange={(e) => poner("nombre", e.target.value)} placeholder="Conservación auditiva" maxLength={120} />
       </Campo>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Campo etiqueta="Riesgo que vigila"><Input value={form.riesgo} onChange={(e) => poner("riesgo", e.target.value)} placeholder="Ruido" maxLength={200} /></Campo>
         <Campo etiqueta="Proyecto o contrato"><Input value={form.proyecto} onChange={(e) => poner("proyecto", e.target.value)} placeholder="Opcional" maxLength={200} /></Campo>
       </div>

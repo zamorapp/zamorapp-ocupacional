@@ -50,7 +50,7 @@ declare
   v_viejo text := '''permiso'', l.permiso,';
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception 'agentes_estado cambió: revisar 20261030953000 antes de aplicarla';
+    raise exception 'agentes_estado cambió: revisar 20261030960000 antes de aplicarla';
   end if;
   execute replace(v_def, v_viejo, v_viejo || ' ''vigilancia'', l.vigilancia,');
 end $$;
@@ -73,11 +73,11 @@ create table if not exists public.vigilancia_programas (
   metas jsonb not null default '[]' check (jsonb_typeof(metas) = 'array' and jsonb_array_length(metas) <= 20),
   activo boolean not null default true,
   creado_por uuid default auth.uid(),
-  creado_en timestamptz not null default now(),
-  actualizado_en timestamptz not null default now()
+  creado_en timestamptz not null default public.ahora(),
+  actualizado_en timestamptz not null default public.ahora()
 );
 comment on table public.vigilancia_programas is
-  'Programas de vigilancia epidemiológica por empresa (riesgo, población, exámenes, metas). Configuración editable; el agente solo los propone (20261030953000).';
+  'Programas de vigilancia epidemiológica por empresa (riesgo, población, exámenes, metas). Configuración editable; el agente solo los propone (20261030960000).';
 create index if not exists vigilancia_programas_empresa on public.vigilancia_programas (empresa_id, activo);
 create index if not exists vigilancia_programas_org on public.vigilancia_programas (org_id);
 
@@ -171,12 +171,12 @@ create table if not exists public.agentes_propuestas (
   propuesto jsonb not null,
   motivo text check (motivo is null or char_length(motivo) <= 2000),
   estado text not null default 'pendiente' check (estado in ('pendiente', 'aprobada', 'descartada')),
-  creado_en timestamptz not null default now(),
+  creado_en timestamptz not null default public.ahora(),
   resuelto_por uuid,
   resuelto_en timestamptz
 );
 comment on table public.agentes_propuestas is
-  'Lo que un agente PROPONE (programa, ajuste, borrador de informe, precio…). Solo lo insertan las entradas de agentes; se aplica con aplicar_propuesta (20261030953000).';
+  'Lo que un agente PROPONE (programa, ajuste, borrador de informe, precio…). Solo lo insertan las entradas de agentes; se aplica con aplicar_propuesta (20261030960000).';
 create index if not exists agentes_propuestas_org on public.agentes_propuestas (org_id, estado, creado_en desc);
 create index if not exists agentes_propuestas_empresa on public.agentes_propuestas (empresa_id) where empresa_id is not null;
 
@@ -212,6 +212,28 @@ end $$;
 drop trigger if exists agentes_propuestas_resolver on public.agentes_propuestas;
 create trigger agentes_propuestas_resolver before update of estado, resuelto_por, resuelto_en on public.agentes_propuestas
   for each row execute function public.agentes_propuestas_resolver();
+-- Una propuesta nueva reemplaza a la pendiente igual de la misma llave (no se acumulan copias). Va en la tabla y
+-- no en las acciones del agente: así ninguna acción de la puerta escribe un «update» (prueba 237).
+-- Igual = mismo tipo, empresa y objeto; en el programa, mismo nombre; en el informe, mismo período.
+create or replace function public.agentes_propuestas_reemplazar()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if coalesce(current_setting('sync.cambio_id', true), '') <> '' or new.estado <> 'pendiente' then return new; end if;
+  update public.agentes_propuestas x set estado = 'descartada'
+   where x.org_id = new.org_id and x.llave_id is not distinct from new.llave_id and x.estado = 'pendiente'
+     and x.tipo = new.tipo and x.empresa_id is not distinct from new.empresa_id and x.objeto_id is not distinct from new.objeto_id
+     and case new.tipo
+           when 'programa_vigilancia' then lower(x.propuesto ->> 'nombre') = lower(new.propuesto ->> 'nombre')
+           when 'informe_vigilancia' then x.propuesto ->> 'desde' = new.propuesto ->> 'desde' and x.propuesto ->> 'hasta' = new.propuesto ->> 'hasta'
+           when 'ajuste_empresa' then true
+           else false  -- los demás tipos (p. ej. facturación) deciden en su propia migración
+         end;
+  return new;
+end $$;
+revoke all on function public.agentes_propuestas_reemplazar() from public, anon, authenticated;
+drop trigger if exists agentes_propuestas_reemplazar on public.agentes_propuestas;
+create trigger agentes_propuestas_reemplazar before insert on public.agentes_propuestas
+  for each row execute function public.agentes_propuestas_reemplazar();
 drop trigger if exists bit_agentes_propuestas on public.agentes_propuestas;
 create trigger bit_agentes_propuestas after update on public.agentes_propuestas
   for each row execute function public.registrar_bitacora();
@@ -609,10 +631,6 @@ begin
   if p_ensayo then
     return jsonb_build_object('_empresa', v_emp, '_resumen', 'Ensayo: programa «' || v_nombre || '»', 'se_propondria', v_prop, 'antes', v_antes);
   end if;
-  -- Una propuesta pendiente igual de la misma llave se reemplaza (no se acumulan copias)
-  update public.agentes_propuestas set estado = 'descartada'
-   where org_id = p_org and llave_id = p_llave.id and estado = 'pendiente' and tipo = 'programa_vigilancia'
-     and empresa_id = v_emp and lower(propuesto ->> 'nombre') = lower(v_nombre);
   insert into public.agentes_propuestas (org_id, empresa_id, llave_id, llave_nombre, tipo, objeto_id, titulo, antes, propuesto, motivo)
   values (p_org, v_emp, p_llave.id, p_llave.nombre, 'programa_vigilancia', v_prog,
           case when v_prog is null then 'Programa nuevo: ' else 'Cambiar programa: ' end || v_nombre,
@@ -646,8 +664,6 @@ begin
   if p_ensayo then
     return jsonb_build_object('_empresa', v_emp, '_resumen', 'Ensayo: ajuste de empresa', 'antes', v_antes, 'se_propondria', v_prop);
   end if;
-  update public.agentes_propuestas set estado = 'descartada'
-   where org_id = p_org and llave_id = p_llave.id and estado = 'pendiente' and tipo = 'ajuste_empresa' and empresa_id = v_emp;
   insert into public.agentes_propuestas (org_id, empresa_id, llave_id, llave_nombre, tipo, titulo, antes, propuesto, motivo)
   values (p_org, v_emp, p_llave.id, p_llave.nombre, 'ajuste_empresa', 'Ajuste de ' || coalesce(e.nombre_comercial, e.razon_social),
           v_antes, v_prop, public.agente_txt(d, 'motivo', 2000))
@@ -694,9 +710,6 @@ begin
       'secciones', (select coalesce(jsonb_agg(x), '[]') from jsonb_object_keys(v_sec) x),
       'analisis', (select coalesce(jsonb_agg(x), '[]') from jsonb_object_keys(v_an) x));
   end if;
-  update public.agentes_propuestas set estado = 'descartada'
-   where org_id = p_org and llave_id = p_llave.id and estado = 'pendiente' and tipo = 'informe_vigilancia'
-     and empresa_id = per.empresa_id and propuesto ->> 'desde' = per.desde::text and propuesto ->> 'hasta' = per.hasta::text;
   insert into public.agentes_propuestas (org_id, empresa_id, llave_id, llave_nombre, tipo, titulo, propuesto, motivo)
   values (p_org, per.empresa_id, p_llave.id, p_llave.nombre, 'informe_vigilancia',
           'Borrador del informe de vigilancia del ' || to_char(per.desde, 'DD/MM/YYYY') || ' al ' || to_char(per.hasta, 'DD/MM/YYYY'),
@@ -802,7 +815,7 @@ begin
   return jsonb_build_object('ok', true, 'accion', v_acc, 'ensayo', v_ensayo and v_escribe, 'resultado', v_res - '_empresa' - '_resumen');
 end $$;
 comment on function public.puerta_vigilancia(text, text, jsonb, boolean) is
-  'Puerta para agentes, vigilancia: lee totales y PROPONE (programa, ajuste, borrador de informe). La ejecuta un anónimo A PROPÓSITO (la llave es la credencial), como public.agente (20261030953000).';
+  'Puerta para agentes, vigilancia: lee totales y PROPONE (programa, ajuste, borrador de informe). La ejecuta un anónimo A PROPÓSITO (la llave es la credencial), como public.agente (20261030960000).';
 revoke execute on function public.puerta_vigilancia(text, text, jsonb, boolean) from public;
 grant execute on function public.puerta_vigilancia(text, text, jsonb, boolean) to anon, authenticated;
 
@@ -816,11 +829,11 @@ declare
   v_viejo text := 'clave := ''registros_respaldo''; cantidad := n; bytes := b; return next;';
 begin
   if (length(v_def) - length(replace(v_def, v_viejo, ''))) / length(v_viejo) <> 1 then
-    raise exception 'limpieza_correr cambió: revisar 20261030953000 antes de aplicarla';
+    raise exception 'limpieza_correr cambió: revisar 20261030960000 antes de aplicarla';
   end if;
   execute replace(v_def, v_viejo, v_viejo || '
 
-  -- Propuestas de agentes (20261030953000): pendientes sin revisar, descartadas y aprobadas, a los 30 días
+  -- Propuestas de agentes (20261030960000): pendientes sin revisar, descartadas y aprobadas, a los 30 días
   select count(*), coalesce(sum(pg_column_size(x.*)), 0) into n, b from public.agentes_propuestas x
    where x.creado_en < public.ahora() - public.limpieza_dias(''agentes_propuestas'');
   if p_borrar then
