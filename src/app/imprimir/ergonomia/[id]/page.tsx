@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { AjustesDocumentos } from "@/lib/documentos";
+import { firmaDeDocumento, type AjustesDocumentos } from "@/lib/documentos";
 import { GraficaDeb } from "@/components/ergonomia/grafica-deb";
 import { DEPARTAMENTOS, metodoDe, NOMBRE_METODO, ordenarHallazgos, prioridad, SIN_LADO, vistaInforme, type Departamento, type Hallazgo } from "@/lib/ergonomia";
 import { obtenerEvaluacion, obtenerEvaluacionEmpresa } from "@/lib/ergonomia-datos";
@@ -56,7 +56,7 @@ export default async function ImprimirErgonomia({ params, searchParams }: { para
     ev.evaluadoPor
       ? Promise.all([
           supabase.from("perfiles").select("nombre_completo, cedula, especialidad, mpps, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", ev.evaluadoPor).maybeSingle(),
-          supabase.rpc("firma_sello", { p_usuario: ev.evaluadoPor }).maybeSingle(),
+          firmaDeDocumento(ev.evaluadoPor, "ergonomia", id).then((data) => ({ data })),
         ]).then(([{ data: p }, { data: img }]) => (p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null))
       : Promise.resolve(null),
     fotosVisibles.length ? supabase.storage.from("ergonomia").createSignedUrls(fotosVisibles.map((f) => f.ruta), 600) : Promise.resolve({ data: [] as { path: string | null; signedUrl: string }[] }),

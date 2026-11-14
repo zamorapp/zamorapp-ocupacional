@@ -455,9 +455,10 @@ export const MANUAL: TemaManual[] = [
       "La tasa BCV se carga sola cada tarde, cuando el BCV publica la del día siguiente, y queda el historial por fecha. Si un día no llegó, «Escribir a mano» en Facturación (la escrita a mano manda sobre la automática).",
       "La factura del talonario toma sola la tasa de su fecha de emisión y trae cada renglón en dólares y en bolívares, el total a pagar en bolívares y el total en dólares. La tasa se puede corregir ahí mismo antes de imprimir.",
       "«Nuevo cobro»: eliges empresa y período, marcas las atenciones y se arma la nota de cobro. Una atención no se puede cobrar dos veces.",
-      "Desde el cobro lo imprimes y marcas cuando se pague. En el borrador puedes agregar servicios del catálogo (asesorías por hora, evaluaciones de puesto…).",
+      "Desde el cobro lo imprimes. En el borrador puedes agregar servicios del catálogo (asesorías por hora, evaluaciones de puesto…).",
+      "Pagos y abonos: en la nota emitida, «Pagos recibidos» › «Registrar pago»: fecha, forma de pago (pago móvil, transferencia, Zelle, Binance, efectivo), referencia y monto en dólares (si fue en bolívares, la tasa BCV de ese día; vacía, se usa la del BCV). Si paga por partes, registra cada abono; cuando lo abonado cubre el total, la nota queda pagada sola. Imprimir › «Recibo de abono» o «Recibo de pago» trae cada pago con su referencia, el total pagado y el saldo. Un abono equivocado se borra con la papelera de su fila.",
       "Presupuestos: elige la empresa arriba, crea el presupuesto, agrega servicios y cantidades, imprímelo y márcalo enviado. Si lo aprueban, «Convertir en nota de cobro».",
-      "Cuentas por cobrar: lo que debe cada empresa en notas emitidas sin pagar, por antigüedad (0-30, 31-60, 61-90 y más de 90 días).",
+      "Cuentas por cobrar: lo que falta por pagar de cada empresa (ya descontados los abonos), por antigüedad (0-30, 31-60, 61-90 y más de 90 días).",
     ],
   },
   {
@@ -489,8 +490,8 @@ export const MANUAL: TemaManual[] = [
     pasos: [
       "Entra a Configuración › Puerta para agentes (solo el administrador).",
       "En «Crear una llave» escribe para quién es (Claude, ChatGPT, Gemini…), elige «Solo consultar» o «Consultar y crear», y cuánto dura: 7, 30 o 90 días. Pulsa «Crear llave».",
-      "La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp. Si tu agente tiene casilla para la llave, usa «Copiar dirección» y «Copiar llave» (forma recomendada).",
-      "Si tu agente solo acepta una dirección (Claude, por ejemplo), abre «Mi agente solo acepta una dirección» y copia la dirección con llave. Para esa forma conviene una llave «Solo consultar»; si compartes la dirección, apaga la llave.",
+      "La llave se ve solo esa vez: no la pegues en un chat ni la mandes por WhatsApp. Pulsa «Copiar dirección del conector»: es larga, termina en un código que empieza por «zk_» y sirve para Claude y para cualquier agente que pida una sola dirección.",
+      "Solo si tu agente tiene una casilla aparte para la llave, abre «Mi agente tiene una casilla aparte para la llave» y copia la dirección sin llave y la llave. En Claude esa dirección sola da «Problema de conexión».",
       "En tu agente abre Conectores, elige agregar un conector personalizado, pega lo que copiaste y guarda.",
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
@@ -499,6 +500,7 @@ export const MANUAL: TemaManual[] = [
     consejos: [
       "Antes de crear, el agente hace un ensayo y te muestra lo que va a crear. Si repite la misma orden, no duplica.",
       "El presupuesto nace en borrador: lo revisas y lo envías tú.",
+      "Las llaves apagadas o vencidas se borran solas de la lista: al día siguiente si nunca se usaron, a los 7 días si se usaron. El registro de lo que hicieron se guarda un año.",
       "Una llave «Solo consultar» ve nombres y cédulas de trabajadores, empresas, citas y presupuestos; nada de salud.",
       "Nunca ve ni toca historias, diagnósticos, aptitudes, reposos, tu firma ni tu sello. No borra ni cambia lo que ya existe.",
       "Si la cédula de un trabajador ya está en otra empresa, se detiene y te avisa: tú decides si lo cambias en Pacientes.",

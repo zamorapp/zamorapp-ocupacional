@@ -435,11 +435,13 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
     return despues.avisos.filter((id) => !ya.has(id) && tocadas.some((k) => enlaces.get(id) === `/atencion/${k}?paso=paraclinicos`));
   }
   // Post vacacional sin internet: los avisos que esta llamada creó en la copia (sin internet no baja nada de la nube)
-  async function avisosPostVacacional(uid) {
+  // Recordatorios de citas igual (20261030955000): su llave va en el enlace («…&rc=d3», «…&rc=h60-0900»)
+  async function avisosPostVacacional(uid, rpc = "recordar_post_vacacional") {
     const c = new pg.Client({ connectionString: motor.url() });
     try {
       await c.connect();
-      return (await c.query("select id::text from public.notificaciones where usuario_id = $1 and titulo like 'Post vacacional%'", [uid])).rows.map((f) => f.id);
+      const donde = rpc === "recordar_citas" ? "enlace like '/atencion?dia=%&rc=%'" : "titulo like 'Post vacacional%'";
+      return (await c.query(`select id::text from public.notificaciones where usuario_id = $1 and ${donde}`, [uid])).rows.map((f) => f.id);
     } finally { await c.end().catch(() => {}); }
   }
   async function enlacesDe(ids) {
@@ -938,11 +940,11 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           if (faltaSegundoPaso(quien)) return responder(res, 403, { code: "dos_pasos", message: "Falta la verificación en dos pasos: entra con Windows Hello o escribe el código de 6 dígitos.", details: null, hint: null });
           // La campana: se anotan los avisos que la copia acaba de crear, para borrarlos cuando la nube cree los suyos
           const antes = constancia === "recordar_resultados" ? await fotoDeLaCampana(quien.uid) : null;
-          const antesPv = constancia === "recordar_post_vacacional" ? await avisosPostVacacional(quien.uid) : null;
+          const antesPv = constancia === "recordar_post_vacacional" || constancia === "recordar_citas" ? await avisosPostVacacional(quien.uid, constancia) : null;
           return await aLaCopia(req, res, crudo, async (status) => {
             if (status >= 300) return;
             if (antesPv) {
-              const nuevos = (await avisosPostVacacional(quien.uid)).filter((id) => !antesPv.includes(id));
+              const nuevos = (await avisosPostVacacional(quien.uid, constancia)).filter((id) => !antesPv.includes(id));
               if (nuevos.length) await bandeja.anotarCampana(quien.uid, nuevos, constancia);
               return;
             }
