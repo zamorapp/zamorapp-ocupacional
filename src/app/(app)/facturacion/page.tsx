@@ -66,11 +66,15 @@ export default async function Facturacion({ searchParams }: Props) {
         <TasaBcv actual={tasa.hoy} proxima={tasa.proxima} hoy={hoyCaracas()} editable={editable} />
       </div>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+      {/* Celular: las pestañas en UNA fila que se desliza de lado (antes ocupaban 3 renglones) */}
+      <nav aria-label="Secciones de facturación" className="-mx-1 overflow-x-auto px-1 sm:mx-0 sm:px-0">
+      <div className="flex w-max gap-1 rounded-lg border bg-card p-1 sm:w-auto sm:flex-wrap">
         {VISTAS.map(([k, t]) => (
-          <Link key={k} href={`/facturacion?vista=${k}`} className={cn("rounded-md px-3 py-1.5 text-sm transition", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
+          <Link key={k} href={`/facturacion?vista=${k}`} aria-current={vista === k ? "page" : undefined}
+            className={cn("flex items-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition max-sm:min-h-11", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
         ))}
       </div>
+      </nav>
 
       {vista === "servicios" && <Servicios servicios={await listarServicios()} motivos={await listarMotivosCobro()} editable={editable} />}
 
