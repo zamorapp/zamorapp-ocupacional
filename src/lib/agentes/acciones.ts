@@ -100,6 +100,12 @@ export const ACCIONES: AccionAgente[] = [
 
   // ───── Vigilancia epidemiológica (20261030960000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
   ...([
+    // Reportes (20261030964000): listas sin datos de salud, cifras de gestión y, de los clínicos, solo totales
+    { nombre: "ver_reporte", titulo: "Ver un reporte", crea: false,
+      descripcion: "Un reporte de una empresa. Con personas y sin datos de salud: atendidos (relación de pacientes atendidos), citas, pacientes (padrón, sin período), vencimientos (exámenes por vencer, sin período). Cifras sin personas: relacion (resumen por motivo, médico y dependencia), estadistica, medicos, accidentalidad, dias-atencion. Solo totales agrupados: aptitud, limitaciones, reposos, interconsultas, examenes, enfermeria. La morbilidad y los diagnósticos están en vigilancia_cifras. Hasta 1000 filas; «recortado» avisa si hay más. Período: desde y hasta, o anio y trimestre.",
+      esquema: objeto({ reporte: { type: "string", enum: ["atendidos", "relacion", "estadistica", "medicos", "citas", "pacientes", "vencimientos", "accidentalidad", "dias-atencion", "aptitud", "limitaciones", "reposos", "interconsultas", "examenes", "enfermeria"], description: "Qué reporte" },
+        empresa_id: id("Empresa (buscar_empresas)"), desde: fecha("Desde"), hasta: fecha("Hasta"),
+        anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión (1 a 4)" } }, ["reporte", "empresa_id"]) },
     { nombre: "vigilancia_cifras", titulo: "Cifras de vigilancia", crea: false,
       descripcion: "Totales de la vigilancia de una empresa en un período: población, consultas, morbilidad por sistema y primeras causas, ausentismo, aptitud, referencias, accidentes, exámenes periódicos, riesgos de los cargos y cobertura de cada programa. Sin personas: los grupos de menos de 3 y los diagnósticos confidenciales vienen juntos en «Otros» y \"<3\" es 1 o 2. Período: desde y hasta, o anio y trimestre (el trimestre cuenta desde el mes en que empieza la gestión de la empresa).",
       esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión (1 a 4)" } }, ["empresa_id"]) },
@@ -148,5 +154,5 @@ export const INSTRUCCIONES = [
   "Si la llave tiene la casilla «Prepara récipes y órdenes», puedes dejar BORRADORES de récipe u orden de exámenes con preparar_documento: pregunta siempre si va suelto o adjunto a una consulta; el doctor los emite, firma y envía.",
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
-  "Vigilancia epidemiológica (si la llave tiene la casilla): para «créame la vigilancia del trimestre…», busca la empresa (si no existe, créala con su visto bueno), mira ver_programas, propone el programa o el ajuste que falte, lee vigilancia_cifras y ver_informe, y deja el borrador con redactar_informe. Todo queda como propuesta: el doctor la aprueba. No inventes cifras ni nombres; lo que vino en «Otros» no se nombra. Aquí no hay precios.",
+  "Vigilancia epidemiológica (si la llave tiene la casilla): para «créame la vigilancia del trimestre…», busca la empresa (si no existe, créala con su visto bueno), mira ver_programas, propone el programa o el ajuste que falte, lee vigilancia_cifras y ver_informe, y deja el borrador con redactar_informe. Para relaciones de atendidos, estadísticas y demás reportes usa ver_reporte (una empresa por llamada). Todo queda como propuesta: el doctor la aprueba. No inventes cifras ni nombres; lo que vino en «Otros» no se nombra. Aquí no hay precios.",
 ].join("\n");

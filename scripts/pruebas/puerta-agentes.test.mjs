@@ -60,7 +60,10 @@ test("el catálogo es la misma lista cerrada de la base", () => {
   assert.deepEqual(generales.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
   // Las de vigilancia van a su propia puerta (public.puerta_vigilancia, 20261030960000) con su lista cerrada
   const vig = fs.readFileSync(new URL("../../supabase/migrations/20261030960000_vigilancia_agentes.sql", import.meta.url), "utf8");
-  const listaV = (re) => [...vig.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+  // La 20261030964000 suma «ver_reporte» a las de lectura
+  const rep = fs.readFileSync(new URL("../../supabase/migrations/20261030964000_reportes_agentes.sql", import.meta.url), "utf8");
+  const sumaV = (re) => (re.source.includes("false") && rep.includes("''ver_reporte'') then false") ? ["ver_reporte"] : []);
+  const listaV = (re) => [...[...vig.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]), ...sumaV(re)].sort();
   const vigilancia = ACCIONES.filter((a) => a.vigilancia);
   assert.ok(vigilancia.every((a) => a.rpc === "puerta_vigilancia"));
   assert.deepEqual(vigilancia.filter((a) => !a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then false/));
