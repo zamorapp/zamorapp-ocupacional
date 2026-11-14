@@ -6,7 +6,7 @@ import { AlertTriangle, Bell, Clock, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { aparatosSinAcuse, marcarLeidas, misNotificaciones, type AparatoSinAcuse, type Notificacion } from "./acciones";
+import { aparatosSinAcuse, ignorarAparato, marcarLeidas, misNotificaciones, type AparatoSinAcuse, type Notificacion } from "./acciones";
 import { recordarCitas } from "./recordar-citas";
 import { avisoWindows, enEscritorio } from "@/lib/escritorio";
 import { ahora } from "@/lib/fecha";
@@ -39,7 +39,8 @@ async function avisarEnWindows(lista: Notificacion[]) {
   try { localStorage.setItem(AVISADOS, JSON.stringify([...nuevos.map((n) => n.id), ...avisados].slice(0, 200))); } catch {}
 }
 
-// «Ignorar» del aviso de un aparato sin acuse: vale hasta que la nube le mande otro aviso
+// «Ignorar» del aviso de un aparato sin acuse: se guarda en la nube (vale en web, escritorio y celular hasta que la
+// nube le mande otro aviso). La copia en este equipo lo esconde al instante y cubre un fallo de internet al guardar.
 const IGNORADOS = "zamorapp.campana.sin-acuse-ignorados";
 const claveAparato = (a: AparatoSinAcuse) => `${a.id}@${a.desde}`;
 function leerIgnorados(): string[] {
@@ -76,6 +77,7 @@ export function Notificaciones() {
   const ignorar = (a: AparatoSinAcuse) => {
     try { localStorage.setItem(IGNORADOS, JSON.stringify([claveAparato(a), ...leerIgnorados()].slice(0, 50))); } catch {}
     setSinAcuse((l) => l.filter((x) => x !== a));
+    ignorarAparato(a.id).catch(() => {});
   };
 
   const nuevas = lista.filter((n) => !n.leida);
