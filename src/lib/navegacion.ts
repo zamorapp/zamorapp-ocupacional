@@ -13,7 +13,7 @@ import {
   BarChart3,
   Settings,
   ShieldAlert,
-  ShieldCheck,
+  ClipboardCheck,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -34,7 +34,7 @@ export const SECCIONES: Seccion[] = [
   { href: "/atencion", titulo: "Atención médica", icono: Stethoscope, descripcion: "Cola, consultas, aptitud, reposos y récipes", clinico: true },
   { href: "/enfermeria", titulo: "Enfermería", icono: HeartPulse, descripcion: "Tensión, tratamientos, procedimientos, curas e inspecciones de enfermería", clinico: true },
   { href: "/accidentes", titulo: "Accidentes", icono: HardHat, descripcion: "Accidentes, incidentes y enfermedades ocupacionales" },
-  { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ShieldCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
+  { href: "/inspeccion", titulo: "Cumplimiento INPSASEL", icono: ClipboardCheck, descripcion: "Lo que revisa el inspector, medido con tus registros, y el paquete para imprimir" },
   // Ergonomía, psicosocial, identificación de riesgos con mapa y puestos de trabajo en una sola entrada (Cesar, 06-nov)
   { href: "/evaluaciones", titulo: "Evaluaciones de riesgos", icono: ShieldAlert, descripcion: "Identificación de riesgos y mapa de riesgos, ergonomía, psicosocial y puestos de trabajo", incluye: ["/riesgos", "/ergonomia", "/psicosocial"] },
   { href: "/empresas", titulo: "Empresas", icono: Building2, descripcion: "Empresas clientes, sedes, dependencias y puestos" },

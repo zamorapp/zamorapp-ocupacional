@@ -17,10 +17,11 @@ export type TemaManual = {
   claves?: string;
 };
 
-export const MANUAL_ACTUALIZADO = "2026-11-13";
+export const MANUAL_ACTUALIZADO = "2026-11-14";
 
 // Lo nuevo, arriba del manual. "tema" lleva a la sección que lo explica. Mantener solo lo de las últimas semanas.
 export const NOVEDADES: { fecha: string; texto: string; tema: string }[] = [
+  { fecha: "2026-11-14", texto: "Pantallas más claras en el celular: en Atención médica, «Nueva consulta» va primero y a todo el ancho y lo demás (Disponibilidad, Citas por lote, Hojas, Historial de enlaces) está en «Más acciones»; en Facturación las pestañas van en una sola fila que se desliza; en Pacientes y en el portal de RR. HH. el botón principal va primero. En el Inicio cada indicador dice «Revisar» o «Urgente» además del color, y el puntito cambia de forma (círculo, rombo, cuadro). «Cumplimiento INPSASEL» tiene ícono propio (una tabla con ✓), distinto del de Evaluaciones de riesgos", tema: "inicio" },
   { fecha: "2026-11-13", texto: "Citas por confirmar: al agendar marca «Por confirmar» si la cita espera el sí de la empresa (p. ej. el presupuesto). En el Inicio, la tarjeta «Citas por confirmar» cuenta esas y las que piden las empresas por el portal; ábrela para ver nombre, cédula, empresa, cargo, día y hora, y toca Confirmar, Cambiar fecha, WhatsApp o Eliminar (con Deshacer). El número sube al agendar y baja al confirmar o eliminar. En la agenda del día la provisional sale con borde punteado y la palabra «Por confirmar». Las de días pasados dicen «Venció»", tema: "atencion" },
   { fecha: "2026-11-13", texto: "Inicio: «Consultas abiertas» y «Por firmar» abren la lista exacta de las consultas que cuentan, de todas las empresas, y el número siempre coincide con esa lista. Las consultas traídas del SAME ya no cuentan como abiertas ni por firmar: son historia", tema: "consulta" },
   { fecha: "2026-11-13", texto: "Escribe «pagos» en el buscador (Ctrl+K): «Pagos: métodos y condiciones de pago» abre directo el recuadro donde escribes las condiciones de pago y tus cuentas, pago móvil, Zelle o Binance, que salen en presupuestos, notas de cobro y recibos. «Pagos recibidos» te lleva a Cuentas por cobrar para marcar una nota como pagada", tema: "atajos" },
