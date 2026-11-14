@@ -12,7 +12,7 @@ import { actualizarTasaBcv } from "@/lib/tasa-bcv-actualizar";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, sugerenciasCobro, tasasDeHoy } from "@/lib/facturacion";
-import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
+import { bs, type Cobro, etiquetaEstado, saldo, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
 import { periodoAnterior } from "@/lib/periodos";
@@ -79,13 +79,13 @@ export default async function Facturacion({ searchParams }: Props) {
       {vista === "servicios" && <Servicios servicios={await listarServicios()} motivos={await listarMotivosCobro()} editable={editable} />}
 
       {vista === "cuentas" && (async () => {
-        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad
+        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad; cuenta solo lo que falta (descontados los abonos)
         const hoy = hoyCaracas();
         const abiertas = (await listarCobros()).filter((c) => c.tipo === "cobro" && c.estado === "emitida" && (!empresaId || c.empresaId === empresaId));
         const porEmpresa = new Map<string, { empresa: string; tramos: number[]; total: number; notas: number }>();
         for (const c of abiertas) {
           const e = porEmpresa.get(c.empresaId) ?? { empresa: c.empresa, tramos: [0, 0, 0, 0], total: 0, notas: 0 };
-          const t = totales(c).total, d = dias(c.fecha, hoy);
+          const t = saldo(c).falta, d = dias(c.fecha, hoy);
           e.tramos[d <= 30 ? 0 : d <= 60 ? 1 : d <= 90 ? 2 : 3] += t;
           e.total += t; e.notas += 1;
           porEmpresa.set(c.empresaId, e);
@@ -158,7 +158,7 @@ export default async function Facturacion({ searchParams }: Props) {
                         <TableCell><Link href={`/facturacion/${c.id}`} className="hover:text-primary">{c.empresa}</Link></TableCell>
                         <TableCell className="text-sm">{tipo === "presupuesto" ? fecha(c.vence) : c.desde ? `${fecha(c.desde)} al ${fecha(c.hasta)}` : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums"><div className="font-medium">{usd(t.total)}</div>{t.totalBs !== null && <div className="text-xs text-muted-foreground">{bs(t.totalBs)}</div>}</TableCell>
-                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span></TableCell>
+                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span>{c.estado === "emitida" && c.pagos.length > 0 && <div className="mt-0.5 text-xs text-muted-foreground">Falta {usd(saldo(c).falta)}</div>}</TableCell>
                       </TableRow>
                     );
                   })}

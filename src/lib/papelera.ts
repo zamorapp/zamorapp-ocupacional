@@ -40,6 +40,7 @@ const NOMBRES: Record<string, [string, string]> = {
   "public.citas": ["cita", "citas"],
   "public.eventos": ["accidente o incidente", "accidentes o incidentes"],
   "public.cobro_items": ["línea de cobro", "líneas de cobro"],
+  "public.cobro_pagos": ["abono de cobro", "abonos de cobro"],
   "public.solicitudes": ["solicitud de la empresa", "solicitudes de la empresa"],
   "public.vacaciones": ["vacación", "vacaciones"],
   "public.cargos_historial": ["cambio de cargo", "cambios de cargo"],
