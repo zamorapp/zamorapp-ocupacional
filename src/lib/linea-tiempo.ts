@@ -7,7 +7,8 @@ import { hoyCaracas } from "@/lib/fecha";
 // Línea de tiempo del trabajador (ficha del paciente, Cesar 14-nov). Solo FECHA, TIPO y RESULTADO de cada cosa:
 // nunca diagnósticos, CIE-10, descripción del accidente ni nada clínico, así sirve igual al médico y a RR. HH.
 // Cada rol lee solo lo que su RLS le deja: el personal de salud sus consultas y reposos; RR. HH. la aptitud por la vista
-// segura aptitud_trabajadores. Los accidentes los leen ambos (eventos_leer).
+// segura aptitud_trabajadores. Accidentes: el personal de la tabla eventos; RR. HH. (gerente_empresa) de la vista
+// eventos_empresa, porque la regla eventos_sin_rrhh le cierra la tabla (igual que tabla() en lib/eventos.ts).
 
 export type CarrilTiempo = "examen" | "consulta" | "reposo" | "accidente";
 // nivel: ok (verde, círculo) · aviso (amarillo, rombo) · alerta (rojo, cuadro/triángulo): siempre con palabra en «resultado»
@@ -40,7 +41,7 @@ export function marcasDeConsultas(consultas: ConsultaParaTiempo[]): MarcaTiempo[
     : { carril: "consulta" as const, fecha: c.fecha, titulo: c.motivo || "Consulta", resultado: c.tipo, nivel: "ok" as const, href: c.demo ? undefined : `/atencion/${c.id}` });
 }
 
-export async function lineaDeTiempo(trabajadorId: string, clinico: boolean, consultas: ConsultaParaTiempo[]): Promise<MarcaTiempo[]> {
+export async function lineaDeTiempo(trabajadorId: string, clinico: boolean, rol: string | null, consultas: ConsultaParaTiempo[]): Promise<MarcaTiempo[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   const [reposos, aptitudes, eventos] = await Promise.all([
@@ -51,7 +52,8 @@ export async function lineaDeTiempo(trabajadorId: string, clinico: boolean, cons
     clinico
       ? Promise.resolve({ data: [] as { fecha: string; clasificacion: Aptitud }[] })
       : supabase.from("aptitud_trabajadores").select("fecha, clasificacion").eq("trabajador_id", trabajadorId).order("fecha").limit(200).returns<{ fecha: string; clasificacion: Aptitud }[]>(),
-    supabase.from("eventos").select("id, tipo, subtipo, fecha_hora, gravedad, dias_perdidos").eq("trabajador_id", trabajadorId).order("fecha_hora").limit(200),
+    supabase.from(rol === "gerente_empresa" ? "eventos_empresa" : "eventos").select("id, tipo, subtipo, fecha_hora, gravedad, dias_perdidos").eq("trabajador_id", trabajadorId).order("fecha_hora").limit(200)
+      .returns<{ id: string; tipo: string; subtipo: string | null; fecha_hora: string; gravedad: string | null; dias_perdidos: number | null }[]>(),
   ]);
   const hoy = hoyCaracas();
   const marcas: MarcaTiempo[] = clinico ? marcasDeConsultas(consultas) : (aptitudes.data ?? []).map((a) => ({

@@ -72,7 +72,7 @@ export default async function FichaPaciente({ params }: Props) {
   // Línea de tiempo: solo fecha, tipo y resultado (nada clínico); cada rol con lo que su RLS le deja leer
   const marcasTiempo: MarcaTiempo[] = sesion.demo
     ? [...marcasDeConsultas(consultas), ...(MARCAS_DEMO[t.id] ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha))
-    : await lineaDeTiempo(t.id, sesion.clinico, consultas);
+    : await lineaDeTiempo(t.id, sesion.clinico, sesion.rol ?? null, consultas);
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
   // Atenciones y evolución de enfermería: parte de su historia, solo para el personal de salud
   const enfermeria = sesion.clinico && !sesion.demo ? await atencionesDeTrabajador(t.id) : [];
