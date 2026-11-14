@@ -4,6 +4,8 @@
 import { env, pipeline, type AutomaticSpeechRecognitionPipeline } from "@huggingface/transformers";
 
 const MODELO_VOZ = "onnx-community/whisper-base";
+// Versión exacta del modelo (14-nov): si Hugging Face cambia los archivos, la app sigue bajando estos
+const REVISION_VOZ = "27a07b4b52b3a4c5886134bb4320e93e1a4bbc7c";
 const SEG = 16000 * 30;
 
 env.allowLocalModels = false;
@@ -27,6 +29,7 @@ self.onmessage = async (e: MessageEvent<{ audio: Float32Array }>) => {
   try {
     const archivos = new Map<string, { cargado: number; total: number }>();
     asr ??= crear("automatic-speech-recognition", MODELO_VOZ, {
+      revision: REVISION_VOZ,
       dtype: "q8",
       device: "wasm",
       progress_callback: (p: { status: string; file?: string; loaded?: number; total?: number }) => {
