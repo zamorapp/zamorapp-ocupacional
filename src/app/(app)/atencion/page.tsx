@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { soloMias } from "@/lib/panel-rol";
 import { BookOpen, CalendarCog, History, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { MasAcciones } from "@/components/app/mas-acciones";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listarCitas, listarSolicitudes } from "@/lib/citas";
@@ -94,16 +96,23 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Atención médica</h1>
           <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{ver ? ver.titulo : <>{deHoy} consultas hoy · {abiertas} en curso</>} <RefrescarAlVolver generada={ahora()} /></p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
-          <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
-          <Button variant="outline" asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></Button>
-          {!sesion.demo && <Button variant="outline" asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></Button>}
+        {/* Celular: «Nueva consulta» primero y a todo el ancho; lo secundario va en «Más acciones» */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></Button>
+          {!sesion.demo && <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></Button>}
+          <MasAcciones>
+            <DropdownMenuItem asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></DropdownMenuItem>
+            {!sesion.demo && <DropdownMenuItem asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></DropdownMenuItem>}
+          </MasAcciones>
           <EnlacePaciente habilitado={!sesion.demo} empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
             perfiles={resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico)} {...extrasEnlace(listas.paraclinico, listas.recomendacion_paciente)}
             puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")} />
           <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
-          {sesion.rol !== "enfermeria" && <NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />}
+          {sesion.rol !== "enfermeria" && <div className="max-sm:order-first max-sm:basis-full max-sm:[&_button]:w-full"><NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} /></div>}
         </div>
       </div>
 

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Cobro, ItemCobro, Servicio } from "@/lib/facturacion-tipos";
-import { limpiarNumeroFactura } from "@/lib/facturacion-tipos";
+import type { Cobro, ItemCobro, MetodoPago, PagoCobro, Servicio } from "@/lib/facturacion-tipos";
+import { ETIQUETA_METODO, limpiarNumeroFactura, METODO_EN_BS, saldo, totales } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
@@ -237,4 +237,78 @@ export async function guardarNumeroFactura(id: string, numero: string): Promise<
   if (!filas?.length) return { ok: false, mensaje: "No se guardó el número: la nota no existe o tu rol no puede cambiarla." };
   revalidatePath("/facturacion");
   return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado.", numero: n };
+}
+
+// Pagos y abonos (Cesar, 14-nov-2026): cada pago anota fecha, forma de pago, referencia y monto. Cuando lo abonado
+// cubre el total la nota pasa sola a «pagada» (fecha de pago = la del último abono); si se borra un abono y deja de
+// cubrirlo, vuelve a «emitida». Pagado en bolívares sin tasa escrita: se toma la del BCV de ese día.
+async function revisarSaldo(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, cobroId: string) {
+  const { data } = await supabase.from("cobros").select("estado, tasa_bcv, iva_pct, igtf_pct, cobro_items(cantidad, precio_usd), cobro_pagos(monto_usd, fecha)").eq("id", cobroId).maybeSingle();
+  if (!data) return null;
+  const pagos = (data.cobro_pagos ?? []) as { monto_usd: number; fecha: string }[];
+  const s = saldo({
+    items: ((data.cobro_items ?? []) as { cantidad: number; precio_usd: number }[]).map((i) => ({ servicioId: null, consultaId: null, descripcion: "", detalle: "", cantidad: Number(i.cantidad), precioUsd: Number(i.precio_usd) })),
+    ivaPct: Number(data.iva_pct), igtfPct: Number(data.igtf_pct), tasaBcv: null,
+    pagos: pagos.map((p) => ({ id: "", fecha: p.fecha, metodo: "otro", referencia: "", montoUsd: Number(p.monto_usd), tasaBcv: null })),
+  });
+  const ultimo = pagos.map((p) => p.fecha).sort().at(-1) ?? null;
+  if (s.cubierta && data.estado === "emitida") await supabase.from("cobros").update({ estado: "pagada", fecha_pago: ultimo }).eq("id", cobroId);
+  else if (!s.cubierta && data.estado === "pagada" && pagos.length > 0) await supabase.from("cobros").update({ estado: "emitida", fecha_pago: null }).eq("id", cobroId);
+  else if (s.cubierta && data.estado === "pagada" && ultimo) await supabase.from("cobros").update({ fecha_pago: ultimo }).eq("id", cobroId);
+  return s;
+}
+
+export type ResultadoPago = Resultado & { estado?: Cobro["estado"]; fechaPago?: string | null; pagos?: PagoCobro[] };
+
+// Estado de la nota y sus abonos tal como quedaron, para que la pantalla se actualice sin recargar
+async function estadoPagos(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, cobroId: string) {
+  const { data } = await supabase.from("cobros").select("estado, fecha_pago, cobro_pagos(id, fecha, metodo, referencia, monto_usd, tasa_bcv)").eq("id", cobroId).maybeSingle();
+  if (!data) return {};
+  return {
+    estado: data.estado as Cobro["estado"],
+    fechaPago: (data.fecha_pago as string | null) ?? null,
+    pagos: ((data.cobro_pagos ?? []) as Record<string, unknown>[])
+      .map((x) => ({ id: x.id as string, fecha: x.fecha as string, metodo: x.metodo as MetodoPago, referencia: (x.referencia as string | null) ?? "", montoUsd: Number(x.monto_usd), tasaBcv: x.tasa_bcv == null ? null : Number(x.tasa_bcv) }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+  };
+}
+
+export async function registrarPago(cobroId: string, p: { fecha: string; metodo: MetodoPago; referencia: string; montoUsd: number; tasaBcv: number | null }): Promise<ResultadoPago> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (!Object.hasOwn(ETIQUETA_METODO, p.metodo)) return { ok: false, mensaje: "Elige la forma de pago." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha) || p.fecha > hoyCaracas()) return { ok: false, mensaje: "La fecha del pago no puede ser posterior a hoy." };
+  const monto = Math.round(p.montoUsd * 100) / 100;
+  if (!(monto > 0)) return { ok: false, mensaje: "Escribe el monto pagado." };
+  const { data: nota } = await c.supabase.from("cobros").select("estado, tipo, iva_pct, igtf_pct, cobro_items(cantidad, precio_usd), cobro_pagos(monto_usd)").eq("id", cobroId).maybeSingle();
+  if (!nota || nota.tipo !== "cobro") return { ok: false, mensaje: "La nota de cobro no existe o tu rol no puede verla." };
+  if (nota.estado !== "emitida") return { ok: false, mensaje: nota.estado === "pagada" ? "Esta nota ya está pagada." : "Primero emite la nota de cobro." };
+  const total = totales({ items: ((nota.cobro_items ?? []) as { cantidad: number; precio_usd: number }[]).map((i) => ({ servicioId: null, consultaId: null, descripcion: "", detalle: "", cantidad: Number(i.cantidad), precioUsd: Number(i.precio_usd) })), ivaPct: Number(nota.iva_pct), igtfPct: Number(nota.igtf_pct), tasaBcv: null }).total;
+  const pagado = ((nota.cobro_pagos ?? []) as { monto_usd: number }[]).reduce((s, x) => s + Number(x.monto_usd), 0);
+  const falta = Math.round((total - pagado) * 100) / 100;
+  if (monto - falta > 0.005) return { ok: false, mensaje: `El monto pasa lo que falta por pagar (${falta.toFixed(2)} $).` };
+  let tasa = p.tasaBcv && p.tasaBcv > 0 && p.tasaBcv < 10_000_000 ? p.tasaBcv : null;
+  if (!tasa && METODO_EN_BS.includes(p.metodo)) {
+    const { data: t } = await c.supabase.from("tasas_bcv").select("tasa").lte("fecha", p.fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+    tasa = t ? Number(t.tasa) : null;
+  }
+  const { error } = await c.supabase.from("cobro_pagos").insert({
+    org_id: c.sesion.orgId!, cobro_id: cobroId, fecha: p.fecha, metodo: p.metodo,
+    referencia: p.referencia.trim().slice(0, 80) || null, monto_usd: monto, tasa_bcv: tasa,
+  });
+  if (error) return { ok: false, mensaje: error.message };
+  const s = await revisarSaldo(c.supabase, cobroId);
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: s?.cubierta ? "Pago registrado. La nota quedó pagada." : `Abono registrado. Faltan ${(s?.falta ?? 0).toFixed(2)} $.`, ...(await estadoPagos(c.supabase, cobroId)) };
+}
+
+export async function eliminarPago(id: string, cobroId: string): Promise<ResultadoPago> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data: filas, error } = await c.supabase.from("cobro_pagos").delete().eq("id", id).eq("cobro_id", cobroId).select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  if (!filas?.length) return { ok: false, mensaje: "No se borró: el abono no existe o tu rol no puede cambiarlo." };
+  await revisarSaldo(c.supabase, cobroId);
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: "Abono borrado.", ...(await estadoPagos(c.supabase, cobroId)) };
 }

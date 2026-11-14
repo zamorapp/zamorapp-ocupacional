@@ -81,6 +81,7 @@ const TABLAS: Record<string, string> = {
   "public.horas_trabajadas": "Horas trabajadas",
   "public.cobros": "Cobro",
   "public.cobro_items": "Renglón de cobro",
+  "public.cobro_pagos": "Abono de cobro",
   "public.servicios": "Servicio",
   "public.lista_items": "Elemento de lista",
   "public.miembros": "Usuario del equipo",

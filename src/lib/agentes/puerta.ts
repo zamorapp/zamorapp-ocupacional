@@ -32,6 +32,9 @@ function conEnlaces(v: unknown): unknown {
       for (const [k, x] of Object.entries(o.parametros as Record<string, unknown>)) if (x != null) u.searchParams.set(k, String(x));
     }
     sal.enlace = u.toString();
+    // «aviso»: el agente le da al doctor un enlace de WhatsApp con el aviso ya escrito. Sin número: WhatsApp le deja
+    // elegir el chat o el grupo (un enlace no puede mandar directo a un grupo)
+    if (typeof o.aviso === "string") sal.whatsapp = `https://wa.me/?text=${encodeURIComponent(`${o.aviso} ${sal.enlace}`)}`;
   }
   return sal;
 }

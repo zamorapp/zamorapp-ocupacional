@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { AjustesDocumentos } from "@/lib/documentos";
+import { firmaDeDocumento, type AjustesDocumentos } from "@/lib/documentos";
 import { BarrasPuestos, DonaGrupos, FichasGrupo, LetraGrupo, MatrizRiesgos, Tarjetas } from "@/components/riesgos/graficas";
 import { LeyendaMapa, MapaRiesgos } from "@/components/riesgos/mapa";
 import { DEPARTAMENTOS } from "@/lib/ergonomia";
@@ -47,7 +47,7 @@ export default async function ImprimirRiesgos({ params }: { params: Promise<{ id
     ev.evaluadoPor
       ? Promise.all([
           supabase.from("perfiles").select("nombre_completo, cedula, especialidad, mpps, registro_inpsasel, mostrar_firma, mostrar_sello").eq("id", ev.evaluadoPor).maybeSingle(),
-          supabase.rpc("firma_sello", { p_usuario: ev.evaluadoPor }).maybeSingle(),
+          firmaDeDocumento(ev.evaluadoPor, "riesgos", id).then((data) => ({ data })),
         ]).then(([{ data: p }, { data: img }]) => (p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null))
       : Promise.resolve(null),
     ev.mapa.plano ? supabase.storage.from("mapas-riesgo").createSignedUrl(ev.mapa.plano, 600).then(({ data }) => data?.signedUrl ?? null) : Promise.resolve(null),

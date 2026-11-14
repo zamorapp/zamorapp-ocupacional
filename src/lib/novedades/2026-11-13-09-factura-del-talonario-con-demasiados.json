@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-13",
+  "tema": "facturacion",
+  "texto": "Factura del talonario con demasiados renglones: en una hoja caben unos 9 renglones de una línea. Si no caben, el aviso rojo trae «Dividir en 2 facturas»: la nota de cobro se parte en dos (la primera mitad de los renglones se queda, la otra pasa a una nota nueva) y cada factura lleva su propio total; la segunda no es continuación de la primera. Imprime primero la factura 1 y luego «Imprimir factura 2», que sale con el Nº siguiente del talonario. Solo se puede dividir antes de ponerle el Nº y si la nota no está pagada ni anulada"
+}

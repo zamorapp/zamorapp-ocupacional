@@ -94,11 +94,12 @@ export default async function Portal() {
           <p className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Portal de empresas"}</p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hola, {primerNombre(sesion.nombre)}</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Celular: «Solicitar cita» primero y a todo el ancho; las demás en dos columnas parejas */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap [&_a]:max-sm:w-full [&>*]:max-sm:min-w-0 max-sm:[&_button]:w-full">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
           {gestiona && <AnotarVacaciones />}
-          {pideCitas && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
+          {pideCitas && <div className="col-span-2 max-sm:order-first sm:contents"><SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} /></div>}
         </div>
       </div>
 

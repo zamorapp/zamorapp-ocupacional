@@ -153,17 +153,21 @@ test("C13: el avance de la copia llega al total y /zamorapp/estado lo da sin nom
 
 test("catálogos al día: la firma y el sello cargados después de la copia y los ajustes de la organización llegan a la PC", { skip: omitir }, async () => {
   // 04-nov-2026: «Firmar y cerrar» en el escritorio imprimía sin firma ni sello. La copia de perfiles no traía firma_url
-  // (columna privada) y los catálogos bajaban solo en la copia completa.
+  // (columna privada) y los catálogos bajaban solo en la copia completa. Desde 20261030951000 solo baja la firma de quien
+  // sincroniza (aquí el administrador a1): la de otro médico no llega a esta PC.
   const marca = `data:image/png;base64,F${Date.now()}`;
   const lema = `Lema ${Date.now()}`;
-  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1, sello_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1, sello_url = $1 where id = '00000000-0000-0000-0000-0000000000a1'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [`${marca}ajena`]);
   await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
   replicaObj.revisarCatalogos();
   await replicaObj.ciclo();
   assert.equal(replicaObj.error, null);
-  const [p] = await enLocal("select firma_url, sello_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+  const [p] = await enLocal("select firma_url, sello_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
   assert.equal(p.firma_url, marca, "la firma llegó a la copia");
   assert.equal(p.sello_url, marca, "el sello llegó a la copia");
+  const [ajena] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+  assert.notEqual(ajena?.firma_url, `${marca}ajena`, "la firma de otro médico no baja a esta PC");
   const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
   assert.equal(o.lema, lema, "los ajustes de la organización llegaron a la copia");
   assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles al día/.test(l)));
@@ -177,7 +181,7 @@ test("catálogos al día: la firma y el sello cargados después de la copia y lo
 test("un catálogo que falla al bajar no frena a los demás ni al ciclo, y se reintenta en el ciclo siguiente", { skip: omitir }, async () => {
   const marca = `data:image/png;base64,R${Date.now()}`;
   const lema = `Reintento ${Date.now()}`;
-  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a2'", [marca]);
+  await enBase(NUBE_DB, "update public.perfiles set firma_url = $1 where id = '00000000-0000-0000-0000-0000000000a1'", [marca]);
   await enBase(NUBE_DB, "update public.organizaciones set ajustes = coalesce(ajustes, '{}') || jsonb_build_object('membrete_lema', $1::text) where id = '10000000-0000-0000-0000-000000000001'", [lema]);
   const rpc = nubeObj.rpc.bind(nubeObj);
   let cortes = 0;
@@ -192,12 +196,12 @@ test("un catálogo que falla al bajar no frena a los demás ni al ciclo, y se re
     assert.equal(cortes, 1);
     const [o] = await enLocal("select ajustes->>'membrete_lema' lema from public.organizaciones where id = '10000000-0000-0000-0000-000000000001'");
     assert.equal(o.lema, lema, "los demás catálogos sí bajaron");
-    const [p1] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    const [p1] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
     assert.notEqual(p1.firma_url, marca, "el que falló quedó como estaba");
     assert.ok(lineasReplica.some((l) => /catálogo public\.perfiles no se pudo bajar \(HTTP 503\)/.test(l)));
     assert.ok(!lineasReplica.some((l) => /corte simulado/.test(l)), "el texto del error no va al registro");
     await replicaObj.ciclo(); // sin revisarCatalogos ni esperar 2 min: el fallo pide reintento
-    const [p2] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a2'");
+    const [p2] = await enLocal("select firma_url from public.perfiles where id = '00000000-0000-0000-0000-0000000000a1'");
     assert.equal(p2.firma_url, marca, "en el ciclo siguiente llegó");
   } finally { nubeObj.rpc = rpc; }
 });
@@ -429,6 +433,33 @@ test("sin internet: guardar en la PC queda pendiente y sube al volver la conexi�
   const [f] = await enNube("select telefono, correo from public.trabajadores where id = $1", [TRAB]);
   assert.deepEqual(f, { telefono: "0414-0000002", correo: "t@x.com" });
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.pendientes, 0);
+});
+
+test("borrador del agente: el médico lo emite sin internet y la marca sube a la nube con su sesión", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const B = crypto.randomUUID();
+  const I = crypto.randomUUID();
+  // Lo deja el agente en la nube (solo la puerta crea borradores: se simula su marca) y baja a la PC
+  await enNube(`with marca as (select set_config('zamorapp.agente_borrador', '1', true))
+    insert into clinico.agentes_borradores (id, org_id, trabajador_id, tipo, examenes, adjuntar, llave_nombre)
+    select $1, '10000000-0000-0000-0000-000000000001', $2, 'examenes', '["Glicemia"]', 'suelto', 'Claude' from marca`, [B, TRAB]);
+  await replicaObj.ciclo();
+  const visto = await pedir(`/rest/v1/agentes_borradores?id=eq.${B}&select=estado`, { token: tokenMed });
+  assert.deepEqual(visto.json, [{ estado: "por_revisar" }], JSON.stringify(visto.json));
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  // Sin internet: emite la orden (suya, con su firma) y marca el borrador emitido
+  const ind = await pedir("/rest/v1/indicaciones", { metodo: "POST", token: tokenMed, cuerpo: { id: I, org_id: "10000000-0000-0000-0000-000000000001", trabajador_id: TRAB, tipo: "examenes", examenes: ["Glicemia"] } });
+  assert.ok([200, 201].includes(ind.status), JSON.stringify(ind.json));
+  const m = await pedir(`/rest/v1/agentes_borradores?id=eq.${B}`, { metodo: "PATCH", token: tokenMed, cuerpo: { estado: "emitido", indicacion_id: I } });
+  assert.ok([200, 204].includes(m.status), JSON.stringify(m.json));
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [n] = await enNube("select estado, indicacion_id, revisado_por from clinico.agentes_borradores where id = $1", [B]);
+  assert.deepEqual(n, { estado: "emitido", indicacion_id: I, revisado_por: "00000000-0000-0000-0000-0000000000a2" }, "subió con la sesión del médico");
+  const [e] = await enNube("select tipo, estado, medico_id from clinico.indicaciones where id = $1", [I]);
+  assert.deepEqual(e, { tipo: "examenes", estado: "emitida", medico_id: "00000000-0000-0000-0000-0000000000a2" });
+  assert.equal((await pedir("/zamorapp/estado")).json.bandeja.conflictos, 0);
 });
 
 test("dos equipos sin conexión editan la misma consulta: la nube no pisa nada y queda en Conflictos", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
