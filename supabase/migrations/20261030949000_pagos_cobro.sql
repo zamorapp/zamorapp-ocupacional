@@ -55,6 +55,7 @@ begin
 end $$;
 drop trigger if exists autor on public.cobro_pagos;
 create trigger autor before insert or update on public.cobro_pagos for each row execute function public.cobro_pagos_autor();
+revoke execute on function public.cobro_pagos_autor() from public, anon;
 grant select, insert, update, delete on public.cobro_pagos to authenticated;
 
 -- Réplica en el escritorio, igual que cobros y cobro_items
