@@ -40,11 +40,10 @@ select 'guarda solo lo del catálogo, con el formato de la consulta (debe 1): ' 
    and jsonb_array_length(datos->'antecedentes') = 1 and datos->'antecedentes'->0->>'observacion' = 'desde 2019' and datos->'antecedentes'->0->>'grupo' = 'personal'
    and datos->'habitos' = '[{"clave":"tabaco214","nombre":"Tabaco prueba 214","valor":"Sí: 5 al día"}]';
 
--- Subida: sin aceptar todavía no se puede
+-- Subida: desde que envió sus datos ya puede (20261030965000; la prueba 263 cubre el «por revisar»)
 set role anon;
-select 'sin aceptar: puede = false, por confirmar (debe 1): ' || count(*) from (select public.resultados_registro_paciente('res-0123456789-0123456789-0123456789-uno') j) x
- where not (j->>'puede')::boolean and j->>'motivo' = 'por_confirmar';
-select 'sin aceptar no reserva (debe 1): ' || (public.reservar_resultado_paciente('res-0123456789-0123456789-0123456789-uno','application/pdf') ? 'error')::int;
+select 'sin aceptar: puede = true (debe 1): ' || count(*) from (select public.resultados_registro_paciente('res-0123456789-0123456789-0123456789-uno') j) x
+ where (j->>'puede')::boolean and j->>'motivo' is null;
 
 -- Aceptada (ya tiene ficha): reserva, sube y confirma
 reset role;
