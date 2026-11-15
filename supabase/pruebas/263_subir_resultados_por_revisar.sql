@@ -105,8 +105,15 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1'
 update public.solicitudes_paciente set resultado = 'aceptada', trabajador_id = '30000000-0000-0000-0000-000000000265' where id = '5f000000-0000-0000-0000-000000000265';
 reset role;
 select 'sin la ficha en la nube todavía no entra (debe 0): ' || count(*) from clinico.adjuntos where ruta = current_setting('prueba.r4');
+-- Llega por la bandeja de una PC: el archivo se anota como cambio de la nube (si no, la PC lo tomaría como eco suyo)
+begin;
+select set_config('sync.equipo_id','5f000000-0000-0000-0000-0000000e0265',true), set_config('sync.cambio_id','5f000000-0000-0000-0000-0000000c0265',true) \g /dev/null
 insert into public.trabajadores (id,org_id,empresa_id,cedula,nombres,apellidos) values
  ('30000000-0000-0000-0000-000000000265','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-00000000000a','13572470','Ada','Ruiz');
+select 'el archivo no queda como eco de la PC (debe 1): ' || count(*) from sync.registro r join clinico.adjuntos a on a.id = r.fila_id
+ where a.ruta = current_setting('prueba.r4') and r.equipo_id is null and r.cambio_id is null;
+select 'la ficha sí sigue siendo de la PC (debe 1): ' || (current_setting('sync.equipo_id') = '5f000000-0000-0000-0000-0000000e0265')::int;
+commit;
 select 'al llegar la ficha entra solo (debe 1): ' || count(*) from clinico.adjuntos where ruta = current_setting('prueba.r4') and trabajador_id = '30000000-0000-0000-0000-000000000265';
 
 -- Mensajes en «usted»

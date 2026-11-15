@@ -49,7 +49,7 @@ declare v public.solicitudes_paciente;
 begin
   if p_token is null or length(p_token) < 40 or length(p_token) > 60 then return null; end if;
   select * into v from public.solicitudes_paciente where token_hash = sha256(convert_to(p_token, 'UTF8'));
-  if v.id is null or v.anulado_en is not null or v.recibido_en is null or coalesce(v.resultados_hasta, v.recibido_en + interval '30 days') < now()
+  if v.id is null or v.anulado_en is not null or v.recibido_en is null or coalesce(v.resultados_hasta, v.recibido_en + interval '30 days') < public.ahora()
      or v.resultado = 'descartada' or (v.resultado = 'aceptada' and v.trabajador_id is null) then
     return null;
   end if;
@@ -62,12 +62,16 @@ revoke execute on function public.solicitud_para_subir(text) from public, anon, 
 create or replace function public.pasar_subidas_a_ficha(p_solicitud uuid)
 returns integer language plpgsql security definer set search_path = public as $$
 declare s public.solicitudes_paciente; n integer;
+  -- Si esto corre dentro de la bandeja de una PC (la ficha nació allá), el registro de sync llevaría el equipo de esa PC
+  -- y ella lo tomaría como eco suyo y no bajaría el archivo: se anota como cambio de la nube y se restaura después
+  v_cambio text := current_setting('sync.cambio_id', true); v_equipo text := current_setting('sync.equipo_id', true);
 begin
   select * into s from public.solicitudes_paciente where id = p_solicitud;
   if s.id is null or s.resultado is distinct from 'aceptada' or s.trabajador_id is null
      or not exists (select 1 from public.trabajadores where id = s.trabajador_id) then
     return 0;
   end if;
+  perform set_config('sync.cambio_id', '', true), set_config('sync.equipo_id', '', true);
   insert into clinico.adjuntos (org_id, trabajador_id, consulta_id, nombre, ruta, tipo_mime, tamano, descripcion, subido_por)
   select s.org_id, s.trabajador_id, null, coalesce(u.nombre, 'Resultado'), u.ruta, u.tipo_mime, u.tamano, 'Enviado por el paciente con su enlace', null
     from public.subidas_paciente u
@@ -75,6 +79,7 @@ begin
      and not exists (select 1 from clinico.adjuntos a where a.ruta = u.ruta)
    order by u.confirmado_en;
   get diagnostics n = row_count;
+  perform set_config('sync.cambio_id', coalesce(v_cambio, ''), true), set_config('sync.equipo_id', coalesce(v_equipo, ''), true);
   return n;
 end $$;
 revoke execute on function public.pasar_subidas_a_ficha(uuid) from public, anon, authenticated;
