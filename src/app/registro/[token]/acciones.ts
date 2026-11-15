@@ -46,7 +46,7 @@ export async function confirmarResultado(token: string, ruta: string, nombre: st
   const supabase = clienteAnonimo();
   if (!supabase) return { ok: false, mensaje: "El servicio no está disponible. Intente más tarde." };
   const { data, error } = await supabase.rpc("confirmar_resultado_paciente", { p_token: token, p_ruta: ruta, p_nombre: texto(nombre, 120) });
-  if (error) return { ok: false, mensaje: "No se pudo registrar el archivo. Inténtalo de nuevo." };
+  if (error) return { ok: false, mensaje: "No se pudo registrar el archivo. Inténtelo de nuevo." };
   revalidatePath(`/registro/${token}`);
   return data === "ok" ? { ok: true, mensaje: "" } : { ok: false, mensaje: String(data) };
 }

@@ -16,7 +16,7 @@ export async function prepararArchivo(archivo: File): Promise<File> {
   try {
     imagen = await createImageBitmap(archivo, { imageOrientation: "from-image" });
   } catch {
-    throw new Error(`${archivo.name}: este equipo no puede leer ese formato. Guárdala como JPG o PDF.`);
+    throw new Error(`${archivo.name}: este equipo no puede leer ese formato: use una foto JPG o un PDF.`);
   }
   const escala = Math.min(1, LADO_MAX / Math.max(imagen.width, imagen.height));
   const lienzo = document.createElement("canvas");
