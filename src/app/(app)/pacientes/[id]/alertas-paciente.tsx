@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Pencil } from "lucide-react";
+import { BellRing, Loader2, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AlertaClinica } from "@/lib/alertas-tipos";
 import { CorregirAlerta } from "../../atencion/[id]/alertas";
+import { TEXTO_SALA } from "@/lib/telemedicina-tipos";
+import { abrirControl } from "../../atencion/telemedicina-acciones";
 
 const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
 
@@ -14,6 +16,8 @@ export function AlertasPaciente({ alertas, puedeDescartar }: { alertas: AlertaCl
   const router = useRouter();
   const [lista, setLista] = useState(alertas);
   const [corrigiendo, setCorrigiendo] = useState<AlertaClinica | null>(null);
+  const [abriendo, iniciar] = useTransition();
+  const [error, setError] = useState("");
   const pendientes = lista.filter((a) => a.estado === "pendiente");
   if (!pendientes.length) return null;
   return (
@@ -26,11 +30,19 @@ export function AlertasPaciente({ alertas, puedeDescartar }: { alertas: AlertaCl
             {[a.texto, a.paraclinicos.length ? `pedir ${a.paraclinicos.map((x) => x.nombre).join(", ")}` : ""].filter(Boolean).join(" · ")}
             {a.revisarAntes && <span className="text-muted-foreground"> · antes del {fechaCorta(a.revisarAntes)}</span>}
           </p>
+          {/* Sala de espera de telemedicina: el paciente volvió → control enlazado a la consulta a distancia */}
+          {a.texto === TEXTO_SALA && a.consultaId && puedeDescartar && (
+            <Button type="button" size="sm" className="h-7 shrink-0 max-sm:h-11" disabled={abriendo}
+              onClick={() => iniciar(async () => { const r = await abrirControl(a.consultaId!); if (r && !r.ok) setError(r.mensaje); })}>
+              {abriendo ? <Loader2 className="animate-spin" /> : <Phone />} Abrir control
+            </Button>
+          )}
           <Button type="button" size="sm" variant="ghost" aria-label="Corregir alerta" className="h-7 w-7 shrink-0 px-0 text-aviso-texto hover:bg-aviso/20 hover:text-aviso-texto sm:w-auto sm:px-2.5" onClick={() => setCorrigiendo(a)}>
             <Pencil /><span className="hidden sm:inline">Corregir</span>
           </Button>
         </div>
       ))}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {corrigiendo && (
         <CorregirAlerta alerta={corrigiendo} onCerrar={() => setCorrigiendo(null)} puedeDescartar={puedeDescartar}
           onGuardada={(n) => { setLista((x) => x.map((y) => (y.id === n.id ? n : y))); router.refresh(); }} />

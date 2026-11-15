@@ -56,13 +56,19 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
     });
   };
 
-  const guardar = (nuevoEstado?: EstadoCobro) =>
+  const guardar = (nuevoEstado?: EstadoCobro) => {
+    // Un descuento mayor que la nota la dejaría en negativo: no se emite (la base también lo impide)
+    if (nuevoEstado === "emitida" && !presupuesto && t.total < 0) {
+      setAviso({ ok: false, mensaje: "El total queda en negativo. Revisa el descuento antes de emitir." });
+      return;
+    }
     iniciar(async () => {
       const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: hoyCaracas() } : {}) };
       const r = await actualizarCobro(siguiente);
       setAviso(r);
       if (r.ok) { setC(siguiente); setGuardado(JSON.stringify(siguiente)); }
     });
+  };
 
   // Al registrar o borrar un abono: la nota puede pasar a pagada (o volver a emitida) sin recargar la página
   const trasPago = (r: ResultadoPago) => {
@@ -79,6 +85,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
           <h1 className="text-2xl font-semibold tracking-tight">{nombre} #{c.numero}</h1>
           <p className="text-muted-foreground">{c.empresa} · {c.rif} · {f(c.fecha)}{c.desde && ` · periodo ${f(c.desde)} al ${f(c.hasta)}`}</p>
         </div>
+        {c.porAgente ? <span className="rounded-full border border-primary/40 px-3 py-1 text-sm text-primary" title="Revísala antes de emitirla: precios, renglones y descuento">Del agente «{c.porAgente}»</span> : null}
         <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium">{etiquetaEstado(c.tipo, c.estado)}</span>
         {presupuesto ? (
           <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
@@ -106,7 +113,7 @@ export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] 
               {borrador && editable ? (
                 <>
                   <Input type="number" min={0} step="0.5" value={i.cantidad} className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, cantidad: Number(e.target.value) } : x)))} />
-                  <Input type="number" min={0} step="0.01" value={i.precioUsd} className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, precioUsd: Number(e.target.value) } : x)))} />
+                  <Input type="number" step="0.01" value={i.precioUsd} title="En negativo para un descuento" className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, precioUsd: Number(e.target.value) } : x)))} />
                 </>
               ) : (
                 <><span className="text-right tabular-nums">{i.cantidad}</span><span className="text-right tabular-nums">{i.precioUsd.toFixed(2)}</span></>

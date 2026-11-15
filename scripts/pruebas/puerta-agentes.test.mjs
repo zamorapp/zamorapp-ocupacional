@@ -47,29 +47,48 @@ test("sin llave responde 401 y no llama a la base", async () => {
   assert.ok(!(await r.text()).includes("zk_"));
 });
 
+// Cada familia de acciones tiene su función en la base (campo «rpc»; por defecto public.agente): la lista de la web
+// tiene que ser la lista cerrada de ESA función, en la última migración que la define.
+const migraciones = fs.readdirSync(new URL("../../supabase/migrations/", import.meta.url)).filter((f) => f.endsWith(".sql")).sort();
+const definicion = (rpc) => {
+  const re = new RegExp(`create or replace function public\\.${rpc}\\(p_llave`);
+  const f = migraciones.filter((m) => re.test(fs.readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), "utf8"))).pop();
+  assert.ok(f, `ninguna migración define public.${rpc}`);
+  const sql = fs.readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), "utf8");
+  return sql.slice(sql.search(re));
+};
+
 test("el catálogo es la misma lista cerrada de la base", () => {
-  const sql = fs.readFileSync(new URL("../../supabase/migrations/20261030938000_puerta_agentes.sql", import.meta.url), "utf8");
-  const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
-  // La 20261030959000 suma acciones a la lista de la base (reemplazo contado en public.agente)
+  const familias = Map.groupBy(ACCIONES, (a) => a.rpc ?? "agente");
+  assert.ok(familias.has("puerta_facturacion"), "cobros y precios van por su propia función");
+  // La 20261030959000 suma acciones a la lista de public.agente parchando por texto (no la redefine)
   const sql959 = fs.readFileSync(new URL("../../supabase/migrations/20261030959000_agentes_borradores.sql", import.meta.url), "utf8");
   const suma = (antes) => [...sql959.matchAll(new RegExp(`'when v_acc in \\(''([a-z_]+)'', ''${antes}'', '`, "g"))].map((m) => m[1]);
-  const leen = [...lista(/when v_acc in \(([^)]+)\) then false/), ...suma("resumen")].sort();
-  const crean = [...lista(/when v_acc in \(([^)]+)\) then true/), ...suma("crear_empresa")].sort();
-  const generales = ACCIONES.filter((a) => !a.vigilancia);
-  assert.deepEqual(generales.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
-  assert.deepEqual(generales.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
-  // Las de vigilancia van a su propia puerta (public.puerta_vigilancia, 20261030960000) con su lista cerrada
-  const vig = fs.readFileSync(new URL("../../supabase/migrations/20261030960000_vigilancia_agentes.sql", import.meta.url), "utf8");
-  const listaV = (re) => [...vig.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
-  const vigilancia = ACCIONES.filter((a) => a.vigilancia);
-  assert.ok(vigilancia.every((a) => a.rpc === "puerta_vigilancia"));
-  assert.deepEqual(vigilancia.filter((a) => !a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then false/));
-  assert.deepEqual(vigilancia.filter((a) => a.crea).map((a) => a.nombre).sort(), listaV(/when v_acc in \(([^)]+)\) then true/));
+  const sql964 = fs.readFileSync(new URL("../../supabase/migrations/20261030964000_reportes_agentes.sql", import.meta.url), "utf8");
+  for (const [rpc, acciones] of familias) {
+    const sql = definicion(rpc);
+    const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    // La 20261030964000 suma «ver_reporte» (lectura) a public.puerta_vigilancia parchando por texto
+    const extra = (antes) => (rpc === "agente" ? suma(antes)
+      : rpc === "puerta_vigilancia" && antes === "resumen" && sql964.includes("''ver_reporte'') then false") ? ["ver_reporte"] : []);
+    assert.deepEqual(acciones.filter((a) => !a.crea).map((a) => a.nombre).sort(), [...lista(/when v_acc in \(([^)]+)\) then false/), ...extra("resumen")].sort(), rpc);
+    assert.deepEqual(acciones.filter((a) => a.crea).map((a) => a.nombre).sort(), [...lista(/when v_acc in \(([^)]+)\) then true/), ...extra("crear_empresa")].sort(), rpc);
+  }
+  assert.ok(ACCIONES.filter((a) => a.vigilancia).every((a) => a.rpc === "puerta_vigilancia"));
   for (const a of ACCIONES) {
     assert.equal(a.esquema.additionalProperties, false, a.nombre);
     assert.equal("ensayo" in a.esquema.properties, a.crea, `${a.nombre}: solo lo que crea lleva ensayo`);
     assert.ok(!/borra|elimin|modific|actualiz/i.test(a.nombre), a.nombre);
   }
+});
+
+test("cada acción llama a su función de la base", async () => {
+  recibido = [];
+  await llamarPuerta(LLAVE, "crear_notas_cobro", { notas: [] }, true);
+  await llamarPuerta(LLAVE, "resumen", {}, false);
+  assert.equal(recibido[0].url, "http://base.prueba/rest/v1/rpc/puerta_facturacion");
+  assert.deepEqual(recibido[0].cuerpo, { p_llave: LLAVE, p_accion: "crear_notas_cobro", p_datos: { notas: [] }, p_ensayo: true });
+  assert.equal(recibido[1].url, "http://base.prueba/rest/v1/rpc/agente");
 });
 
 test("MCP: initialize, notificación, lista de herramientas y método desconocido", async () => {

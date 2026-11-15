@@ -14,7 +14,8 @@ export async function recordarResultados(sesion: Pick<Sesion, "demo" | "clinico"
     const supabase = await crearClienteServidor();
     after(async () => {
       try {
-        await Promise.all([medico ? supabase.rpc("recordar_resultados") : null, supabase.rpc("recordar_alertas"), supabase.rpc("recordar_post_vacacional")]);
+        // archivar_seguimientos_distancia: la sala de espera de telemedicina archiva sola lo que venció (no avisa)
+        await Promise.all([medico ? supabase.rpc("recordar_resultados") : null, supabase.rpc("recordar_alertas"), supabase.rpc("recordar_post_vacacional"), supabase.rpc("archivar_seguimientos_distancia")]);
       } catch {
         // Es solo un aviso: si falla, no pasa nada
       }

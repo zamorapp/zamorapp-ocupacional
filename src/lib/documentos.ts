@@ -12,6 +12,7 @@ export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
 export type AjustesDocumentos = {
   dias_aviso_fecha_futura?: number; // consulta: avisar si la fecha de la evaluación pasa de N días hacia adelante
+  seguimiento_distancia_dias?: number; // telemedicina: días que una consulta a distancia espera en la sala antes de archivarse
   palabra_aptitud?: string;
   titulo_constancia?: string;
   observacion_idoneidad?: string | null;

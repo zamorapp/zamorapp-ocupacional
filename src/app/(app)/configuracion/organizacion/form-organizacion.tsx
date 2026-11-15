@@ -34,6 +34,7 @@ type Ajustes = {
   meses_examen_periodico?: number;
   dias_aviso_fecha_futura?: number;
   recordatorio_resultados_dias?: number;
+  seguimiento_distancia_dias?: number;
   centinela_correo?: boolean;
   dias_equipo_confianza?: number;
   celda_minima_empresa?: number;
@@ -89,7 +90,7 @@ function resumen(id: IdPaso, f: HTMLFormElement | null, inicial: Record<string, 
   switch (id) {
     case "servicio": return unir(v("nombre") || "Falta el nombre", v("rif") && `RIF ${v("rif")}`, v("membrete_titular"));
     case "documentos": return unir(`Aptitud: ${v("palabra_aptitud") || "Elegible"}`, v("constancia_copia") ? "constancia con copia" : "constancia sin copia", v("firma_sello_separados") ? "firma y sello separados" : "firma y sello juntos");
-    case "plazos": return unir(`Periódico cada ${v("meses_examen_periodico") || 12} meses`, citasAntes(f, inicial), v("recordatorio_resultados_dias") === "0" ? "sin recordar resultados" : `recordar resultados cada ${v("recordatorio_resultados_dias") || 3} días`, v("centinela_correo") ? "plazos legales por correo" : "plazos legales solo en la campana");
+    case "plazos": return unir(`Periódico cada ${v("meses_examen_periodico") || 12} meses`, citasAntes(f, inicial), v("recordatorio_resultados_dias") === "0" ? "sin recordar resultados" : `recordar resultados cada ${v("recordatorio_resultados_dias") || 3} días`, `sala a distancia ${v("seguimiento_distancia_dias") || 30} días`, v("centinela_correo") ? "plazos legales por correo" : "plazos legales solo en la campana");
     case "privacidad": return unir(v("dias_equipo_confianza") === "0" ? "Código en cada entrada" : `Código cada ${v("dias_equipo_confianza") || 30} días`, v("celda_minima_empresa") === "0" ? "la empresa ve todas las cifras" : `la empresa no ve cifras menores de ${v("celda_minima_empresa") || 3}`);
     case "mensajes": return "3 mensajes: cita, resultado e invitación";
   }
@@ -325,6 +326,7 @@ function PasoPlazos({ a }: { a: Ajustes }) {
         <Campo id="meses_examen_periodico" etiqueta="Vigencia del examen periódico (meses)" type="number" min={1} max={36} defaultValue={a.meses_examen_periodico ?? 12} />
         <Campo id="dias_aviso_fecha_futura" etiqueta="Avisar si la fecha de la evaluación va más de estos días adelante" ayuda="Solo avisa, no impide guardar." type="number" min={1} max={3650} defaultValue={a.dias_aviso_fecha_futura ?? 90} />
         <Campo id="recordatorio_resultados_dias" etiqueta="Recordar resultados pendientes cada (días)" ayuda="0 = no recordar." type="number" min={0} max={30} defaultValue={a.recordatorio_resultados_dias ?? 3} />
+        <Campo id="seguimiento_distancia_dias" etiqueta="Sala de espera a distancia (días)" ayuda="Lo que una consulta a distancia espera que el paciente vuelva; después se archiva sola." type="number" min={1} max={180} defaultValue={a.seguimiento_distancia_dias ?? 30} />
       </div>
       <RecordatorioCitasCampos ajustes={a} />
       <div className="space-y-1">

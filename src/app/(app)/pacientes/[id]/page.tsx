@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils";
 import { ahora, hoyCaracas } from "@/lib/fecha";
 import { alertasDeTrabajador } from "@/lib/alertas";
 import { AlertasPaciente } from "./alertas-paciente";
+import { AvisoDistancia } from "./aviso-distancia";
+import { seguimientosDistancia } from "@/lib/telemedicina";
 import { BotonIndicacion, ListaIndicaciones } from "./indicaciones";
 import { indicacionesDeTrabajador } from "@/lib/indicaciones-datos";
 import { Vacaciones } from "./vacaciones";
@@ -109,6 +111,8 @@ export default async function FichaPaciente({ params }: Props) {
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
   // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
   const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
+  // Consulta a distancia archivada (no volvió en el plazo) y sin control: si vuelve, se ofrece abrir el control enlazado
+  const archivadas = conBase && sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "") ? (await seguimientosDistancia(true)).filter((s) => s.trabajadorId === t.id && !s.controlId) : [];
   // Indicación o récipe sin consulta (Cesar, 10-nov): no cuenta como consulta; solo el personal clínico las ve
   const indicaciones = conBase && sesion.clinico ? await indicacionesDeTrabajador(t.id) : [];
   const porCumplir = indicaciones.filter((x) => x.estado === "pendiente");
@@ -197,7 +201,7 @@ export default async function FichaPaciente({ params }: Props) {
                     <Link href={`/enfermeria?trabajador=${t.id}#nueva`}><HeartPulse /> Atención de enfermería</Link>
                   </Button>
                 ) : (
-                  <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} />
+                  <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} distancia={emiteIndicacion} />
                 )}
                 {emiteIndicacion && <BotonIndicacion trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} />}
                 {listasEnlace && (
@@ -234,6 +238,7 @@ export default async function FichaPaciente({ params }: Props) {
       {alertas.length > 0 && (
         <AlertasPaciente alertas={alertas} puedeDescartar={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
       )}
+      {archivadas.length > 0 && <AvisoDistancia seguimiento={archivadas[0]} />}
 
       {porCumplir.length > 0 && (
         <Card className="gap-0 border-primary/30 py-0" data-bloque="ordenes-por-cumplir">
