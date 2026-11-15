@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Plus, Printer, RotateCcw, Ruler, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
+import { Accessibility, AlertTriangle, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, FlaskConical, HardHat, Loader2, Lock, MoreHorizontal, Pencil, Phone, Plus, Printer, RotateCcw, Ruler, Save, Trash2, Wand2, WifiOff, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -64,6 +64,7 @@ import { RegistrarAccidente } from "./registrar-accidente";
 import { DatosTrabajador } from "./datos-trabajador";
 import { aplicarPerfilNormal, aplicarPlantilla, resumenPlantilla, type Plantilla } from "@/lib/plantillas";
 import { AlertasDejadas, FranjaAlertas, NuevaAlerta } from "./alertas";
+import { EVENTO_DISTANCIA } from "./distancia";
 import type { AlertaClinica } from "@/lib/alertas-tipos";
 import { BotonPerfilNormal, FranjaAplicada, OfertaCopia, evaluacionNormal, evaluacionParaCopiar } from "./perfil-normal";
 import { sumarDias } from "@/lib/fecha";
@@ -964,6 +965,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
               <DropdownMenuItem onSelect={duplicar}><CopyPlus /> Duplicar consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAccidente(true)}><HardHat /> Registrar accidente o enfermedad</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setNuevaAlerta(true)}><BellRing /> Alerta para la próxima evaluación</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event(EVENTO_DISTANCIA))}><Phone /> Consulta a distancia</DropdownMenuItem>
               {puedeEliminar && (
                 <>
                   <DropdownMenuSeparator />
