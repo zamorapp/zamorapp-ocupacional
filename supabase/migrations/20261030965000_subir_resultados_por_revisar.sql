@@ -15,6 +15,10 @@
 -- 4. Mensajes al paciente en «usted».
 -- Parches por texto (parche_unico: quita \r y exige que el texto viejo aparezca una sola vez).
 
+-- Bloqueos primero y en el mismo orden que usa la app (fichas, luego enlaces): el 15-nov el primer intento chocó
+-- (deadlock) con una consulta que leía las dos tablas. Solo frena escrituras unos segundos; las lecturas siguen.
+lock table public.trabajadores, public.solicitudes_paciente in share row exclusive mode;
+
 -- Ayudante temporal de parches (mismo que 931000/943000; se borra al final)
 create or replace function public.parche_unico(p_def text, p_viejo text, p_nuevo text, p_donde text)
 returns text language plpgsql immutable set search_path = public as $$
@@ -95,11 +99,9 @@ begin
   return null;
 end $$;
 revoke execute on function public.al_aceptar_pasar_subidas() from public, anon, authenticated;
-drop trigger if exists pasar_subidas_a_ficha on public.solicitudes_paciente;
-create trigger pasar_subidas_a_ficha after update of resultado, trabajador_id on public.solicitudes_paciente
+create or replace trigger pasar_subidas_a_ficha after update of resultado, trabajador_id on public.solicitudes_paciente
   for each row execute function public.al_aceptar_pasar_subidas();
-drop trigger if exists pasar_subidas_a_ficha on public.trabajadores;
-create trigger pasar_subidas_a_ficha after insert on public.trabajadores
+create or replace trigger pasar_subidas_a_ficha after insert on public.trabajadores
   for each row execute function public.al_aceptar_pasar_subidas();
 
 -- El archivo en la carpeta de la solicitud entra a la ficha que el servicio aceptó para esa solicitud (y a ninguna otra)
