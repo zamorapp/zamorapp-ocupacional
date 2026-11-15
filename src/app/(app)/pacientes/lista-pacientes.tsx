@@ -51,13 +51,15 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
   const [mostrar, setMostrar] = useState(100);
 
   const empresas = useMemo(() => [...new Set(trabajadores.map((t) => t.empresa))].sort(), [trabajadores]);
+  const inactivos = useMemo(() => trabajadores.filter((t) => t.estado === "inactivo").length, [trabajadores]);
 
   const filtrados = useMemo(() => {
     const q = normalizar(busqueda);
     return trabajadores.filter(
       (t) =>
         (empresa === TODAS || t.empresa === empresa) &&
-        (estado === TODAS || t.estado === estado) &&
+        // «Todos» deja fuera a los inactivos (ya no están en la empresa): se ven eligiendo «Inactivo»
+        (estado === TODAS ? t.estado !== "inactivo" : t.estado === estado) &&
         (!q || normalizar(`${t.cedula} ${t.nombres} ${t.apellidos} ${t.cargo} ${t.historia}`).includes(q)),
     );
   }, [trabajadores, busqueda, empresa, estado]);
@@ -67,16 +69,20 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pacientes</h1>
-          <p className="text-muted-foreground">{trabajadores.length} trabajadores en el expediente</p>
+          <p className="text-muted-foreground">
+            {trabajadores.length - inactivos} trabajadores en el expediente
+            {inactivos > 0 && <button type="button" className="ml-1 underline-offset-2 hover:underline" onClick={() => { setEstado("inactivo"); setMostrar(100); setMostrarMovil(25); }}>· {inactivos} inactivos</button>}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Principal («Nuevo paciente») a la derecha en PC y primero en el celular */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {depurar}
           {importar && (
             <Button variant="outline" asChild>
-              <Link href="/pacientes/importar"><FileSpreadsheet /> Importar Excel</Link>
+              <Link href="/pacientes/importar"><FileSpreadsheet /> {clinico ? "Actualizar nómina" : "Importar Excel"}</Link>
             </Button>
           )}
-          {nuevo}
+          <div className="max-sm:order-first max-sm:basis-full max-sm:[&_a]:w-full max-sm:[&_button]:w-full">{nuevo}</div>
         </div>
       </div>
 
@@ -101,7 +107,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
         <Select value={estado} onValueChange={(v) => { setEstado(v as EstadoTrabajador | typeof TODAS); setMostrar(100); setMostrarMovil(25); }}>
           <SelectTrigger aria-label="Estado" className="h-11! w-full bg-card sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={TODAS}>Todos los estados</SelectItem>
+            <SelectItem value={TODAS}>Todos (sin inactivos)</SelectItem>
             {Object.entries(ETIQUETA_ESTADO).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>

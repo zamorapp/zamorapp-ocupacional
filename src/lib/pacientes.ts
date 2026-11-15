@@ -21,6 +21,8 @@ export type Trabajador = {
   sexo: "F" | "M" | null;
   fechaNacimiento: string | null; // aaaa-mm-dd
   empresa: string;
+  empresaId?: string;
+  empresaInactiva?: boolean; // su empresa ya no se atiende: se puede pasar a otra (candidato) conservando su historia
   dependencia: string | null;
   cargo: string;
   tipoPaciente: string | null;
@@ -31,6 +33,11 @@ export type Trabajador = {
   telefono: string | null;
   correo: string | null;
   estado: EstadoTrabajador;
+  // Salida de la nómina: fecha de inactivo (sin egreso, p. ej. importados del SAME) o de egreso, y el motivo del inactivo
+  fechaSalida?: string | null;
+  motivoInactivo?: string | null;
+  // Inicio del período vigente (reingreso): la aptitud y los vencimientos solo cuentan desde aquí
+  periodoDesde?: string | null;
   aptitud: Aptitud | null;
   aptitudFecha: string | null;
   proximoExamen: string | null;
@@ -90,7 +97,7 @@ export function iniciales(t: Pick<Trabajador, "nombres" | "apellidos">) {
 
 const base = {
   turno: "Diurno",
-  lateralidad: "Diestro",
+  lateralidad: "diestro",
   telefono: "0414-0000000",
   correo: "",
 };

@@ -1,0 +1,34 @@
+# RESPALDO de los latidos. Desde 20261030909000 los dispara Supabase con pg_cron a la hora exacta (avisos cada 5 min,
+# constancias cada 15, tasa BCV cada 30), porque GitHub atrasaba este cron de 4 a 7 horas. Este workflow queda cada
+# hora por si pg_cron fallara: las rutas no repiten envíos, así que llamarlas de más no duplica nada.
+# Repo público: minutos sin límite. Sin secretos: la clave vive en Vercel.
+name: Avisos al celular
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: avisos-celular
+  cancel-in-progress: false
+
+jobs:
+  avisos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Enviar avisos nuevos
+        run: |
+          curl -sS --max-time 60 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/avisos/campana"
+      # Constancias automáticas a RR. HH.: la base decide a qué empresa ya le toca su correo del día (una vez al día)
+      - name: Correo diario de constancias
+        run: |
+          curl -sS --max-time 70 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/envios/constancias-dia"
+      # Tasa BCV (respaldo del cron diario de Vercel): solo va al BCV si falta; si no, responde «al día».
+      # Si falla, la tasa se puede escribir a mano en Facturación.
+      - name: Tasa BCV
+        run: |
+          curl -sS --max-time 45 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/tasa-bcv" || true

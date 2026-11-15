@@ -1,11 +1,20 @@
 "use server";
 
+import { plazoSala } from "@/lib/telemedicina-tipos";
+import { normalizarPermisos } from "@/lib/permisos-portal";
+import { esRolEmpresa } from "@/lib/sesion-roles";
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
 import { URL_PUBLICA } from "@/lib/invitaciones";
+import { invalidarEmpresas } from "@/lib/empresas";
 import { invalidarSesion, obtenerSesion, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { cambiosSugeridos } from "@/lib/paraclinicos-sugeridos";
+import { CLASES } from "@/lib/estudios";
+import { esCategoria } from "@/lib/recomendaciones-categorias";
+import { ahora } from "@/lib/fecha";
+import { recordatorioCitasDeFormulario } from "@/lib/recordatorio-citas";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -45,7 +54,15 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       const r = { rango_min: numero("d_rango_min"), rango_max: numero("d_rango_max"), rango_min_f: numero("d_rango_min_f"), rango_max_f: numero("d_rango_max_f") };
       if (r.rango_min !== null && r.rango_max !== null && r.rango_min > r.rango_max) return { ok: false, mensaje: "El mínimo no puede ser mayor que el máximo." };
-      campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r };
+      // Otros nombres con que lo escriben los laboratorios (lector de resultados): hasta 20, de hasta 60 letras
+      const sinonimos = [...new Set((texto(datos, "d_sinonimos") ?? "").split(",").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 20);
+      // Fuente del rango (sociedad o guía y año): se ve en la lista; hasta 400 letras
+      const fuente = (texto(datos, "d_fuente") ?? "").replace(/\s+/g, " ").slice(0, 400);
+      // Clase de estudio (laboratorio, imagen, funcional): vacía = se deduce del nombre
+      const clase = texto(datos, "d_clase");
+      const previos: Record<string, unknown> = { ...((anterior as Record<string, unknown>) ?? {}) };
+      delete previos.clase;
+      campos.datos = { ...previos, tipo: texto(datos, "d_tipo") === "informe" ? "informe" : "numero", unidad: texto(datos, "d_unidad") ?? "", ...r, sinonimos, fuente, ...(clase && clase in CLASES ? { clase } : {}) };
     }
 
     // Perfiles de paraclínicos: empresas y tipos de examen (motivos) donde se sugieren
@@ -53,6 +70,16 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
       const uuids = (k: string) => (texto(datos, k) ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
       const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
       campos.datos = { ...((anterior as Record<string, unknown>) ?? {}), empresas: uuids("d_empresas"), motivos: uuids("d_motivos") };
+    }
+
+    // Recomendaciones de empresa y trabajador: categoría del botón desplegable de la consulta ("" = automática)
+    if ((lista === "recomendacion_empresa" || lista === "recomendacion_paciente") && datos.has("d_categoria")) {
+      const anterior = id ? (await supabase.from("lista_items").select("datos").eq("id", id).eq("org_id", sesion.orgId!).maybeSingle()).data?.datos : null;
+      const previos: Record<string, unknown> = { ...((anterior as Record<string, unknown>) ?? {}) };
+      const categoria = texto(datos, "d_categoria");
+      if (categoria && esCategoria(categoria)) previos.categoria = categoria;
+      else delete previos.categoria;
+      campos.datos = previos;
     }
 
     if (id) {
@@ -67,6 +94,26 @@ export async function guardarItem(_: Resultado | null, datos: FormData): Promise
     }
     revalidatePath("/configuracion", "layout");
     return { ok: true, mensaje: "Guardado." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Paraclínicos: completa con los valores sugeridos solo lo que está vacío (unidad, rango, otros nombres). Se calcula
+// otra vez aquí con lo que hay en la base, así que nunca pisa algo que se escribió mientras la vista previa estaba abierta.
+export async function completarSugeridos(): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
+    const { data, error } = await supabase.from("lista_items").select("id, nombre, datos").eq("org_id", sesion.orgId!).eq("lista", "paraclinico");
+    if (error) throw error;
+    const { cambios } = cambiosSugeridos(data ?? []);
+    if (!cambios.length) return { ok: true, mensaje: "No había nada vacío que completar." };
+    const r = await Promise.all(cambios.map((c) => supabase.from("lista_items").update({ datos: c.datos }).eq("id", c.id).eq("org_id", sesion.orgId!)));
+    const fallidos = r.filter((x) => x.error).length;
+    revalidatePath("/configuracion", "layout");
+    return fallidos
+      ? { ok: false, mensaje: `Se completaron ${cambios.length - fallidos} de ${cambios.length}. Vuelve a intentarlo para los que faltan.` }
+      : { ok: true, mensaje: `Listo: ${cambios.length} exámenes completados. Revísalos y ajústalos a tu laboratorio.` };
   } catch (e) {
     return fallo(e);
   }
@@ -106,16 +153,51 @@ export async function moverItem(lista: string, id: string, direccion: -1 | 1): P
   }
 }
 
-export async function eliminarItem(id: string): Promise<Resultado> {
+// Borra del sistema (todas las empresas y motivos). Devuelve la fila completa para que «Deshacer» la reponga igual.
+export type FilaBorrada = { id: string; lista: string; codigo: string | null; nombre: string; grupo: string | null; texto: string | null; orden: number; activo: boolean; datos: Record<string, unknown> | null; base_id: string | null; origen: string | null; codigo_origen: string | null; lote_importacion: string | null };
+const COLUMNAS_ITEM = "id, lista, codigo, nombre, grupo, texto, orden, activo, datos, base_id, origen, codigo_origen, lote_importacion";
+
+export async function eliminarItem(id: string): Promise<Resultado & { fila?: FilaBorrada }> {
   try {
     const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
-    const { error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!);
+    const { data: fila } = await supabase.from("lista_items").select(COLUMNAS_ITEM).eq("id", id).eq("org_id", sesion.orgId!).maybeSingle();
+    if (!fila) return { ok: false, mensaje: "Ese elemento ya no existe." };
+    const { data: borradas, error } = await supabase.from("lista_items").delete().eq("id", id).eq("org_id", sesion.orgId!).select("id");
     if (error) {
-      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Desactívalo en lugar de eliminarlo." };
+      if (error.code === "23503") return { ok: false, mensaje: "Este valor ya se usa en registros. Ocúltalo (el ojo) en lugar de borrarlo." };
+      throw error;
+    }
+    // La RLS puede impedir el borrado sin dar error: se dice, no se finge
+    if (!borradas?.length) return { ok: false, mensaje: "No se borró: tu usuario no puede borrar este elemento. Pídeselo al administrador." };
+    revalidatePath("/configuracion", "layout");
+    return { ok: true, mensaje: `«${fila.nombre}» se borró del sistema.`, fila: fila as FilaBorrada };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// «Deshacer» de eliminarItem: repone la misma fila (mismo id) en la organización de quien la borró
+export async function restaurarItem(fila: FilaBorrada): Promise<Resultado> {
+  try {
+    const { sesion, supabase } = await contexto(ROLES_EDITAN_LISTAS);
+    if (!/^[0-9a-f-]{36}$/i.test(fila?.id ?? "") || typeof fila.lista !== "string" || typeof fila.nombre !== "string" || !fila.nombre.trim()) {
+      return { ok: false, mensaje: "No se pudo deshacer: datos incompletos." };
+    }
+    const { error } = await supabase.from("lista_items").insert({
+      id: fila.id, lista: fila.lista, org_id: sesion.orgId!, codigo: fila.codigo, nombre: fila.nombre, grupo: fila.grupo, texto: fila.texto,
+      orden: Number(fila.orden) || 0, activo: fila.activo !== false, datos: fila.datos ?? {}, base_id: fila.base_id, origen: fila.origen,
+      codigo_origen: fila.codigo_origen, lote_importacion: fila.lote_importacion,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Solo es «ya repuesto» si la fila está en la propia organización y en la misma lista
+        const { data: existe } = await supabase.from("lista_items").select("id").eq("id", fila.id).eq("org_id", sesion.orgId!).eq("lista", fila.lista).maybeSingle();
+        return existe ? { ok: true, mensaje: "Ya estaba repuesto." } : { ok: false, mensaje: "No se pudo deshacer: ese elemento ya existe en otro lugar. Créalo de nuevo con «Agregar»." };
+      }
       throw error;
     }
     revalidatePath("/configuracion", "layout");
-    return { ok: true, mensaje: "Eliminado." };
+    return { ok: true, mensaje: `«${fila.nombre}» volvió a su lugar.` };
   } catch (e) {
     return fallo(e);
   }
@@ -127,34 +209,65 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
     const { sesion, supabase } = await contexto(["administrador"]);
     const nombre = texto(datos, "nombre");
     if (!nombre) return { ok: false, mensaje: "Escribe el nombre." };
+    // Se parte de lo guardado: un ajuste que no esté en esta pantalla (o que agregue una migración) no se pierde
+    const { data: actual, error: e0 } = await supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle();
+    if (e0) throw e0;
     const ajustes = {
+      ...((actual?.ajustes ?? {}) as Record<string, unknown>),
       palabra_aptitud: texto(datos, "palabra_aptitud") ?? "Elegible",
       titulo_constancia: texto(datos, "titulo_constancia") ?? "Constancia de Aptitud",
       // Leyendas legales: vacío ("") = no imprimirla; null = la del Integral
       observacion_idoneidad: String(datos.get("observacion_idoneidad") ?? "").trim(),
-      constancia_copias: datos.get("constancia_copias") === "on",
+      constancia_copia: datos.get("constancia_copia") === "on",
       firma_paciente_constancia: datos.get("firma_paciente_constancia") === "on",
       firma_medico_ocupacional: datos.get("firma_medico_ocupacional") === "on",
       reposo_pie_copia: texto(datos, "reposo_pie_copia"),
       reposo_pie_original: texto(datos, "reposo_pie_original"),
+      reposo_diagnostico_original: datos.get("reposo_diagnostico_original") === "on",
       orden_nota: texto(datos, "orden_nota"),
       orden_nota_preempleo: String(datos.get("orden_nota_preempleo") ?? "").trim(),
+      nota_riesgos_puesto: String(datos.get("nota_riesgos_puesto") ?? "").trim(),
       mensaje_cita: texto(datos, "mensaje_cita"),
       mensaje_aptitud: texto(datos, "mensaje_aptitud"),
       certificado_titulo: texto(datos, "certificado_titulo"),
       certificado_nota: String(datos.get("certificado_nota") ?? "").trim(),
       firma_sello_separados: datos.get("firma_sello_separados") === "on",
+      // Centinela de plazos legales: además de la campana, avisar por correo al personal de salud
+      centinela_correo: datos.get("centinela_correo") === "on",
       meses_examen_periodico: Number(texto(datos, "meses_examen_periodico") ?? 12) || 12,
+      // Consulta: aviso (no bloquea) si la fecha de la evaluación pasa de N días hacia adelante
+      dias_aviso_fecha_futura: Math.min(3650, Math.max(1, Math.round(Number(texto(datos, "dias_aviso_fecha_futura") ?? 90)) || 90)),
+      // Recordatorios de citas (20261030955000): 3 avisos editables, celular, correo y hora de los avisos de días
+      recordatorio_citas: recordatorioCitasDeFormulario(datos),
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
+      seguimiento_distancia_dias: plazoSala(texto(datos, "seguimiento_distancia_dias") ?? 30),
+      // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)
+      dias_equipo_confianza: Math.min(90, Math.max(0, Math.round(Number(texto(datos, "dias_equipo_confianza") ?? 30)) || 0)),
+      // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)
+      celda_minima_empresa: Math.min(10, Math.max(0, Math.round(Number(texto(datos, "celda_minima_empresa") ?? 3)) || 0)),
       membrete_lema: texto(datos, "membrete_lema"),
+      // Nota de cobro y recibo: condiciones (vacío = no imprimir) y datos bancarios / pago móvil
+      cobro_condiciones: String(datos.get("cobro_condiciones") ?? "").trim().slice(0, 400),
+      cobro_datos_pago: String(datos.get("cobro_datos_pago") ?? "").trim().slice(0, 1200),
+      factura_datos_pago: String(datos.get("factura_datos_pago") ?? "").trim().slice(0, 400),
+      // Membrete: titular y su especialidad van antes del nombre del servicio en todos los impresos (vacío = no salen)
+      membrete_titular: texto(datos, "membrete_titular")?.slice(0, 80) ?? null,
+      membrete_credenciales: texto(datos, "membrete_credenciales")?.slice(0, 160) ?? null,
+      // Invitación de RR. HH.: «Le invita el Dr. …» (vacío = el nombre del servicio)
+      invita_como: texto(datos, "invita_como")?.slice(0, 120) ?? null,
       certificacion_trabajador: String(datos.get("certificacion_trabajador") ?? "").trim(),
+      // Informe de vigilancia: por defecto, los mismos criterios del SAME (para que la marcha en paralelo cuadre)
+      vigilancia_poblacion: texto(datos, "vigilancia_poblacion") === "todos" ? "todos" : "efectivos",
+      vigilancia_horas: texto(datos, "vigilancia_horas") === "nomina" ? "nomina" : "same",
     };
-    const { error } = await supabase
+    const { data: hecho, error } = await supabase
       .from("organizaciones")
       .update({ nombre, rif: texto(datos, "rif"), direccion: texto(datos, "direccion"), telefono: texto(datos, "telefono"), correo: texto(datos, "correo"), ajustes })
-      .eq("id", sesion.orgId!);
+      .eq("id", sesion.orgId!)
+      .select("id");
     if (error) throw error;
+    if (!hecho?.length) return { ok: false, mensaje: "No se guardó: tu usuario no tiene permiso para cambiar la organización. Entra como administrador." };
     invalidarSesion();
     revalidatePath("/", "layout");
     return { ok: true, mensaje: "Datos de la organización guardados." };
@@ -215,6 +328,7 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
     const empresas = datos.getAll("empresas").map(String).filter(Boolean);
     const { error } = await supabase.rpc("agregar_miembro", { p_correo: correo, p_rol: rol, p_empresas: empresas.length ? empresas : null });
     if (error) return { ok: false, mensaje: error.message };
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: `${correo} agregado.` };
@@ -233,19 +347,35 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
     const nombre = texto(datos, "nombre")?.slice(0, 120) ?? null;
     const telefono = texto(datos, "telefono")?.slice(0, 30) ?? null;
     const token = randomBytes(32).toString("base64url");
-    const { data: empresa } = await supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle();
+    const [{ data: empresa }, { data: org }] = await Promise.all([
+      supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle(),
+      supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle(),
+    ]);
+    const invita = String((org?.ajustes as { invita_como?: string | null } | null)?.invita_como ?? "").trim();
     const { error } = await supabase.from("invitaciones").insert({
       org_id: sesion.orgId,
       empresa_id: empresaId,
       nombre,
       telefono,
       token_hash: "\\x" + createHash("sha256").update(token).digest("hex"),
+      // Qué podrá hacer en el portal; sin casillas en el formulario (otra pantalla) = todo
+      permisos_portal: datos.get("permisos_enviados") ? normalizarPermisos(datos.getAll("permisos")) : null,
     });
     if (error) return { ok: false, mensaje: error.message };
     revalidatePath("/configuracion/usuarios");
     const enlace = `${URL_PUBLICA}/invitacion/${token}`;
     const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "su empresa";
-    const mensajeWa = `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le invito al portal de salud ocupacional de ${sesion.organizacion} para ${nombreEmpresa}. Desde ahí puede pedir evaluaciones con fecha y hora y ver los resultados. Cree su cuenta con este enlace (vale 7 días y un solo uso): ${enlace}`;
+    const mensajeWa = [
+      `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${invita || sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
+      "",
+      "Son 3 pasos:",
+      "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 8 letras o números):",
+      enlace,
+      "2. Abra su correo y toque el botón de confirmación que le llegó (si no lo ve, busque en Spam).",
+      "3. Se abre de nuevo la página del portal: toque el botón verde «Aceptar y entrar al portal». ¡Listo!",
+      "",
+      "El enlace vale 7 días y sirve una sola vez. Cualquier duda, responda este mensaje.",
+    ].join("\n");
     const numero = telefono ? telefonoWhatsApp(telefono) : "";
     return {
       ok: true,
@@ -261,10 +391,24 @@ export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resu
 export async function anularInvitacion(id: string): Promise<Resultado> {
   try {
     const { supabase } = await contexto(["administrador"]);
-    const { error } = await supabase.from("invitaciones").update({ revocada_en: new Date().toISOString() }).eq("id", id).is("revocada_en", null);
+    const { error } = await supabase.from("invitaciones").update({ revocada_en: new Date(ahora()).toISOString() }).eq("id", id).is("revocada_en", null);
     if (error) throw error;
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Invitación anulada." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Qué puede hacer una persona de la empresa en el portal (consultas, atendidos del mes, descargas). Todo = null.
+export async function cambiarPermisosPortal(miembroId: string, permisos: string[]): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.from("miembros").update({ permisos_portal: normalizarPermisos(permisos) }).eq("id", miembroId);
+    if (error) throw error;
+    invalidarSesion();
+    revalidatePath("/configuracion/usuarios");
+    return { ok: true, mensaje: "Permisos guardados. Los verá la próxima vez que abra el portal." };
   } catch (e) {
     return fallo(e);
   }
@@ -277,11 +421,26 @@ export async function cambiarRol(miembroId: string, rol: Rol, activo: boolean, a
     if (m?.usuario_id === sesion.usuarioId && (rol !== "administrador" || !activo)) {
       return { ok: false, mensaje: "No puedes quitarte a ti mismo el rol de administrador." };
     }
-    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: accesoClinico }).eq("id", miembroId);
+    // Roles de empresa nunca son clínicos (la base lo exige: miembros_empresa_sin_clinico)
+    const { error } = await supabase.from("miembros").update({ rol, activo, acceso_clinico: esRolEmpresa(rol) ? false : accesoClinico }).eq("id", miembroId);
     if (error) throw error;
+    invalidarEmpresas();
     invalidarSesion();
     revalidatePath("/configuracion/usuarios");
     return { ok: true, mensaje: "Usuario actualizado." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// Perdió el teléfono y los códigos de respaldo: otro administrador borra su verificación en dos pasos y en la
+// próxima entrada escanea un QR nuevo. La base exige que quien reinicia ya haya hecho su propio segundo paso.
+export async function reiniciarDosPasos(usuarioId: string): Promise<Resultado> {
+  try {
+    const { supabase } = await contexto(["administrador"]);
+    const { error } = await supabase.rpc("reiniciar_dos_pasos", { p_usuario: usuarioId });
+    if (error) return { ok: false, mensaje: error.message };
+    return { ok: true, mensaje: "Verificación reiniciada: al entrar escaneará un código QR nuevo con su teléfono." };
   } catch (e) {
     return fallo(e);
   }

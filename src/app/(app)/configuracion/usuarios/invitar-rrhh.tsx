@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Link2, Link2Off, Loader2, MessageCircle } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
+import { CasillasPermisos } from "@/components/app/permisos-portal";
 import { confirmar } from "@/components/app/confirmar";
+import { RequiereInternet, useSinInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Invitacion } from "@/lib/invitaciones";
+import type { PermisoPortal } from "@/lib/permisos-portal";
 import { cn } from "@/lib/utils";
 import { anularInvitacion, crearInvitacion } from "../acciones";
 
@@ -21,14 +25,21 @@ const ESTADO: Record<Invitacion["estado"], { t: string; c: string }> = {
 const dia = (iso: string) => new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
 // RR. HH. de cada empresa entra al portal con un enlace que el administrador manda por WhatsApp desde su teléfono
-export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; invitaciones: Invitacion[] }) {
+export function InvitarRrhh({ empresas, invitaciones, empresaInicial }: { empresas: Empresa[]; invitaciones: Invitacion[]; empresaInicial?: string }) {
   const [estado, accion, creando] = useActionState(crearInvitacion, null);
-  const [empresaId, setEmpresaId] = useState(empresas[0]?.id ?? "");
+  const [empresaId, setEmpresaId] = useState(empresas.some((e) => e.id === empresaInicial) ? empresaInicial! : (empresas[0]?.id ?? ""));
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [permisos, setPermisos] = useState<PermisoPortal[] | null>(null);
   const [, iniciar] = useTransition();
+  const sinInternet = useSinInternet();
   const contactos = empresas.find((e) => e.id === empresaId)?.contactos ?? [];
+  // A la vista solo lo que sirve (Esperando / Ya entró); anuladas y vencidas detrás de «Ver anteriores»
+  // (el mantenimiento las borra solo a los 30 días si nunca se usaron)
+  const [verAnteriores, setVerAnteriores] = useState(false);
+  const anteriores = invitaciones.filter((i) => i.estado === "anulada" || i.estado === "vencida").length;
+  const visibles = verAnteriores ? invitaciones : invitaciones.filter((i) => i.estado === "vigente" || i.estado === "usada");
 
   return (
     <Card id="invitar">
@@ -37,21 +48,34 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
         <p className="text-sm text-muted-foreground">Le llega un enlace por WhatsApp; crea su cuenta y entra directo al portal de su empresa para pedir evaluaciones y ver resultados. Vale 7 días y un solo uso.</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form action={accion} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        {sinInternet && <RequiereInternet texto="La invitación vive en la nube para que RR. HH. la abra desde su teléfono. Conéctate para crearla." />}
+        {empresas.length === 0 && (
+          <p className="text-sm">
+            Primero registra la empresa en <Link href="/empresas" className="font-medium text-primary underline-offset-4 hover:underline">Empresas</Link>; luego vuelve aquí para crear el enlace.
+          </p>
+        )}
+        <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <CampoSelect id="empresa_id" etiqueta="Empresa *" value={empresaId} onChange={(e) => { setEmpresaId(e.target.value); setNombre(""); setTelefono(""); }}>
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </CampoSelect>
           <Campo id="nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} />
           <Campo id="telefono" etiqueta="WhatsApp" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" />
-          <Button type="submit" disabled={creando || !empresaId} className="h-10">{creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+            <p className="text-sm font-medium">Qué podrá hacer en el portal</p>
+            <CasillasPermisos nombre="permisos" valor={permisos} onChange={setPermisos} />
+            <p className="text-xs text-muted-foreground">Siempre podrá ver a sus trabajadores y pedir informes o copias. Lo cambias después en «Usuarios y roles».</p>
+          </div>
           {contactos.length > 0 && (
-            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
               Contactos de la empresa:
               {contactos.map((c) => (
                 <button key={c.telefono} type="button" onClick={() => { setNombre(c.nombre); setTelefono(c.telefono); }} className="rounded-full border px-2 py-0.5 hover:bg-muted">{c.nombre}</button>
               ))}
             </p>
           )}
+          <div className="flex justify-end sm:col-span-2 lg:col-span-3">
+            <Button type="submit" disabled={creando || !empresaId || sinInternet} className="h-10 w-full sm:w-auto">{creando ? <Loader2 className="animate-spin" /> : <Link2 />} Crear enlace</Button>
+          </div>
         </form>
 
         {estado?.ok && estado.enlace ? (
@@ -67,9 +91,10 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
           <Aviso resultado={estado} />
         )}
 
-        {invitaciones.length > 0 && (
+        {verAnteriores && <p className="text-xs text-muted-foreground">Anuladas y vencidas. Se borran solas a los 30 días.</p>}
+        {visibles.length > 0 && (
           <ul className="divide-y rounded-md border">
-            {invitaciones.map((i) => (
+            {visibles.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"} <span className="font-normal text-muted-foreground">· {i.empresa}</span></span>
@@ -84,6 +109,11 @@ export function InvitarRrhh({ empresas, invitaciones }: { empresas: Empresa[]; i
               </li>
             ))}
           </ul>
+        )}
+        {anteriores > 0 && (
+          <button type="button" onClick={() => setVerAnteriores(!verAnteriores)} aria-expanded={verAnteriores} className="text-xs text-muted-foreground underline-offset-4 hover:underline">
+            {verAnteriores ? "Ocultar anteriores" : `Ver anteriores (${anteriores})`}
+          </button>
         )}
       </CardContent>
     </Card>

@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, Mail, MessageCircle, UserPlus } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { plantillaInicial, type GrupoPorEnviar, type Plantilla } from "@/lib/envios-tipos";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, type Aptitud } from "@/lib/pacientes";
+import { enEscritorio } from "@/lib/escritorio";
 import { cn } from "@/lib/utils";
 import { enviar } from "../acciones";
 
@@ -38,8 +39,11 @@ function Grupo({ g, plantilla }: { g: GrupoPorEnviar; plantilla: Plantilla }) {
 
   // Un toque: se abre la pestaña de WhatsApp en el mismo clic (si no, el navegador la bloquea) y se le pone
   // el enlace cuando el servidor termina el PDF. Si el navegador no la abrió, queda el botón «Abrir WhatsApp».
+  // En el escritorio una ventana en blanco no abre nada: el enlace se abre al final y va al navegador de Windows.
   const mandar = (clave: string, contactoIds: string[], telefonosExtra: string[]) => {
-    const ventana = window.open("", "_blank");
+    const escritorio = enEscritorio();
+    // eslint-disable-next-line no-restricted-syntax -- solo en la web: la pestaña se abre en el clic y se dirige después
+    const ventana = escritorio ? null : window.open("", "_blank");
     setEnCurso(clave);
     setError(null);
     iniciar(async () => {
@@ -64,6 +68,7 @@ function Grupo({ g, plantilla }: { g: GrupoPorEnviar; plantilla: Plantilla }) {
         return;
       }
       if (ventana) ventana.location.href = enlace.whatsapp;
+      else if (escritorio) window.open(enlace.whatsapp, "_blank");
       setHecho((l) => [...l, ...(r.enlaces ?? [])]);
     });
   };

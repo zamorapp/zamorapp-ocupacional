@@ -2,16 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FilePlus2, Printer, Receipt } from "lucide-react";
 import { NuevoPresupuesto } from "./nuevo-presupuesto";
+import { AvisoFacturar } from "./aviso-facturar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { after } from "next/server";
 import { hoyCaracas } from "@/lib/fecha";
+import { actualizarTasaBcv } from "@/lib/tasa-bcv-actualizar";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
-import { listarAtenciones, listarCobros, listarServicios, tasaVigente } from "@/lib/facturacion";
-import { bs, type Cobro, etiquetaEstado, totales, usd } from "@/lib/facturacion-tipos";
+import { listarAtenciones, listarCobros, listarMotivosCobro, listarServicios, sugerenciasCobro, tasasDeHoy } from "@/lib/facturacion";
+import { bs, type Cobro, etiquetaEstado, saldo, totales, usd } from "@/lib/facturacion-tipos";
 import { ETIQUETA_APTITUD, type Aptitud, fecha } from "@/lib/pacientes";
 import { resolverPeriodo } from "@/lib/reportes";
+import { periodoAnterior } from "@/lib/periodos";
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { Servicios } from "./servicios";
@@ -37,7 +41,16 @@ const dias = (iso: string, hoy: string) => Math.round((Date.parse(hoy) - Date.pa
 type Props = { searchParams: Promise<{ vista?: string; p?: string; desde?: string; hasta?: string }> };
 
 export default async function Facturacion({ searchParams }: Props) {
-  const [q, sesion, empresaId, empresas, tasa] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(), tasaVigente()]);
+  const [q, sesion, empresaId, empresas, tasa0] = await Promise.all([searchParams, obtenerSesion(), empresaActivaId(), listarEmpresas(true), tasasDeHoy()]);
+  // Tasa BCV: si falta la de hoy se busca ya (máx. 8 s) para facturar con ella; si solo falta la de mañana, después de
+  // responder. Respaldo del cron diario, porque GitHub corre su latido cada varias horas.
+  let tasa = tasa0;
+  if (!sesion.demo && tasa0.hoy?.fecha !== hoyCaracas()) {
+    const listo = await Promise.race([actualizarTasaBcv().then((r) => r.guardada), new Promise<boolean>((ok) => setTimeout(() => ok(false), 8000))]);
+    if (listo) tasa = await tasasDeHoy();
+  } else if (!sesion.demo && !tasa0.proxima) {
+    after(() => actualizarTasaBcv());
+  }
   const vista = VISTAS.some(([k]) => k === q.vista) ? q.vista! : "cobros";
   const editable = !sesion.demo && ["administrador", "gerente_medico", "recepcion"].includes(sesion.rol ?? "");
   const periodo = resolverPeriodo(q.p ?? "mes", q.desde, q.hasta);
@@ -50,25 +63,29 @@ export default async function Facturacion({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Facturación</h1>
           <p className="text-muted-foreground">Servicios, pacientes atendidos y notas de cobro a las empresas clientes.</p>
         </div>
-        <TasaBcv actual={tasa} hoy={hoyCaracas()} editable={editable} />
+        <TasaBcv actual={tasa.hoy} proxima={tasa.proxima} hoy={hoyCaracas()} editable={editable} />
       </div>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+      {/* Celular: las pestañas en UNA fila que se desliza de lado (antes ocupaban 3 renglones) */}
+      <nav aria-label="Secciones de facturación" className="-mx-1 overflow-x-auto px-1 sm:mx-0 sm:px-0">
+      <div className="flex w-max gap-1 rounded-lg border bg-card p-1 sm:w-auto sm:flex-wrap">
         {VISTAS.map(([k, t]) => (
-          <Link key={k} href={`/facturacion?vista=${k}`} className={cn("rounded-md px-3 py-1.5 text-sm transition", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
+          <Link key={k} href={`/facturacion?vista=${k}`} aria-current={vista === k ? "page" : undefined}
+            className={cn("flex items-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition max-sm:min-h-11", vista === k ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
         ))}
       </div>
+      </nav>
 
-      {vista === "servicios" && <Servicios servicios={await listarServicios()} editable={editable} />}
+      {vista === "servicios" && <Servicios servicios={await listarServicios()} motivos={await listarMotivosCobro()} editable={editable} />}
 
       {vista === "cuentas" && (async () => {
-        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad
+        // Notas emitidas sin pagar, agrupadas por empresa y por antigüedad; cuenta solo lo que falta (descontados los abonos)
         const hoy = hoyCaracas();
         const abiertas = (await listarCobros()).filter((c) => c.tipo === "cobro" && c.estado === "emitida" && (!empresaId || c.empresaId === empresaId));
         const porEmpresa = new Map<string, { empresa: string; tramos: number[]; total: number; notas: number }>();
         for (const c of abiertas) {
           const e = porEmpresa.get(c.empresaId) ?? { empresa: c.empresa, tramos: [0, 0, 0, 0], total: 0, notas: 0 };
-          const t = totales(c).total, d = dias(c.fecha, hoy);
+          const t = saldo(c).falta, d = dias(c.fecha, hoy);
           e.tramos[d <= 30 ? 0 : d <= 60 ? 1 : d <= 90 ? 2 : 3] += t;
           e.total += t; e.notas += 1;
           porEmpresa.set(c.empresaId, e);
@@ -141,7 +158,7 @@ export default async function Facturacion({ searchParams }: Props) {
                         <TableCell><Link href={`/facturacion/${c.id}`} className="hover:text-primary">{c.empresa}</Link></TableCell>
                         <TableCell className="text-sm">{tipo === "presupuesto" ? fecha(c.vence) : c.desde ? `${fecha(c.desde)} al ${fecha(c.hasta)}` : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums"><div className="font-medium">{usd(t.total)}</div>{t.totalBs !== null && <div className="text-xs text-muted-foreground">{bs(t.totalBs)}</div>}</TableCell>
-                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span></TableCell>
+                        <TableCell className="pr-5"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO[c.estado])}>{etiquetaEstado(c.tipo, c.estado)}</span>{c.porAgente ? <span className="ml-1.5 rounded-full border border-primary/40 px-2 py-0.5 text-xs text-primary" title={`La armó el agente «${c.porAgente}»`}>Del agente</span> : null}{c.estado === "emitida" && c.pagos.length > 0 && <div className="mt-0.5 text-xs text-muted-foreground">Falta {usd(saldo(c).falta)}</div>}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -156,20 +173,34 @@ export default async function Facturacion({ searchParams }: Props) {
       {vista === "atendidos" && (async () => {
         const atenciones = sesion.demo ? [] : await listarAtenciones(empresaId, periodo.desde, periodo.hasta);
         const pendientes = atenciones.filter((a) => !a.cobroId).length;
+        // Vigilancia, evaluaciones de puestos… del período sin cobrar: también abren la pregunta de facturar
+        const otros = editable && empresaId && !sesion.demo ? (await sugerenciasCobro(empresaId, periodo.desde, periodo.hasta)).length : 0;
         const params = new URLSearchParams({ desde: periodo.desde, hasta: periodo.hasta, ...(empresaId ? { empresa: empresaId } : {}) });
+        // Atajos de mes: se factura casi siempre el mes que terminó
+        const esteMes = resolverPeriodo("mes");
+        const mesPasado = periodoAnterior(esteMes);
+        const atajos = [["Mes pasado", mesPasado], ["Este mes", esteMes]] as const;
         return (
           <div className="space-y-3">
+            {editable && empresa && pendientes + otros > 0 && (
+              <AvisoFacturar empresa={empresa.razonSocial} empresaId={empresa.id} desde={periodo.desde} hasta={periodo.hasta} pendientes={pendientes} otros={otros} etiqueta={atajos.find(([, p]) => p.desde === periodo.desde && p.hasta === periodo.hasta)?.[1].etiqueta ?? `del ${fecha(periodo.desde)} al ${fecha(periodo.hasta)}`} />
+            )}
             <form className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="vista" value="atendidos" />
               <input type="hidden" name="p" value="rango" />
+              <div className="flex gap-1 rounded-lg border bg-card p-1">
+                {atajos.map(([t, p]) => (
+                  <Link key={t} href={`/facturacion?vista=atendidos&p=rango&desde=${p.desde}&hasta=${p.hasta}`} className={cn("rounded-md px-3 py-1.5 text-sm transition", periodo.desde === p.desde && periodo.hasta === p.hasta ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{t}</Link>
+                ))}
+              </div>
               <input type="date" name="desde" defaultValue={periodo.desde} className="h-10 rounded-md border bg-card px-3 text-sm" />
               <input type="date" name="hasta" defaultValue={periodo.hasta} className="h-10 rounded-md border bg-card px-3 text-sm" />
               <Button type="submit" variant="outline">Ver</Button>
               <span className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Todas las empresas (elige una arriba para cobrar)"}</span>
               <div className="ml-auto flex gap-2">
-                <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Reporte</Link></Button>
-                {editable && empresaId && pendientes > 0 && (
-                  <Button asChild><Link href={`/facturacion/nuevo?${params}`}><FilePlus2 /> Crear nota de cobro ({pendientes})</Link></Button>
+                <Button variant="outline" asChild><Link href={`/imprimir/atendidos?${params}`} target="_blank"><Printer /> Relación de pacientes</Link></Button>
+                {editable && empresaId && pendientes + otros > 0 && (
+                  <Button asChild><Link href={`/facturacion/nuevo?${params}&factura=1`}><FilePlus2 /> Facturar ({pendientes + otros})</Link></Button>
                 )}
               </div>
             </form>

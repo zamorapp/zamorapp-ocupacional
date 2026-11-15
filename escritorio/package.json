@@ -6,7 +6,7 @@
   "description": "Programa de escritorio de zamorApp: puerta local, copia local y ventana Tauri",
   "scripts": {
     "puerta": "node puerta/index.mjs",
-    "prueba": "node --test \"pruebas/*.test.mjs\""
+    "prueba": "node --test --test-concurrency=1 \"pruebas/*.test.mjs\""
   },
   "dependencies": {
     "pg": "^8.16.3"

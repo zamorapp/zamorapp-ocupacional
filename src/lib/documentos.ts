@@ -1,12 +1,18 @@
 import "server-only";
+import { cache } from "react";
 import { obtenerConsulta } from "@/lib/consultas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerSesion } from "@/lib/sesion";
 import type { OpcionImpresion } from "@/lib/documentos-opciones";
+import { ahora } from "@/lib/fecha";
+import { faltantesMedicinas, sugerenciasCatalogo, textoFalta, type CampoRecipe } from "@/lib/recipe";
+import { opciones } from "@/lib/listas";
 
 export { opcionesDeUrl, type OpcionImpresion } from "@/lib/documentos-opciones";
 
 export type AjustesDocumentos = {
+  dias_aviso_fecha_futura?: number; // consulta: avisar si la fecha de la evaluación pasa de N días hacia adelante
+  seguimiento_distancia_dias?: number; // telemedicina: días que una consulta a distancia espera en la sala antes de archivarse
   palabra_aptitud?: string;
   titulo_constancia?: string;
   observacion_idoneidad?: string | null;
@@ -14,6 +20,8 @@ export type AjustesDocumentos = {
   firma_medico_ocupacional?: boolean;
   reposo_pie_copia?: string | null;
   reposo_pie_original?: string | null;
+  // Diagnóstico en el original del reposo que va a RR. HH. (Cesar, 06-nov: por defecto NO; la copia del servicio sí lo lleva)
+  reposo_diagnostico_original?: boolean;
   orden_nota?: string | null;
   mensaje_cita?: string | null;
   mensaje_aptitud?: string | null;
@@ -21,12 +29,53 @@ export type AjustesDocumentos = {
   certificado_nota?: string | null;
   firma_sello_separados?: boolean;
   membrete_lema?: string | null;
+  // Membrete: el médico titular va primero (p. ej. «Dr. …») y debajo su especialidad y universidades
+  membrete_titular?: string | null;
+  membrete_credenciales?: string | null;
   certificacion_trabajador?: string | null;
-  constancia_copias?: boolean;
+  // Imprimir por defecto también la copia de la constancia para el servicio médico (cada impresión lo puede cambiar)
+  constancia_copia?: boolean;
   orden_nota_preempleo?: string | null;
+  // Nota legal debajo de «Riesgos del puesto» (null = la de zamorApp; "" = sin nota)
+  nota_riesgos_puesto?: string | null;
 };
 
 export type DatosDocumento = NonNullable<Awaited<ReturnType<typeof obtenerDocumento>>>;
+
+// Datos que se repiten entre documentos (centro, médico, empresa…): con cache() se piden una sola vez por petición,
+// así un lote de 150 constancias no repite 150 veces el logo del centro ni la firma del mismo médico
+const datosOrg = cache(async (id: string) =>
+  (await crearClienteServidor()).from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", id).single());
+const datosHistorico = cache(async (id: string) =>
+  (await crearClienteServidor()).from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", id).maybeSingle()
+    .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null })));
+export type TipoDocumentoFirmado = "consulta" | "indicacion" | "ergonomia" | "riesgos" | "psicosocial" | "puesto";
+type Imagenes = { firma_url: string | null; sello_url: string | null };
+const SIN_IMAGENES: Imagenes = { firma_url: null, sello_url: null };
+// La firma propia se pide una vez por petición (un lote de 150 constancias del mismo médico no la repite)
+const firmaPropia = cache(async (id: string) =>
+  ((await (await crearClienteServidor()).rpc("firma_sello", { p_usuario: id }).maybeSingle()).data as Imagenes | null) ?? SIN_IMAGENES);
+// Firma y sello de quien firmó ESE documento (20261030951000): el firmante siempre; el resto del personal clínico solo
+// si el documento ya está cerrado. La base toma el firmante del propio documento: nadie elige de quién.
+export const firmaDeDocumento = cache(async (firmante: string, tipo: TipoDocumentoFirmado, docId: string): Promise<Imagenes> => {
+  const sesion = await obtenerSesion();
+  if (firmante === sesion.usuarioId) return firmaPropia(firmante);
+  const { data } = await (await crearClienteServidor()).rpc("firma_de_documento", { p_tipo: tipo, p_id: docId }).maybeSingle();
+  return (data as Imagenes | null) ?? SIN_IMAGENES;
+});
+const perfilMedico = cache(async (id: string) =>
+  (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", id).maybeSingle());
+const datosMedico = async (id: string, tipo: TipoDocumentoFirmado, docId: string) => {
+  const [{ data: p }, img] = await Promise.all([perfilMedico(id), firmaDeDocumento(id, tipo, docId)]);
+  return { data: p ? { ...p, ...img } : null };
+};
+const datosMotivo = cache(async (id: string) => (await crearClienteServidor()).from("lista_items").select("nombre, codigo, grupo").eq("id", id).maybeSingle());
+const datosEmpresa = cache(async (id: string) => (await crearClienteServidor()).from("empresas").select("razon_social, rif, logo, proyecto").eq("id", id).single());
+const datosDependencia = cache(async (id: string) => (await crearClienteServidor()).from("dependencias").select("nombre").eq("id", id).maybeSingle());
+
+// Para hojas que no salen de una consulta (indicación o récipe sin consulta): centro y médico con firma y sello
+export const datosDeOrg = datosOrg;
+export const datosDeMedico = datosMedico;
 
 // Reúne todo lo que necesita cualquier documento de una consulta
 export async function obtenerDocumento(consultaId: string) {
@@ -38,22 +87,13 @@ export async function obtenerDocumento(consultaId: string) {
   if (!c) return null;
 
   const [{ data: org }, { data: medico }, { data: motivo }, { data: empresa }, { data: dep }, { data: trab }, sesion] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, ajustes, logo").eq("id", c.org_id).single(),
+    datosOrg(c.org_id),
     // Consulta importada del SAME atendida por un médico sin cuenta: se muestra su nombre, nunca firma ni sello
-    c.origen && c.medico_historico_id
-      ? supabase.from("medicos_historicos").select("nombre_completo, cedula, mpps, colegio_medicos, especialidad").eq("id", c.medico_historico_id).maybeSingle()
-          .then(({ data: h }) => ({ data: h ? { ...h, registro_inpsasel: null, correo: null, firma_url: null, sello_url: null, mostrar_firma: false, mostrar_sello: false } : null }))
-      : c.medico_id
-      ? Promise.all([
-          supabase.from("perfiles").select("nombre_completo, cedula, mpps, colegio_medicos, registro_inpsasel, especialidad, correo, mostrar_firma, mostrar_sello").eq("id", c.medico_id).maybeSingle(),
-          // Firma y sello: privados, solo para personal clínico (firma_sello)
-          supabase.rpc("firma_sello", { p_usuario: c.medico_id }).maybeSingle(),
-        ]).then(([{ data: p }, { data: img }]) => ({ data: p ? { ...p, ...((img as { firma_url: string | null; sello_url: string | null } | null) ?? { firma_url: null, sello_url: null }) } : null }))
-      : Promise.resolve({ data: null }),
-    c.motivo_id ? supabase.from("lista_items").select("nombre, codigo, grupo").eq("id", c.motivo_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("empresas").select("razon_social, rif, logo").eq("id", c.empresa_id).single(),
-    c.dependencia_id ? supabase.from("dependencias").select("nombre").eq("id", c.dependencia_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
+    c.origen && c.medico_historico_id ? datosHistorico(c.medico_historico_id) : c.medico_id ? datosMedico(c.medico_id, "consulta", consultaId) : Promise.resolve({ data: null }),
+    c.motivo_id ? datosMotivo(c.motivo_id) : Promise.resolve({ data: null }),
+    datosEmpresa(c.empresa_id),
+    c.dependencia_id ? datosDependencia(c.dependencia_id) : Promise.resolve({ data: null }),
+    supabase.from("trabajadores").select("fecha_nacimiento, fecha_ingreso, fecha_ingreso_cargo, turno, numero_historia, ficha, tipo_contrato, tipo:lista_items(nombre)").eq("id", consulta.trabajador.id).single(),
     obtenerSesion(),
   ]);
 
@@ -66,39 +106,48 @@ export async function obtenerDocumento(consultaId: string) {
       firma_url: string | null; sello_url: string | null; mostrar_firma: boolean; mostrar_sello: boolean;
     } | null,
     motivo: motivo as { nombre: string; codigo: string | null; grupo: string | null } | null,
-    empresa: empresa as { razon_social: string; rif: string; logo: string | null },
+    empresa: empresa as { razon_social: string; rif: string; logo: string | null; proyecto?: string | null },
     dependencia: (dep as { nombre: string } | null)?.nombre ?? null,
     extra: trab as unknown as {
-      fecha_nacimiento: string | null; fecha_ingreso: string | null; turno: string | null; numero_historia: number;
+      fecha_nacimiento: string | null; fecha_ingreso: string | null; fecha_ingreso_cargo: string | null; turno: string | null; numero_historia: number;
       ficha: string | null; tipo_contrato: string | null; tipo: { nombre: string } | null;
     },
     // Pie de página: quién imprime y cuándo (hora de Venezuela)
-    impreso: { por: sesion.nombre, revision: consulta.datos.revision, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date()) },
+    impreso: { por: sesion.nombre, revision: consulta.datos.revision, el: new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" }).format(new Date(ahora())) },
     hora: c.hora_inicio as string,
     cierre: (c.hora_cierre as string | null) ?? null,
     // Partes que se ocultan en esta impresión (?sin=membrete,firma,…): las fija la página según la URL
     sin: [] as OpcionImpresion[],
+    // Constancia con su copia para el servicio médico (?copia=1|0; sin parámetro, lo que diga Configuración)
+    copia: false,
+    // Hojas del enlace de registro: van sin imágenes de firma y sello; esta línea dice que las firmó el médico
+    firmaEnlace: null as string | null,
   };
 }
 
-// Campos que exige la Res. MPPS 028 (G.O. 40.131) para imprimir un récipe
-export function faltantesRecipe(d: DatosDocumento) {
-  const f: string[] = [];
+export const copiaDeUrl = (copia: string | undefined, ajustes: AjustesDocumentos) => (copia === "1" ? true : copia === "0" ? false : ajustes.constancia_copia === true);
+
+// Campos que exige la Res. MPPS 028 (G.O. 40.131, 19-03-2013), reformada por la Res. 031 (G.O. 40.136, 26-03-2013,
+// art. 6) para imprimir un récipe. Sin uno de ellos la farmacia no puede despachar (art. 7).
+// Datos del médico, del centro y del paciente que faltan, con el lugar donde se completan
+export function faltantesGenerales(d: DatosDocumento): { texto: string; href: string | null }[] {
+  const f: { texto: string; href: string | null }[] = [];
   const m = d.medicoDatos;
-  if (!m?.nombre_completo) f.push("nombre del médico");
-  if (!m?.cedula) f.push("cédula del médico (Mi perfil)");
-  if (!m?.mpps) f.push("Nº MPPS del médico (Mi perfil)");
-  if (!d.org.nombre) f.push("nombre del centro");
-  if (!d.org.direccion) f.push("dirección del centro (Configuración › Organización)");
-  if (!d.org.rif) f.push("RIF del centro (Configuración › Organización)");
-  if (!d.extra.fecha_nacimiento) f.push("fecha de nacimiento del paciente");
-  const meds = d.datos.tratamiento.filter((x) => x.medicina);
-  if (!meds.length) f.push("al menos una medicina");
-  meds.forEach((x) => {
-    const falta = [!x.concentracion && "concentración", !x.presentacion && "presentación", !x.via && "vía", !x.dosis && "dosis", !x.frecuencia && "frecuencia", !x.duracion && "duración"].filter(Boolean);
-    if (falta.length) f.push(`${x.medicina}: ${falta.join(", ")}`);
-  });
+  const perfil = "/configuracion/perfil", org = "/configuracion/organizacion", ficha = `/pacientes/${d.trabajador.id}`;
+  if (!m?.nombre_completo) f.push({ texto: "nombre del médico", href: perfil });
+  if (!m?.cedula) f.push({ texto: "cédula del médico", href: perfil });
+  if (!m?.mpps) f.push({ texto: "Nº MPPS del médico", href: perfil });
+  if (!d.org.nombre) f.push({ texto: "nombre del centro", href: org });
+  if (!d.org.direccion) f.push({ texto: "dirección del centro", href: org });
+  if (!d.org.rif) f.push({ texto: "RIF del centro", href: org });
+  if (!d.extra.fecha_nacimiento) f.push({ texto: "fecha de nacimiento del paciente", href: ficha });
+  if (!d.datos.tratamiento.some((x) => x.medicina)) f.push({ texto: "al menos una medicina", href: null });
   return f;
+}
+
+export function faltantesRecipe(d: DatosDocumento) {
+  // La concentración que ya trae el nombre («Udox 75mg») cuenta: sale impresa en el récipe
+  return [...faltantesGenerales(d).map((x) => x.texto), ...faltantesMedicinas(d.datos.tratamiento).map(textoFalta)];
 }
 
 export type Anexo = { id: string; nombre: string; tipo: string; descripcion: string | null; url: string | null; fecha: string };
@@ -120,3 +169,27 @@ export async function obtenerAnexos(d: Pick<DatosDocumento, "datos" | "trabajado
   const url = new Map((firmadas ?? []).map((f) => [f.path, f.signedUrl]));
   return lista.map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo_mime, descripcion: a.descripcion, url: url.get(a.ruta) ?? null, fecha: a.creado_en }));
 }
+
+// Lo que necesita el aviso «Completar el récipe»: qué falta, sugerencias del vademécum de la organización
+// (solo las medicinas que faltan, calculadas aquí: al navegador no viaja el catálogo) y las listas para elegir.
+export async function datosCompletarRecipe(d: DatosDocumento) {
+  const medicinas = faltantesMedicinas(d.datos.tratamiento);
+  const generales = faltantesGenerales(d);
+  const sugerencias: Record<string, string[]> = {};
+  const opcionesListas: Partial<Record<CampoRecipe, string[]>> = {};
+  if (medicinas.length && d.datos.estado !== "firmada") {
+    const sesion = await obtenerSesion();
+    const listas = await opciones(sesion.orgId, ["medicina", ...Object.values(LISTA_DE_CAMPO)]);
+    const catalogo = listas.medicina ?? [];
+    for (const m of medicinas) for (const campo of m.campos) {
+      const s = sugerenciasCatalogo(d.datos.tratamiento[m.indice], catalogo, campo);
+      if (s.length) sugerencias[`${m.indice}:${campo}`] = s;
+    }
+    for (const [campo, lista] of Object.entries(LISTA_DE_CAMPO)) opcionesListas[campo as CampoRecipe] = (listas[lista] ?? []).map((x) => x.nombre);
+  }
+  return { consultaId: d.datos.id, estado: d.datos.estado, generales, medicinas, sugerencias, opciones: opcionesListas };
+}
+
+const LISTA_DE_CAMPO: Partial<Record<CampoRecipe, string>> = {
+  presentacion: "presentacion_medicina", via: "via_administracion", frecuencia: "frecuencia_dosis", duracion: "duracion_tratamiento",
+};

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { AlertTriangle, ExternalLink, FileWarning, Loader2, Megaphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,20 +11,18 @@ import { declaracionesDeConsulta, declararDesdeConsulta, type DeclaracionConsult
 // Avisos de declaración obligatoria bajo los diagnósticos. Nunca bloquean: cada aviso se puede ignorar.
 // Enfermedad de origen ocupacional → declaración ante el INPSASEL en 24 h (LOPCYMAT art. 73) con un clic.
 // Código del Anexo 1 marcado como común → sugiere revisar el origen. Lista del MPPS → recordatorio de notificación.
-export function AvisoDeclaracion({ consultaId, diagnosticos, reglas, onOrigen }: {
+export function AvisoDeclaracion({ consultaId, declaracionesIniciales, diagnosticos, reglas, onOrigen }: {
   consultaId: string;
+  // Se leen al cargar la página (no con una acción al abrir: esa acción hacía esperar en fila al primer Guardar)
+  declaracionesIniciales: DeclaracionConsulta[];
   diagnosticos: Diagnostico[];
   reglas: Regla[];
   onOrigen: (i: number, origen: Origen) => void;
 }) {
   const [ignorados, setIgnorados] = useState<string[]>([]);
-  const [declaraciones, setDeclaraciones] = useState<DeclaracionConsulta[]>([]);
+  const [declaraciones, setDeclaraciones] = useState<DeclaracionConsulta[]>(declaracionesIniciales);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
-
-  useEffect(() => {
-    declaracionesDeConsulta(consultaId).then(setDeclaraciones).catch(() => {});
-  }, [consultaId]);
 
   const avisos = diagnosticos.flatMap((d, i) => {
     if (!d.descripcion.trim()) return [];

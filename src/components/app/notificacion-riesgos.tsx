@@ -3,20 +3,23 @@
 import { useState, useTransition } from "react";
 import { BellRing, CheckCircle2, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmar } from "@/components/app/confirmar";
 import { desactualizada, type NotificacionRiesgo } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
 import { marcarFirmada, notificarPuesto, notificarRiesgos } from "@/app/(app)/pacientes/notificacion-acciones";
 import { hoyCaracas } from "@/lib/fecha";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 
 const fecha = (v: string) => v.slice(0, 10).split("-").reverse().join("/");
 const imprimir = (ids: string[]) => window.open(`/imprimir/notificacion-riesgos?ids=${ids.join(",")}`, "_blank", "noopener");
 
 // Ficha del trabajador: entregas de la notificación de riesgos, acuse firmado y aviso si el puesto cambió
-export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }: {
+export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita, elimina = false }: {
   trabajadorId: string;
   puesto: { id: string | null; nombre: string; evaluadoEn: string | null };
   iniciales: NotificacionRiesgo[];
   edita: boolean;
+  elimina?: boolean; // administrador clínico: puede quitar una notificación errada (va a la Papelera)
 }) {
   const [lista, setLista] = useState(iniciales);
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
@@ -53,7 +56,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
               <span className="min-w-0 flex-1 truncate text-muted-foreground">{n.puesto}{desactualizada(n, puesto) && " · desactualizada"}</span>
               {edita ? (
                 <label className="flex items-center gap-1.5 text-xs">
-                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado || Boolean(n.firmadaEn)} title={n.firmadaEn ? "Con el acuse firmado no se cambia: si hubo un error, registra una nueva" : undefined} className="size-4 accent-[var(--primary)]"
+                  <input type="checkbox" checked={Boolean(n.firmadaEn)} disabled={ocupado || Boolean(n.firmadaEn)} title={n.firmadaEn ? (elimina ? "Con el acuse firmado no se cambia: si hubo un error, elimínala y registra una nueva" : "Con el acuse firmado no se cambia: si hubo un error, registra una nueva") : undefined} className="size-4 accent-[var(--primary)]"
                     onChange={(x) => iniciar(async () => {
                       const r = await marcarFirmada(n.id, x.target.checked);
                       setAviso(r);
@@ -63,6 +66,7 @@ export function NotificacionesRiesgo({ trabajadorId, puesto, iniciales, edita }:
                 </label>
               ) : n.firmadaEn && <span className="flex items-center gap-1 text-xs text-ok-texto"><CheckCircle2 className="size-3.5" /> Firmada</span>}
               <Button variant="ghost" size="sm" onClick={() => imprimir([n.id])}><Printer /> Imprimir</Button>
+              {elimina && <BotonEliminar tipo="notificacion_riesgo" id={n.id} nombre={`la notificación del ${fecha(n.entregadaEn)} (${n.puesto})`} size="icon" className="ml-auto size-10 sm:ml-0 sm:size-8" />}
             </li>
           ))}
         </ul>
@@ -79,17 +83,17 @@ export function BotonNotificarPuesto({ puestoId, trabajadores }: { puestoId: str
   return (
     <>
       <Button variant="ghost" size="sm" disabled={ocupado} title={aviso ?? "Registra y abre la notificación de riesgos de cada trabajador del puesto"}
-        onClick={() => {
-          if (!window.confirm(`¿Notificar los riesgos del puesto a ${trabajadores} trabajador(es)? Se registra la entrega con fecha de hoy.`)) return;
+        onClick={async () => {
+          if (!(await confirmar({ titulo: `¿Notificar los riesgos del puesto a ${trabajadores} ${trabajadores === 1 ? "trabajador" : "trabajadores"}?`, texto: "Se registra la entrega con fecha de hoy y se abren las hojas para firmar.", accion: "Notificar" }))) return;
           iniciar(async () => {
             const r = await notificarPuesto(puestoId);
             setAviso(r.mensaje);
             if (r.ok && r.ids) imprimir(r.ids);
-            else window.alert(r.mensaje);
           });
         }}>
         {ocupado ? <Loader2 className="animate-spin" /> : <BellRing />} Notificar
       </Button>
+      {aviso && <span role="status" className="text-xs text-muted-foreground">{aviso}</span>}
     </>
   );
 }
@@ -97,18 +101,22 @@ export function BotonNotificarPuesto({ puestoId, trabajadores }: { puestoId: str
 // Varios trabajadores (p. ej. los pendientes del paquete de inspección)
 export function BotonNotificarTrabajadores({ ids }: { ids: string[] }) {
   const [ocupado, iniciar] = useTransition();
+  const [aviso, setAviso] = useState<string | null>(null);
   if (!ids.length) return null;
   return (
-    <Button size="sm" disabled={ocupado}
-      onClick={() => {
-        if (!window.confirm(`¿Notificar los riesgos de su puesto a ${ids.length} trabajador(es)? Se registra la entrega con fecha de hoy.`)) return;
-        iniciar(async () => {
-          const r = await notificarRiesgos(ids);
-          if (r.ok && r.ids) imprimir(r.ids);
-          window.alert(r.mensaje);
-        });
-      }}>
-      {ocupado ? <Loader2 className="animate-spin" /> : <BellRing />} Notificar a los {ids.length}
-    </Button>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <Button size="sm" disabled={ocupado}
+        onClick={async () => {
+          if (!(await confirmar({ titulo: `¿Notificar los riesgos de su puesto a ${ids.length} ${ids.length === 1 ? "trabajador" : "trabajadores"}?`, texto: "Se registra la entrega con fecha de hoy y se abren las hojas para firmar.", accion: "Notificar" }))) return;
+          iniciar(async () => {
+            const r = await notificarRiesgos(ids);
+            if (r.ok && r.ids) imprimir(r.ids);
+            setAviso(r.mensaje);
+          });
+        }}>
+        {ocupado ? <Loader2 className="animate-spin" /> : <BellRing />} Notificar a los {ids.length}
+      </Button>
+      {aviso && <span role="status" className="text-xs text-muted-foreground">{aviso}</span>}
+    </span>
   );
 }

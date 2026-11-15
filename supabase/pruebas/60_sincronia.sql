@@ -79,9 +79,10 @@ select 'firmada rechazada (debe 1): ' || count(*) from jsonb_array_elements(publ
  where x->>'estado' in ('rechazado','conflicto');
 select 'firmada intacta (debe 1): ' || count(*) from clinico.consultas where id='40000000-0000-0000-0000-0000000000c3' and conclusiones='uno';
 -- bajada: solo lo visible
-select 'baja su trabajador (debe 1): ' || least(count(*),1) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,2000)->'cambios') x
+-- El cursor arranca justo antes de la fila buscada: desde 0 con tope de 2.000, las siembras de catálogos (frases, vademécum…) la dejaban fuera
+select 'baja su trabajador (debe 1): ' || least(count(*),1) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',(select min(seq) - 1 from sync.registro where fila_id = '30000000-0000-0000-0000-0000000000c3'),2000)->'cambios') x
  where x->>'fila_id'='30000000-0000-0000-0000-0000000000c3' and x->'fila'->>'nombres'='Carla María';
-select 'no baja empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,2000)->'cambios') x
+select 'no baja empresa B (debe 0): ' || count(*) from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',(select min(seq) - 1 from sync.registro where fila_id in ('30000000-0000-0000-0000-00000000000b','40000000-0000-0000-0000-00000000000b')),2000)->'cambios') x
  where x->>'fila_id' in ('30000000-0000-0000-0000-00000000000b','40000000-0000-0000-0000-00000000000b');
 select 'cursor avanza (debe 1): ' || count(*) where (public.cambios_desde('e0000000-0000-0000-0000-000000000001','s1',0,5)->>'hasta')::bigint >= 5;
 -- primera descarga: por páginas, solo lo visible, sin columnas privadas
@@ -89,8 +90,9 @@ select 'copia de trabajadores sin empresa B (debe 0): ' || count(*) from jsonb_a
  where f->>'empresa_id'='20000000-0000-0000-0000-00000000000b';
 select 'copia paginada (debe 1): ' || count(*) from (select public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.trabajadores',null,1) r) x
  where jsonb_array_length(r->'filas')=1 and r->>'ultimo' is not null and (r->>'seq')::bigint > 0;
-select 'perfiles sin firma ni sello (debe 0): ' || count(*) from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas') f
- where f ? 'firma_url' or f ? 'sello_url';
+-- firma y sello solo de quien firma_sello() deja ver (desde 20261030880000; antes no llegaban nunca y el escritorio imprimía sin firma)
+select 'perfiles sin firma ajena (debe 0): ' || count(*) from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas') f
+ where (f ? 'firma_url' or f ? 'sello_url') and not exists (select 1 from public.firma_sello((f->>'id')::uuid));
 select 'perfiles se copian (debe 1): ' || least(jsonb_array_length(public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.perfiles')->'filas'),1);
 do $$ begin perform public.instantanea('e0000000-0000-0000-0000-000000000001','s1','public.bitacora');
   raise notice 'copia de tabla no permitida: FALLA'; exception when others then raise notice 'tabla fuera de la lista rechazada (ok)'; end $$;

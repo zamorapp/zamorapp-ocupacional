@@ -96,7 +96,7 @@ export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, e
                   <span className="mt-1 flex flex-wrap gap-1.5">
                     <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", e?.aptitud ? ESTILO_APTITUD[e.aptitud] : "bg-muted")}>{f.aptitud ?? "—"}</span>
                     {e?.estado === "firmada"
-                      ? <span className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-semibold text-ok-texto">Firmada</span>
+                      ? <span className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-semibold text-ok-texto">{e.same ? "Firmada en el SAME" : "Firmada"}</span>
                       : <span className="rounded-full bg-aviso/20 px-2 py-0.5 text-xs font-semibold text-aviso-texto">{e?.estado === "borrador" ? "En curso" : "Sin firmar"}</span>}
                   </span>
                 </span>
@@ -135,7 +135,7 @@ export function LoteAptitud({ filas, estados, empresa, usuarioId, puedeFirmar, e
                   <td className="px-3 py-2 font-mono whitespace-nowrap tabular-nums">{fecha(f.vigente_hasta)}</td>
                   <td className="px-3 py-2">
                     {e?.estado === "firmada"
-                      ? <span className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-semibold text-ok-texto">Firmada{e.revision > 1 ? ` · rev. ${e.revision}` : ""}</span>
+                      ? <span className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-semibold text-ok-texto">{e.same ? "Firmada en el SAME" : "Firmada"}{e.revision > 1 ? ` · rev. ${e.revision}` : ""}</span>
                       : <span className="rounded-full bg-aviso/20 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-aviso-texto">{e?.estado === "borrador" ? "En curso" : "Sin firmar"}</span>}
                   </td>
                 </tr>

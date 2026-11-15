@@ -2,18 +2,54 @@
 // Se aplica como superusuario local con session_replication_role = replica: no corren disparadores
 // (ni avisos ni bitácora duplicados) y el orden de llegada no importa para las llaves foráneas.
 import crypto from "node:crypto";
-import pg from "pg";
+import pg, { enTransaccion, tomarCandado } from "./pg-local.mjs";
 import { CATALOGOS } from "./config.mjs";
 
 const ROLES_ACCESO_AMPLIO = ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion", "coordinador_sst", "auditor"];
+
+// Cambios por pedido a la nube. Si la nube corta el pedido por tiempo (8 s del rol authenticated, código 57014) o la PC
+// deja de esperar (60 s), el lote se achica a la mitad y se repite en el acto: repetir el MISMO pedido dejaba la bajada
+// trancada para siempre (30-oct-2026, PC apagada unas horas con miles de cambios en la nube).
+const LOTE_MAX = 1000;
+const LOTE_MIN = 50;
+const esDemora = (e) => e?.code === "57014" || e?.name === "TimeoutError" || /statement timeout/i.test(e?.message || "");
+// Error de la base local (SQLSTATE de 5 letras): un dato que la copia no acepta. Otro error (conexión cortada) no es
+// culpa de una fila y no se aparta nada; tampoco los pasajeros de clase 40 (bloqueo mutuo con la bandeja) ni 57 (la
+// base cortó la conexión en un respaldo o restauración): esos se reintentan en el ciclo siguiente (Arquitecto).
+const esDeLaBase = (e) => /^[0-9A-Z]{5}$/.test(e?.code || "") && !/^(40|57)/.test(e.code);
+const APARTADAS_POR_CICLO = 50;
+const CATALOGOS_CADA_MS = 120e3; // revisión de la huella de los catálogos (performance.now(): la fecha de Windows cambia)
+
+// Lo que ve la persona en el botón «Sincronizar ahora»: qué falló, en palabras simples (sin el texto técnico, que
+// puede traer datos del paciente)
+export function motivoDe(e) {
+  if (esDemora(e)) return "La nube tardó demasiado en enviar los cambios. Se vuelve a pedir sola, en partes más pequeñas.";
+  if (e?.status === 401 || e?.status === 403 || /Sin sesión en la nube/.test(e?.message || "")) return "La sesión en la nube venció: sal y vuelve a entrar con internet.";
+  if (/versión nueva|actualiza/i.test(e?.message || "")) return "Hay una versión nueva de zamorApp Escritorio: actualízala para seguir bajando los cambios.";
+  if (esDeLaBase(e)) return "Esta PC no aceptó un dato que bajó de la nube. Se aparta y se reintenta sola; lo demás sigue bajando.";
+  return "La nube no respondió bien. Se reintenta sola cada 30 segundos.";
+}
+const claseDe = (e) => (e?.status ? `HTTP ${e.status}` : e?.code ? String(e.code) : e?.name || "error");
 
 export class Replica {
   constructor(estado, nube, motor, registro = () => {}) {
     Object.assign(this, { estado, nube, motor, registro });
     this.ocupada = false;
     this.ultima = null;
+    this.ultimaMs = null; // cuándo terminó bien el último ciclo, con performance.now(): Cesar cambia la fecha de Windows
+    this.inicioCiclo = 0; // cuándo empezó el último ciclo que terminó bien (performance.now()): una escritura anterior ya bajó
     this.error = null;
+    this.motivo = null; // el error de arriba en palabras para la persona
+    this.lote = LOTE_MAX;
+    this.progreso = null; // durante la copia completa: { hechas, total, filas } para la primera pantalla
+    this.catalogosEn = -1e9; // última revisión de la huella de los catálogos (performance.now())
+    this.catalogosYa = false; // una escritura en la nube pide revisarlos en el próximo ciclo, sin esperar
+    this.sinHuella = false; // la nube aún no tiene huella_catalogos (migración sin aplicar): se avisa una vez
   }
+
+  // Tras guardar algo en la nube (ajustes de la organización, firma y sello, listas): que el próximo ciclo revise
+  // los catálogos, así la copia local no se queda con lo de antes
+  revisarCatalogos() { this.catalogosYa = true; }
 
   // Usuario cuya sesión baja los datos: el último interno con sesión válida en la nube.
   usuarioSincronia() {
@@ -29,6 +65,15 @@ export class Replica {
     return this.enCurso;
   }
 
+  // Tras guardar algo en la nube: un ciclo que EMPIECE después de la escritura (si ya había uno en curso, empezó
+  // antes y no la trae: se encadena otro apenas termine). Antes se esperaba ese mismo y la PC leía de la nube hasta
+  // la sincronía siguiente, hasta 30 s más. Varias escrituras seguidas comparten la misma vuelta extra.
+  cicloTrasEscritura() {
+    if (!this.enCurso) return this.ciclo().catch(() => {});
+    this.otraVuelta ??= this.enCurso.catch(() => {}).then(() => { this.otraVuelta = null; return this.ciclo(); }).catch(() => {});
+    return this.otraVuelta;
+  }
+
   async #ciclo() {
     const eq = this.estado.d.equipo;
     if (!this.nube.enLinea) return;
@@ -37,18 +82,31 @@ export class Replica {
     const uid = this.usuarioSincronia();
     if (!uid) return;
     this.ocupada = true;
+    const inicio = performance.now();
     const c = new pg.Client({ connectionString: this.motor.url() });
+    // Una conexión cortada por fuera (restauración, base detenida) no tumba la puerta: se anota y el ciclo falla solo
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
     try {
       await c.connect();
       await c.query("set session_replication_role = replica");
       await this.#vigilarPermisos(uid);
       if (this.estado.d.cursor === null) await this.#copiaCompleta(c, uid);
       await this.#cambios(c, uid);
-      this.ultima = new Date().toISOString();
+      await this.#refrescarCatalogos(c, uid);
+      await this.#reintentarApartadas(uid);
+      this.ultima = this.nube.reloj.iso();
+      this.ultimaMs = performance.now();
+      this.duracionMs = Math.round(this.ultimaMs - inicio);
+      // Mientras dura un ciclo, lo recién guardado en la nube se lee de la nube: si se alarga, que quede anotado
+      if (this.duracionMs > 5000) this.registro(`[réplica] ciclo lento: ${this.duracionMs} ms`);
+      this.inicioCiclo = inicio;
       this.error = null;
+      this.motivo = null;
     } catch (e) {
       this.error = e.message;
-      this.registro(`[réplica] ${e.message}`);
+      this.motivo = motivoDe(e);
+      // Solo la clase en puerta.log: el texto de la nube o de PG puede traer datos («Key (cedula)=(…)»)
+      this.registro(`[réplica] falló (${claseDe(e)}): ${this.motivo}`);
     } finally {
       this.ocupada = false;
       await c.end().catch(() => {});
@@ -90,56 +148,223 @@ export class Replica {
     const eq = this.estado.d.equipo;
     const tablas = [...await this.#tablasSync(c), ...CATALOGOS];
     let seq = null;
+    // Avance para la pantalla «Copiando los datos» (C13): grupos de datos hechos y registros copiados
+    this.progreso = { hechas: 0, total: tablas.length, filas: 0 };
     await c.query("begin");
     try {
+      await tomarCandado(c); // ver pg-local.mjs: los guardados de la app esperan a que la copia termine
       for (const tabla of tablas) {
         let despues = null;
         const conId = await this.#tieneId(c, tabla);
         await c.query(`delete from ${this.#seguro(tabla)}`);
+        // La copia completa es la verdad de la nube: las versiones anotadas se rehacen con lo que baja (si la nube volvió
+        // a una versión anterior, la fila no queda congelada). Las filas con un cambio por subir conservan su base.
+        const { rowCount: viejas } = await c.query("delete from local.version_nube v where v.tabla = $1 and not exists (select 1 from local.bandeja b where b.tabla = v.tabla and b.fila_id = v.fila_id and b.estado = 'pendiente')", [tabla]);
+        if (viejas) this.registro(`[réplica] copia completa de ${tabla}: ${viejas} versiones anotadas se toman de nuevo de la nube`);
         for (;;) {
           const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
           if (seq === null) seq = r.seq;
           if (r.filas.length) await this.#insertar(c, tabla, r.filas);
+          this.progreso.filas += r.filas.length;
           if (!conId || !r.ultimo || r.filas.length < 2000) break;
           despues = r.ultimo;
         }
+        this.progreso.hechas += 1;
       }
       await c.query("commit");
     } catch (e) {
       await c.query("rollback");
+      this.progreso = null;
       throw e;
     }
+    // Queda con hechas = total: la pantalla llega al final antes de abrir la app
     this.estado.d.cursor = seq ?? 0;
-    this.estado.d.copiaCompleta = new Date().toISOString();
+    this.estado.d.copiaCompleta = this.nube.reloj.iso();
+    this.estado.d.huellaCatalogos = {};
     this.estado.guardar();
     this.registro(`[réplica] copia completa lista (${tablas.length} tablas)`);
+  }
+
+  // Catálogos (organización, perfiles con firma y sello, listas…): no viajan por cambios_desde. Antes bajaban solo en la
+  // copia completa y un cambio posterior no llegaba nunca a la PC (04-nov-2026: «Firmar y cerrar» imprimía sin firma ni
+  // sello). Cada 2 min, o tras una escritura en la nube, se pide la huella de cada catálogo (unos bytes) y se vuelve a
+  // bajar solo el que cambió, entero: se reemplazan sus filas y se quitan las que ya no están en la nube.
+  async #refrescarCatalogos(c, uid) {
+    if (!this.catalogosYa && performance.now() - this.catalogosEn < CATALOGOS_CADA_MS) return;
+    const eq = this.estado.d.equipo;
+    let huellas;
+    try {
+      huellas = await this.nube.rpc(uid, "huella_catalogos", { p_equipo: eq.id, p_secreto: eq.secreto }, { opcional: true });
+    } catch (e) {
+      if (e?.status === 404 || e?.code === "PGRST202") {
+        if (!this.sinHuella) this.registro("[réplica] la nube aún no tiene huella_catalogos: los catálogos bajan solo en la copia completa");
+        this.sinHuella = true;
+        this.catalogosEn = performance.now();
+        this.catalogosYa = false;
+        return;
+      }
+      throw e;
+    }
+    const antes = (this.estado.d.huellaCatalogos ??= {});
+    let fallo = false;
+    for (const [tabla, huella] of Object.entries(huellas || {})) {
+      if (!CATALOGOS.includes(tabla) || antes[tabla] === huella) continue;
+      // Un catálogo que falla (corte, dato que la copia no acepta) no frena a los demás ni al ciclo: queda con su huella
+      // vieja y se reintenta en el ciclo siguiente, sin esperar los 2 min (Analizar, #228)
+      try {
+        const filas = [];
+        let despues = null;
+        for (;;) {
+          const r = await this.nube.rpc(uid, "instantanea", { p_equipo: eq.id, p_secreto: eq.secreto, p_tabla: tabla, p_despues: despues, p_limite: 2000 });
+          filas.push(...r.filas);
+          if (!r.ultimo || r.filas.length < 2000) break;
+          despues = r.ultimo;
+        }
+        const t = this.#seguro(tabla);
+        const conId = await this.#tieneId(c, t);
+        await enTransaccion(c, async () => {
+          if (conId) await c.query(`delete from ${t} where not (id = any($1::uuid[]))`, [filas.map((f) => f.id)]);
+          else await c.query(`delete from ${t}`);
+          if (filas.length) await this.#insertar(c, t, filas);
+        });
+        antes[tabla] = huella;
+        this.estado.guardar();
+        this.registro(`[réplica] catálogo ${tabla} al día (${filas.length} filas)`);
+      } catch (e) {
+        fallo = true;
+        // Solo la clase: el texto de la nube o de PG puede traer datos
+        this.registro(`[réplica] catálogo ${tabla} no se pudo bajar (${claseDe(e)}): se reintenta en el próximo ciclo`);
+      }
+    }
+    this.catalogosEn = performance.now();
+    this.catalogosYa = fallo;
   }
 
   async #cambios(c, uid) {
     const eq = this.estado.d.equipo;
     for (;;) {
-      const r = await this.nube.rpc(uid, "cambios_desde", { p_equipo: eq.id, p_secreto: eq.secreto, p_desde: this.estado.d.cursor, p_limite: 1000 });
-      if (r.cambios.length) {
-        await c.query("begin");
-        try {
-          for (const k of r.cambios) {
-            if (k.op === "D") await c.query(`delete from ${this.#seguro(k.tabla)} where id = $1`, [k.fila_id]);
-            else await this.#insertar(c, k.tabla, [k.fila]);
-          }
-          await c.query("commit");
-        } catch (e) {
-          await c.query("rollback");
-          throw e;
-        }
+      let r;
+      try {
+        r = await this.nube.rpc(uid, "cambios_desde", { p_equipo: eq.id, p_secreto: eq.secreto, p_desde: this.estado.d.cursor, p_limite: this.lote });
+      } catch (e) {
+        if (!esDemora(e) || this.lote <= LOTE_MIN) throw e;
+        this.lote = Math.max(LOTE_MIN, Math.floor(this.lote / 2));
+        this.registro(`[réplica] la nube tardó demasiado: se piden ${this.lote} cambios por vez`);
+        continue;
       }
+      if (r.cambios.length) await this.#aplicar(c, r.cambios);
       if (r.hasta === this.estado.d.cursor) break;
       this.estado.d.cursor = r.hasta;
       this.estado.guardar();
+      // Pasó bien: el lote vuelve a crecer de a poco (de golpe volvería a cortarse con la nube cargada)
+      if (this.lote < LOTE_MAX) this.lote = Math.min(LOTE_MAX, Math.ceil(this.lote * 1.25));
     }
+  }
+
+  // Un lote en una sola transacción, por tramos de la misma tabla (una consulta por tramo, no una por fila). Si la copia
+  // no acepta algo, se repite de a una fila: la que falla se aparta y se reintenta en los ciclos siguientes, y las
+  // demás entran. Antes, una sola fila rechazada (p. ej. una columna calculada o un valor fuera del check) dejaba todo
+  // el lote sin aplicar y el cursor sin avanzar.
+  // Cada transacción toma el candado de escrituras (pg-local.mjs): un guardado de la app nunca queda a mitad de camino
+  // con la réplica (06-nov, 40P01). Un error pasajero (40P01, 40001) repite la transacción y no aparta nada.
+  async #aplicar(c, cambios) {
+    try {
+      await enTransaccion(c, async () => { for (const tramo of tramos(cambios)) await this.#aplicarTramo(c, tramo); });
+      return;
+    } catch (e) {
+      if (!esDeLaBase(e)) throw e;
+    }
+    for (const k of cambios) {
+      try {
+        await enTransaccion(c, () => this.#aplicarTramo(c, [k]));
+      } catch (e) {
+        if (!esDeLaBase(e)) throw e;
+        this.#apartar(k.tabla, k.fila_id, e);
+      }
+    }
+  }
+
+  async #aplicarTramo(c, tramo) {
+    const tabla = this.#seguro(tramo[0].tabla);
+    if (tramo[0].op === "D") {
+      const ids = tramo.map((k) => k.fila_id);
+      await c.query(`delete from ${tabla} where id = any($1::uuid[])`, [ids]);
+      await c.query("delete from local.version_nube where tabla = $1 and fila_id = any($2::uuid[])", [tabla, ids]);
+      return;
+    }
+    // La misma fila puede venir varias veces en el lote: queda la última (un insert no puede tocarla dos veces)
+    const filas = new Map();
+    for (const k of tramo) filas.set(k.fila_id, k.fila);
+    await this.#insertar(c, tabla, [...filas.values()]);
+  }
+
+  #apartar(tabla, id, e) {
+    const clave = `${tabla}|${id}`;
+    const a = this.estado.d.apartadas;
+    a[clave] = { tabla, id, clase: claseDe(e), veces: (a[clave]?.veces || 0) + 1 };
+    this.estado.guardar();
+    this.registro(`[réplica] ${tabla} ${id}: la copia no la aceptó (${claseDe(e)}); queda apartada y se reintenta en cada ciclo`);
+  }
+
+  // Las apartadas se vuelven a bajar tal como están en la nube: entran cuando se corrige la causa (una versión nueva
+  // del programa o un dato corregido en la nube). Si ya no existe en la nube, se quita de la copia.
+  async #reintentarApartadas(uid) {
+    const a = this.estado.d.apartadas;
+    for (const [clave, f] of Object.entries(a).slice(0, APARTADAS_POR_CICLO)) {
+      try {
+        await this.reponerFila(uid, f.tabla, f.id);
+        delete a[clave];
+        this.registro(`[réplica] ${f.tabla} ${f.id}: ya entró en la copia`);
+      } catch (e) {
+        if (!esDeLaBase(e)) break; // sin conexión o la nube no responde: se sigue en el próximo ciclo
+        f.veces += 1;
+      }
+    }
+    this.estado.guardar();
+  }
+
+  apartadas() {
+    return Object.keys(this.estado.d.apartadas || {}).length;
   }
 
   async #tablasSync(c) {
     return (await c.query("select nombre from sync.tablas order by nombre")).rows.map((r) => r.nombre);
+  }
+
+  // Vuelve a bajar UNA fila tal como está en la nube (tras un conflicto o rechazo de la bandeja), con los
+  // disparadores apagados para que no vuelva a la bandeja. Si en la nube no existe (o no hay acceso), se quita
+  // de la copia: lo que escribió el equipo queda guardado en la bandeja, en «Conflictos/Rechazados».
+  async reponerFila(uid, tabla, id) {
+    tabla = this.#seguro(tabla);
+    const [esquema, nombre] = tabla.split(".");
+    const c = new pg.Client({ connectionString: this.motor.url() });
+    c.on("error", (e) => this.registro(`[réplica] conexión local perdida: ${e.message}`));
+    try {
+      await c.connect();
+      // Se piden las columnas que la copia tiene y el rol puede leer (sin «*»: una columna de salud oculta a un rol
+      // haría fallar el pedido entero y la fila no se repondría)
+      const { rows: cols } = await c.query(
+        `select column_name from information_schema.columns where table_schema = $1 and table_name = $2 and is_generated = 'NEVER'
+            and has_column_privilege('authenticated', ($1 || '.' || $2)::regclass, column_name::text, 'SELECT') order by ordinal_position`, [esquema, nombre]);
+      const select = cols.map((x) => x.column_name).join(",") || "*";
+      const filas = await this.nube.leer(uid, `${nombre}?id=eq.${encodeURIComponent(id)}&select=${select}`, { "Accept-Profile": esquema });
+      await c.query("set session_replication_role = replica");
+      // En una transacción con el candado de escrituras (pg-local.mjs), como el resto de la réplica
+      return await enTransaccion(c, async () => {
+        // Si la nube tiene una versión MENOR que la anotada (p. ej. se restauró un respaldo de la nube), manda la nube:
+        // si no, la réplica dejaría esa fila congelada en la PC (Analizar)
+        if (Array.isArray(filas) && filas.length && filas[0].version != null) {
+          const { rowCount } = await c.query("update local.version_nube set version = $3 where tabla = $1 and fila_id = $2 and version > $3", [tabla, id, filas[0].version]);
+          if (rowCount) this.registro(`[réplica] ${tabla} ${id}: la nube volvió a una versión anterior (${filas[0].version}); se toma la de la nube`);
+        }
+        if (Array.isArray(filas) && filas.length) await this.#insertar(c, tabla, filas);
+        else {
+          await c.query(`delete from ${tabla} where id = $1`, [id]);
+          await c.query("delete from local.version_nube where tabla = $1 and fila_id = $2", [tabla, id]);
+        }
+        return Array.isArray(filas) ? filas.length : 0;
+      });
+    } finally { await c.end().catch(() => {}); }
   }
 
   async #tieneId(c, tabla) {
@@ -157,15 +382,49 @@ export class Replica {
     )).rows.map((r) => r.column_name).filter((col) => col in filas[0]);
     const lista = cols.map((x) => `"${x}"`).join(", ");
     const actualizar = cols.filter((x) => x !== "id").map((x) => `"${x}" = excluded."${x}"`).join(", ");
+    if (!conId) {
+      await c.query(`insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1)`, [JSON.stringify(filas)]);
+      return;
+    }
+    // Una fila con un cambio de esta PC por subir no se pisa: la copia muestra lo último que se guardó aquí y la
+    // nube decide al subir (si otro la cambió, es conflicto y se repone). Las demás quedan como en la nube, y su
+    // versión pasa a ser la base de los próximos cambios (local.version_nube).
+    const pendiente = "exists (select 1 from local.bandeja b where b.tabla = $2 and b.fila_id = r.id and b.estado = 'pendiente')";
+    // Tampoco se pisa con una lectura vieja: si esta PC ya subió una versión más nueva (la leyó antes de que subiera
+    // lo último y llega después de borrarse de la bandeja), la copia se queda con lo último que se guardó aquí
+    const vieja = "version" in filas[0]
+      ? " and not exists (select 1 from local.version_nube v where v.tabla = $2 and v.fila_id = r.id and v.version > r.version)" : "";
+    // La misma revisión se repite al actualizar, DESPUÉS de esperar el bloqueo de la fila (ver local.replica_puede): la
+    // de arriba usa la foto del inicio y no ve un guardado de la PC que la tomó mientras tanto
+    const aun = ` where local.replica_puede($2, excluded.id, ${"version" in filas[0] ? "excluded.version" : "null"})`;
     await c.query(
-      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1)` +
-      (conId ? ` on conflict (id) do update set ${actualizar}` : ""),
-      [JSON.stringify(filas)],
+      `insert into ${tabla} (${lista}) select ${lista} from jsonb_populate_recordset(null::${tabla}, $1) r where not ${pendiente}${vieja}
+       on conflict (id) do update set ${actualizar}${aun}`,
+      [JSON.stringify(filas), tabla],
     );
+    if ("version" in filas[0]) {
+      await c.query(
+        `insert into local.version_nube (tabla, fila_id, version)
+         select $2, r.id, r.version from jsonb_to_recordset($1) as r(id uuid, version bigint) where r.version is not null and not ${pendiente}
+         on conflict (tabla, fila_id) do update set version = greatest(local.version_nube.version, excluded.version)`,
+        [JSON.stringify(filas.map((f) => ({ id: f.id, version: f.version }))), tabla],
+      );
+    }
   }
 
   #seguro(tabla) {
     if (!/^(public|clinico)\.[a-z_0-9]+$/.test(tabla)) throw new Error(`Tabla inválida: ${tabla}`);
     return tabla;
   }
+}
+
+// Tramos consecutivos de la misma tabla y la misma clase (borrado o alta/cambio): respetan el orden del registro
+function tramos(cambios) {
+  const salida = [];
+  for (const k of cambios) {
+    const ultimo = salida.at(-1);
+    if (ultimo && ultimo[0].tabla === k.tabla && (ultimo[0].op === "D") === (k.op === "D")) ultimo.push(k);
+    else salida.push([k]);
+  }
+  return salida;
 }

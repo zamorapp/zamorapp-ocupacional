@@ -1,38 +1,62 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { obtenerCobro } from "@/lib/facturacion";
-import { bs, totales, usd } from "@/lib/facturacion-tipos";
+import { obtenerCobro, tasasBcv } from "@/lib/facturacion";
+import { sumarDias } from "@/lib/fecha";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
+import { bs, ETIQUETA_METODO, saldo, totales, usd } from "@/lib/facturacion-tipos";
+import { CONDICION_PAGO_BCV } from "@/lib/mensajes";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraImpresion } from "../../barra";
-import { fechaCorta, Hoja } from "../../componentes";
+import { DatosPagoCobro } from "../datos-pago";
+import { fechaCorta, Hoja, Marca, Titular } from "../../componentes";
 
 export const metadata: Metadata = { title: "Nota de cobro" };
 
-export default async function ImprimirCobro({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+// ?doc=entrega → nota de entrega / recibo de evaluaciones (con membrete, sin montos, con «Recibido por»).
+// Si la nota ya está pagada sale como «Recibo de pago». La factura del talonario va aparte: /imprimir/factura/[id].
+export default async function ImprimirCobro({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ doc?: string }> }) {
+  const [{ id }, { doc }] = await Promise.all([params, searchParams]);
   const [c, sesion] = await Promise.all([obtenerCobro(id), obtenerSesion()]);
   if (!c || !sesion.orgId) notFound();
   const supabase = await crearClienteServidor();
-  const [{ data: org }, { data: emp }] = await Promise.all([
-    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo").eq("id", sesion.orgId).single(),
+  // Fecha que manda para la tasa: la del pago en el recibo; la de la nota en los demás
+  const fechaTasa = c.estado === "pagada" && c.fechaPago ? c.fechaPago : c.fecha;
+  const [{ data: org }, { data: emp }, tasas] = await Promise.all([
+    supabase.from("organizaciones").select("nombre, rif, direccion, telefono, correo, logo, ajustes").eq("id", sesion.orgId).single(),
     supabase.from("empresas").select("direccion, telefono").eq("id", c.empresaId).single(),
+    c.tasaBcv ? Promise.resolve([]) : tasasBcv(sumarDias(fechaTasa, -10)),
   ]);
-  const t = totales(c);
+  // Sin tasa anotada en la nota: la del BCV de esa fecha (se carga sola cada tarde)
+  const auto = c.tasaBcv ? null : tasaParaFecha(tasas, fechaTasa);
+  const t = totales({ ...c, tasaBcv: c.tasaBcv ?? auto?.tasa ?? null });
+  const tasaUsada = c.tasaBcv ?? auto?.tasa ?? null;
+  const entrega = doc === "entrega";
+  const pagada = c.estado === "pagada";
+  const abonos = c.tipo === "cobro" ? saldo(c) : null;
+  const nombre = entrega ? "Nota de entrega" : c.tipo === "presupuesto" ? "Presupuesto" : c.estado === "pagada" ? "Recibo de pago" : c.pagos.length ? "Recibo de abono" : "Nota de cobro";
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/facturacion/${id}`} titulo={`${c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"} #${c.numero}`} />
+      <BarraImpresion volver={`/facturacion/${id}`} titulo={`${nombre} #${c.numero}`} />
       <Hoja>
         <header className="mb-5 flex items-start justify-between border-b-2 border-teal-700 pb-3">
-          <div>
-            <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
-            <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
+          <div className="flex items-center gap-3">
+            <Marca logo={org?.logo as string | null | undefined} nombre={org?.nombre ?? ""} />
+            <div>
+              <div className="text-lg font-bold uppercase text-teal-800">{org?.nombre}</div>
+              <Titular ajustes={org?.ajustes} />
+              <div className="text-[11px] text-neutral-600">{[org?.rif && `RIF ${org.rif}`, org?.direccion, org?.telefono, org?.correo].filter(Boolean).join(" · ")}</div>
+            </div>
           </div>
           <div className="text-right">
-            <div className="text-base font-bold uppercase">{c.tipo === "presupuesto" ? "Presupuesto" : "Nota de cobro"}</div>
+            <div className="text-base font-bold uppercase">{nombre}</div>
+            {entrega && <div className="text-[11px] font-medium uppercase text-neutral-600">Recibo de evaluaciones</div>}
             <div className="text-sm">Nº {String(c.numero).padStart(5, "0")}</div>
             <div className="text-[11px] text-neutral-600">Fecha: {fechaCorta(c.fecha)}</div>
+            {!entrega && c.estado === "pagada" && c.fechaPago && <div className="text-[11px] text-neutral-600">Pagado el {fechaCorta(c.fechaPago)}</div>}
+            {!entrega && c.estado === "emitida" && c.pagos.length > 0 && <div className="text-[11px] text-neutral-600">Último abono el {fechaCorta(c.pagos.at(-1)!.fecha)}</div>}
+            {c.numeroFacturaFiscal && <div className="text-[11px] text-neutral-600">Factura Nº {c.numeroFacturaFiscal}</div>}
           </div>
         </header>
 
@@ -44,38 +68,116 @@ export default async function ImprimirCobro({ params }: { params: Promise<{ id: 
           {c.vence && <div className="col-span-2"><b>Válido hasta:</b> {fechaCorta(c.vence)}</div>}
         </div>
 
-        <table className="mb-4 w-full border-collapse text-[11.5px]">
-          <thead>
-            <tr className="bg-teal-50">
-              <th className="border border-neutral-300 px-2 py-1 text-left">Descripción</th>
-              <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
-              <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Precio $</th>
-              <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Importe $</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.items.map((i, k) => (
-              <tr key={k} className="break-inside-avoid">
-                <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}{i.detalle && <span className="text-neutral-600"> · {i.detalle}</span>}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.precioUsd.toFixed(2)}</td>
-                <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{(i.cantidad * i.precioUsd).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {entrega ? (
+          <>
+            <table className="mb-4 w-full border-collapse text-[11.5px]">
+              <thead>
+                <tr className="bg-teal-50">
+                  <th className="w-10 border border-neutral-300 px-2 py-1 text-right">Nº</th>
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Servicio o evaluación</th>
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Trabajador · cédula · fecha</th>
+                  <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.items.map((i, k) => (
+                  <tr key={k} className="break-inside-avoid">
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{k + 1}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-neutral-700">{i.detalle || "—"}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-sm">Total entregado: <b>{c.items.reduce((s, i) => s + i.cantidad, 0)}</b>.</p>
+            <div className="mt-16 grid grid-cols-2 gap-12 text-center text-[11px] break-inside-avoid">
+              <div className="border-t border-neutral-700 pt-1">Entregado por</div>
+              <div className="border-t border-neutral-700 pt-1">Recibido por (nombre, C.I., firma y fecha)</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <table className="mb-4 w-full border-collapse text-[11.5px]">
+              <thead>
+                <tr className="bg-teal-50">
+                  <th className="border border-neutral-300 px-2 py-1 text-left">Descripción</th>
+                  <th className="w-14 border border-neutral-300 px-2 py-1 text-right">Cant.</th>
+                  <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Precio $</th>
+                  <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Importe $</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.items.map((i, k) => (
+                  <tr key={k} className="break-inside-avoid">
+                    <td className="border border-neutral-300 px-2 py-0.5">{i.descripcion}{i.detalle && <span className="text-neutral-600"> · {i.detalle}</span>}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.cantidad}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{i.precioUsd.toFixed(2)}</td>
+                    <td className="border border-neutral-300 px-2 py-0.5 text-right tabular-nums">{(i.cantidad * i.precioUsd).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-        <div className="ml-auto w-72 space-y-0.5 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span>{usd(t.subtotal)}</span></div>
-          {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span>{usd(t.iva)}</span></div>}
-          {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span>{usd(t.igtf)}</span></div>}
-          <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
-          {t.totalBs !== null && <div className="flex justify-between"><span>Equivalente a tasa BCV {c.tasaBcv}</span><span>{bs(t.totalBs)}</span></div>}
-        </div>
+            <div className="ml-auto w-72 space-y-0.5 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{usd(t.subtotal)}</span></div>
+              {c.ivaPct > 0 && <div className="flex justify-between"><span>IVA {c.ivaPct} %</span><span>{usd(t.iva)}</span></div>}
+              {c.igtfPct > 0 && <div className="flex justify-between"><span>IGTF {c.igtfPct} %</span><span>{usd(t.igtf)}</span></div>}
+              <div className="flex justify-between border-t border-neutral-800 pt-1 text-base font-bold"><span>Total</span><span>{usd(t.total)}</span></div>
+              {/* Con pagos registrados cada uno lleva la tasa de su día: no se repite un total en Bs a otra tasa (Diseño, 14-nov) */}
+              {t.totalBs !== null && tasaUsada && !(abonos && c.pagos.length > 0) && (
+                <>
+                  {/* Sin pagar, los bolívares son solo una referencia: se paga a la tasa BCV del día del pago (Cesar, 13-nov) */}
+                  <div className="flex justify-between font-semibold"><span>{pagada ? "Total en bolívares" : "Referencia en bolívares"}</span><span>{bs(t.totalBs)}</span></div>
+                  <div className="text-right text-[12px] text-neutral-600">Tasa BCV{auto ? ` del ${fechaCorta(auto.fecha)}` : ""}: Bs. {tasaUsada.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} por dólar</div>
+                  {!pagada && <div data-prueba="bs-referencial" className="text-right text-[12px] font-medium text-neutral-800">Monto referencial: en bolívares se paga a la tasa BCV del día del pago.</div>}
+                </>
+              )}
+            </div>
+
+            {/* Pagos y abonos recibidos (Cesar, 14-nov-2026): cómo se pagó, con qué referencia y lo que falta */}
+            {abonos && c.pagos.length > 0 && (
+              <div data-prueba="pagos-recibidos" className="mt-5 break-inside-avoid">
+                <div className="mb-1 font-bold">{c.pagos.length === 1 && abonos.cubierta ? "Pago recibido" : "Pagos recibidos"}</div>
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr className="bg-teal-50">
+                      <th className="w-24 border border-neutral-300 px-2 py-1 text-left">Fecha</th>
+                      <th className="border border-neutral-300 px-2 py-1 text-left">Forma de pago</th>
+                      <th className="border border-neutral-300 px-2 py-1 text-left">Referencia</th>
+                      <th className="w-24 border border-neutral-300 px-2 py-1 text-right">Monto $</th>
+                      <th className="w-36 border border-neutral-300 px-2 py-1 text-right">En bolívares</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.pagos.map((p) => (
+                      <tr key={p.id}>
+                        <td className="border border-neutral-300 px-2 py-0.5 whitespace-nowrap">{fechaCorta(p.fecha)}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5">{ETIQUETA_METODO[p.metodo]}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5">{p.referencia || "—"}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5 text-right whitespace-nowrap tabular-nums">{p.montoUsd.toFixed(2)}</td>
+                        <td className="border border-neutral-300 px-2 py-0.5 text-right whitespace-nowrap tabular-nums">{p.tasaBcv ? <>{bs(p.montoUsd * p.tasaBcv)}<div className="text-[11px] text-neutral-600">tasa {p.tasaBcv.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div></> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="ml-auto mt-1 w-72 space-y-0.5 text-sm">
+                  <div className="flex justify-between"><span>Total pagado</span><span className="whitespace-nowrap">{usd(abonos.pagado)}</span></div>
+                  <div className="flex justify-between font-bold"><span>Saldo pendiente</span><span className="whitespace-nowrap">{usd(abonos.falta)}</span></div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {c.observacion && <p className="mt-4"><b>Observación:</b> {c.observacion}</p>}
+        {/* Condiciones y datos para el pago (Configuración › Organización › Documentos); la nota de entrega no lleva montos */}
+        {!entrega && (() => {
+          const aj = (org?.ajustes ?? {}) as { cobro_condiciones?: string | null; cobro_datos_pago?: string | null };
+          return <DatosPagoCobro condiciones={(aj.cobro_condiciones ?? CONDICION_PAGO_BCV).trim()} datosPago={(aj.cobro_datos_pago ?? "").trim()} />;
+        })()}
         <p className="mt-10 border-t pt-2 text-[10.5px] italic text-neutral-600">
-          Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.
+          {entrega ? "Constancia de los servicios entregados. No sustituye la factura." : <>Documento sin validez fiscal. La factura correspondiente se emite según la normativa del SENIAT{c.numeroFacturaFiscal && ` (factura Nº ${c.numeroFacturaFiscal})`}.</>}
         </p>
       </Hoja>
     </div>

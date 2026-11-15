@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgeCheck, ChevronDown, ClipboardList, Clock, ScanLine, FileCheck2, FileHeart, Files, FileText, FlaskConical, HeartPulse, UserRound, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, ChevronDown, ClipboardList, Clock, ScanLine, FileCheck2, FileHeart, Files, FileText, FlaskConical, HeartPulse, Gauge, Salad, Activity, UserRound, Loader2, NotebookPen, Pill, Printer, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   consultaId: string;
+  // Fecha de impresión ya elegida (Documentos): la hoja abre con ella en el pie
+  impreso?: string;
   aptitud: boolean;
   reposo: boolean;
   tratamiento: boolean;
@@ -31,10 +33,12 @@ type Props = {
   variante?: "default" | "outline" | "ghost";
   compacto?: boolean;
   className?: string;
+  // Solo las opciones, para ir dentro de otro menú (el «…» del celular)
+  soloOpciones?: boolean;
 };
 
 // Botón único «Imprimir» con los documentos que aplican a la consulta. Cada uno abre en otra pestaña lista para imprimir o guardar en PDF.
-export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className }: Props) {
+export function MenuImprimir({ consultaId, impreso, aptitud, reposo, tratamiento, examenes, referencias, reubicacion, informeLibre, preoperatoria, anexos, antes, ocupado, variante = "outline", compacto, className, soloOpciones }: Props) {
   const docs = [
     { tipo: "paquete", texto: "Todo lo de esta consulta", nota: "uno por hoja", icono: Files },
     aptitud && { tipo: "constancia", texto: "Constancia de aptitud", icono: FileCheck2 },
@@ -50,14 +54,34 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
     { tipo: "certificado", texto: "Certificado de salud", icono: BadgeCheck },
     { tipo: "atencion", texto: "Constancia de atención", nota: "asistencia", icono: Clock },
     { tipo: "oam", texto: "Orden de atención ocupacional", nota: "OAM", icono: ClipboardList },
+    { tipo: "control-ta", texto: "Control de tensión arterial", nota: "7 días", icono: Gauge },
+    { tipo: "dieta", texto: "Plan de alimentación", nota: "según el caso", icono: Salad },
+    { tipo: "bienestar", texto: "Bienestar y cuidados", nota: "pausas, columna, estrés", icono: Activity },
     anexos && { tipo: "anexos", texto: "Exámenes escaneados", icono: ScanLine },
   ].filter(Boolean) as { tipo: string; texto: string; nota?: string; icono: typeof FileText }[];
 
   const abrir = (tipo: string) => {
-    const url = `/imprimir/${tipo}/${consultaId}`;
+    const url = `/imprimir/${tipo}/${consultaId}${impreso ? `?impreso=${impreso}` : ""}`;
     // Con cambios sin guardar, se guarda primero y el documento abre al terminar (o no abre si falló)
     return abrirEnVentana(antes ? async () => ((await antes()) ? url : null) : url);
   };
+
+  const opciones = (
+    <>
+      <DropdownMenuLabel className="text-xs text-muted-foreground">{soloOpciones ? "Imprimir" : antes ? "Se guardan los cambios antes de imprimir" : "Abrir para imprimir o guardar PDF"}</DropdownMenuLabel>
+      {docs.map(({ tipo, texto, nota, icono: Icono }, i) => (
+        <div key={tipo}>
+          {i === 1 && !soloOpciones && <DropdownMenuSeparator />}
+          <DropdownMenuItem onSelect={() => void abrir(tipo)} disabled={ocupado} className={i === 0 ? "font-medium" : undefined}>
+            <Icono /> <span className="flex-1">{texto}</span>
+            {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
+          </DropdownMenuItem>
+        </div>
+      ))}
+    </>
+  );
+
+  if (soloOpciones) return opciones;
 
   return (
     <DropdownMenu>
@@ -69,16 +93,7 @@ export function MenuImprimir({ consultaId, aptitud, reposo, tratamiento, examene
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">{antes ? "Se guardan los cambios antes de imprimir" : "Abrir para imprimir o guardar PDF"}</DropdownMenuLabel>
-        {docs.map(({ tipo, texto, nota, icono: Icono }, i) => (
-          <div key={tipo}>
-            {i === 1 && <DropdownMenuSeparator />}
-            <DropdownMenuItem onSelect={() => void abrir(tipo)} className={i === 0 ? "font-medium" : undefined}>
-              <Icono /> <span className="flex-1">{texto}</span>
-              {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
-            </DropdownMenuItem>
-          </div>
-        ))}
+        {opciones}
       </DropdownMenuContent>
     </DropdownMenu>
   );

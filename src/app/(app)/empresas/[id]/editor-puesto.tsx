@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -124,7 +124,7 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
                       const v = p.evaluacion[claveRiesgo(g, a)];
                       const n = nivelRiesgo(v);
                       return (
-                        <div key={a} className="grid items-center gap-2 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]">
+                        <div key={a} className="grid grid-cols-1 items-center gap-2 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]">
                           <span className="truncate">{a}</span>
                           <select value={v?.p ?? 0} onChange={(e) => valorar(g, a, "p", Number(e.target.value))} className={SELECT}>
                             <option value={0}>Probabilidad</option>
@@ -161,7 +161,7 @@ export function EditorPuesto({ empresaId, puesto, dependencias, agentes, turnos 
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setAbierto(false)}>Cancelar</Button>
+          <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
           <Button
             disabled={guardando}
             onClick={() => iniciar(async () => {

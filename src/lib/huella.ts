@@ -1,6 +1,8 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ahora } from "@/lib/fecha";
+import { confirmarCodigo } from "@/lib/dos-pasos";
 
 // Entrar con huella (o rostro / PIN del equipo) en vez de escribir la contraseña.
 // - Web, celular y tablet: llaves de acceso (passkeys) de Supabase Auth. La llave vive en el equipo y la
@@ -16,7 +18,9 @@ const NO_OFRECER = "zamorapp.huella.no-ofrecer";
 /** Marca para la pantalla de dos pasos: se llega desde Windows Hello con internet (la nube pide el código). */
 export const MOTIVO_HELLO = "zamorapp.dos-pasos.hello";
 
-export type Resultado = { ok: true } | { ok: false; mensaje: string };
+// «pideCodigo»: la nube solo deja registrar una huella con el código de dos pasos escrito en esta sesión (aal2).
+// En un equipo de confianza se entra sin el código (aal1), así que la pantalla lo pide ahí mismo y reintenta.
+export type Resultado = { ok: true } | { ok: false; mensaje: string; pideCodigo?: true };
 
 function leer(clave: string) {
   try { return localStorage.getItem(clave); } catch { return null; }
@@ -26,8 +30,8 @@ function escribir(clave: string, valor: string | null) {
 }
 
 /** ¿Este equipo puede usar huella / Windows Hello? En escritorio, además, la puerta debe conocer la función. */
-export async function huellaDisponible(): Promise<boolean> {
-  if (ES_ESCRITORIO) return (await estadoEscritorio()) !== null;
+export async function huellaDisponible(desde = ""): Promise<boolean> {
+  if (ES_ESCRITORIO) return (await estadoEscritorio(desde)) !== null;
   try {
     return typeof window !== "undefined" && "PublicKeyCredential" in window
       && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -43,11 +47,49 @@ export async function huellaActivaAqui(): Promise<boolean> {
 // En escritorio el «Ahora no» vale solo para esta instalación: la memoria de la ventana (WebView2) sobrevive a
 // desinstalar el programa, y en una PC reinstalada hay que volver a ofrecer Windows Hello.
 const claveNoOfrecer = async () => ES_ESCRITORIO ? `${NO_OFRECER}.${(await estadoEscritorio())?.instalacion ?? ""}` : NO_OFRECER;
-export const ofrecerHuella = async () => leer(await claveNoOfrecer()) !== "1" && (ES_ESCRITORIO || leer(MARCA) !== "1");
-export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), "1");
+// «Ahora no» es una pausa, no un nunca: se vuelve a ofrecer tras 7 días o 5 entradas con contraseña, lo que
+// llegue primero. Se cuentan entradas además de días porque la fecha de Windows se cambia a veces (por el SAME):
+// la diferencia se toma en valor absoluto y las entradas no dependen del reloj.
+const PAUSA_DIAS = 7;
+const PAUSA_ENTRADAS = 5;
+type Pausa = { t: number; n: number };
+async function pausaVigente(): Promise<boolean> {
+  const clave = await claveNoOfrecer();
+  const valor = leer(clave);
+  if (!valor) return false;
+  let p: Pausa;
+  try { p = JSON.parse(valor); } catch { return false; } // marca vieja ("1"): ya pasó la pausa
+  if (typeof p?.t !== "number" || typeof p?.n !== "number") return false;
+  if (Math.abs(ahora() - p.t) >= PAUSA_DIAS * 86_400_000 || p.n + 1 >= PAUSA_ENTRADAS) { escribir(clave, null); return false; }
+  escribir(clave, JSON.stringify({ t: p.t, n: p.n + 1 }));
+  return true;
+}
+/** Se llama una vez por entrada con contraseña: también cuenta la entrada para la pausa de «Ahora no». */
+export const ofrecerHuella = async () => !(await pausaVigente()) && (ES_ESCRITORIO || leer(MARCA) !== "1");
+export const noOfrecerHuella = async () => escribir(await claveNoOfrecer(), JSON.stringify({ t: ahora(), n: 0 } satisfies Pausa));
 
-/** Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. */
-export async function activarHuella(supabase: SupabaseClient): Promise<Resultado> {
+/**
+ * ¿Se le puede ofrecer la huella ahora? No mientras falte el código de dos pasos: con la sesión sin ese paso
+ * la nube rechaza registrar una llave (y el aviso confundía). Se ofrece después, en la pantalla del código.
+ */
+export async function puedeOfrecerHuella(supabase: SupabaseClient, desde = "oferta"): Promise<boolean> {
+  if (!(await ofrecerHuella()) || !(await huellaDisponible(desde)) || (await huellaActivaAqui())) return false;
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims?.aal === "aal1") {
+    const { data: requiere } = await supabase.rpc("falta_segundo_paso");
+    if (requiere === true) return false;
+  }
+  // Web: se ofrece aunque la cuenta ya tenga llaves de otros equipos (o de este antes de reinstalar la app, 31-oct).
+  // No duplica llaves: la nube manda la lista de las ya registradas y, si este equipo tiene una, el navegador no
+  // crea otra y responde «ya registrada» (activarHuella lo da por bueno).
+  return true;
+}
+
+/**
+ * Asocia la huella de este equipo a la cuenta con la que se acaba de entrar. En la web, si la sesión aún no tiene
+ * el código de dos pasos (equipo de confianza o recién entrado), devuelve «pideCodigo» y se llama otra vez con él.
+ */
+export async function activarHuella(supabase: SupabaseClient, codigo?: string): Promise<Resultado> {
   if (ES_ESCRITORIO) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -58,14 +100,41 @@ export async function activarHuella(supabase: SupabaseClient): Promise<Resultado
     const v = await pedirAVentana("activar", cuerpo.codigo);
     return v.ok ? { ok: true } : v;
   }
+  // Con la verificación en dos pasos activa, la nube exige el código en esta sesión para registrar llaves
+  // (insufficient_aal). Antes se mostraba «Primero escribe el código…» sin dónde escribirlo (31-oct, celular de
+  // Cesar tras reinstalar la app): ahora se pide aquí mismo.
+  const { data: claims } = await supabase.auth.getClaims();
+  if (claims?.claims?.aal !== "aal2") {
+    const { data: factores } = await supabase.auth.mfa.listFactors();
+    const totp = factores?.totp.find((f) => f.status === "verified");
+    if (totp) {
+      if (!codigo) return { ok: false, pideCodigo: true, mensaje: "Para registrar la huella en este equipo, escribe el código de 6 dígitos de tu app de códigos." };
+      const fallo = await confirmarCodigo(supabase, totp.id, codigo);
+      if (fallo) return { ok: false, pideCodigo: true, mensaje: fallo };
+    }
+  }
   const { error } = await supabase.auth.registerPasskey();
-  if (error) return { ok: false, mensaje: mensajeError(error) };
+  if (error) {
+    // Este equipo ya tenía la llave (p. ej. se reinstaló la app): está lista para entrar
+    if (error.code === "webauthn_credential_exists" || error.code === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") { escribir(MARCA, "1"); return { ok: true }; }
+    if (error.code === "insufficient_aal") return { ok: false, pideCodigo: true, mensaje: "Para registrar la huella en este equipo, escribe el código de 6 dígitos de tu app de códigos." };
+    return { ok: false, mensaje: mensajeError(error) };
+  }
   escribir(MARCA, "1");
   return { ok: true };
 }
 
+// Un solo ingreso con Windows Hello a la vez: el automático al abrir /login y el botón se pisaban (dos sesiones en
+// 133 ms y la app se quedaba en /login, prueba de humo del 30-oct). El segundo pedido recibe el resultado del primero.
+let huellaEnCurso: Promise<Resultado> | null = null;
+
 /** Entra con la huella. Deja la sesión abierta en el cliente de Supabase. */
-export async function entrarConHuella(supabase: SupabaseClient): Promise<Resultado> {
+export function entrarConHuella(supabase: SupabaseClient): Promise<Resultado> {
+  huellaEnCurso ??= entrarConHuellaUnaVez(supabase).finally(() => { huellaEnCurso = null; });
+  return huellaEnCurso;
+}
+
+async function entrarConHuellaUnaVez(supabase: SupabaseClient): Promise<Resultado> {
   if (ES_ESCRITORIO) {
     const v = await pedirAVentana("entrar");
     if (!v.ok) return v;
@@ -81,7 +150,10 @@ export async function entrarConHuella(supabase: SupabaseClient): Promise<Resulta
     return error ? { ok: false, mensaje: "No se pudo abrir la sesión. Usa tu contraseña." } : { ok: true };
   }
   const { error } = await supabase.auth.signInWithPasskey();
-  if (error) return { ok: false, mensaje: mensajeError(error) };
+  if (error) {
+    if (error.code === "webauthn_credential_not_found") escribir(MARCA, null);
+    return { ok: false, mensaje: mensajeError(error, leer(MARCA) === "1" ? "entrar-con-llave" : "entrar-sin-llave") };
+  }
   escribir(MARCA, "1");
   return { ok: true };
 }
@@ -113,9 +185,15 @@ export async function huellaActivaEscritorio(supabase: SupabaseClient): Promise<
   return Boolean(r?.ok && (await r.json().catch(() => null))?.activa);
 }
 
-async function estadoEscritorio(): Promise<{ usuarios: number; instalacion?: string } | null> {
-  const r = await fetch(`${PUERTA}/zamorapp/huella/estado`).catch(() => null);
-  return r?.ok ? await r.json().catch(() => null) : null;
+// «desde» solo sirve para leer puerta.log: dice qué pantalla consultó. Si la puerta no responde (p. ej. aún
+// arrancando) se reintenta dos veces antes de dar la huella por no disponible.
+async function estadoEscritorio(desde = ""): Promise<{ usuarios: number; instalacion?: string } | null> {
+  for (let intento = 0; intento < 3; intento++) {
+    const r = await fetch(`${PUERTA}/zamorapp/huella/estado${desde ? `?desde=${desde}` : ""}`, { cache: "no-store" }).catch(() => null);
+    if (r?.ok) return await r.json().catch(() => null);
+    await new Promise((listo) => setTimeout(listo, 1000));
+  }
+  return null;
 }
 
 type RespuestaVentana = { ok: true; codigo?: string } | { ok: false; mensaje: string };
@@ -139,15 +217,27 @@ function pedirAVentana(accion: "activar" | "entrar", codigo?: string): Promise<R
   });
 }
 
-function mensajeError(error: { code?: string; name?: string; message?: string }) {
+// Al entrar, el navegador da el mismo error si se canceló o si este equipo no tiene ninguna llave («no hay llaves
+// de acceso»): por eso el texto depende de si este navegador ya creó una.
+type Momento = "activar" | "entrar-con-llave" | "entrar-sin-llave";
+function mensajeError(error: { code?: string; name?: string; message?: string }, momento: Momento = "activar") {
   const codigo = error.code ?? "";
   if (codigo === "passkey_disabled") return "La entrada con huella aún no está activada en zamorApp. Avísale al administrador.";
   if (codigo === "webauthn_credential_exists" || codigo === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") return "Este equipo ya tiene tu huella registrada.";
   if (codigo === "too_many_passkeys") return "Tu cuenta ya tiene el máximo de huellas. Quita una que no uses.";
-  if (codigo === "webauthn_credential_not_found") return "Esta huella ya no está asociada a ninguna cuenta. Entra con tu contraseña y actívala de nuevo.";
+  if (codigo === "webauthn_credential_not_found") return "Esta huella ya no está asociada a tu cuenta. Entra con tu contraseña: al entrar te ofrecemos registrarla de nuevo.";
   if (codigo.startsWith("webauthn_challenge")) return "Tardó demasiado. Intenta de nuevo.";
   if (codigo === "user_banned") return "Tu acceso fue desactivado. Habla con el administrador.";
+  if (codigo === "insufficient_aal") return "Falta el código de 6 dígitos de tu app de códigos para registrar la huella.";
+  // El navegador rechaza la llave si la dirección de zamorApp no coincide con la configurada en el servidor (RP ID)
+  if (error.name === "SecurityError" || codigo === "webauthn_verification_failed")
+    return `La huella no está configurada para esta dirección de zamorApp. Avísale al soporte (${codigo || error.name}).`;
   if (error.name === "NotAllowedError" || codigo === "ERROR_CEREMONY_ABORTED" || /cancel|not allowed/i.test(error.message ?? ""))
-    return "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
-  return "No se pudo usar la huella. Usa tu contraseña.";
+    return momento === "entrar-sin-llave"
+      ? "Este equipo aún no tiene tu huella (pasa al reinstalar la app). Entra con tu contraseña: al entrar te ofrecemos registrarla aquí."
+      : momento === "entrar-con-llave"
+        ? "No se usó la huella (se canceló o el equipo no encontró tu llave). Intenta de nuevo o usa tu contraseña."
+        : "Se canceló la huella. Puedes intentarlo de nuevo o usar tu contraseña.";
+  // Con el código a la vista, soporte sabe qué pasó sin pedir capturas de la consola
+  return `No se pudo usar la huella. Usa tu contraseña. (${[codigo, error.name, error.message].filter(Boolean).join(" · ").slice(0, 120)})`;
 }

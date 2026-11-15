@@ -14,6 +14,8 @@ export type Pregunta = {
   accion?: string; // texto del botón que confirma
   cancelar?: string;
   peligro?: boolean; // botón rojo para acciones que borran, anulan o no se deshacen
+  // Camino más suave que la acción (p. ej. «Quitar solo de una empresa»): cierra como «no» y lo ejecuta
+  alternativa?: { texto: string; alElegir: () => void };
 };
 
 type Pendiente = Pregunta & { responder: (si: boolean) => void };
@@ -23,6 +25,7 @@ let mostrar: ((p: Pendiente) => void) | null = null;
 export function confirmar(pregunta: Pregunta | string): Promise<boolean> {
   const p = typeof pregunta === "string" ? { titulo: pregunta } : pregunta;
   // Si el diálogo aún no está montado, se usa el del navegador para no perder la confirmación
+  // eslint-disable-next-line no-restricted-properties -- respaldo único y deliberado
   if (!mostrar) return Promise.resolve(window.confirm([p.titulo, p.texto].filter(Boolean).join("\n\n")));
   return new Promise((responder) => mostrar!({ ...p, responder }));
 }
@@ -32,9 +35,13 @@ export function Confirmador() {
   const [actual, setActual] = useState<Pendiente | null>(null);
   const [abierto, setAbierto] = useState(false);
   const respondido = useRef(false);
+  const pendiente = useRef<Pendiente | null>(null);
 
   useEffect(() => {
     mostrar = (p) => {
+      // Un doble clic pide dos veces: la pregunta anterior se da por cancelada para que ninguna promesa quede colgada
+      if (pendiente.current && !respondido.current) pendiente.current.responder(false);
+      pendiente.current = p;
       respondido.current = false;
       setActual(p);
       setAbierto(true);
@@ -45,17 +52,18 @@ export function Confirmador() {
   }, []);
 
   const responder = (si: boolean) => {
-    if (!actual || respondido.current) return;
+    const p = pendiente.current;
+    if (!p || respondido.current) return;
     respondido.current = true;
     setAbierto(false);
-    actual.responder(si);
+    p.responder(si);
   };
 
   const Icono = actual?.peligro ? AlertTriangle : HelpCircle;
 
   return (
     <Dialog open={abierto} onOpenChange={(a) => !a && responder(false)}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
+      <DialogContent showCloseButton={false} className={actual?.alternativa ? "sm:max-w-xl" : "sm:max-w-md"}>
         <div className="flex gap-4">
           <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", actual?.peligro ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
             <Icono className="size-5" />
@@ -65,10 +73,19 @@ export function Confirmador() {
             <DialogDescription className={cn(!actual?.texto && "sr-only")}>{actual?.texto || actual?.titulo}</DialogDescription>
           </div>
         </div>
-        <DialogFooter>
-          <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual?.cancelar ?? "Cancelar"}</Button>
-          <Button variant={actual?.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual?.accion ?? "Aceptar"}</Button>
-        </DialogFooter>
+        {actual?.alternativa ? (
+          // Con alternativa: de lo seguro a lo grave, arriba-abajo en el celular e izquierda-derecha en la PC
+          <DialogFooter className="flex-col sm:flex-row sm:flex-wrap">
+            <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual.cancelar ?? "Cancelar"}</Button>
+            <Button variant="outline" onClick={() => { const a = actual.alternativa!; responder(false); a.alElegir(); }}>{actual.alternativa.texto}</Button>
+            <Button variant={actual.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual.accion ?? "Aceptar"}</Button>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button autoFocus variant="outline" onClick={() => responder(false)}>{actual?.cancelar ?? "Cancelar"}</Button>
+            <Button variant={actual?.peligro ? "destructive" : "default"} onClick={() => responder(true)}>{actual?.accion ?? "Aceptar"}</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

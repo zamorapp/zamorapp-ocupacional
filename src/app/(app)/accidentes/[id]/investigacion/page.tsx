@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { obtenerEvento } from "@/lib/eventos";
 import { obtenerInvestigacion, sugerenciasInvestigacion } from "@/lib/investigacion";
 import { obtenerSesion } from "@/lib/sesion";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { EditorInvestigacion } from "./editor-investigacion";
 
 export const metadata: Metadata = { title: "Informe de investigación" };
@@ -30,9 +31,13 @@ export default async function InformeInvestigacion({ params }: { params: Promise
   }
   const [inv, sugerencias] = await Promise.all([obtenerInvestigacion(evento), sugerenciasInvestigacion(evento)]);
   if (!inv) notFound();
+  const admin = !sesion.demo && sesion.rol === "administrador" && sesion.clinico;
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      {volver}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {volver}
+        {admin && inv.id && <BotonEliminar tipo="investigacion" id={inv.id} nombre={`la investigación del registro #${evento.numero}`} destino={`/accidentes/${id}`} volver={`/accidentes/${id}/investigacion`} />}
+      </div>
       <EditorInvestigacion inicial={inv} sugerencias={sugerencias} evento={{ id, numero: evento.numero, tipo: evento.tipo, diagnostico: [evento.cie10, evento.diagnostico].filter(Boolean).join(" ") }} />
     </div>
   );

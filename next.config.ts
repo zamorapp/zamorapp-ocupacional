@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import { copiarRecursosOcr } from "./src/build/recursos-ocr.mjs";
+
+// Lector de laboratorio: copia y verifica los archivos de Tesseract en public/ocr (desarrollo, Vercel y escritorio)
+copiarRecursosOcr();
 
 // Cabeceras de seguridad para todas las páginas: no se puede incrustar la app en otro sitio,
 // el navegador no adivina tipos de archivo y no se filtra la ruta completa a otros sitios.
@@ -16,21 +20,27 @@ const nextConfig: NextConfig = {
   // Programa de escritorio: servidor autónomo que se empaca en el instalador de Windows
   output: process.env.ZAMORAPP_ESCRITORIO ? "standalone" : undefined,
   // La app sabe en el navegador si corre dentro del programa de escritorio (sin service worker, p. ej.)
-  env: { NEXT_PUBLIC_ESCRITORIO: process.env.ZAMORAPP_ESCRITORIO ? "1" : "" },
+  // y qué versión de la web es (commit del despliegue): el celular la compara con /api/hora para ofrecer «Actualizar»
+  env: {
+    NEXT_PUBLIC_ESCRITORIO: process.env.ZAMORAPP_ESCRITORIO ? "1" : "",
+    NEXT_PUBLIC_VERSION_WEB: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7),
+  },
   // Next reescribe "127.0.0.1" como "localhost" en las redirecciones del middleware (NextURL). En el programa de
   // escritorio eso cambiaba el origen de la ventana y la puerta local rechazaba el ingreso; con esto el
   // middleware recibe y devuelve la dirección tal cual llegó.
   skipMiddlewareUrlNormalize: true,
   poweredByHeader: false,
+  // Volver a una pantalla vista hace menos de 30 s es instantáneo: el navegador reutiliza lo que ya recibió en vez de
+  // pedirlo otra vez a Vercel y a Supabase. Guardar con una acción (revalidatePath) o router.refresh() lo descarta.
+  experimental: { staleTimes: { dynamic: 30 } },
   // PDF en el servidor (envíos a empresas): Chromium sin ventana. En Vercel su binario se incluye en las rutas que lo usan.
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  // Solo /api/pdf arma los PDF: es la única función que lleva el binario de Chromium (67 MB). Antes iba en 8 rutas
+  // y cada despliegue ocupaba más de 500 MB de «Functions Storage» en el plan gratis de Vercel.
   outputFileTracingIncludes: {
-    "/envios": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/envios/bitacora": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/envios/por-enviar": ["./node_modules/@sparticuz/chromium/bin/**"],
-    // Reportes › Aptitud emitida también envía el lote (PanelEnvio): su acción corre en esta ruta
-    "/reportes/[tipo]": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/solicitudes": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/api/pdf": ["./node_modules/@sparticuz/chromium/bin/**"],
+    // «Lo nuevo» del manual se lee de estos archivos al abrir /ayuda
+    "/ayuda": ["./src/lib/novedades/*.json"],
   },
   async headers() {
     const reglas = [{ source: "/:path*", headers: SEGURIDAD }];

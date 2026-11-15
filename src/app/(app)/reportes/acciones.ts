@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prepararConstanciasLuego } from "@/lib/constancias-listas";
 // Los reportes recuerdan sus cálculos unos minutos: cada cambio clínico los borra
 import { olvidar } from "@/lib/memo";
-import type { Firmantes } from "@/lib/reportes";
+import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
 import { obtenerSesion } from "@/lib/sesion";
 import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -13,6 +14,8 @@ export type Resultado = { ok: boolean; mensaje: string };
 export type TextosGuardar = {
   resumen: string;
   conclusiones: string;
+  vision_medico: string;
+  recomendaciones_medicas: string;
   recomendaciones: string;
   factores_riesgo: string;
   medidas_control: string;
@@ -37,10 +40,12 @@ export async function guardarInformeVigilancia(empresaId: string | null, desde: 
   const campos = {
     resumen: limpio(t.resumen),
     conclusiones: limpio(t.conclusiones),
+    vision_medico: limpio(t.vision_medico ?? ""),
+    recomendaciones_medicas: limpio(t.recomendaciones_medicas),
     recomendaciones: limpio(t.recomendaciones),
     factores_riesgo: limpio(t.factores_riesgo),
     medidas_control: limpio(t.medidas_control),
-    firmantes: t.firmantes,
+    firmantes: limpiarFirmantes(t.firmantes),
     analisis: Object.fromEntries(Object.entries(t.analisis ?? {}).filter(([k, v]) => SECCIONES.includes(k) && typeof v === "string" && v.trim()).map(([k, v]) => [k, v.trim().slice(0, 4000)])),
     variante: Number.isInteger(t.variante) ? Math.max(0, Math.min(t.variante, 1_000_000)) : 0,
     actualizado_por: sesion.usuarioId,
@@ -78,8 +83,26 @@ export async function firmarMiasDelLote(ids: string[]): Promise<Resultado> {
     const { error: e } = await supabase.rpc("firmar_consulta", { p_id: c.id });
     if (e) fallos.push(e.message); else firmadas++;
   }
+  if (firmadas) await prepararConstanciasLuego(data.map((c) => c.id));
   revalidatePath("/reportes", "layout");
   olvidar("");
   if (!firmadas && !fallos.length) return { ok: false, mensaje: "No hay constancias cerradas tuyas por firmar. Las que están en curso se cierran desde la consulta." };
   return { ok: !fallos.length, mensaje: `${firmadas} constancia${firmadas === 1 ? "" : "s"} firmada${firmadas === 1 ? "" : "s"}.${fallos.length ? ` ${fallos.length} no se pudieron firmar: ${fallos[0]}` : ""}` };
+}
+
+// Portada del informe: al escribir la cédula de un firmante (representante, delegado, SST) trae su nombre y cargo de
+// los trabajadores de la empresa. Solo nombre y cargo (sin datos de salud), con la sesión del usuario (RLS).
+export async function buscarFirmante(empresaId: string, cedula: string): Promise<{ nombre: string; cargo: string } | null> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId || !sesion.rol || !ROLES.includes(sesion.rol)) return null;
+  const ci = cedula.replace(/^\s*[VEve]\s*[-.]?\s*/, "").replace(/\D/g, "");
+  if (!/^[0-9a-f-]{36}$/i.test(empresaId) || ci.length < 5 || ci.length > 10) return null;
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("trabajadores").select("nombres, apellidos, estado, puestos(nombre)")
+    .eq("empresa_id", empresaId).eq("cedula", ci).order("estado").limit(5);
+  const t = (data ?? []).find((x) => x.estado !== "egresado") ?? data?.[0];
+  if (!t) return null;
+  const cap = (s: string | null) => (s ?? "").replace(/\s+/g, " ").trim();
+  const puesto = (Array.isArray(t.puestos) ? t.puestos[0] : t.puestos) as { nombre?: string } | null;
+  return { nombre: `${cap(t.nombres)} ${cap(t.apellidos)}`.trim(), cargo: cap(puesto?.nombre ?? "") };
 }

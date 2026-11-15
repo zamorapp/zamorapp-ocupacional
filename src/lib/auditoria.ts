@@ -11,9 +11,10 @@ const TABLAS: Record<string, string> = {
   "clinico.reposos": "reposo", "clinico.diagnosticos": "diagnóstico",
 };
 const ACCION: Record<string, string> = { INSERT: "Creó", UPDATE: "Modificó", DELETE: "Borró" };
+const corta = (iso: unknown) => (typeof iso === "string" ? iso.split("-").reverse().join("/") : "—");
 
 // Últimos accesos a historias y cambios del día elegido. La RLS limita a administrador, gerente médico y auditor.
-// No se muestran los valores antes/después: solo qué, quién, cuándo y desde qué equipo.
+// No se muestran los valores antes/después (salvo la fecha de la evaluación): solo qué, quién, cuándo y desde qué equipo.
 export async function movimientos(dia: string): Promise<Movimiento[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
@@ -21,7 +22,7 @@ export async function movimientos(dia: string): Promise<Movimiento[]> {
   const hasta = `${dia}T23:59:59.999-04:00`;
   const [{ data: accesos }, { data: cambios }, { data: equipos }] = await Promise.all([
     supabase.from("accesos").select("id, en, usuario_id, equipo_id, trabajadores(nombres, apellidos)").gte("en", desde).lte("en", hasta).order("en", { ascending: false }).limit(200),
-    supabase.from("bitacora").select("id, en, usuario_id, equipo_id, tabla, accion").gte("en", desde).lte("en", hasta).order("en", { ascending: false }).limit(200),
+    supabase.from("bitacora").select("id, en, usuario_id, equipo_id, tabla, accion, fecha_antes:antes->>fecha, fecha_despues:despues->>fecha").gte("en", desde).lte("en", hasta).order("en", { ascending: false }).limit(200),
     supabase.from("equipos").select("id, nombre"),
   ]);
   const ids = [...new Set([...(accesos ?? []), ...(cambios ?? [])].map((f) => f.usuario_id).filter(Boolean))] as string[];
@@ -37,7 +38,10 @@ export async function movimientos(dia: string): Promise<Movimiento[]> {
     }),
     ...(cambios ?? []).map((c) => ({
       id: `b${c.id}`, en: c.en, tipo: "cambio" as const,
-      que: `${ACCION[c.accion] ?? c.accion} ${TABLAS[c.tabla] ?? c.tabla.split(".").pop()}`,
+      // La fecha de la evaluación sí se muestra (no es dato clínico): es lo que protege si se cuestiona un documento
+      que: c.accion === "FECHA_EVALUACION"
+        ? `Cambió la fecha de la evaluación de una consulta: del ${corta(c.fecha_antes)} al ${corta(c.fecha_despues)}`
+        : `${ACCION[c.accion] ?? c.accion} ${TABLAS[c.tabla] ?? c.tabla.split(".").pop()}`,
       quien: quien(c.usuario_id), equipo: c.equipo_id ? equipo.get(c.equipo_id) ?? "PC" : null,
     })),
   ].sort((a, b) => b.en.localeCompare(a.en));

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { textoLateralidad } from "@/lib/lateralidad";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, CalendarClock, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, HeartPulse, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,15 +24,38 @@ import { obtenerSesion } from "@/lib/sesion";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { listarAdjuntos } from "@/lib/adjuntos";
 import { Adjuntos } from "@/components/app/adjuntos";
+import { EnviarEstudio } from "@/components/app/enviar-estudio";
+import { itemsDeLista, opciones, type Item } from "@/lib/listas";
+import { EnlacePaciente } from "../../atencion/enlace-paciente";
+import { extrasEnlace, resumenPerfiles } from "@/lib/registro-documentos-servidor";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EmpleoAnterior } from "@/lib/historia-laboral";
 import { HistoriaLaboral } from "./historia-laboral";
 import { BotonConsulta } from "./boton-consulta";
+import { EliminarTrabajador } from "./eliminar-trabajador";
+import { PasarAEmpresa } from "@/components/app/pasar-a-empresa";
+import { listarEmpresas } from "@/lib/empresas";
 import { MenuImprimir } from "@/components/app/menu-imprimir";
+import { FrescoAlVolver } from "@/components/app/fresco-al-volver";
+import Cargando from "../../loading";
 import { NotificacionesRiesgo } from "@/components/app/notificacion-riesgos";
 import { type NotificacionRiesgo, ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { cn } from "@/lib/utils";
-import { hoyCaracas } from "@/lib/fecha";
+import { ahora, hoyCaracas } from "@/lib/fecha";
+import { alertasDeTrabajador } from "@/lib/alertas";
+import { AlertasPaciente } from "./alertas-paciente";
+import { AvisoDistancia } from "./aviso-distancia";
+import { seguimientosDistancia } from "@/lib/telemedicina";
+import { BotonIndicacion, ListaIndicaciones } from "./indicaciones";
+import { indicacionesDeTrabajador } from "@/lib/indicaciones-datos";
+import { Vacaciones } from "./vacaciones";
+import { InactivarTrabajador, ReingresarTrabajador } from "./estado-laboral";
+import { periodosDeTrabajador } from "../acciones";
+import type { Vacacion } from "./vacaciones-acciones";
+import { atencionesDeTrabajador } from "@/lib/enfermeria";
+import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
+import { lineaDeTiempo, MARCAS_DEMO, marcasDeConsultas, type MarcaTiempo } from "@/lib/linea-tiempo";
+import { LineaTiempo } from "./linea-tiempo";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -47,34 +71,73 @@ export default async function FichaPaciente({ params }: Props) {
   const consultas = sesion.demo
     ? (CONSULTAS_DEMO[t.id] ?? []).map((c, i) => ({ id: String(i), demo: true, fecha: c.fecha, motivo: c.motivo, tipo: c.tipo, detalle: c.medico, aptitud: c.aptitud, reposo: false, tratamiento: false }))
     : (await listarConsultas({ trabajadorId: t.id, limite: 100 })).map((c) => ({ id: c.id, demo: false, fecha: c.fecha, motivo: c.motivo ?? "Sin motivo", tipo: c.tipo, detalle: ETIQUETA_ESTADO_CONSULTA[c.estado], aptitud: c.aptitud, reposo: c.tieneReposo, tratamiento: c.tieneTratamiento }));
+  // Línea de tiempo: solo fecha, tipo y resultado (nada clínico); cada rol con lo que su RLS le deja leer
+  const marcasTiempo: MarcaTiempo[] = sesion.demo
+    ? [...marcasDeConsultas(consultas), ...(MARCAS_DEMO[t.id] ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    : await lineaDeTiempo(t.id, sesion.clinico, sesion.rol ?? null, consultas);
   const verAdjuntos = !sesion.demo && Boolean(sesion.orgId) && !esRolEmpresa(sesion.rol);
-  const [adjuntos, empleos] = verAdjuntos
+  // Atenciones y evolución de enfermería: parte de su historia, solo para el personal de salud
+  const enfermeria = sesion.clinico && !sesion.demo ? await atencionesDeTrabajador(t.id) : [];
+  const [adjuntos, empleos, catalogoEstudios] = verAdjuntos
     ? await Promise.all([
         listarAdjuntos(t.id),
         crearClienteServidor().then((s) => s.from("historia_laboral").select("*").eq("trabajador_id", t.id).order("creado_en")).then((r) => (r.data ?? []) as EmpleoAnterior[]),
         // Auditoría: queda registrado quién abrió la historia (la base ignora a quien no es personal de salud)
+        // Catálogo de paraclínicos: clase de cada estudio del historial (imagen, funcional, laboratorio)
+        itemsDeLista(sesion.orgId, "paraclinico", true),
         crearClienteServidor().then((s) => s.rpc("registrar_acceso", { p_trabajador: t.id })),
       ])
-    : [[], [] as EmpleoAnterior[]];
+    : [[], [] as EmpleoAnterior[], [] as Item[]];
+  // RR. HH.: solo nombre y clase de cada estudio del catálogo (para elegir qué envía)
+  const estudiosRrhh = sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId
+    ? (await itemsDeLista(sesion.orgId, "paraclinico", true)).map((i) => ({ id: i.id, nombre: i.nombre, grupo: i.grupo, datos: typeof i.datos?.clase === "string" ? { clase: i.datos.clase } : null }))
+    : [];
   // Grupo sanguíneo: dato de salud, solo para el personal del servicio (decisión de Cesar; la base tampoco se lo entrega a RR. HH.)
   const verSalud = sesion.demo || ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
   // Notificación de riesgos del puesto (LOPCYMAT art. 56.3)
   const conBase = !sesion.demo && Boolean(sesion.orgId);
-  const [{ data: tp }, { data: notifs }] = conBase
+  const [{ data: tp }, { data: notifs }, { data: vacs }] = conBase
     ? await crearClienteServidor().then((s) => Promise.all([
-        s.from("trabajadores").select("puesto_id, puestos(nombre, evaluado_en)").eq("id", t.id).single(),
+        s.from("trabajadores").select("puesto_id, puestos(nombre, evaluado_en), empresas(dias_post_vacacional)").eq("id", t.id).single(),
         s.from("notificaciones_riesgo").select("id, puesto_id, puesto, entregada_en, firmada_en, contenido").eq("trabajador_id", t.id).order("entregada_en", { ascending: false }).order("creado_en", { ascending: false }).limit(20),
+        s.from("vacaciones").select("id, desde, regreso").eq("trabajador_id", t.id).order("regreso", { ascending: false }).limit(10),
       ]))
-    : [{ data: null }, { data: null }];
-  const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null } | null;
+    : [{ data: null }, { data: null }, { data: null }];
+  const puestoActual = tp as unknown as { puesto_id: string | null; puestos: { nombre: string; evaluado_en: string | null } | null; empresas: { dias_post_vacacional: number } | null } | null;
+  // Vacaciones y post vacacional: las anotan el servicio y RR. HH. (no son datos de salud)
+  const vacaciones = (vacs ?? []) as Vacacion[];
+  const anotaVacaciones = ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion", "gerente_empresa"].includes(sesion.rol ?? "");
   const notificaciones: NotificacionRiesgo[] = (notifs ?? []).map((n) => ({ id: n.id, puestoId: n.puesto_id, puesto: n.puesto, entregadaEn: n.entregada_en, firmadaEn: n.firmada_en, contenido: n.contenido }));
   const examenVencido = t.proximoExamen !== null && t.proximoExamen < hoyCaracas();
+  // Alertas para la próxima evaluación: solo el personal clínico (la base no se las entrega a nadie más)
+  const alertas = conBase && sesion.clinico ? await alertasDeTrabajador(t.id) : [];
+  // Consulta a distancia archivada (no volvió en el plazo) y sin control: si vuelve, se ofrece abrir el control enlazado
+  const archivadas = conBase && sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "") ? (await seguimientosDistancia(true)).filter((s) => s.trabajadorId === t.id && !s.controlId) : [];
+  // Indicación o récipe sin consulta (Cesar, 10-nov): no cuenta como consulta; solo el personal clínico las ve
+  const indicaciones = conBase && sesion.clinico ? await indicacionesDeTrabajador(t.id) : [];
+  const porCumplir = indicaciones.filter((x) => x.estado === "pendiente");
+  const emiteIndicacion = conBase && sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "");
+  // Empresa inactiva: la ficha y toda su historia se ven; para atenderlo de nuevo se pasa a una empresa activa
+  // Inactivo o egresado: «Reingresar» (misma u otra empresa) reemplaza a «Pasar a otra empresa»
+  const fuera = t.estado === "inactivo" || t.estado === "egresado";
+  // «Enviar enlace» (Cesar, 06-nov): al trabajador ya registrado, para que pida su consulta solo con su cédula y el motivo
+  const enviaEnlace = conBase && verSalud && !fuera;
+  const listasEnlace = enviaEnlace ? await opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico", "recomendacion_paciente"]) : null;
+  const empresasActivas = conBase && !esRolEmpresa(sesion.rol) && (t.empresaInactiva || fuera)
+    ? (await listarEmpresas()).map((e) => ({ id: e.id, nombre: e.razonSocial }))
+    : null;
+  const pasarA = t.empresaInactiva && !fuera ? empresasActivas : null;
+  // Inactivar: lo decide el servicio de salud (la base también lo exige)
+  const puedeInactivar = conBase && !fuera && (sesion.clinico || sesion.rol === "administrador");
+  const periodos = conBase ? await periodosDeTrabajador(t.id) : [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <Link href="/pacientes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Pacientes
       </Link>
+      {/* Con la caché de 30 s, volver a la ficha nunca muestra resultados o consultas de antes */}
+      <FrescoAlVolver generada={`${t.id}-${ahora()}`} cargando={<Cargando />}>
 
       {/* Encabezado fijo de la ficha: identidad y aptitud vigente */}
       <Card className="py-5">
@@ -83,11 +146,21 @@ export default async function FichaPaciente({ params }: Props) {
             <AvatarFallback className="bg-primary text-xl font-semibold text-primary-foreground">{iniciales(t)}</AvatarFallback>
           </Avatar>
           <div className="min-w-56 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t.nombres} {t.apellidos}</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              {t.nombres} {t.apellidos}
+              {alertas.length > 0 && (
+                <span role="img" aria-label="Tiene una alerta para esta evaluación" title="Tiene una alerta para esta evaluación" className="ml-2 inline-flex align-[-1px]">
+                  <BellRing className="size-4 text-aviso-texto" aria-hidden />
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-muted-foreground">
               <span className="font-mono">{t.cedula}</span> · Historia {t.historia}{edad(t.fechaNacimiento) !== null && ` · ${edad(t.fechaNacimiento)} años`}{t.sexo && ` · ${t.sexo === "F" ? "Femenino" : "Masculino"}`}
             </p>
-            <p className="mt-1 truncate text-sm">{[t.cargo, t.empresa].filter(Boolean).join(" · ")}</p>
+            <p className="mt-1 truncate text-sm">
+              {[t.cargo, t.empresa].filter(Boolean).join(" · ")}
+              {t.empresaInactiva && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Empresa inactiva</span>}
+            </p>
           </div>
           <div className="flex flex-col items-start gap-1 sm:items-end">
             <span className="text-xs text-muted-foreground">Aptitud vigente</span>
@@ -98,10 +171,45 @@ export default async function FichaPaciente({ params }: Props) {
             )}
             <span className="text-xs text-muted-foreground">desde {fecha(t.aptitudFecha)}</span>
           </div>
-          <div className="flex w-full gap-2 xl:w-auto">
+          {fuera && (
+            <ReingresarTrabajador
+              trabajadorId={t.id}
+              nombre={`${t.nombres} ${t.apellidos}`}
+              estado={t.estado as "inactivo" | "egresado"}
+              salida={t.fechaSalida ?? null}
+              motivo={t.motivoInactivo ?? null}
+              empresaActual={{ id: t.empresaId ?? "", nombre: t.empresa, activa: !t.empresaInactiva }}
+              empresas={empresasActivas}
+              hoy={hoyCaracas()}
+            />
+          )}
+          {pasarA && (
+            <div className="w-full">
+              <PasarAEmpresa trabajadorId={t.id} empresaActual={t.empresa} empresas={pasarA} />
+            </div>
+          )}
+          <div className="flex w-full flex-wrap gap-2 xl:w-auto">
+            {/* RR. HH. envía estudios al expediente; solo los ve el personal de salud (entregar_estudio) */}
+            {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (
+              <EnviarEstudio orgId={sesion.orgId} trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} catalogo={estudiosRrhh} />
+            )}
             {!esRolEmpresa(sesion.rol) && (
               <>
-                <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo} />
+                {/* Enfermería no abre consultas del médico: registra su atención o su evolución */}
+                {sesion.rol === "enfermeria" ? (
+                  <Button asChild className="flex-1 xl:flex-none">
+                    <Link href={`/enfermeria?trabajador=${t.id}#nueva`}><HeartPulse /> Atención de enfermería</Link>
+                  </Button>
+                ) : (
+                  <BotonConsulta trabajadorId={t.id} habilitado={!sesion.demo && t.estado !== "inactivo"} distancia={emiteIndicacion} />
+                )}
+                {emiteIndicacion && <BotonIndicacion trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} />}
+                {listasEnlace && (
+                  <EnlacePaciente habilitado empresas={[]} motivos={listasEnlace.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
+                    perfiles={resumenPerfiles(listasEnlace.grupo_paraclinicos, listasEnlace.paraclinico)} {...extrasEnlace(listasEnlace.paraclinico, listasEnlace.recomendacion_paciente)}
+                    puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")}
+                    para={{ id: t.id, nombre: `${t.nombres} ${t.apellidos}`, telefono: t.telefono, empresaId: t.empresaId ?? null, empresa: t.empresa }} />
+                )}
                 {sesion.clinico && (
                   <Button variant="outline" asChild className="flex-1 xl:flex-none">
                     <Link href={`/imprimir/historia/${t.id}`} target="_blank"><Printer /> Imprimir historia</Link>
@@ -112,6 +220,8 @@ export default async function FichaPaciente({ params }: Props) {
                     <Link href={`/imprimir/historia-laboral/${t.id}`} target="_blank"><BriefcaseBusiness /> Historia laboral</Link>
                   </Button>
                 )}
+                {puedeInactivar && <InactivarTrabajador trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} hoy={hoyCaracas()} />}
+                {!sesion.demo && sesion.clinico && sesion.rol === "administrador" && <EliminarTrabajador trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} />}
               </>
             )}
           </div>
@@ -125,23 +235,38 @@ export default async function FichaPaciente({ params }: Props) {
         </div>
       )}
 
+      {alertas.length > 0 && (
+        <AlertasPaciente alertas={alertas} puedeDescartar={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
+      )}
+      {archivadas.length > 0 && <AvisoDistancia seguimiento={archivadas[0]} />}
+
+      {porCumplir.length > 0 && (
+        <Card className="gap-0 border-primary/30 py-0" data-bloque="ordenes-por-cumplir">
+          <CardHeader className="px-5 pt-4 pb-0"><CardTitle className="text-base">Por cumplir en enfermería</CardTitle></CardHeader>
+          <CardContent className="px-5"><ListaIndicaciones trabajadorId={t.id} items={porCumplir} puedeAnular={emiteIndicacion} compacta /></CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="resumen">
         <TabsList>
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="laboral">Laboral y riesgos</TabsTrigger>
           <TabsTrigger value="consultas">Consultas ({consultas.length})</TabsTrigger>
+          {conBase && sesion.clinico && <TabsTrigger value="indicaciones">Indicaciones y récipes ({indicaciones.length})</TabsTrigger>}
+          {sesion.clinico && !sesion.demo && <TabsTrigger value="enfermeria">Enfermería ({enfermeria.length})</TabsTrigger>}
           {verAdjuntos && <TabsTrigger value="historia">Historia laboral ({empleos.length})</TabsTrigger>}
-          {verAdjuntos && <TabsTrigger value="resultados">Resultados ({adjuntos.length})</TabsTrigger>}
+          {verAdjuntos && <TabsTrigger value="resultados">Estudios ({adjuntos.length})</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="resumen" className="mt-4 grid gap-4 lg:grid-cols-2">
+        <TabsContent value="resumen" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <LineaTiempo marcas={marcasTiempo} hoy={hoyCaracas()} />
           <Card>
             <CardHeader><CardTitle className="text-base">Datos personales</CardTitle></CardHeader>
             <CardContent>
               <Datos filas={[
                 ["Fecha de nacimiento", fecha(t.fechaNacimiento)],
                 ...(verSalud ? [["Grupo sanguíneo", t.grupoSanguineo] as [string, string | null]] : []),
-                ["Lateralidad", t.lateralidad],
+                ["Lateralidad", textoLateralidad(t.lateralidad)],
                 ["Teléfono", t.telefono],
                 ["Correo", t.correo],
               ]} />
@@ -160,7 +285,7 @@ export default async function FichaPaciente({ params }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="laboral" className="mt-4 grid gap-4 lg:grid-cols-2">
+        <TabsContent value="laboral" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-base">Puesto actual</CardTitle></CardHeader>
             <CardContent>
@@ -173,6 +298,24 @@ export default async function FichaPaciente({ params }: Props) {
               ]} />
             </CardContent>
           </Card>
+          {periodos.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Empresas y períodos anteriores</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="divide-y text-sm">
+                  {periodos.map((p, i) => (
+                    <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+                      <span><span className="font-medium">{p.empresa}</span>{p.cargo && <span className="text-muted-foreground"> · {p.cargo}</span>}</span>
+                      <span className="text-muted-foreground">
+                        {p.desde ? fecha(p.desde) : "Sin fecha"} – {fecha(p.hasta)} · {p.cierre === "inactivo" ? "Inactivo" : p.cierre === "egresado" ? "Egreso" : "Cambio de empresa"}
+                        {p.motivo && ` (${p.motivo})`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader><CardTitle className="text-base">Riesgos del puesto</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -191,9 +334,19 @@ export default async function FichaPaciente({ params }: Props) {
           </Card>
           {conBase && (
             <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Vacaciones y post vacacional</CardTitle></CardHeader>
+              <CardContent>
+                <Vacaciones trabajadorId={t.id} iniciales={vacaciones} diasPost={puestoActual?.empresas?.dias_post_vacacional ?? 5} hoy={hoyCaracas()} editable={anotaVacaciones} fechasPosv={consultas.filter((c) => /post\s*-?\s*vacacional/i.test(c.motivo)).map((c) => c.fecha.slice(0, 10))} />
+              </CardContent>
+            </Card>
+          )}
+          {conBase && (
+            <Card className="lg:col-span-2">
               <CardHeader><CardTitle className="text-base">Notificación de riesgos (LOPCYMAT art. 56.3)</CardTitle></CardHeader>
               <CardContent>
                 <NotificacionesRiesgo
+                  key={notificaciones.map((n) => n.id).join()}
+                  elimina={!sesion.demo && sesion.rol === "administrador" && Boolean(sesion.clinico)}
                   trabajadorId={t.id}
                   puesto={{ id: puestoActual?.puesto_id ?? null, nombre: puestoActual?.puestos?.nombre ?? "", evaluadoEn: puestoActual?.puestos?.evaluado_en ?? null }}
                   iniciales={notificaciones}
@@ -230,6 +383,26 @@ export default async function FichaPaciente({ params }: Props) {
             )}
           </Card>
         </TabsContent>
+        {conBase && sesion.clinico && (
+          <TabsContent value="indicaciones" className="mt-4">
+            <Card className="py-0">
+              <ListaIndicaciones trabajadorId={t.id} items={indicaciones} puedeAnular={emiteIndicacion} />
+            </Card>
+          </TabsContent>
+        )}
+        {sesion.clinico && !sesion.demo && (
+          <TabsContent value="enfermeria" className="mt-4">
+            <Card>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">Tensión, tratamientos, curas, procedimientos y evolución de enfermería de este trabajador.</p>
+                  <Button asChild size="sm" variant="outline"><Link href={`/enfermeria?trabajador=${t.id}#nueva`}><HeartPulse /> Nueva atención</Link></Button>
+                </div>
+                <ListaAtenciones atenciones={enfermeria} puedeBorrarTodo={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} vacio="Sin atenciones de enfermería." />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         {verAdjuntos && (
           <TabsContent value="historia" className="mt-4">
             <Card><CardContent><HistoriaLaboral trabajadorId={t.id} empleos={empleos} /></CardContent></Card>
@@ -237,10 +410,11 @@ export default async function FichaPaciente({ params }: Props) {
         )}
         {verAdjuntos && (
           <TabsContent value="resultados" className="mt-4">
-            <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} /></CardContent></Card>
+            <Card><CardContent><Adjuntos orgId={sesion.orgId!} trabajadorId={t.id} iniciales={adjuntos} catalogo={catalogoEstudios} consultas={consultas.filter((c) => !c.demo)} /></CardContent></Card>
           </TabsContent>
         )}
       </Tabs>
+      </FrescoAlVolver>
     </div>
   );
 }

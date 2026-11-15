@@ -1,5 +1,6 @@
 import "server-only";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { ahora } from "@/lib/fecha";
 
 // Invitaciones por enlace para RR. HH. de cada empresa. El enlace se arma una sola vez al crearlas (la base guarda
 // solo el sha256 del token), así que la lista muestra el estado, no el enlace.
@@ -31,7 +32,7 @@ export async function listarInvitaciones(limite = 30): Promise<Invitacion[]> {
     empresa: i.empresas ? i.empresas.nombre_comercial || i.empresas.razon_social : "—",
     nombre: i.nombre,
     telefono: i.telefono,
-    estado: i.revocada_en ? "anulada" : i.usada_en ? "usada" : new Date(i.vence) < new Date() ? "vencida" : "vigente",
+    estado: i.revocada_en ? "anulada" : i.usada_en ? "usada" : new Date(i.vence) < new Date(ahora()) ? "vencida" : "vigente",
     vence: i.vence,
     usadaEn: i.usada_en,
     creadoEn: i.creado_en,

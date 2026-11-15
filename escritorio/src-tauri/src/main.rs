@@ -15,7 +15,10 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons}
 use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
+mod espirometro;
 mod hello;
+mod microfono;
+mod voz;
 mod procesos;
 
 #[cfg(windows)]
@@ -216,10 +219,10 @@ fn revisar_componentes(recursos: &Path) -> Result<(), String> {
 }
 
 // Perfil del navegador interno (WebView2): la primera vez que abre una compilación nueva de la app se limpia
-// por completo (service workers, cachés, cookies, almacenamiento). Así instalar una versión encima nunca vuelve
-// a correr archivos viejos de la app, y solo pide entrar de nuevo tras actualizar.
-// La marca vive junto a los datos: si se borran (PC reinstalada tras un daño), el perfil también se limpia,
-// porque WebView2 lo guarda aparte y sobrevive a desinstalar (p. ej. el «Ahora no» de Windows Hello).
+// (service workers, cachés, almacenamiento), así instalar una versión encima nunca vuelve a correr archivos viejos.
+// Al actualizar se conservan las cookies: ahí vive la sesión, y borrarla obligaba a escribir la clave tras cada
+// «Actualizar ahora» (29-oct). Si falta la marca (datos borrados, PC reinstalada tras un daño) se limpia todo,
+// cookies incluidas, porque WebView2 guarda el perfil aparte y sobrevive a desinstalar.
 fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     let compilacion = std::fs::read_to_string(recursos.join("app").join(".next").join("BUILD_ID")).unwrap_or_default();
     let compilacion = compilacion.trim();
@@ -228,19 +231,79 @@ fn limpiar_perfil_si_cambio(ventana: &tauri::WebviewWindow, recursos: &Path) {
     }
     let _ = std::fs::create_dir_all(carpeta_datos());
     let marca = carpeta_datos().join("perfil-web.txt");
-    if std::fs::read_to_string(&marca).map(|m| m.trim() == compilacion).unwrap_or(false) {
+    let anterior = std::fs::read_to_string(&marca).ok();
+    if anterior.as_deref().map(str::trim) == Some(compilacion) {
         return;
     }
-    match ventana.clear_all_browsing_data() {
-        Ok(()) => {
-            anotar(&format!("perfil del navegador interno limpiado para la compilación {compilacion}"));
+    let resultado = if anterior.is_some() {
+        perfil::limpiar_sin_cookies(ventana).map(|_| "sin tocar la sesión")
+    } else {
+        ventana.clear_all_browsing_data().map_err(|e| e.to_string()).map(|_| "por completo")
+    };
+    match resultado {
+        Ok(como) => {
+            anotar(&format!("perfil del navegador interno limpiado {como} para la compilación {compilacion}"));
             let _ = std::fs::write(&marca, compilacion);
         }
         Err(e) => anotar(&format!("no se pudo limpiar el perfil del navegador interno: {e}")),
     }
 }
 
-fn arrancar(recursos: &Path) -> Result<Procesos, String> {
+mod perfil {
+    // Todo el perfil menos las cookies, con la API de WebView2 (Tauri solo ofrece borrar todo)
+    #[cfg(windows)]
+    pub fn limpiar_sin_cookies(ventana: &tauri::WebviewWindow) -> Result<(), String> {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        use webview2_com::ClearBrowsingDataCompletedHandler;
+        use webview2_com::Microsoft::Web::WebView2::Win32::*;
+        use windows::core::Interface;
+        let (aviso, respuesta) = mpsc::channel::<Result<(), String>>();
+        ventana
+            .with_webview(move |wv| {
+                let otro = aviso.clone();
+                let tipos = COREWEBVIEW2_BROWSING_DATA_KINDS(COREWEBVIEW2_BROWSING_DATA_KINDS_ALL_PROFILE.0 & !COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES.0);
+                let r = unsafe {
+                    wv.controller()
+                        .CoreWebView2()
+                        .and_then(|w| w.cast::<ICoreWebView2_13>())
+                        .and_then(|w| w.Profile())
+                        .and_then(|p| p.cast::<ICoreWebView2Profile2>())
+                        .and_then(|p| {
+                            p.ClearBrowsingData(
+                                tipos,
+                                &ClearBrowsingDataCompletedHandler::create(Box::new(move |error| {
+                                    let _ = otro.send(error.map_err(|e| e.to_string()));
+                                    Ok(())
+                                })),
+                            )
+                        })
+                };
+                if let Err(e) = r {
+                    let _ = aviso.send(Err(e.to_string()));
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        respuesta.recv_timeout(Duration::from_secs(20)).map_err(|_| "WebView2 no respondió a tiempo".to_string())?
+    }
+
+    #[cfg(not(windows))]
+    pub fn limpiar_sin_cookies(ventana: &tauri::WebviewWindow) -> Result<(), String> {
+        ventana.clear_all_browsing_data().map_err(|e| e.to_string())
+    }
+}
+
+// Avance de la primera apertura (C13): la puerta escribe «AVANCE <pct> <texto>» en su salida y la pantalla de carga
+// (ventana/index.html) lo muestra con window.avance. El texto es fijo (motor.mjs) y viaja como cadena JSON; una línea
+// mal formada se ignora.
+fn leer_avance(linea: &str) -> Option<(u32, String)> {
+    let (pct, texto) = linea.strip_prefix("AVANCE ")?.split_once(' ')?;
+    let pct: u32 = pct.parse().ok().filter(|n| *n <= 100)?;
+    let texto: String = texto.chars().filter(|c| !c.is_control()).take(80).collect();
+    Some((pct, texto))
+}
+
+fn arrancar(recursos: &Path, avance: impl Fn(u32, &str) + Send + 'static) -> Result<Procesos, String> {
     anotar(&format!("recursos: {}", recursos.display()));
     revisar_recursos(recursos)?;
     revisar_componentes(recursos)?;
@@ -253,6 +316,7 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         .arg(puerta_dir.join("puerta").join("index.mjs"))
         .current_dir(&puerta_dir)
         .env("ZAMORAPP_DATOS", &datos)
+        .env("ZAMORAPP_AVANCE", "1")
         .env("ZAMORAPP_LLAVE", llave_pc()?)
         .env("ZAMORAPP_NUBE_URL", nube_url())
         .env("ZAMORAPP_NUBE_ANON", NUBE_ANON)
@@ -280,6 +344,8 @@ fn arrancar(recursos: &Path) -> Result<Procesos, String> {
         for linea in BufReader::new(salida).lines().map_while(Result::ok) {
             if linea.starts_with("PUERTA_LISTA") {
                 let _ = aviso_ok.send(Ok(()));
+            } else if let Some((pct, texto)) = leer_avance(&linea) {
+                avance(pct, &texto);
             }
         }
     });
@@ -366,10 +432,18 @@ fn pedir_puerta(ruta: &str) -> Result<String, String> {
 }
 
 fn llamar_puerta(metodo: &str, ruta: &str) -> Result<String, String> {
-    let mut c = std::net::TcpStream::connect(("127.0.0.1", PUERTO_PUERTA)).map_err(|e| e.to_string())?;
     // Las consultas (GET) responden al instante; las acciones (sincronizar) pueden tardar minutos
-    c.set_read_timeout(Some(Duration::from_secs(if metodo == "GET" { 20 } else { 300 }))).ok();
-    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\nX-Zamorapp-Control: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", clave_control())
+    llamar_puerta_en(metodo, ruta, Duration::from_secs(if metodo == "GET" { 20 } else { 300 }), true)
+}
+
+// con_control = false: pregunta como cualquier visitante local. Lo usa el aviso de salir, para no consumir marcas que
+// la puerta entrega una sola vez al programa (buscarActualizacion), que solo debe leer vigilar_nube.
+fn llamar_puerta_en(metodo: &str, ruta: &str, espera: Duration, con_control: bool) -> Result<String, String> {
+    let destino = std::net::SocketAddr::from(([127, 0, 0, 1], PUERTO_PUERTA));
+    let mut c = std::net::TcpStream::connect_timeout(&destino, espera).map_err(|e| e.to_string())?;
+    c.set_read_timeout(Some(espera)).ok();
+    let control = if con_control { format!("X-Zamorapp-Control: {}\r\n", clave_control()) } else { String::new() };
+    write!(c, "{metodo} {ruta} HTTP/1.1\r\nHost: 127.0.0.1:{PUERTO_PUERTA}\r\n{control}Content-Length: 0\r\nConnection: close\r\n\r\n")
         .map_err(|e| e.to_string())?;
     // Se lee hasta que la puerta cierra (Connection: close) o hasta tener el cuerpo completo (Content-Length):
     // así una conexión que quede abierta no deja al programa esperando el tiempo límite.
@@ -407,6 +481,51 @@ fn sin_trozos(cuerpo: &str) -> String {
         resto = siguiente.strip_prefix("\r\n").unwrap_or("");
     }
     salida
+}
+
+// La X (o Alt+F4) de la ventana principal pregunta antes de salir: Cesar la pulsaba por error y tenía que volver a
+// abrir el programa (12-nov-2026). Si hay algo en marcha, el mismo aviso lo dice; nada se pierde al salir.
+static PREGUNTANDO_SALIDA: AtomicBool = AtomicBool::new(false);
+
+fn confirmar_salida(app: AppHandle) {
+    if PREGUNTANDO_SALIDA.swap(true, Ordering::SeqCst) { return; }
+    std::thread::spawn(move || {
+        // Estado de la puerta con espera corta: si no responde (arrancando o caída), se pregunta igual, sin detalles
+        let estado = llamar_puerta_en("GET", "/zamorapp/estado", Duration::from_secs(2), false).ok()
+            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok());
+        let lista = PENDIENTE.lock().map(|p| p.is_some()).unwrap_or(false);
+        let texto = texto_salida(estado.as_ref(), ACTUALIZANDO.load(Ordering::SeqCst) && !lista, lista);
+        let salir = dialogo(&app, texto)
+            .title("Salir de zamorApp")
+            .buttons(MessageDialogButtons::OkCancelCustom("Salir".into(), "Cancelar".into()))
+            .blocking_show();
+        PREGUNTANDO_SALIDA.store(false, Ordering::SeqCst);
+        if !salir { anotar("salir: cancelado"); return; }
+        anotar("salir: confirmado");
+        // destroy() no vuelve a pedir permiso (no pasa por CloseRequested); al destruirse la principal, el programa sale
+        match app.get_webview_window("principal") {
+            Some(v) => { if v.destroy().is_err() { app.exit(0); } }
+            None => app.exit(0),
+        }
+    });
+}
+
+fn texto_salida(estado: Option<&serde_json::Value>, descargando: bool, actualizacion_lista: bool) -> String {
+    let mut avisos: Vec<String> = Vec::new();
+    if let Some(e) = estado {
+        let n = |v: &serde_json::Value| v.as_u64().unwrap_or(0);
+        let por_subir = n(&e["bandeja"]["pendientes"]) + n(&e["adjuntos"]["pendientes"]);
+        if por_subir > 0 {
+            let cuantos = if por_subir == 1 { "1 cambio guardado".to_string() } else { format!("{por_subir} cambios guardados") };
+            avisos.push(format!("• Hay {cuantos} en esta PC que todavía no {} a la nube. No se {}: {} la próxima vez que abras zamorApp con internet.",
+                if por_subir == 1 { "subió" } else { "subieron" }, if por_subir == 1 { "pierde" } else { "pierden" }, if por_subir == 1 { "sube" } else { "suben" }));
+        }
+        if e["sincronizando"] == true { avisos.push("• Se está sincronizando con la nube. Si sales, continúa la próxima vez que abras zamorApp.".into()); }
+        if e["respaldo"]["enCurso"] == true { avisos.push("• Se está haciendo un respaldo. Si sales, se interrumpe y habrá que repetirlo.".into()); }
+    }
+    if descargando { avisos.push("• Se está descargando una actualización. Si sales, se vuelve a ofrecer la próxima vez.".into()); }
+    if actualizacion_lista { avisos.push("• Al salir se instala la actualización que ya está lista; zamorApp se vuelve a abrir solo en unos segundos.".into()); }
+    if avisos.is_empty() { "¿Quieres salir de zamorApp?".into() } else { format!("¿Quieres salir de zamorApp?\n\n{}", avisos.join("\n")) }
 }
 
 fn sincronizar_ahora(app: AppHandle) {
@@ -462,6 +581,8 @@ fn franja_actualizacion(texto: &str, pct: Option<u64>) -> String {
     f.innerHTML = '<span></span><div style="height:4px;margin-top:6px;background:rgba(255,255,255,.25);border-radius:2px"><div style="height:100%;background:#7fd6c2;border-radius:2px;transition:width .3s"></div></div>';
     document.body.appendChild(f);
   }}
+  // En ventanas angostas (< 1024 px) la app muestra su barra inferior: la franja va encima, sin taparla.
+  f.style.bottom = (document.querySelector("[data-barra-inferior]")?.offsetHeight || 0) + "px";
   f.firstChild.textContent = texto;
   f.lastChild.firstChild.style.width = "{ancho}";
 }})()"#)
@@ -516,7 +637,10 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
-                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false) || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
+                // Pedida a mano (menú o botón): se descarga enseguida, sin volver a preguntar; solo se pregunta al instalar.
+                let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false)
+                    || (a_pedido && !FALTAN_COMPONENTES.load(Ordering::SeqCst))
+                    || dialogo(&app, if FALTAN_COMPONENTES.load(Ordering::SeqCst) {
                         format!("A zamorApp {} le faltan piezas de la base de datos local: hay que descargar el instalador completo.\n\nTarda unos minutos, el programa se vuelve a abrir solo y no se borra ningún dato.", nueva.version)
                     } else {
                         format!("Hay una versión nueva de zamorApp: {} (tienes la {actual}).\n\nSe descarga mientras trabajas y al final te pregunta cuándo instalar. No se borra ningún dato.", nueva.version)
@@ -627,7 +751,8 @@ fn vigilar_nube(app: AppHandle) {
             if estado["buscarActualizacion"] == true {
                 // Botón «Buscar actualización» de la pantalla: responde siempre, como desde el menú
                 anotar("actualización pedida desde la pantalla");
-                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, true); }
+                // Desde la barra lateral la nube puede estar al día: «ya tienes la más reciente», no «la nube cambió»
+                if !en_pruebas() { buscar_actualizacion_por(app.clone(), true, estado["actualizar"] == true); }
             }
             if estado["actualizar"] == true && !avisado {
                 avisado = true;
@@ -679,18 +804,33 @@ fn descarga(app: &AppHandle, evento: tauri::webview::DownloadEvent<'_>) -> bool 
 }
 
 fn main() {
-    anotar(&format!("--- zamorApp {} abriendo", env!("CARGO_PKG_VERSION")));
+    // La versión real (0.1.<corrida>) la pone el CI en el instalador y se anota abajo («versión del instalador»);
+    // CARGO_PKG_VERSION siempre dice 0.1.0 y confundía al leer el registro.
+    anotar("--- zamorApp Escritorio abriendo");
     std::panic::set_hook(Box::new(|info| anotar(&format!("PÁNICO: {info}"))));
     match tauri::webview_version() {
         Ok(v) => anotar(&format!("WebView2 {v}")),
         Err(e) => anotar(&format!("WebView2 no disponible: {e}")),
     }
     let app = tauri::Builder::default()
+        // Va primero: si ya hay una copia abierta, esta se cierra al instante (antes de tocar la base o la puerta) y la
+        // abierta pasa al frente. Sin esto la segunda se quedaba en «esperando la base» (12-nov-2026).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            anotar("se pidió abrir otra copia: se trae al frente la que ya está abierta");
+            if let Some(v) = app.get_webview_window("principal") {
+                let _ = v.unminimize();
+                let _ = v.show();
+                let _ = v.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Aviso de Windows cuando llega algo nuevo a la campana (enlace abierto, RR. HH., plazos): lo pide la página
+        // (src/lib/escritorio.ts › avisoWindows). Solo «notify»: la página no puede leer ni borrar otros avisos.
+        .plugin(tauri_plugin_notification::init())
         .manage(Mutex::new(Procesos::default()))
         .manage(documentos::Guardados::default())
-        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf])
+        .invoke_handler(tauri::generate_handler![documentos::imprimir, documentos::guardar_pdf, documentos::mostrar_pdf, voz::dictado_windows, espirometro::espirometria_winspiro])
         .on_menu_event(|app, evento| match evento.id().0.as_str() {
             "sincronizar" => sincronizar_ahora(app.clone()),
             "actualizar" => buscar_actualizacion(app.clone(), true),
@@ -721,6 +861,8 @@ fn main() {
                 .title(format!("zamorApp Escritorio v{version}"))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
                 .on_download(move |_, evento| descarga(&para_descargas, evento))
+                // Micrófono del dictado: concedido solo a las páginas de la app (ver microfono.rs)
+                .on_permission_request(|webview, tipo| microfono::responder(&webview, tipo))
                 // "Entrar con Windows Hello": la página pide la huella navegando a una dirección de la puerta que se
                 // intercepta aquí (la página no cambia). Ver hello.rs.
                 .on_navigation({
@@ -738,12 +880,18 @@ fn main() {
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
-            constructor.build()?;
+            let principal = constructor.build()?;
+            microfono::quitar_rechazo_guardado(&principal);
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
                 limpiar_perfil_si_cambio(&ventana, &recursos);
-                match arrancar(&recursos) {
+                let para_avance = ventana.clone();
+                let avance = move |pct: u32, texto: &str| {
+                    let texto = serde_json::to_string(texto).unwrap_or_else(|_| "\"\"".into());
+                    let _ = para_avance.eval(&format!("window.avance && window.avance({pct}, {texto})"));
+                };
+                match arrancar(&recursos, avance) {
                     Ok(p) => {
                         *manejador.state::<Mutex<Procesos>>().lock().unwrap() = p;
                         let destino = format!("http://127.0.0.1:{PUERTO_PUERTA}/zamorapp/inicio");
@@ -770,10 +918,19 @@ fn main() {
         .expect("no se pudo crear la ventana de zamorApp");
 
     app.run(|manejador, evento| match evento {
+        // La X o Alt+F4 de la ventana principal: primero se pregunta (en las pruebas automáticas también: la prueba
+        // de humo pulsa «Cancelar» y luego «Salir», como lo haría Cesar)
+        RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } if label == "principal" => {
+            api.prevent_close();
+            confirmar_salida(manejador.clone());
+        }
         // Cerrar la ventana principal cierra el programa entero, aunque queden documentos abiertos en otras ventanas
         RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "principal" => manejador.exit(0),
         RunEvent::Exit => {
             anotar("cerrando");
+            // Se suelta el candado de una sola copia antes de detener la base: si Cesar la vuelve a abrir mientras esta
+            // termina de cerrar, la nueva arranca y su puerta espera a que se libere el puerto (puerta/puerto.mjs)
+            tauri_plugin_single_instance::destroy(manejador);
             detener(&mut manejador.state::<Mutex<Procesos>>().lock().unwrap());
             instalar_pendiente();
         }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Fingerprint, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { Building2, ChevronDown, Fingerprint, LogOut, Menu, Search, ShieldCheck, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,18 +16,24 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BarraLateral } from "./barra-lateral";
+import { BotonMenu } from "./boton-vista-menu";
 import { abrirBuscador } from "./buscador-global";
 import { SelectorTema } from "./selector-tema";
 import { InstalarApp } from "./instalar-app";
+import { IndicadorSincronia } from "./indicador-sincronia";
 import { Notificaciones } from "./notificaciones";
 import { HuellaCuenta } from "./huella";
 import { elegirEmpresa, salir } from "./acciones";
+import { borrarBorradoresFicha } from "@/lib/borrador-ficha";
+
+const ESCRITORIO = process.env.NEXT_PUBLIC_ESCRITORIO === "1";
 
 type Props = {
   usuario: { nombre: string; rol: string; demo: boolean };
   empresas: { id: string; nombre: string; trabajadores: number }[];
   empresaActiva: string | null;
   organizacion: string;
+  titular?: string | null;
   portal?: boolean;
 };
 
@@ -36,7 +42,7 @@ function iniciales(nombre: string) {
   return ((p[0]?.[0] ?? "") + (p.length > 2 ? p[2][0] : p[1]?.[0] ?? "")).toUpperCase();
 }
 
-export function Encabezado({ usuario, empresas, empresaActiva, organizacion, portal = false }: Props) {
+export function Encabezado({ usuario, empresas, empresaActiva, organizacion, titular, portal = false }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [huellaAbierta, setHuellaAbierta] = useState(false);
   const [, iniciar] = useTransition();
@@ -53,9 +59,10 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetTitle className="sr-only">Menú</SheetTitle>
-          <BarraLateral organizacion={organizacion} portal={portal} alNavegar={() => setMenuAbierto(false)} />
+          <BarraLateral organizacion={organizacion} titular={titular} portal={portal} alNavegar={() => setMenuAbierto(false)} />
         </SheetContent>
       </Sheet>
+      <BotonMenu />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -89,7 +96,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
         className="ml-auto hidden h-10 w-full max-w-sm items-center gap-2 rounded-lg border bg-card px-3 text-sm text-muted-foreground transition hover:border-primary/50 md:flex"
       >
         <Search className="size-4" />
-        <span className="flex-1 text-left">Buscar por cédula, nombre o sección…</span>
+        <span className="flex-1 text-left">Buscar paciente, empresa o función…</span>
         <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[11px]">Ctrl K</kbd>
       </button>
       <Button variant="ghost" size="icon" className="ml-auto md:hidden" aria-label="Buscar" onClick={abrirBuscador}>
@@ -97,6 +104,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
       </Button>
 
       <InstalarApp />
+      <IndicadorSincronia />
       <Notificaciones />
 
       <DropdownMenu>
@@ -118,14 +126,17 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/configuracion"><UserRound /> Mi perfil y firma</Link>
+            <Link href="/configuracion/perfil"><UserRound /> Mi perfil y firma</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/configuracion/ingreso"><ShieldCheck /> Ingreso y seguridad</Link>
           </DropdownMenuItem>
           {!usuario.demo && (
             <DropdownMenuItem onSelect={() => setHuellaAbierta(true)}>
-              <Fingerprint /> Entrar con huella
+              <Fingerprint /> {ESCRITORIO ? "Entrar con Windows Hello" : "Entrar con huella"}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => salir()}>
+          <DropdownMenuItem onSelect={() => { borrarBorradoresFicha(); void salir(); }}>
             <LogOut /> Salir
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -133,7 +144,7 @@ export function Encabezado({ usuario, empresas, empresaActiva, organizacion, por
 
       <Dialog open={huellaAbierta} onOpenChange={setHuellaAbierta}>
         <DialogContent className="p-0 sm:max-w-md">
-          <DialogTitle className="sr-only">Entrar con huella</DialogTitle>
+          <DialogTitle className="sr-only">{ESCRITORIO ? "Entrar con Windows Hello" : "Entrar con huella"}</DialogTitle>
           {huellaAbierta && <HuellaCuenta />}
         </DialogContent>
       </Dialog>

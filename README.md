@@ -2,6 +2,8 @@
 
 Plataforma de salud ocupacional multiempresa de OcupaVida Salud Ocupacional (Dr. Cesar Enrique Zamora, médico ocupacional en libre ejercicio): pacientes, consulta médica, aptitud, reposos y cumplimiento de la LOPCYMAT ante el INPSASEL.
 
+> **Agentes y colaboradores:** empezar por [AGENTS.md](AGENTS.md) y [docs/](docs/) (arquitectura, flujo, despliegue, credenciales, reglas, pendientes).
+
 **Stack:** Next.js 15 (App Router, TypeScript) · Tailwind CSS 4 + shadcn/ui · Supabase (PostgreSQL, Auth, RLS) · PWA instalable.
 
 ## Arrancar

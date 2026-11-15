@@ -39,7 +39,7 @@ export async function prepararArchivo(archivo: File): Promise<File> {
 // Sube el archivo ya preparado al bucket privado y lo registra. Devuelve la fila o lanza el error.
 export async function subirAdjunto(
   supabase: ReturnType<typeof crearClienteNavegador>,
-  datos: { orgId: string; trabajadorId: string; consultaId?: string | null; examenes?: string[] },
+  datos: { orgId: string; trabajadorId: string; consultaId?: string | null; examenes?: string[]; descripcion?: string },
   original: File,
 ) {
   const archivo = await prepararArchivo(original);
@@ -49,7 +49,7 @@ export async function subirAdjunto(
   if (e1) throw new Error(`No se pudo subir ${original.name}: ${e1.message}`);
   const { data, error: e2 } = await supabase
     .from("adjuntos")
-    .insert({ org_id: datos.orgId, trabajador_id: datos.trabajadorId, consulta_id: datos.consultaId ?? null, nombre: archivo.name, ruta, tipo_mime: archivo.type, tamano: archivo.size, examenes: datos.examenes ?? [] })
+    .insert({ org_id: datos.orgId, trabajador_id: datos.trabajadorId, consulta_id: datos.consultaId ?? null, nombre: archivo.name, ruta, tipo_mime: archivo.type, tamano: archivo.size, examenes: datos.examenes ?? [], ...(datos.descripcion ? { descripcion: datos.descripcion } : {}) })
     .select(COLUMNAS_ADJUNTO)
     .single();
   if (e2) {

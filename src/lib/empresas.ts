@@ -2,10 +2,13 @@ import { cache } from "react";
 import { supabaseConfigurado } from "@/lib/config";
 import { EMPRESAS_DEMO } from "@/lib/demo";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import type { AvisoEmpresa } from "@/lib/empresas-avisos";
+import { esParticular } from "@/lib/particulares";
 
 export type Empresa = {
   id: string;
   razonSocial: string;
+  proyecto: string | null;
   rif: string;
   nil: string | null;
   actividad: string | null;
@@ -21,18 +24,68 @@ export type Empresa = {
   psstRegistro: string | null;
   trabajadores: number;
   activa: boolean;
+  esParticular: boolean; // bolsa de pacientes particulares: NO es una empresa (fuera de listas de empresas, RR. HH. y envíos)
   ignorarAlertaLegal: boolean;
   mesInicioGestion: number; // 1-12: los trimestres del informe de vigilancia se cuentan desde este mes
   periodicidadMeses: number; // examen periódico: si la constancia no trae vigencia, vence a los N meses del último
   diasAvisoExamen: number; // con cuántos días de anticipación se avisa que vence
+  diasPostVacacional: number; // días desde el regreso de vacaciones para la evaluación post vacacional
+  avisosApagados: AvisoEmpresa[]; // recordatorios que NO salen para esta empresa (Inicio y campana)
 };
 
-// cache(): el layout y la página la piden en la misma carga; así va una sola consulta
-export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
-  if (!supabaseConfigurado) {
+
+// Las empresas y su conteo de trabajadores cambian poco pero el marco de CADA pantalla las pide (selector del
+// encabezado): se guardan 60 s en memoria del servidor por usuario (lo que cada uno puede ver lo decide RLS, así
+// que la llave es el usuario y su nivel de sesión). Se invalidan al crear o editar empresas o trabajadores
+// y al cambiar rol, empresas permitidas o estado de un miembro (invalidarEmpresas).
+const MEMORIA = new Map<string, { datos: Empresa[]; vence: number }>();
+const DURACION = 60 * 1000;
+// Generación: cada invalidación la sube. Una lectura que empezó ANTES de invalidar (con internet lento o leyendo la
+// copia de la PC) trae datos viejos y no puede volver a guardarlos en memoria: si no, el cambio recién guardado
+// (p. ej. pausar avisos) desaparecía de la pantalla durante 60 s (Cesar, 06-nov, escritorio).
+let generacion = 0;
+
+export function invalidarEmpresas() {
+  generacion += 1;
+  MEMORIA.clear();
+}
+
+// cache(): el layout y la página la piden en la misma carga; así va una sola consulta.
+// Por omisión solo las ACTIVAS: una empresa inactiva (con la que ya no se trabaja) sale del selector, los listados,
+// el Inicio y los formularios, pero sus datos quedan intactos por razones legales. incluirInactivas = true para
+// lo que debe seguir viéndola: Empresas («Ver inactivas»), su ficha, reportes e impresos históricos, la bitácora,
+// los accidentes ya registrados y los permisos de usuarios.
+export const listarEmpresas = cache(async (incluirInactivas = false): Promise<Empresa[]> => {
+  const todas = await listarTodas();
+  return incluirInactivas ? todas : todas.filter((e) => e.activa);
+});
+
+// Solo empresas de verdad (sin la bolsa de particulares): Empresas, usuarios de RR. HH., envíos, portal.
+export const soloEmpresas = (lista: Empresa[]) => lista.filter((e) => !e.esParticular);
+// Id de la bolsa de particulares (o null si la organización aún no tiene)
+export const idParticulares = (lista: Empresa[]) => lista.find((e) => e.esParticular)?.id ?? null;
+
+const listarTodas = cache(async (): Promise<Empresa[]> => {
+  if (!supabaseConfigurado) return empresasDemo();
+  const supabase = await crearClienteServidor();
+  // getClaims verifica el token localmente (sin ir al servidor)
+  const { data: claims } = await supabase.auth.getClaims();
+  // Llave: usuario + nivel de la sesión (aal): el marco guardado con dos pasos no se entrega a una sesión sin ellos
+  const usuario = claims?.claims?.sub ? `${claims.claims.sub}:${String(claims.claims.aal ?? "aal1")}` : undefined;
+  const guardado = usuario ? MEMORIA.get(usuario) : undefined;
+  if (guardado && guardado.vence > performance.now()) return guardado.datos;
+  const desde = generacion;
+  const datos = await consultarEmpresas();
+  if (usuario && desde === generacion) MEMORIA.set(usuario, { datos, vence: performance.now() + DURACION });
+  return datos;
+});
+
+function empresasDemo(): Empresa[] {
+  {
     return EMPRESAS_DEMO.map((e) => ({
       id: e.rif,
       razonSocial: e.nombre,
+      proyecto: null,
       rif: e.rif,
       nil: null,
       actividad: null,
@@ -48,18 +101,24 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
       psstRegistro: null,
       trabajadores: e.trabajadores,
       activa: true,
+      esParticular: false,
       ignorarAlertaLegal: false,
       mesInicioGestion: 1,
       periodicidadMeses: 12,
       diasAvisoExamen: 30,
+      diasPostVacacional: 5,
+      avisosApagados: [],
     }));
   }
+}
+
+async function consultarEmpresas(): Promise<Empresa[]> {
   const supabase = await crearClienteServidor();
   // El conteo va aparte: trabajadores(count) necesita SELECT sobre toda la tabla y sus datos de salud son privados
   const [{ data, error }, { data: conteos, error: errorConteo }] = await Promise.all([
     supabase
       .from("empresas")
-      .select("id, razon_social, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen")
+      .select("id, razon_social, proyecto, rif, nil, actividad_economica, estado, municipio, parroquia, sector, direccion, telefono, correo, servicio_sst_tipo, servicio_sst_fecha_registro, psst_fecha_registro, activa, ignorar_alerta_legal, mes_inicio_gestion, periodicidad_meses, dias_aviso_examen, dias_post_vacacional, avisos_apagados")
       .order("razon_social"),
     supabase.rpc("trabajadores_por_empresa"),
   ]);
@@ -70,6 +129,7 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
   return (data ?? []).map((e) => ({
     id: e.id,
     razonSocial: e.razon_social,
+    proyecto: e.proyecto,
     rif: e.rif,
     nil: e.nil,
     actividad: e.actividad_economica,
@@ -85,12 +145,15 @@ export const listarEmpresas = cache(async (): Promise<Empresa[]> => {
     psstRegistro: e.psst_fecha_registro,
     trabajadores: totales.get(e.id) ?? 0,
     activa: e.activa,
+    esParticular: esParticular(e),
     ignorarAlertaLegal: e.ignorar_alerta_legal,
     mesInicioGestion: e.mes_inicio_gestion ?? 1,
     periodicidadMeses: e.periodicidad_meses ?? 12,
     diasAvisoExamen: e.dias_aviso_examen ?? 30,
+    diasPostVacacional: e.dias_post_vacacional ?? 5,
+    avisosApagados: (e.avisos_apagados ?? []) as AvisoEmpresa[],
   }));
-});
+}
 
 // Datos legales que exige el informe trimestral (bloque 1); si falta alguno se marca en rojo.
 export function datosLegalesFaltantes(e: Empresa) {

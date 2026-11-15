@@ -1,6 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { COOKIE_EMPRESA } from "@/lib/empresa-activa";
+import { invalidarEmpresas } from "@/lib/empresas";
+import { AVISOS_EMPRESA } from "@/lib/empresas-avisos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -36,6 +40,7 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     rif,
     nil: texto(datos, "nil"),
     actividad_economica: texto(datos, "actividad"),
+    proyecto: texto(datos, "proyecto"),
     estado: texto(datos, "estado"),
     municipio: texto(datos, "municipio"),
     direccion: texto(datos, "direccion"),
@@ -49,17 +54,42 @@ export async function guardarEmpresa(_: Resultado | null, datos: FormData): Prom
     mes_inicio_gestion: Math.min(12, Math.max(1, Number(datos.get("mes_inicio_gestion")) || 1)),
     periodicidad_meses: Math.min(60, Math.max(1, Number(datos.get("periodicidad_meses")) || 12)),
     dias_aviso_examen: Math.min(180, Math.max(0, Number(datos.get("dias_aviso_examen") ?? 30) || 0)),
+    dias_post_vacacional: Math.min(60, Math.max(0, Number(datos.get("dias_post_vacacional") ?? 5) || 0)),
+    // Casilla marcada = aviso encendido; se guardan los apagados. Solo si el formulario trae las casillas
+    // (marca «avisos_en_formulario»): otro formulario sin ellas no apaga nada sin querer.
+    ...(datos.get("avisos_en_formulario") === "1" ? {
+      avisos_apagados: AVISOS_EMPRESA.map((a) => a.clave).filter((k) => datos.get(`aviso_${k}`) !== "on"),
+      ignorar_alerta_legal: datos.get("aviso_datos_legales") !== "on",
+    } : {}),
   };
 
   const supabase = await crearClienteServidor();
+  // El id de la nueva se crea aquí para colgarle sus dependencias sin pedir la fila de vuelta
+  const empresaId = id ?? crypto.randomUUID();
   const { error } = id
     ? await supabase.from("empresas").update(campos).eq("id", id)
-    : await supabase.from("empresas").insert({ ...campos, org_id: c.sesion.orgId! });
+    : await supabase.from("empresas").insert({ ...campos, id: empresaId, org_id: c.sesion.orgId! });
   if (error) {
     return { ok: false, mensaje: error.code === "23505" ? "Ya existe una empresa con ese RIF." : "No se pudo guardar: " + error.message };
   }
+  // Dependencias o departamentos, una por línea (como en el SAME): solo se agregan las que la empresa no tiene
+  const lineas = [...new Map(String(datos.get("dependencias") ?? "").split(/\r?\n/).map((d) => d.trim().replace(/\s+/g, " "))
+    .filter(Boolean).map((d) => [d.toLocaleLowerCase("es"), d])).entries()];
+  let nuevas = 0;
+  if (lineas.length) {
+    const { data: hay } = await supabase.from("dependencias").select("nombre").eq("empresa_id", empresaId);
+    const ya = new Set((hay ?? []).map((d) => d.nombre.trim().toLocaleLowerCase("es")));
+    const filas = lineas.filter(([k]) => !ya.has(k)).map(([, nombre]) => ({ org_id: c.sesion.orgId!, empresa_id: empresaId, nombre }));
+    if (filas.length) {
+      const { error: e } = await supabase.from("dependencias").insert(filas);
+      if (e) return { ok: false, mensaje: `${razonSocial} se guardó, pero no sus dependencias: ${e.message}` };
+      nuevas = filas.length;
+    }
+  }
+  invalidarEmpresas();
   revalidatePath("/", "layout");
-  return { ok: true, mensaje: id ? "Datos actualizados." : `${razonSocial} registrada.` };
+  const deps = nuevas ? ` ${nuevas === 1 ? "1 dependencia agregada" : `${nuevas} dependencias agregadas`}.` : "";
+  return { ok: true, mensaje: (id ? "Datos actualizados." : `${razonSocial} registrada.`) + deps };
 }
 
 // Oculta (o vuelve a mostrar) el aviso de datos legales incompletos de una empresa
@@ -69,8 +99,65 @@ export async function ignorarAlertaLegal(id: string, ignorar: boolean): Promise<
   const supabase = await crearClienteServidor();
   const { error } = await supabase.from("empresas").update({ ignorar_alerta_legal: ignorar }).eq("id", id);
   if (error) return { ok: false, mensaje: error.message };
+  invalidarEmpresas();
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
+}
+
+// Pausar (o reactivar) todos los avisos de una empresa de un toque: las que no se atienden por un tiempo.
+// Vale en la web, el escritorio y el celular (se guarda en la empresa). Los plazos legales de accidentes siguen avisando.
+export async function pausarAvisos(id: string, pausar: boolean): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("pausar_avisos_empresa", { p_empresa: id, p_pausar: pausar });
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Solo el administrador o el gerente médico pausan avisos." : `No se guardó: ${error.message}` };
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
+
+// Ajuste rápido desde la alerta del Inicio: mostrar u ocultar los vencimientos de UNA empresa, con sus días de aviso
+// y su periodicidad. Solo toca la casilla «vencimientos»: los demás avisos de la empresa quedan como estaban.
+export async function ajustarAlertaVencimientos(id: string, ajuste: { mostrar: boolean; diasAviso: number; periodicidad: number }): Promise<Resultado> {
+  const c = await soloAdministrador();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const dias = Math.trunc(Number(ajuste.diasAviso));
+  const meses = Math.trunc(Number(ajuste.periodicidad));
+  if (!Number.isFinite(dias) || dias < 0 || dias > 180) return { ok: false, mensaje: "Los días de aviso van de 0 a 180." };
+  if (!Number.isFinite(meses) || meses < 1 || meses > 60) return { ok: false, mensaje: "La periodicidad va de 1 a 60 meses." };
+  const supabase = await crearClienteServidor();
+  const { data: actual, error: e1 } = await supabase.from("empresas").select("avisos_apagados").eq("id", id).maybeSingle();
+  if (e1) return { ok: false, mensaje: "No se pudo leer la empresa: " + e1.message };
+  if (!actual) return { ok: false, mensaje: "No se encontró la empresa." };
+  const otros = ((actual.avisos_apagados ?? []) as string[]).filter((k) => k !== "vencimientos");
+  const { data, error } = await supabase.from("empresas")
+    .update({ avisos_apagados: ajuste.mostrar ? otros : [...otros, "vencimientos"], dias_aviso_examen: dias, periodicidad_meses: meses })
+    .eq("id", id).select("id");
+  if (error) return { ok: false, mensaje: "No se pudo guardar: " + error.message };
+  // Sin filas de vuelta = la base no dejó cambiarla (permisos): se dice, nunca «guardado» en falso
+  if (!data?.length) return { ok: false, mensaje: "No se guardó: tu usuario no tiene permiso para cambiar esta empresa." };
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: ajuste.mostrar ? "Ajuste guardado." : "Listo: esta empresa ya no avisa vencimientos en el Inicio." };
+}
+
+// Inactivar (o reactivar) una empresa con la que ya no se trabaja. NO borra nada: la empresa, sus dependencias,
+// cargos, trabajadores, consultas y documentos quedan intactos (respaldo legal) y la bitácora guarda quién y cuándo.
+// Inactiva = fuera del selector, los listados, el Inicio, los avisos y los formularios; sus trabajadores se siguen
+// encontrando por cédula en el buscador para pasarlos a otra empresa si vuelven como candidatos.
+export async function cambiarEstadoEmpresa(id: string, activa: boolean): Promise<Resultado> {
+  const c = await soloAdministrador();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("empresas").update({ activa }).eq("id", id).select("razon_social");
+  if (error) return { ok: false, mensaje: "No se pudo cambiar: " + error.message };
+  if (!data?.length) return { ok: false, mensaje: "No se encontró la empresa." };
+  // Si era la elegida en el encabezado, se vuelve a «Todas las empresas»
+  const almacen = await cookies();
+  if (!activa && almacen.get(COOKIE_EMPRESA)?.value === id) almacen.delete(COOKIE_EMPRESA);
+  invalidarEmpresas();
+  revalidatePath("/", "layout");
+  const nombre = data[0].razon_social;
+  return { ok: true, mensaje: activa ? `${nombre} está activa otra vez.` : `${nombre} quedó inactiva. Sus datos siguen guardados; puedes reactivarla cuando quieras.` };
 }
 
 const LOGO_VALIDO = /^data:image\/(png|jpeg|webp);base64,/;

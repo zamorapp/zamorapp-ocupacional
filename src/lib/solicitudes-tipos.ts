@@ -13,8 +13,12 @@ export type Solicitud = {
   estado: EstadoSolicitud;
   respuesta: string | null;
   documento: string | null; // nombre del archivo de respuesta
+  soloSalud: boolean;
+  respondidaAuto: boolean; // la respondió zamorApp con la constancia firmada (sin que nadie la atendiera) // respuesta con datos médicos: RR. HH. ve solo el estado, nunca el texto ni el documento
   creadoEn: string;
   actualizadoEn: string | null;
+  enProcesoEn: string | null;
+  respondidaEn: string | null; // respondida o rechazada
 };
 
 export const ETIQUETA_SOLICITUD: Record<EstadoSolicitud, { texto: string; clase: string }> = {

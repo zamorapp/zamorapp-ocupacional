@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { hoyCaracas } from "@/lib/fecha";
-import { correoConfigurado, remitente } from "@/lib/correo";
+import { remitenteVisible } from "@/lib/correo";
 import { empresaActivaId } from "@/lib/empresa-activa";
-import { listarEmpresas } from "@/lib/empresas";
+import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { consultasDelDia, contarPendientes, historialEnvios, listarContactos, listarPlantillas, porEnviar } from "@/lib/envios";
 import { obtenerSesion } from "@/lib/sesion";
 import { EnvioLote } from "./envio-lote";
@@ -21,7 +21,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
   if (!sesion.clinico) notFound();
   const { empresa: pedida, fecha: f } = await searchParams;
   const fecha = f && /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyCaracas();
-  const [empresas, activa, plantillas, pendientes, bandeja] = await Promise.all([listarEmpresas(), empresaActivaId(), listarPlantillas(), contarPendientes(), porEnviar()]);
+  const [empresas, activa, plantillas, pendientes, bandeja] = await Promise.all([listarEmpresas().then(soloEmpresas), empresaActivaId(), listarPlantillas(), contarPendientes(), porEnviar()]);
   const empresa = empresas.find((e) => e.id === pedida) ?? empresas.find((e) => e.id === activa) ?? null;
   const [consultas, contactos, historial] = empresa
     ? await Promise.all([consultasDelDia(empresa.id, fecha), listarContactos(empresa.id), historialEnvios(empresa.id)])
@@ -32,7 +32,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Envíos a empresas</h1>
-          <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado.</p>
+          <p className="text-muted-foreground">Las evaluaciones del día, en PDF, al correo de la empresa o por WhatsApp. Cada envío queda registrado. {sesion.demo && "En modo demo no se envía nada."}</p>
         </div>
         <ImportarContactos empresas={empresas.map((e) => ({ nombre: e.razonSocial, rif: e.rif, correo: e.correo, telefono: e.telefono }))} puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} />
       </div>
@@ -47,7 +47,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<{
           contactos={contactos}
           historial={historial}
           plantillas={plantillas}
-          correo={correoConfigurado() ? remitente() : null}
+          correo={remitenteVisible()}
           puedeAutorizar={sesion.rol === "administrador" || sesion.rol === "gerente_medico"}
         />
       ) : (

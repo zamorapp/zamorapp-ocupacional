@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { Suspense } from "react";
+import { soloMias } from "@/lib/panel-rol";
+import { BookOpen, CalendarCog, History, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { MasAcciones } from "@/components/app/mas-acciones";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listarCitas, listarSolicitudes } from "@/lib/citas";
-import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
 import { listarConsultas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO_CONSULTA } from "@/lib/consultas-tipos";
 import { opciones } from "@/lib/listas";
 import { ESTILO_APTITUD, ETIQUETA_APTITUD, fecha } from "@/lib/pacientes";
 import { obtenerSesion } from "@/lib/sesion";
+import { empresaActivaId } from "@/lib/empresa-activa";
+import { listarEmpresas } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
 import { EnVivo } from "@/components/app/en-vivo";
@@ -18,9 +24,17 @@ import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
 import { NuevaCita } from "./nueva-cita";
 import { recordarResultados } from "@/lib/recordatorios";
+import { trabajadoresConAlerta } from "@/lib/alertas";
+import { vigilarPlazos } from "@/lib/centinela";
 import { NuevaConsulta } from "./nueva-consulta";
-import { Solicitudes } from "./solicitudes";
-import { RefrescarAlVolver } from "./refrescar-al-volver";
+import { Solicitudes, type Contacto } from "./solicitudes";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { EnlacePaciente, PorRevisar } from "./enlace-paciente";
+import { BandejaCargando, BandejaSinLeer } from "./bandeja-enlace";
+import { listarSolicitudesPaciente } from "./paciente-enlace-acciones";
+import { extrasEnlace, resumenPerfiles } from "@/lib/registro-documentos-servidor";
+import { URL_PUBLICA } from "@/lib/invitaciones";
+import { RefrescarAlVolver } from "@/components/app/refrescar-al-volver";
 
 export const metadata: Metadata = { title: "Atención médica" };
 export const dynamic = "force-dynamic";
@@ -31,21 +45,48 @@ const ESTILO_ESTADO = {
   firmada: "bg-primary/15 text-primary",
 };
 
-export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
-  const [{ dia: diaParam }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
+const FILTROS_INICIO = {
+  abiertas: { estado: "borrador", titulo: "Consultas abiertas", detalle: "Empezadas y sin cerrar · todas las empresas", vacio: "No hay consultas abiertas." },
+  "por-firmar": { estado: "cerrada", titulo: "Consultas por firmar", detalle: "Cerradas sin firma · todas las empresas", vacio: "No hay consultas por firmar." },
+} as const;
+
+export default async function Atencion({ searchParams }: { searchParams: Promise<{ dia?: string; empresas?: string; ver?: string }> }) {
+  const [{ dia: diaParam, empresas: verEmpresas, ver: verParam }, sesion] = await Promise.all([searchParams, obtenerSesion()]);
   const hoy = hoyCaracas();
   const dia = diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) ? diaParam : hoy;
   const desde = sumarDias(hoy, -30);
-  const [consultas, citas, listas, solicitudes, org] = await Promise.all([
-    sesion.demo ? [] : listarConsultas({ desde }),
+  // «Ver 30 días» desde Últimos atendidos (Inicio): las consultas de todas las empresas, sin la empresa activa
+  const todas = verEmpresas === "todas";
+  // «Consultas abiertas» y «Por firmar» del Inicio: la lista exacta que cuenta la tarjeta (misma regla que inicio_conteos)
+  const ver = verParam && verParam in FILTROS_INICIO ? FILTROS_INICIO[verParam as keyof typeof FILTROS_INICIO] : null;
+  const listaConsultas = () => ver
+    ? listarConsultas({ estados: [ver.estado], sinImportadas: true, todas: true, limite: 500, medicoId: soloMias(sesion) ? sesion.usuarioId : undefined })
+    : listarConsultas({ desde, todas });
+  const [consultas, citas, listas, solicitudes, org, , , empresas, activa] = await Promise.all([
+    sesion.demo ? [] : listaConsultas(),
     sesion.demo ? [] : listarCitas(dia),
-    opciones(sesion.orgId, ["motivo_consulta"]),
+    opciones(sesion.orgId, ["motivo_consulta", "grupo_paraclinicos", "paraclinico", "recomendacion_paciente"]),
     sesion.demo ? [] : listarSolicitudes(),
     datosOrganizacion(),
     recordarResultados(sesion),
+    vigilarPlazos(sesion),
+    listarEmpresas(),
+    empresaActivaId(),
   ]);
+  // Campanita junto al nombre: trabajadores de la cola con una alerta para esta evaluación (solo personal clínico)
+  const conAlerta = sesion.clinico ? [...await trabajadoresConAlerta([...new Set(citas.map((c) => c.trabajadorId))])] : [];
+  // Para registrar ahí mismo a un paciente nuevo (la misma lista que ya pidió el menú: va una sola consulta)
+  const opcionesEmpresa = empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }));
   const deHoy = consultas.filter((c) => c.fecha === hoy).length;
-  const abiertas = consultas.filter((c) => c.estado === "borrador").length;
+  const abiertas = ver ? null : consultas.filter((c) => c.estado === "borrador").length;
+  // Contacto de cada empresa con teléfono: el WhatsApp de un toque al proponer otra hora
+  const contactos: Record<string, Contacto> = {};
+  const empresasSolicitud = [...new Set(solicitudes.map((c) => c.empresaId))];
+  if (empresasSolicitud.length) {
+    const { data } = await (await crearClienteServidor()).from("empresa_contactos").select("empresa_id, nombre, telefono, recibe_consulta")
+      .in("empresa_id", empresasSolicitud).eq("activo", true).not("telefono", "is", null).order("recibe_consulta").limit(200);
+    for (const k of data ?? []) if (!contactos[k.empresa_id]) contactos[k.empresa_id] = { nombre: k.nombre, telefono: k.telefono };
+  }
   const etiquetaDia = new Intl.DateTimeFormat("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dia + "T12:00:00Z"));
 
   return (
@@ -53,12 +94,25 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Atención médica</h1>
-          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{deHoy} consultas hoy · {abiertas} en curso <RefrescarAlVolver generada={Date.now()} /></p>
+          <p className="flex flex-wrap items-center gap-x-3 text-muted-foreground">{ver ? ver.titulo : <>{deHoy} consultas hoy · {abiertas} en curso</>} <RefrescarAlVolver generada={ahora()} /></p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
-          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} />
-          <NuevaConsulta habilitado={!sesion.demo} />
+        {/* Celular: «Nueva consulta» primero y a todo el ancho; lo secundario va en «Más acciones» */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></Button>
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
+          <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></Button>
+          {!sesion.demo && <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></Button>}
+          <MasAcciones>
+            <DropdownMenuItem asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></DropdownMenuItem>
+            {!sesion.demo && <DropdownMenuItem asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></DropdownMenuItem>}
+          </MasAcciones>
+          <EnlacePaciente habilitado={!sesion.demo} empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))}
+            perfiles={resumenPerfiles(listas.grupo_paraclinicos, listas.paraclinico)} {...extrasEnlace(listas.paraclinico, listas.recomendacion_paciente)}
+            puedeFirmar={sesion.clinico && ["administrador", "gerente_medico", "medico"].includes(sesion.rol ?? "")} />
+          <NuevaCita habilitado={!sesion.demo} fecha={dia} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre, grupo: m.grupo }))} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} />
+          {sesion.rol !== "enfermeria" && <div className="max-sm:order-first max-sm:basis-full max-sm:[&_button]:w-full"><NuevaConsulta habilitado={!sesion.demo} empresas={opcionesEmpresa} empresaActiva={empresas.some((e) => e.id === activa) ? activa : null} /></div>}
         </div>
       </div>
 
@@ -68,7 +122,13 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <Solicitudes solicitudes={solicitudes} />
+      {/* La bandeja del enlace se lee de la nube (en el escritorio no está en la copia: medido 12-nov, 3,5 s en la PC).
+          Llega aparte: la página, el botón «Enlace al paciente» y su ventana no la esperan. */}
+      <Suspense fallback={<BandejaCargando />}>
+        <BandejaEnlace empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} hoy={hoy} />
+      </Suspense>
+
+      <Solicitudes solicitudes={solicitudes} contactos={contactos} servicio={org.nombre} url={URL_PUBLICA} />
 
       {/* Cola de atención del día */}
       <section className="space-y-3">
@@ -90,17 +150,25 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
             {citas.length} citas
           </span>
         </div>
-        <ColaAtencion citas={citas} esHoy={dia === hoy} pendientes={Object.fromEntries(consultas.filter((c) => c.pendientes).map((c) => [c.id, c.pendientes]))} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
+        <ColaAtencion citas={citas} esHoy={dia === hoy} conAlerta={conAlerta} pendientes={Object.fromEntries(consultas.filter((c) => c.pendientes).map((c) => [c.id, c.pendientes]))} mensaje={{ servicio: org.nombre, plantilla: org.ajustes.mensaje_cita ?? PLANTILLA_CITA }} />
       </section>
 
       {/* Consultas recientes */}
       <section id="consultas" className="scroll-mt-20 space-y-3">
-        <h2 className="text-lg font-semibold">Consultas de los últimos 30 días</h2>
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h2 className="text-lg font-semibold">{ver ? `${ver.titulo} (${consultas.length})` : "Consultas de los últimos 30 días"}</h2>
+          {ver && <span className="text-sm text-muted-foreground">{ver.detalle}{consultas.length >= 500 ? " · se muestran las 500 más recientes" : ""}</span>}
+          {ver && <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Ver las de 30 días</Link>}
+          {!ver && activa && (todas
+            ? <Link href="/atencion#consultas" className="text-sm text-primary hover:underline">Solo la empresa elegida</Link>
+            : <Link href="/atencion?empresas=todas#consultas" className="text-sm text-primary hover:underline">Ver todas las empresas</Link>)}
+          {todas && <span className="text-sm text-muted-foreground">De todas las empresas</span>}
+        </div>
         <Card className="overflow-hidden py-0">
           {consultas.length === 0 ? (
             <div className="grid place-items-center gap-2 py-12 text-center text-muted-foreground">
               <ClipboardList className="size-8" />
-              Aún no hay consultas. Atiende desde la cola, con Nueva consulta o desde la ficha de un paciente.
+              {ver ? ver.vacio : "Aún no hay consultas. Atiende desde la cola, con Nueva consulta o desde la ficha de un paciente."}
             </div>
           ) : (
             <Table>
@@ -146,4 +214,12 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
       </section>
     </div>
   );
+}
+
+// Pacientes por enlace: se pide aparte para no frenar la página (ver arriba). Nunca lanza dentro del Suspense:
+// si la nube no responde, la tarjeta lo dice con «Reintentar» en vez de girar para siempre.
+async function BandejaEnlace(p: { empresas: { id: string; nombre: string }[]; motivos: { id: string; nombre: string }[]; hoy: string }) {
+  const { sinLeer, ...porEnlace } = await listarSolicitudesPaciente().catch(() => ({ porRevisar: [], enviados: [], coincidencias: {}, sinLeer: true }));
+  if (sinLeer) return <BandejaSinLeer />;
+  return <PorRevisar {...porEnlace} {...p} ahora={ahora()} />;
 }

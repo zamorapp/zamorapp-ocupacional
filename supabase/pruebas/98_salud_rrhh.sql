@@ -60,10 +60,10 @@ select 'copia de escritorio con grupo sanguíneo (debe 1): ' || count(*)
   from jsonb_array_elements(public.instantanea('e0000000-0000-0000-0000-000000000096','s96','public.trabajadores')->'filas') f
  where f->>'id'='30000000-0000-0000-0000-00000000000a' and f->>'grupo_sanguineo'='O+' and (f->>'discapacidad')::boolean;
 select 'cambios de escritorio con grupo sanguíneo (debe 1): ' || least(count(*),1)
-  from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000096','s96',0,2000)->'cambios') x
+  from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000096','s96',(select min(seq) - 1 from sync.registro where fila_id = '30000000-0000-0000-0000-00000000000a'),2000)->'cambios') x
  where x->>'fila_id'='30000000-0000-0000-0000-00000000000a' and x->'fila'->>'grupo_sanguineo'='O+';
 select 'cambios de otras tablas siguen bajando (debe 1): ' || least(count(*),1)
-  from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000096','s96',0,2000)->'cambios') x
+  from jsonb_array_elements(public.cambios_desde('e0000000-0000-0000-0000-000000000096','s96',(select min(seq) - 1 from sync.registro where tabla = 'public.empresas' and org_id = (select org_id from public.trabajadores where id = '30000000-0000-0000-0000-00000000000a')),2000)->'cambios') x
  where x->>'tabla'='public.empresas';
 
 -- Bitácora: el auditor no lee contenido clínico ni la ficha del trabajador, ni de otras empresas

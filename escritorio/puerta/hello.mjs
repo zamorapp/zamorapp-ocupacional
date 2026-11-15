@@ -11,15 +11,15 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
   const codigos = new Map(); // código → { uid, tipo, vence }; solo en memoria
 
   const nuevoCodigo = (uid, tipo, segundos) => {
-    for (const [c, v] of codigos) if (v.vence < Date.now()) codigos.delete(c);
+    for (const [c, v] of codigos) if (v.vence < performance.now()) codigos.delete(c);
     const codigo = crypto.randomBytes(32).toString("base64url");
-    codigos.set(codigo, { uid, tipo, vence: Date.now() + segundos * 1000 });
+    codigos.set(codigo, { uid, tipo, vence: performance.now() + segundos * 1000 }); // monótono: la fecha de Windows no cuenta
     return codigo;
   };
   const canjear = (codigo, tipo) => {
     const v = codigos.get(String(codigo || ""));
     codigos.delete(String(codigo || ""));
-    return v && v.tipo === tipo && v.vence >= Date.now() ? v.uid : null;
+    return v && v.tipo === tipo && v.vence >= performance.now() ? v.uid : null;
   };
 
   const deControl = (req) => {
@@ -44,7 +44,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (rol === null) { nube.exigirNube(uid, true); return "Tu acceso fue desactivado. Habla con el administrador."; }
       return null;
     }
-    if (Date.now() - (u.ultimoOnline || 0) > CONFIG.diasSinConexion * 864e5) {
+    if (nube.reloj.sinConexionVencida(u.ultimoOnline, CONFIG.diasSinConexion, CONFIG.arranquesSinConexion)) {
       return `Pasaron más de ${CONFIG.diasSinConexion} días sin conexión. Conecta la PC a internet y entra con tu contraseña.`;
     }
     return null;
@@ -68,7 +68,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       return responder(res, 200, { ...sesionLocal(uid, cumple), ...(cumple ? {} : { dos_pasos: true }) }), true;
     }
     if (!ruta.startsWith("/zamorapp/huella/")) return false;
-    registro(`[huella] ${req.method} ${ruta} (Origin "${req.headers.origin || ""}")`);
+    registro(`[huella] ${req.method} ${ruta}${parametros.get("desde") ? ` desde ${String(parametros.get("desde")).replace(/[^\w-]/g, "").slice(0, 20)}` : ""} (Origin "${req.headers.origin || ""}")`);
 
     // La ventana del programa intercepta esta dirección; si llega aquí, el programa instalado no trae Windows
     // Hello. 204: el navegador no cambia de página y la página avisa que hay que actualizar.
@@ -106,7 +106,7 @@ export function crearHello({ estado, nube, control, sesionLocal, usuarioDe, rolE
       if (!deControl(req)) return responder(res, 403, { message: "No autorizado" }), true;
       const uid = canjear(parametros.get("codigo"), "activar");
       if (!uid || !d().usuarios[uid]) return responder(res, 200, { ok: false, mensaje: "Tardó demasiado. Intenta de nuevo." }), true;
-      d().usuarios[uid].hello = { desde: new Date().toISOString() };
+      d().usuarios[uid].hello = { desde: nube.reloj.iso() };
       d().helloUltimo = uid;
       estado.guardar();
       registro("[auth] Windows Hello activado en esta PC");

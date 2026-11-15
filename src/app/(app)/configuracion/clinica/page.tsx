@@ -54,7 +54,7 @@ export default async function AjustesClinicosPagina() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Ajustes clínicos</h1>
         <p className="text-muted-foreground">
-          Todo lo que se precarga al abrir una consulta, en un solo lugar. Elige una empresa y un motivo para ver cómo se abriría y de dónde sale cada cosa.
+          Lo que se precarga al abrir una consulta, en 3 pasos: elige la empresa, la evaluación y decide qué se pide. Nada se borra desde el asistente.
         </p>
       </div>
       {motivos.length === 0 ? (

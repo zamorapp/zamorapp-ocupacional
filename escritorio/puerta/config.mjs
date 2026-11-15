@@ -19,14 +19,55 @@ export const CONFIG = {
   stubs: env.ZAMORAPP_STUBS || path.resolve("supabase/pruebas/00_stubs_supabase.sql"),
   // Reglas de seguridad acordadas
   diasSinConexion: 7,
+  arranquesSinConexion: 7, // arranques seguidos del programa sin nube que se toleran (reloj sin ancla)
   sesionSegundos: 3600,
+  reusoRefrescoMs: 30_000, // un refresco ya usado entrega la misma sesión durante este margen
   cadaSincronia: 30_000,
+  // Con internet, las lecturas salen de la copia local cuando está al día (sincronizada hace menos de
+  // frescuraLectura y sin escrituras pendientes de bajar): la pantalla no paga el viaje a la nube (C11).
+  lecturaLocal: env.ZAMORAPP_LECTURA_LOCAL !== "0",
+  frescuraLectura: Number(env.ZAMORAPP_FRESCURA_LECTURA || 60_000),
+  // Al abrir, hasta que termina la primera sincronía (con este tope), se lee la copia que quedó en disco
+  lecturaAlAbrirMs: Number(env.ZAMORAPP_LECTURA_AL_ABRIR_MS ?? 60_000),
+  // Fase A (local primero): lo que se guarda en tablas que sincronizan se escribe en la base local al instante y
+  // sube a la nube por la bandeja de salida (con o sin internet). Lo demás sigue yendo a la nube.
+  escrituraLocal: env.ZAMORAPP_ESCRITURA_LOCAL !== "0",
+  // Tope diario de la bajada de adjuntos en segundo plano: el plan gratis de Supabase da 5 GB de salida al mes
+  bajadaDiariaMb: Number(env.ZAMORAPP_BAJADA_DIARIA_MB) > 0 ? Number(env.ZAMORAPP_BAJADA_DIARIA_MB) : 300,
 };
+
+// Funciones que escriben SOLO en tablas que sincronizan (sync.tablas.subible): corren en la base local y sus
+// cambios suben por la bandeja. Una función que toque otra tabla (versiones, recordatorios, accesos) va a la nube.
+export const RPC_ESCRITURA_LOCAL = new Set(["guardar_consulta", "firmar_consulta", "reabrir_consulta", "guardar_resultados", "duplicar_consulta"]);
+
+// Constancias: funciones que solo dejan rastro (bitácora de la lectura de laboratorio, quién abrió la historia). Sin
+// internet se validan en la copia local con las reglas de la base y quedan en local.constancias; la bandeja las sube
+// después por constancia_diferida() con la hora de la PC (si estaba verificada). Así leer resultados no se frena.
+// recordar_resultados (la campana de resultados pendientes) también: sus avisos salen en la PC al momento y, al subir,
+// la nube la vuelve a calcular y la PC borra los suyos (bandeja.mjs).
+// recordar_post_vacacional (el aviso del post vacacional) igual: suena en la PC sin internet.
+// recordar_citas (recordatorios de citas, 20261030955000) igual: «mañana tienes 4 citas» y «cita a las 9:00» suenan sin internet.
+export const RPC_CONSTANCIA = new Set(["registrar_lectura_laboratorio", "registrar_acceso", "recordar_resultados", "recordar_post_vacacional", "recordar_citas"]);
+// Constancias que son la campana: sus avisos hechos en la PC se borran cuando la nube hace los suyos
+export const RPC_CAMPANA = new Set(["recordar_resultados", "recordar_post_vacacional", "recordar_citas"]);
+
+// Funciones que van a la nube pero no cambian lo que la pantalla lee enseguida: avisos de la campana que corren
+// después de mostrar la página (after() en recordatorios.ts), limpiezas de vencidos y vistas previas que solo leen
+// (papelera). Antes cada una obligaba a leer TODO de la nube hasta la sincronía siguiente (hasta 30-60 s): el Inicio
+// llama recordar_alertas en cada visita, así que casi toda la app leía de la nube (medido 6-nov: 1 s por pantalla en
+// vez de 0,1 s). Lo que crean baja a la copia en la sincronía normal (30 s).
+export const RPC_SIN_ESPERA = new Set([
+  "recordar_resultados", "recordar_alertas", "recordar_post_vacacional", "recordar_citas", "purgar_solicitudes_paciente",
+  "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio", "registrar_firma_pdf",
+  "crear_llave_agente", "revocar_llave_agente", "agentes_llave_documentos", // puerta para agentes: llaves que la copia no trae
+  "ignorar_aparato_sin_acuse", // campanita: suscripciones_push no está en la copia (20261030946000)
+]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
 export const RPC_LECTURA = new Set([
-  "buscar_diagnosticos", "firma_sello", "indices_accidentalidad", "miembros_con_correo",
-  "reporte_vigilancia", "requiere_dos_pasos", "resumen_panel",
+  "buscar_diagnosticos", "firma_sello", "firma_de_documento", "indices_accidentalidad", "miembros_con_correo",
+  "reporte_vigilancia", "requiere_dos_pasos", "falta_segundo_paso", "resumen_panel",
+  "choques_agenda", "agenda_portal", // disponibilidad para citas (20261030790000)
 ]);
 
 // Tablas que se copian a la PC: las que sincronizan (sync.tablas) más catálogos de solo bajada.

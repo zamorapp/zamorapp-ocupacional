@@ -45,11 +45,38 @@ export type Cobro = {
   tipo: TipoCobro;
   vence: string | null;
   presupuestoId: string | null;
+  porAgente?: string | null; // nombre de la llave del agente que la armó en borrador (20261030961000)
   items: ItemCobro[];
+  pagos: PagoCobro[];
 };
+
+// Abono o pago de una nota de cobro: cómo se pagó, con qué referencia y cuánto (en $; si fue en Bs, a la tasa del día)
+export type MetodoPago = "transferencia" | "pago_movil" | "zelle" | "binance" | "efectivo_usd" | "efectivo_bs" | "otro";
+export type PagoCobro = { id: string; fecha: string; metodo: MetodoPago; referencia: string; montoUsd: number; tasaBcv: number | null };
+
+export const ETIQUETA_METODO: Record<MetodoPago, string> = {
+  transferencia: "Transferencia en Bs",
+  pago_movil: "Pago móvil",
+  zelle: "Zelle",
+  binance: "Binance",
+  efectivo_usd: "Efectivo en $",
+  efectivo_bs: "Efectivo en Bs",
+  otro: "Otro",
+};
+// Métodos que se cobran en bolívares: piden la tasa del día del pago
+export const METODO_EN_BS: MetodoPago[] = ["transferencia", "pago_movil", "efectivo_bs"];
+
+// Lo abonado y lo que falta; «cubierta» con medio centavo de holgura por redondeo
+export function saldo(c: Pick<Cobro, "items" | "ivaPct" | "igtfPct" | "tasaBcv" | "pagos">) {
+  const total = totales(c).total;
+  const pagado = Math.round(c.pagos.reduce((s, p) => s + p.montoUsd, 0) * 100) / 100;
+  const falta = Math.max(0, Math.round((total - pagado) * 100) / 100);
+  return { total, pagado, falta, cubierta: pagado > 0 && falta < 0.005 };
+}
 
 export type Atencion = {
   id: string;
+  trabajadorId: string;
   fecha: string;
   estado: string;
   paciente: string;
@@ -103,4 +130,30 @@ export function servicioParaMotivo(servicios: Servicio[], motivoCodigo: string |
   if (!motivoCodigo) return null;
   const c = motivoCodigo.toUpperCase();
   return servicios.find((s) => s.activo && s.motivos.split(",").map((x) => x.trim().toUpperCase()).includes(c)) ?? null;
+}
+
+// 000123 → 000124 conservando ceros y prefijo (00-000123 → 00-000124)
+export function siguienteNumero(previos: string[]): string {
+  let mejor: { valor: number; texto: string } | null = null;
+  for (const p of previos) {
+    const m = /^(.*?)(\d+)$/.exec(p?.trim() ?? "");
+    if (!m) continue;
+    const valor = Number(m[2]);
+    if (!mejor || valor > mejor.valor) mejor = { valor, texto: m[1] + String(valor + 1).padStart(m[2].length, "0") };
+  }
+  return mejor?.texto ?? "";
+}
+
+// Nº del talonario escrito a mano («Nº 000123», «N° 123», «000 123»): queda solo el número
+export function limpiarNumeroFactura(s: string) {
+  return s.trim().replace(/^n\s*[º°o]?\s*\.?\s*(?=\d)/i, "").replace(/\s+/g, "");
+}
+
+// Trabajos del período, además de las consultas, que se pueden agregar a la factura (Cesar, 12-nov-2026):
+// vigilancia epidemiológica, evaluaciones de puestos (ergonómicas, de riesgos, psicosociales). Se proponen con el
+// servicio de su categoría; el «detalle» identifica el trabajo para no proponerlo dos veces.
+export type SugerenciaCobro = { clave: string; categoria: Categoria; titulo: string; detalle: string; fecha: string };
+
+export function servicioParaCategoria(servicios: Servicio[], categoria: Categoria) {
+  return servicios.find((s) => s.activo && s.categoria === categoria) ?? null;
 }

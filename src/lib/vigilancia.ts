@@ -1,15 +1,17 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import { indicadoresEnfermeria, type IndicadoresEnfermeria } from "@/lib/enfermeria";
 import { listarEmpresas } from "@/lib/empresas";
+import { AUTORIDAD, centroPorDefecto, CUSTODIO, sinDefectosViejos } from "@/lib/firmantes";
 import { opciones } from "@/lib/listas";
 import { recordar } from "@/lib/memo";
 import { mismoPeriodoAnioAnterior, periodoAnterior, periodoDeConsulta, type ConsultaPeriodo, type Periodo } from "@/lib/periodos";
 import {
-  completarHorasHombre, indicadoresAusentismo, indicesCovenin, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
+  type Accidentalidad, completarHorasHombre, indicadoresAusentismo, type CriterioHoras, type InformeVigilancia, type Reporte, indicesCovenin, firmantesAnteriores, obtenerAccidentalidad, obtenerInforme, obtenerReporte, obtenerSeries, riesgosDeEmpresa, type Firmantes,
 } from "@/lib/reportes";
 import type { Sesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { generarAnalisis, type DatosAnalisis } from "@/lib/vigilancia-analisis";
+import { generarAnalisis, sinDiscapacidad, totales, type DatosAnalisis, type Series } from "@/lib/vigilancia-analisis";
 import { textosSugeridos } from "@/lib/vigilancia-textos";
 
 // Los cálculos del período se recuerdan 3 minutos por usuario: cambiar de trimestre y volver, o pasar de la
@@ -18,54 +20,100 @@ const TRES_MINUTOS = 3 * 60 * 1000;
 const clave = (sesion: Sesion, que: string, empresaId: string | null, p: Pick<Periodo, "desde" | "hasta">) => `${sesion.orgId}|${sesion.usuarioId}|${que}|${empresaId ?? "*"}|${p.desde}|${p.hasta}`;
 
 // Todo lo que necesitan la pantalla de Reportes y el informe impreso, calculado una sola vez
-export async function cargarVigilancia(sesion: Sesion, empresaId: string | null, q: ConsultaPeriodo) {
-  const empresas = await listarEmpresas();
+// paraEmpresa: los textos sugeridos y el análisis se arman sin la discapacidad (versión que se envía a RR. HH.)
+export async function cargarVigilancia(sesion: Sesion, empresaId: string | null, q: ConsultaPeriodo, { paraEmpresa = false } = {}) {
+  const empresas = await listarEmpresas(true);
   const empresa = empresas.find((e) => e.id === empresaId) ?? null;
   const periodo = periodoDeConsulta(q, empresa?.mesInicioGestion ?? 1);
   const anterior = periodoAnterior(periodo);
   const anioAnterior = mismoPeriodoAnioAnterior(periodo);
+  // Dos períodos más atrás para la tendencia del análisis integral (solo totales; memo de 3 min)
+  const anterior2 = periodoAnterior(anterior);
+  const anterior3 = periodoAnterior(anterior2);
   const listo = !sesion.demo && supabaseConfigurado;
   const memo = <T,>(que: string, p: Periodo, fn: () => Promise<T>) => recordar(clave(sesion, que, empresaId, p), TRES_MINUTOS, fn);
 
-  const [r, s, sAnt, sAnio, accBase, listas, informe, riesgos, perfil] = await Promise.all([
+  const [r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, ajustesOrg, previos] = await Promise.all([
     listo ? memo("reporte", periodo, () => obtenerReporte(empresaId, periodo)) : null,
     listo ? memo("series", periodo, () => obtenerSeries(empresaId, periodo)) : null,
     listo ? memo("series", anterior, () => obtenerSeries(empresaId, anterior)) : null,
     listo ? memo("series", anioAnterior, () => obtenerSeries(empresaId, anioAnterior)) : null,
+    listo ? memo("series", anterior2, () => obtenerSeries(empresaId, anterior2)) : null,
+    listo ? memo("series", anterior3, () => obtenerSeries(empresaId, anterior3)) : null,
     listo ? memo("accidentes", periodo, () => obtenerAccidentalidad(empresaId, periodo)) : null,
-    opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud"]),
+    opciones(sesion.orgId, ["causa_reposo", "ente_emisor_reposo", "clasificacion_aptitud", "resultado_reubicacion"]),
     listo ? obtenerInforme(empresaId, periodo) : null,
     listo ? riesgosDeEmpresa(empresaId) : {},
     listo
-      ? (async () => (await (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula").eq("id", sesion.usuarioId).maybeSingle()).data)()
+      ? (async () => (await (await crearClienteServidor()).from("perfiles").select("nombre_completo, cedula, mpps, registro_inpsasel").eq("id", sesion.usuarioId).maybeSingle()).data)()
       : null,
+    // Configuración › Organización › Informe de vigilancia: horas hombre como el SAME (por defecto) o según nómina
+    listo
+      ? (async () => {
+          const { data } = await (await crearClienteServidor()).from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle();
+          const a = data?.ajustes as { vigilancia_horas?: string; enfermeria_vigilancia?: boolean } | null;
+          return { horas: (a?.vigilancia_horas === "nomina" ? "nomina" : "same") as CriterioHoras, enfermeria: a?.enfermeria_vigilancia === true };
+        })()
+      : { horas: "same" as CriterioHoras, enfermeria: false },
+    listo ? firmantesAnteriores(empresaId) : null,
   ]);
+  const criterioHoras = ajustesOrg.horas;
+  // Indicadores de enfermería en la vigilancia: solo si el médico lo decidió (Enfermería › Tus decisiones)
+  const enfermeria: IndicadoresEnfermeria | null = listo && ajustesOrg.enfermeria
+    ? await memo("enfermeria", periodo, () => indicadoresEnfermeria(empresaId, periodo.desde, periodo.hasta))
+    : null;
+  return { ...armarVigilancia({ empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos }, { paraEmpresa }), enfermeria };
+}
+
+export type DatosBrutosVigilancia = {
+  empresas: Awaited<ReturnType<typeof listarEmpresas>>;
+  empresa: Awaited<ReturnType<typeof listarEmpresas>>[number] | null;
+  periodo: Periodo; anterior: Periodo; anioAnterior: Periodo; anterior2: Periodo; anterior3: Periodo;
+  r: Reporte | null; s: Series | null; sAnt: Series | null; sAnio: Series | null; sAnt2: Series | null; sAnt3: Series | null;
+  accBase: Accidentalidad | null;
+  listas: Awaited<ReturnType<typeof opciones>>;
+  informe: InformeVigilancia | null;
+  riesgos: Record<string, string[]>;
+  perfil: { nombre_completo: string | null; cedula: string | null; mpps: string | null; registro_inpsasel: string | null } | null;
+  criterioHoras: CriterioHoras;
+  previos: Firmantes | null;
+};
+
+// Cálculos e informe a partir de lo leído de la base (sin consultas: también lo usa la prueba de impresión con datos de ejemplo)
+export function armarVigilancia(b: DatosBrutosVigilancia, { paraEmpresa = false } = {}) {
+  const { empresas, empresa, periodo, anterior, anioAnterior, anterior2, anterior3, r, s, sAnt, sAnio, sAnt2, sAnt3, accBase, listas, informe, riesgos, perfil, criterioHoras, previos } = b;
   const nombre = (lista: string) => Object.fromEntries(listas[lista].map((i) => [i.codigo ?? i.nombre, i.nombre]));
   const causas = nombre("causa_reposo");
   const entes = nombre("ente_emisor_reposo");
   const aptitudes = nombre("clasificacion_aptitud");
-  const acc = accBase && r ? completarHorasHombre(accBase, r.poblacion.total, periodo) : null;
+  const resultadosReubicacion = nombre("resultado_reubicacion");
+  const acc = accBase && r ? completarHorasHombre(accBase, r.poblacion.total, periodo, criterioHoras) : null;
   const ix = acc ? indicesCovenin(acc) : null;
   const ausentismo = r ? indicadoresAusentismo(r) : { pad: 0, pct: 0 };
+  const rTexto = r && paraEmpresa ? sinDiscapacidad(r) : r;
 
   // Datos que usa la redacción del análisis (también viajan al editor para «Otra redacción»)
-  const datosAnalisis: DatosAnalisis | null = r && s
+  const datosAnalisis: DatosAnalisis | null = r
     ? {
         empresa: empresa?.razonSocial ?? null,
         etiqueta: periodo.etiqueta,
         desde: periodo.desde,
         hasta: periodo.hasta,
-        r,
-        s,
+        r: rTexto!,
+        s: s ?? { por_mes: [], piramide: [], capitulos: [] },
         anterior: sAnt ? { etiqueta: anterior.etiqueta, s: sAnt } : null,
         anioAnterior: sAnio ? { etiqueta: anioAnterior.etiqueta, s: sAnio } : null,
         pct: ausentismo.pct,
         pad: ausentismo.pad,
         acc: acc && ix
-          ? { accidentes: acc.accidentes, conTiempoPerdido: acc.con_tiempo_perdido, diasPerdidos: acc.dias_perdidos, ifn: ix.ifn, is: ix.is, aTiempo: ix.aTiempo, porDeclarar: acc.por_declarar }
+          ? { accidentes: acc.accidentes, conTiempoPerdido: acc.con_tiempo_perdido, diasPerdidos: acc.dias_perdidos, ifn: ix.ifn, is: ix.is, aTiempo: ix.aTiempo, porDeclarar: acc.por_declarar, ifb: ix.ifb, hht: acc.hht }
           : null,
         causas,
         aptitudes,
+        entes,
+        historial: ([[anterior3, sAnt3], [anterior2, sAnt2], [anterior, sAnt]] as [Periodo, Series | null][])
+          .filter(([, x]) => x)
+          .map(([per, x]) => ({ etiqueta: per.etiqueta, ...totales(x!) })),
       }
     : null;
   const variante = informe?.variante ?? 0;
@@ -73,7 +121,7 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
 
   const base = r
     ? textosSugeridos({
-        r,
+        r: rTexto!,
         pct: ausentismo.pct,
         accidentes: acc?.accidentes ?? 0,
         conTiempoPerdido: acc?.con_tiempo_perdido ?? 0,
@@ -85,11 +133,19 @@ export async function cargarVigilancia(sesion: Sesion, empresaId: string | null,
     : null;
   // Resumen y conclusión salen del análisis (redacción variable); recomendaciones, riesgos y medidas, de las sugerencias por riesgo
   const sugeridos = base && analisis ? { ...base, resumen: analisis.resumen, conclusiones: analisis.conclusion } : base;
-  // El médico que redacta firma por defecto como médico ocupacional
-  const firmantesBase: Firmantes = perfil?.nombre_completo ? { medico: { nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "" } } : {};
+  // Portada: lo del último informe de la empresa; el médico que redacta firma como «Elaborado por»
+  const medico = perfil?.nombre_completo
+    ? { cargo: "Médico ocupacional", ...previos?.medico, nombre: perfil.nombre_completo, cedula: perfil.cedula ?? "", registro: perfil.registro_inpsasel || perfil.mpps || previos?.medico?.registro || "" }
+    : previos?.medico;
+  const firmantesBase: Firmantes = {
+    autoridad: AUTORIDAD, custodio: CUSTODIO, centro_trabajo: centroPorDefecto(empresa?.direccion),
+    ...sinDefectosViejos(previos ?? {}, empresa?.direccion), medico,
+  };
 
   return {
-    empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, ausentismo,
-    informe, sugeridos, firmantesBase, datosAnalisis, analisis, variante,
+    empresas, empresa, periodo, anterior, anioAnterior, r, s, sAnt, sAnio, acc, ix, causas, entes, aptitudes, resultadosReubicacion, ausentismo,
+    // Lo guardado del período, sin los valores por defecto viejos (se ven y se imprimen los de ahora)
+    informe: informe && { ...informe, firmantes: sinDefectosViejos(informe.firmantes ?? {}, empresa?.direccion) },
+    sugeridos, firmantesBase, datosAnalisis, analisis, variante,
   };
 }

@@ -145,6 +145,21 @@ function Tarjeta({ motivo, plantilla, listas, editable }: {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 rounded-lg bg-ok/5 p-3 sm:grid-cols-2">
+            <p className="text-sm sm:col-span-2"><b>Botón «Perfil normal»</b> de la consulta: aplica todo lo de arriba, llena el examen vacío con lo normal y además:</p>
+            <div>
+              <Label htmlFor={`cla-${motivo.codigo}`} className="mb-1.5">Aptitud</Label>
+              <select id={`cla-${motivo.codigo}`} value={datos.clasificacion} onChange={(e) => set("clasificacion", e.target.value)} className={SELECT}>
+                <option value="">No poner aptitud</option>
+                {(listas.clasificacion_aptitud ?? []).filter((p) => p.codigo).map((p) => <option key={p.codigo} value={p.codigo!}>{p.nombre}</option>)}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm">
+              <input type="checkbox" checked={datos.sano} onChange={(e) => set("sano", e.target.checked)} className="size-4 accent-primary" />
+              Marcar «sin diagnósticos» si no hay ninguno
+            </label>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={activo} onChange={(e) => { setActivo(e.target.checked); setResultado(null); }} className="size-4 accent-primary" />

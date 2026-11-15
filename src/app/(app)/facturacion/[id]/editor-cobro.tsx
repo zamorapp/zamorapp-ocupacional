@@ -2,26 +2,33 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CheckCircle2, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Loader2, Plus, Printer, Save, Send, ThumbsDown, ThumbsUp, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { bs, type Cobro, type EstadoCobro, etiquetaEstado, type Servicio, totales, usd } from "@/lib/facturacion-tipos";
 import { cn } from "@/lib/utils";
-import { actualizarCobro, convertirPresupuesto, eliminarCobro } from "../acciones";
+import { actualizarCobro, convertirPresupuesto, eliminarCobro, guardarNumeroFactura } from "../acciones";
 import { confirmar } from "@/components/app/confirmar";
 import { hoyCaracas } from "@/lib/fecha";
+import { tasaParaFecha } from "@/lib/tasa-bcv";
+import { PagosCobro } from "./pagos-cobro";
+import type { ResultadoPago } from "../acciones";
 
 const f = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
-export function EditorCobro({ inicial, editable, servicios, precios }: { inicial: Cobro; editable: boolean; servicios: Servicio[]; precios: Record<string, number> }) {
+export function EditorCobro({ inicial, editable, servicios, precios, tasas = [] }: { inicial: Cobro; editable: boolean; servicios: Servicio[]; precios: Record<string, number>; tasas?: { fecha: string; tasa: number }[] }) {
   const [c, setC] = useState(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [estadoNumero, setEstadoNumero] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const set = <K extends keyof Cobro>(k: K, v: Cobro[K]) => setC((x) => ({ ...x, [k]: v }));
   const t = totales(c);
+  // Tasa BCV que rige en la fecha de la nota (la de ese día o la anterior más cercana): se ofrece con un toque
+  const tasaDelDia = tasaParaFecha(tasas, c.fecha);
   const borrador = c.estado === "borrador";
   const cambios = JSON.stringify(c) !== guardado;
   const presupuesto = c.tipo === "presupuesto";
@@ -32,13 +39,44 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
     if (s) set("items", [...c.items, { id: "", servicioId: s.id, consultaId: null, descripcion: s.nombre, detalle: "", cantidad: 1, precioUsd: precios[s.id] ?? s.precioUsd }]);
   };
 
-  const guardar = (nuevoEstado?: EstadoCobro) =>
+  // El Nº del talonario se guarda solo al salir del campo: si esperaba a «Guardar», la factura abierta en otra
+  // pestaña salía sin número (06-nov-2026)
+  const guardarNumero = () => {
+    const previo = (JSON.parse(guardado) as Cobro).numeroFacturaFiscal;
+    if (!editable || presupuesto || c.numeroFacturaFiscal.trim() === previo) return;
+    setEstadoNumero({ ok: true, mensaje: "Guardando…" });
+    iniciar(async () => {
+      const r = await guardarNumeroFactura(c.id, c.numeroFacturaFiscal);
+      setEstadoNumero(r);
+      if (r.ok) {
+        const n = r.numero ?? c.numeroFacturaFiscal.trim();
+        setC((x) => ({ ...x, numeroFacturaFiscal: n }));
+        setGuardado((g) => JSON.stringify({ ...(JSON.parse(g) as Cobro), numeroFacturaFiscal: n }));
+      }
+    });
+  };
+
+  const guardar = (nuevoEstado?: EstadoCobro) => {
+    // Un descuento mayor que la nota la dejaría en negativo: no se emite (la base también lo impide)
+    if (nuevoEstado === "emitida" && !presupuesto && t.total < 0) {
+      setAviso({ ok: false, mensaje: "El total queda en negativo. Revisa el descuento antes de emitir." });
+      return;
+    }
     iniciar(async () => {
       const siguiente = { ...c, ...(nuevoEstado ? { estado: nuevoEstado } : {}), ...(nuevoEstado === "pagada" && !c.fechaPago ? { fechaPago: hoyCaracas() } : {}) };
       const r = await actualizarCobro(siguiente);
       setAviso(r);
       if (r.ok) { setC(siguiente); setGuardado(JSON.stringify(siguiente)); }
     });
+  };
+
+  // Al registrar o borrar un abono: la nota puede pasar a pagada (o volver a emitida) sin recargar la página
+  const trasPago = (r: ResultadoPago) => {
+    if (!r.pagos) return;
+    const cambio = { estado: r.estado ?? c.estado, fechaPago: r.fechaPago ?? null, pagos: r.pagos };
+    setC((x) => ({ ...x, ...cambio }));
+    setGuardado((g) => JSON.stringify({ ...(JSON.parse(g) as Cobro), ...cambio }));
+  };
 
   return (
     <div className="space-y-4">
@@ -47,8 +85,21 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
           <h1 className="text-2xl font-semibold tracking-tight">{nombre} #{c.numero}</h1>
           <p className="text-muted-foreground">{c.empresa} · {c.rif} · {f(c.fecha)}{c.desde && ` · periodo ${f(c.desde)} al ${f(c.hasta)}`}</p>
         </div>
+        {c.porAgente ? <span className="rounded-full border border-primary/40 px-3 py-1 text-sm text-primary" title="Revísala antes de emitirla: precios, renglones y descuento">Del agente «{c.porAgente}»</span> : null}
         <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium">{etiquetaEstado(c.tipo, c.estado)}</span>
-        <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
+        {presupuesto ? (
+          <Button variant="outline" asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank"><Printer /> Imprimir</Link></Button>
+        ) : (
+          <DropdownMenu onOpenChange={(abierto) => abierto && editable && cambios && !ocupado && guardar()}>
+            <DropdownMenuTrigger asChild><Button variant="outline"><Printer /> Imprimir <ChevronDown className="opacity-60" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem asChild><Link href={`/imprimir/factura/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Factura en el talonario</span><span className="text-xs text-muted-foreground">Forma libre, sin membrete. Pide el Nº de factura.</span></Link></DropdownMenuItem>
+              {c.items.some((i) => i.consultaId) && <DropdownMenuItem asChild><Link href={`/imprimir/atendidos?cobro=${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Relación de pacientes</span><span className="text-xs text-muted-foreground">Trabajadores de esta nota: cargo, fecha y resultado. Sin diagnósticos.</span></Link></DropdownMenuItem>}
+              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}?doc=entrega`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">Nota de entrega</span><span className="text-xs text-muted-foreground">Recibo de evaluaciones con membrete, sin montos, con «Recibido por».</span></Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href={`/imprimir/cobro/${c.id}`} target="_blank" className="flex-col items-start gap-0"><span className="font-medium">{c.estado === "pagada" ? "Recibo de pago" : c.pagos.length ? "Recibo de abono" : "Nota de cobro"}</span><span className="text-xs text-muted-foreground">{c.pagos.length ? "Con membrete, montos, pagos recibidos y saldo." : "Con membrete y montos."}</span></Link></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <Card className="gap-0 py-0">
@@ -62,7 +113,7 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
               {borrador && editable ? (
                 <>
                   <Input type="number" min={0} step="0.5" value={i.cantidad} className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, cantidad: Number(e.target.value) } : x)))} />
-                  <Input type="number" min={0} step="0.01" value={i.precioUsd} className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, precioUsd: Number(e.target.value) } : x)))} />
+                  <Input type="number" step="0.01" value={i.precioUsd} title="En negativo para un descuento" className="h-8 text-right" onChange={(e) => set("items", c.items.map((x, j) => (j === k ? { ...x, precioUsd: Number(e.target.value) } : x)))} />
                 </>
               ) : (
                 <><span className="text-right tabular-nums">{i.cantidad}</span><span className="text-right tabular-nums">{i.precioUsd.toFixed(2)}</span></>
@@ -89,8 +140,16 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div><Label className="mb-1.5">Tasa BCV (Bs/$)</Label><Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} /></div>
-            <div><Label className="mb-1.5">Nº de factura fiscal</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Cuando la emitas en el sistema fiscal" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} /></div>
+            <div>
+              <Label className="mb-1.5">Tasa BCV (Bs/$)</Label>
+              <Input type="number" step="0.0001" disabled={!editable || c.estado === "pagada"} value={c.tasaBcv ?? ""} onChange={(e) => set("tasaBcv", e.target.value ? Number(e.target.value) : null)} />
+              {tasaDelDia && tasaDelDia.tasa !== c.tasaBcv && editable && c.estado !== "pagada" && (
+                <button type="button" className="mt-1 text-xs text-primary hover:underline" onClick={() => set("tasaBcv", tasaDelDia.tasa)}>
+                  Usar la del BCV del {f(tasaDelDia.fecha)}: {tasaDelDia.tasa.toLocaleString("es-VE", { maximumFractionDigits: 4 })}
+                </button>
+              )}
+            </div>
+            <div><Label className="mb-1.5">Nº de factura (talonario)</Label><Input disabled={!editable} value={c.numeroFacturaFiscal} placeholder="Se pide al imprimir la factura" onChange={(e) => set("numeroFacturaFiscal", e.target.value)} onBlur={guardarNumero} onKeyDown={(e) => e.key === "Enter" && guardarNumero()} />{estadoNumero && <p className={cn("mt-1 text-xs", estadoNumero.ok ? "text-muted-foreground" : "text-destructive")}>{estadoNumero.mensaje}</p>}</div>
             <div><Label className="mb-1.5">IVA %</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.ivaPct} onChange={(e) => set("ivaPct", Number(e.target.value))} /></div>
             <div><Label className="mb-1.5">IGTF % (pago en divisas)</Label><Input type="number" min={0} disabled={!editable || !borrador} value={c.igtfPct} onChange={(e) => set("igtfPct", Number(e.target.value))} /></div>
             <div className="sm:col-span-2"><Label className="mb-1.5">Observación</Label><Input disabled={!editable} value={c.observacion} onChange={(e) => set("observacion", e.target.value)} /></div>
@@ -109,6 +168,8 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
         </Card>
       </div>
 
+      <PagosCobro c={c} editable={editable} tasas={tasas} alCambiar={trasPago} />
+
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
           {aviso?.mensaje && <span className={cn("text-sm", aviso.ok ? "text-ok-texto" : "text-destructive")}>{aviso.mensaje}</span>}
@@ -117,14 +178,13 @@ export function EditorCobro({ inicial, editable, servicios, precios }: { inicial
             {!presupuesto && c.estado !== "anulada" && c.estado !== "borrador" && <Button variant="ghost" disabled={ocupado} onClick={async () => (await confirmar({ titulo: "¿Anular esta nota de cobro?", texto: "Queda registrada como anulada y deja de contar como deuda.", accion: "Anular", peligro: true })) && guardar("anulada")}><XCircle /> Anular</Button>}
             <Button variant="outline" disabled={ocupado || !cambios} onClick={() => guardar()}>{ocupado ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>
             {borrador && <Button disabled={ocupado || c.items.length === 0} onClick={() => guardar("emitida")}><Send /> {presupuesto ? "Marcar enviado" : "Emitir"}</Button>}
-            {!presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("pagada")}><CheckCircle2 /> Marcar pagada</Button>}
             {presupuesto && c.estado === "emitida" && <Button variant="outline" disabled={ocupado} onClick={() => guardar("rechazado")}><ThumbsDown /> Rechazado</Button>}
             {presupuesto && c.estado === "emitida" && <Button disabled={ocupado} onClick={() => guardar("aprobado")}><ThumbsUp /> Aprobado</Button>}
             {presupuesto && c.estado === "aprobado" && <Button disabled={ocupado} onClick={() => iniciar(async () => { const r = await convertirPresupuesto(c.id); if (r && !r.ok) setAviso(r); })}><ArrowRightLeft /> Convertir en nota de cobro</Button>}
           </div>
         </div>
       )}
-      {!presupuesto && <p className="text-xs text-muted-foreground">La nota de cobro no sustituye la factura fiscal: emítela en tu sistema homologado o con la imprenta autorizada y anota aquí su número.</p>}
+      {!presupuesto && <p className="text-xs text-muted-foreground">La nota de cobro no sustituye la factura: imprímela en tu talonario con «Imprimir › Factura en el talonario» (pide el número y lo deja anotado aquí).</p>}
     </div>
   );
 }

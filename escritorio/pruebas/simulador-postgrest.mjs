@@ -12,7 +12,7 @@ const conf = { "db-uri": e.PGRST_DB_URI, "jwt-secret": e.PGRST_JWT_SECRET, "serv
 const pool = new pg.Pool({ connectionString: conf["db-uri"], max: 4 });
 
 http.createServer(async (req, res) => {
-  const datos = verificar((req.headers.authorization || "").replace(/^Bearer /, ""), conf["jwt-secret"]);
+  const datos = verificar((req.headers.authorization || "").replace(/^Bearer /, ""), conf["jwt-secret"], Date.now());
   if (req.url === "/") { res.writeHead(200); return res.end("{}"); }
   if (!datos) { res.writeHead(401); return res.end('{"message":"JWT inválido"}'); }
   const url = new URL(req.url, "http://x");
@@ -20,6 +20,9 @@ http.createServer(async (req, res) => {
   try {
     await c.query("begin");
     await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(datos)]);
+    // Como el PostgREST real: las cabeceras del pedido en request.headers (así llega la hora anclada, X-Zamorapp-Ahora,
+    // y ahora() de la base local la usa; sin esto el banco de Linux no veía la diferencia con now())
+    await c.query("select set_config('request.headers', $1, true)", [JSON.stringify(req.headers)]);
     await c.query(`set local role ${datos.role === "authenticated" ? "authenticated" : "anon"}`);
     let filas;
     if (url.pathname.startsWith("/rpc/")) {

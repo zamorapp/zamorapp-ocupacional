@@ -7,14 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ETIQUETA_ORIGEN, type Origen } from "@/lib/consultas-tipos";
 import { empresaActivaId } from "@/lib/empresa-activa";
+import { hoyCaracas } from "@/lib/fecha";
 import { parametrosPeriodo, type ConsultaPeriodo } from "@/lib/periodos";
-import { indicesCovenin, tasasEnfermedadOcupacional } from "@/lib/reportes";
+import { indicesCovenin, tasasEnfermedadOcupacional, textoMetodoHoras } from "@/lib/reportes";
 import { obtenerSesion } from "@/lib/sesion";
 import { totales } from "@/lib/vigilancia-analisis";
 import { cargarVigilancia } from "@/lib/vigilancia";
+import { datosPortada } from "@/lib/firmantes";
+import { ETIQUETA_TIPO_ENFERMERIA } from "@/lib/enfermeria-tipos";
 import { EditorInforme } from "./editor-informe";
+import { BotonEliminar } from "@/components/app/boton-eliminar";
 import { ExploradorCausas } from "./explorador-causas";
 import { SelectorPeriodo } from "./selector-periodo";
+import { AvisoPropuestas } from "./aviso-propuestas";
+import { ProgramasVigilancia } from "./programas";
+import { contarPropuestas, revisaPropuestas } from "@/lib/agentes/propuestas";
+import { programasConCumplimiento } from "@/lib/vigilancia-programas";
 
 export const metadata: Metadata = { title: "Reportes" };
 export const dynamic = "force-dynamic";
@@ -72,6 +80,10 @@ export default async function Reportes({ searchParams }: Props) {
   const contra = "período anterior";
   const params = new URLSearchParams({ ...parametrosPeriodo(periodo), ...(empresaId ? { empresa: empresaId } : {}) });
   const enlaceImprimir = `/imprimir/vigilancia?${params}`;
+  const [pendientes, programas] = await Promise.all([
+    empresaId && revisaPropuestas(sesion) ? contarPropuestas(empresaId) : Promise.resolve(0),
+    programasConCumplimiento(empresaId, periodo.desde, periodo.hasta),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -86,6 +98,7 @@ export default async function Reportes({ searchParams }: Props) {
       </div>
 
       <SelectorPeriodo key={`${periodo.desde}${periodo.hasta}${empresaId}`} periodo={periodo} inicioEmpresa={empresa?.mesInicioGestion ?? 1} empresa={empresa?.razonSocial ?? null} />
+      <AvisoPropuestas n={pendientes} />
 
       {!r ? (
         <div className="flex items-center gap-3 rounded-lg border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm">
@@ -113,7 +126,7 @@ export default async function Reportes({ searchParams }: Props) {
               <CardHeader>
                 <CardTitle className="text-base">Hallazgos clave · {periodo.etiqueta}</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 text-sm lg:grid-cols-[1fr_1.4fr]">
+              <CardContent className="grid grid-cols-1 gap-4 text-sm lg:grid-cols-[1fr_1.4fr]">
                 <ul className="space-y-1.5">
                   {v.analisis.hallazgos.map((h) => <li key={h} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{h}</li>)}
                 </ul>
@@ -121,6 +134,8 @@ export default async function Reportes({ searchParams }: Props) {
               </CardContent>
             </Card>
           )}
+
+          {empresaId ? <ProgramasVigilancia programas={programas} empresaId={empresaId} /> : null}
 
           {r.poblacion.total > 0 && r.poblacion.total < 10 && (
             <p className="rounded-md bg-aviso/10 px-4 py-2 text-sm">Población menor a 10 trabajadores: los índices tienen baja comparabilidad.</p>
@@ -133,7 +148,7 @@ export default async function Reportes({ searchParams }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Accidentalidad y enfermedad ocupacional (COVENIN 474)</CardTitle>
-                  <CardDescription>Índices por millón de horas hombre trabajadas{acc.estimado_auto ? " · HHT estimadas (trabajadores × 8 h × días hábiles): carga las horas reales en la empresa" : ""}.</CardDescription>
+                  <CardDescription>Índices por millón de horas hombre · {textoMetodoHoras(acc.metodo)}{acc.estimado_auto ? " Carga las horas reales en la empresa." : ""} El método se cambia en Configuración › Organización.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
                   {[
@@ -144,7 +159,7 @@ export default async function Reportes({ searchParams }: Props) {
                     ["TAEO", num(eo.taeo), "Ausentismo EO"],
                     ["Accidentes", String(acc.accidentes), `${acc.con_tiempo_perdido} con tiempo perdido`],
                     ["Declaradas a tiempo", ix.aTiempo === null ? "—" : `${ix.aTiempo} %`, `${acc.por_declarar} por declarar`],
-                    ["HHT", num(acc.hht), acc.hay_estimado ? "estimadas" : "según nómina"],
+                    [acc.metodo === "same" ? "HHE" : "HHT", num(acc.hht), acc.metodo === "same" ? "fórmula del SAME" : acc.metodo === "covenin" ? "estimadas" : "según nómina"],
                   ].map(([t, n, d]) => (
                     <div key={t} className="rounded-lg border p-3">
                       <div className="text-xs text-muted-foreground">{t}</div>
@@ -195,13 +210,22 @@ export default async function Reportes({ searchParams }: Props) {
             <Grafico titulo="Aptitud emitida" analisis={a?.aptitud}>
               <Dona partes={Object.entries(r.aptitud).map(([k, n]) => ({ nombre: aptitudes[k] ?? k, n }))} centro={num(Object.values(r.aptitud).reduce((x, y) => x + y, 0))} sub="evaluaciones" />
             </Grafico>
+            {v.enfermeria && (
+              <Grafico className="lg:col-span-2" titulo="Atención de enfermería"
+                detalle={`${num(v.enfermeria.atenciones)} atenciones a ${num(v.enfermeria.pacientes)} trabajadores en ${num(v.enfermeria.dias_enfermeria)} días · el médico atendió ${num(v.enfermeria.dias_medico)} días · ${num(v.enfermeria.referidos)} referidos al médico. Se quita en Enfermería › Tus decisiones.`}>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <BarrasH filas={v.enfermeria.por_tipo.map((x) => ({ nombre: ETIQUETA_TIPO_ENFERMERIA[x.nombre] ?? x.nombre, n: x.n }))} />
+                  <BarrasH filas={v.enfermeria.causas} serie={2} />
+                </div>
+              </Grafico>
+            )}
           </div>
 
           {v.sugeridos && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Redacción del informe</CardTitle>
-                <CardDescription>Resumen, conclusiones médico-ocupacionales y recomendaciones de seguridad para {periodo.etiqueta}.</CardDescription>
+                <CardDescription>Resumen, conclusiones y recomendaciones médico-ocupacionales y de seguridad y salud en el trabajo para {periodo.etiqueta}.</CardDescription>
               </CardHeader>
               <CardContent>
                 <EditorInforme
@@ -215,7 +239,14 @@ export default async function Reportes({ searchParams }: Props) {
                   firmantesBase={v.firmantesBase}
                   editable={Boolean(sesion.rol && ROLES_REDACTAN.includes(sesion.rol))}
                   enlaceImprimir={enlaceImprimir}
+                  hoy={hoyCaracas()}
+                  empresa={v.empresa && { id: v.empresa.id, datos: datosPortada(v.empresa, r.poblacion) }}
                 />
+                {v.informe?.id && !sesion.demo && sesion.rol === "administrador" && sesion.clinico && (
+                  <div className="mt-4 flex justify-end border-t pt-3">
+                    <BotonEliminar tipo="informe_vigilancia" id={v.informe.id} nombre={`el informe guardado de ${periodo.etiqueta}`} variant="ghost">Eliminar informe guardado…</BotonEliminar>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

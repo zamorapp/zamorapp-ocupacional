@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ahora } from "@/lib/fecha";
 
 // Verificación en dos pasos (código de 6 dígitos de una app autenticadora, TOTP de Supabase Auth).
 // Obligatoria para administradores y gerentes médicos; la exige el middleware antes de abrir el panel.
@@ -21,7 +22,7 @@ export async function prepararDosPasos(supabase: SupabaseClient): Promise<Paso> 
   for (const f of data.all.filter((f) => f.factor_type === "totp" && f.status !== "verified")) {
     await supabase.auth.mfa.unenroll({ factorId: f.id });
   }
-  const nuevo = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: "zamorApp", friendlyName: `Teléfono ${new Date().toLocaleDateString("es-VE")}` });
+  const nuevo = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: "zamorApp", friendlyName: `Teléfono ${new Date(ahora()).toLocaleDateString("es-VE")}` });
   if (nuevo.error || !nuevo.data) return { tipo: "error", mensaje: "No se pudo preparar el código QR. Intenta de nuevo en un momento." };
   return { tipo: "activar", factorId: nuevo.data.id, qr: nuevo.data.totp.qr_code, secreto: nuevo.data.totp.secret };
 }

@@ -7,11 +7,25 @@ import { plantillasDeOrg } from "@/lib/plantillas-servidor";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
+import { alertasDeTrabajador } from "@/lib/alertas";
 import { datosOrganizacion } from "@/lib/organizacion";
-import { PLANTILLA_APTITUD } from "@/lib/mensajes";
+import { hoyCaracas } from "@/lib/fecha";
+import { NOTA_RIESGOS_PUESTO, PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
+import { ConsultaADistancia } from "./distancia";
+import { teleconsultaDe } from "@/lib/telemedicina";
+import { plazoSala } from "@/lib/telemedicina-tipos";
+import { LecturaEnfermeria } from "./lectura-enfermeria";
+import { notasDeConsulta } from "@/lib/enfermeria";
+import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { declaracionesDeConsulta } from "../../accidentes/acciones";
+import { siguienteEnEspera } from "@/lib/citas";
+import { ahora } from "@/lib/fecha";
+import { FrescoAlVolver } from "@/components/app/fresco-al-volver";
+import Cargando from "../../loading";
 
 export const metadata: Metadata = { title: "Consulta" };
 export const dynamic = "force-dynamic";
@@ -19,12 +33,12 @@ export const dynamic = "force-dynamic";
 const LISTAS = [
   "motivo_consulta", "clasificacion_aptitud", "limitacion_ocupacional", "paraclinico", "antecedente_medico",
   "causa_reposo", "ente_emisor_reposo", "sistema_organico", "medicina", "presentacion_medicina", "via_administracion",
-  "frecuencia_dosis", "duracion_tratamiento", "especialidad", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "modelo_informe_libre",
-  "declaracion_ocupacional", "diagnostico_declarable",
+  "frecuencia_dosis", "duracion_tratamiento", "especialidad", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "conclusion_consulta", "modelo_informe_libre",
+  "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo",
 ];
 
-export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string }> }) {
-  const [{ id }, { paso }] = await Promise.all([params, searchParams]);
+export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string; duplicada?: string; distancia?: string }> }) {
+  const [{ id }, { paso, duplicada, distancia }] = await Promise.all([params, searchParams]);
   const demo = !supabaseConfigurado;
   // Todo en dos ramas paralelas: lo que depende de la organización (sesión → listas, plantillas, datos) y lo que
   // depende del trabajador (consulta → historial, adjuntos). Antes eran 6 esperas en fila; ahora la más larga es 3.
@@ -33,18 +47,50 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     consulta,
     !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
     !consulta || demo ? null : listarAdjuntos(consulta.trabajador.id),
+    !consulta || demo ? [] : alertasDeTrabajador(consulta.trabajador.id, id),
+    // Consulta a distancia (telemedicina): lo de la llamada y su espera en la sala; RLS: solo personal clínico
+    !consulta || demo ? { tele: null, sala: null, telefonoFicha: null } : teleconsultaDe(id, consulta.trabajador.id),
   ]));
-  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos], versiones, contacto] = await Promise.all([
+  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos, alertas, distanciaDatos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
     porOrg,
     porTrabajador,
     demo ? [] : listarVersiones(id),
     // Contacto de RR. HH. de la empresa para enviar el resultado de aptitud
     demo ? null : crearClienteServidor().then((s) => s.from("consultas").select("empresas(telefono, correo)").eq("id", id).maybeSingle()).then((r) => (r.data?.empresas ?? null) as unknown as { telefono: string | null; correo: string | null } | null),
+    // Declaraciones de enfermedad ocupacional ya iniciadas desde esta consulta (aviso del paso Diagnóstico)
+    declaracionesDeConsulta(id),
+    // Primero en espera hoy: «Siguiente paciente» al cerrar o firmar
+    demo ? null : siguienteEnEspera(),
   ]);
   if (!consulta) notFound();
+  // Lo que enfermería anotó en esta consulta (su evolución): lo ven el médico, el gerente médico y el administrador
+  const notas = demo || !sesion.clinico ? [] : await notasDeConsulta(id);
+  const tarjetaNotas = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Evolución de enfermería en esta consulta</CardTitle>
+        <CardDescription>Lo que anotó enfermería después de leerla. Queda en la historia del trabajador.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ListaAtenciones atenciones={notas} puedeBorrarTodo={sesion.rol === "administrador" || sesion.rol === "gerente_medico"} conConsulta={false} vacio="Enfermería no ha anotado nada en esta consulta." />
+      </CardContent>
+    </Card>
+  );
+  // Enfermería lee la consulta del médico, no la cambia (la base tampoco se lo permite)
+  if (sesion.rol === "enfermeria") {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4">
+        <Link href={`/pacientes/${consulta.trabajador.id}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> Historia de {consulta.trabajador.nombre}
+        </Link>
+        <LecturaEnfermeria consulta={consulta} />
+        {tarjetaNotas}
+      </div>
+    );
+  }
   const envio = { servicio: org.nombre, plantilla: org.ajustes.mensaje_aptitud ?? PLANTILLA_APTITUD, telefono: contacto?.telefono ?? null, correo: contacto?.correo ?? null };
   // Mismo criterio que validar_firma() en la base: el autor, el gerente médico o el administrador con acceso clínico; nunca enfermería
-  const puedeFirmar = sesion.clinico && sesion.rol !== "enfermeria" &&
+  const puedeFirmar = sesion.clinico &&
     (!consulta.medicoId || consulta.medicoId === sesion.usuarioId || sesion.rol === "gerente_medico" || sesion.rol === "administrador");
   const adjuntos = sesion.demo || !sesion.orgId || !listaAdjuntos ? null : { orgId: sesion.orgId, lista: listaAdjuntos };
   return (
@@ -52,7 +98,20 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
-      <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} />
+      {sesion.clinico && (
+        <ConsultaADistancia consultaId={consulta.datos.id} paciente={consulta.trabajador.nombre} telefonoFicha={distanciaDatos.telefonoFicha}
+          inicial={distanciaDatos.tele} salaInicial={distanciaDatos.sala} firmada={consulta.datos.estado === "firmada"} abrirAlCargar={distancia === "1"}
+          plazoDias={plazoSala(org.ajustes.seguimiento_distancia_dias)} puedeEditar={!sesion.demo && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
+      )}
+      {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
+      <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
+        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} duplicada={duplicada === "1"} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
+          puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
+          alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")}
+          puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"}
+          notaRiesgos={org.ajustes.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO} />
+      </FrescoAlVolver>
+      {notas.length > 0 && tarjetaNotas}
     </div>
   );
 }

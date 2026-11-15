@@ -44,9 +44,10 @@ end $$;
 do $$ begin
   insert into public.adjuntos (org_id,trabajador_id,nombre,ruta,tipo_mime,tamano,examenes) values
    ('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-00000000000a','suelto.pdf','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-00000000000a/s.pdf','application/pdf',10,'{hb}');
-  raise notice 'FALLA: ligó un examen sin consulta';
+  raise notice 'FALLA: ligó sin consulta un examen que no está en el catálogo';
 exception when others then
-  if sqlerrm like '%debe estar en la consulta%' then raise notice 'sin consulta no se liga a un examen (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
+  -- Desde 20261030580000 la ficha sí liga a estudios del catálogo (historial); «hb» no es un ítem del catálogo
+  if sqlerrm like '%no está en el catálogo%' then raise notice 'sin consulta solo se liga a un estudio del catálogo (debe 1): 1'; else raise notice 'FALLA: %', sqlerrm; end if;
 end $$;
 
 -- Resultados con la consulta cerrada

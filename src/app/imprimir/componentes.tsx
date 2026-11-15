@@ -1,5 +1,12 @@
+import { Fragment } from "react";
 import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import type { DatosDocumento } from "@/lib/documentos";
+import { antiguedad } from "@/lib/fecha";
+import { NOTA_RIESGOS_PUESTO } from "@/lib/mensajes";
+import { puntosUnicos } from "@/lib/recomendaciones-categorias";
+import { GRUPOS_RIESGO } from "@/lib/pacientes";
+import { esParticular } from "@/lib/particulares";
+import { FechaImpreso } from "./fecha-impresion";
 
 // Diseño de los documentos impresos: hoja blanca, acento teal del sistema, Public Sans y cifras en Plex Mono.
 // Los colores son fijos (papel), no siguen el tema oscuro de la app.
@@ -24,9 +31,12 @@ export const folio = (prefijo: string, id: string) => `${prefijo}-${id.replace(/
 
 // corte=false: la hoja no fuerza salto de página (las dos mitades del reposo van en la misma carta)
 // horizontal: carta apaisada (récipe del Integral), usa la página con nombre «apaisada» de globals.css
-export function Hoja({ children, className = "", media, horizontal, corte = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean }) {
+// ajustar={false}: hoja que fluye a varias páginas a propósito; no se reduce nunca (la letra queda en su tamaño)
+export function Hoja({ children, className = "", media, horizontal, corte = true, ajustar = true }: { children: React.ReactNode; className?: string; media?: boolean; horizontal?: boolean; corte?: boolean; ajustar?: boolean }) {
   return (
     <section
+      // Hojas de carta completas: AjusteHojas las reduce un poco si se pasan, para que la firma no quede sola en otra hoja
+      data-ajustar={corte && !media && ajustar ? (horizontal ? "apaisada" : "vertical") : undefined}
       className={`${corte ? "hoja" : ""} mx-auto mb-8 flex w-full ${horizontal ? "max-w-[279mm] [page:apaisada]" : "max-w-[216mm]"} flex-col bg-white px-[13mm] pt-[12mm] pb-[8mm] font-doc text-[12px] leading-normal text-[#15201e] shadow-[0_1px_2px_rgba(0,0,0,.08),0_12px_40px_rgba(16,40,36,.14)] print:mb-0 print:max-w-none print:p-0 print:shadow-none ${horizontal ? "min-h-[216mm] print:min-h-[186mm]" : media ? "min-h-[130mm] print:min-h-[121mm]" : "min-h-[279mm] print:min-h-[247mm]"} ${className}`}
     >
       {children}
@@ -34,47 +44,64 @@ export function Hoja({ children, className = "", media, horizontal, corte = true
   );
 }
 
-// Marca de una palabra con mayúsculas internas («OcupaVida» → «OV»); si no, primeras letras de dos palabras
-function iniciales(nombre: string) {
-  const primera = nombre.trim().split(/\s+/)[0] ?? "";
-  const internas = /\p{Ll}/u.test(primera) ? (primera.match(/\p{Lu}/gu) ?? []) : [];
-  if (internas.length >= 2) return internas.slice(0, 2).join("");
-  return nombre.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "+";
-}
-
-function Marca({ logo, nombre }: { logo: string | null | undefined; nombre: string }) {
+// Logo del servicio si lo hay; sin logo no se dibuja nada (el nombre ya va en texto: un recuadro de relleno no aporta)
+export function Marca({ logo }: { logo: string | null | undefined; nombre?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  if (logo) return <img src={logo} alt="" className="h-12 max-w-32 object-contain" />;
-  return (
-    <span className="grid size-12 shrink-0 place-items-center rounded-[11px] bg-doc-acento text-lg font-extrabold text-white">
-      {iniciales(nombre)}
-    </span>
-  );
+  return logo ? <img src={logo} alt="" className="h-12 max-w-32 object-contain" /> : null;
 }
 
 // Membrete: servicio de salud a la izquierda, empresa del trabajador (con su logo) a la derecha
 // Solo usa la organización y la empresa: sirve también para documentos que no salen de una consulta (p. ej. accidentes)
 // sin membrete: deja el espacio en blanco para imprimir sobre hoja ya membretada
-export function Membrete({ d, compacto }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean }) {
-  if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
+type AjustesMembrete = { membrete_titular?: string | null; membrete_credenciales?: string | null; membrete_lema?: string | null };
+
+// Titular y su especialidad, debajo del nombre del servicio (encabezados propios: nota de cobro, pacientes atendidos)
+export function Titular({ ajustes }: { ajustes: unknown }) {
+  const a = (ajustes ?? {}) as AjustesMembrete;
+  if (!a.membrete_titular?.trim()) return null;
   return (
-    <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-doc-linea pb-3">
-      <Marca logo={d.org.logo} nombre={d.org.nombre} />
+    <div data-prueba="membrete-titular">
+      <div className="text-[12px] font-bold leading-tight text-[#15201e]">{a.membrete_titular.trim()}</div>
+      {a.membrete_credenciales?.trim() && <div className="text-[10.5px] font-medium leading-snug text-doc-acento">{a.membrete_credenciales.trim()}</div>}
+    </div>
+  );
+}
+
+// Titular del servicio primero (Configuración › Organización: «Médico titular» y su especialidad), luego el servicio
+// direccionCompleta: el RIF y la dirección pueden ocupar dos renglones aunque haya titular (hojas cortas como el
+// comprobante de cita, donde sobra espacio). Los informes largos siguen en un renglón para no empujar las firmas.
+export function Membrete({ d, compacto, sinEmpresa, direccionCompleta }: { d: Pick<DatosDocumento, "org" | "empresa"> & { sin?: string[] }; compacto?: boolean; sinEmpresa?: boolean; direccionCompleta?: boolean }) {
+  if (d.sin?.includes("membrete")) return <div aria-hidden className={compacto ? "h-[14mm]" : "h-[18mm]"} />;
+  const a = ((d.org as { ajustes?: unknown }).ajustes ?? {}) as AjustesMembrete;
+  const titular = a.membrete_titular?.trim();
+  return (
+    <header data-prueba="membrete" className={`grid ${d.org.logo ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]"} items-center gap-4 border-b border-doc-linea ${compacto ? "pb-2" : "pb-3"}`}>
+      <Marca logo={d.org.logo} />
       <div className="min-w-0">
-        <div className="text-[15px] font-extrabold uppercase tracking-wide">{d.org.nombre}</div>
-        {!compacto && d.org.ajustes.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{d.org.ajustes.membrete_lema}</div>}
-        <div className="text-[10.5px] text-doc-tenue">
+        {/* Servicio primero y, debajo, el titular con su especialidad (Cesar, 04-nov: «mi nombre debajo de OcupaVida») */}
+        <div className={`font-extrabold uppercase tracking-wide ${compacto ? "text-[13px] leading-tight" : "text-[15px] leading-tight"}`}>{d.org.nombre}</div>
+        {titular && (
+          <div data-prueba="membrete-titular" className={compacto ? "text-[9px] leading-tight" : "text-[11.5px] leading-snug"}>
+            <b className="font-bold">{titular}</b>
+            {a.membrete_credenciales?.trim() && <span className="font-medium text-doc-acento"> · {a.membrete_credenciales.trim()}</span>}
+          </div>
+        )}
+        {!titular && !compacto && a.membrete_lema && <div className="text-[10.5px] text-doc-tenue">{a.membrete_lema}</div>}
+        {/* La dirección no pasa de dos líneas (una con titular o en el compacto): un membrete alto empuja las firmas a otra hoja */}
+        <div className={`${(titular && !direccionCompleta) || compacto ? "line-clamp-1" : "line-clamp-2"} ${compacto ? "text-[10px]" : "text-[10.5px]"} text-doc-tenue`}>
           {[d.org.rif && `RIF ${d.org.rif}`, d.org.direccion, !compacto && d.org.telefono && `Tel. ${d.org.telefono}`].filter(Boolean).join(" · ")}
         </div>
       </div>
-      <div className="flex items-center gap-3 text-right">
+      {sinEmpresa ? <div /> : <div className="flex items-center gap-3 text-right">
         <div>
-          <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">Empresa</div>
-          <div className="max-w-44 text-[11px] font-semibold leading-tight">{d.empresa.razon_social}</div>
+          {/* Particular (sin empresa): nunca «Empresa: PARTICULAR» (Cesar, 05-nov) */}
+          <div className="text-[9px] font-semibold uppercase tracking-[.12em] text-doc-tenue">{esParticular(d.empresa) ? "Atención" : "Empresa"}</div>
+          {/* La razón social es dato legal: nunca se corta; en el compacto baja la letra para que no crezca el membrete */}
+          <div className={`font-semibold leading-tight ${compacto ? "max-w-52 text-[10px]" : "max-w-44 text-[11px]"}`}>{esParticular(d.empresa) ? "Paciente particular" : d.empresa.razon_social}</div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {d.empresa.logo && <img src={d.empresa.logo} alt="" className="h-12 max-w-28 object-contain" />}
-      </div>
+      </div>}
     </header>
   );
 }
@@ -120,36 +147,63 @@ export function Datos({ filas, columnas = 2 }: { filas: [string, React.ReactNode
 export function DatosPaciente({ d, completo = true }: { d: DatosDocumento; completo?: boolean }) {
   const t = d.trabajador;
   const sexo = t.sexo === "F" ? "F" : t.sexo === "M" ? "M" : null;
+  const particular = esParticular(d.empresa);
   const celdas: { k: string; v: React.ReactNode; ancho?: 2 | 4; destacada?: boolean }[] = [
-    { k: "Trabajador", v: t.nombre, ancho: 2, destacada: true },
+    { k: particular ? "Paciente" : "Trabajador", v: t.nombre, ancho: 2, destacada: true },
     { k: "Cédula", v: t.cedula },
     { k: "Edad · Sexo", v: [t.edad !== null && `${t.edad} años`, sexo].filter(Boolean).join(" · ") },
-    { k: "Cargo · Dependencia", v: [t.cargo, d.dependencia].filter(Boolean).join(" · "), ancho: 2 },
+    particular
+      ? { k: "Ocupación", v: t.cargo ?? "", ancho: 2 }
+      : { k: "Cargo · Dependencia", v: [t.cargo, d.dependencia].filter(Boolean).join(" · "), ancho: 2 },
   ];
-  if (completo) {
+  // Particular (sin empresa): sin ingreso, turno, antigüedad en el cargo ni ficha (Diseño, 05-nov)
+  if (particular) celdas[3] = { ...celdas[3], ancho: 4 };
+  else if (completo) {
     celdas.push(
       { k: "Ingreso · Turno", v: [d.extra.fecha_ingreso && fechaCorta(d.extra.fecha_ingreso), d.extra.turno].filter(Boolean).join(" · ") },
+      // Antigüedad en el cargo a la fecha de la consulta (no a la de impresión), como en el SAME
+      { k: "Antigüedad en el cargo", v: antiguedad(d.extra.fecha_ingreso_cargo, d.datos.fecha) ?? "" },
       { k: "Tipo · Ficha", v: [d.extra.tipo?.nombre, d.extra.ficha].filter(Boolean).join(" · ") },
     );
   } else celdas[3] = { ...celdas[3], ancho: 4 };
+  // Proyecto u obra de la empresa (Empresas › ficha), a todo el ancho después de la identificación (Cesar, 05-nov)
+  const proyecto = d.empresa.proyecto?.trim();
+  if (proyecto) celdas.push({ k: "Proyecto", v: proyecto, ancho: 4 });
   return <Ficha celdas={celdas} />;
+}
+
+// Riesgos del puesto por categoría + la nota legal en letra pequeña (Configuración › Organización; vacía = sin nota).
+// Sin riesgos marcados no imprime nada.
+export function BloqueRiesgos({ riesgos, ajustes, titulo = "Riesgos del puesto" }: {
+  riesgos: Record<string, string[] | undefined>; ajustes: DatosDocumento["org"]["ajustes"]; titulo?: string;
+}) {
+  const grupos = GRUPOS_RIESGO.filter(([k]) => (riesgos[k] ?? []).length);
+  if (!grupos.length) return null;
+  const nota = (ajustes.nota_riesgos_puesto ?? NOTA_RIESGOS_PUESTO).trim();
+  return (
+    <Bloque titulo={titulo}>
+      {/* Corrido en un párrafo (no en dos columnas): ocupa menos alto y la firma no se pasa a la segunda hoja */}
+      <p className="leading-snug">{grupos.map(([k, n], i) => <Fragment key={k}>{i > 0 && " · "}<b>{n}:</b> {riesgos[k]!.join(", ")}</Fragment>)}</p>
+      {nota && <p className="mt-0.5 text-[7pt] italic leading-tight text-doc-tenue">{nota}</p>}
+    </Bloque>
+  );
 }
 
 export function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="mb-3.5 break-inside-avoid">
-      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento after:h-px after:flex-1 after:bg-doc-linea">{titulo}</div>
+    // Separador de sección: línea continua de 1,5 px en el color de la marca (en escala de grises queda gris oscuro) y
+    // el título en mayúsculas debajo, como en el SAME: dos secciones nunca se leen como un solo párrafo
+    <div data-prueba="bloque" className="mb-3 break-inside-avoid border-t-[1.5px] border-doc-acento pt-1.5">
+      <div className="mb-1 text-[10px] font-extrabold uppercase tracking-[.13em] text-doc-acento">{titulo}</div>
       <div className="whitespace-pre-line">{children}</div>
     </div>
   );
 }
 
-// Texto con un punto por línea (o «1. … 2. …» corrido) → lista numerada en una o dos columnas
+// Texto con un punto por línea (o «1. … 2. …» corrido) → lista numerada en una o dos columnas, sin puntos repetidos
 export function Lista({ texto, columnas }: { texto: string; columnas?: 1 | 2 }) {
-  const items = texto
-    .split(/\n|(?:^|\s)(?=\d{1,2}[.)]\s)/)
-    .map((x) => x.replace(/^\s*(\d{1,2}[.)]|[-•*])\s*/, "").trim())
-    .filter(Boolean);
+  // Dos frases elegidas que comparten una indicación («Uso de EPP») la imprimen una sola vez
+  const items = puntosUnicos(texto);
   if (items.length <= 1) return <p className="whitespace-pre-line">{texto.trim()}</p>;
   const cols = columnas ?? (items.length >= 5 ? 2 : 1);
   return (
@@ -188,7 +242,7 @@ export function CasillaSello({ className = "h-[84px] w-[150px]", imagen }: { cla
 }
 
 // Imágenes de firma y sello del médico, si las cargó en «Mi perfil» y eligió imprimirlas
-export function imagenesMedico(d: DatosDocumento) {
+export function imagenesMedico(d: Pick<DatosDocumento, "sin" | "medicoDatos">) {
   const m = d.medicoDatos;
   if (d.sin.includes("firma")) return { firma: null, sello: null };
   return { firma: m?.mostrar_firma !== false ? m?.firma_url ?? null : null, sello: m?.mostrar_sello !== false ? m?.sello_url ?? null : null };
@@ -199,12 +253,18 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
   // Configuración › Organización: firma y sello en casillas separadas (por defecto) o en una sola línea
   const separados = d.org.ajustes.firma_sello_separados !== false;
   const img = imagenesMedico(d);
+  const aviso = d.sin.includes("firma") || d.firmadaEnSame || !m || (m.mostrar_firma === false && m.mostrar_sello === false) ? null
+    : !img.firma && !img.sello ? "Esta hoja sale sin firma ni sello digitales: el médico no los tiene cargados en Configuración › Mi perfil. En el escritorio, si los cargó hace poco, espera unos minutos a que la PC los copie."
+    : !img.firma && m.mostrar_firma !== false ? "Esta hoja sale sin firma digital: no está cargada en Configuración › Mi perfil."
+    : !img.sello && m.mostrar_sello !== false ? "Esta hoja sale sin sello digital: no está cargado en Configuración › Mi perfil." : null;
   return (
-    <div className="flex items-end gap-3.5">
+    <div data-prueba="firma-medico" className="flex flex-wrap items-end gap-3.5">
       <div className="w-64 text-center text-[10px] leading-[1.35]">
+        {/* Altura fija y la firma DENTRO del recuadro, apoyada en la línea: nunca tapa la línea, el nombre ni el MPPS
+            (una firma escaneada con fondo blanco los borraba) ni el texto de arriba */}
         <div className={`relative mb-1 border-b border-[#15201e] ${compacto ? "h-11" : "h-14"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 -bottom-2 mx-auto max-h-20 max-w-[90%] object-contain" />}
+          {img.firma && <img src={img.firma} alt="" className="absolute inset-x-0 bottom-px mx-auto max-h-full max-w-[90%] object-contain" />}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {!separados && img.sello && <img src={img.sello} alt="" className="absolute -right-16 bottom-0 max-h-20 max-w-40 object-contain opacity-90" />}
         </div>
@@ -215,8 +275,17 @@ export function FirmaMedico({ d, etiqueta = "Médico evaluador", compacto }: { d
         </div>
         {!compacto && m?.registro_inpsasel && <div className="text-doc-tenue">INPSASEL {m.registro_inpsasel}</div>}
         {!compacto && m?.correo && <div className="text-doc-tenue">{m.correo}</div>}
+        {d.firmaEnlace && <div data-prueba="firma-enlace" className="mt-1 font-medium text-doc-tenue">{d.firmaEnlace}</div>}
+        {/* Importada del SAME: la firma y la emisión ocurrieron allá; esta hoja es una copia desde zamorApp */}
+        {d.firmadaEnSame && (
+          <div data-prueba="firmada-same" className="mt-1 font-medium text-doc-tenue">
+            Firmada y emitida en el SAME el {new Intl.DateTimeFormat("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Caracas" }).format(new Date(d.firmadaEnSame))}
+          </div>
+        )}
       </div>
       {separados && <CasillaSello imagen={img.sello} className={compacto ? "h-[70px] w-[124px]" : undefined} />}
+      {/* Error visible (no sale en papel): sin imágenes la hoja sale para firmar a mano y la persona debe saber por qué */}
+      {aviso && <p data-prueba="aviso-sin-firma" className="basis-full text-[10.5px] font-medium text-[#7a5300] print:hidden">{aviso}</p>}
     </div>
   );
 }
@@ -226,24 +295,25 @@ export function FirmaTrabajador({ d }: { d: DatosDocumento }) {
     <div className="w-56 text-center text-[10.5px]">
       <div className="mb-1 h-14 border-b border-[#15201e]" />
       <div className="text-[11.5px] font-bold">{d.trabajador.nombre}</div>
-      <div className="text-doc-tenue">C.I. {d.trabajador.cedula} · Trabajador</div>
+      <div className="text-doc-tenue">C.I. {d.trabajador.cedula} · {esParticular(d.empresa) ? "Paciente" : "Trabajador"}</div>
     </div>
   );
 }
 
 // Zona de firmas: siempre al pie de la hoja
-export function Firmas({ children }: { children: React.ReactNode }) {
-  return <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-5 break-inside-avoid">{children}</div>;
+export function Firmas({ children, compacto }: { children: React.ReactNode; compacto?: boolean }) {
+  return <div className={`mt-auto flex flex-wrap items-end justify-between gap-5 break-inside-avoid ${compacto ? "pt-2" : "pt-5"}`}>{children}</div>;
 }
 
-export function Pie({ d, derecha }: { d: { impreso: { por: string; el: string; revision?: number } }; derecha?: string }) {
-  const revision = d.impreso.revision ?? 1;
+export function Pie({ d, derecha, compacto }: { d: { impreso: { por: string; el: string; revision?: number; mostrarRevision?: boolean } }; derecha?: string; compacto?: boolean }) {
+  // Oculto por defecto (pedido de Cesar, 12-nov): solo sale si se marca «Aviso de revisión» al imprimir
+  const revision = d.impreso.mostrarRevision ? d.impreso.revision ?? 1 : 1;
   return (
-    <footer className="mt-4 flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue">
+    <footer className={`${compacto ? "mt-2" : "mt-4"} flex justify-between gap-3 border-t border-doc-linea pt-2 font-cifra text-[9px] text-doc-tenue`}>
       <span>
-        Impreso por {d.impreso.por} · {d.impreso.el}
+        Impreso por {d.impreso.por} · <FechaImpreso el={d.impreso.el} />
         {/* Una consulta corregida invalida los impresos de su revisión anterior */}
-        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores de esta consulta</b></>}
+        {revision > 1 && <> · <b className="text-[#15201e]">Revisión {revision}: reemplaza los impresos anteriores</b></>}
       </span>
       {derecha && <span>{derecha}</span>}
     </footer>

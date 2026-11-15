@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-07",
+  "tema": "paraclinicos",
+  "texto": "Espirometría directa desde winspiroPRO (solo zamorApp Escritorio, en la computadora del espirómetro): en Paraclínicos › Espirometría › «Registrar valores» toca «Hacer en winspiroPRO». Se abre winspiroPRO con los datos del paciente; haz la prueba y ciérralo: FVC, FEV1, sus % del previsto, FEV1/FVC y PEF llegan solos con la interpretación de winspiroPRO en la nota. Si winspiroPRO ya estaba abierto, ciérralo primero. zamorApp no cambia nada de winspiroPRO"
+}

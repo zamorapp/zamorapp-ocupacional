@@ -1,11 +1,12 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
-import type { DatosConsulta, EstadoConsulta, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
+import type { DatosConsulta, EstadoConsulta, Medicamento, MedicionSignos, Paraclinico, ReposoPrevio } from "@/lib/consultas-tipos";
 import { contarResultados } from "@/lib/paraclinicos";
+import { completarHabitos } from "@/lib/habitos";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { hoyCaracas, sumarDias } from "@/lib/fecha";
+import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
 
 export type ResumenConsulta = {
   id: string;
@@ -44,7 +45,8 @@ type FilaResumen = {
 const hora = (iso: string) =>
   new Intl.DateTimeFormat("es-VE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Caracas" }).format(new Date(iso));
 
-export async function listarConsultas(opciones: { desde?: string; trabajadorId?: string; limite?: number } = {}): Promise<ResumenConsulta[]> {
+// todas: sin el filtro de la empresa activa (los «Últimos atendidos» de Inicio y del buscador)
+export async function listarConsultas(opciones: { desde?: string; hasta?: string; trabajadorId?: string; limite?: number; todas?: boolean; estados?: string[]; sinImportadas?: boolean; medicoId?: string } = {}): Promise<ResumenConsulta[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   let q = supabase
@@ -54,8 +56,13 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
     .order("hora_inicio", { ascending: false })
     .limit(opciones.limite ?? 200);
   if (opciones.desde) q = q.gte("fecha", opciones.desde);
+  if (opciones.hasta) q = q.lte("fecha", opciones.hasta);
+  // estados + sinImportadas + medicoId: la misma regla que cuentan las tarjetas del Inicio (inicio_conteos)
+  if (opciones.estados) q = q.in("estado", opciones.estados);
+  if (opciones.sinImportadas) q = q.is("origen", null);
+  if (opciones.medicoId) q = q.eq("medico_id", opciones.medicoId);
   if (opciones.trabajadorId) q = q.eq("trabajador_id", opciones.trabajadorId);
-  else {
+  else if (!opciones.todas) {
     const empresa = await empresaActivaId();
     if (empresa) q = q.eq("empresa_id", empresa);
   }
@@ -84,9 +91,13 @@ export async function listarConsultas(opciones: { desde?: string; trabajadorId?:
 
 export type ConsultaCompleta = {
   datos: DatosConsulta;
-  trabajador: { id: string; nombre: string; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]> };
+  // riesgos: los que salen en los impresos (los elegidos en la consulta o, si no se tocaron, los del cargo)
+  trabajador: { id: string; nombre: string; nombres?: string; apellidos?: string; nacimiento?: string | null; cedula: string; edad: number | null; sexo: string | null; empresa: string; empresaId: string | null; cargo: string; riesgos: Record<string, string[]>; riesgosCargo?: Record<string, string[]> };
   medico: string | null;
   medicoId: string | null;
+  // Firmada y emitida en el SAME (importada): hora de esa firma. null = sin firma o firmada en zamorApp
+  firmadaEnSame: string | null;
+  registrada: string; // día (Caracas) en que se registró de verdad; la fecha de la evaluación puede ser otra
   // Recién creada y nunca guardada: la plantilla del motivo se aplica sola al abrirla
   nueva: boolean;
 };
@@ -97,48 +108,65 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
   const { data: c } = await supabase.from("consultas").select("*").eq("id", id).maybeSingle();
   if (!c) return null;
 
-  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }] = await Promise.all([
+  const partes = await Promise.all([
     supabase.from("trabajadores").select("id, nombres, apellidos, cedula, sexo, fecha_nacimiento, empresas(razon_social), puestos(nombre, riesgos)").eq("id", c.trabajador_id).maybeSingle(),
     supabase.from("diagnosticos").select("cie10, descripcion, sistema, origen, principal").eq("consulta_id", id).order("principal", { ascending: false }),
     supabase.from("aptitudes").select("clasificacion, observacion, limitaciones, vigente_hasta").eq("consulta_id", id).maybeSingle(),
-    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss").eq("consulta_id", id).maybeSingle(),
+    supabase.from("reposos").select("causa, ente_emisor, desde, hasta, cie10, medico_externo, centro_ivss, validado_ivss, observacion, motivo_clinico").eq("consulta_id", id).maybeSingle(),
     c.origen && c.medico_historico_id ? supabase.from("medicos_historicos").select("nombre_completo").eq("id", c.medico_historico_id).maybeSingle()
-      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null }),
+      : c.medico_id ? supabase.from("perfiles").select("nombre_completo").eq("id", c.medico_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    // El cargo con que se atendió (la ficha puede cambiar después; los impresos de una consulta cerrada no)
+    c.puesto_id ? supabase.from("puestos").select("nombre, riesgos").eq("id", c.puesto_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
+  // Si una lectura falla, NUNCA se muestra la consulta como si no tuviera diagnósticos, aptitud o reposo: el siguiente
+  // Guardar los borraría (30-oct: la vista de reposos sin la columna «observacion» hacía «desaparecer» el reposo).
+  const fallo = partes.find((p) => p.error);
+  if (fallo?.error) throw new Error(`No se pudo leer la consulta completa (${fallo.error.message}). No guardes cambios y vuelve a intentar.`);
+  const [{ data: t }, { data: diags }, { data: apt }, { data: rep }, { data: med }, { data: puestoConsulta }] = partes;
 
   const tr = t as unknown as {
     id: string; nombres: string; apellidos: string; cedula: string; sexo: string | null; fecha_nacimiento: string | null;
     empresas: { razon_social: string } | null; puestos: { nombre: string; riesgos: Record<string, string[]> } | null;
   } | null;
+  const riesgosCargo = (puestoConsulta as { riesgos: Record<string, string[]> } | null)?.riesgos ?? tr?.puestos?.riesgos ?? {};
+  const riesgosConsulta = c.riesgos && typeof c.riesgos === "object" ? (c.riesgos as Record<string, string[]>) : null;
   const nac = tr?.fecha_nacimiento ? new Date(tr.fecha_nacimiento) : null;
-  const edad = nac ? Math.floor((Date.now() - nac.getTime()) / (365.25 * 864e5)) : null;
+  const edad = nac ? Math.floor((ahora() - nac.getTime()) / (365.25 * 864e5)) : null;
 
   return {
     medico: (med as { nombre_completo: string } | null)?.nombre_completo ?? null,
     medicoId: c.medico_id ?? null,
+    firmadaEnSame: c.estado === "firmada" && c.firma_origen === "same" ? (c.firmada_en ?? null) : null,
+    registrada: hoyCaracas(c.creado_en),
     nueva: c.estado === "borrador" && c.actualizado_en === c.creado_en,
     trabajador: {
       id: c.trabajador_id,
       nombre: tr ? `${tr.nombres} ${tr.apellidos}` : "",
+      nombres: tr?.nombres ?? "",
+      apellidos: tr?.apellidos ?? "",
+      nacimiento: tr?.fecha_nacimiento ?? null,
       cedula: tr?.cedula ?? "",
       edad,
       sexo: tr?.sexo ?? null,
       empresa: tr?.empresas?.razon_social ?? "",
       empresaId: c.empresa_id ?? null, // empresa de la consulta (la del trabajador al atenderlo)
-      cargo: tr?.puestos?.nombre ?? "",
-      riesgos: tr?.puestos?.riesgos ?? {},
+      cargo: (puestoConsulta as { nombre: string } | null)?.nombre ?? tr?.puestos?.nombre ?? "",
+      riesgos: riesgosConsulta ?? riesgosCargo,
+      riesgosCargo,
     },
     datos: {
       id: c.id,
       estado: c.estado,
       revision: c.revision ?? 1,
+      copiadaDe: c.copiada_de ?? null,
       fecha: c.fecha,
       tipo: c.tipo,
       motivoId: c.motivo_id,
       motivoTexto: c.motivo_texto ?? "",
+      especialidad: c.especialidad ?? "",
       enfermedadActual: c.enfermedad_actual ?? "",
       antecedentes: c.antecedentes ?? [],
-      habitos: Array.isArray(c.habitos) ? c.habitos : [],
+      habitos: completarHabitos(Array.isArray(c.habitos) ? c.habitos : []),
       signos: c.signos_vitales ?? {},
       examenFuncional: c.examen_funcional ?? [],
       examenFisico: c.examen_fisico ?? [],
@@ -155,14 +183,15 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       interconsultas: c.interconsultas ?? [],
       reposo: rep
         ? { activo: true, causa: rep.causa, ente: rep.ente_emisor, desde: rep.desde, hasta: rep.hasta, cie10: rep.cie10 ?? "",
-            medicoExterno: rep.medico_externo ?? "", centroIvss: rep.centro_ivss ?? "", validadoIvss: rep.validado_ivss ?? false }
+            medicoExterno: rep.medico_externo ?? "", centroIvss: rep.centro_ivss ?? "", validadoIvss: rep.validado_ivss ?? false, observacion: rep.observacion ?? "",
+            motivoClinico: rep.motivo_clinico ?? "" }
         : { activo: false, causa: "enfermedad_comun", ente: "servicio_medico", desde: c.fecha, hasta: c.fecha, cie10: "", medicoExterno: "", centroIvss: "", validadoIvss: false },
       reubicacion: c.reubicacion
         ? {
             activa: true, tipo: c.reubicacion.tipo === "definitiva" ? "definitiva" : "temporal", puestoActual: c.reubicacion.puesto_actual ?? "", puestoPropuesto: c.reubicacion.puesto_propuesto ?? "",
-            desde: c.reubicacion.desde ?? c.fecha, hasta: c.reubicacion.hasta ?? "", motivo: c.reubicacion.motivo ?? "", restricciones: c.reubicacion.restricciones ?? "",
+            desde: c.reubicacion.desde ?? c.fecha, hasta: c.reubicacion.hasta ?? "", motivo: c.reubicacion.motivo ?? "", restricciones: c.reubicacion.restricciones ?? "", resultado: c.reubicacion.resultado ?? "",
           }
-        : { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: c.fecha, hasta: "", motivo: "", restricciones: "" },
+        : { activa: false, tipo: "temporal", puestoActual: "", puestoPropuesto: "", desde: c.fecha, hasta: "", motivo: "", restricciones: "", resultado: "" },
       informeLibre: { titulo: c.informe_libre?.titulo ?? "", dirigidoA: c.informe_libre?.dirigido_a ?? "", cuerpo: c.informe_libre?.cuerpo ?? "" },
       conclusiones: c.conclusiones ?? "",
       recomendacionesEmpresa: c.recomendaciones_empresa ?? "",
@@ -172,6 +201,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       sano: c.sano ?? false,
       potencialDiscapacidad: c.potencial_discapacidad ?? false,
       discapacidadNota: c.discapacidad_nota ?? "",
+      riesgos: riesgosConsulta,
     },
   };
 }
@@ -192,24 +222,46 @@ export async function listarVersiones(consultaId: string): Promise<VersionConsul
 
 // Historial del trabajador para la consulta: signos de consultas anteriores (cerradas o firmadas, las más
 // recientes) y reposos de los últimos dos años, sin los de esta consulta. Solo personal clínico (RLS).
-export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean };
+// tratamientoAnterior: el de la última consulta con medicinas (para «Repetir tratamiento» en controles y crónicos)
+export type TratamientoAnterior = { fecha: string; tratamiento: Medicamento[]; indicaciones: string };
+// Evaluación anterior que se puede copiar (solo lo permitido: antecedentes, hábitos y examen; Analizar, 30-oct)
+export type EvaluacionAnterior = {
+  id: string; fecha: string; motivo: string; motivoNombre: string; clasificacion: string; diagnosticos: number; sano: boolean;
+  antecedentes: DatosConsulta["antecedentes"]; habitos: DatosConsulta["habitos"]; examenFuncional: DatosConsulta["examenFuncional"]; examenFisico: DatosConsulta["examenFisico"];
+};
+export type HistorialConsulta = { mediciones: MedicionSignos[]; reposos: ReposoPrevio[]; discapacidadRegistrada: boolean; tratamientoAnterior?: TratamientoAnterior | null; evaluaciones?: EvaluacionAnterior[] };
 
 export async function historialConsulta(trabajadorId: string, consultaId: string): Promise<HistorialConsulta> {
   const vacio = { mediciones: [], reposos: [], discapacidadRegistrada: false };
   if (!supabaseConfigurado) return vacio;
   const supabase = await crearClienteServidor();
   const hace2Anios = sumarDias(hoyCaracas(), -730);
-  const [{ data: cs }, { data: rs }, { data: t }] = await Promise.all([
-    supabase.from("consultas").select("fecha, signos_vitales").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+  const [{ data: cs }, { data: rs }, { data: t }, { data: ev }] = await Promise.all([
+    supabase.from("consultas").select("fecha, signos_vitales, tratamiento, indicaciones").eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
       .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(24),
     supabase.from("reposos").select("consulta_id, desde, hasta, causa, ente_emisor").eq("trabajador_id", trabajadorId).gte("hasta", hace2Anios)
       .order("desde", { ascending: false }).limit(60),
     supabase.from("trabajadores_salud").select("discapacidad").eq("id", trabajadorId).maybeSingle(),
+    // Últimas evaluaciones preventivas cerradas o firmadas con aptitud: la consulta nueva ofrece copiar la que toca
+    supabase.from("consultas").select("id, fecha, sano, antecedentes, habitos, examen_funcional, examen_fisico, motivo:lista_items(codigo, nombre, grupo), aptitudes(clasificacion), diagnosticos(id)")
+      .eq("trabajador_id", trabajadorId).neq("estado", "borrador").neq("id", consultaId)
+      .order("fecha", { ascending: false }).order("hora_inicio", { ascending: false }).limit(12),
   ]);
   return {
     mediciones: (cs ?? []).filter((c) => c.signos_vitales && Object.keys(c.signos_vitales).length).map((c) => ({ fecha: c.fecha, signos: c.signos_vitales })).reverse(),
     reposos: (rs ?? []).filter((r) => r.consulta_id !== consultaId)
       .map((r) => ({ consultaId: r.consulta_id, desde: r.desde, hasta: r.hasta, causa: r.causa, ente: r.ente_emisor })),
     discapacidadRegistrada: t?.discapacidad ?? false,
+    tratamientoAnterior: ((c) => (c ? { fecha: c.fecha, tratamiento: c.tratamiento as Medicamento[], indicaciones: c.indicaciones ?? "" } : null))(
+      (cs ?? []).find((c) => Array.isArray(c.tratamiento) && (c.tratamiento as Medicamento[]).some((m) => m?.medicina?.trim()))),
+    evaluaciones: (ev ?? []).flatMap((c) => {
+      const m = c.motivo as unknown as { codigo: string | null; nombre: string; grupo: string | null } | null;
+      const a = (Array.isArray(c.aptitudes) ? c.aptitudes[0] : c.aptitudes) as { clasificacion: string } | null;
+      if (m?.grupo !== "preventivo" || !a?.clasificacion) return [];
+      return [{ id: c.id, fecha: c.fecha, motivo: m.codigo ?? "", motivoNombre: m.nombre, clasificacion: a.clasificacion,
+        diagnosticos: (c.diagnosticos as unknown[] | null)?.length ?? 0, sano: !!c.sano,
+        antecedentes: c.antecedentes ?? [], habitos: Array.isArray(c.habitos) ? c.habitos : [],
+        examenFuncional: c.examen_funcional ?? [], examenFisico: c.examen_fisico ?? [] }];
+    }).slice(0, 4),
   };
 }

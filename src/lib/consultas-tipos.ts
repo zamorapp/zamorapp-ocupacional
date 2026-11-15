@@ -1,5 +1,6 @@
 // Tipos y utilidades de la consulta, compartidos entre servidor y cliente.
 import type { Aptitud } from "@/lib/pacientes";
+import type { Medicion } from "@/lib/mediciones";
 
 export type FilaExamen = { clave: string; nombre: string; valor: string; normal: string };
 // estado: semáforo del resultado ("" = sin clasificar); manual = el médico lo cambió a mano; unidad y referencia quedan
@@ -7,13 +8,17 @@ export type FilaExamen = { clave: string; nombre: string; valor: string; normal:
 export type Paraclinico = {
   id: string; nombre: string; grupo: string | null; resultado: string;
   estado?: "" | "normal" | "fuera" | "alterado"; manual?: boolean; unidad?: string; referencia?: string;
+  // Goniometría o espirometría con valores (opcional, lib/mediciones.ts)
+  medicion?: Medicion;
 };
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
 export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string; notaFarmacia?: string };
 export type Interconsulta = { especialidad: string; motivo: string };
-export type Reubicacion = { activa: boolean; tipo: "temporal" | "definitiva"; puestoActual: string; puestoPropuesto: string; desde: string; hasta: string; motivo: string; restricciones: string };
+// resultado: código de la lista «Resultados de reubicación» (efectiva, negada, en trámite); vacío = en trámite
+export type Reubicacion = { activa: boolean; tipo: "temporal" | "definitiva"; puestoActual: string; puestoPropuesto: string; desde: string; hasta: string; motivo: string; restricciones: string; resultado: string };
 export type InformeLibre = { titulo: string; dirigidoA: string; cuerpo: string };
-export type Habito = { clave: string; nombre: string; valor: string };
+// detalle: lo elegido en el formulario estructurado (lib/habitos.ts); valor: texto clínico que leen los informes
+export type Habito = { clave: string; nombre: string; valor: string; detalle?: Partial<Record<string, string>> };
 export type Antecedente = { id: string; nombre: string; grupo: string | null; observacion: string };
 
 export type Origen = "comun" | "ocupacional" | "accidente_comun" | "accidente_laboral";
@@ -46,10 +51,13 @@ export type DatosConsulta = {
   id: string;
   estado: EstadoConsulta;
   revision: number; // 1 = original; sube cada vez que se corrige una consulta firmada
+  copiadaDe?: string | null; // evaluación anterior de la que se copiaron antecedentes, hábitos y examen
   fecha: string;
   tipo: "primera" | "sucesiva" | "derivada";
   motivoId: string | null;
   motivoTexto: string;
+  // Especialidad de la consulta externa o especializada (cuadro del informe de vigilancia)
+  especialidad: string;
   enfermedadActual: string;
   antecedentes: Antecedente[];
   habitos: Habito[];
@@ -62,7 +70,11 @@ export type DatosConsulta = {
   tratamiento: Medicamento[];
   indicaciones: string;
   interconsultas: Interconsulta[];
-  reposo: { activo: boolean; causa: string; ente: string; desde: string; hasta: string; cie10: string; medicoExterno: string; centroIvss: string; validadoIvss: boolean };
+  reposo: { activo: boolean; causa: string; ente: string; desde: string; hasta: string; cie10: string; medicoExterno: string; centroIvss: string; validadoIvss: boolean;
+    // Observación escrita en el SAME (solo lectura: el reposo nuevo no la usa)
+    observacion?: string;
+    // Por qué se indica (sale en la hoja de reposo). Vacío = se imprime la propuesta de lib/reposo-motivo
+    motivoClinico?: string };
   reubicacion: Reubicacion;
   informeLibre: InformeLibre;
   conclusiones: string;
@@ -73,6 +85,8 @@ export type DatosConsulta = {
   sano: boolean;
   potencialDiscapacidad: boolean;
   discapacidadNota: string;
+  // Riesgos del puesto elegidos con botones en esta consulta ({grupo: [agentes]}). null = los del cargo, sin tocar
+  riesgos?: Record<string, string[]> | null;
 };
 
 // Mediciones anteriores del trabajador (consultas cerradas o firmadas) para los gráficos de evolución
@@ -123,12 +137,17 @@ export function taAlterada(ta?: string) {
 }
 
 // Texto para historia e informes
+// Marca «No refiere antecedentes de importancia» (Cesar, 06-nov): excluye las demás marcas
+export const SIN_ANTECEDENTES = { id: "no-refiere", nombre: "No refiere antecedentes de importancia", grupo: "ninguno", observacion: "" } as const;
+export const esSinAntecedentes = (a: { id: string }) => a.id === SIN_ANTECEDENTES.id;
+
 export function resumenAntecedentes(valor: Antecedente[]) {
   const linea = (a: Antecedente) => [a.nombre, a.observacion].filter(Boolean).join(": ");
-  const p = valor.filter((a) => a.grupo !== "familiar" && a.nombre.trim());
+  const p = valor.filter((a) => a.grupo !== "familiar" && !esSinAntecedentes(a) && a.nombre.trim());
   const f = valor.filter((a) => a.grupo === "familiar" && a.nombre.trim());
+  const ninguno = valor.some(esSinAntecedentes) && !p.length && !f.length;
   return {
-    personales: p.length ? p.map(linea).join("; ") : "No refiere antecedentes personales.",
+    personales: p.length ? p.map(linea).join("; ") : ninguno ? "No refiere antecedentes de importancia." : "No refiere antecedentes personales.",
     familiares: f.length ? f.map(linea).join("; ") : "No refiere antecedentes familiares.",
   };
 }

@@ -53,12 +53,46 @@ if ($Programar) {
 $segura = Get-Content $credencial | ConvertTo-SecureString
 $env:DATABASE_URL = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
 $destinos = @(Join-Path ([Environment]::GetFolderPath("MyDocuments")) "zamorApp Respaldos")
-# Copia externa en Google Drive para escritorio (unidad «Mi unidad» o «My Drive» en cualquier letra)
-$drive = Get-PSDrive -PSProvider FileSystem | ForEach-Object { "$($_.Root)Mi unidad", "$($_.Root)My Drive" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+# Copia externa en Google Drive para escritorio, en cualquier letra (G:, H:…). Con varias cuentas montadas se usa la
+# unidad que ya tiene la carpeta zamorApp. Recién encendida la PC, Drive tarda en montar: se espera hasta 5 minutos.
+function Buscar-Drive([switch]$CualquieraSirve) {
+  $raices = @(Get-PSDrive -PSProvider FileSystem | ForEach-Object { "$($_.Root)Mi unidad", "$($_.Root)My Drive" } | Where-Object { Test-Path $_ })
+  $conCarpeta = $raices | Where-Object { Test-Path (Join-Path $_ "zamorApp") } | Select-Object -First 1
+  if ($conCarpeta) { return $conCarpeta }
+  if ($CualquieraSirve) { return $raices | Select-Object -First 1 }
+}
+$drive = Buscar-Drive
+for ($i = 0; -not $drive -and $i -lt 10; $i++) { Start-Sleep -Seconds 30; $drive = Buscar-Drive }
+if (-not $drive) { $drive = Buscar-Drive -CualquieraSirve }
 if ($drive) { $destinos += Join-Path $drive "zamorApp\respaldos-zamorApp" }
-else { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no encontré Google Drive; el respaldo quedó solo en la PC" | Add-Content $registro }
+else { "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no encontré Google Drive tras esperar 5 minutos; el respaldo quedó solo en la PC y subirá a Drive en el próximo respaldo" | Add-Content $registro }
 
 Set-Location $raiz
+# Se pone al día sola: la tarea corre desde esta carpeta y, si nadie la actualiza, se queda con scripts viejos
+# (así siguió el ENOENT de archivos hasta el 6-nov con el arreglo ya en main). Solo avance directo: si hay cambios
+# locales o no hay internet, no toca nada y sigue con lo que tiene.
+if (Test-Path (Join-Path $raiz ".git")) {
+  $env:GIT_TERMINAL_PROMPT = "0"
+  $antes = (& git -C $raiz rev-parse --short HEAD 2>$null)
+  # Con ErrorActionPreference=Stop, la salida de error de git tumbaría el respaldo: aquí solo se anota
+  $ErrorActionPreference = "Continue"
+  $pull = (& git -C $raiz pull --ff-only --quiet origin main 2>&1) -join " "
+  $codigoPull = $LASTEXITCODE
+  $despues = (& git -C $raiz rev-parse --short HEAD 2>$null)
+  if ($codigoPull -ne 0) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no pude poner al día los scripts del respaldo ($antes): $pull" | Add-Content $registro
+    # Que se vea en el Inicio (respaldo en amarillo) y no solo en este registro que nadie abre
+    $cambiados = @(& git -C $raiz status --porcelain --untracked-files=no 2>$null).Count
+    $motivo = if ($cambiados -eq 1) { "hay 1 archivo cambiado a mano en la carpeta de zamorApp" }
+      elseif ($cambiados -gt 1) { "hay $cambiados archivos cambiados a mano en la carpeta de zamorApp" }
+      else { "no había internet o GitHub no respondió" }
+    $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se pusieron al día: $motivo. El respaldo de hoy se hizo igual. Avísale al soporte para ponerlos al día."
+  } elseif ($antes -ne $despues) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') Scripts del respaldo puestos al día: $antes -> $despues" | Add-Content $registro
+  }
+} else {
+  $env:ZAMORAPP_AVISO_SCRIPTS = "Los programas del respaldo de esta PC no se ponen al día solos. El respaldo se hizo igual; avísale al soporte."
+}
 # La salida de error de node se lee aparte: con ErrorActionPreference=Stop, «2>&1» la convierte en excepción
 $ErrorActionPreference = "Continue"
 $errores = Join-Path $carpeta "respaldo-error.txt"
@@ -72,3 +106,39 @@ if ($codigo -ne 0) {
 }
 "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $salida" | Add-Content $registro
 Write-Host $salida
+
+# Archivos (PDF y escaneados del Storage): solo lo nuevo, en «archivos» dentro de las mismas carpetas. Si falla, queda
+# anotado (el Inicio avisa) pero no tumba el respaldo de la base, que ya quedó guardado.
+$archivos = & node scripts\respaldo-archivos.mjs @destinos 2>$errores
+if ($LASTEXITCODE -ne 0) { $archivos = "FALLÓ el respaldo de archivos: $archivos $((Get-Content $errores -ErrorAction SilentlyContinue) -join ' ')" }
+"$(Get-Date -Format 'yyyy-MM-dd HH:mm') $archivos" | Add-Content $registro
+Write-Host $archivos
+
+# Prueba de restauración semanal: el último respaldo se restaura en una base temporal con el PostgreSQL portátil de
+# zamorApp Escritorio (otro puerto, solo 127.0.0.1; no toca la base del programa ni el SAME) y se borra al terminar.
+# Con poca memoria libre se pospone y se intenta en el próximo respaldo. El resultado se ve en el Inicio.
+# Archivo nuevo desde el 14-nov: la versión vieja escribía «ultima-restauracion.txt» aun cuando la prueba fallaba y así
+# daba por probada la semana; con otro nombre esa marca vieja ya no cuenta y la prueba se repite hasta salir bien.
+$marca = Join-Path $carpeta "ultima-restauracion-buena.txt"
+$vencida = -not (Test-Path $marca) -or ((Get-Item $marca).LastWriteTime -lt (Get-Date).AddDays(-7))
+if ($vencida) {
+  $instalado = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -like "zamorApp Escritorio*" } | Select-Object -First 1 -ExpandProperty InstallLocation -ErrorAction SilentlyContinue
+  $pgBin = @($instalado, (Join-Path $env:LOCALAPPDATA "zamorApp Escritorio"), (Join-Path $env:ProgramFiles "zamorApp Escritorio")) |
+    Where-Object { $_ } | ForEach-Object { Join-Path ($_.Trim('"')) "recursos\pgsql\bin" } |
+    Where-Object { Test-Path (Join-Path $_ "initdb.exe") } | Select-Object -First 1
+  $ultimo = Get-ChildItem $destinos[0] -Filter "respaldo-*.json.gz" | Sort-Object Name -Descending | Select-Object -First 1
+  if (-not $pgBin) {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') AVISO: no probé la restauración porque no encontré zamorApp Escritorio instalado" | Add-Content $registro
+  } elseif ($ultimo) {
+    $env:ZAMORAPP_PG_BIN = $pgBin
+    $prueba = & node scripts\probar-restauracion.mjs $ultimo.FullName (Join-Path $carpeta "prueba-restauracion") 2>$errores
+    $codigoPrueba = $LASTEXITCODE
+    if ($codigoPrueba -ne 0 -and $codigoPrueba -ne 3) { $prueba = "$prueba $((Get-Content $errores -ErrorAction SilentlyContinue) -join ' ')" }
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm') $prueba" | Add-Content $registro
+    Write-Host $prueba
+    # Solo una prueba buena cuenta como hecha: si falló o se pospuso, se reintenta en el próximo respaldo
+    # (antes una falla marcaba la semana como probada y no había ninguna restauración buena registrada)
+    if ($codigoPrueba -eq 0) { Set-Content $marca (Get-Date -Format "yyyy-MM-dd HH:mm") }
+  }
+}

@@ -2,18 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
+import { ArrowLeft, CircleHelp, FileDown, FolderOpen, Loader2, Printer, SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { enEscritorio, guardarPdf, imprimirPagina, mostrarPdf } from "@/lib/escritorio";
 import { ANEXOS_LISTOS } from "./anexos";
+import { EnviarInforme, type EnvioInforme } from "./enviar-informe";
+import { EnviarTrabajador } from "./enviar-trabajador";
+import type { DocTrabajador } from "@/lib/whatsapp-trabajador";
+import { ahora } from "@/lib/fecha";
+import { CampoFechaImpresion, fechaArchivo, useFechaImpresion } from "./fecha-impresion";
 
-const hoy = () => new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
+const AYUDA_PDF = "Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».";
+const hoy = () => new Date(ahora()).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }).replaceAll("/", "-");
 
 // En la web: el diálogo del navegador (imprimir o «Guardar como PDF»). En zamorApp Escritorio: «Imprimir» abre
 // el diálogo de impresoras de Windows y «Guardar PDF» pregunta dónde guardar (Documentos\zamorApp\Informes).
 // esperarAnexos: los botones se habilitan cuando los exámenes escaneados terminan de dibujarse (si no, saldrían en blanco).
-export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean }) {
+// trabajador: documento personal que también sale al celular del trabajador por WhatsApp (enlace de 7 días)
+export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos, envio, trabajador, siguiente, alImprimir }: { volver: string; titulo: string; bloqueado?: boolean; esperarAnexos?: boolean; envio?: EnvioInforme | null; trabajador?: { consultaId: string; tipo: DocTrabajador; servicio: string } | null; siguiente?: React.ReactNode; alImprimir?: () => void }) {
   const [escritorio, setEscritorio] = useState(false);
+  const fechaElegida = useFechaImpresion();
   const [ocupado, setOcupado] = useState<"imprimir" | "pdf" | null>(null);
   const [guardado, setGuardado] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -30,9 +39,10 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { v
     setError("");
     setOcupado(que);
     try {
-      if (que === "imprimir") await imprimirPagina();
+      // alImprimir: el escritorio imprime sin el evento «afterprint» del navegador; se avisa aquí al terminar
+      if (que === "imprimir") { await imprimirPagina(); alImprimir?.(); }
       else {
-        const ruta = await guardarPdf(`${titulo} ${hoy()}`);
+        const ruta = await guardarPdf(`${titulo} ${fechaElegida ? fechaArchivo(fechaElegida) : hoy()}`);
         if (ruta) setGuardado(ruta);
       }
     } catch (e) {
@@ -49,6 +59,9 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { v
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" asChild><Link href={volver}><ArrowLeft /> Volver</Link></Button>
         <span className="min-w-0 flex-1 truncate font-medium">{titulo}</span>
+        <CampoFechaImpresion />
+        {envio && <EnviarInforme {...envio} />}
+        {trabajador && !bloqueado && <EnviarTrabajador {...trabajador} />}
         {escritorio ? (
           <div className="flex gap-2">
             <Button variant="outline" disabled={inactivo} onClick={() => hacer("pdf")} data-accion="guardar-pdf">
@@ -60,12 +73,17 @@ export function BarraImpresion({ volver, titulo, bloqueado, esperarAnexos }: { v
           </div>
         ) : (
           <>
-            <span className="hidden text-xs text-muted-foreground lg:inline">Para guardarlo como archivo, en «Destino» elige «Guardar como PDF». Desmarca «Encabezados y pies de página».</span>
+            <span className={cn("hidden text-xs text-muted-foreground", siguiente ? "min-[1700px]:inline" : "2xl:inline")}>{AYUDA_PDF}</span>
+            {/* Por debajo de 2xl la ayuda va en el «?» (Cesar trabaja a 1366) */}
+            <span tabIndex={0} title={AYUDA_PDF} aria-label={AYUDA_PDF} className={cn("grid size-9 place-items-center rounded-md text-muted-foreground hover:text-foreground max-sm:size-11", siguiente ? "min-[1700px]:hidden" : "2xl:hidden")}>
+              <CircleHelp className="size-4" aria-hidden />
+            </span>
             <Button disabled={inactivo} onClick={() => hacer("imprimir")}>
               {preparando ? <Loader2 className="animate-spin" /> : <Printer />} {preparando ? "Preparando anexos…" : "Imprimir o guardar PDF"}
             </Button>
           </>
         )}
+        {siguiente}
       </div>
       {guardado && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-ok/10 px-3 py-1.5 text-sm" role="status" data-estado="pdf-guardado">

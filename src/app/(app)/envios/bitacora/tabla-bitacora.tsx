@@ -6,9 +6,10 @@ import { CheckCircle2, Download, Loader2, Mail, MessageCircle, RotateCw, XCircle
 import { Campo, CampoSelect } from "@/components/app/campo";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
-import type { FilaBitacora, ResultadoEnvio } from "@/lib/envios-tipos";
+import { describirEnvio, type FilaBitacora, type ResultadoEnvio } from "@/lib/envios-tipos";
 import { cn } from "@/lib/utils";
 import { reintentar } from "../acciones";
+import { ahora } from "@/lib/fecha";
 
 type Filtros = { empresa: string; estado: string; canal: string; desde: string; hasta: string };
 
@@ -18,9 +19,10 @@ const dia = (iso: string) => iso.split("-").reverse().join("/");
 
 function estadoDe(h: FilaBitacora) {
   if (h.estado === "fallido") return h.reintentado ? { t: "Falló · reintentado", c: "bg-muted text-muted-foreground" } : { t: "Falló", c: "bg-destructive/10 text-destructive" };
+  if (h.estado === "en_cola") return { t: "En cola · sale al volver el internet", c: "bg-info/10 text-info-texto" };
   if (h.estado === "enviando") return h.reintentado ? { t: "Sin confirmar · reintentado", c: "bg-muted text-muted-foreground" } : { t: "Sin confirmar", c: "bg-aviso/20 text-aviso-texto" };
   if (h.enlace) {
-    const vigente = !h.enlace.revocado && new Date(h.enlace.vence) > new Date();
+    const vigente = !h.enlace.revocado && new Date(h.enlace.vence) > new Date(ahora());
     return vigente
       ? { t: `Enlace · ${h.enlace.aperturas} apertura${h.enlace.aperturas === 1 ? "" : "s"}`, c: "bg-primary/10 text-primary" }
       : { t: h.enlace.revocado ? "Enlace anulado" : "Enlace vencido", c: "bg-muted text-muted-foreground" };
@@ -34,7 +36,7 @@ const celda = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? "'" + v : v).replaceA
 function exportar(filas: FilaBitacora[]) {
   const cab = "FECHA;EMPRESA;CANAL;DESTINATARIO;DOCUMENTOS;EVALUACIONES;DIA DEL LOTE;ESTADO;ERROR;ENVIADO POR";
   const lineas = filas.map((h) =>
-    [fechaHora(h.creadoEn), h.empresa, h.canal, h.destinatario, h.documentos.join(" y "), String(h.cantidad), dia(h.fechaLote), estadoDe(h).t, h.error ?? "", h.enviadoPor ?? ""].map(celda).join(";"),
+    [fechaHora(h.creadoEn), h.empresa, h.canal, h.destinatario, describirEnvio(h.documentos, h.cantidad, h.fechaLote), String(h.cantidad), dia(h.fechaLote), estadoDe(h).t, h.error ?? "", h.enviadoPor ?? ""].map(celda).join(";"),
   );
   const url = URL.createObjectURL(new Blob(["﻿" + [cab, ...lineas].join("\r\n")], { type: "text/csv;charset=utf-8" }));
   Object.assign(document.createElement("a"), { href: url, download: "bitacora-envios.csv" }).click();
@@ -80,6 +82,7 @@ export function TablaBitacora({ filas, filtros, empresas }: { filas: FilaBitacor
           <option value="pendiente">Por reintentar</option>
           <option value="fallido">Fallidos</option>
           <option value="enviando">Sin confirmar</option>
+          <option value="en_cola">En cola (escritorio)</option>
           <option value="enviado">Enviados</option>
           <option value="enlace">Enlaces de WhatsApp</option>
         </CampoSelect>
@@ -125,7 +128,7 @@ export function TablaBitacora({ filas, filtros, empresas }: { filas: FilaBitacor
                     <span className="shrink-0 font-normal text-muted-foreground">· {h.empresa}</span>
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {h.cantidad} evaluación{h.cantidad === 1 ? "" : "es"} del {dia(h.fechaLote)} · {h.documentos.map((d) => (d === "consulta" ? "consulta médica" : "constancias")).join(" y ")}
+                    {describirEnvio(h.documentos, h.cantidad, h.fechaLote)}
                     {h.enviadoPor && ` · por ${h.enviadoPor}`}
                   </span>
                   {h.error && <span className="block break-words text-xs text-destructive">{h.error}</span>}

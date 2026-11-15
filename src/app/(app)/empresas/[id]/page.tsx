@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, Building2, Printer, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, PersonStanding, Printer, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Semaforo } from "@/components/app/semaforo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { claveRiesgo, GRUPOS, nivelRiesgo, riesgoMaximo } from "@/lib/puestos-ti
 import { obtenerSesion } from "@/lib/sesion";
 import { cn } from "@/lib/utils";
 import { FormEmpresa } from "../nueva-empresa";
+import { InvitarRrhh } from "../invitar-rrhh";
 import { Dependencias } from "./dependencias";
 import { HorasTrabajadas } from "./horas-trabajadas";
 import { EditorPuesto } from "./editor-puesto";
@@ -20,14 +21,24 @@ import { BotonNotificarPuesto } from "@/components/app/notificacion-riesgos";
 import { ROLES_NOTIFICAN } from "@/lib/notificacion-riesgos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { guardarLogoEmpresa } from "../acciones";
+import { envioAutoEmpresa, ROLES_ENVIO_AUTO } from "@/lib/envio-auto";
+import { listarContactos } from "@/lib/envios";
+import { EnvioAutoConstancias } from "./envio-auto";
+import { BotonDepurarNomina, DepurarNomina } from "./depurar-nomina";
+import { revisionDepuracion } from "./depurar-nomina-acciones";
+import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
+import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
+import { programasDeEmpresa } from "@/lib/vigilancia-programas";
+import { ROLES_PROGRAMAS } from "@/lib/agentes/roles";
+import { ProgramasVigilancia } from "./programas";
 
 export const metadata: Metadata = { title: "Empresa" };
 export const dynamic = "force-dynamic";
 
-export default async function EmpresaDetalle({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmpresaDetalle({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ depurar?: string }> }) {
   const { id } = await params;
   const sesion = await obtenerSesion();
-  const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
+  const [empresas, estructura, listas, horas] = await Promise.all([listarEmpresas(true), estructuraEmpresa(id), opciones(sesion.orgId, ["agente_riesgo", "turno"]), horasEmpresa(id)]);
   const empresa = empresas.find((e) => e.id === id);
   if (!empresa) notFound();
   // El logo se lee aparte para no cargar imágenes en las listas de empresas
@@ -35,6 +46,17 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
   const { dependencias, puestos } = estructura;
   const editaPuestos = !sesion.demo && ["administrador", "coordinador_sst", "gerente_medico"].includes(sesion.rol ?? "");
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
+  const evaluaErgonomia = !sesion.demo && ROLES_ERGONOMIA.includes(sesion.rol ?? "");
+  // Constancias automáticas a RR. HH.: la ve el personal del servicio; la cambia quien firma con criterio médico
+  const veEnvioAuto = !sesion.demo && Boolean(sesion.orgId) && ["administrador", "gerente_medico", "medico", "enfermeria", "recepcion"].includes(sesion.rol ?? "");
+  const [envioAuto, contactos] = veEnvioAuto ? await Promise.all([envioAutoEmpresa(id, sesion.orgId!), listarContactos(id)]) : [null, []];
+  const contactosWa = contactos.filter((c) => c.telefono).map((c) => ({ nombre: c.nombre, telefono: c.telefono! }));
+  // Revisión de nómina con RR. HH. por enlace: la maneja quien actualiza la nómina (administrador o personal de salud)
+  // Programas de vigilancia: los ve quien ve la empresa; los editan administrador, gerente médico, médico y coordinador SST (misma regla que la RLS)
+  const programas = sesion.demo ? [] : await programasDeEmpresa(id);
+  const editaProgramas = !sesion.demo && ROLES_PROGRAMAS.includes(sesion.rol ?? "");
+  const depura = !sesion.demo && Boolean(sesion.orgId) && (sesion.clinico || sesion.rol === "administrador");
+  const revision = depura ? await revisionDepuracion(id) : null;
   const sinValorar = puestos.filter((p) => Object.values(p.riesgos).some((l) => (l ?? []).length) && !riesgoMaximo(p)).length;
 
   return (
@@ -52,8 +74,15 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 flex items-center gap-1.5 text-sm"><Users className="size-4" /> {empresa.trabajadores} trabajadores · {puestos.length} puestos · {dependencias.length} dependencias</p>
         </div>
-        {esAdmin && <FormEmpresa habilitado empresa={empresa} />}
+        {/* En el teléfono los botones van debajo del título, a todo el ancho (no le quitan espacio al nombre) */}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
+          {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} abrir={(await searchParams).depurar === "1"} />}
+          {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
+        </div>
       </div>
+
+      {revision && <DepurarNomina key={`${revision.id}-${revision.actualizado_en}-${revision.estado}-${revision.abierto_en}`} empresaId={id} revision={revision} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <div className="space-y-6">
@@ -68,13 +97,29 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
               />
             </CardContent>
           </Card>
+          {veEnvioAuto && (
+            <Card className="h-fit">
+              <CardHeader><CardTitle className="text-base">Constancias automáticas a RR. HH.</CardTitle></CardHeader>
+              <CardContent>
+                <EnvioAutoConstancias empresaId={id} inicial={envioAuto} editable={ROLES_ENVIO_AUTO.includes(sesion.rol ?? "")} anotaClave={["administrador", "gerente_medico"].includes(sesion.rol ?? "")}
+                  correos={[...new Set(contactos.map((c) => c.correo?.toLowerCase()).filter((c): c is string => Boolean(c)))]} />
+              </CardContent>
+            </Card>
+          )}
           <Card className="h-fit">
-            <CardHeader><CardTitle className="text-base">Dependencias</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Dependencias o departamentos</CardTitle></CardHeader>
             <CardContent><Dependencias empresaId={id} dependencias={dependencias} editable={esAdmin} /></CardContent>
           </Card>
           <Card className="h-fit">
             <CardHeader><CardTitle className="text-base">Horas hombre trabajadas</CardTitle></CardHeader>
             <CardContent><HorasTrabajadas empresaId={id} inicial={horas} trabajadoresActuales={empresa.trabajadores} editable={editaPuestos} /></CardContent>
+          </Card>
+          <Card id="programas" className="h-fit scroll-mt-20">
+            <CardHeader><CardTitle className="text-base">Programas de vigilancia</CardTitle></CardHeader>
+            <CardContent>
+              <ProgramasVigilancia empresaId={id} programas={programas} dependencias={dependencias} editable={editaProgramas}
+                puestos={puestos.map((p) => ({ id: p.id, nombre: p.nombre }))} />
+            </CardContent>
           </Card>
         </div>
 
@@ -110,12 +155,21 @@ export default async function EmpresaDetalle({ params }: { params: Promise<{ id:
                               <a href={`/imprimir/puesto/${p.id}`} target="_blank" rel="noopener" title="Informe de evaluación del puesto"><Printer /> Informe</a>
                             </Button>
                           )}
+                          {evaluaErgonomia && (
+                            <NuevaEvaluacion
+                              empresas={[]}
+                              empresaInicial={id}
+                              puestos={{}}
+                              fijo={{ empresaId: id, puestoId: p.id, puesto: p.nombre, tareas: p.tareas }}
+                              boton={<Button variant="ghost" size="sm" title="Evaluación ergonómica (RULA, REBA)"><PersonStanding /> Ergonomía</Button>}
+                            />
+                          )}
                           {!sesion.demo && ROLES_NOTIFICAN.includes(sesion.rol ?? "") && <BotonNotificarPuesto puestoId={p.id} trabajadores={p.trabajadores} />}
                           {editaPuestos && <EditorPuesto empresaId={id} puesto={p} dependencias={dependencias} agentes={listas.agente_riesgo} turnos={listas.turno} />}
                         </div>
                       </div>
                       {p.tareas && <p className="line-clamp-2 text-sm text-muted-foreground">{p.tareas}</p>}
-                      <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
                         {GRUPOS.map(([g, nombre]) => (
                           <div key={g} className="flex flex-wrap items-center gap-1.5 text-xs">
                             <span className="w-24 text-muted-foreground">{nombre}</span>

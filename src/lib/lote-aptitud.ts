@@ -7,7 +7,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 // lib/envios.ts (enviarLote): ahí la base exige una sola empresa y consultas firmadas. Todo con la sesión del usuario (RLS).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type EstadoLote = { id: string; estado: EstadoConsulta; medicoId: string | null; revision: number; aptitud: Aptitud | null; empresaId: string };
+export type EstadoLote = { id: string; estado: EstadoConsulta; medicoId: string | null; revision: number; aptitud: Aptitud | null; empresaId: string; same: boolean };
 
 // Estado de firma de las consultas del reporte (para marcar «Firmada / Sin firmar» en la lista).
 // Bloques de 100 ids: con 300 la URL pasaba de 11 KB y un lote grande podía rebotar (414).
@@ -20,12 +20,13 @@ export async function estadosDeLote(ids: string[]): Promise<Record<string, Estad
   for (let i = 0; i < limpios.length; i += BLOQUE) {
     const { data, error } = await supabase
       .from("consultas")
-      .select("id, estado, medico_id, revision, empresa_id, aptitudes(clasificacion)")
+      .select("id, estado, medico_id, revision, empresa_id, firma_origen, aptitudes(clasificacion)")
       .in("id", limpios.slice(i, i + BLOQUE));
     if (error) throw error;
     for (const c of data ?? []) {
       const apt = (Array.isArray(c.aptitudes) ? c.aptitudes[0] : c.aptitudes) as { clasificacion: Aptitud } | null;
-      salida[c.id] = { id: c.id, estado: c.estado, medicoId: c.medico_id, revision: c.revision ?? 1, aptitud: apt?.clasificacion ?? null, empresaId: c.empresa_id };
+      salida[c.id] = { id: c.id, estado: c.estado, medicoId: c.medico_id, revision: c.revision ?? 1, aptitud: apt?.clasificacion ?? null, empresaId: c.empresa_id,
+        same: c.firma_origen === "same" };
     }
   }
   return salida;

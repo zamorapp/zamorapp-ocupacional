@@ -49,7 +49,7 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
   const pool = new pg.Pool({ connectionString: baseUrl, max: 4 });
   // conAal: los tokens llevan "aal" como los de Supabase (verificación en dos pasos); usuarios[correo].factor = id
   // de su autenticador ya activado, que se verifica con el código 123456
-  const estado = { caida: false, vencerTokens: false, conAal: false };
+  const estado = { caida: false, vencerTokens: false, conAal: false, rest: [], archivos: new Map(), storageRechaza: 0 }; // rest: rutas REST que llegaron a la nube (para saber qué se leyó de la copia)
   const aales = new Map(); // token → aal
   const secreto = postgrest ? crypto.randomBytes(32).toString("hex") : null;
   const pgrst = postgrest ? lanzarPostgrest(postgrest, baseUrl, secreto) : null;
@@ -72,9 +72,10 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
     if (estado.conAal) { aales.set(access_token, aal); aales.set(refresh_token, aal); }
     return { access_token, refresh_token, token_type: "bearer", expires_in: 3600, expires_at: ahora + 3600, user: usuarioDe(uid) };
   };
-  const uidDe = (token) => (secreto ? verificar(token, secreto)?.sub : sesiones.get(token)) || null;
+  const uidDe = (token) => (secreto ? verificar(token, secreto, Date.now())?.sub : sesiones.get(token)) || null;
   const servidor = http.createServer(async (req, res) => {
     if (estado.caida) return req.socket.destroy();
+    if (estado.latenciaMs) await new Promise((r) => setTimeout(r, estado.latenciaMs)); // ida y vuelta a la nube (Venezuela: 108-380 ms)
     let cuerpo = ""; for await (const p of req) cuerpo += p;
     const url = new URL(req.url, "http://x");
     const enviar = (s, j) => { res.writeHead(s, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
@@ -106,13 +107,37 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       return factor[1] === usuarios[correoDe(uid)]?.factor && b.code === "123456"
         ? enviar(200, emitir(uid, "aal2")) : enviar(422, { error_code: "mfa_verification_failed", msg: "Invalid TOTP code entered" });
     }
+    // Storage mínimo (fase B): guarda en memoria lo que sube la puerta y lo devuelve. storageRechaza: cuántos 400 dar
+    const objeto = /^\/storage\/v1\/object\/(?:authenticated\/)?([a-z0-9_-]+)\/(.+)$/.exec(url.pathname);
+    if (objeto) {
+      const clave = `${objeto[1]}/${decodeURIComponent(objeto[2])}`;
+      if (req.method === "PUT" || req.method === "POST") {
+        if (estado.storageRechaza > 0) { estado.storageRechaza--; return enviar(400, { statusCode: "400", error: "invalid_mime_type", message: "mime type not supported" }); }
+        // Como Supabase con un bucket sin UPDATE: sin x-upsert, lo que ya existe da 409
+        if (estado.archivos.has(clave) && req.headers["x-upsert"] !== "true") return enviar(409, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+        estado.archivos.set(clave, { cuerpo, tipo: req.headers["content-type"], uid });
+        return enviar(200, { Key: clave });
+      }
+      if (req.method === "GET") {
+        const a = estado.archivos.get(clave);
+        if (!a) return enviar(400, { statusCode: "404", error: "not_found", message: "Object not found" });
+        res.writeHead(200, { "content-type": a.tipo }); return res.end(a.cuerpo);
+      }
+    }
     // Simula una nube migrada por delante del programa: ya no deja leer la tabla entera (como PostgREST ante 42501)
     // Simula una RLS que niega una escritura con razón (mismo código 42501): NO es «hay que actualizar»
+    if (url.pathname.startsWith("/rest/v1/")) estado.rest.push(url.pathname);
     if (estado.rlsNiega && url.pathname.startsWith("/rest/v1/")) {
       return enviar(403, { code: "42501", details: null, hint: null, message: 'new row violates row-level security policy for table "consultas"' });
     }
     if (estado.migradaPorDelante && url.pathname.startsWith("/rest/v1/")) {
       return enviar(403, { code: "42501", details: null, hint: "Grant the required privileges to the current role with: GRANT SELECT ON public.trabajadores TO authenticated;", message: "permission denied for table trabajadores" });
+    }
+    // Simula la nube cargada: un cambios_desde que pide más de «cambiosTopeLote» se corta por tiempo, como Supabase a los
+    // 8 s del rol authenticated (30-oct-2026: la PC repetía el mismo pedido y la bajada quedaba trancada)
+    if (estado.cambiosTopeLote && url.pathname === "/rest/v1/rpc/cambios_desde" && JSON.parse(cuerpo || "{}").p_limite > estado.cambiosTopeLote) {
+      estado.cortesPorTiempo = (estado.cortesPorTiempo || 0) + 1;
+      return enviar(500, { code: "57014", details: null, hint: null, message: "canceling statement due to statement timeout" });
     }
     if (pgrst && url.pathname.startsWith("/rest/v1/")) {
       // PostgREST real: se le pasa la petición tal cual (el token ya va firmado con su secreto)
@@ -124,7 +149,11 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       const salida = {}; for (const h of DEVOLVER) { const v = r.headers.get(h); if (v) salida[h] = v; }
       res.writeHead(r.status, salida); return res.end(texto);
     }
-    const c = await pool.connect();
+    // Una petición que llega por una conexión viva después de cerrar la nube simulada no debe usar el pool ya
+    // terminado: sin esto, pool.connect() rechaza fuera de la prueba y Node la cuenta como fallo (CI Windows 302)
+    if (cerrada) return enviar(503, { message: "nube simulada cerrada" });
+    let c;
+    try { c = await pool.connect(); } catch (e) { return enviar(503, { message: e.message }); }
     try {
       await c.query("begin");
       await c.query("select set_config('request.jwt.claim.sub', $1, true)", [uid]);
@@ -134,7 +163,9 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       if (url.pathname.startsWith("/rest/v1/rpc/")) {
         const fn = url.pathname.slice(13).replace(/[^a-z_0-9]/g, "");
         const args = JSON.parse(cuerpo || "{}");
-        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, Object.values(args));
+        // Un argumento jsonb (p. ej. el lote de aplicar_cambios) viaja como texto JSON: node-pg mandaría una lista como arreglo de PostgreSQL
+        const valores = Object.values(args).map((v) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v));
+        const r = await c.query(`select public.${fn}(${Object.keys(args).map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, valores);
         filas = r.rows[0].r;
       } else {
         const tabla = url.pathname.slice(9).replace(/[^a-z_0-9]/g, "");
@@ -156,10 +187,27 @@ export function simularNube({ baseUrl, usuarios, postgrest }) {
       enviar(400, { message: e.message });
     } finally { c.release(); }
   });
+  let cerrada = false;
   const cerrar = async () => {
-    servidor.close();
+    cerrada = true;
+    servidor.close(); servidor.closeAllConnections?.();
     if (pgrst) await pgrst.then((p) => p.proceso.kill(), () => {});
     await pool.end();
   };
   return { servidor, estado, usuarios, postgrestListo: pgrst, cerrar };
+}
+
+// Serie de numeración libre para registrar una PC de prueba. La base de prueba conserva los equipos de las pruebas
+// anteriores (unique org_id + serie): una serie al azar a veces choca (CI #263 y 07-nov, guardados-seguidos). Se
+// eligen solo las que ninguna PC tiene.
+export async function serieLibre(baseUrl) {
+  const c = new pg.Client({ connectionString: baseUrl });
+  await c.connect();
+  try {
+    const usadas = new Set((await c.query("select serie from public.equipos")).rows.map((r) => r.serie));
+    const letras = "ABCDEFGHIJKLMNOPQRSTUVXYZ";
+    const libres = [...letras].flatMap((a) => [...letras].map((b) => a + b)).filter((x) => !usadas.has(x));
+    if (!libres.length) throw new Error("No quedan series libres en la base de prueba");
+    return libres[crypto.randomInt(libres.length)];
+  } finally { await c.end(); }
 }

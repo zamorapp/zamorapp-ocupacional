@@ -24,7 +24,7 @@ export default async function Bitacora({ searchParams }: { searchParams: Promise
     desde: p.desde && FECHA.test(p.desde) ? p.desde : undefined,
     hasta: p.hasta && FECHA.test(p.hasta) ? p.hasta : undefined,
   };
-  const [empresas, filas, pendientes] = await Promise.all([listarEmpresas(), bitacora(filtros), contarPendientes()]);
+  const [empresas, filas, pendientes] = await Promise.all([listarEmpresas(true), bitacora(filtros), contarPendientes()]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

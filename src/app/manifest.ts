@@ -22,6 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Atención médica", url: "/atencion" },
       { name: "Pacientes", url: "/pacientes" },
+      { name: "Sin internet", url: "/movil" },
     ],
   };
 }

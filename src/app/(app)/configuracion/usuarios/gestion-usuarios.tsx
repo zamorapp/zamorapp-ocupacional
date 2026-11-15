@@ -1,13 +1,17 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { AtSign, Check, Loader2, Pencil, UserPlus, X } from "lucide-react";
-import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
+import { useState, useTransition } from "react";
+import { AtSign, Check, Loader2, Pencil, ShieldOff, X } from "lucide-react";
+import { AgregarUsuario } from "./agregar-usuario";
+import { confirmar } from "@/components/app/confirmar";
+import { Aviso } from "@/components/app/campo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
-import { agregarUsuario, cambiarRol, guardarUsuarioIngreso, type Resultado } from "../acciones";
+import { cambiarPermisosPortal, cambiarRol, guardarUsuarioIngreso, reiniciarDosPasos, type Resultado } from "../acciones";
+import { CasillasPermisos } from "@/components/app/permisos-portal";
+import { PERMISOS_PORTAL } from "@/lib/permisos-portal";
 import type { Miembro } from "./page";
 
 const ROLES = Object.entries(ETIQUETA_ROL) as [Rol, string][];
@@ -18,9 +22,7 @@ function iniciales(texto: string) {
 }
 
 export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros: Miembro[]; yo: string; esAdmin: boolean; empresas: { id: string; nombre: string }[] }) {
-  const [rolNuevo, setRolNuevo] = useState<Rol>("medico");
   const nombreEmpresa = new Map(empresas.map((e) => [e.id, e.nombre]));
-  const [estado, accion, enviando] = useActionState(agregarUsuario, null);
   const [aviso, setAviso] = useState<Resultado | null>(null);
   const [ocupado, iniciar] = useTransition();
 
@@ -31,35 +33,7 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
 
   return (
     <div className="space-y-4">
-      {esAdmin && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Agregar usuario</CardTitle></CardHeader>
-          <CardContent>
-            <form action={accion} className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
-              <Campo id="correo" etiqueta="Correo con el que creó su cuenta" type="email" required />
-              <CampoSelect id="rol" etiqueta="Rol" value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value as Rol)}>
-                {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </CampoSelect>
-              {ROLES_EMPRESA.includes(rolNuevo) && (
-                <div className="sm:col-span-3">
-                  <p className="mb-1.5 text-sm font-medium">Empresa a la que pertenece * (solo verá esa)</p>
-                  <div className="flex flex-wrap gap-3">
-                    {empresas.map((e) => (
-                      <label key={e.id} className="flex items-center gap-1.5 text-sm">
-                        <input type="checkbox" name="empresas" value={e.id} className="size-4 accent-[var(--primary)]" /> {e.nombre}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <Button type="submit" disabled={enviando} className="h-10">
-                {enviando ? <Loader2 className="animate-spin" /> : <UserPlus />} Agregar
-              </Button>
-            </form>
-            <div className="mt-3"><Aviso resultado={estado} /></div>
-          </CardContent>
-        </Card>
-      )}
+      {esAdmin && <AgregarUsuario empresas={empresas} />}
 
       <Card className="gap-0 py-0">
         <div className="flex items-center gap-2 border-b px-5 py-4">
@@ -75,8 +49,14 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
               </Avatar>
               <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-0">
                 <div className="truncate font-medium">{m.nombre || m.correo}{m.usuario_id === yo && " (tú)"}</div>
-                <div className="truncate text-sm text-muted-foreground">{m.correo}{ROLES_EMPRESA.includes(m.rol) && m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
+                <div className="truncate text-sm text-muted-foreground">{m.correo}{m.empresas?.length ? ` · ${m.empresas.map((id) => nombreEmpresa.get(id) ?? "").join(", ")}` : ""}</div>
                 {(esAdmin || m.usuario) && <UsuarioCorto miembro={m} editable={esAdmin} alGuardar={setAviso} />}
+                {ROLES_EMPRESA.includes(m.rol) && m.rol !== "trabajador" && (
+                  esAdmin
+                    ? <div className="mt-2"><CasillasPermisos compacto valor={m.permisos_portal ?? null} deshabilitado={ocupado}
+                        onChange={(v) => iniciar(async () => setAviso(await cambiarPermisosPortal(m.id, v)))} /></div>
+                    : m.permisos_portal && <div className="mt-1 text-xs text-muted-foreground">Puede: {PERMISOS_PORTAL.filter((p) => m.permisos_portal!.includes(p.clave)).map((p) => p.titulo.toLowerCase()).join(", ") || "solo ver y pedir informes"}</div>
+                )}
               </div>
               {esAdmin ? (
                 <>
@@ -87,13 +67,21 @@ export function GestionUsuarios({ miembros, yo, esAdmin, empresas }: { miembros:
                   >
                     {ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                  <label className="flex items-center gap-1.5 text-sm" title="Puede abrir historias clínicas">
+{ROLES_EMPRESA.includes(m.rol) ? <span className="text-xs text-muted-foreground" title="Las personas de la empresa nunca ven diagnósticos">Sin acceso clínico</span> : (                  <label className="flex items-center gap-1.5 text-sm" title="Puede abrir historias clínicas">
                     <input type="checkbox" checked={m.acceso_clinico || ["medico", "enfermeria", "gerente_medico"].includes(m.rol)} disabled={["medico", "enfermeria", "gerente_medico"].includes(m.rol)} onChange={(e) => actualizar(m, { acceso_clinico: e.target.checked })} className="size-4 accent-[var(--primary)]" />
                     Clínico
-                  </label>
+                  </label>)}
                   <Button variant="ghost" size="sm" onClick={() => actualizar(m, { activo: !m.activo })}>
                     {m.activo ? "Desactivar" : "Activar"}
                   </Button>
+                  {m.usuario_id !== yo && ["administrador", "gerente_medico"].includes(m.rol) && (
+                    <Button variant="ghost" size="sm" title="Si perdió el teléfono del código de dos pasos" onClick={async () => {
+                      if (!(await confirmar({ titulo: `¿Reiniciar la verificación en dos pasos de ${m.nombre || m.correo}?`, texto: "Úsalo solo si perdió el teléfono y sus códigos de respaldo. Al entrar escaneará un código QR nuevo.", accion: "Reiniciar", peligro: true }))) return;
+                      iniciar(async () => setAviso(await reiniciarDosPasos(m.usuario_id)));
+                    }}>
+                      <ShieldOff /> Reiniciar dos pasos
+                    </Button>
+                  )}
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">{ETIQUETA_ROL[m.rol]}</span>

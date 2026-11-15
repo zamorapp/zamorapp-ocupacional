@@ -6,7 +6,7 @@ import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { confirmar } from "@/components/app/confirmar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ASUNTO_ENVIO, MARCAS, MENSAJE_ENVIO, mensajeSoloConstancias, rellenar, type Plantilla } from "@/lib/envios-tipos";
@@ -119,7 +119,7 @@ function Formulario({ p, empresas, puedeGeneral, cerrar }: { p: Plantilla; empre
           </div>
           <Aviso resultado={estado} />
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={cerrar}>Cancelar</Button>
+            <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
             <Button type="submit" disabled={guardando}>Guardar</Button>
           </div>
         </form>

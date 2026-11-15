@@ -164,14 +164,17 @@ try {
     await pagina.fill("#clave", CLAVE);
     await pagina.click("button[type=submit]");
     const limite = Date.now() + 90_000;
+    let ofertaTocada = false;
     for (;;) {
       const url = pagina.url();
       if (/\/panel/.test(url)) break;
-      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no"
+      // Tras entrar con la clave la app ofrece Windows Hello una vez: con --hello se activa, si no "Ahora no".
+      // Se toca UNA vez y solo con el botón habilitado: mientras activa queda deshabilitado y luego la app navega al
+      // panel; un segundo clic esperaba a un botón que ya no existe (apertura 1, corrida 41022470125, «detached»).
       const oferta = pagina.getByRole("button", { name: HELLO ? "Activar Windows Hello" : "Ahora no" });
-      if (await oferta.isVisible().catch(() => false)) {
+      if (!ofertaTocada && await oferta.isVisible().catch(() => false) && await oferta.isEnabled().catch(() => false)) {
         anotar(`   la app ofrece Windows Hello: "${HELLO ? "Activar" : "Ahora no"}"`);
-        await oferta.click();
+        ofertaTocada = await oferta.click({ timeout: 5_000 }).then(() => true, (e) => { anotar(`   clic en la oferta no se dio: ${e.message.split("\n")[0]}`); return false; });
       }
       if (/[?&]correo=/.test(url)) throw new Error("El formulario se envió sin JavaScript (GET /login?correo=...): la pantalla no estaba hidratada");
       const error = await pagina.evaluate(() => document.querySelector("[role=alert], .text-destructive")?.textContent || "").catch(() => "");
@@ -221,7 +224,13 @@ try {
     });
     const estadoHello = await pagina.evaluate(() => fetch("http://127.0.0.1:54331/zamorapp/huella/estado").then((r) => r.text())).catch((e) => `error: ${e.message}`);
     anotar(`   estado de Windows Hello antes de tocar el botón: ${estadoHello}`);
-    await boton.click();
+    // Con Windows Hello activo, la pantalla de ingreso lo pide sola al abrir: si ese ingreso automático ya va al
+    // panel, no se toca el botón (tocarlo abría una segunda sesión encima de la primera)
+    const auto = Date.now() + 5_000;
+    while (!/\/panel/.test(pagina.url()) && Date.now() < auto && !(await boton.isEnabled().catch(() => false))) await esperar(250);
+    await esperar(1_000);
+    if (/\/panel/.test(pagina.url())) anotar("   el ingreso automático con Windows Hello ya entró");
+    else if (await boton.isEnabled().catch(() => false)) await boton.click();
     const limite = Date.now() + 60_000;
     while (!/\/panel/.test(pagina.url())) {
       const error = await pagina.evaluate(() => document.querySelector(".text-destructive")?.textContent || "").catch(() => "");

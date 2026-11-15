@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
+import { limpiarFirmantes, type Firmantes } from "@/lib/firmantes";
 import type { Periodo } from "@/lib/periodos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Series } from "@/lib/vigilancia-analisis";
@@ -20,6 +21,8 @@ export type Reporte = {
     por_sexo: { F: number; M: number };
     por_edad: { grupo: string; n: number }[];
     por_dependencia?: (Conteo & { personal: number })[];
+    // Morbilidad por dependencia desglosada por motivo (como el SAME, pág. 19): vigilancia_complemento
+    por_dependencia_motivo?: { dependencia: string; motivo: string; consultas: number; diagnosticos: number }[];
   };
   morbilidad: {
     total: number;
@@ -30,12 +33,20 @@ export type Reporte = {
     primeras_causas: Causa[];
     // Diez primeras causas por corte: tipo, origen, sexo, edad, sistema, actividad, motivo, dependencia
     cortes?: Record<string, Record<string, Causa[]>>;
+    // Cargos con diagnósticos en el período (el anexo muestra los 15 con más casos)
+    cargos_total?: number;
   };
+  // Motivos configurados y sistemas que el servicio usa: los cuadros completos los listan también en cero (como el SAME)
+  catalogo?: { motivos: { nombre: string; grupo: string | null }[]; sistemas: string[] };
+  // vigilancia_legal (05-nov): cumplimiento de periódicos, enfermedades ocupacionales y resultados por exposición
+  legal?: Legal;
   referencias?: { total: number; por_especialidad: Conteo[] };
   ausentismo: {
     reposos: number; dias_perdidos: number; dias_periodo: number; dias_computables: number;
     reposos_iniciados?: number; trabajadores_ausentes?: number;
     por_causa: (Conteo & { dias: number })[];
+    // Causas del grupo «permiso» (paternidad, lactancia…): aparte, no cuentan como ausentismo
+    permisos?: (Conteo & { dias: number })[];
     por_ente: (Conteo & { dias?: number })[];
     primeras_causas?: (Causa & { dias: number })[];
     detalle?: { causa: string; ente: string; cie10: string | null; descripcion: string | null; n: number; dias: number }[];
@@ -44,6 +55,11 @@ export type Reporte = {
   enfermedad_ocupacional?: { casos: number; dias: number; casos_anteriores: number; dias_anteriores: number };
   accidentes?: { fecha: string; tipo: string; lugar: string | null; lesion: string | null; parte: string | null; gravedad: string | null; dias: number; estado: string }[];
   aptitud: Record<string, number>;
+  // Especialidad de las consultas externas o especializadas (diez primeras)
+  especialidades_externas?: Conteo[];
+  reubicaciones?: { total: number; por_resultado: Conteo[]; por_tipo: Record<string, number> };
+  // Población usada: solo efectivos (tipos de paciente marcados) o todos (Configuración › Organización)
+  criterio?: { solo_efectivos: boolean; tipos: string[] };
 };
 
 export { resolverPeriodo, type Periodo } from "@/lib/periodos";
@@ -54,8 +70,45 @@ export async function obtenerReporte(empresaId: string | null, p: Periodo): Prom
   const { data, error } = await supabase.rpc("reporte_vigilancia", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
   if (error) throw error;
   const r = data as Reporte;
+  await complementar(r, empresaId, p, supabase);
   await nombresCie10(r, supabase);
   return r;
+}
+
+type Complemento = {
+  dependencia_motivo: NonNullable<Reporte["consultas"]["por_dependencia_motivo"]>;
+  cargos: Record<string, Causa[]>;
+  cargos_total: number;
+  motivos: { nombre: string; grupo: string | null }[];
+  sistemas: string[];
+};
+
+// Cuadros que el SAME trae y reporte_vigilancia no (dependencia × motivo, causas por cargo, catálogos para las filas en cero).
+// Es un complemento: si la función falla (o la copia del escritorio todavía no tiene la migración), el informe sale igual sin ellos.
+export type Legal = {
+  examenes: { programados: number; realizados: number; vencidos: number; evaluados_periodo: number; por_vencer: number; sin_evaluacion: number;
+    por_dependencia: { dependencia: string; programados: number; realizados: number; vencidos: number }[] };
+  enfermedades: { registradas: number; declaradas: number; a_tiempo: number; por_declarar: number; informe_nt02: number; informe_a_tiempo: number;
+    informe_pendiente: number; certificadas: number; sospechas_sin_registro: number; por_grupo: { grupo: string; n: number }[] };
+  // Solo llegan al personal del servicio (RR. HH. recibe la lista vacía y ceros)
+  resultados: { estudio: string; grupo: string; expuesto: boolean; evaluados: number; normales: number; alterados: number; sin_resultado: number }[];
+  expuestos_sin_estudio: { ruido: number; respiratorio: number };
+};
+
+async function complementar(r: Reporte, empresaId: string | null, p: Periodo, supabase: Awaited<ReturnType<typeof crearClienteServidor>>) {
+  const { data, error } = await supabase.rpc("vigilancia_complemento", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
+  if (error || !data) {
+    if (error) console.error("vigilancia_complemento:", error.message);
+    return;
+  }
+  const c = data as Complemento;
+  r.consultas.por_dependencia_motivo = c.dependencia_motivo ?? [];
+  r.morbilidad.cortes = { ...r.morbilidad.cortes, cargo: c.cargos ?? {} };
+  r.morbilidad.cargos_total = c.cargos_total ?? 0;
+  r.catalogo = { motivos: c.motivos ?? [], sistemas: c.sistemas ?? [] };
+  const legal = await supabase.rpc("vigilancia_legal", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
+  if (legal.error) console.error("vigilancia_legal:", legal.error.message);
+  else if (legal.data) r.legal = legal.data as Legal;
 }
 
 // Diagnósticos registrados sin nombre (vacío, igual al código o abreviado, p. ej. migrados del SAME):
@@ -80,11 +133,16 @@ export async function obtenerSeries(empresaId: string | null, p: Pick<Periodo, "
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("vigilancia_series", { p_empresa: empresaId, p_desde: p.desde, p_hasta: p.hasta });
-  if (error) throw error;
+  // Los gráficos son un complemento: si la función falla (o falta la migración en una copia vieja del escritorio)
+  // Reportes abre igual con los cuadros y el análisis, sin los gráficos
+  if (error) {
+    console.error("vigilancia_series:", error.message);
+    return null;
+  }
   return data as Series;
 }
 
-// Promedio de ausentismo diario y % (meta < 2,5 %; pre y postnatal no cuentan)
+// Promedio de ausentismo diario y % (meta < 2,5 %; pre y postnatal y los permisos no cuentan)
 export function indicadoresAusentismo(r: Reporte) {
   const pad = r.ausentismo.dias_periodo ? r.ausentismo.dias_computables / r.ausentismo.dias_periodo : 0;
   const pct = r.poblacion.total ? (pad * 100) / r.poblacion.total : 0;
@@ -135,10 +193,25 @@ function diasHabiles(desde: string, hasta: string) {
   return n;
 }
 
-// Sin horas cargadas, COVENIN 474 (5.2) permite estimarlas: trabajadores × 8 h × días hábiles, declarando el método
-export function completarHorasHombre(a: Accidentalidad, trabajadores: number, p: Periodo): Accidentalidad & { estimado_auto: boolean } {
-  if (a.hht > 0 || trabajadores <= 0) return { ...a, estimado_auto: false };
-  return { ...a, hht: trabajadores * 8 * diasHabiles(p.desde, p.hasta), hay_estimado: true, estimado_auto: true };
+// Cómo se obtienen las horas hombre (Configuración › Organización › Informe de vigilancia):
+// «same» (por defecto, como el SAME): HHE = trabajadores × 5,5 h × días del período, aunque haya horas cargadas.
+// «nomina»: las horas cargadas por mes; sin horas, COVENIN 474 (5.2) permite estimarlas con trabajadores × 8 h × días hábiles.
+export type CriterioHoras = "same" | "nomina";
+export type MetodoHoras = "same" | "nomina" | "covenin";
+
+const diasPeriodo = (p: Pick<Periodo, "desde" | "hasta">) => Math.round((Date.parse(p.hasta) - Date.parse(p.desde)) / 86_400_000) + 1;
+
+export function completarHorasHombre(a: Accidentalidad, trabajadores: number, p: Periodo, criterio: CriterioHoras = "same"): Accidentalidad & { estimado_auto: boolean; metodo: MetodoHoras } {
+  if (criterio === "same") return { ...a, hht: Math.round(trabajadores * 5.5 * diasPeriodo(p) * 100) / 100, hay_estimado: true, estimado_auto: false, metodo: "same" };
+  if (a.hht > 0 || trabajadores <= 0) return { ...a, estimado_auto: false, metodo: a.hay_estimado ? "covenin" : "nomina" };
+  return { ...a, hht: trabajadores * 8 * diasHabiles(p.desde, p.hasta), hay_estimado: true, estimado_auto: true, metodo: "covenin" };
+}
+
+// Texto del método de las horas hombre, para la pantalla y el informe
+export function textoMetodoHoras(m: MetodoHoras) {
+  return m === "same" ? "HHE = trabajadores × 5,5 h × días del período (fórmula del SAME)."
+    : m === "covenin" ? "Estimadas: trabajadores × 8 h × días hábiles (COVENIN 474, 5.2)."
+    : "Según nómina.";
 }
 
 // Tasas de enfermedad ocupacional: TAEO = días perdidos por EO × 100 / HHT · TIEO = casos × 1.000.000 / HHT
@@ -152,6 +225,8 @@ export type InformeVigilancia = {
   id: string | null;
   resumen: string;
   conclusiones: string;
+  vision_medico: string;
+  recomendaciones_medicas: string;
   recomendaciones: string;
   factores_riesgo: string;
   medidas_control: string;
@@ -161,14 +236,28 @@ export type InformeVigilancia = {
   variante: number;
   actualizado_en: string | null;
 };
-export type Persona = { nombre: string; cedula: string };
-export type Firmantes = { medico?: Persona; sst?: Persona; delegados?: Persona[]; empleador?: Persona };
+export type { Firmantes, Persona } from "@/lib/firmantes";
+
+// Firmantes y datos de portada del último informe guardado de esa empresa: los delegados y representantes
+// cambian poco, así que el informe nuevo arranca con ellos (sin la fecha de emisión). Si el período ya
+// tiene su informe, lo guardado en él manda (editor e impreso lo ponen encima)
+export async function firmantesAnteriores(empresaId: string | null): Promise<Firmantes | null> {
+  if (!supabaseConfigurado) return null;
+  const supabase = await crearClienteServidor();
+  let q = supabase.from("informes_vigilancia").select("firmantes").order("actualizado_en", { ascending: false }).limit(1);
+  q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
+  const { data } = await q.maybeSingle();
+  if (!data?.firmantes) return null;
+  const f = limpiarFirmantes(data.firmantes);
+  delete f.fecha_emision;
+  return f;
+}
 
 // Textos guardados del informe para esa empresa (o el consolidado) y ese período exacto
 export async function obtenerInforme(empresaId: string | null, p: Periodo): Promise<InformeVigilancia | null> {
   if (!supabaseConfigurado) return null;
   const supabase = await crearClienteServidor();
-  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
+  let q = supabase.from("informes_vigilancia").select("id, resumen, conclusiones, vision_medico, recomendaciones_medicas, recomendaciones, factores_riesgo, medidas_control, firmantes, analisis, variante, actualizado_en").eq("desde", p.desde).eq("hasta", p.hasta);
   q = empresaId ? q.eq("empresa_id", empresaId) : q.is("empresa_id", null);
   const { data } = await q.maybeSingle();
   if (!data) return null;
@@ -176,6 +265,8 @@ export async function obtenerInforme(empresaId: string | null, p: Periodo): Prom
     id: data.id,
     resumen: data.resumen ?? "",
     conclusiones: data.conclusiones ?? "",
+    vision_medico: data.vision_medico ?? "",
+    recomendaciones_medicas: data.recomendaciones_medicas ?? "",
     recomendaciones: data.recomendaciones ?? "",
     factores_riesgo: data.factores_riesgo ?? "",
     medidas_control: data.medidas_control ?? "",

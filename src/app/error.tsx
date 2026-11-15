@@ -2,18 +2,38 @@
 
 // Pantalla de error de toda la app (en vez del «Application error» mudo de Next). En zamorApp Escritorio
 // además pregunta a la puerta local si la nube ya va por delante del programa: entonces lo que toca es actualizar.
-import { Download, Globe } from "lucide-react";
+import { Download, Globe, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { abrirWeb, buscarActualizacion, nubeAdelantada } from "@/lib/escritorio-actualizar";
+import { actualizarApp } from "@/components/app/actualizar-app";
+import { abrirWeb, buscarActualizacion, ESCRITORIO, nubeAdelantada } from "@/lib/escritorio-actualizar";
+import { detalle, esVersionVieja, normalizarError, recargarUnaVez } from "@/lib/error-pantalla";
 
-export default function ErrorApp({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+// «Reintentar» que de verdad reintenta (31-oct, celular de Cesar: salía «Reintentar», no abría y al rato sí).
+// Siempre recarga completa: pide la pantalla y el código de nuevo a la nube (sirve también si se publicó una versión
+// con la app abierta). NO usar router.refresh() + reset(): con el error en un layout React revienta (#310) fuera de
+// esta pantalla y queda la pantalla blanca «Application error» (31-oct, reproducido con Playwright en la compilación
+// Turbopack de Vercel; prueba scripts/pruebas/pantalla-error.test.mjs).
+
+export default function ErrorApp({ error: lanzado }: { error: Error & { digest?: string }; reset: () => void }) {
+  // Lo lanzado puede no ser un Error (texto, objeto, null): la pantalla de error nunca debe fallar ella misma
+  const error = normalizarError(lanzado);
   const [actualizar, setActualizar] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [reintentando, setReintentando] = useState(false);
+
+  const reintentar = () => {
+    setReintentando(true);
+    window.location.reload();
+  };
 
   useEffect(() => {
     nubeAdelantada().then(setActualizar);
-  }, [error]);
+    // Se reintenta sola UNA vez por minuto como máximo (recargarUnaVez): partes de una versión vieja al instante,
+    // cualquier otro fallo a los 2 s. Si vuelve a fallar queda esta pantalla con el botón, nunca un bucle.
+    const t = setTimeout(recargarUnaVez, esVersionVieja(normalizarError(lanzado)) ? 0 : 2000);
+    return () => clearTimeout(t);
+  }, [lanzado]);
 
   const buscar = async () => setAviso(await buscarActualizacion());
   const web = async () => setAviso(await abrirWeb());
@@ -34,18 +54,24 @@ export default function ErrorApp({ error, reset }: { error: Error & { digest?: s
               <Button variant="outline" onClick={web}><Globe aria-hidden /> Trabajar en la web</Button>
             </div>
             {aviso && <p className="text-sm text-muted-foreground" role="status">{aviso}</p>}
-            <button type="button" onClick={() => reset()} className="text-xs text-muted-foreground underline-offset-4 hover:underline">Reintentar</button>
+            <button type="button" onClick={reintentar} className="text-xs text-muted-foreground underline-offset-4 hover:underline">Reintentar</button>
           </>
         ) : (
           <>
             <h1 className="text-lg font-semibold">No se pudo cargar esta pantalla</h1>
             <p className="text-sm text-muted-foreground">
-              Algo falló al preparar los datos. No se perdió nada de lo ya guardado. Revisa la conexión y vuelve a intentarlo.
+              No se perdió nada de lo ya guardado. Toca <strong>Reintentar</strong>;{" "}
+              {ESCRITORIO ? "si vuelve a salir, cierra y abre zamorApp." : <>si vuelve a salir, <strong>Actualizar la app</strong> trae la versión más reciente.</>}
             </p>
-            {error.digest && <p className="text-xs text-muted-foreground">Código: {error.digest}</p>}
-            <div className="flex gap-2">
-              <Button onClick={() => reset()}>Reintentar</Button>
-              <Button variant="outline" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
+            {/* La causa a la vista: soporte sabe qué pasó sin pedir capturas de la consola */}
+            <p className="break-words text-[11px] text-muted-foreground opacity-70">
+              {detalle(error)}
+            </p>
+            {reintentando && <p role="status" className="text-sm text-muted-foreground">Reintentando…</p>}
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={reintentar} disabled={reintentando}>{reintentando && <Loader2 className="animate-spin" aria-hidden />} Reintentar</Button>
+              {!ESCRITORIO && <Button variant="outline" onClick={() => actualizarApp()}>Actualizar la app</Button>}
+              <Button variant="ghost" onClick={() => (window.location.href = "/")}>Ir al inicio</Button>
             </div>
           </>
         )}

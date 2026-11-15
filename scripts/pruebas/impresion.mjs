@@ -1,0 +1,124 @@
+// Prueba automática de impresión: genera el PDF de cada documento de la consulta con datos de ejemplo
+// (normales y «peor caso» con textos largos) y avisa si un documento se pasa de hoja, si una imagen
+// (logo) no carga o si se cuela un «NaN», «undefined» o «a. m..». Corre en Linux, sin gastar Windows.
+// Uso: con la app corriendo con ZAMORAPP_PRUEBA_IMPRESION=1 (next dev o next start):
+//   node scripts/pruebas/impresion.mjs [http://localhost:3100] [--pdf carpeta]
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
+
+// Playwright del proyecto o, si no está instalado, el global (NODE_PATH; import no lo respeta)
+const { chromium } = await import("playwright").catch(() => createRequire(import.meta.url)("playwright"));
+
+const args = process.argv.slice(2);
+const iPdf = args.indexOf("--pdf");
+const carpetaPdf = iPdf >= 0 ? args.splice(iPdf, 2)[1] : null;
+const base = (args[0] ?? "http://localhost:3100").replace(/\/$/, "");
+
+// Hojas que debe ocupar cada documento con datos normales (una .hoja = una hoja de papel).
+// «fijo»: aun en el peor caso no puede pasar de sus hojas (se entrega a la empresa o al IVSS en una hoja).
+// «fluye»: puede ocupar las páginas que necesite.
+const DOCUMENTOS = {
+  constancia: { fijo: true }, reposo: { fijo: true }, recipe: { fijo: true }, certificado: { fijo: false },
+  atencion: { fijo: true }, oam: { fijo: true }, referencia: { fijo: false }, orden: { fijo: false },
+  // El informe completo fluye en varias hojas a propósito (Hoja print:block); una consulta normal (catálogos completos
+  // del examen, paraclínicos, espirometría y goniometría) cabe en 2 hojas: Cesar, 09-nov-2026 (salía en 3)
+  informe: { fluye: true, maxNormal: 2 }, "informe-trabajador": { fluye: true, maxNormal: 2 }, preoperatoria: { fluye: true, maxNormal: 2 },
+  reubicacion: { fijo: false }, libre: { fijo: false },
+  // Vigilancia con datos de ejemplo: fluye en varias hojas; el índice calcula sus páginas al abrir
+  vigilancia: { fluye: true },
+  // Portada de vigilancia sola, con el equipo completo (hasta 11 firmantes): siempre una hoja
+  portada: { fijo: true },
+  // Historia clínica: todas las consultas completas y el resumen al final, en las hojas que hagan falta
+  historia: { fluye: true },
+  // Indicaciones preventivas: tensión en una hoja por cada 7 días; el plan de alimentación (letra de 9 pt) fluye en dos hojas o más
+  "control-ta": { fijo: true }, dieta: { fluye: true },
+  // Bienestar: fluye. Las pausas activas ilustradas (figura por ejercicio y «por qué») caben en 2 hojas: Cesar,
+  // 12-nov-2026 («si son dos o tres páginas, no importa», no quitar información)
+  bienestar: { fluye: true, maxNormal: 2 },
+};
+const TEXTO_MALO = /\bNaN\b|\bundefined\b|\[object Object\]|[ap]\. m\.\./;
+
+const contarPaginas = (pdf) => (pdf.toString("latin1").match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
+
+const navegador = await chromium.launch();
+// Ancho de una hoja carta (8,5 in a 96 ppp): las medidas de la prueba de firmas son las del papel
+const pagina = await navegador.newPage({ viewport: { width: 816, height: 1056 } });
+const fallas = [];
+const filas = [];
+for (const [tipo, regla] of Object.entries(DOCUMENTOS)) {
+  for (const caso of ["normal", "largo"]) {
+    const url = `${base}/imprimir/prueba/${tipo}?caso=${caso}`;
+    const r = await pagina.goto(url, { waitUntil: "networkidle", timeout: 120_000 });
+    if (!r || r.status() !== 200) { fallas.push(`${tipo} (${caso}): la página respondió ${r?.status()} (¿falta ZAMORAPP_PRUEBA_IMPRESION=1?)`); continue; }
+    await pagina.emulateMedia({ media: "print" });
+    const info = await pagina.evaluate(async () => {
+      await document.fonts.ready;
+      const imgs = [...document.images];
+      await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((ok) => { i.onload = i.onerror = ok; }))));
+      return {
+        hojas: document.querySelectorAll(".hoja").length || 1,
+        rotas: imgs.filter((i) => !i.naturalWidth).map((i) => i.alt || i.src.slice(0, 40)),
+        texto: document.body.innerText,
+        // Reposo: la firma va al lado del diagnóstico; si se va debajo, original y copia no caben en una carta
+        // Reposo: el motivo clínico solo en la copia del servicio médico, nunca en el original de RR. HH. (Analizar, 05-nov)
+        motivoReposo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].map((t) => !!t.closest("section")?.querySelector("[data-prueba=motivo-reposo]")),
+        // RR. HH. no ve diagnósticos (Cesar, 06-nov): el original sale sin él salvo que se active en Configuración
+        diagnosticoReposo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].map((t) => t.textContent.includes("Diagnóstico:")),
+        firmaDebajo: [...document.querySelectorAll("[data-prueba=texto-reposo]")].some((t) => {
+          const f = t.parentElement?.querySelector("[data-prueba=firma-medico]");
+          return f && f.getBoundingClientRect().top >= t.getBoundingClientRect().bottom;
+        }),
+      };
+    });
+    const pdf = await pagina.pdf({ preferCSSPageSize: true, printBackground: true });
+    const paginas = contarPaginas(pdf);
+    if (carpetaPdf) { fs.mkdirSync(carpetaPdf, { recursive: true }); fs.writeFileSync(path.join(carpetaPdf, `${tipo}-${caso}.pdf`), pdf); }
+    const malo = info.texto.match(TEXTO_MALO)?.[0];
+    const sePasa = !regla.fluye && paginas > info.hojas && (caso === "normal" || regla.fijo);
+    filas.push(`${tipo.padEnd(20)} ${caso.padEnd(7)} hojas ${info.hojas}  páginas ${paginas}${sePasa ? "  ← SE PASA" : ""}`);
+    if (sePasa) fallas.push(`${tipo} (${caso}): ocupa ${paginas} páginas y debe caber en ${info.hojas}`);
+    if (regla.maxNormal && caso === "normal" && paginas > regla.maxNormal) fallas.push(`${tipo} (normal): ocupa ${paginas} páginas y debe caber en ${regla.maxNormal}`);
+    if (info.rotas.length) fallas.push(`${tipo} (${caso}): imagen que no carga: ${info.rotas.join(", ")}`);
+    if (tipo === "reposo" && info.motivoReposo.join() !== "false,true") fallas.push(`reposo (${caso}): el motivo clínico debe ir solo en la copia (original, copia = ${info.motivoReposo.join(", ")})`);
+    if (tipo === "reposo" && info.diagnosticoReposo.join() !== "false,true") fallas.push(`reposo (${caso}): el diagnóstico debe ir solo en la copia (original, copia = ${info.diagnosticoReposo.join(", ")})`);
+    if (info.firmaDebajo) fallas.push(`${tipo} (${caso}): la firma quedó debajo del diagnóstico en vez de al lado`);
+    if (malo) fallas.push(`${tipo} (${caso}): aparece «${malo}» en el texto`);
+    await pagina.emulateMedia({ media: "screen" });
+  }
+}
+// Fecha de impresión elegida (?impreso=AAAA-MM-DD): el pie la muestra en vez de la fecha real; una inválida se ignora
+for (const [q, debe] of [["2026-07-06", "06/07/26"], ["2026-13-40", "28/10/26, 9:30 a. m."]]) {
+  await pagina.goto(`${base}/imprimir/prueba/constancia?impreso=${q}`, { waitUntil: "networkidle", timeout: 120_000 });
+  const pies = await pagina.locator("[data-prueba=fecha-impresion]").allTextContents();
+  if (!pies.length || pies.some((t) => t !== debe)) fallas.push(`fecha de impresión ${q}: el pie dice «${pies.join(" | ")}» y debe decir «${debe}»`);
+}
+// Lo que va a la empresa nunca nombra un diagnóstico con menos de 3 casos ni uno confidencial (los datos de
+// ejemplo traen un solo caso de F32.9 en las causas, un corte, el detalle de reposos y las causas de reposo)
+for (const [caso, debe] of [["normal", true], ["empresa", false]]) {
+  await pagina.goto(`${base}/imprimir/prueba/vigilancia?caso=${caso}`, { waitUntil: "networkidle", timeout: 120_000 });
+  const html = await pagina.content();
+  const esta = /F32|Episodio depresivo/.test(html);
+  filas.push(`${"vigilancia F32".padEnd(20)} ${caso.padEnd(7)} ${esta ? "nombra F32" : "no nombra F32"}`);
+  if (esta !== debe) fallas.push(`vigilancia (${caso}): ${debe ? "el informe del médico debe mostrar F32.9" : "la versión para la empresa nombra F32.9 (1 caso, confidencial)"}`);
+  // Cuadros del 05-nov: un cargo con 1 caso y un motivo sensible (prenatal) no salen en la copia de la empresa
+  const cargo = /Gerente general/.test(html), prenatal = />Prenatal<\/td><td[^>]*>2</.test(html); // fila de Almacén en dependencia × motivo (2 consultas)
+  filas.push(`${"vigilancia cargo".padEnd(20)} ${caso.padEnd(7)} ${cargo ? "nombra cargo chico" : "no nombra cargo chico"} · ${prenatal ? "nombra prenatal" : "no nombra prenatal"}`);
+  if (cargo !== debe || prenatal !== debe) fallas.push(`vigilancia (${caso}): cargo de 1 caso o motivo prenatal ${debe ? "deben salir en la copia del médico" : "no deben salir en la copia de la empresa"}`);
+  // Art. 34 con cifras exactas en ambas copias (Cesar, 05-nov): 2 enfermedades ocupacionales nunca salen como «<3»
+  const art34 = html.replace(/<!-- -->/g, "").match(/id="s-art34"[\s\S]*?<\/table>/)?.[0] ?? "";
+  const exacto = />Enfermedades ocupacionales<\/td><td[^>]*>2</.test(art34) && !/&lt;3/.test(art34);
+  filas.push(`${"vigilancia art. 34".padEnd(20)} ${caso.padEnd(7)} ${exacto ? "cifras exactas" : "cifras ocultas"}`);
+  if (!exacto) fallas.push(`vigilancia (${caso}): el resumen del art. 34 debe ir con cifras exactas`);
+  // Indicadores legales (05-nov): el grupo psicosocial del Anexo 1 (1 caso) no se nombra en la copia de la empresa
+  const psico = /i-eo-anexo1[\s\S]*?psicosocial[\s\S]*?<\/table>/.test(html.split("self.__next_f")[0]);
+  filas.push(`${"vigilancia Anexo 1".padEnd(20)} ${caso.padEnd(7)} ${psico ? "nombra psicosocial" : "no nombra psicosocial"}`);
+  if (psico !== debe) fallas.push(`vigilancia (${caso}): el grupo psicosocial ${debe ? "debe salir en la copia del médico" : "no debe salir en la copia de la empresa"}`);
+  for (const cuadro of ["Morbilidad por dependencia y motivo de consulta", "Consultas por motivo · todos los motivos", "Morbilidad por aparatos y sistemas · todos", "Diez primeras causas de morbilidad por cargo", "Cumplimiento de exámenes periódicos", "Enfermedades ocupacionales: declaración e investigación", "Audiometría y espirometría por exposición"]) {
+    if (!html.replace(/<!-- -->/g, "").includes(cuadro)) fallas.push(`vigilancia (${caso}): falta el cuadro «${cuadro}»`);
+  }
+}
+await navegador.close();
+console.log(filas.join("\n"));
+if (fallas.length) { console.error(`\nFALLAS (${fallas.length}):\n- ${fallas.join("\n- ")}`); process.exit(1); }
+console.log(`\nImpresión: OK (${filas.length} documentos)`);

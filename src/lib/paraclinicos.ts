@@ -1,5 +1,7 @@
 // Resultados de paraclínicos: rango del catálogo, semáforo y pendientes. Compartido entre servidor y cliente.
 import type { Paraclinico } from "@/lib/consultas-tipos";
+import { familiaDe } from "@/lib/estudios";
+import { normalizarMedicion, resultadoCorto } from "@/lib/mediciones";
 
 export type EstadoResultado = "" | "normal" | "fuera" | "alterado";
 
@@ -19,10 +21,12 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function defExamen(datos: Record<string, unknown> | null | undefined): DefExamen {
+// Sin tipo guardado: los estudios de imagen y funcionales (Rx, eco, audiometría…) son de informe, no de número
+export function defExamen(datos: Record<string, unknown> | null | undefined, nombre?: string, grupo?: string | null): DefExamen {
   const d = datos ?? {};
+  const tipo = d.tipo === "informe" || d.tipo === "numero" ? d.tipo : nombre && familiaDe({ nombre, grupo, datos: d }) !== "laboratorio" ? "informe" : "numero";
   return {
-    tipo: d.tipo === "informe" ? "informe" : "numero",
+    tipo,
     unidad: typeof d.unidad === "string" ? d.unidad : "",
     min: num(d.rango_min),
     max: num(d.rango_max),
@@ -89,6 +93,8 @@ export function textoResultado(p: Paraclinico) {
   const r = p.resultado?.trim();
   const marca = p.estado === "fuera" ? "fuera de rango" : p.estado === "alterado" ? "alterado" : "";
   if (!r) return p.estado ? ETIQUETA_RESULTADO[p.estado] : "pendiente";
+  // Goniometría y espirometría: solo el resultado (normal, leve, marcado); las cifras van en su tabla de detalle
+  if (p.medicion) { const m = normalizarMedicion(p.medicion); return (m && resultadoCorto(m)) || r; }
   if (/^-?\d+([.,]\d+)?$/.test(r)) return `${r}${p.unidad ? ` ${p.unidad}` : ""}${marca ? ` (${marca})` : ""}`;
   return p.estado ? `${ETIQUETA_RESULTADO[p.estado]} · ${r}` : r;
 }

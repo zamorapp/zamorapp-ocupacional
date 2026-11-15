@@ -21,6 +21,7 @@ export async function abrirEnVentana(destino: string | (() => Promise<string | n
     if (url) window.open(url, "_blank");
     return;
   }
+  // eslint-disable-next-line no-restricted-syntax -- solo en la web: la pestaña se abre en el clic y se dirige después
   const pestana = window.open("about:blank", "_blank");
   const url = await destino();
   if (!url) return void pestana?.close();
@@ -57,5 +58,40 @@ export async function mostrarPdf(ruta: string, abrir: boolean): Promise<void> {
     await puente()?.invoke("mostrar_pdf", { ruta, abrir });
   } catch (e) {
     throw new Error(mensaje(e));
+  }
+}
+
+// Solo escritorio: abre el dictado por voz de Windows (Win + H) sobre el campo que tiene el cursor. El reconocimiento
+// de voz del navegador interno no funciona (ver escritorio/src-tauri/src/voz.rs).
+export async function dictadoWindows(): Promise<void> {
+  try {
+    await puente()?.invoke("dictado_windows");
+  } catch (e) {
+    throw new Error(mensaje(e));
+  }
+}
+
+// Solo escritorio: abre winspiroPRO con los datos del paciente (archivo GDT) y espera a que lo cierren. Devuelve los
+// bytes del resultado, o null si se cerró sin hacer la prueba (ver escritorio/src-tauri/src/espirometro.rs).
+export async function espirometriaWinspiro(pedido: number[]): Promise<number[] | null> {
+  const p = puente();
+  if (!p) throw new Error("La conexión con winspiroPRO está en zamorApp Escritorio, en la computadora del espirómetro.");
+  try {
+    return ((await p.invoke("espirometria_winspiro", { pedido })) as number[] | null) ?? null;
+  } catch (e) {
+    throw new Error(mensaje(e));
+  }
+}
+
+// Aviso de Windows (abajo a la derecha) cuando llega algo nuevo a la campana. Solo en el escritorio; en la web y el
+// celular los avisos llegan por push (public/sw.js). Nunca hace fallar nada: si Windows no lo muestra, queda la campana.
+export async function avisoWindows(titulo: string, cuerpo: string): Promise<boolean> {
+  const p = puente();
+  if (!p) return false;
+  try {
+    await p.invoke("plugin:notification|notify", { options: { title: titulo.slice(0, 80), body: cuerpo.slice(0, 240) } });
+    return true;
+  } catch {
+    return false;
   }
 }

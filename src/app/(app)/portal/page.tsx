@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock, Download, FileSpreadsheet, Inbox, Stethoscope, UserPlus, Users } from "lucide-react";
+import { Brain, CalendarClock, CheckCircle2, ClipboardList, Clock, Download, FileSpreadsheet, Inbox, ShieldAlert, Stethoscope, UserPlus, Users } from "lucide-react";
 import { NuevaSolicitud } from "@/components/app/nueva-solicitud";
+import { Pasos, pasosCita, pasosSolicitud } from "@/components/app/pasos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarCitas } from "@/lib/citas";
@@ -19,6 +20,14 @@ import { cn } from "@/lib/utils";
 import { CancelarSolicitud } from "./cancelar";
 import { Refrescar } from "./refrescar";
 import { SolicitarCita } from "./solicitar-cita";
+import { puedePortal } from "@/lib/permisos-portal";
+import { AnotarVacaciones } from "./anotar-vacaciones";
+import { Propuestas, type GrupoPropuesta } from "./propuestas";
+import { Bienvenida } from "@/components/app/bienvenida-portal";
+import { datosOrganizacion } from "@/lib/organizacion";
+import { listarPsicosocialesEmpresa } from "@/lib/psicosocial-datos";
+import { ordenesDeCitas } from "@/lib/ordenes";
+import { listarRiesgosEmpresa } from "@/lib/riesgos-datos";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -30,20 +39,34 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   en_consulta: { texto: "En consulta", clase: "bg-primary text-primary-foreground" },
   atendido: { texto: "Atendido", clase: "bg-ok/15 text-ok-texto" },
   no_asistio: { texto: "No asistió", clase: "bg-alerta/15 text-alerta-texto" },
-  cancelada: { texto: "Cancelada", clase: "bg-muted text-muted-foreground" },
+  cancelada: { texto: "Cancelada", clase: "bg-alerta/15 text-alerta-texto" },
 };
 
 export default async function Portal() {
   const hoy = hoyCaracas();
-  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes] = await Promise.all([
+  const [sesion, citas, trabajadores, empresas, activa, listas, solicitudes, psicosociales, ordenes, mapasRiesgo] = await Promise.all([
     obtenerSesion(),
     listarCitas(sumarDias(hoy, -14), sumarDias(hoy, 90)),
     listarTrabajadores(),
-    listarEmpresas(),
+    listarEmpresas(true),
     empresaActivaId(),
     obtenerSesion().then((s) => opciones(s.orgId, ["motivo_consulta", "tipo_solicitud"])),
     listarSolicitudes({ limite: 20 }),
+    listarPsicosocialesEmpresa(),
+    ordenesDeCitas(),
+    listarRiesgosEmpresa().catch(() => []),
   ]);
+  // Otra hora propuesta por el servicio: una tarjeta para responder (varios trabajadores de la misma propuesta juntos)
+  const grupos = new Map<string, GrupoPropuesta>();
+  for (const c of citas) {
+    const p = c.estado === "solicitada" ? c.propuesta : null;
+    if (!p) continue;
+    const k = [c.empresaId, c.motivo, p.fecha, p.desde, p.hasta, p.modo, p.nota].join("·");
+    const g = grupos.get(k) ?? { ids: [], nombres: [], empresaId: c.empresaId, motivo: c.motivo, propuesta: p };
+    g.ids.push(c.id); g.nombres.push(c.paciente);
+    grupos.set(k, g);
+  }
+  const org = await datosOrganizacion();
   const empresa = empresas.find((e) => e.id === activa) ?? (empresas.length === 1 ? empresas[0] : null);
   const deHoy = citas.filter((c) => c.fecha === hoy && c.estado !== "cancelada");
   const proximas = citas.filter((c) => c.fecha > hoy && ["solicitada", "citado"].includes(c.estado));
@@ -53,6 +76,11 @@ export default async function Portal() {
     .slice(0, 8);
   // Supervisor, delegado, auditor y trabajador solo consultan: pedir citas, cargar nómina y solicitudes es de RR. HH.
   const gestiona = !empresaSoloLectura(sesion.rol);
+  // Órdenes y relación del mes: RR. HH., auditor y el servicio (supervisor, delegado y trabajador no la ven)
+  // y el administrador puede quitárselas a cada persona (Usuarios y roles): consultas, relación del mes y descargas
+  const veRelacion = !["supervisor", "delegado_prevencion", "trabajador"].includes(sesion.rol ?? "") && puedePortal(sesion, "relacion");
+  const pideCitas = gestiona && puedePortal(sesion, "citas");
+  const descarga = puedePortal(sesion, "descargas");
   const vigentes = trabajadores.filter((t) => t.estado === "activo" || t.estado === "reposo");
   const vencidos = vigentes.filter((t) => t.proximoExamen && t.proximoExamen < hoy).length;
   const aviso = sumarDias(hoy, empresa?.diasAvisoExamen ?? 30);
@@ -66,12 +94,18 @@ export default async function Portal() {
           <p className="text-sm text-muted-foreground">{empresa?.razonSocial ?? "Portal de empresas"}</p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hola, {primerNombre(sesion.nombre)}</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Celular: «Solicitar cita» primero y a todo el ancho; las demás en dos columnas parejas */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap [&_a]:max-sm:w-full [&>*]:max-sm:min-w-0 max-sm:[&_button]:w-full">
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
-          {gestiona && <SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} />}
+          {gestiona && <AnotarVacaciones />}
+          {pideCitas && <div className="col-span-2 max-sm:order-first sm:contents"><SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} /></div>}
         </div>
       </div>
+
+      {!sesion.demo && <Bienvenida servicio={org.nombre} />}
+
+      <Propuestas grupos={[...grupos.values()]} manana={sumarDias(hoy, 1)} gestiona={gestiona} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
@@ -99,7 +133,7 @@ export default async function Portal() {
                 {deHoy.map((c) => (
                   <li key={c.id} className="flex items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-12 font-mono text-muted-foreground">{c.hora ?? "—"}</span>
-                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div></div>
+                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
                   </li>
                 ))}
@@ -117,8 +151,11 @@ export default async function Portal() {
                 {proximas.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
                     <span className="w-24 font-mono text-muted-foreground">{fecha(c.fecha)}{c.hora && ` ${c.hora}`}</span>
-                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div></div>
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>
+                    <div className="min-w-0 flex-1"><div className="font-medium">{c.paciente}</div><div className="text-xs text-muted-foreground">{c.motivo ?? "Sin motivo"}</div><Pasos pasos={pasosCita(c)} className="mt-0.5" /></div>
+                    {ordenes.get(c.id) && <a href={`/imprimir/orden/${ordenes.get(c.id)!.id}`} className="rounded-full border border-primary/40 px-2.5 py-0.5 font-mono text-xs font-medium text-primary hover:bg-primary/10" title="Ver e imprimir la orden de evaluación">Orden {String(ordenes.get(c.id)!.numero).padStart(5, "0")}</a>}
+                    {c.estado === "solicitada" && c.propuesta
+                      ? <a href="#propuestas" className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">Responder hora propuesta</a>
+                      : <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[c.estado]?.clase)}>{ESTADO[c.estado]?.texto}</span>}
                     {gestiona && c.estado === "solicitada" && <CancelarSolicitud id={c.id} />}
                   </li>
                 ))}
@@ -129,7 +166,10 @@ export default async function Portal() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok-texto" /> Evaluaciones recientes</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-ok-texto" /> Evaluaciones recientes</CardTitle>
+          {veRelacion && <Link href="/portal/ordenes" className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><ClipboardList className="size-4" /> Órdenes y relación del mes</Link>}
+        </CardHeader>
         <CardContent className="px-0">
           {evaluados.length === 0 ? <p className="px-6 py-6 text-center text-sm text-muted-foreground">Aún no hay evaluaciones.</p> : (
             <ul className="divide-y">
@@ -147,6 +187,42 @@ export default async function Portal() {
         </CardContent>
       </Card>
 
+      {psicosociales.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Brain className="size-5 text-primary" /> Evaluaciones de riesgos psicosociales</CardTitle></CardHeader>
+          <CardContent className="px-0">
+            <ul className="divide-y">
+              {psicosociales.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
+                  <span className="w-24 font-mono text-muted-foreground">{fecha(p.cerradaEn ?? p.inicio)}</span>
+                  <span className="min-w-0 flex-1 font-medium">{p.titulo}<span className="block text-xs font-normal text-muted-foreground">{p.empresa}</span></span>
+                  {descarga && <Button variant="outline" size="sm" asChild><a href={`/imprimir/psicosocial/${p.id}`}><Download /> Informe</a></Button>}
+                </li>
+              ))}
+            </ul>
+            <p className="px-6 pt-2 text-[11px] text-muted-foreground">Resultados agregados del cuestionario anónimo: nunca respuestas de una persona.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {mapasRiesgo.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-5 text-primary" /> Identificación de riesgos y mapa de riesgos</CardTitle></CardHeader>
+          <CardContent className="px-0">
+            <ul className="divide-y">
+              {mapasRiesgo.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-sm">
+                  <span className="w-24 font-mono text-muted-foreground">{fecha(p.cerradaEn ?? p.fecha)}</span>
+                  <span className="min-w-0 flex-1 font-medium">{p.titulo}<span className="block text-xs font-normal text-muted-foreground">{p.empresa}</span></span>
+                  {descarga && <Button variant="outline" size="sm" asChild><a href={`/imprimir/riesgos/${p.id}`}><Download /> Informe y mapa</a></Button>}
+                </li>
+              ))}
+            </ul>
+            <p className="px-6 pt-2 text-[11px] text-muted-foreground">Riesgos de cada puesto y su mapa, para publicarlos en el sitio de trabajo (LOPCYMAT art. 56.3).</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card id="solicitudes" className="scroll-mt-20">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-base"><Inbox className="size-5 text-primary" /> Solicitudes al servicio médico</CardTitle>
@@ -160,9 +236,10 @@ export default async function Portal() {
                   <span className="w-24 font-mono text-muted-foreground">{fecha(s.creadoEn.slice(0, 10))}</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{s.tipo}{s.trabajador && <span className="font-normal text-muted-foreground"> · {s.trabajador}</span>}</div>
-                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                    <div className="line-clamp-2 text-xs text-muted-foreground">{s.soloSalud ? "Respuesta con datos médicos: la recibe el personal de salud de la empresa." : s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
+                    <Pasos pasos={pasosSolicitud(s)} className="mt-0.5" />
                   </div>
-                  {s.documento && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  {s.documento && !s.soloSalud && descarga && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
                   <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
                 </li>
               ))}

@@ -1,0 +1,31 @@
+# Mantiene despierta la función de Vercel en horario de consulta (plan gratuito: se duerme entre usos y el
+# primer clic paga 1 a 3 s) y deja en el registro cuánto tarda la app desde fuera. Repo público: minutos sin límite.
+# Horario: lunes a sábado, 07:00 a 19:00 de Caracas (11:00 a 23:00 UTC), cada 5 minutos.
+name: Calentar
+
+on:
+  schedule:
+    - cron: "*/5 11-23 * * 1-6"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: calentar
+  cancel-in-progress: true
+
+jobs:
+  latido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Latido a la app publicada
+        run: |
+          set -e
+          URL="https://zamorapp-ocupacional.vercel.app/api/salud"
+          for i in 1 2; do
+            curl -sS -o cuerpo.json -w "intento $i: HTTP %{http_code} · conexión %{time_connect}s · primer byte %{time_starttransfer}s · total %{time_total}s\n" --max-time 40 "$URL" || true
+            cat cuerpo.json 2>/dev/null; echo
+            sleep 2
+          done
+          grep -q '"ok":true' cuerpo.json

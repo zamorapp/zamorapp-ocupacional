@@ -12,3 +12,16 @@
     RMDir "$INSTDIR"
   ${EndIf}
 !macroend
+
+; Ícono nuevo (isologo de OcupaVida): Windows guarda en caché el ícono de los accesos directos y de la barra de
+; tareas, y tras una actualización seguiría mostrando el viejo. Se le avisa que los íconos cambiaron. Solo refresca
+; la caché de íconos de Windows; no toca accesos directos, el registro ni otros programas (tampoco el SAME).
+!macro NSIS_HOOK_POSTINSTALL
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+  ${If} ${FileExists} "$SYSDIR\ie4uinit.exe"
+    Push $0
+    nsExec::Exec '"$SYSDIR\ie4uinit.exe" -show'
+    Pop $0 ; código de salida (no importa)
+    Pop $0 ; $0 vuelve a su valor: la plantilla de Tauri sigue usándolo
+  ${EndIf}
+!macroend

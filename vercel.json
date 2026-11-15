@@ -1,4 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["pdx1"]
+  "regions": [
+    "pdx1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "*": false,
+      "**": false
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/tasa-bcv",
+      "schedule": "30 22 * * *"
+    }
+  ]
 }

@@ -1,6 +1,7 @@
 // Accidentes, incidentes y enfermedades ocupacionales: tipos y plazos legales (servidor y cliente).
 import type { Cargo, Incapacidad, Testigo } from "@/lib/covenin474";
 import type { Discapacidad } from "@/lib/investigacion-tipos";
+import { ahora as horaReal } from "@/lib/fecha";
 
 export type TipoEvento = "accidente" | "incidente" | "enfermedad";
 export type EstadoEvento = "abierto" | "declarado" | "investigando" | "cerrado";
@@ -91,7 +92,7 @@ function describir(vence: Date, ahora: Date, que: string): Plazo {
 }
 
 // Declaración ante el INPSASEL: 24 h desde el accidente o desde el diagnóstico (LOPCYMAT art. 73)
-export function plazoDeclaracion(e: Pick<Evento, "tipo" | "fechaHora" | "fechaDiagnostico" | "fechaDeclaracion">, ahora = new Date()): Plazo | null {
+export function plazoDeclaracion(e: Pick<Evento, "tipo" | "fechaHora" | "fechaDiagnostico" | "fechaDeclaracion">, ahora = new Date(horaReal())): Plazo | null {
   if (e.tipo === "incidente") return null;
   if (e.fechaDeclaracion) return { texto: "Declarado", estado: "ok", vence: null, cumplido: true };
   const base = e.tipo === "enfermedad" ? e.fechaDiagnostico : e.fechaHora;
@@ -100,7 +101,7 @@ export function plazoDeclaracion(e: Pick<Evento, "tipo" | "fechaHora" | "fechaDi
 }
 
 // Informe de investigación NT-02-2008: 15 días (enfermedad del Anexo 1) o 30 días (fuera de la lista)
-export function plazoInformeNt02(e: Pick<Evento, "tipo" | "fechaDiagnostico" | "enAnexo1" | "fechaInformeNt02">, ahora = new Date()): Plazo | null {
+export function plazoInformeNt02(e: Pick<Evento, "tipo" | "fechaDiagnostico" | "enAnexo1" | "fechaInformeNt02">, ahora = new Date(horaReal())): Plazo | null {
   if (e.tipo !== "enfermedad" || !e.fechaDiagnostico) return null;
   if (e.fechaInformeNt02) return { texto: "Informe NT-02 entregado", estado: "ok", vence: null, cumplido: true };
   const dias = e.enAnexo1 ? 15 : 30;
@@ -109,7 +110,7 @@ export function plazoInformeNt02(e: Pick<Evento, "tipo" | "fechaDiagnostico" | "
 
 // Investigación del accidente: aviso si a los 7 días no tiene causas registradas (configurable más adelante)
 export const DIAS_INVESTIGACION = 7;
-export function plazoInvestigacion(e: Pick<Evento, "tipo" | "fechaHora" | "causasInmediatas" | "causasBasicas" | "estado">, ahora = new Date()): Plazo | null {
+export function plazoInvestigacion(e: Pick<Evento, "tipo" | "fechaHora" | "causasInmediatas" | "causasBasicas" | "estado">, ahora = new Date(horaReal())): Plazo | null {
   if (e.tipo === "enfermedad" || e.estado === "cerrado") return null;
   // Los eventos de hace más de 60 días (históricos o importados) no generan aviso
   if (ahora.getTime() - new Date(e.fechaHora).getTime() > 60 * 24 * HORA) return null;

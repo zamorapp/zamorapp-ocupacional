@@ -15,7 +15,7 @@ import { type Discapacidad, ETIQUETA_DISCAPACIDAD } from "@/lib/investigacion-ti
 import type { Item } from "@/lib/listas";
 import { cn } from "@/lib/utils";
 import { cerrarEvento, guardarEvento } from "../acciones";
-import { horaLocalCaracas, hoyCaracas } from "@/lib/fecha";
+import { ahora as horaReal, horaLocalCaracas, hoyCaracas } from "@/lib/fecha";
 
 const SELECT = "h-10 w-full rounded-md border bg-transparent px-3 text-sm";
 
@@ -46,19 +46,19 @@ function Lista({ valor, items, onChange }: { valor: string; items: Item[]; onCha
   );
 }
 
-export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Record<string, Item[]> }) {
+export function EditorEvento({ inicial, listas, editable = true }: { inicial: Evento; listas: Record<string, Item[]>; editable?: boolean }) {
   const [e, setE] = useState(inicial);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial));
   const [aviso, setAviso] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
-  const [ahora, setAhora] = useState(() => new Date());
+  const [ahora, setAhora] = useState(() => new Date(horaReal()));
   const set = <K extends keyof Evento>(k: K, v: Evento[K]) => setE((x) => ({ ...x, [k]: v }));
   const cambios = JSON.stringify(e) !== guardado;
   const cerrado = e.estado === "cerrado";
 
   // El cronómetro se actualiza cada minuto
   useEffect(() => {
-    const t = setInterval(() => setAhora(new Date()), 60e3);
+    const t = setInterval(() => setAhora(new Date(horaReal())), 60e3);
     return () => clearInterval(t);
   }, []);
 
@@ -69,6 +69,9 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
   const testigo = (i: number, c: Partial<Testigo>) => set("testigosDetalle", e.testigosDetalle.map((t, j) => (j === i ? { ...t, ...c } : t)));
   const cargo = (i: number, c: Partial<Cargo>) => set("cargos", e.cargos.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const accion = (i: number, c: Partial<Accion>) => set("acciones", e.acciones.map((a, j) => (j === i ? { ...a, ...c } : a)));
+
+  // Quien no lo completa (RR. HH., auditor, recepción, trabajador) lo lee como texto, sin campos ni botones
+  if (!editable) return <VistaEvento e={e} plazos={[declaracion, informe, investigacion && !investigacion.cumplido ? investigacion : null]} />;
 
   const guardar = () =>
     iniciar(async () => {
@@ -149,7 +152,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
               </div>
               {e.testigos && !e.testigosDetalle.length && <Input value={e.testigos} onChange={(x) => set("testigos", x.target.value)} />}
               {e.testigosDetalle.map((t, i) => (
-                <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_10rem_auto]">
+                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_10rem_auto]">
                   <Input value={t.nombre} placeholder="Nombre y apellido" className="h-9" onChange={(x) => testigo(i, { nombre: x.target.value })} />
                   <Input value={t.cedula} placeholder="Cédula" className="h-9" onChange={(x) => testigo(i, { cedula: x.target.value })} />
                   <select value={t.tipo} onChange={(x) => testigo(i, { tipo: x.target.value as Testigo["tipo"] })} className={cn(SELECT, "h-9")}>
@@ -215,7 +218,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
                   <Button type="button" size="sm" variant="outline" onClick={() => set("cargos", [...e.cargos, { concepto: "", dias: 0, porcentaje: 100 }])}><Plus /> Cargo</Button>
                 </div>
                 {e.cargos.map((c, i) => (
-                  <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,3fr)_7rem_auto]">
+                  <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,3fr)_7rem_auto]">
                     <select value={c.concepto} className={cn(SELECT, "h-9")} onChange={(x) => {
                       const item = TABLA_CARGOS.flatMap((g) => g.items).find((it) => it.concepto === x.target.value);
                       cargo(i, { concepto: x.target.value, dias: item?.dias ?? 0 });
@@ -252,13 +255,13 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
             <C etiqueta="Aviso inmediato (INPSASEL, Comité y delegados)">
               <div className="flex gap-2">
                 <Input type="datetime-local" value={aLocal(e.fechaAviso)} onChange={(x) => set("fechaAviso", deLocal(x.target.value))} />
-                <Button type="button" variant="outline" onClick={() => set("fechaAviso", new Date().toISOString())}>Ahora</Button>
+                <Button type="button" variant="outline" onClick={() => set("fechaAviso", new Date(horaReal()).toISOString())}>Ahora</Button>
               </div>
             </C>
             <C etiqueta="Declaración formal">
               <div className="flex gap-2">
                 <Input type="datetime-local" value={aLocal(e.fechaDeclaracion)} onChange={(x) => set("fechaDeclaracion", deLocal(x.target.value))} />
-                <Button type="button" variant="outline" onClick={() => set("fechaDeclaracion", new Date().toISOString())}>Ahora</Button>
+                <Button type="button" variant="outline" onClick={() => set("fechaDeclaracion", new Date(horaReal()).toISOString())}>Ahora</Button>
               </div>
             </C>
             <C etiqueta="Nº de declaración INPSASEL"><Input value={e.numeroDeclaracion} onChange={(x) => set("numeroDeclaracion", x.target.value)} /></C>
@@ -311,7 +314,7 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
           {e.acciones.map((a, i) => {
             const vencida = a.estado !== "cumplida" && a.fecha && a.fecha < hoyCaracas();
             return (
-              <div key={i} className="grid gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
+              <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_9rem_8rem_auto]">
                 <Input value={a.descripcion} placeholder="Acción" className="h-9" onChange={(x) => accion(i, { descripcion: x.target.value })} />
                 <Input value={a.responsable} placeholder="Responsable" className="h-9" onChange={(x) => accion(i, { responsable: x.target.value })} />
                 <Input type="date" value={a.fecha} className={cn("h-9", vencida && "border-alerta text-alerta-texto")} onChange={(x) => accion(i, { fecha: x.target.value })} />
@@ -327,6 +330,64 @@ export function EditorEvento({ inicial, listas }: { inicial: Evento; listas: Rec
           })}
         </Seccion>
       </fieldset>
+    </div>
+  );
+}
+
+// Vista de solo lectura (Diseño, 13-nov): etiqueta arriba y valor abajo; lo vacío dice quién lo completa.
+// Sin diagnóstico ni CIE-10: en la enfermedad ocupacional solo se ven los hechos y los plazos.
+const TURNO: Record<string, string> = { diurno: "Diurno", nocturno: "Nocturno", mixto: "Mixto" };
+const GRAVEDAD: Record<string, string> = { leve: "Leve", moderado: "Moderado", grave: "Grave", mortal: "Mortal" };
+
+function Dato({ etiqueta, valor, ancho }: { etiqueta: string; valor: string | null | undefined; ancho?: boolean }) {
+  return (
+    <div className={ancho ? "sm:col-span-2" : ""}>
+      <div className="text-xs font-medium text-muted-foreground">{etiqueta}</div>
+      {valor ? <div className="mt-0.5 whitespace-pre-line text-sm">{valor}</div> : <div className="mt-0.5 text-sm italic text-muted-foreground">Pendiente: lo completa el servicio médico</div>}
+    </div>
+  );
+}
+
+function VistaEvento({ e, plazos }: { e: Evento; plazos: (ReturnType<typeof plazoDeclaracion> | null)[] }) {
+  const accidente = e.tipo === "accidente";
+  const testigos = e.testigosDetalle.length
+    ? e.testigosDetalle.map((t) => `${t.nombre}${t.cedula ? ` (${t.cedula})` : ""} · ${t.tipo === "presencial" ? "lo vio" : "se enteró"}`).join("\n")
+    : e.testigos;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-6">
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-semibold">#{e.numero} · {ETIQUETA_TIPO[e.tipo]}{e.subtipo === "in_itinere" && " (in itinere)"}</div>
+          <p className="text-sm text-muted-foreground">{e.trabajador ?? "Sin lesionado"} · {e.empresa} · <span className="whitespace-nowrap">{fechaHoraVE(e.fechaHora)}</span> · {ETIQUETA_ESTADO_EVENTO[e.estado]}</p>
+        </div>
+        <span className="self-start rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">Solo lectura: lo completa el servicio médico</span>
+      </div>
+      {plazos.some(Boolean) && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {plazos.filter(Boolean).map((p) => (
+            <div key={p!.texto} className={cn("flex items-center gap-3 rounded-xl border-2 px-4 py-3", p!.estado === "alerta" ? "border-alerta/50 bg-alerta/10" : p!.estado === "aviso" ? "border-aviso/60 bg-aviso/10" : "border-ok/40 bg-ok/10")}>
+              {p!.cumplido ? <CheckCircle2 className="size-6 text-ok-texto" /> : <Clock className={cn("size-6", p!.estado === "alerta" ? "text-alerta-texto" : "text-aviso-texto")} />}
+              <div className="font-semibold">{p!.texto}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Seccion titulo={e.tipo === "enfermedad" ? "Caso" : "Hechos"}>
+        <Dato etiqueta="Fecha y hora" valor={fechaHoraVE(e.fechaHora)} />
+        <Dato etiqueta="Lugar" valor={e.lugar} />
+        {accidente && <Dato etiqueta="Turno" valor={TURNO[e.turno] ?? ""} />}
+        {accidente && <Dato etiqueta="Actividad que realizaba" valor={e.actividadMomento} />}
+        <Dato etiqueta="Qué pasó" valor={e.descripcion} ancho />
+        {accidente && <Dato etiqueta="Lesiones presentadas" valor={e.lesiones} ancho />}
+        {e.tipo !== "enfermedad" && <Dato etiqueta="Testigos" valor={testigos} ancho />}
+      </Seccion>
+      {e.tipo !== "enfermedad" && (
+        <Seccion titulo="Lesión y declaración">
+          <Dato etiqueta="Parte del cuerpo" valor={e.parteCuerpo} />
+          <Dato etiqueta="Gravedad" valor={GRAVEDAD[e.gravedad] ?? ""} />
+          <Dato etiqueta="Declarado ante el INPSASEL" valor={e.fechaDeclaracion ? `${fechaHoraVE(e.fechaDeclaracion)}${e.numeroDeclaracion ? ` · Nº ${e.numeroDeclaracion}` : ""}` : ""} />
+        </Seccion>
+      )}
     </div>
   );
 }

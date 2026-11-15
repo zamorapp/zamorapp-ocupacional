@@ -29,7 +29,7 @@ export function FormPerfil({ perfil, editable }: { perfil: Perfil; editable: boo
           <Campo id="telefono" etiqueta="Teléfono" defaultValue={perfil?.telefono ?? ""} />
           <Campo id="especialidad" etiqueta="Especialidad" defaultValue={perfil?.especialidad ?? ""} placeholder="Medicina del Trabajo" ayuda="Sale bajo tu nombre en los documentos" />
           <Campo id="correo" etiqueta="Correo (sale impreso bajo tu firma y lo ve tu equipo)" type="email" defaultValue={perfil?.correo ?? ""} />
-          <Campo id="mpps" etiqueta="Nº MPPS" defaultValue={perfil?.mpps ?? ""} ayuda="Obligatorio en el récipe (Res. MPPS 028)" />
+          <Campo id="mpps" etiqueta="Nº MPPS" defaultValue={perfil?.mpps ?? ""} ayuda="Obligatorio en el récipe (Res. MPPS 028 y 031 de 2013)" />
           <Campo id="colegio_medicos" etiqueta="Nº Colegio de Médicos" defaultValue={perfil?.colegio_medicos ?? ""} />
           <Campo
             id="registro_inpsasel"

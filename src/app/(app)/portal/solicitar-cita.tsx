@@ -1,15 +1,21 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { CalendarPlus, CheckCircle2, Loader2, Search, UserPlus, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, FileText, Loader2, Search, UserPlus, X } from "lucide-react";
 import { Aviso, Campo, CampoSelect } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { buscarPacientes, type PacienteEncontrado } from "../atencion/acciones";
 import { solicitarCita } from "./acciones";
+import { ElegirHora } from "./elegir-hora";
 
 type Nuevo = { cedula: string; nombres: string; apellidos: string };
+
+// Número de paso: RR. HH. sigue la solicitud en orden (1 a quién, 2 qué día, 3 qué evaluación)
+function Paso({ n }: { n: number }) {
+  return <span className="mr-1 inline-grid size-5 place-items-center rounded-full bg-primary text-[0.7rem] font-semibold text-primary-foreground">{n}</span>;
+}
 
 export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { motivos: { id: string; nombre: string }[]; manana: string; empresas: { id: string; nombre: string }[]; empresaActiva: string | null }) {
   const [abierto, setAbierto] = useState(false);
@@ -20,6 +26,8 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
   // Trabajadores que aún no están en la nómina: se registran al enviar la solicitud
   const [nuevos, setNuevos] = useState<Nuevo[]>([]);
   const [ficha, setFicha] = useState<Nuevo | null>(null);
+  // Varias personas: una orden para todas o una por trabajador (Cesar, 06-nov)
+  const [ordenPor, setOrdenPor] = useState<"lote" | "trabajador">("lote");
   const [empresaNuevos, setEmpresaNuevos] = useState(empresaActiva ?? empresas[0]?.id ?? "");
   const total = elegidos.length + nuevos.length;
   const [buscando, iniciar] = useTransition();
@@ -53,7 +61,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </DialogHeader>
         <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label className="mb-1.5">Trabajadores * {total > 0 && <span className="font-normal text-muted-foreground">· {total} elegidos</span>}</Label>
+            <Label className="mb-1.5"><Paso n={1} /> ¿A quién? {total > 0 && <span className="font-normal text-muted-foreground">· {total} {total === 1 ? "elegido" : "elegidos"}</span>}</Label>
             {total > 0 && (
               <ul className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                 {nuevos.map((n) => (
@@ -72,6 +80,7 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
                 ))}
               </ul>
             )}
+            {total === 0 && !ficha && <p className="mb-1.5 text-xs text-muted-foreground">Escribe la cédula o el nombre y tócalo en la lista. Si no aparece, toca «Trabajador nuevo».</p>}
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar trabajador" placeholder={elegidos.length ? "Agregar otro: cédula o nombre" : "Cédula o nombre"} className="h-10 w-full rounded-md border bg-transparent pl-9 pr-9 text-sm" />
@@ -93,7 +102,8 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
                     {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                   </select>
                 )}
-                <div className="flex justify-end gap-2 sm:col-span-3">
+                <div className="flex items-center justify-end gap-2 sm:col-span-3">
+                  <span className="mr-auto text-xs text-muted-foreground">Llena los tres datos y toca «Agregar».</span>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setFicha(null)}>Cancelar</Button>
                   <Button type="button" size="sm" disabled={ficha.cedula.replace(/\D/g, "").length < 5 || !ficha.nombres.trim() || !ficha.apellidos.trim()}
                     onClick={() => { setNuevos((l) => (l.some((x) => x.cedula === ficha.cedula) ? l : [...l, { cedula: ficha.cedula.trim(), nombres: ficha.nombres.trim(), apellidos: ficha.apellidos.trim() }])); setFicha(null); }}>
@@ -114,13 +124,26 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
               </ul>
             )}
           </div>
-          <Campo id="fecha" etiqueta="Fecha *" type="date" min={manana} defaultValue={manana} required />
-          <Campo id="hora" etiqueta="Hora preferida" type="time" />
-          <CampoSelect id="motivo_id" etiqueta="Tipo de evaluación" defaultValue="" className="sm:col-span-2">
-            <option value="">Sin definir</option>
+          <ElegirHora empresaId={empresaNuevos || empresas[0]?.id || ""} min={manana} etiqueta={<><Paso n={2} /> ¿Qué día y a qué hora?</>} personas={Math.max(total, 1)} />
+          <CampoSelect id="motivo_id" etiqueta={<><Paso n={3} /> Tipo de evaluación</>} defaultValue="" className="sm:col-span-2">
+            <option value="">No sé / que lo defina el médico</option>
             {motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
           </CampoSelect>
-          <Campo id="nota" etiqueta="Nota para el servicio médico" className="sm:col-span-2" />
+          <Campo id="nota" etiqueta="Nota (opcional)" className="sm:col-span-2" />
+          {total > 1 && (
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-1.5 text-sm font-medium">Orden de evaluación</legend>
+              <input type="hidden" name="orden_por" value={ordenPor} />
+              <div className="grid grid-cols-2 gap-2">
+                {([["lote", "Una para todos", `1 orden con los ${total}`], ["trabajador", "Una por trabajador", `${total} órdenes, una hoja cada uno`]] as const).map(([v, t, d]) => (
+                  <button key={v} type="button" aria-pressed={ordenPor === v} onClick={() => setOrdenPor(v)}
+                    className={`rounded-md border px-3 py-2 text-left text-sm ${ordenPor === v ? "border-primary bg-primary/10 ring-1 ring-primary" : "hover:bg-muted"}`}>
+                    <span className="block font-medium">{t}</span><span className="block text-xs text-muted-foreground">{d}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <div className="flex items-center gap-2 sm:col-span-2">
             <Aviso resultado={estado && !estado.ok ? estado : null} />
             <Button type="submit" className="ml-auto" disabled={enviando || !total}>
@@ -130,7 +153,13 @@ export function SolicitarCita({ motivos, manana, empresas, empresaActiva }: { mo
         </form>
       </DialogContent>
     </Dialog>
-    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4" /> {estado.mensaje}</p>}
+    {estado?.ok && <p className="flex items-center gap-1.5 text-sm text-ok-texto"><CheckCircle2 className="size-4 shrink-0" /> {estado.mensaje}</p>}
+    {/* La orden de evaluación queda lista al pedir: un toque para verla, imprimirla o guardarla en PDF */}
+    {estado?.ok && !!estado.ordenes?.length && (
+      <a href={`/imprimir/orden/${estado.ordenes.map((o) => o.id).join(",")}`} className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/10">
+        <FileText className="size-4" /> {estado.ordenes.length === 1 ? `Orden de evaluación Nº ${estado.ordenes[0].numero}` : `${estado.ordenes.length} órdenes de evaluación (Nº ${estado.ordenes[0].numero} a ${estado.ordenes[estado.ordenes.length - 1].numero})`}: ver e imprimir
+      </a>
+    )}
     </div>
   );
 }

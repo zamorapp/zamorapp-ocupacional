@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-05",
+  "tema": "configuracion",
+  "texto": "Agregar usuario en pasos: correo, rol (cada rol dice qué ve y qué no ve, separados en servicio médico y empresa cliente), empresa (solo para roles de empresa) y revisar antes de «Agregar usuario»"
+}

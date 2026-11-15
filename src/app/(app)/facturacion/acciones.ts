@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Cobro, ItemCobro, Servicio } from "@/lib/facturacion-tipos";
+import type { Cobro, ItemCobro, MetodoPago, PagoCobro, Servicio } from "@/lib/facturacion-tipos";
+import { ETIQUETA_METODO, limpiarNumeroFactura, METODO_EN_BS, saldo, totales } from "@/lib/facturacion-tipos";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
@@ -40,14 +41,27 @@ export async function guardarServicio(s: Servicio): Promise<Resultado> {
 export async function guardarTasa(fecha: string, tasa: number): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
-  if (!(tasa > 0)) return { ok: false, mensaje: "Escribe una tasa válida." };
-  const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa }, { onConflict: "org_id,fecha" });
+  if (!(tasa > 0) || tasa >= 10_000_000) return { ok: false, mensaje: "Escribe una tasa válida." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, mensaje: "Fecha no válida." };
+  // Cordura: si se aleja más de 30 % de la tasa conocida más cercana, casi seguro está mal escrita (06-nov: «896.1225»
+  // quedó en 8.961.225). Se avisa con la cifra leída para que la corrija.
+  const [{ data: antes }, { data: despues }] = await Promise.all([
+    c.supabase.from("tasas_bcv").select("tasa").lt("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    c.supabase.from("tasas_bcv").select("tasa").gt("fecha", fecha).order("fecha").limit(1).maybeSingle(),
+  ]);
+  const ref = Number(antes?.tasa ?? despues?.tasa ?? 0);
+  const cifra = (n: number) => n.toLocaleString("es-VE", { maximumFractionDigits: 4 });
+  if (ref > 0 && (tasa > ref * 1.3 || tasa < ref * 0.7))
+    return { ok: false, mensaje: `Se leyó ${cifra(tasa)} y la tasa conocida más cercana es ${cifra(ref)}. Revisa la cifra (usa coma para los decimales: 896,1225).` };
+  // Escrita a mano: manda sobre la automática (el latido nunca pisa una tasa «manual»)
+  const { error } = await c.supabase.from("tasas_bcv").upsert({ org_id: c.sesion.orgId!, fecha, tasa, fuente: "manual" }, { onConflict: "org_id,fecha" });
   if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/facturacion");
   return { ok: true, mensaje: "Tasa guardada." };
 }
 
-export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }): Promise<Resultado> {
+// siguiente: "factura" (desde «¿Quieres facturar este período?») abre de una vez la factura del talonario
+export async function crearCobro(datos: { empresaId: string; desde: string; hasta: string; tasaBcv: number | null; items: ItemCobro[] }, siguiente: "nota" | "factura" = "nota"): Promise<Resultado> {
   const c = await contexto();
   if ("error" in c) return { ok: false, mensaje: c.error! };
   const items = datos.items.filter((i) => i.descripcion.trim());
@@ -76,7 +90,7 @@ export async function crearCobro(datos: { empresaId: string; desde: string; hast
     return { ok: false, mensaje: e2.code === "23505" ? "Alguna atención ya está en otra nota de cobro." : e2.message };
   }
   revalidatePath("/facturacion");
-  redirect(`/facturacion/${data.id}`);
+  redirect(siguiente === "factura" ? `/imprimir/factura/${data.id}` : `/facturacion/${data.id}`);
 }
 
 export async function actualizarCobro(cobro: Cobro): Promise<Resultado> {
@@ -159,4 +173,142 @@ export async function convertirPresupuesto(id: string): Promise<Resultado> {
   await c.supabase.from("cobros").update({ estado: "convertido" }).eq("id", id);
   revalidatePath("/facturacion");
   redirect(`/facturacion/${nuevo.id}`);
+}
+
+// Factura que no cabe en una hoja del talonario: la nota se divide en dos notas de cobro, cada una con sus renglones y su
+// propio total (la segunda NO es continuación de la primera). Los renglones `mover` pasan a una nota nueva con la misma
+// empresa, período, tasa e impuestos. Solo si la nota aún no tiene Nº de factura y no está pagada ni anulada: así el
+// registro de facturas queda igual que el papel. La nota nueva toma el siguiente Nº del talonario al imprimirla.
+export async function dividirCobro(id: string, mover: string[]): Promise<Resultado & { nuevoId?: string; numero?: number }> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data: n } = await c.supabase.from("cobros").select("*, cobro_items(id)").eq("id", id).eq("tipo", "cobro").maybeSingle();
+  if (!n) return { ok: false, mensaje: "Nota de cobro no encontrada." };
+  if (n.estado === "pagada" || n.estado === "anulada") return { ok: false, mensaje: "Una nota pagada o anulada no se divide." };
+  if (n.numero_factura_fiscal) return { ok: false, mensaje: `Esta nota ya tiene la factura Nº ${n.numero_factura_fiscal}. Quita el número para dividirla.` };
+  const propios = new Set(((n.cobro_items ?? []) as { id: string }[]).map((i) => i.id));
+  const ids = [...new Set(mover)].filter((i) => propios.has(i));
+  if (!ids.length || ids.length !== new Set(mover).size || ids.length >= propios.size) return { ok: false, mensaje: "No se pudo dividir: los renglones cambiaron. Recarga la página." };
+  const { data: nueva, error } = await c.supabase.from("cobros")
+    .insert({ org_id: n.org_id, empresa_id: n.empresa_id, tipo: "cobro", estado: n.estado, fecha: n.fecha, desde: n.desde, hasta: n.hasta, tasa_bcv: n.tasa_bcv, iva_pct: n.iva_pct, igtf_pct: n.igtf_pct, observacion: n.observacion, vence: n.vence, presupuesto_id: n.presupuesto_id })
+    .select("id, numero").single();
+  if (error) return { ok: false, mensaje: error.message };
+  const { data: movidos, error: e2 } = await c.supabase.from("cobro_items").update({ cobro_id: nueva.id }).in("id", ids).eq("cobro_id", id).select("id");
+  if (e2 || movidos?.length !== ids.length) {
+    // Sin renglones a medias: si no se movieron todos, se regresan y se borra la nota nueva
+    await c.supabase.from("cobro_items").update({ cobro_id: id }).eq("cobro_id", nueva.id);
+    const { error: e3 } = await c.supabase.from("cobros").delete().eq("id", nueva.id);
+    const motivo = e2?.message ?? "No se pudo dividir: tu rol no puede mover los renglones.";
+    return { ok: false, mensaje: e3 ? `${motivo} Quedó una nota vacía #${nueva.numero}: anúlala.` : motivo };
+  }
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: `Dividida: los últimos ${ids.length} renglones pasaron a la nota de cobro #${nueva.numero}.`, nuevoId: nueva.id as string, numero: nueva.numero as number };
+}
+
+// Nº de la factura de forma libre (talonario de imprenta autorizada): se escribe al imprimir y queda en la nota de cobro.
+// Solo dígitos y guiones (p. ej. 000123 o 00-000123); vacío lo quita. Avisa si ese número ya está en otra nota.
+// La factura se imprime con la tasa BCV de su fecha de emisión: se anota en la nota de cobro para que el registro y lo
+// impreso digan lo mismo (el cambio queda en la bitácora por bit_cobros).
+export async function guardarTasaCobro(id: string, tasa: number): Promise<Resultado> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (!(tasa > 0) || tasa >= 10_000_000) return { ok: false, mensaje: "Escribe una tasa válida." };
+  // Nunca en una nota pagada (su tasa es la del pago) ni anulada
+  const { data: filas, error } = await c.supabase.from("cobros").update({ tasa_bcv: tasa }).eq("id", id).not("estado", "in", "(pagada,anulada)").select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó la tasa: la nota está pagada o anulada, no existe o tu rol no puede cambiarla." };
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: "Tasa anotada en la nota de cobro." };
+}
+
+export async function guardarNumeroFactura(id: string, numero: string): Promise<Resultado & { numero?: string }> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const n = limpiarNumeroFactura(numero);
+  if (n && !/^[0-9A-Za-z-]{1,20}$/.test(n)) return { ok: false, mensaje: "Usa solo números (y guiones si tu talonario los lleva)." };
+  if (n) {
+    const { data: otra } = await c.supabase.from("cobros").select("numero").eq("numero_factura_fiscal", n).neq("id", id).limit(1).maybeSingle();
+    if (otra) return { ok: false, mensaje: `La factura Nº ${n} ya está en la nota de cobro #${otra.numero}.` };
+  }
+  // El cambio (número anterior y nuevo) queda en la bitácora por el disparador bit_cobros (antes/despues completos)
+  const { data: filas, error } = await c.supabase.from("cobros").update({ numero_factura_fiscal: n || null }).eq("id", id).eq("tipo", "cobro").select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  // Con RLS un update sin permiso no falla: simplemente no toca filas
+  if (!filas?.length) return { ok: false, mensaje: "No se guardó el número: la nota no existe o tu rol no puede cambiarla." };
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: n ? `Factura Nº ${n} guardada en la nota de cobro.` : "Número quitado.", numero: n };
+}
+
+// Pagos y abonos (Cesar, 14-nov-2026): cada pago anota fecha, forma de pago, referencia y monto. Cuando lo abonado
+// cubre el total la nota pasa sola a «pagada» (fecha de pago = la del último abono); si se borra un abono y deja de
+// cubrirlo, vuelve a «emitida». Pagado en bolívares sin tasa escrita: se toma la del BCV de ese día.
+async function revisarSaldo(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, cobroId: string) {
+  const { data } = await supabase.from("cobros").select("estado, tasa_bcv, iva_pct, igtf_pct, cobro_items(cantidad, precio_usd), cobro_pagos(monto_usd, fecha)").eq("id", cobroId).maybeSingle();
+  if (!data) return null;
+  const pagos = (data.cobro_pagos ?? []) as { monto_usd: number; fecha: string }[];
+  const s = saldo({
+    items: ((data.cobro_items ?? []) as { cantidad: number; precio_usd: number }[]).map((i) => ({ servicioId: null, consultaId: null, descripcion: "", detalle: "", cantidad: Number(i.cantidad), precioUsd: Number(i.precio_usd) })),
+    ivaPct: Number(data.iva_pct), igtfPct: Number(data.igtf_pct), tasaBcv: null,
+    pagos: pagos.map((p) => ({ id: "", fecha: p.fecha, metodo: "otro", referencia: "", montoUsd: Number(p.monto_usd), tasaBcv: null })),
+  });
+  const ultimo = pagos.map((p) => p.fecha).sort().at(-1) ?? null;
+  if (s.cubierta && data.estado === "emitida") await supabase.from("cobros").update({ estado: "pagada", fecha_pago: ultimo }).eq("id", cobroId);
+  else if (!s.cubierta && data.estado === "pagada" && pagos.length > 0) await supabase.from("cobros").update({ estado: "emitida", fecha_pago: null }).eq("id", cobroId);
+  else if (s.cubierta && data.estado === "pagada" && ultimo) await supabase.from("cobros").update({ fecha_pago: ultimo }).eq("id", cobroId);
+  return s;
+}
+
+export type ResultadoPago = Resultado & { estado?: Cobro["estado"]; fechaPago?: string | null; pagos?: PagoCobro[] };
+
+// Estado de la nota y sus abonos tal como quedaron, para que la pantalla se actualice sin recargar
+async function estadoPagos(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, cobroId: string) {
+  const { data } = await supabase.from("cobros").select("estado, fecha_pago, cobro_pagos(id, fecha, metodo, referencia, monto_usd, tasa_bcv)").eq("id", cobroId).maybeSingle();
+  if (!data) return {};
+  return {
+    estado: data.estado as Cobro["estado"],
+    fechaPago: (data.fecha_pago as string | null) ?? null,
+    pagos: ((data.cobro_pagos ?? []) as Record<string, unknown>[])
+      .map((x) => ({ id: x.id as string, fecha: x.fecha as string, metodo: x.metodo as MetodoPago, referencia: (x.referencia as string | null) ?? "", montoUsd: Number(x.monto_usd), tasaBcv: x.tasa_bcv == null ? null : Number(x.tasa_bcv) }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+  };
+}
+
+export async function registrarPago(cobroId: string, p: { fecha: string; metodo: MetodoPago; referencia: string; montoUsd: number; tasaBcv: number | null }): Promise<ResultadoPago> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  if (!Object.hasOwn(ETIQUETA_METODO, p.metodo)) return { ok: false, mensaje: "Elige la forma de pago." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha) || p.fecha > hoyCaracas()) return { ok: false, mensaje: "La fecha del pago no puede ser posterior a hoy." };
+  const monto = Math.round(p.montoUsd * 100) / 100;
+  if (!(monto > 0)) return { ok: false, mensaje: "Escribe el monto pagado." };
+  const { data: nota } = await c.supabase.from("cobros").select("estado, tipo, iva_pct, igtf_pct, cobro_items(cantidad, precio_usd), cobro_pagos(monto_usd)").eq("id", cobroId).maybeSingle();
+  if (!nota || nota.tipo !== "cobro") return { ok: false, mensaje: "La nota de cobro no existe o tu rol no puede verla." };
+  if (nota.estado !== "emitida") return { ok: false, mensaje: nota.estado === "pagada" ? "Esta nota ya está pagada." : "Primero emite la nota de cobro." };
+  const total = totales({ items: ((nota.cobro_items ?? []) as { cantidad: number; precio_usd: number }[]).map((i) => ({ servicioId: null, consultaId: null, descripcion: "", detalle: "", cantidad: Number(i.cantidad), precioUsd: Number(i.precio_usd) })), ivaPct: Number(nota.iva_pct), igtfPct: Number(nota.igtf_pct), tasaBcv: null }).total;
+  const pagado = ((nota.cobro_pagos ?? []) as { monto_usd: number }[]).reduce((s, x) => s + Number(x.monto_usd), 0);
+  const falta = Math.round((total - pagado) * 100) / 100;
+  if (monto - falta > 0.005) return { ok: false, mensaje: `El monto pasa lo que falta por pagar (${falta.toFixed(2)} $).` };
+  let tasa = p.tasaBcv && p.tasaBcv > 0 && p.tasaBcv < 10_000_000 ? p.tasaBcv : null;
+  if (!tasa && METODO_EN_BS.includes(p.metodo)) {
+    const { data: t } = await c.supabase.from("tasas_bcv").select("tasa").lte("fecha", p.fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+    tasa = t ? Number(t.tasa) : null;
+  }
+  const { error } = await c.supabase.from("cobro_pagos").insert({
+    org_id: c.sesion.orgId!, cobro_id: cobroId, fecha: p.fecha, metodo: p.metodo,
+    referencia: p.referencia.trim().slice(0, 80) || null, monto_usd: monto, tasa_bcv: tasa,
+  });
+  if (error) return { ok: false, mensaje: error.message };
+  const s = await revisarSaldo(c.supabase, cobroId);
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: s?.cubierta ? "Pago registrado. La nota quedó pagada." : `Abono registrado. Faltan ${(s?.falta ?? 0).toFixed(2)} $.`, ...(await estadoPagos(c.supabase, cobroId)) };
+}
+
+export async function eliminarPago(id: string, cobroId: string): Promise<ResultadoPago> {
+  const c = await contexto();
+  if ("error" in c) return { ok: false, mensaje: c.error! };
+  const { data: filas, error } = await c.supabase.from("cobro_pagos").delete().eq("id", id).eq("cobro_id", cobroId).select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  if (!filas?.length) return { ok: false, mensaje: "No se borró: el abono no existe o tu rol no puede cambiarlo." };
+  await revisarSaldo(c.supabase, cobroId);
+  revalidatePath("/facturacion");
+  return { ok: true, mensaje: "Abono borrado.", ...(await estadoPagos(c.supabase, cobroId)) };
 }

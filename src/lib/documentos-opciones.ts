@@ -6,8 +6,12 @@ export const OPCIONES_IMPRESION = {
   riesgos: "Riesgos del puesto",
   limitaciones: "Limitaciones",
   conclusiones: "Conclusiones",
+  examen: "Examen detallado por sistema",
+  motivo: "Motivo clínico del reposo",
 } as const;
 export type OpcionImpresion = keyof typeof OPCIONES_IMPRESION;
+// «Revisión N: reemplaza los impresos anteriores» en el pie: oculto salvo ?rev=1
+export const revisionDeUrl = (rev: string | undefined) => rev === "1";
 export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
   (sin ?? "").split(",").filter((x): x is OpcionImpresion => x in OPCIONES_IMPRESION);
 
@@ -15,11 +19,12 @@ export const opcionesDeUrl = (sin: string | undefined): OpcionImpresion[] =>
 export function opcionesDe(tipo: string): OpcionImpresion[] {
   const extra: Partial<Record<string, OpcionImpresion[]>> = {
     constancia: ["riesgos", "limitaciones"],
-    informe: ["limitaciones", "conclusiones"],
-    "informe-trabajador": ["conclusiones"],
-    preoperatoria: ["conclusiones"],
+    informe: ["examen", "limitaciones", "conclusiones"],
+    "informe-trabajador": ["examen", "conclusiones"],
+    preoperatoria: ["examen", "conclusiones"],
     paquete: ["riesgos", "limitaciones"],
     oam: ["riesgos"],
+    reposo: ["motivo"],
   };
   return ["membrete", "firma", ...(extra[tipo] ?? [])];
 }
