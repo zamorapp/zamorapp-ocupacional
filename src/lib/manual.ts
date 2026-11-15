@@ -496,6 +496,7 @@ export const MANUAL: TemaManual[] = [
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
       "En «Registro», con Desde y Hasta, ves cada cosa que hizo cada llave: qué, cuándo, en qué empresa y si fue un ensayo.",
+      "Reportes: con la misma casilla, pídele por ejemplo «sácame la relación de pacientes atendidos de la empresa X en octubre» o «las estadísticas por médico del trimestre». Te los trae sin diagnósticos ni aptitudes; para verlos completos, ábrelos tú en Reportes.",
       "Vigilancia: marca «Vigilancia y reportes» en la llave. Pídele, por ejemplo: «prepara la vigilancia del primer trimestre de la empresa X con el programa de ruido». Revisa lo que propuso en Reportes › Propuestas del agente y pulsa «Aprobar» o «Usar lo elegido».",
     ],
     consejos: [
