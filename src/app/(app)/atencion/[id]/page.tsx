@@ -14,6 +14,9 @@ import { NOTA_RIESGOS_PUESTO, PLANTILLA_APTITUD } from "@/lib/mensajes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/config";
 import { EditorConsulta } from "./editor-consulta";
+import { ConsultaADistancia } from "./distancia";
+import { teleconsultaDe } from "@/lib/telemedicina";
+import { plazoSala } from "@/lib/telemedicina-tipos";
 import { LecturaEnfermeria } from "./lectura-enfermeria";
 import { notasDeConsulta } from "@/lib/enfermeria";
 import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
@@ -34,8 +37,8 @@ const LISTAS = [
   "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo",
 ];
 
-export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string; duplicada?: string }> }) {
-  const [{ id }, { paso, duplicada }] = await Promise.all([params, searchParams]);
+export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string; duplicada?: string; distancia?: string }> }) {
+  const [{ id }, { paso, duplicada, distancia }] = await Promise.all([params, searchParams]);
   const demo = !supabaseConfigurado;
   // Todo en dos ramas paralelas: lo que depende de la organización (sesión → listas, plantillas, datos) y lo que
   // depende del trabajador (consulta → historial, adjuntos). Antes eran 6 esperas en fila; ahora la más larga es 3.
@@ -45,8 +48,10 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
     !consulta || demo ? null : listarAdjuntos(consulta.trabajador.id),
     !consulta || demo ? [] : alertasDeTrabajador(consulta.trabajador.id, id),
+    // Consulta a distancia (telemedicina): lo de la llamada y su espera en la sala; RLS: solo personal clínico
+    !consulta || demo ? { tele: null, sala: null, telefonoFicha: null } : teleconsultaDe(id, consulta.trabajador.id),
   ]));
-  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos, alertas], versiones, contacto, declaraciones, siguiente] = await Promise.all([
+  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos, alertas, distanciaDatos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
     porOrg,
     porTrabajador,
     demo ? [] : listarVersiones(id),
@@ -93,6 +98,11 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Atención médica
       </Link>
+      {sesion.clinico && (
+        <ConsultaADistancia consultaId={consulta.datos.id} paciente={consulta.trabajador.nombre} telefonoFicha={distanciaDatos.telefonoFicha}
+          inicial={distanciaDatos.tele} salaInicial={distanciaDatos.sala} firmada={consulta.datos.estado === "firmada"} abrirAlCargar={distancia === "1"}
+          plazoDias={plazoSala(org.ajustes.seguimiento_distancia_dias)} puedeEditar={!sesion.demo && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} />
+      )}
       {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
         <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} duplicada={duplicada === "1"} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}

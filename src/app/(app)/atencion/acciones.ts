@@ -245,7 +245,9 @@ function unirAntecedentes(previos: DatosConsulta["antecedentes"], delPaciente: D
 }
 
 // Abre una consulta nueva con el examen precargado en normal y los antecedentes de la última consulta
-export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string): Promise<Resultado & { empresaInactiva?: string; inactivo?: boolean }> {
+// extra.distancia: abre con el panel de consulta a distancia; extra.controlDe: enlaza la consulta nueva como control de esa
+// consulta a distancia (telemedicina-acciones.ts).
+export async function iniciarConsulta(trabajadorId: string, motivoId?: string, citaId?: string, extra?: { distancia?: boolean; controlDe?: string }): Promise<Resultado & { empresaInactiva?: string; inactivo?: boolean }> {
   const sesion = await obtenerSesion();
   if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para registrar consultas." };
   if (sesion.rol === "enfermeria") return { ok: false, mensaje: "La consulta la abre el médico. Enfermería registra su atención o su evolución en Enfermería." };
@@ -313,9 +315,13 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
   if (citaId) {
     await supabase.from("citas").update({ estado: "en_consulta", consulta_id: data.id }).eq("id", citaId);
   }
+  // Control de una consulta a distancia: la base lo enlaza una sola vez y solo con el mismo paciente
+  if (extra?.controlDe) {
+    await supabase.from("teleconsultas").update({ control_id: data.id }).eq("consulta_id", extra.controlDe).is("control_id", null);
+  }
   // Con la caché de 30 s del navegador (staleTimes), el Inicio y la cola no deben mostrar la consulta sin abrir
   revalidatePath("/panel");
-  redirect(`/atencion/${data.id}`);
+  redirect(`/atencion/${data.id}${extra?.distancia ? "?distancia=1" : ""}`);
 }
 
 // «Siguiente paciente»: toma al primero que espera hoy y le abre la consulta en un clic. La cita se aparta primero

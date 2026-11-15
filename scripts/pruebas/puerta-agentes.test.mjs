@@ -47,18 +47,45 @@ test("sin llave responde 401 y no llama a la base", async () => {
   assert.ok(!(await r.text()).includes("zk_"));
 });
 
+// Cada familia de acciones tiene su función en la base (campo «rpc»; por defecto public.agente): la lista de la web
+// tiene que ser la lista cerrada de ESA función, en la última migración que la define.
+const migraciones = fs.readdirSync(new URL("../../supabase/migrations/", import.meta.url)).filter((f) => f.endsWith(".sql")).sort();
+const definicion = (rpc) => {
+  const re = new RegExp(`create or replace function public\\.${rpc}\\(p_llave`);
+  const f = migraciones.filter((m) => re.test(fs.readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), "utf8"))).pop();
+  assert.ok(f, `ninguna migración define public.${rpc}`);
+  const sql = fs.readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), "utf8");
+  return sql.slice(sql.search(re));
+};
+
 test("el catálogo es la misma lista cerrada de la base", () => {
-  const sql = fs.readFileSync(new URL("../../supabase/migrations/20261030938000_puerta_agentes.sql", import.meta.url), "utf8");
-  const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
-  const leen = lista(/when v_acc in \(([^)]+)\) then false/);
-  const crean = lista(/when v_acc in \(([^)]+)\) then true/);
-  assert.deepEqual(ACCIONES.filter((a) => !a.crea).map((a) => a.nombre).sort(), leen);
-  assert.deepEqual(ACCIONES.filter((a) => a.crea).map((a) => a.nombre).sort(), crean);
+  const familias = Map.groupBy(ACCIONES, (a) => a.rpc ?? "agente");
+  assert.ok(familias.has("puerta_facturacion"), "cobros y precios van por su propia función");
+  // La 20261030959000 suma acciones a la lista de public.agente parchando por texto (no la redefine)
+  const sql959 = fs.readFileSync(new URL("../../supabase/migrations/20261030959000_agentes_borradores.sql", import.meta.url), "utf8");
+  const suma = (antes) => [...sql959.matchAll(new RegExp(`'when v_acc in \\(''([a-z_]+)'', ''${antes}'', '`, "g"))].map((m) => m[1]);
+  for (const [rpc, acciones] of familias) {
+    const sql = definicion(rpc);
+    const lista = (re) => [...sql.match(re)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    const extra = (antes) => (rpc === "agente" ? suma(antes) : []);
+    assert.deepEqual(acciones.filter((a) => !a.crea).map((a) => a.nombre).sort(), [...lista(/when v_acc in \(([^)]+)\) then false/), ...extra("resumen")].sort(), rpc);
+    assert.deepEqual(acciones.filter((a) => a.crea).map((a) => a.nombre).sort(), [...lista(/when v_acc in \(([^)]+)\) then true/), ...extra("crear_empresa")].sort(), rpc);
+  }
+  assert.ok(ACCIONES.filter((a) => a.vigilancia).every((a) => a.rpc === "puerta_vigilancia"));
   for (const a of ACCIONES) {
     assert.equal(a.esquema.additionalProperties, false, a.nombre);
     assert.equal("ensayo" in a.esquema.properties, a.crea, `${a.nombre}: solo lo que crea lleva ensayo`);
     assert.ok(!/borra|elimin|modific|actualiz/i.test(a.nombre), a.nombre);
   }
+});
+
+test("cada acción llama a su función de la base", async () => {
+  recibido = [];
+  await llamarPuerta(LLAVE, "crear_notas_cobro", { notas: [] }, true);
+  await llamarPuerta(LLAVE, "resumen", {}, false);
+  assert.equal(recibido[0].url, "http://base.prueba/rest/v1/rpc/puerta_facturacion");
+  assert.deepEqual(recibido[0].cuerpo, { p_llave: LLAVE, p_accion: "crear_notas_cobro", p_datos: { notas: [] }, p_ensayo: true });
+  assert.equal(recibido[1].url, "http://base.prueba/rest/v1/rpc/agente");
 });
 
 test("MCP: initialize, notificación, lista de herramientas y método desconocido", async () => {
@@ -133,4 +160,15 @@ test("la respuesta nunca repite la llave", async () => {
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("cache-control"), "no-store");
   assert.ok(!(await r.text()).includes(LLAVE));
+});
+
+test("récipes del agente: «aviso» trae el enlace para revisar y uno de WhatsApp sin número (el doctor elige chat o grupo)", async () => {
+  respuesta = () => ({ ok: true, accion: "preparar_documento", ensayo: false, resultado: { borrador_id: "b", ruta: "/borradores", aviso: "Tienes por revisar: Récipe para Ana Pérez." } });
+  const r = await llamarPuerta(LLAVE, "preparar_documento", { tipo: "recipe" }, false);
+  assert.equal(r.resultado.enlace, "https://zamorapp-ocupacional.vercel.app/borradores");
+  assert.ok(r.resultado.whatsapp.startsWith("https://wa.me/?text="), r.resultado.whatsapp);
+  assert.equal(decodeURIComponent(r.resultado.whatsapp.split("text=")[1]), "Tienes por revisar: Récipe para Ana Pérez. https://zamorapp-ocupacional.vercel.app/borradores");
+  const pa = ACCIONES.find((a) => a.nombre === "preparar_documento");
+  assert.deepEqual(pa.esquema.required, ["trabajador_id", "tipo", "adjuntar"], "suelto o con consulta lo dice el doctor");
+  assert.ok(ACCIONES.filter((a) => a.documentos).every((a) => ["preparar_documento", "ver_preparados"].includes(a.nombre)));
 });

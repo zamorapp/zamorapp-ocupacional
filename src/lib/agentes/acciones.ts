@@ -2,8 +2,13 @@
 // Es solo la descripción para el agente; quien manda es la base (public.agente, migración 20261030938000):
 // ella valida la llave, la organización y cada dato. Una acción que no esté allá no existe aunque se escriba aquí.
 
+import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
+
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; esquema: Esquema };
+// rpc: la función de la base que la atiende (por defecto public.agente). Cada familia va en su propia función para
+// que no se pisen. vigilancia: necesita la casilla «Vigilancia y reportes» (960); puerta_facturacion: «Cobros y precios» (961).
+// documentos: necesita la casilla «Prepara récipes y órdenes» de la llave (apagada por defecto; migración 20261030959000)
+export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; documentos?: true; esquema: Esquema; rpc?: "puerta_vigilancia" | "puerta_facturacion"; vigilancia?: true };
 
 const texto = (description: string) => ({ type: "string", description });
 const id = (description: string) => ({ type: "string", format: "uuid", description });
@@ -72,6 +77,91 @@ export const ACCIONES: AccionAgente[] = [
     descripcion: "Agenda una cita para un trabajador (de hoy a un año). Si ya tiene cita ese día no crea otra ni la cambia.",
     esquema: objeto({ trabajador_id: id("Trabajador"), fecha: fecha("Día de la cita"), hora: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", description: "Hora en 24 horas, HH:MM" },
       motivo_id: id("Motivo de consulta (catalogo, tipo motivos)"), observacion: texto("Nota de la cita"), ensayo: ENSAYO }, ["trabajador_id", "fecha"]) },
+  { nombre: "preparar_documento", titulo: "Preparar récipe u orden de exámenes", crea: true, documentos: true,
+    descripcion: "Deja un BORRADOR de récipe o de orden de exámenes para un paciente, con lo que el doctor te dicte. No se imprime ni se envía: el doctor lo revisa en zamorApp, lo corrige, lo emite con su firma y sello, y él lo envía. "
+      + "Pregúntale SIEMPRE si va suelto (sin consulta) o adjunto a una consulta del paciente; no lo des por hecho. No inventes concentraciones ni dosis: si faltan, el doctor las completa. "
+      + "Devuelve el enlace para que el doctor lo revise y un enlace de WhatsApp con el aviso ya escrito (él elige el chat o grupo).",
+    esquema: objeto({ trabajador_id: id("Paciente (buscar_trabajadores)"),
+      tipo: { type: "string", enum: ["recipe", "examenes"], description: "recipe = récipe; examenes = orden de exámenes" },
+      adjuntar: { type: "string", enum: ["suelto", "consulta"], description: "Lo decide el doctor: suelto (sin consulta) o adjunto a una consulta del paciente" },
+      consulta_fecha: fecha("Si va adjunto: día de la consulta (si no se dice, la más reciente)"),
+      fecha: fecha("Fecha que lleva el documento si el doctor la dice; puede ser pasada o futura. Si no la dice, va la del día en que él lo emite"),
+      medicamentos: { type: "array", maxItems: 20, description: "Para el récipe",
+        items: { type: "object", additionalProperties: false, required: ["medicina"], properties: {
+          medicina: texto("Nombre del medicamento"), concentracion: texto("Concentración, por ejemplo 400 mg"), presentacion: texto("Tabletas, cápsulas, jarabe…"),
+          via: texto("Vía: oral, intramuscular…"), dosis: texto("Dosis, por ejemplo 1 tableta"), frecuencia: texto("Cada cuánto, por ejemplo cada 8 horas"),
+          duracion: texto("Por cuánto tiempo, por ejemplo 5 días"), observacion: texto("Nota al paciente, por ejemplo después de comer") } } },
+      examenes: { type: "array", items: { type: "string" }, maxItems: 40, description: "Para la orden de exámenes: cada examen tal como lo dijo el doctor" },
+      indicaciones: texto("Otras indicaciones al paciente (hasta 2000 letras)"),
+      envio: { type: "string", enum: ["imprimir", "whatsapp", "correo"], description: "Por dónde quiere el doctor enviarlo (lo envía él). Por defecto: imprimir" },
+      correo: texto("Si envio es correo: la dirección que dio el doctor"), ensayo: ENSAYO }, ["trabajador_id", "tipo", "adjuntar"]) },
+  { nombre: "ver_preparados", titulo: "Ver borradores preparados", crea: false, documentos: true,
+    descripcion: "Estado de los récipes y órdenes que preparaste (por revisar, emitido por el doctor o descartado), con el enlace para abrirlos. No muestra medicinas ni exámenes.",
+    esquema: objeto({ trabajador_id: id("Solo los de este paciente") }) },
+  // ───── Cobros y precios (public.puerta_facturacion, migración 20261030961000): la llave necesita «Cobros y precios» ─────
+  { nombre: "listar_cobros", titulo: "Listar notas de cobro", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Notas de cobro (prefacturas y facturas) con estado, total, Nº de factura y enlace (hasta 100; por defecto los últimos 3 meses).",
+    esquema: objeto({ empresa_id: id("Solo esta empresa"), estado: { type: "string", enum: ["borrador", "emitida", "pagada", "anulada"], description: "Solo este estado" },
+      desde: fecha("Desde"), hasta: fecha("Hasta") }) },
+  { nombre: "atendidos_por_cobrar", titulo: "Atendidos por cobrar", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Pacientes atendidos en un período que aún no están en ninguna nota, agrupados por servicio y empresa, con su precio. Sin nombres ni datos clínicos.",
+    esquema: objeto({ desde: fecha("Desde"), hasta: fecha("Hasta"), empresa_id: id("Solo esta empresa") }, ["desde", "hasta"]) },
+  { nombre: "crear_notas_cobro", titulo: "Crear notas de cobro", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Crea de 1 a 20 notas de cobro EN BORRADOR, una por empresa (sirven de prefactura; la factura es la misma nota cuando el doctor pulsa «Imprimir factura», que le pone el Nº del talonario). Cada nota puede llevar los atendidos del período, un presupuesto, renglones del catálogo o libres, y un descuento SOLO si el doctor lo pidió. Precio de cada servicio: el convenido con la empresa o, si no hay, el del catálogo. Repetir la misma orden el mismo día no duplica.",
+    esquema: objeto({ notas: { type: "array", minItems: 1, maxItems: 20, description: "Una nota por empresa",
+      items: { type: "object", additionalProperties: false, required: ["empresa_id"], properties: {
+        empresa_id: id("Empresa"), desde: fecha("Inicio del período"), hasta: fecha("Fin del período"),
+        atendidos: { type: "boolean", description: "true = incluir los atendidos del período que aún no están en otra nota" },
+        presupuesto_id: id("Copiar los renglones de este presupuesto de la misma empresa"),
+        renglones: { type: "array", maxItems: 30, description: "Renglones adicionales",
+          items: { type: "object", additionalProperties: false, properties: { servicio_id: id("Servicio del catálogo"), descripcion: texto("Descripción (si no hay servicio, o para cambiar su nombre)"),
+            detalle: texto("Detalle que sale debajo"), cantidad: { type: "number", exclusiveMinimum: 0, description: "Cantidad (por defecto 1)" },
+            precio_usd: { type: "number", minimum: 0, description: "Precio unitario en USD (por defecto, el de la empresa o el del servicio)" } } } },
+        descuento: { type: "object", additionalProperties: false, description: "Solo si el doctor lo pidió: porcentaje O monto_usd, y el motivo",
+          properties: { porcentaje: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Porcentaje sobre el total de la nota" },
+            monto_usd: { type: "number", exclusiveMinimum: 0, description: "Monto fijo en USD" }, motivo: texto("Motivo, sale debajo del descuento") } },
+        observacion: texto("Observación de la nota") } } }, ensayo: ENSAYO }, ["notas"]) },
+  { nombre: "proponer_precio", titulo: "Proponer precio", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Propone un precio nuevo para un servicio: el general del catálogo o, con empresa_id, solo para esa empresa. NO cambia nada: el doctor lo aprueba en zamorApp. Úsalo solo cuando el doctor pida cambiar un precio.",
+    esquema: objeto({ servicio_id: id("Servicio (catalogo, tipo servicios)"), precio_usd: { type: "number", minimum: 0, description: "Precio nuevo en USD" },
+      empresa_id: id("Solo para esta empresa (si no, cambia el precio general)"), motivo: texto("Por qué (por ejemplo «pedido del doctor»)"), ensayo: ENSAYO }, ["servicio_id", "precio_usd"]) },
+
+  // ───── Vigilancia epidemiológica (20261030960000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
+  ...([
+    { nombre: "vigilancia_cifras", titulo: "Cifras de vigilancia", crea: false,
+      descripcion: "Totales de la vigilancia de una empresa en un período: población, consultas, morbilidad por sistema y primeras causas, ausentismo, aptitud, referencias, accidentes, exámenes periódicos, riesgos de los cargos y cobertura de cada programa. Sin personas: los grupos de menos de 3 y los diagnósticos confidenciales vienen juntos en «Otros» y \"<3\" es 1 o 2. Período: desde y hasta, o anio y trimestre (el trimestre cuenta desde el mes en que empieza la gestión de la empresa).",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión (1 a 4)" } }, ["empresa_id"]) },
+    { nombre: "ver_programas", titulo: "Ver programas de vigilancia", crea: false,
+      descripcion: "Programas de vigilancia de una empresa (riesgo, condiciones, dependencias, cargos, exámenes y metas), su proyecto, el mes en que empieza su gestión, y los nombres de sus dependencias y cargos.",
+      esquema: objeto({ empresa_id: id("Empresa") }, ["empresa_id"]) },
+    { nombre: "ver_informe", titulo: "Ver informe de vigilancia", crea: false,
+      descripcion: "Lo que el doctor ya escribió en el informe de vigilancia de esa empresa y período (secciones y análisis de cada cuadro). Léelo antes de redactar: tu borrador se compara con esto.",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión" } }, ["empresa_id"]) },
+    { nombre: "ver_propuestas", titulo: "Ver mis propuestas", crea: false,
+      descripcion: "Las propuestas de vigilancia que dejó esta llave y si el doctor las aprobó o descartó.",
+      esquema: objeto({}) },
+    { nombre: "proponer_programa", titulo: "Proponer programa de vigilancia", crea: true,
+      descripcion: "PROPONE un programa de vigilancia para una empresa (no lo crea: el doctor lo aprueba en zamorApp). Dependencias y cargos van por su nombre exacto (ver_programas los lista); vacíos = toda la empresa. Para cambiar uno existente manda su programa_id.",
+      esquema: objeto({ empresa_id: id("Empresa"), programa_id: id("Programa existente que se cambiaría"), nombre: texto("Nombre, por ejemplo «Conservación auditiva»"),
+        proyecto: texto("Proyecto u obra"), riesgo: texto("Riesgo o condición, por ejemplo «Ruido mayor de 85 dB»"), condiciones: texto("Condiciones de la vigilancia, en palabras"),
+        dependencias: { type: "array", items: { type: "string" }, maxItems: 60, description: "Nombres de las dependencias que cubre" },
+        cargos: { type: "array", items: { type: "string" }, maxItems: 60, description: "Nombres de los cargos que cubre" },
+        examenes: { type: "array", maxItems: 30, description: "Exámenes del programa", items: { type: "object", additionalProperties: false, properties: { nombre: texto("Examen, tal como te lo dieron"), cada_meses: { type: "integer", minimum: 1, maximum: 60, description: "Cada cuántos meses" } }, required: ["nombre"] } },
+        metas: { type: "array", maxItems: 20, description: "Indicadores y metas", items: { type: "object", additionalProperties: false, properties: { indicador: texto("Indicador"), meta: texto("Meta, por ejemplo «100 %»") }, required: ["indicador"] } },
+        motivo: texto("Por qué lo propones (lo lee el doctor)"), ensayo: ENSAYO }, ["empresa_id", "nombre"]) },
+    { nombre: "proponer_ajuste_empresa", titulo: "Proponer ajuste de empresa", crea: true,
+      descripcion: "PROPONE cambiar el proyecto u obra de la empresa o el mes en que empieza su gestión (de él salen los trimestres). No cambia nada: el doctor lo aprueba.",
+      esquema: objeto({ empresa_id: id("Empresa"), proyecto: texto("Proyecto u obra"), mes_inicio_gestion: { type: "integer", minimum: 1, maximum: 12, description: "Mes en que empieza la gestión (1 = enero)" },
+        motivo: texto("Por qué lo propones"), ensayo: ENSAYO }, ["empresa_id"]) },
+    { nombre: "redactar_informe", titulo: "Redactar informe de vigilancia", crea: true,
+      descripcion: "Deja un BORRADOR del informe de vigilancia de una empresa y período. El doctor lo compara con lo suyo y elige sección por sección qué usar. Secciones: resumen, conclusiones, recomendaciones_medicas, recomendaciones (de seguridad y salud para la empresa), factores_riesgo, medidas_control. Escribe solo con vigilancia_cifras; nunca nombres ni casos de personas, ni diagnósticos que vinieron en «Otros». Repetirlo reemplaza tu borrador anterior de ese período.",
+      esquema: objeto({ empresa_id: id("Empresa"), desde: fecha("Desde"), hasta: fecha("Hasta"), anio: { type: "integer", minimum: 2000, maximum: 2100, description: "Año de gestión" }, trimestre: { type: "integer", minimum: 1, maximum: 4, description: "Trimestre de gestión" },
+        secciones: { type: "object", additionalProperties: false, description: "Texto de cada sección (hasta 8000 letras)",
+          properties: Object.fromEntries(["resumen", "conclusiones", "recomendaciones_medicas", "recomendaciones", "factores_riesgo", "medidas_control"].map((k) => [k, { type: "string" }])) },
+        analisis: { type: "object", additionalProperties: false, description: "Opcional: análisis de cada cuadro del informe impreso (hasta 4000 letras cada uno)",
+          properties: Object.fromEntries(SECCIONES_ANALISIS.map(([k, t]) => [k, { type: "string", description: t }])) },
+        motivo: texto("Nota para el doctor"), ensayo: ENSAYO }, ["empresa_id"]) },
+  ] satisfies Omit<AccionAgente, "rpc" | "vigilancia">[]).map((a) => ({ ...a, rpc: "puerta_vigilancia" as const, vigilancia: true as const })),
 ];
 
 export const ACCION = new Map(ACCIONES.map((a) => [a.nombre, a]));
@@ -83,6 +173,9 @@ export const INSTRUCCIONES = [
   "No inventes datos (RIF, cédulas, precios, fechas): si falta uno, pregúntalo.",
   "Los nombres de exámenes van tal como te los dan; no traduzcas ni expliques siglas.",
   "Esta puerta no lee ni escribe historias, diagnósticos, firma ni sello, y no borra ni modifica lo que ya existe: eso lo hace el doctor en la aplicación.",
+  "Si la llave tiene la casilla «Prepara récipes y órdenes», puedes dejar BORRADORES de récipe u orden de exámenes con preparar_documento: pregunta siempre si va suelto o adjunto a una consulta; el doctor los emite, firma y envía.",
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
+  "Vigilancia epidemiológica (si la llave tiene la casilla): para «créame la vigilancia del trimestre…», busca la empresa (si no existe, créala con su visto bueno), mira ver_programas, propone el programa o el ajuste que falte, lee vigilancia_cifras y ver_informe, y deja el borrador con redactar_informe. Todo queda como propuesta: el doctor la aprueba. No inventes cifras ni nombres; lo que vino en «Otros» no se nombra. Aquí no hay precios.",
+  "Cobros (si la llave tiene la casilla «Cobros y precios»): las notas quedan en borrador; tú nunca pones el Nº de factura, emites, cobras ni eliges la tasa BCV. Los precios solo se proponen. Descuentos, solo si el doctor los pide.",
 ].join("\n");
