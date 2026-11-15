@@ -148,9 +148,12 @@ jobs:
           ZAMORAPP_NUBE_ANON: ${{ vars.ZAMORAPP_NUBE_ANON }}
           # Llave pública de las actualizaciones (variable) y llave privada para firmarlas (secreto, solo al publicar)
           ZAMORAPP_UPDATER_PUBKEY: ${{ vars.ZAMORAPP_UPDATER_PUBKEY }}
+          # Lo que no sale de main es una versión de PRUEBA: su actualizador pregunta «Instalar / Ignorar» y no se reemplaza solo
+          ZAMORAPP_CANAL: ${{ github.ref != 'refs/heads/main' && 'prueba' || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && inputs.publicar && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
+          Write-Host "Canal del instalador: $(if ($env:ZAMORAPP_CANAL) { $env:ZAMORAPP_CANAL } else { 'oficial' })"
           if (-not $env:ZAMORAPP_NUBE_URL) { Write-Warning "Sin ZAMORAPP_NUBE_URL: el instalador no podrá conectarse a la nube" }
           # Al publicar, sin la llave real (privada y pública) ninguna PC aceptaría la actualización: se corta aquí
           if ("${{ github.ref == 'refs/heads/main' && inputs.publicar }}" -eq "true") {

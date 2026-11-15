@@ -33,6 +33,13 @@ const NUBE_URL: &str = match option_env!("ZAMORAPP_NUBE_URL") { Some(v) => v, No
 const NUBE_ANON: &str = match option_env!("ZAMORAPP_NUBE_ANON") { Some(v) => v, None => "" };
 // Llave pública con la que se verifican las actualizaciones (la privada vive solo en GitHub Actions).
 const LLAVE_ACTUALIZACIONES: &str = match option_env!("ZAMORAPP_UPDATER_PUBKEY") { Some(v) => v, None => "" };
+// Canal del instalador: el CI graba "prueba" en todo lo que NO sale de main (versiones para probar una rama).
+// 14/11/2026: dos pruebas de #379 se reemplazaron solas por la versión oficial antes de que Cesar las probara.
+// En una versión de prueba el actualizador nunca descarga ni instala sin preguntar: avisa «Instalar / Ignorar».
+const CANAL: &str = match option_env!("ZAMORAPP_CANAL") { Some(v) => v, None => "" };
+fn es_version_de_prueba() -> bool { CANAL == "prueba" }
+// «Ignorar» en una versión de prueba: no se vuelve a ofrecer sola en esta sesión (desde el menú sí).
+static PRUEBA_IGNORO: AtomicBool = AtomicBool::new(false);
 
 // Clave de un solo uso por sesión para que solo esta ventana pida acciones internas a la puerta.
 fn clave_control() -> &'static str {
@@ -637,6 +644,16 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
         match consulta {
             Ok(Some(nueva)) => {
                 anotar(&format!("actualización disponible: {} (instalada {actual})", nueva.version));
+                // Versión de prueba (de una rama): se pregunta siempre, también a pedido, y nada se instala solo.
+                if es_version_de_prueba() && prueba.is_none() {
+                    if !a_pedido && PRUEBA_IGNORO.load(Ordering::SeqCst) { anotar("versión de prueba: la oficial ya se ignoró en esta sesión"); return; }
+                    let instalar = dialogo(&app, format!("Estás usando una versión de prueba ({actual}). Hay versión oficial: {}.\n\nSi la instalas, la prueba se reemplaza por la oficial. No se borra ningún dato.\n\nSi sigues probando, pulsa «Ignorar».", nueva.version))
+                        .title("Hay versión oficial")
+                        .buttons(MessageDialogButtons::OkCancelCustom("Instalar".into(), "Ignorar".into()))
+                        .blocking_show();
+                    if !instalar { PRUEBA_IGNORO.store(true, Ordering::SeqCst); anotar("versión de prueba: la oficial se ignoró"); return; }
+                    anotar("versión de prueba: se pidió instalar la oficial");
+                }
                 // Pedida a mano (menú o botón): se descarga enseguida, sin volver a preguntar; solo se pregunta al instalar.
                 let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false)
                     || (a_pedido && !FALTAN_COMPONENTES.load(Ordering::SeqCst))
@@ -858,7 +875,7 @@ fn main() {
             let manejador_docs = app.handle().clone();
             let para_descargas = app.handle().clone();
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-                .title(format!("zamorApp Escritorio v{version}"))
+                .title(format!("zamorApp Escritorio v{version}{}", if es_version_de_prueba() { " (prueba)" } else { "" }))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
                 .on_download(move |_, evento| descarga(&para_descargas, evento))
                 // Micrófono del dictado: concedido solo a las páginas de la app (ver microfono.rs)
