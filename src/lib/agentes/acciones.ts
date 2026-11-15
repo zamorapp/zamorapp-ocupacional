@@ -5,9 +5,10 @@
 import { SECCIONES_ANALISIS } from "@/lib/vigilancia-analisis";
 
 type Esquema = { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-// rpc: la función de la base que la atiende (por defecto public.agente). vigilancia: necesita la casilla «Vigilancia y reportes» (20261030960000).
+// rpc: la función de la base que la atiende (por defecto public.agente). Cada familia va en su propia función para
+// que no se pisen. vigilancia: necesita la casilla «Vigilancia y reportes» (960); puerta_facturacion: «Cobros y precios» (961).
 // documentos: necesita la casilla «Prepara récipes y órdenes» de la llave (apagada por defecto; migración 20261030959000)
-export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; documentos?: true; esquema: Esquema; rpc?: "puerta_vigilancia"; vigilancia?: true };
+export type AccionAgente = { nombre: string; titulo: string; descripcion: string; crea: boolean; documentos?: true; esquema: Esquema; rpc?: "puerta_vigilancia" | "puerta_facturacion"; vigilancia?: true };
 
 const texto = (description: string) => ({ type: "string", description });
 const id = (description: string) => ({ type: "string", format: "uuid", description });
@@ -97,6 +98,33 @@ export const ACCIONES: AccionAgente[] = [
   { nombre: "ver_preparados", titulo: "Ver borradores preparados", crea: false, documentos: true,
     descripcion: "Estado de los récipes y órdenes que preparaste (por revisar, emitido por el doctor o descartado), con el enlace para abrirlos. No muestra medicinas ni exámenes.",
     esquema: objeto({ trabajador_id: id("Solo los de este paciente") }) },
+  // ───── Cobros y precios (public.puerta_facturacion, migración 20261030961000): la llave necesita «Cobros y precios» ─────
+  { nombre: "listar_cobros", titulo: "Listar notas de cobro", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Notas de cobro (prefacturas y facturas) con estado, total, Nº de factura y enlace (hasta 100; por defecto los últimos 3 meses).",
+    esquema: objeto({ empresa_id: id("Solo esta empresa"), estado: { type: "string", enum: ["borrador", "emitida", "pagada", "anulada"], description: "Solo este estado" },
+      desde: fecha("Desde"), hasta: fecha("Hasta") }) },
+  { nombre: "atendidos_por_cobrar", titulo: "Atendidos por cobrar", crea: false, rpc: "puerta_facturacion",
+    descripcion: "Pacientes atendidos en un período que aún no están en ninguna nota, agrupados por servicio y empresa, con su precio. Sin nombres ni datos clínicos.",
+    esquema: objeto({ desde: fecha("Desde"), hasta: fecha("Hasta"), empresa_id: id("Solo esta empresa") }, ["desde", "hasta"]) },
+  { nombre: "crear_notas_cobro", titulo: "Crear notas de cobro", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Crea de 1 a 20 notas de cobro EN BORRADOR, una por empresa (sirven de prefactura; la factura es la misma nota cuando el doctor pulsa «Imprimir factura», que le pone el Nº del talonario). Cada nota puede llevar los atendidos del período, un presupuesto, renglones del catálogo o libres, y un descuento SOLO si el doctor lo pidió. Precio de cada servicio: el convenido con la empresa o, si no hay, el del catálogo. Repetir la misma orden el mismo día no duplica.",
+    esquema: objeto({ notas: { type: "array", minItems: 1, maxItems: 20, description: "Una nota por empresa",
+      items: { type: "object", additionalProperties: false, required: ["empresa_id"], properties: {
+        empresa_id: id("Empresa"), desde: fecha("Inicio del período"), hasta: fecha("Fin del período"),
+        atendidos: { type: "boolean", description: "true = incluir los atendidos del período que aún no están en otra nota" },
+        presupuesto_id: id("Copiar los renglones de este presupuesto de la misma empresa"),
+        renglones: { type: "array", maxItems: 30, description: "Renglones adicionales",
+          items: { type: "object", additionalProperties: false, properties: { servicio_id: id("Servicio del catálogo"), descripcion: texto("Descripción (si no hay servicio, o para cambiar su nombre)"),
+            detalle: texto("Detalle que sale debajo"), cantidad: { type: "number", exclusiveMinimum: 0, description: "Cantidad (por defecto 1)" },
+            precio_usd: { type: "number", minimum: 0, description: "Precio unitario en USD (por defecto, el de la empresa o el del servicio)" } } } },
+        descuento: { type: "object", additionalProperties: false, description: "Solo si el doctor lo pidió: porcentaje O monto_usd, y el motivo",
+          properties: { porcentaje: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Porcentaje sobre el total de la nota" },
+            monto_usd: { type: "number", exclusiveMinimum: 0, description: "Monto fijo en USD" }, motivo: texto("Motivo, sale debajo del descuento") } },
+        observacion: texto("Observación de la nota") } } }, ensayo: ENSAYO }, ["notas"]) },
+  { nombre: "proponer_precio", titulo: "Proponer precio", crea: true, rpc: "puerta_facturacion",
+    descripcion: "Propone un precio nuevo para un servicio: el general del catálogo o, con empresa_id, solo para esa empresa. NO cambia nada: el doctor lo aprueba en zamorApp. Úsalo solo cuando el doctor pida cambiar un precio.",
+    esquema: objeto({ servicio_id: id("Servicio (catalogo, tipo servicios)"), precio_usd: { type: "number", minimum: 0, description: "Precio nuevo en USD" },
+      empresa_id: id("Solo para esta empresa (si no, cambia el precio general)"), motivo: texto("Por qué (por ejemplo «pedido del doctor»)"), ensayo: ENSAYO }, ["servicio_id", "precio_usd"]) },
 
   // ───── Vigilancia epidemiológica (20261030960000): casilla «Vigilancia y reportes». Lee solo totales; todo lo demás es PROPUESTA ─────
   ...([
@@ -155,4 +183,5 @@ export const INSTRUCCIONES = [
   "Si una cédula ya está en otra empresa, detente y avísale; no intentes otro camino.",
   "Los enlaces que devuelve los abre el doctor con su sesión iniciada. Fechas en hora de Caracas.",
   "Vigilancia epidemiológica (si la llave tiene la casilla): para «créame la vigilancia del trimestre…», busca la empresa (si no existe, créala con su visto bueno), mira ver_programas, propone el programa o el ajuste que falte, lee vigilancia_cifras y ver_informe, y deja el borrador con redactar_informe. Para relaciones de atendidos, estadísticas y demás reportes usa ver_reporte (una empresa por llamada). Todo queda como propuesta: el doctor la aprueba. No inventes cifras ni nombres; lo que vino en «Otros» no se nombra. Aquí no hay precios.",
+  "Cobros (si la llave tiene la casilla «Cobros y precios»): las notas quedan en borrador; tú nunca pones el Nº de factura, emites, cobras ni eliges la tasa BCV. Los precios solo se proponen. Descuentos, solo si el doctor los pide.",
 ].join("\n");

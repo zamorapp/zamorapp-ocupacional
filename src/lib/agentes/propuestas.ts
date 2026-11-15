@@ -34,8 +34,9 @@ export const SECCIONES_PROPUESTA: [string, string][] = [
   ["medidas_control", "Medidas de control en la fuente, el ambiente y los trabajadores"],
 ];
 
-// Mismo criterio que la regla RLS: administrador, gerente médico y médico. Enfermería no (solo edita lo suyo)
-export const revisaPropuestas = (s: Sesion) => !s.demo && Boolean(s.orgId) && ROLES_PROPUESTAS.includes(s.rol ?? "");
+// Mismo criterio que la regla RLS: administrador, gerente médico y médico. Enfermería no (solo edita lo suyo).
+// Recepción entra solo por las de precio (20261030961000: precio_* lo ven quienes facturan, nunca enfermería)
+export const revisaPropuestas = (s: Sesion) => !s.demo && Boolean(s.orgId) && (ROLES_PROPUESTAS.includes(s.rol ?? "") || s.rol === "recepcion");
 
 export async function contarPropuestas(empresaId?: string | null): Promise<number> {
   if (!supabaseConfigurado) return 0;

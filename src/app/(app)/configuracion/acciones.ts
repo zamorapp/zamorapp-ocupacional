@@ -1,5 +1,6 @@
 "use server";
 
+import { plazoSala } from "@/lib/telemedicina-tipos";
 import { normalizarPermisos } from "@/lib/permisos-portal";
 import { esRolEmpresa } from "@/lib/sesion-roles";
 import { createHash, randomBytes } from "node:crypto";
@@ -240,6 +241,7 @@ export async function guardarOrganizacion(_: Resultado | null, datos: FormData):
       recordatorio_citas: recordatorioCitasDeFormulario(datos),
       // 0 = sin recordatorio de resultados pendientes en la campana
       recordatorio_resultados_dias: Math.min(30, Math.max(0, Math.round(Number(texto(datos, "recordatorio_resultados_dias") ?? 3)) || 0)),
+      seguimiento_distancia_dias: plazoSala(texto(datos, "seguimiento_distancia_dias") ?? 30),
       // Equipo de confianza: días sin pedir el código de dos pasos (0 = pedirlo siempre; máximo 90)
       dias_equipo_confianza: Math.min(90, Math.max(0, Math.round(Number(texto(datos, "dias_equipo_confianza") ?? 30)) || 0)),
       // Informes que salen a la empresa (vigilancia): celdas con menos de N casos se muestran como «<N» (0 = mostrar todo)

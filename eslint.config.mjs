@@ -106,6 +106,7 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "public/ocr/**", // Tesseract copiado por next.config (recursos-ocr.mjs); no es código nuestro
       "supabase/functions/**", // Deno (funciones de Supabase), con sus propios tipos
     ],
   },

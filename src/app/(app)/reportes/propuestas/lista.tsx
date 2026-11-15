@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Building2, Check, FileText, Loader2, ShieldCheck, X } from "lucide-react";
+import { Bot, Building2, Check, FileText, Loader2, ShieldCheck, Tag, X } from "lucide-react";
 import { useSinInternet, RequiereInternet } from "@/components/app/sin-internet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,8 @@ const TIPOS: Record<string, { texto: string; icono: typeof Bot }> = {
   informe_vigilancia: { texto: "Borrador del informe", icono: FileText },
   programa_vigilancia: { texto: "Programa de vigilancia", icono: ShieldCheck },
   ajuste_empresa: { texto: "Ajuste de la empresa", icono: Building2 },
+  precio_servicio: { texto: "Precio del catálogo", icono: Tag },
+  precio_empresa: { texto: "Precio para la empresa", icono: Tag },
 };
 const lista = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const cadena = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -79,6 +81,7 @@ function Tarjeta({ p, enfocar, secciones, analisis }: { p: Propuesta; enfocar: b
       {p.tipo === "informe_vigilancia" ? <Informe p={p} secciones={secciones} analisis={analisis} />
         : p.tipo === "programa_vigilancia" ? <Simple p={p}><Programa p={p} /></Simple>
         : p.tipo === "ajuste_empresa" ? <Simple p={p}><Ajuste p={p} /></Simple>
+        : p.tipo === "precio_servicio" || p.tipo === "precio_empresa" ? <Simple p={p}><Precio p={p} /></Simple>
         : <Simple p={p}><Generica p={p} /></Simple>}
     </section>
   );
@@ -238,5 +241,23 @@ function Informe({ p, secciones, analisis }: { p: Propuesta; secciones: Par[]; a
         <Button variant="ghost" className="h-11 sm:h-9" disabled={ocupado || sinInternet} onClick={descartar}><X /> Descartar borrador</Button>
       </div>
     </div>
+  );
+}
+
+// Precio propuesto (20261030961000): el de antes tachado, el nuevo y cuánto cambia. Solo vale para lo que se facture después.
+const dolares = (v: unknown) => `$ ${Number(v ?? 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function Precio({ p }: { p: Propuesta }) {
+  const antes = Number(p.antes?.precio_usd ?? 0);
+  const nuevo = Number(p.propuesto.precio_usd ?? 0);
+  const pct = antes > 0 ? Math.round(((nuevo - antes) / antes) * 100) : null;
+  return (
+    <Filas filas={[
+      ["Precio", <span key="p" className="tabular-nums whitespace-nowrap">{antes > 0
+        ? <span className="text-muted-foreground line-through decoration-muted-foreground/50">{dolares(antes)}</span>
+        : <span className="text-muted-foreground">Sin precio</span>} → <span className="font-medium">{dolares(nuevo)}</span>{pct !== null && pct !== 0
+        ? <span className="ml-2 text-xs text-muted-foreground">{pct > 0 ? `sube ${pct} %` : `baja ${-pct} %`}</span> : null}</span>],
+      ["Aplica a", p.tipo === "precio_empresa" ? `Solo ${p.empresa ?? "esta empresa"}` : "Todas las empresas sin precio convenido"],
+      ["Notas ya hechas", "No cambian: el precio nuevo vale para lo que factures después."],
+    ]} />
   );
 }
