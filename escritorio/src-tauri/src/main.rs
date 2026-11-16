@@ -668,7 +668,7 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
                     if ACTUALIZANDO.load(Ordering::SeqCst) { anotar("versión de prueba: ya hay una actualización en curso; no se pregunta otra vez"); return; }
                     if PREGUNTANDO.swap(true, Ordering::SeqCst) { anotar("versión de prueba: ya hay un aviso abierto; no se abre otro"); return; }
                     let _soltar = SoltarPregunta;
-                    let respuesta = dialogo(&app, format!("Estás usando una VERSIÓN DE PRUEBA ({actual}). Ya salió la versión oficial {}.\n\nSi pulsas «{INSTALAR_OFICIAL}», se QUITA la versión de prueba y lo que estás probando deja de estar hasta la próxima prueba. No se borra ningún dato.\n\nSi pulsas «{SEGUIR_PROBANDO}», no cambia nada.", nueva.version))
+                    let respuesta = dialogo(&app, format!("Estás usando una VERSIÓN DE PRUEBA ({actual}). Ya salió la versión oficial {}.\n\nSi pulsas «{INSTALAR_OFICIAL}», se QUITA la versión de prueba: lo nuevo que estás probando desaparece hasta que salga en una versión oficial. No se borra ningún dato.\n\nSi pulsas «{SEGUIR_PROBANDO}», no cambia nada.", nueva.version))
                         .title("Hay versión oficial")
                         .buttons(MessageDialogButtons::OkCancelCustom(SEGUIR_PROBANDO.into(), INSTALAR_OFICIAL.into()))
                         .blocking_show_with_result();
