@@ -17,6 +17,7 @@ import { siguienteEnEspera } from "@/lib/citas";
 import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { normalizarMedicion } from "@/lib/mediciones";
+import { limpiarCondicion } from "@/lib/condicion";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -392,6 +393,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       discapacidad_nota: d.potencialDiscapacidad ? d.discapacidadNota || null : null,
       // Sin la clave (guardados que no la traen) la base conserva lo elegido
       ...(d.riesgos !== undefined ? { riesgos: d.riesgos } : {}),
+      ...(d.condicion !== undefined ? { condicion: limpiarCondicion(d.condicion) } : {}),
       reubicacion: d.reubicacion.activa
         ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
             desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,

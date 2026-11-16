@@ -101,6 +101,7 @@ const LISTAS: [string, string, string, boolean?][] = [
   ["recomendacion_empresa", "Recomendaciones a la empresa", ""],
   ["recomendacion_paciente", "Recomendaciones al paciente", "trabajador", true],
   ["conclusion_consulta", "Conclusiones de consulta", "", true],
+  ["condicion_trabajador", "Evaluación de condición", "medicina general puede seguir trabajando funciones", true],
   ["frase_trabajador", "Frases para el trabajador", "whatsapp mensaje motivacion reflexion pensamiento", true],
   ["medicina", "Medicinas", "medicamentos vademecum farmacos recipe tratamiento", true],
   ["tipo_paciente", "Tipos de paciente", ""],
