@@ -435,6 +435,33 @@ test("sin internet: guardar en la PC queda pendiente y sube al volver la conexi�
   assert.equal((await pedir("/zamorapp/estado")).json.bandeja.pendientes, 0);
 });
 
+// 16-nov (la cita de un paciente quedó «en consulta» sin su consulta): «Atender» guarda la cita, crea la consulta y
+// vuelve a guardar la cita con su consulta_id. Ese segundo guardado se funde en el cambio pendiente de la cita; si
+// conservaba su lugar, la cita subía antes que la consulta y la nube la rechazaba por llave foránea.
+test("atender sin internet: la cita fundida con su consulta_id sube después de la consulta, sin rechazos", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
+  const cita = crypto.randomUUID(), consulta = crypto.randomUUID();
+  await enNube("insert into public.citas (id, org_id, empresa_id, trabajador_id, fecha, estado) values ($1, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', $2, '2026-11-16', 'en_espera')", [cita, TRAB]);
+  await replicaObj.ciclo();
+  assert.equal((await enLocal("select count(*)::int n from public.citas where id = $1", [cita]))[0].n, 1, "la cita bajó a la PC");
+  nube.estado.caida = true;
+  await nubeObj.comprobar();
+  const a = await pedir(`/rest/v1/citas?id=eq.${cita}`, { metodo: "PATCH", token: tokenMed, cuerpo: { estado: "en_consulta" } });
+  assert.ok([200, 204].includes(a.status), JSON.stringify(a.json));
+  const b = await pedir("/rest/v1/consultas", { metodo: "POST", token: tokenMed, cuerpo: { id: consulta, org_id: "10000000-0000-0000-0000-000000000001", empresa_id: "20000000-0000-0000-0000-00000000000a", trabajador_id: TRAB } });
+  assert.ok([200, 201, 204].includes(b.status), JSON.stringify(b.json));
+  const d = await pedir(`/rest/v1/citas?id=eq.${cita}`, { metodo: "PATCH", token: tokenMed, cuerpo: { consulta_id: consulta } });
+  assert.ok([200, 204].includes(d.status), JSON.stringify(d.json));
+  const fila = await enLocal("select tabla from local.bandeja where estado = 'pendiente' and fila_id = any($1::uuid[]) order by orden", [[cita, consulta]]);
+  assert.deepEqual(fila.map((x) => x.tabla), ["clinico.consultas", "public.citas"], "la cita fundida va después de la consulta");
+  nube.estado.caida = false;
+  await nubeObj.comprobar();
+  await bandejaObj.subir();
+  const [n] = await enNube("select estado, consulta_id::text from public.citas where id = $1", [cita]);
+  assert.deepEqual(n, { estado: "en_consulta", consulta_id: consulta }, "la nube tiene la cita con su consulta");
+  const [r] = await enLocal("select count(*)::int n from local.bandeja where fila_id = any($1::uuid[])", [[cita, consulta]]);
+  assert.equal(r.n, 0, "nada quedó rechazado ni pendiente");
+});
+
 test("borrador del agente: el médico lo emite sin internet y la marca sube a la nube con su sesión", { skip: omitir || !postgrestReal, timeout: 60_000 }, async () => {
   const B = crypto.randomUUID();
   const I = crypto.randomUUID();

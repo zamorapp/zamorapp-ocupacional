@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { iniciarConsulta } from "./acciones";
 import { cambiarEstadoCita } from "./citas-acciones";
 import { confirmar } from "@/components/app/confirmar";
+import { BotonPosponer } from "./posponer";
 import { ahora as horaReal } from "@/lib/fecha";
 
 // Tiempo de espera: normal, aviso desde 20 min y alerta desde 40 min
@@ -117,7 +118,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
       <div className={cn("grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4", ocupado && "pointer-events-none opacity-70")}>
         <Columna titulo={esHoy ? "Citados para hoy" : "Citados"} icono={CalendarCheck2} n={citados.length} tono="text-primary">
           {citados.map((c) => (
-            <Fila key={c.id} c={c} arrastrable={esHoy}>
+            <Fila key={c.id} c={c} arrastrable={esHoy} detalle={c.consultaId ? <span className="ml-1.5 rounded-full bg-primary/10 px-2 py-px text-[11px] font-semibold whitespace-nowrap text-primary">Borrador guardado</span> : undefined}>
               {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
               <Button size="icon" variant="ghost" className="size-8 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
@@ -126,6 +127,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
               <Button size="icon" variant="ghost" className="size-8" asChild title="Comprobante de cita (imprimir o PDF)">
                 <Link href={`/imprimir/cita/${c.id}`} target="_blank" aria-label="Comprobante de cita"><Ticket /></Link>
               </Button>
+              <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
               <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
               <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
             </Fila>
@@ -138,6 +140,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
             return (
               <Fila key={c.id} c={c} arrastrable detalle={<span className={cn("font-medium tabular-nums", tonoEspera(min))}> · espera {min} min</span>}>
                 <Button size="sm" onClick={() => atender(c)}>{ocupado ? <Loader2 className="animate-spin" /> : <Stethoscope />} Atender</Button>
+                <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
               </Fila>
             );
           })}
@@ -147,6 +150,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
           {enConsulta.map((c) => (
             <Fila key={c.id} c={c} detalle={<Faltan n={c.consultaId ? pendientes[c.consultaId] : 0} />}>
               {c.consultaId && <Button size="sm" variant="ghost" asChild><Link href={`/atencion/${c.consultaId}`}>Abrir</Link></Button>}
+              <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
             </Fila>
           ))}
         </Columna>
