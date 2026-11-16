@@ -53,9 +53,9 @@ export function BotonPosponer({ citaId, consultaId, paciente, hora, variante = "
   return (
     <>
       {variante === "icono" ? (
-        <Button size="icon" variant="ghost" className="size-8" title="Posponer: pasarla a otro día" aria-label={`Posponer la consulta de ${paciente}`} onClick={abrir}><CalendarClock /></Button>
+        <Button size="icon" variant="ghost" className="size-8 max-sm:size-11" title="Posponer a otro día" aria-label={`Posponer a otro día: ${paciente}`} onClick={abrir}><CalendarClock /></Button>
       ) : (
-        <Button size="sm" variant="outline" className="max-sm:min-h-11" onClick={abrir}><CalendarClock /> Posponer</Button>
+        <Button size="sm" variant="outline" className="max-sm:min-h-11" aria-label={`Posponer a otro día: ${paciente}`} onClick={abrir}><CalendarClock /> Posponer</Button>
       )}
       <Dialog open={abierto} onOpenChange={setAbierto}>
         <DialogContent className="sm:max-w-md">

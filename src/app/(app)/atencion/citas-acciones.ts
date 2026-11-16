@@ -227,7 +227,7 @@ export async function cambiarFechaCitaPendiente(id: string, fecha: string, hora:
 
 // ─── Posponer (pedido de Cesar, 16-nov-2026) ───
 // Una consulta que no se dio (en espera, en consulta o sin cerrar) vuelve a «Citados» en el día y la hora que elijas.
-// Los recordatorios se mueven solos (salen de la fecha de la cita) y RR. HH. recibe «Cita reprogramada» (967).
+// Los recordatorios se mueven solos (salen de la fecha de la cita) y RR. HH. recibe «Cita reprogramada» (969).
 // El borrador de la consulta NO se borra: queda enlazado a la cita y ese día «Atender» lo retoma.
 type EstadoPospuesto = "citado" | "en_espera" | "en_consulta" | "no_asistio";
 export type Pospuesta = {
@@ -301,6 +301,10 @@ export async function posponerConsulta(p: { citaId?: string; consultaId?: string
 
 // «Deshacer» (10 s): la cita vuelve tal como estaba; la que se creó al posponer se cancela
 export async function deshacerPosponer(p: Pospuesta): Promise<Resultado> {
+  // Lo que llega del navegador no se cree a ciegas: solo se vuelve a un estado que se puede posponer
+  if (!p.creada && (!p.antes || !SE_POSPONE.includes(p.antes.estado) || !/^\d{4}-\d{2}-\d{2}$/.test(p.antes.fecha))) {
+    return { ok: false, mensaje: "No se pudo deshacer: recarga la página." };
+  }
   const supabase = await crearClienteServidor();
   const cambio = p.creada || !p.antes
     ? { estado: "cancelada", consulta_id: null }

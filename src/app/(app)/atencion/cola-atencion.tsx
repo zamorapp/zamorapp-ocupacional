@@ -29,10 +29,10 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
       draggable={arrastrable}
       onDragStart={arrastrable ? (e) => { e.dataTransfer.setData("text/cita", c.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
       // Provisional: borde punteado y la palabra «Por confirmar» (no solo el color)
-      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing", provisional && "mx-2 my-1 rounded-md border border-dashed border-aviso")}
+      className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5", arrastrable && "cursor-grab active:cursor-grabbing", provisional && "mx-1 my-1 rounded-md border border-dashed border-aviso px-3")}
     >
       <span className="w-12 font-mono text-sm text-muted-foreground">{c.hora ?? "—"}</span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-36 flex-1 basis-36">
         <Link href={`/pacientes/${c.trabajadorId}`} className="font-medium leading-tight hover:text-primary">{c.paciente}</Link>
         {useContext(ConAlerta).has(c.trabajadorId) && (
           <span role="img" aria-label="Tiene una alerta para esta evaluación" title="Tiene una alerta para esta evaluación" className="ml-1.5 inline-flex align-[-2px]">
@@ -42,7 +42,7 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
         {provisional && <Link href="/atencion/por-confirmar" className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px align-[1px] text-[11px] font-semibold whitespace-nowrap text-aviso-texto hover:underline">Por confirmar</Link>}
         <div className="text-xs text-muted-foreground">{[c.motivo, c.cedula].filter(Boolean).join(" · ")}{detalle}</div>
       </div>
-      <div className="flex gap-1">{children}</div>
+      <div className="ml-auto flex flex-wrap items-center gap-0.5">{children}</div>
     </li>
   );
 }
@@ -119,17 +119,17 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
         <Columna titulo={esHoy ? "Citados para hoy" : "Citados"} icono={CalendarCheck2} n={citados.length} tono="text-primary">
           {citados.map((c) => (
             <Fila key={c.id} c={c} arrastrable={esHoy} detalle={c.consultaId ? <span className="ml-1.5 rounded-full bg-primary/10 px-2 py-px text-[11px] font-semibold whitespace-nowrap text-primary">Borrador guardado</span> : undefined}>
-              {esHoy && <Button size="sm" variant="outline" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
-              <Button size="icon" variant="ghost" className="size-8 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
+              {esHoy && <Button size="sm" variant="outline" className="max-sm:min-h-11" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
+              <Button size="icon" variant="ghost" className="size-8 max-sm:size-11 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
                 <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
               </Button>
               {/* Comprobante de cita para el trabajador: fecha, hora, lugar e indicaciones, con el membrete del servicio */}
-              <Button size="icon" variant="ghost" className="size-8" asChild title="Comprobante de cita (imprimir o PDF)">
+              <Button size="icon" variant="ghost" className="size-8 max-sm:size-11" asChild title="Comprobante de cita (imprimir o PDF)">
                 <Link href={`/imprimir/cita/${c.id}`} target="_blank" aria-label="Comprobante de cita"><Ticket /></Link>
               </Button>
               <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
-              <Button size="icon" variant="ghost" className="size-8" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
-              <Button size="icon" variant="ghost" className="size-8" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
+              <Button size="icon" variant="ghost" className="size-8 max-sm:size-11" title="No asistió" aria-label="No asistió" onClick={() => estado(c.id, "no_asistio")}><UserX /></Button>
+              <Button size="icon" variant="ghost" className="size-8 max-sm:size-11" title="Cancelar cita" aria-label="Cancelar cita" onClick={async () => (await confirmar({ titulo: `¿Cancelar la cita de ${c.paciente}?`, accion: "Cancelar cita", cancelar: "Volver", peligro: true })) && estado(c.id, "cancelada")}><X /></Button>
             </Fila>
           ))}
         </Columna>
@@ -139,8 +139,8 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
             const min = minutosDesde(c.llegada, ahora);
             return (
               <Fila key={c.id} c={c} arrastrable detalle={<span className={cn("font-medium tabular-nums", tonoEspera(min))}> · espera {min} min</span>}>
-                <Button size="sm" onClick={() => atender(c)}>{ocupado ? <Loader2 className="animate-spin" /> : <Stethoscope />} Atender</Button>
-                <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
+                <Button size="sm" className="max-sm:min-h-11" onClick={() => atender(c)}>{ocupado ? <Loader2 className="animate-spin" /> : <Stethoscope />} Atender</Button>
+                <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} variante="texto" />
               </Fila>
             );
           })}
@@ -150,7 +150,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
           {enConsulta.map((c) => (
             <Fila key={c.id} c={c} detalle={<Faltan n={c.consultaId ? pendientes[c.consultaId] : 0} />}>
               {c.consultaId && <Button size="sm" variant="ghost" asChild><Link href={`/atencion/${c.consultaId}`}>Abrir</Link></Button>}
-              <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} />
+              <BotonPosponer citaId={c.id} paciente={c.paciente} hora={c.hora} variante="texto" />
             </Fila>
           ))}
         </Columna>
