@@ -151,11 +151,7 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
           {/* Sin cuenta todavía: el mismo rol y empresa pasan al cuadro «Invitar por enlace» (Cesar, 16-nov: eligió Enfermería
               aquí, no pudo, y el único enlace que encontró era de RR. HH.) */}
           {estado && !estado.ok && /no existe una cuenta/i.test(estado.mensaje) && rol && ROLES_INVITABLES.includes(rol) && (
-            <Button asChild variant="outline" className="w-full sm:w-auto">
-              <Link href={`/configuracion/usuarios?rol=${rol}${elegidas[0] ? `&empresa=${elegidas[0]}` : ""}#invitar`}>
-                <Link2 /> Mandarle un enlace de {nombreRolInvitado(rol)}
-              </Link>
-            </Button>
+            <MandarEnlace rol={rol} empresa={elegidas[0]} />
           )}
           <div className="flex flex-wrap items-center justify-end gap-2">
             {paso > 0 && <Button type="button" variant="ghost" className="mr-auto" onClick={atras}><ChevronLeft /> Atrás</Button>}
@@ -171,5 +167,16 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// Sin cuenta todavía: abre «Invitar por enlace» con el mismo rol y empresa
+export function MandarEnlace({ rol, empresa }: { rol: Rol; empresa?: string }) {
+  return (
+    <Button asChild variant="outline" className="w-full sm:w-auto">
+      <Link href={`/configuracion/usuarios?rol=${rol}${empresa ? `&empresa=${empresa}` : ""}#invitar`}>
+        <Link2 /> Mandarle un enlace de {nombreRolInvitado(rol)}
+      </Link>
+    </Button>
   );
 }

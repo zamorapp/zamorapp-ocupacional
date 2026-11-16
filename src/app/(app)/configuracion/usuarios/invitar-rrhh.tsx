@@ -50,7 +50,6 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
   const [empresaId, setEmpresaId] = useState(empresas.some((e) => e.id === empresaInicial) ? empresaInicial! : (empresas[0]?.id ?? ""));
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [copiado, setCopiado] = useState(false);
   const [permisos, setPermisos] = useState<PermisoPortal[] | null>(null);
   const [, iniciar] = useTransition();
   const sinInternet = useSinInternet();
@@ -114,14 +113,7 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
         </form>
 
         {estado?.ok && estado.enlace ? (
-          <div className="space-y-2 rounded-md bg-ok/10 p-3 text-sm">
-            <p className="font-medium text-ok-texto">{estado.mensaje}</p>
-            <p className="break-all rounded bg-background px-2 py-1 font-mono text-xs">{estado.enlace}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm"><a href={estado.whatsapp} target="_blank" rel="noreferrer"><MessageCircle /> Enviar por WhatsApp</a></Button>
-              <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(estado.enlace!); setCopiado(true); }}>{copiado ? <Check /> : <Copy />} {copiado ? "Copiado" : "Copiar enlace"}</Button>
-            </div>
-          </div>
+          <EnlaceListo mensaje={estado.mensaje} enlace={estado.enlace} whatsapp={estado.whatsapp} />
         ) : (
           <Aviso resultado={estado} />
         )}
@@ -131,14 +123,15 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
           <ul className="divide-y rounded-md border">
             {visibles.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
-                <span className="min-w-0 flex-1">
+                {/* Celular: el texto ocupa todo el renglón y el estado + «Anular» van debajo; desde sm, al lado */}
+                <span className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                   <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"}</span>
                   <span className="block text-xs [overflow-wrap:anywhere]"><span className="font-medium text-primary">{nombreRolInvitado(i.rol)}</span>{i.empresa ? <span className="text-muted-foreground"> · {i.empresa}</span> : null}</span>
                   <span className="block text-xs text-muted-foreground">Creada el {dia(i.creadoEn)}{i.usadaEn ? ` · entró el ${dia(i.usadaEn)}` : i.estado === "vigente" ? ` · vence el ${dia(i.vence)}` : ""}</span>
                 </span>
-                <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[i.estado].c)}>{ESTADO[i.estado].t}</span>
+                <span className={cn("ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium sm:ml-0", ESTADO[i.estado].c)}>{ESTADO[i.estado].t}</span>
                 {i.estado === "vigente" && (
-                  <Button variant="ghost" size="sm" onClick={async () => {
+                  <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-0" onClick={async () => {
                     if (await confirmar({ titulo: "¿Anular este enlace?", texto: "Ya no servirá para entrar. Puedes crear otro cuando quieras.", accion: "Anular", peligro: true })) iniciar(async () => { await anularInvitacion(i.id); });
                   }}><Link2Off /> Anular</Button>
                 )}
@@ -153,5 +146,20 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// El enlace recién creado (solo se ve ahora): enviarlo por WhatsApp o copiarlo
+export function EnlaceListo({ mensaje, enlace, whatsapp }: { mensaje: string; enlace: string; whatsapp?: string }) {
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <div className="space-y-2 rounded-md bg-ok/10 p-3 text-sm">
+      <p className="font-medium text-ok-texto">{mensaje}</p>
+      <p className="break-all rounded bg-background px-2 py-1 font-mono text-xs">{enlace}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm"><a href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle /> Enviar por WhatsApp</a></Button>
+        <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(enlace); setCopiado(true); }}>{copiado ? <Check /> : <Copy />} {copiado ? "Copiado" : "Copiar enlace"}</Button>
+      </div>
+    </div>
   );
 }

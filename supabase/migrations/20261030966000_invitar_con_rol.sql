@@ -12,8 +12,9 @@
 -- Las funciones se parchean por texto (sin chr(13)), con guarda si el ancla no aparece. ver_invitacion cambia lo que
 -- devuelve (suma «rol»), y eso obliga a borrarla y crearla (como en 20261030750000).
 
--- Bloqueo al inicio, en el orden de la app (lección de 965: deadlock al pegar con usuarios conectados)
-lock table public.miembros, public.invitaciones in share row exclusive mode;
+-- Bloqueo al inicio, en el orden de la app (lección de 965: deadlock al pegar con usuarios conectados):
+-- aceptar_invitacion toma primero la invitación (for update) y luego escribe en miembros
+lock table public.invitaciones, public.miembros in share row exclusive mode;
 
 alter table public.invitaciones add column if not exists rol public.rol_usuario not null default 'gerente_empresa';
 alter table public.invitaciones alter column empresa_id drop not null;
