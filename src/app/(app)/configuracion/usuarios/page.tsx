@@ -7,14 +7,14 @@ import { listarEmpresas, soloEmpresas } from "@/lib/empresas";
 import { listarInvitaciones, type Invitacion } from "@/lib/invitaciones";
 import { Volver } from "../volver";
 import { GestionUsuarios } from "./gestion-usuarios";
-import { InvitarRrhh } from "./invitar-rrhh";
+import { InvitarPorEnlace } from "./invitar-rrhh";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
 export type Miembro = { id: string; usuario_id: string; correo: string; nombre: string | null; rol: Rol; activo: boolean; acceso_clinico: boolean; empresas: string[] | null; usuario?: string | null; permisos_portal?: PermisoPortal[] | null };
 
-export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
-  const { empresa: empresaInicial } = await searchParams;
+export default async function Usuarios({ searchParams }: { searchParams: Promise<{ empresa?: string; rol?: string }> }) {
+  const { empresa: empresaInicial, rol: rolInicial } = await searchParams;
   const [sesion, empresas] = await Promise.all([obtenerSesion(), listarEmpresas(true).then(soloEmpresas)]);
   const esAdmin = !sesion.demo && sesion.rol === "administrador";
   let miembros: Miembro[] = [];
@@ -40,19 +40,21 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Usuarios y roles</h1>
         <p className="text-muted-foreground">
-          Cada persona crea su cuenta en la pantalla de ingreso; luego la agregas aquí con su rol. La historia clínica solo la ven médico, enfermería y gerente médico.
+          ¿Todavía no tiene cuenta? Mándale un enlace con su rol. ¿Ya la tiene? Agrégala abajo con su correo. La historia clínica solo la ven médico, enfermería y gerente médico.
         </p>
       </div>
       {esAdmin && (
-        <InvitarRrhh
+        <InvitarPorEnlace
+          key={`${rolInicial ?? ""}-${empresaInicial ?? ""}`}
           empresaInicial={empresaInicial}
+          rolInicial={rolInicial}
           empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial, contactos: contactos.filter((c) => c.empresa_id === e.id).map((c) => ({ nombre: c.nombre, telefono: c.telefono })) }))}
           invitaciones={invitaciones}
         />
       )}
       {!esAdmin && !sesion.demo && (
         <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-          Las invitaciones por enlace para RR. HH. de las empresas solo las crea un usuario con rol Administrador.
+          Las invitaciones por enlace solo las crea un usuario con rol Administrador.
         </p>
       )}
       <GestionUsuarios empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} miembros={miembros} yo={sesion.usuarioId} esAdmin={esAdmin} />

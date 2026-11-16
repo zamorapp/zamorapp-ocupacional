@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, CalendarClock, Check, FileCheck2, ShieldCheck } from "lucide-react";
+import { Building2, CalendarClock, Check, FileCheck2, ShieldCheck, Smartphone, Stethoscope, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormularioLogin } from "@/app/login/formulario-login";
 import { APP_NOMBRE, supabaseConfigurado } from "@/lib/config";
 import { TOKEN_INVITACION } from "@/lib/invitaciones";
+import { esRolEmpresa, nombreRolInvitado, type Rol } from "@/lib/sesion-roles";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { Aceptar, SalirParaRegistrarse } from "./aceptar";
 import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marco-enlace";
@@ -12,7 +13,7 @@ import { FichaBoton, MarcoEnlace, TarjetaEnlace } from "@/components/enlace/marc
 export const metadata: Metadata = { title: "Invitación al portal", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-const PASOS = ["Cree su cuenta", "Confirme su correo", "Entre al portal"];
+const PASOS = ["Cree su cuenta", "Confirme su correo", "Entre"];
 
 // Guía de 3 pasos: RR. HH. siempre sabe en cuál va. Sin sesión va en el 1 (el 2 lo indica el formulario al registrarse);
 // al volver del correo ya tiene sesión y va en el 3.
@@ -34,7 +35,7 @@ function Pasos({ actual }: { actual: number }) {
   );
 }
 
-// Lo que RR. HH. puede hacer en el portal (nada clínico)
+// Lo que RR. HH. puede hacer en el portal (nada clínico); los demás roles ven su rol y su empresa (migración 966)
 const BENEFICIOS: [typeof CalendarClock, string, string][] = [
   [CalendarClock, "Pida evaluaciones", "Con fecha y hora, también para trabajadores nuevos."],
   [FileCheck2, "Reciba las constancias", "Las de aptitud, apenas el médico las firma."],
@@ -56,12 +57,21 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
   const [{ data: filas }, { data: claims }] = supabase
     ? await Promise.all([supabase.rpc("ver_invitacion", { p_token: token }), supabase.auth.getClaims()])
     : [{ data: null }, { data: null }];
-  const inv = (filas as { empresa: string; organizacion: string; nombre: string | null; estado: string; invita: string | null; otro_rol: boolean }[] | null)?.[0];
+  const inv = (filas as { empresa: string | null; organizacion: string; nombre: string | null; estado: string; invita: string | null; otro_rol: boolean; rol: Rol | null }[] | null)?.[0];
+  const rol: Rol = inv?.rol ?? "gerente_empresa";
+  const esRrhh = rol === "gerente_empresa";
+  const deEmpresa = esRolEmpresa(rol);
+  const nombreRol = esRrhh ? "RR. HH." : nombreRolInvitado(rol);
+  const beneficios: [typeof CalendarClock, string, string][] = esRrhh ? BENEFICIOS : [
+    [UserRound, `Su rol: ${nombreRol}`, "Lo eligió el servicio médico; solo verá lo que le toca a ese rol."],
+    [Building2, inv?.empresa ? `Empresa: ${inv.empresa}` : "Todas las empresas del servicio", deEmpresa || rol === "enfermeria" ? "Solo los trabajadores de esa empresa." : "Las que atiende el servicio médico."],
+    [Smartphone, "Desde la web o el celular", "Entra con su correo y su contraseña."],
+  ];
   const correo = typeof claims?.claims?.email === "string" ? claims.claims.email : null;
   const conSesion = Boolean(claims?.claims?.sub);
 
   return (
-    <MarcoEnlace servicio={inv?.organizacion ?? APP_NOMBRE} subtitulo="Portal de empresas" ancho="max-w-md">
+    <MarcoEnlace servicio={inv?.organizacion ?? APP_NOMBRE} subtitulo={deEmpresa ? "Portal de empresas" : "Equipo de salud"} ancho="max-w-md">
       <TarjetaEnlace className="space-y-6 sm:p-8">
         {!inv ? (
           <div className="space-y-2">
@@ -72,14 +82,16 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
           <>
             <div className="space-y-2">
               {/* «Le invita el Dr. …» sale de Configuración › Organización; sin eso, el nombre del servicio */}
-              <p className="text-xs font-semibold uppercase tracking-[.08em] text-primary">Portal de su empresa</p>
-              <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><Building2 className="mt-1 size-6 shrink-0 text-primary" /> {inv.empresa}</h1>
+              <p className="text-xs font-semibold uppercase tracking-[.08em] text-primary">{esRrhh ? "Portal de su empresa" : `Invitación como ${nombreRol}`}</p>
+              <h1 className="flex items-start gap-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">
+                {deEmpresa ? <Building2 className="mt-1 size-6 shrink-0 text-primary" /> : <Stethoscope className="mt-1 size-6 shrink-0 text-primary" />} {inv.empresa ?? inv.organizacion}
+              </h1>
               <p className="text-sm text-muted-foreground">
                 {`${inv.nombre ? `${inv.nombre.split(" ")[0]}, l` : "L"}e invita ${inv.invita ?? inv.organizacion}.`}
               </p>
             </div>
             <ul className="space-y-2 text-sm">
-              {BENEFICIOS.map(([Icono, titulo, detalle], i) => (
+              {beneficios.map(([Icono, titulo, detalle], i) => (
                 <li key={titulo} className="rounded-xl border bg-background px-3 py-2.5">
                   <FichaBoton icono={Icono} titulo={titulo} detalle={detalle} indice={i} />
                 </li>
@@ -92,16 +104,16 @@ export default async function Invitacion({ params }: { params: Promise<{ token: 
               // en RR. HH.; se ofrece salir y crear la cuenta nueva aquí mismo
               <div className="space-y-3 border-t pt-5">
                 <p className="rounded-md bg-aviso/15 px-3 py-2 text-sm text-aviso-texto">
-                  Este teléfono tiene abierta la cuenta {correo ? <strong className="[overflow-wrap:anywhere]">{correo}</strong> : "de otra persona"}, que ya trabaja en el servicio médico. La cuenta de RR. HH. debe ser otra, con su propio correo.
+                  Este teléfono tiene abierta la cuenta {correo ? <strong className="[overflow-wrap:anywhere]">{correo}</strong> : "de otra persona"}, que ya tiene otro rol en este servicio médico. La cuenta de {nombreRol} debe ser otra, con su propio correo.
                 </p>
-                <SalirParaRegistrarse token={token} />
+                <SalirParaRegistrarse token={token} rol={nombreRol} />
                 <Button variant="ghost" className="w-full" asChild><Link href="/panel">Volver a zamorApp</Link></Button>
               </div>
             ) : conSesion ? (
               <div className="space-y-4 border-t pt-5">
                 <Pasos actual={3} />
                 <p className="text-sm">Su cuenta está lista. Toque el botón para terminar.</p>
-                <Aceptar token={token} texto={inv.estado === "vigente" ? "Aceptar y entrar al portal" : "Entrar al portal"} />
+                <Aceptar token={token} texto={inv.estado === "vigente" ? (esRrhh ? "Aceptar y entrar al portal" : "Aceptar y entrar") : (deEmpresa ? "Entrar al portal" : "Entrar")} />
               </div>
             ) : (
               <div className="space-y-4 border-t pt-5">

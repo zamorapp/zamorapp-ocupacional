@@ -24,6 +24,16 @@ export const empresaSoloLectura = (rol: Rol | null | undefined) => esRolEmpresa(
 export const ROLES_EDITAN_EVENTOS: Rol[] = ["administrador", "gerente_medico", "medico", "enfermeria", "coordinador_sst", "supervisor", "delegado_prevencion"];
 export const puedeReportarEvento = (rol: Rol | null | undefined) => Boolean(rol && (ROLES_EDITAN_EVENTOS.includes(rol) || rol === "gerente_empresa"));
 
+// Invitación por enlace (migración 966): el enlace lleva el rol. Nunca administrador ni trabajador (el trabajador tiene su
+// enlace de paciente). Empresa: obligatoria para los roles de empresa y enfermería (la enfermera de una empresa ve solo esa),
+// opcional para el médico (sin empresa ve todas) y ninguna para los demás del servicio. Misma regla que la base.
+export const ROLES_INVITABLES: Rol[] = ["gerente_empresa", "enfermeria", "medico", "gerente_medico", "recepcion", "coordinador_sst", "supervisor", "delegado_prevencion", "auditor"];
+export type EmpresaInvitacion = "obligatoria" | "opcional" | "ninguna";
+export const empresaDeInvitacion = (rol: Rol): EmpresaInvitacion =>
+  esRolEmpresa(rol) || rol === "enfermeria" ? "obligatoria" : rol === "medico" ? "opcional" : "ninguna";
+// Cómo se nombra el rol al invitar (RR. HH. es «Gerente de empresa» en la base)
+export const nombreRolInvitado = (rol: Rol) => (rol === "gerente_empresa" ? "RR. HH." : ETIQUETA_ROL[rol]);
+
 export const ETIQUETA_ROL: Record<Rol, string> = {
   administrador: "Administrador",
   gerente_medico: "Gerente médico",
