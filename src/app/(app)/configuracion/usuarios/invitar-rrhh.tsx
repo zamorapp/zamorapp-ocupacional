@@ -118,7 +118,6 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
           <Aviso resultado={estado} />
         )}
 
-        {verAnteriores && <p className="text-xs text-muted-foreground">Anuladas y vencidas. Se borran solas a los 30 días.</p>}
         {visibles.length > 0 && (
           <ul className="divide-y rounded-md border">
             {visibles.map((i) => (
@@ -140,9 +139,12 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
           </ul>
         )}
         {anteriores > 0 && (
-          <button type="button" onClick={() => setVerAnteriores(!verAnteriores)} aria-expanded={verAnteriores} className="text-xs text-muted-foreground underline-offset-4 hover:underline">
-            {verAnteriores ? "Ocultar anteriores" : `Ver anteriores (${anteriores})`}
-          </button>
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            <button type="button" onClick={() => setVerAnteriores(!verAnteriores)} aria-expanded={verAnteriores} className="min-h-11 underline-offset-4 hover:underline sm:min-h-0">
+              {verAnteriores ? "Ocultar anteriores" : `Ver anteriores (${anteriores})`}
+            </button>
+            {verAnteriores && <span>Anuladas y vencidas: se borran solas a los 30 días.</span>}
+          </p>
         )}
       </CardContent>
     </Card>
