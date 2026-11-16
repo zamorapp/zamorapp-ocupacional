@@ -76,7 +76,7 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
             Primero registra la empresa en <Link href="/empresas" className="font-medium text-primary underline-offset-4 hover:underline">Empresas</Link>; luego vuelve aquí para crear el enlace.
           </p>
         )}
-        <form action={accion} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <form action={accion} className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
             <CampoSelect id="rol" etiqueta="Rol *" value={rol} onChange={(e) => { setRol(e.target.value as Rol); setPermisos(null); }}>
               <optgroup label="Del servicio médico">{SERVICIO.map((r) => <option key={r} value={r}>{nombreRolInvitado(r)}</option>)}</optgroup>
@@ -91,7 +91,7 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
               {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </CampoSelect>
           ) : (
-            <p className="self-center text-sm text-muted-foreground">Trabaja con todas las empresas del servicio.</p>
+            <p className="text-sm text-muted-foreground sm:pt-9">Trabaja con todas las empresas del servicio.</p>
           )}
           <Campo id="nombre" etiqueta="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Quién recibe" maxLength={120} />
           <Campo id="telefono" etiqueta="WhatsApp" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="0414-1234567" />
@@ -132,7 +132,8 @@ export function InvitarPorEnlace({ empresas, invitaciones, empresaInicial, rolIn
             {visibles.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"} <span className="font-normal text-muted-foreground">· {nombreRolInvitado(i.rol)}{i.empresa ? ` · ${i.empresa}` : ""}</span></span>
+                  <span className="block font-medium [overflow-wrap:anywhere]">{i.nombre || "Sin nombre"}</span>
+                  <span className="block text-xs [overflow-wrap:anywhere]"><span className="font-medium text-primary">{nombreRolInvitado(i.rol)}</span>{i.empresa ? <span className="text-muted-foreground"> · {i.empresa}</span> : null}</span>
                   <span className="block text-xs text-muted-foreground">Creada el {dia(i.creadoEn)}{i.usadaEn ? ` · entró el ${dia(i.usadaEn)}` : i.estado === "vigente" ? ` · vence el ${dia(i.vence)}` : ""}</span>
                 </span>
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTADO[i.estado].c)}>{ESTADO[i.estado].t}</span>
