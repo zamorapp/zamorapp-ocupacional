@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { Camera, CheckCircle2, FileUp, Loader2, Paperclip, Upload } from "lucide-react";
+import { Camera, CheckCircle2, FileUp, Loader2, Paperclip, Upload, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { prepararArchivo } from "@/lib/preparar-archivo";
 import { aQuien, conArticulo } from "@/lib/solicitudes-paciente";
@@ -26,15 +26,23 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
   const camara = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sinRed, setSinRed] = useState(false);
   const [listos, setListos] = useState<string[]>([]);
 
   const subir = async (lista: FileList | null) => {
     if (!lista?.length) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (archivos.current) archivos.current.value = "";
+      if (camara.current) camara.current.value = "";
+      setSinRed(true);
+      return setError("No tiene internet. Conéctese y vuelva a elegir el archivo: sin conexión no se envía.");
+    }
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !clave) return setError("El servicio no está disponible. Intente más tarde.");
     const supabase = createClient(url, clave, { auth: { persistSession: false, autoRefreshToken: false } });
     setError(null);
+    setSinRed(false);
     const hechos: string[] = [];
     for (const [i, original] of [...lista].entries()) {
       setSubiendo(`Enviando ${i + 1} de ${lista.length}…`);
@@ -70,7 +78,7 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
               ? <>Cuando tenga sus resultados, súbalos aquí: fotos claras o PDF. Le llegan directo {aQuien(remitente)}.</>
               : estado.motivo === "vencido"
                 ? <>El plazo para subir resultados con este enlace terminó. Escríbale a {servicio} y le enviará uno nuevo.</>
-                : <>Podrás subirlos aquí apenas {servicio} confirme su cita. Guarde este enlace.</>}
+                : <>Este enlace ya no recibe resultados. Escríbale a {servicio} y le enviará uno nuevo.</>}
           </p>
         </div>
       </div>
@@ -78,7 +86,7 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
       {listos.length > 0 && (
         <div role="status" className="space-y-1 rounded-xl border border-ok/40 bg-ok/10 p-4 text-sm">
           <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 shrink-0 text-ok" /> ¡Recibidos!</p>
-          <p>Sus resultados ya fueron cargados en su historia y se le avisó {aQuien(remitente)}. {pronombre(remitente)} lo contactará para una nueva cita o para darle las recomendaciones directamente.</p>
+          <p>Sus resultados le llegaron {aQuien(remitente)}. {pronombre(remitente)} se comunicará con usted para una nueva cita o para darle las recomendaciones directamente.</p>
           <p className="pt-1 text-xs">Si se siente mal o es urgente, no espere: {telefono ? <>llame al <a className="font-medium text-primary" href={`tel:${telefono}`}>{telefono}</a></> : <>llame a {servicio}</>}.</p>
         </div>
       )}
@@ -95,8 +103,15 @@ export function EnviarResultados({ token, servicio, telefono, estado }: { token:
               <Camera /> Tomar foto
             </Button>
           </div>
-          {error && <p role="alert" className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta-texto">{error}</p>}
+          {error && (
+            <div role="alert" className={`flex items-center gap-2 rounded-md px-3 py-1 text-sm ${sinRed ? "bg-aviso/10 text-aviso-texto" : "bg-alerta/10 text-alerta-texto"}`}>
+              {sinRed && <WifiOff className="size-4 shrink-0" />}
+              <p className="min-w-0 flex-1 py-1">{error}</p>
+              <button type="button" className="min-h-11 shrink-0 rounded px-3 text-xs font-medium underline-offset-2 hover:underline" onClick={() => { setError(null); setSinRed(false); }}>Ignorar</button>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">Hasta 10 MB por archivo. Puede enviar hasta el {fechaCorta(estado.hasta)}.</p>
+          {!sinRed && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><WifiOff className="size-3.5 shrink-0" /> Necesita internet: sin conexión el archivo no se envía.</p>}
         </>
       )}
 

@@ -1,0 +1,5 @@
+{
+  "fecha": "2026-11-15",
+  "tema": "enlace-paciente",
+  "texto": "Resultados por el enlace: el paciente ya puede subir sus exámenes (fotos o PDF) apenas envía sus datos, sin esperar a que lo aceptes. Si está en «Por revisar», lo que sube espera guardado y pasa solo a su ficha cuando lo aceptas, con cita o sin ella; si lo descartas, no entra a ninguna historia. También se arregló «Aceptar» sin cita, que fallaba. Te avisa en la campana. Sin internet el paciente no puede subir el archivo: la página se lo avisa"
+}
