@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 import { copiarRecursosOcr } from "./src/build/recursos-ocr.mjs";
+import { copiarRecursosVoz } from "./src/build/recursos-voz.mjs";
 
 // Lector de laboratorio: copia y verifica los archivos de Tesseract en public/ocr (desarrollo, Vercel y escritorio)
 copiarRecursosOcr();
+// «Abrir audio» (Whisper): motor ONNX en public/voz
+copiarRecursosVoz();
 
 // Cabeceras de seguridad para todas las páginas: no se puede incrustar la app en otro sitio,
 // el navegador no adivina tipos de archivo y no se filtra la ruta completa a otros sitios.
@@ -10,7 +13,7 @@ const SEGURIDAD = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 

@@ -58,3 +58,5 @@ escritorio/src-tauri/ajustes-ci.json
 
 # lector de laboratorio: se copia de node_modules al compilar (scripts/recursos-ocr.mjs)
 /public/ocr/
+# Abrir audio (Whisper): se copia de node_modules al compilar (src/build/recursos-voz.mjs)
+/public/voz/
