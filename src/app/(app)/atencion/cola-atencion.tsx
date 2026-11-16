@@ -40,7 +40,7 @@ function Fila({ c, children, detalle, arrastrable }: { c: Cita; children?: React
           </span>
         )}
         {provisional && <Link href="/atencion/por-confirmar" className="ml-1.5 rounded-full bg-aviso/20 px-2 py-px align-[1px] text-[11px] font-semibold whitespace-nowrap text-aviso-texto hover:underline">Por confirmar</Link>}
-        <div className="text-xs text-muted-foreground">{[c.motivo, c.cedula].filter(Boolean).join(" · ")}{detalle}</div>
+        <div className="text-xs text-muted-foreground">{c.motivo}{c.motivo && c.cedula ? " · " : ""}{c.cedula && <span className="whitespace-nowrap">{c.cedula}</span>}{detalle}</div>
       </div>
       <div className="ml-auto flex flex-wrap items-center gap-0.5">{children}</div>
     </li>
