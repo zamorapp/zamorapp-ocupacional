@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::window::{ProgressBarState, ProgressBarStatus};
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons};
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogButtons, MessageDialogResult};
 use tauri_plugin_updater::UpdaterExt;
 
 mod documentos;
@@ -38,6 +38,24 @@ const LLAVE_ACTUALIZACIONES: &str = match option_env!("ZAMORAPP_UPDATER_PUBKEY")
 // En una versión de prueba el actualizador nunca descarga ni instala sin preguntar: avisa «Instalar / Ignorar».
 const CANAL: &str = match option_env!("ZAMORAPP_CANAL") { Some(v) => v, None => "" };
 fn es_version_de_prueba() -> bool { CANAL == "prueba" }
+// Título de la ventana: SIEMPRE con « (prueba)» en una versión de prueba, también mientras descarga (16/11/2026: la
+// 0.1.514 mostró «v0.1.514 — Descargando actualización 28 %» sin «(prueba)» porque el título de la descarga se armaba aparte).
+fn titulo_ventana(version: &str) -> String {
+    format!("zamorApp Escritorio v{version}{}", if es_version_de_prueba() { " (prueba)" } else { "" })
+}
+// Botones del aviso «Hay versión oficial» en una versión de prueba. El PRIMERO es el que queda marcado (Enter o
+// barra espaciadora lo pulsan) y Esc o la X dan «cancelar»: los dos tienen que dejar la prueba como está. Solo el
+// clic en «Instalar la oficial» instala (16/11/2026: con «Instalar» marcado, un Enter al escribir reemplazó la 0.1.514).
+const SEGUIR_PROBANDO: &str = "Seguir probando";
+const INSTALAR_OFICIAL: &str = "Instalar la oficial";
+fn eligio_instalar_oficial(respuesta: &MessageDialogResult) -> bool {
+    matches!(respuesta, MessageDialogResult::Custom(t) if t == INSTALAR_OFICIAL)
+}
+// Un solo aviso de actualización a la vez: al abrir, el menú, la pantalla y vigilar_nube pueden buscar a la vez y
+// cada búsqueda abría su propio aviso encima del otro.
+static PREGUNTANDO: AtomicBool = AtomicBool::new(false);
+struct SoltarPregunta;
+impl Drop for SoltarPregunta { fn drop(&mut self) { PREGUNTANDO.store(false, Ordering::SeqCst); } }
 // «Ignorar» en una versión de prueba: no se vuelve a ofrecer sola en esta sesión (desde el menú sí).
 static PRUEBA_IGNORO: AtomicBool = AtomicBool::new(false);
 
@@ -647,12 +665,19 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
                 // Versión de prueba (de una rama): se pregunta siempre, también a pedido, y nada se instala solo.
                 if es_version_de_prueba() && prueba.is_none() {
                     if !a_pedido && PRUEBA_IGNORO.load(Ordering::SeqCst) { anotar("versión de prueba: la oficial ya se ignoró en esta sesión"); return; }
-                    let instalar = dialogo(&app, format!("Estás usando una versión de prueba ({actual}). Hay versión oficial: {}.\n\nSi la instalas, la prueba se reemplaza por la oficial. No se borra ningún dato.\n\nSi sigues probando, pulsa «Ignorar».", nueva.version))
+                    if ACTUALIZANDO.load(Ordering::SeqCst) { anotar("versión de prueba: ya hay una actualización en curso; no se pregunta otra vez"); return; }
+                    if PREGUNTANDO.swap(true, Ordering::SeqCst) { anotar("versión de prueba: ya hay un aviso abierto; no se abre otro"); return; }
+                    let _soltar = SoltarPregunta;
+                    let respuesta = dialogo(&app, format!("Estás usando una VERSIÓN DE PRUEBA ({actual}). Ya salió la versión oficial {}.\n\nSi pulsas «{INSTALAR_OFICIAL}», se QUITA la versión de prueba: lo nuevo que estás probando desaparece hasta que salga en una versión oficial. No se borra ningún dato.\n\nSi pulsas «{SEGUIR_PROBANDO}», no cambia nada.", nueva.version))
                         .title("Hay versión oficial")
-                        .buttons(MessageDialogButtons::OkCancelCustom("Instalar".into(), "Ignorar".into()))
-                        .blocking_show();
-                    if !instalar { PRUEBA_IGNORO.store(true, Ordering::SeqCst); anotar("versión de prueba: la oficial se ignoró"); return; }
-                    anotar("versión de prueba: se pidió instalar la oficial");
+                        .buttons(MessageDialogButtons::OkCancelCustom(SEGUIR_PROBANDO.into(), INSTALAR_OFICIAL.into()))
+                        .blocking_show_with_result();
+                    if !eligio_instalar_oficial(&respuesta) {
+                        PRUEBA_IGNORO.store(true, Ordering::SeqCst);
+                        anotar(&format!("versión de prueba: sigue la prueba (respuesta {respuesta:?})"));
+                        return;
+                    }
+                    anotar("versión de prueba: se pulsó «Instalar la oficial»");
                 }
                 // Pedida a mano (menú o botón): se descarga enseguida, sin volver a preguntar; solo se pregunta al instalar.
                 let aceptar = prueba.as_ref().map(|p| p.sin_preguntar).unwrap_or(false)
@@ -670,7 +695,7 @@ fn buscar_actualizacion_por(app: AppHandle, a_pedido: bool, por_nube: bool) {
                 // Sin avance a la vista, una descarga de 140 MB parecía «no hacer nada»: el título de la ventana y la
                 // barra de la tarea muestran el porcentaje, y el programa avisa al empezar y al volver a abrirse.
                 let ventana = app.get_webview_window("principal");
-                let titulo = format!("zamorApp Escritorio v{actual}");
+                let titulo = titulo_ventana(&actual);
                 let mostrar = |texto: &str, estado: ProgressBarState| if let Some(v) = &ventana {
                     let _ = v.set_title(&if texto.is_empty() { titulo.clone() } else { format!("{titulo} — {texto}") });
                     let _ = v.set_progress_bar(estado);
@@ -875,7 +900,7 @@ fn main() {
             let manejador_docs = app.handle().clone();
             let para_descargas = app.handle().clone();
             let mut constructor = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-                .title(format!("zamorApp Escritorio v{version}{}", if es_version_de_prueba() { " (prueba)" } else { "" }))
+                .title(titulo_ventana(&version))
                 .on_new_window(move |url, features| documentos::ventana_nueva(&manejador_docs, url, features))
                 .on_download(move |_, evento| descarga(&para_descargas, evento))
                 // Micrófono del dictado: concedido solo a las páginas de la app (ver microfono.rs)
