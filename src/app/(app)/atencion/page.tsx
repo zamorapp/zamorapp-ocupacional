@@ -19,6 +19,7 @@ import { empresaActivaId } from "@/lib/empresa-activa";
 import { listarEmpresas } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 import { ColaAtencion } from "./cola-atencion";
+import { AvisoPospuesta, BotonPosponer } from "./posponer";
 import { EnVivo } from "@/components/app/en-vivo";
 import { datosOrganizacion } from "@/lib/organizacion";
 import { PLANTILLA_CITA } from "@/lib/mensajes";
@@ -128,6 +129,8 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
         <BandejaEnlace empresas={opcionesEmpresa} motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} hoy={hoy} />
       </Suspense>
 
+      <AvisoPospuesta />
+
       <Solicitudes solicitudes={solicitudes} contactos={contactos} servicio={org.nombre} url={URL_PUBLICA} />
 
       {/* Cola de atención del día */}
@@ -204,6 +207,7 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
                     <TableCell className="pr-5">
                       <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ESTILO_ESTADO[c.estado])}>{ETIQUETA_ESTADO_CONSULTA[c.estado]}</span>
                       {c.pendientes > 0 && <div className="mt-1 text-xs font-medium whitespace-nowrap text-aviso-texto">Faltan {c.pendientes} resultado{c.pendientes === 1 ? "" : "s"}</div>}
+                      {c.estado === "borrador" && !sesion.demo && <div className="mt-1"><BotonPosponer consultaId={c.id} paciente={c.paciente} variante="texto" /></div>}
                     </TableCell>
                   </TableRow>
                 ))}
