@@ -16,6 +16,7 @@
 - Cobros: tasa BCV del día del pago.
 - Médicos del SAME solo como «Nombre (histórico)». Órdenes de laboratorio e imagen separadas.
 - Cesar habla por voz: interpretar («casa blanca» = tasa BCV; «Sub Base» = Supabase; «NIH» = NIOSH; «sanción» = sesión; «imposible» = «¿es posible?»). Preguntas sin «?» = pregunta de estado.
+- **Puerta para agentes (18-nov)**: ningún correo ni archivo sale sin la aprobación de Cesar, uno por uno. Las notas de cobro del agente usan la tasa BCV del día de la factura y llevan siempre el texto «Pagos a la tasa del BCV de la fecha de pago». Un trabajador solo se mueve de empresa si Cesar lo pide y lo aprueba. Historias y diagnósticos: solo en borrador y bajo su tutela (él emite, firma y sella cuando decida; si no pide ayuda, él evalúa solo). Los informes de vigilancia llevan un análisis natural, al estilo de Cesar, y él siempre los firma.
 
 ## Errores → regla
 | Error | Regla |
@@ -46,3 +47,4 @@
 | Diálogo nuevo al cerrar rompió la prueba de humo | Actualizar `PulsarSalida` (UI Automation) en la prueba de humo |
 | Enlaces públicos sin aviso; push «enviado» que nadie vio (12-nov) | Todo enlace público avisa al abrir (sin vistas previas: `es_vista_previa`) y al completar con `public.avisar_enlace()`; cada aparato confirma con `/api/avisos/acuse` y la campana avisa si deja de confirmar; el escritorio repite cada aviso nuevo como aviso de Windows |
 | Un clic afuera cerraba la ventana y se perdía lo escrito; tras otra ventana (WhatsApp, vista previa) la app quedaba sin clics | Base `components/ui/dialog.tsx`: ninguna ventana se cierra al tocar afuera; X, «Cancelar» y Escape preguntan «¿Desea cerrar?» si queda algo escrito; guardián que devuelve los clics a la página. «Cancelar» siempre con `<DialogClose asChild>` (nunca `setAbierto(false)` directo) |
+| Llave de la puerta «pegada» dos veces y el archivo seguía vacío (18-nov) | La llave solo se muestra una vez al crearla; antes de crear otra, leer el portapapeles con PowerShell (`Get-Clipboard`), escribir el archivo **sin BOM** y comprobar solo la cola contra la tarjeta. La llave nunca se muestra en el chat |
