@@ -10,6 +10,7 @@ import { nombreConConcentracion } from "@/lib/recipe";
 import { clasificarImc, ETIQUETA_ORIGEN, imc, resumenAntecedentes, type DatosConsulta, type FilaExamen } from "@/lib/consultas-tipos";
 import { resumenHabitos } from "@/lib/habitos";
 import { CERTIFICACION_TRABAJADOR, NOTA_CERTIFICADO_SACS, NOTA_IDONEIDAD, NOTA_PREEMPLEO_VIH } from "@/lib/mensajes";
+import { frasesCondicion } from "@/lib/condicion";
 import type { Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
 import { sinCodigo, textoDiagnostico } from "@/lib/diagnostico-texto";
@@ -421,6 +422,8 @@ export function CuerpoConsulta({ c, sin, ajustes, variante = "completo", anteced
           {c.aptitud.limitaciones.length > 0 && !sin.includes("limitaciones") && ` Restricciones: ${c.aptitud.limitaciones.join(", ")}.`}
         </Bloque>
       )}
+      {/* Medicina general: la condición con la que sale el trabajador (no es elegibilidad para el cargo) */}
+      {frasesCondicion(c.condicion).length > 0 && <Bloque titulo="Evaluación de condición">{frasesCondicion(c.condicion).join(" ")}</Bloque>}
       {c.tratamiento.some((m) => m.medicina) && (
         <Bloque titulo="Tratamiento">
           <Lista columnas={1} texto={c.tratamiento.filter((m) => m.medicina).map((m) => [nombreConConcentracion(m), m.presentacion, m.dosis, m.via, m.frecuencia, m.duracion, m.observacion].filter(Boolean).join(" · ")).join("\n")} />
@@ -582,6 +585,7 @@ export function Certificado({ d }: { d: DatosDocumento }) {
         {c.sano ? "Trabajador sano de acuerdo con los protocolos de evaluación clínica ocupacional." : c.conclusiones || "Ver informe médico."}
       </Bloque>
       {clase && <div className="mb-3"><Veredicto tono={TONO_APTITUD[clase]} texto={etiquetasAptitud(a.palabra_aptitud)[clase]} /></div>}
+      {!clase && frasesCondicion(c.condicion).length > 0 && <Bloque titulo="Evaluación de condición">{frasesCondicion(c.condicion).join(" ")}</Bloque>}
       {(a.certificado_nota ?? NOTA_CERTIFICADO_SACS) && <p className="mt-2 text-[11.5px]">{a.certificado_nota ?? NOTA_CERTIFICADO_SACS}</p>}
       <p className="mt-2 text-[11.5px] text-doc-tenue">Certificado que se expide a solicitud de la parte interesada.</p>
       <Firmas>

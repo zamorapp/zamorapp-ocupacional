@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Stethoscope, UserPlus } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Link2, Loader2, Stethoscope, UserPlus } from "lucide-react";
 import { Aviso } from "@/components/app/campo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ETIQUETA_ROL, ROLES_EMPRESA, type Rol } from "@/lib/sesion-roles";
+import { ETIQUETA_ROL, nombreRolInvitado, ROLES_EMPRESA, ROLES_INVITABLES, type Rol } from "@/lib/sesion-roles";
 import { cn } from "@/lib/utils";
 import { agregarUsuario } from "../acciones";
 
@@ -96,7 +97,9 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
           <div hidden={paso !== 0} className="max-w-md">
             <label htmlFor="correo" className="mb-1.5 block text-sm font-medium">Correo con el que la persona creó su cuenta</label>
             <Input ref={entradaCorreo} id="correo" name="correo" type="email" required value={correo} onChange={(e) => setCorreo(e.target.value.trim())} className="h-10" placeholder="nombre@correo.com" />
-            <p className="mt-1 text-xs text-muted-foreground">Primero la persona crea su cuenta en la pantalla de ingreso; luego la agregas aquí.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              ¿Todavía no tiene cuenta? <a href="#invitar" className="font-medium text-primary underline-offset-4 hover:underline">Mándale un enlace con su rol</a>.
+            </p>
           </div>
 
           {paso === 1 && (
@@ -144,7 +147,16 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
             );
           })()}
 
-          <Aviso resultado={estado} />
+          {/* Sin cuenta todavía: aviso neutro y el mismo rol y empresa pasan al cuadro «Invitar por enlace» (Cesar, 16-nov:
+              eligió Enfermería aquí, no pudo, y el único enlace que encontró era de RR. HH.) */}
+          {estado && !estado.ok && /no existe una cuenta/i.test(estado.mensaje) && rol && ROLES_INVITABLES.includes(rol) ? (
+            <div className="space-y-2 rounded-md bg-muted p-3 text-sm">
+              <p>Esa persona todavía no tiene cuenta. Mándale un enlace y la crea ella misma.</p>
+              <MandarEnlace rol={rol} empresa={elegidas[0]} />
+            </div>
+          ) : (
+            <Aviso resultado={estado} />
+          )}
           <div className="flex flex-wrap items-center justify-end gap-2">
             {paso > 0 && <Button type="button" variant="ghost" className="mr-auto" onClick={atras}><ChevronLeft /> Atrás</Button>}
             {paso === 1 && !rol && <p className="text-xs text-muted-foreground">Elige un rol para seguir.</p>}
@@ -159,5 +171,16 @@ export function AgregarUsuario({ empresas }: { empresas: { id: string; nombre: s
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// Sin cuenta todavía: abre «Invitar por enlace» con el mismo rol y empresa
+export function MandarEnlace({ rol, empresa }: { rol: Rol; empresa?: string }) {
+  return (
+    <Button asChild className="w-full sm:w-auto">
+      <Link href={`/configuracion/usuarios?rol=${rol}${empresa ? `&empresa=${empresa}` : ""}#invitar`}>
+        <Link2 /> Mandarle un enlace de {nombreRolInvitado(rol)}
+      </Link>
+    </Button>
   );
 }

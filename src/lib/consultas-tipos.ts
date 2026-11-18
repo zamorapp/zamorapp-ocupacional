@@ -87,6 +87,8 @@ export type DatosConsulta = {
   discapacidadNota: string;
   // Riesgos del puesto elegidos con botones en esta consulta ({grupo: [agentes]}). null = los del cargo, sin tocar
   riesgos?: Record<string, string[]> | null;
+  // Evaluación de condición de las consultas de medicina general ({trabajo, funciones, nota}). Sin la clave, la base conserva lo guardado
+  condicion?: Record<string, string>;
 };
 
 // Mediciones anteriores del trabajador (consultas cerradas o firmadas) para los gráficos de evolución

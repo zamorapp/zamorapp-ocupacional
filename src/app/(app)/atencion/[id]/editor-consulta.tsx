@@ -29,6 +29,7 @@ import {
 import type { Item } from "@/lib/listas";
 import { CAMPOS_RECIPE, type CampoRecipe, concentracionEnNombre, faltantesMedicinas } from "@/lib/recipe";
 import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
+import { alternarCondicion, preguntasCondicion, tieneCondicion } from "@/lib/condicion";
 import { cn } from "@/lib/utils";
 import { AvisoFaltantes } from "@/components/app/aviso-faltantes";
 import { type Faltante, irACampo, marcaFalta } from "@/lib/ir-a-campo";
@@ -401,6 +402,11 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     else { setD(base); if (intacta) setDeshacer(null); }
   };
   const preventivo = motivo?.grupo === "preventivo";
+  // Medicina general (motivos no preventivos): no es evaluación ocupacional, así que cierra con la «Evaluación de
+  // condición» y no con elegibilidad (Cesar, 16-nov). La aptitud queda a un clic para quien la necesite igual.
+  const medicinaGeneral = motivo?.grupo === "no_preventivo";
+  const [verAptitud, setVerAptitud] = useState(false);
+  const mostrarAptitud = !medicinaGeneral || verAptitud || Boolean(d.aptitud.clasificacion);
   // Duplicada: el tipo de evaluación queda resaltado hasta que se cambie o se confirme (Cesar, 09-nov: duplicó un
   // prevacacional y no encontraba dónde pasarlo a posvacacional; el selector vivía solo en Generales)
   // resaltarTipo: anillo ámbar en el selector; confirmarTipo: la cajita con la pregunta («Ignorar» solo la oculta)
@@ -479,9 +485,11 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
     { id: "examen", titulo: "Examen", hecho: Boolean(d.signos.ta || d.signos.peso) },
     { id: "paraclinicos", titulo: d.paraclinicos.length ? `Paraclínicos (${d.paraclinicos.length})` : "Paraclínicos", hecho: d.paraclinicos.length > 0 && contarResultados(d.paraclinicos).pendientes === 0 },
     { id: "diagnostico", titulo: d.sano ? "Diagnóstico · sano" : d.diagnosticos.length ? `Diagnóstico (${d.diagnosticos.length})` : "Diagnóstico", hecho: d.sano || d.diagnosticos.length > 0 },
-    { id: "aptitud", titulo: "Aptitud", hecho: Boolean(d.aptitud.clasificacion) },
+    ...(medicinaGeneral ? [] : [{ id: "aptitud", titulo: "Aptitud", hecho: Boolean(d.aptitud.clasificacion) }]),
     ...(mostrarTratamiento ? [{ id: "tratamiento", titulo: "Tratamiento y reposo", hecho: d.tratamiento.length > 0 || d.reposo.activo }] : []),
     { id: "conclusiones", titulo: "Conclusiones", hecho: Boolean(d.conclusiones || d.recomendacionesTrabajador || d.recomendacionesEmpresa) },
+    // Medicina general: la condición del trabajador va al final, como cierre de la consulta
+    ...(medicinaGeneral ? [{ id: "aptitud", titulo: "Condición", hecho: tieneCondicion(d.condicion) || Boolean(d.aptitud.clasificacion) }] : []),
   ];
   const indicePaso = Math.max(0, pasos.findIndex((p) => p.id === paso));
   const irA = (i: number) => { setPaso(pasos[i].id); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -775,7 +783,7 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
                 ...x,
                 sano,
                 diagnosticos: sano ? [] : x.diagnosticos,
-                aptitud: sano && !x.aptitud.clasificacion ? { ...x.aptitud, clasificacion: "elegible" } : x.aptitud,
+                aptitud: sano && !medicinaGeneral && !x.aptitud.clasificacion ? { ...x.aptitud, clasificacion: "elegible" } : x.aptitud,
               }));
             }}
             className="mt-0.5 size-5 accent-[var(--primary)]"
@@ -843,6 +851,56 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
         </div>
       </div>
       <p className="text-xs text-muted-foreground">La empresa cliente solo ve esta clasificación y las limitaciones, nunca el diagnóstico.</p>
+    </Seccion>
+  );
+
+  const condicion = d.condicion ?? {};
+  const seccionCondicion = (
+    <Seccion titulo="Evaluación de condición">
+      <p className="-mt-1 text-sm text-muted-foreground">Consulta de medicina general: no es una evaluación ocupacional. Indica cómo sale el trabajador de la consulta.</p>
+      {preguntasCondicion(listas.condicion_trabajador ?? []).map((p) => (
+        <div key={p.grupo} data-campo={`condicion-${p.grupo}`}>
+          <Label className="mb-2">{p.titulo}</Label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+            {p.opciones.map((o) => {
+              const activo = condicion[p.grupo] === o;
+              const negativo = /^no\b/i.test(o);
+              return (
+                <button
+                  key={o}
+                  type="button"
+                  aria-pressed={activo}
+                  disabled={bloqueado}
+                  onClick={() => set("condicion", alternarCondicion(condicion, p.grupo, o))}
+                  className={cn(
+                    "rounded-xl border-2 px-3 py-2.5 text-left text-sm font-medium transition disabled:opacity-60",
+                    activo
+                      ? negativo ? "border-current bg-destructive/10 text-destructive" : "border-current bg-primary/10 text-primary"
+                      : "border-transparent bg-muted/50 hover:bg-muted",
+                  )}
+                >
+                  {activo && <Check className="mr-1.5 inline size-4 -translate-y-px" />}{o}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div>
+        <Label className="mb-1.5">Detalle (opcional)</Label>
+        <Input
+          value={condicion.nota ?? ""}
+          disabled={bloqueado}
+          placeholder="Ej.: evitar cargas por 7 días; volver a control el viernes"
+          onChange={(e) => set("condicion", { ...condicion, nota: e.target.value })}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Sale en el informe médico. Las opciones se editan en Configuración › Listas › «Evaluación de condición».
+        {!mostrarAptitud && !bloqueado && (
+          <> Si igual necesitas una constancia de aptitud, <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setVerAptitud(true)}>emítela aquí</button>.</>
+        )}
+      </p>
     </Seccion>
   );
 
@@ -1440,7 +1498,8 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
 
           {/* ── Aptitud ── */}
           <TabsContent value="aptitud" className="mt-4 space-y-4">
-            {seccionAptitud}
+            {medicinaGeneral && seccionCondicion}
+            {mostrarAptitud && seccionAptitud}
             <Card className={cn("gap-0 py-4", d.potencialDiscapacidad && "border-aviso/60 bg-aviso/5")}>
               <CardContent className="space-y-3 px-6">
                 <label className="flex items-start gap-3">

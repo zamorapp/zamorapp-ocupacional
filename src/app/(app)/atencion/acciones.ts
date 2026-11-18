@@ -17,6 +17,7 @@ import { siguienteEnEspera } from "@/lib/citas";
 import { fechaCorta, periodoDeConsulta } from "@/lib/periodos";
 import { hoyCaracas, sumarDias } from "@/lib/fecha";
 import { normalizarMedicion } from "@/lib/mediciones";
+import { limpiarCondicion } from "@/lib/condicion";
 
 export type Resultado = { ok: boolean; mensaje: string };
 
@@ -253,6 +254,21 @@ export async function iniciarConsulta(trabajadorId: string, motivoId?: string, c
   if (sesion.rol === "enfermeria") return { ok: false, mensaje: "La consulta la abre el médico. Enfermería registra su atención o su evolución en Enfermería." };
   const supabase = await crearClienteServidor();
 
+  // Cita pospuesta con su borrador (Posponer, 16-nov): «Atender» retoma ese borrador con la fecha de hoy, no abre otro
+  if (citaId) {
+    const { data: suya } = await supabase.from("citas").select("consulta_id").eq("id", citaId).maybeSingle();
+    const borrador = suya?.consulta_id
+      ? (await supabase.from("consultas").select("id, estado, fecha").eq("id", suya.consulta_id).maybeSingle()).data
+      : null;
+    if (borrador?.estado === "borrador") {
+      const hoy = hoyCaracas();
+      if (borrador.fecha !== hoy) await supabase.from("consultas").update({ fecha: hoy }).eq("id", borrador.id).eq("estado", "borrador");
+      await supabase.from("citas").update({ estado: "en_consulta" }).eq("id", citaId);
+      revalidatePath("/panel");
+      redirect(`/atencion/${borrador.id}${extra?.distancia ? "?distancia=1" : ""}`);
+    }
+  }
+
   const [{ data: t }, { data: previa }, listas, { data: enlace }] = await Promise.all([
     supabase.from("trabajadores").select("empresa_id, dependencia_id, puesto_id, estado, empresas(razon_social, activa)").eq("id", trabajadorId).single(),
     supabase.from("consultas").select("fecha, antecedentes, habitos").eq("trabajador_id", trabajadorId).order("fecha", { ascending: false }).limit(1).maybeSingle(),
@@ -392,6 +408,7 @@ export async function guardarConsulta(d: DatosConsulta, cerrar: boolean): Promis
       discapacidad_nota: d.potencialDiscapacidad ? d.discapacidadNota || null : null,
       // Sin la clave (guardados que no la traen) la base conserva lo elegido
       ...(d.riesgos !== undefined ? { riesgos: d.riesgos } : {}),
+      ...(d.condicion !== undefined ? { condicion: limpiarCondicion(d.condicion) } : {}),
       reubicacion: d.reubicacion.activa
         ? { tipo: d.reubicacion.tipo, puesto_actual: d.reubicacion.puestoActual || null, puesto_propuesto: d.reubicacion.puestoPropuesto || null,
             desde: d.reubicacion.desde || null, hasta: d.reubicacion.tipo === "temporal" ? d.reubicacion.hasta || null : null,

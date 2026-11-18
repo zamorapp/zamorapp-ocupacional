@@ -96,8 +96,12 @@ begin
     if v_datos = '{}' then return null; end if;
     if pend.id is not null then
       -- Ya hay algo por subir de esta fila: se funde (una inserción pendiente sigue siendo una inserción, con lo nuevo;
-      -- una modificación pendiente conserva la versión que la PC vio en la nube)
-      update local.bandeja set datos = datos || v_datos, hora_verificada = hora_verificada and local.hora_verificada()
+      -- una modificación pendiente conserva la versión que la PC vio en la nube). Una modificación fundida pasa al
+      -- final de la fila de espera: ahora lleva lo de este guardado, que puede apuntar a filas creadas después de la
+      -- primera (16-nov: la cita con su consulta_id subía antes que la consulta y la nube la rechazaba por llave
+      -- foránea). Una inserción conserva su lugar: lo que vino después puede depender de que exista.
+      update local.bandeja set datos = datos || v_datos, hora_verificada = hora_verificada and local.hora_verificada(),
+             orden = case when op = 'U' then nextval(pg_get_serial_sequence('local.bandeja', 'orden')) else orden end
        where id = pend.id and estado = 'pendiente';
       if not found then
         -- La bandeja la acaba de subir: o la borró (ya está en la nube) o, si se fundió otro guardado mientras subía,
@@ -105,7 +109,8 @@ begin
         select * into pend from local.bandeja where tabla = v_tabla and fila_id = v_id and estado = 'pendiente'
          order by orden desc limit 1;
         if pend.id is not null then
-          update local.bandeja set datos = datos || v_datos, hora_verificada = hora_verificada and local.hora_verificada()
+          update local.bandeja set datos = datos || v_datos, hora_verificada = hora_verificada and local.hora_verificada(),
+                 orden = case when op = 'U' then nextval(pg_get_serial_sequence('local.bandeja', 'orden')) else orden end
            where id = pend.id and estado = 'pendiente';
         end if;
       end if;

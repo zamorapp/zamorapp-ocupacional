@@ -2,7 +2,7 @@
 
 import { plazoSala } from "@/lib/telemedicina-tipos";
 import { normalizarPermisos } from "@/lib/permisos-portal";
-import { esRolEmpresa } from "@/lib/sesion-roles";
+import { empresaDeInvitacion, esRolEmpresa, nombreRolInvitado, ROLES_INVITABLES } from "@/lib/sesion-roles";
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
@@ -337,49 +337,58 @@ export async function agregarUsuario(_: Resultado | null, datos: FormData): Prom
   }
 }
 
-// Invitación por enlace para RR. HH. de una empresa: 7 días, un solo uso. Devuelve el enlace (solo se ve ahora)
-// y, si hay teléfono, el mensaje de WhatsApp listo para mandarlo desde el teléfono del servicio.
+// Invitación por enlace con su rol (RR. HH., enfermería, médico…): 7 días, un solo uso. Devuelve el enlace (solo se ve
+// ahora) y, si hay teléfono, el mensaje de WhatsApp listo para mandarlo desde el teléfono del servicio. Sin «rol» en el
+// formulario (botón «Invitar a RR. HH.» de Empresas) es RR. HH., como antes. La base repite las reglas (migración 966).
 export async function crearInvitacion(_: unknown, datos: FormData): Promise<Resultado & { enlace?: string; whatsapp?: string }> {
   try {
     const { sesion, supabase } = await contexto(["administrador"]);
-    const empresaId = texto(datos, "empresa_id");
-    if (!empresaId) return { ok: false, mensaje: "Elige la empresa." };
+    const rol = (texto(datos, "rol") ?? "gerente_empresa") as Rol;
+    if (!ROLES_INVITABLES.includes(rol)) return { ok: false, mensaje: "Ese rol no se invita por enlace." };
+    const reglaEmpresa = empresaDeInvitacion(rol);
+    const empresaId = reglaEmpresa === "ninguna" ? null : texto(datos, "empresa_id");
+    if (reglaEmpresa === "obligatoria" && !empresaId) return { ok: false, mensaje: "Elige la empresa." };
+    const esRrhh = rol === "gerente_empresa";
     const nombre = texto(datos, "nombre")?.slice(0, 120) ?? null;
     const telefono = texto(datos, "telefono")?.slice(0, 30) ?? null;
     const token = randomBytes(32).toString("base64url");
     const [{ data: empresa }, { data: org }] = await Promise.all([
-      supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle(),
+      empresaId ? supabase.from("empresas").select("razon_social, nombre_comercial").eq("id", empresaId).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from("organizaciones").select("ajustes").eq("id", sesion.orgId!).maybeSingle(),
     ]);
     const invita = String((org?.ajustes as { invita_como?: string | null } | null)?.invita_como ?? "").trim();
     const { error } = await supabase.from("invitaciones").insert({
       org_id: sesion.orgId,
       empresa_id: empresaId,
+      rol,
       nombre,
       telefono,
       token_hash: "\\x" + createHash("sha256").update(token).digest("hex"),
-      // Qué podrá hacer en el portal; sin casillas en el formulario (otra pantalla) = todo
-      permisos_portal: datos.get("permisos_enviados") ? normalizarPermisos(datos.getAll("permisos")) : null,
+      // Qué podrá hacer en el portal (solo RR. HH.); sin casillas en el formulario (otra pantalla) = todo
+      permisos_portal: esRrhh && datos.get("permisos_enviados") ? normalizarPermisos(datos.getAll("permisos")) : null,
     });
     if (error) return { ok: false, mensaje: error.message };
     revalidatePath("/configuracion/usuarios");
     const enlace = `${URL_PUBLICA}/invitacion/${token}`;
     const nombreEmpresa = empresa?.nombre_comercial || empresa?.razon_social || "su empresa";
+    const saludo = `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${invita || sesion.organizacion}.`;
     const mensajeWa = [
-      `Hola${nombre ? ` ${nombre.split(" ")[0]}` : ""}, le saluda ${invita || sesion.organizacion}. Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`,
+      esRrhh
+        ? `${saludo} Le invito al portal de salud ocupacional de ${nombreEmpresa}, para pedir evaluaciones y ver los resultados.`
+        : `${saludo} Le invito a zamorApp como ${nombreRolInvitado(rol)}${empresa ? ` de ${nombreEmpresa}` : ""}.`,
       "",
       "Son 3 pasos:",
       "1. Toque este enlace y llene su nombre, su correo y una contraseña (mínimo 8 letras o números):",
       enlace,
       "2. Abra su correo y toque el botón de confirmación que le llegó (si no lo ve, busque en Spam).",
-      "3. Se abre de nuevo la página del portal: toque el botón verde «Aceptar y entrar al portal». ¡Listo!",
+      `3. Se abre de nuevo la página: toque el botón verde «${esRrhh ? "Aceptar y entrar al portal" : "Aceptar y entrar"}». ¡Listo!`,
       "",
       "El enlace vale 7 días y sirve una sola vez. Cualquier duda, responda este mensaje.",
     ].join("\n");
     const numero = telefono ? telefonoWhatsApp(telefono) : "";
     return {
       ok: true,
-      mensaje: "Enlace listo. Mándalo por WhatsApp o cópialo: solo se muestra ahora.",
+      mensaje: `Enlace de ${nombreRolInvitado(rol)} listo. Mándalo por WhatsApp o cópialo: solo se muestra ahora.`,
       enlace,
       whatsapp: `https://wa.me/${numero.length >= 10 ? numero : ""}?text=${encodeURIComponent(mensajeWa)}`,
     };

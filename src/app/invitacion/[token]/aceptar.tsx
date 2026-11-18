@@ -18,12 +18,12 @@ export function Aceptar({ token, texto }: { token: string; texto: string }) {
   );
 }
 
-// Cierra la sesión que había en este teléfono (solo aquí) y vuelve al enlace en el paso 1: crear la cuenta de RR. HH.
-export function SalirParaRegistrarse({ token }: { token: string }) {
+// Cierra la sesión que había en este teléfono (solo aquí) y vuelve al enlace en el paso 1: crear la cuenta nueva
+export function SalirParaRegistrarse({ token, rol }: { token: string; rol: string }) {
   const [saliendo, iniciar] = useTransition();
   return (
     <Button className="h-11 w-full text-base" disabled={saliendo} onClick={() => iniciar(() => salirParaRegistrarse(token))}>
-      {saliendo ? <Loader2 className="animate-spin" /> : <LogOut />} Salir y crear la cuenta de RR. HH.
+      {saliendo ? <Loader2 className="animate-spin" /> : <LogOut />} Salir y crear la cuenta de {rol}
     </Button>
   );
 }

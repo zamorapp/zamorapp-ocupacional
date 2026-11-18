@@ -224,3 +224,94 @@ export async function cambiarFechaCitaPendiente(id: string, fecha: string, hora:
   revalidatePath("/", "layout");
   return { ok: true, mensaje: "" };
 }
+
+// ─── Posponer (pedido de Cesar, 16-nov-2026) ───
+// Una consulta que no se dio (en espera, en consulta o sin cerrar) vuelve a «Citados» en el día y la hora que elijas.
+// Los recordatorios se mueven solos (salen de la fecha de la cita) y RR. HH. recibe «Cita reprogramada» (969).
+// El borrador de la consulta NO se borra: queda enlazado a la cita y ese día «Atender» lo retoma.
+type EstadoPospuesto = "citado" | "en_espera" | "en_consulta" | "no_asistio";
+export type Pospuesta = {
+  citaId: string;
+  creada: boolean;
+  antes: { fecha: string; hora: string | null; estado: EstadoPospuesto; llegada: string | null; consultaId: string | null } | null;
+  texto: string;
+};
+const SE_POSPONE: EstadoPospuesto[] = ["citado", "en_espera", "en_consulta", "no_asistio"];
+
+export async function posponerConsulta(p: { citaId?: string; consultaId?: string; fecha: string; hora: string | null }): Promise<Resultado & { pospuesta?: Pospuesta }> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId) return { ok: false, mensaje: "Conecta Supabase para posponer consultas." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha)) return { ok: false, mensaje: "Indica el día." };
+  if (p.fecha < hoyCaracas()) return { ok: false, mensaje: "Elige hoy o un día que venga." };
+  const hora = p.hora && /^\d{2}:\d{2}/.test(p.hora) ? p.hora.slice(0, 5) : null;
+  const supabase = await crearClienteServidor();
+  type FilaCita = { id: string; fecha: string; hora: string | null; estado: EstadoCita; llegada: string | null; consulta_id: string | null; trabajador_id: string };
+  const CAMPOS = "id, fecha, hora, estado, llegada, consulta_id, trabajador_id";
+
+  let cita: FilaCita | null = null;
+  let consulta: { id: string; estado: string; trabajador_id: string; empresa_id: string; motivo_id: string | null; fecha: string } | null = null;
+  const leerConsulta = async (id: string) =>
+    (await supabase.from("consultas").select("id, estado, trabajador_id, empresa_id, motivo_id, fecha").eq("id", id).maybeSingle()).data;
+
+  if (p.citaId) {
+    cita = (await supabase.from("citas").select(CAMPOS).eq("id", p.citaId).maybeSingle()).data as FilaCita | null;
+    if (!cita) return { ok: false, mensaje: "La cita ya no existe: recarga la página." };
+    if (cita.consulta_id && sesion.clinico) consulta = await leerConsulta(cita.consulta_id);
+    // Cita «en consulta» que perdió el enlace con su consulta (16-nov): se busca el borrador de ese día del paciente
+    if (!cita.consulta_id && cita.estado === "en_consulta" && sesion.clinico) {
+      consulta = (await supabase.from("consultas").select("id, estado, trabajador_id, empresa_id, motivo_id, fecha")
+        .eq("trabajador_id", cita.trabajador_id).eq("fecha", cita.fecha).eq("estado", "borrador").is("origen", null)
+        .order("creado_en", { ascending: false }).limit(1).maybeSingle()).data;
+    }
+  } else if (p.consultaId) {
+    consulta = await leerConsulta(p.consultaId);
+    if (!consulta) return { ok: false, mensaje: "La consulta ya no existe: recarga la página." };
+    // Su cita: la enlazada; si no, la de ese día que quedó en espera o en consulta sin enlace; si no hay, se crea una
+    cita = (await supabase.from("citas").select(CAMPOS).eq("consulta_id", consulta.id).in("estado", SE_POSPONE)
+      .order("fecha", { ascending: false }).limit(1).maybeSingle()).data as FilaCita | null
+      ?? (await supabase.from("citas").select(CAMPOS).eq("trabajador_id", consulta.trabajador_id).eq("fecha", consulta.fecha)
+        .in("estado", ["en_espera", "en_consulta"]).is("consulta_id", null).limit(1).maybeSingle()).data as FilaCita | null;
+  } else return { ok: false, mensaje: "Nada que posponer." };
+
+  if (cita && !SE_POSPONE.includes(cita.estado as EstadoPospuesto)) return { ok: false, mensaje: "Esa cita ya terminó: no se pospone." };
+  if (consulta && consulta.estado !== "borrador") return { ok: false, mensaje: "Esa consulta ya se cerró: no se pospone." };
+
+  const cuando = `${p.fecha.split("-").reverse().join("/")}${hora ? ` a las ${hora}` : ""}`;
+  if (cita) {
+    const { data, error } = await supabase.from("citas")
+      .update({ fecha: p.fecha, hora, estado: "citado", llegada: null, consulta_id: consulta?.id ?? cita.consulta_id })
+      .eq("id", cita.id).eq("estado", cita.estado).select("id");
+    if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite mover citas." : error.message };
+    if (!data?.length) return { ok: false, mensaje: "La cita cambió mientras tanto: recarga la página." };
+    revalidatePath("/", "layout");
+    return { ok: true, mensaje: "", pospuesta: {
+      citaId: cita.id, creada: false, texto: cuando,
+      antes: { fecha: cita.fecha, hora: cita.hora?.slice(0, 5) ?? null, estado: cita.estado as EstadoPospuesto, llegada: cita.llegada, consultaId: cita.consulta_id },
+    } };
+  }
+  // Consulta abierta sin cita (la abrieron desde el buscador): se le crea su cita, ya enlazada al borrador
+  const { data, error } = await supabase.from("citas").insert({
+    org_id: sesion.orgId, empresa_id: consulta!.empresa_id, trabajador_id: consulta!.trabajador_id, motivo_id: consulta!.motivo_id,
+    fecha: p.fecha, hora, consulta_id: consulta!.id,
+  }).select("id").single();
+  if (error) return { ok: false, mensaje: error.code === "42501" ? "Tu rol no permite agendar citas." : error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "", pospuesta: { citaId: data.id, creada: true, antes: null, texto: cuando } };
+}
+
+// «Deshacer» (10 s): la cita vuelve tal como estaba; la que se creó al posponer se cancela
+export async function deshacerPosponer(p: Pospuesta): Promise<Resultado> {
+  // Lo que llega del navegador no se cree a ciegas: solo se vuelve a un estado que se puede posponer
+  if (!p.creada && (!p.antes || !SE_POSPONE.includes(p.antes.estado) || !/^\d{4}-\d{2}-\d{2}$/.test(p.antes.fecha))) {
+    return { ok: false, mensaje: "No se pudo deshacer: recarga la página." };
+  }
+  const supabase = await crearClienteServidor();
+  const cambio = p.creada || !p.antes
+    ? { estado: "cancelada", consulta_id: null }
+    : { fecha: p.antes.fecha, hora: p.antes.hora, estado: p.antes.estado, llegada: p.antes.llegada, consulta_id: p.antes.consultaId };
+  const { data, error } = await supabase.from("citas").update(cambio).eq("id", p.citaId).eq("estado", "citado").select("id");
+  if (error) return { ok: false, mensaje: error.message };
+  if (!data?.length) return { ok: false, mensaje: "La cita ya cambió: no se pudo deshacer." };
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "" };
+}
