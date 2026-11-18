@@ -34,7 +34,7 @@ const LISTAS = [
   "motivo_consulta", "clasificacion_aptitud", "limitacion_ocupacional", "paraclinico", "antecedente_medico",
   "causa_reposo", "ente_emisor_reposo", "sistema_organico", "medicina", "presentacion_medicina", "via_administracion",
   "frecuencia_dosis", "duracion_tratamiento", "especialidad", "perfil_examen_fisico", "perfil_examen_funcional", "grupo_paraclinicos", "recomendacion_aptitud", "recomendacion_empresa", "recomendacion_paciente", "conclusion_consulta", "modelo_informe_libre",
-  "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo",
+  "declaracion_ocupacional", "diagnostico_declarable", "resultado_reubicacion", "agente_riesgo", "condicion_trabajador",
 ];
 
 export default async function Consulta({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ paso?: string; duplicada?: string; distancia?: string }> }) {

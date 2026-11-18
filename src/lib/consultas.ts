@@ -7,6 +7,7 @@ import { empresaActivaId } from "@/lib/empresa-activa";
 import type { Aptitud } from "@/lib/pacientes";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { ahora, hoyCaracas, sumarDias } from "@/lib/fecha";
+import { limpiarCondicion } from "@/lib/condicion";
 
 export type ResumenConsulta = {
   id: string;
@@ -202,6 +203,7 @@ export async function obtenerConsulta(id: string): Promise<ConsultaCompleta | nu
       potencialDiscapacidad: c.potencial_discapacidad ?? false,
       discapacidadNota: c.discapacidad_nota ?? "",
       riesgos: riesgosConsulta,
+      condicion: limpiarCondicion(c.condicion),
     },
   };
 }
