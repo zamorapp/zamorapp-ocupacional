@@ -8,13 +8,18 @@ Actualiza este archivo cada vez que algo se abra o se cierre.
 - Migraciones en el repo hasta `20261030969000`; 966/968/969 verificadas aplicadas en producción el 18-nov.
 
 ## En curso
-- **Funciones nuevas de la puerta para agentes** (pedidas por Cesar el 18-nov, en diseño): vencimientos de exámenes por empresa; anular citas; constancias en borrador; leer el registro de accidentes; consulta e historia en borrador bajo su tutela; notas de cobro con tasa BCV del día de la factura y texto fijo de pago; envío de correos con archivos solo aprobados uno por uno; mover trabajador de empresa solo con su aprobación; análisis de vigilancia más natural, a su estilo. Espera 3 confirmaciones de Cesar: (1) tasa BCV confirmada, (2) qué es «perfil normal», (3) anular citas una por una o en lista.
+- **Funciones nuevas de la puerta para agentes** (pedidas por Cesar el 18-nov, en diseño): vencimientos de exámenes por empresa; anular/cambiar/posponer citas **de a una, con su aprobación cada vez**; constancias en borrador; leer el registro de accidentes; consulta e historia en borrador bajo su tutela; notas de cobro con tasa BCV del día de la factura y texto fijo de pago (confirmado); envío de correos con archivos solo aprobados uno por uno; mover trabajador de empresa solo con su aprobación; análisis de vigilancia más natural, a su estilo.
+- **«Perfil normal» (definición de Cesar, 18-nov)**: persona evaluada sin condiciones patológicas, en buenas condiciones generales, examen físico y funcional sin alteraciones en todas sus esferas; en cualquier evaluación ocupacional sale con las recomendaciones normales/idóneas para un trabajador. Si hay alguna condición, Cesar dicta el diagnóstico, las medidas y los perfiles que apliquen; si un perfil no existe, él indica cómo crearlo y el agente puede analizar y recomendar.
 
 ## Esperando a Cesar (manual)
 - Firmar las evaluaciones pendientes de una empresa y sacar su PDF con la fecha de impresión que pidió el cliente.
 - Guardar el número de factura de una nota de cobro; calibrar la factura con «Hoja de prueba».
 - Prueba real de winspiroPRO con el espirómetro.
 - Decisiones viejas sin respuesta: «sí fase uno» (hoja de ruta), «sí antropometría», «sí escritorio»; borrar 2 borradores; red de consultorios (5 respuestas); ergonomía: «más preguntas en DEB» (sin definir).
+
+## Errores por arreglar (18-nov)
+- **Confirmar depuración se cuelga con mucha gente**: `confirmarDepuracion` llama `aplicar_nomina` por grupos en serie desde la acción y muere por el límite de la nube; con 76 personas el botón gira y no aplica nada (se resolvió a mano por SQL). Arreglo: una sola llamada con todo el grupo (o mover el agrupado a la base).
+- **El aviso de depuración en el escritorio no abre nada al tocarlo**; en el celular sí abre la revisión.
 
 ## Limitaciones conocidas
 - Enfermería no edita atenciones (solo borrar en 24 h y volver a registrar). Las indicaciones no se editan (anular y emitir otra).
