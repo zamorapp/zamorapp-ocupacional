@@ -30,7 +30,7 @@ export const ENLACES: Enlace[] = [
   { href: "/pacientes", titulo: "Enlace a trabajador registrado", icono: UserCheck, clinico: true, descripcion: "Abre su ficha y toca «Enviar enlace»: los documentos salen llenos con sus datos" },
   { href: "/atencion/enlaces", titulo: "Historial de enlaces", icono: History, clinico: true, descripcion: "Todo lo que enviaste, con Desde/Hasta: alargar, caducar o eliminar cada enlace" },
   { href: "/atencion#por-revisar", titulo: "Pacientes por revisar", icono: Inbox, clinico: true, descripcion: "Lo que llegó por los enlaces, para aceptarlo o descartarlo" },
-  { href: "/configuracion/usuarios#invitar", titulo: "Invitar a RR. HH.", icono: UserPlus, roles: ["administrador"], descripcion: "Enlace por WhatsApp para que RR. HH. de una empresa entre a su portal" },
+  { href: "/configuracion/usuarios#invitar", titulo: "Invitar por enlace", icono: UserPlus, roles: ["administrador"], descripcion: "Enlace por WhatsApp con su rol: RR. HH., enfermería, médico…" },
 ];
 
 type Opciones = { portal?: boolean; clinico?: boolean; rol?: string | null };
