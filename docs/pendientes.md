@@ -1,11 +1,12 @@
-# Pendientes (corte: 18-nov-2026)
+# Pendientes (corte: 19-nov-2026)
 
 Actualiza este archivo cada vez que algo se abra o se cierre.
 
 ## Último publicado
-- Web en `main` a08ce455 (tanda 19, 18-nov): #391 «(prueba)» en el título del escritorio, #392 invitar por enlace con rol (migración 966), #393 «Evaluación de condición» en medicina general (968), #394 posponer consulta + arreglo de la bandeja (969).
-- Escritorio **0.1.524**: incluye la tanda 19 y el audio de la consulta (#379) que faltaba por salir.
-- Migraciones en el repo hasta `20261030969000`; 966/968/969 verificadas aplicadas en producción el 18-nov.
+- Web en `main` 52a77981 (tanda 20, 19-nov): #395 confirmar depuración de nómina en una sola llamada (migración 970) y #396 tarjeta de aviso con «Revisar»/«Ignorar» dentro del escritorio. Incluye también el arreglo del CI Linux (onnxruntime CUDA 404).
+- Escritorio **0.1.526** (19-nov): la tanda 20 completa.
+- PR abierto esperando frase: **#397** (prueba de la puerta: esperar la re-comprobación en vuelo; cambio solo de prueba, CI en verde). Sin él, el CI de Windows puede fallar de nuevo por el mismo casillero.
+- Migraciones en el repo hasta `20261030970000`; 966/968/969 verificadas el 18-nov y 970000 aplicada y verificada en producción el 19-nov (registro en `schema_migrations`, función con 2 argumentos, anon sin permiso y authenticated con permiso).
 
 ## En curso
 - **Funciones nuevas de la puerta para agentes** (pedidas por Cesar el 18-nov, en diseño): vencimientos de exámenes por empresa; anular/cambiar/posponer citas **de a una, con su aprobación cada vez**; constancias en borrador; leer el registro de accidentes; consulta e historia en borrador bajo su tutela; notas de cobro con tasa BCV del día de la factura y texto fijo de pago (confirmado); envío de correos con archivos solo aprobados uno por uno; mover trabajador de empresa solo con su aprobación; análisis de vigilancia más natural, a su estilo.
@@ -17,10 +18,9 @@ Actualiza este archivo cada vez que algo se abra o se cierre.
 - Prueba real de winspiroPRO con el espirómetro.
 - Decisiones viejas sin respuesta: «sí fase uno» (hoja de ruta), «sí antropometría», «sí escritorio»; borrar 2 borradores; red de consultorios (5 respuestas); ergonomía: «más preguntas en DEB» (sin definir).
 
-## Errores por arreglar (18-nov) — YA ANALIZADOS, falta escribirlos
-Frase de Cesar (18-nov): «Sé correcto arreglar los dos problemas de raíz tanto del escritorio como del celular de una vez».
-1. **Confirmar depuración se cuelga**: `confirmarDepuracion` (src/app/(app)/empresas/[id]/depurar-nomina-acciones.ts) llama `aplicarParteNomina` por grupos en serie desde la acción; en el celular la acción muere antes de la primera RPC (el botón gira y no aplica nada; se resolvió a mano por SQL con `aplicar_nomina` + `cerrar_depuracion_nomina`). **Diseño acordado**: función nueva `public.aplicar_depuracion_nomina(p_id uuid)` en migración **970000** (número reservado): lee la depuración `for update`, valida `maneja_depuracion` y que no esté cerrada, agrupa por motivo (texto `Ya no está según RR. HH. (DD/MM/AAAA)` + `: motivo` si hay), llama `public.aplicar_nomina` por grupo encadenando el lote, y cierra la depuración (`aplicado_en` + `lote_id`). Los agregados con cédula siguen por el camino viejo en TS (pocos). La acción pasa a: permiso + una RPC + agregados si los hay + `cerrar_depuracion_nomina`. Prueba nueva: `supabase/pruebas/232_aplicar_depuracion.sql`. `en_nomina` = `estado in ('activo','reposo','aspirante')` (igual que en `revision_depuracion_nomina`).
-2. **El aviso de Windows del escritorio no abre nada al tocarlo**: `avisoWindows` (src/lib/escritorio.ts:88) usa `plugin:notification|notify` solo con título y cuerpo, sin acción de clic. En el celular el push sí abre la revisión. **Dirección**: que el aviso lleve acción «Abrir» (o un aviso visible dentro de la app con botón «Revisar»/«Ignorar») que navegue al `enlace` del aviso (`/empresas/<id>`); hoy `avisarEnWindows` (src/components/app/notificaciones.tsx:29) ni siquiera pasa el enlace. Plugin: tauri-plugin-notification v2 (escritorio/src-tauri).
+## Resuelto el 19-nov (tanda 20)
+- **Confirmar depuración se colgaba en el celular** (botón «dando vueltas» con 76 personas): arreglado de raíz con `public.aplicar_depuracion_nomina(p_id uuid, p_excluir uuid[])` (migración 970000, PR #395): una sola llamada agrupa por motivo, encadena el lote y cierra la depuración. Frase de Cesar (18-nov): «Sé correcto arreglar los dos problemas de raíz tanto del escritorio como del celular de una vez».
+- **El aviso de Windows del escritorio no abría nada al tocarlo**: el globo de Windows no es clicable de forma confiable; ahora cada aviso aparece además como tarjeta fija dentro de la app con «Revisar» (va al enlace) e «Ignorar» (PR #396). Lo que NO hace todavía: el globo del centro de actividades de Windows sigue sin ser clicable, por eso existe la tarjeta.
 - Dato verificado (sin cambio): los inactivos se encuentran por nombre y cédula en la app (atencion/acciones.ts:122-132, activos primero) y en la puerta (`buscar_trabajadores` muestra `estado: inactivo`). La persona en «reposo» quedó inactiva con las 76 (decisión de Cesar: ya no labora).
 
 ## Limitaciones conocidas

@@ -28,6 +28,7 @@
 ## PC de Cesar
 - `.env.local` del repo en la PC: solo URL y llave anónima (sin `service_role`).
 - `%USERPROFILE%\.zamorapp\`: aplicador de migraciones, scripts de respaldo, marcas de la última restauración.
+- `%USERPROFILE%\.zamorapp\respaldo.cred`: clave de la base de producción cifrada con DPAPI (solo la descifra el usuario de Windows de Cesar). Se usa para los respaldos y para aplicar SQL a producción desde la PC; se descifra dentro del proceso y nunca se imprime.
 - `%LOCALAPPDATA%\zamorApp\datos`: base local cifrada del escritorio. **No tocar.**
 - Supabase CLI / Vercel CLI: iniciar sesión en la PC cuando haga falta (`npx supabase login`, `npx vercel login`).
 
