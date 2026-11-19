@@ -91,6 +91,8 @@ export async function anularEnlaceDepuracion(empresaId: string, id: string): Pro
  * Confirmar lo que propuso RR. HH.: inactiva a los elegidos (agrupados por motivo, todos en un solo «Deshacer») y
  * agrega a la nómina a los nuevos con cédula. Todo sale de la revisión que se lee AQUÍ de la base, nunca del navegador:
  * el navegador solo dice cuáles de esa lista se quitan.
+ * Las inactivaciones van en UNA sola llamada a la base (18-nov-2026: el ciclo de una RPC por motivo se colgaba en el
+ * celular con 76 personas y no se guardaba nada). Los agregados, que son pocos, van encadenados al mismo lote.
  */
 export async function confirmarDepuracion(empresaId: string, id: string, inactivar: string[], agregar: string[]): Promise<R<{ lote: string; inactivados: number; nuevos: number }>> {
   const p = await permiso();
@@ -102,6 +104,7 @@ export async function confirmarDepuracion(empresaId: string, id: string, inactiv
 
   const elegidos = new Set(inactivar);
   const salen = rev.no_estan.filter((n) => n.en_nomina && elegidos.has(n.id));
+  const excluir = rev.no_estan.filter((n) => n.en_nomina && !elegidos.has(n.id)).map((n) => n.id);
   const quieren = new Set(agregar);
   const nuevos: FilaNomina[] = rev.agregados
     .filter((a) => quieren.has(a.id) && a.cedula && !a.registrado)
@@ -111,30 +114,35 @@ export async function confirmarDepuracion(empresaId: string, id: string, inactiv
     }));
   if (!salen.length && !nuevos.length) return { ok: false, mensaje: "No hay nada marcado para confirmar." };
 
-  // Un llamado por motivo (el motivo queda en la ficha de cada uno); el primero crea el registro y lleva a los nuevos
-  const grupos = new Map<string, string[]>();
-  for (const s of salen) {
-    const motivo = `Ya no está según RR. HH. (${dma(hoyCaracas())})${s.motivo ? `: ${s.motivo}` : ""}`;
-    grupos.set(motivo, [...(grupos.get(motivo) ?? []), s.id]);
-  }
-  if (!grupos.size) grupos.set("", []);
+  const supabase = await crearClienteServidor();
   let lote: string | null = null;
   let inactivados = 0;
   let agregados = 0;
-  for (const [motivo, ids] of grupos) {
-    const r = await aplicarParteNomina(empresaId, lote, `Enlace RR. HH. ${dma(hoyCaracas())}`, lote ? [] : nuevos, { identidad: false, excluir: [] }, ids, motivo);
+  let cerrada = false;
+  // Una sola ida y vuelta: la base agrupa por motivo, inactiva y cierra
+  if (salen.length) {
+    const { data, error } = await supabase.rpc("aplicar_depuracion_nomina", { p_id: id, p_excluir: excluir });
+    if (error) {
+      return { ok: false, mensaje: sinRed(error.message) ? "Se perdió la conexión. Recarga la página y revisa si ya quedó aplicado antes de repetir." : "No se pudo confirmar: " + error.message };
+    }
+    const r = data as { lote: string | null; inactivados: number; cerrada: boolean } | null;
+    lote = r?.lote ?? null;
+    inactivados = r?.inactivados ?? 0;
+    cerrada = Boolean(r?.cerrada);
+  }
+  // Los nuevos con cédula (pocos) se agregan al mismo lote
+  if (nuevos.length) {
+    const r = await aplicarParteNomina(empresaId, lote, `Enlace RR. HH. ${dma(hoyCaracas())}`, nuevos, { identidad: false, excluir: [] }, [], "");
     if (!r.ok || !r.parte) {
-      return { ok: false, mensaje: (r.mensaje || "No se pudo confirmar.") + (lote ? " Lo anterior sí quedó: puedes deshacerlo hoy." : ""), lote: lote ?? undefined };
+      return { ok: false, mensaje: (r.mensaje || "No se pudo agregar.") + (lote ? " Lo anterior sí quedó: puedes deshacerlo hoy." : ""), lote: lote ?? undefined };
     }
     lote = r.parte.lote;
-    inactivados += r.parte.inactivados;
-    agregados += r.parte.nuevos;
+    agregados = r.parte.nuevos;
   }
-  const supabase = await crearClienteServidor();
-  await supabase.rpc("cerrar_depuracion_nomina", { p_id: id, p_lote: lote });
+  if (!cerrada) await supabase.rpc("cerrar_depuracion_nomina", { p_id: id, p_lote: lote });
   revalidatePath(`/empresas/${empresaId}`);
   return {
-    ok: true, lote: lote!, inactivados, nuevos: agregados,
+    ok: true, lote: lote ?? undefined, inactivados, nuevos: agregados,
     mensaje: `Listo: ${inactivados} ${inactivados === 1 ? "inactivado" : "inactivados"} y ${agregados} ${agregados === 1 ? "agregado" : "agregados"} a la nómina.`,
   };
 }

@@ -2,6 +2,7 @@
 // La fuente aprobada es una etiqueta «migraciones-AAAAMMDD-N» del repo: solo la crea quien escribe en el repo,
 // cuando Cesar ya dio el sí. La etiqueta trae supabase/migraciones-aprobadas.json con el SHA-256 de cada archivo.
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 export const ETIQUETA = /^migraciones-\d{8}-\d+$/;
 export const ARCHIVO = /^\d{14}_[a-z0-9_]+\.sql$/;
@@ -17,6 +18,13 @@ export function ultimaEtiqueta(nombres) {
 
 export function sha256(texto) {
   return crypto.createHash("sha256").update(texto).digest("hex");
+}
+
+// Una migración leída del disco tal como queda en git (fines de línea LF). En la PC de Cesar la copia local trae
+// CRLF (core.autocrlf) y el SHA-256 aprobado es el del archivo que el aplicador baja de GitHub (LF): sin esto
+// «el manifiesto del repo coincide con sus archivos» falla solo en Windows (visto el 18-nov-2026 con 893000).
+export function leerMigracion(ruta) {
+  return fs.readFileSync(ruta, "utf8").replace(/\r\n/g, "\n");
 }
 
 // Valida el manifiesto entero antes de usar nada de él; cualquier rareza aborta
