@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseConfigurado } from "@/lib/config";
 import type { Evento } from "@/lib/eventos-tipos";
 import type { ClaveSeccion, Investigacion } from "@/lib/investigacion-tipos";
+import { listaParaclinicos } from "@/lib/paraclinicos";
 import { claveRiesgo, GRUPOS, nivelRiesgo, type Valoracion } from "@/lib/puestos-tipos";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { hoyCaracas, sumarMeses } from "@/lib/fecha";
@@ -128,7 +129,7 @@ export async function sugerenciasInvestigacion(e: Evento): Promise<Partial<Recor
     `Signos, síntomas y antecedentes personales: ${POR_COMPLETAR}.`,
   ].join("\n");
 
-  const paras = cs.flatMap((c) => (c.paraclinicos ?? []).filter((x) => x.resultado?.trim()).map((x) => `- ${fecha(c.fecha)} ${x.nombre}: ${x.resultado}`));
+  const paras = cs.flatMap((c) => listaParaclinicos(c.paraclinicos).filter((x) => x.resultado?.trim()).map((x) => `- ${fecha(c.fecha)} ${x.nombre}: ${x.resultado}`));
   const paraclinico = paras.length ? paras.join("\n") : `- ${POR_COMPLETAR}`;
 
   return {
