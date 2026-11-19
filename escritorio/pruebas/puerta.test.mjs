@@ -970,6 +970,10 @@ test("volvió internet: la puerta lo nota sola en la siguiente petición", { ski
   nubeObj.revisadaEn = performance.now() - 16_000;
   const t = await pedir("/rest/v1/trabajadores?select=id&limit=1", { token: tokenMed });
   assert.equal(t.status, 200);
+  // La lectura se sirve de la copia local y la re-comprobación queda en vuelo (servidor.mjs, sin await):
+  // hay que esperarla o la prueba depende de cuál llamada local termina primero (en el CI de Windows perdía)
+  assert.ok(nubeObj.comprobando || nubeObj.enLinea, "la misma petición deja la re-comprobación en marcha");
+  await nubeObj.comprobando;
   assert.equal(nubeObj.enLinea, true);
   nube.estado.caida = true;
   await nubeObj.comprobar();
