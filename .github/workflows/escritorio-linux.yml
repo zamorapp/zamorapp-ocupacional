@@ -28,6 +28,9 @@ jobs:
       PGPORT: "5432"
       PGUSER: postgres
       PGPASSWORD: postgres
+      # onnxruntime-node (de @huggingface/transformers) baja binarios CUDA al instalar y el enlace de la 1.21.0
+      # da 404 desde el 17-nov-2026; en el CI no hace falta CUDA (main ya fallaba por esto en la tanda 19)
+      ONNXRUNTIME_NODE_INSTALL_CUDA: "skip"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
