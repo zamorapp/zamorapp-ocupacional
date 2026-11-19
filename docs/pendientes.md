@@ -3,9 +3,8 @@
 Actualiza este archivo cada vez que algo se abra o se cierre.
 
 ## Último publicado
-- Web en `main` 52a77981 (tanda 20, 19-nov): #395 confirmar depuración de nómina en una sola llamada (migración 970) y #396 tarjeta de aviso con «Revisar»/«Ignorar» dentro del escritorio. Incluye también el arreglo del CI Linux (onnxruntime CUDA 404).
-- Escritorio **0.1.526** (19-nov): la tanda 20 completa.
-- PR abierto esperando frase: **#397** (prueba de la puerta: esperar la re-comprobación en vuelo; cambio solo de prueba, CI en verde). Sin él, el CI de Windows puede fallar de nuevo por el mismo casillero.
+- Web en `main` dec604d4 (tanda 21, 19-nov): #397 la prueba de la puerta espera la re-comprobación en vuelo (frase de Cesar: «sí casillero»). Tanda solo de prueba: **no amerita versión nueva del escritorio** (la app queda idéntica a la 0.1.526).
+- Tanda 20 (19-nov): web en `main` 52a77981 + escritorio **0.1.526**: #395 depuración en una sola llamada (migración 970) y #396 tarjeta de aviso con «Revisar»/«Ignorar»; arreglo del CI Linux (onnxruntime CUDA 404).
 - Migraciones en el repo hasta `20261030970000`; 966/968/969 verificadas el 18-nov y 970000 aplicada y verificada en producción el 19-nov (registro en `schema_migrations`, función con 2 argumentos, anon sin permiso y authenticated con permiso).
 
 ## En curso
