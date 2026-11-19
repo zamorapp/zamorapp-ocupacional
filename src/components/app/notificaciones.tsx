@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Bell, Clock, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,22 +22,28 @@ const hace = (iso: string) => {
 
 // En el escritorio, cada aviso nuevo de la campana sale también como aviso de Windows (una sola vez por aviso, aunque
 // se cierre y se abra el programa). Al abrir solo suenan los de los últimos 15 min: nunca una ráfaga de avisos viejos.
+// Devuelve lo que hay que mostrar en la tarjeta flotante de la app (18-nov-2026: tocar el aviso de Windows no abre
+// nada — el plugin de Tauri no lo permite — así que la tarjeta queda dentro de la app hasta «Revisar» o «Ignorar»).
+type AvisoFlotante = { titulo: string; texto: string; enlace: string | null };
 const AVISADOS = "zamorapp.campana.avisados-windows";
 const RECIENTE_MS = 15 * 60e3;
 function leerAvisados(): string[] {
   try { return JSON.parse(localStorage.getItem(AVISADOS) ?? "[]") as string[]; } catch { return []; }
 }
-async function avisarEnWindows(lista: Notificacion[]) {
-  if (!enEscritorio()) return;
+async function avisarEnWindows(lista: Notificacion[]): Promise<AvisoFlotante | null> {
+  if (!enEscritorio()) return null;
   const avisados = leerAvisados();
   const ya = new Set(avisados);
   const nuevos = lista.filter((n) => !n.leida && !ya.has(n.id) && ahora() - new Date(n.creadoEn).getTime() < RECIENTE_MS);
-  if (!nuevos.length) return;
+  if (!nuevos.length) return null;
   // Varios a la vez (el centinela crea varios): uno solo que los resume
   const [primero] = nuevos;
-  await avisoWindows(nuevos.length === 1 ? primero.titulo : `${nuevos.length} avisos nuevos`,
-    nuevos.length === 1 ? primero.texto ?? "" : nuevos.map((n) => n.titulo).join(" · "));
+  const flotante: AvisoFlotante = nuevos.length === 1
+    ? { titulo: primero.titulo, texto: primero.texto ?? "", enlace: primero.enlace ?? null }
+    : { titulo: `${nuevos.length} avisos nuevos`, texto: nuevos.map((n) => n.titulo).join(" · "), enlace: null };
+  await avisoWindows(flotante.titulo, flotante.texto);
   try { localStorage.setItem(AVISADOS, JSON.stringify([...nuevos.map((n) => n.id), ...avisados].slice(0, 200))); } catch {}
+  return flotante;
 }
 
 // «Ignorar» del aviso de un aparato sin acuse: se guarda en la nube (vale en web, escritorio y celular hasta que la
@@ -52,8 +59,11 @@ const HORA = new Intl.DateTimeFormat("es-VE", { timeZone: "America/Caracas", day
 
 // Campana de avisos: se actualiza cada 30 segundos
 export function Notificaciones() {
+  const router = useRouter();
   const [lista, setLista] = useState<Notificacion[]>([]);
   const [sinAcuse, setSinAcuse] = useState<AparatoSinAcuse[]>([]);
+  const [flotante, setFlotante] = useState<AvisoFlotante | null>(null);
+  const [abierto, setAbierto] = useState(false);
   const ultimoRecordatorio = useRef(0);
   const cargar = useCallback(async () => {
     // Recordatorios de citas: una vez por minuto (antes de leer, para que el aviso nuevo salga en esta misma vuelta)
@@ -65,7 +75,7 @@ export function Notificaciones() {
     setLista(l);
     const ignorados = new Set(leerIgnorados());
     setSinAcuse(a.filter((x) => !ignorados.has(claveAparato(x))));
-    avisarEnWindows(l).catch(() => {});
+    avisarEnWindows(l).then((f) => { if (f) setFlotante(f); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -83,9 +93,12 @@ export function Notificaciones() {
   const nuevas = lista.filter((n) => !n.leida);
 
   return (
+    <>
     <DropdownMenu
-      onOpenChange={(abierto) => {
-        if (!abierto && nuevas.length) {
+      open={abierto}
+      onOpenChange={(v) => {
+        setAbierto(v);
+        if (!v && nuevas.length) {
           marcarLeidas(nuevas.map((n) => n.id));
           setLista(lista.map((n) => ({ ...n, leida: true })));
         }
@@ -141,5 +154,20 @@ export function Notificaciones() {
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+    {flotante && (
+      <div role="alert" className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border bg-background p-3 shadow-lg">
+        <p className="text-sm font-medium">{flotante.titulo}</p>
+        {flotante.texto && <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{flotante.texto}</p>}
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" onClick={() => {
+            const enlace = flotante.enlace;
+            setFlotante(null);
+            if (enlace) router.push(enlace); else setAbierto(true);
+          }}>Revisar</Button>
+          <Button size="sm" variant="ghost" onClick={() => setFlotante(null)}>Ignorar</Button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
