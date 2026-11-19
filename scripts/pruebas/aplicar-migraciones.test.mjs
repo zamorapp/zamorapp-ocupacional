@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { etiquetasDeLsRemote, lineaBase, mensajeLimite, revisarOrden, leerManifiesto, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
+import { etiquetasDeLsRemote, lineaBase, mensajeLimite, revisarOrden, leerManifiesto, leerMigracion, pendientes, resumen, respuestaSi, sha256, ultimaEtiqueta, verificar, MANIFIESTO } from "../migraciones/aprobadas.mjs";
 
 const sql = "select 1;";
 const m = (extra = {}) => JSON.stringify({ etiqueta: "migraciones-20261030-1", aprobado: "Cesar", migraciones: [
@@ -43,7 +43,7 @@ test("el manifiesto del repo coincide con sus archivos", () => {
   if (!fs.existsSync(MANIFIESTO)) return;
   const texto = fs.readFileSync(MANIFIESTO, "utf8");
   const x = leerManifiesto(texto, JSON.parse(texto).etiqueta);
-  for (const y of x.migraciones) verificar(y, fs.readFileSync(`supabase/migrations/${y.archivo}`, "utf8"));
+  for (const y of x.migraciones) verificar(y, leerMigracion(`supabase/migrations/${y.archivo}`));
 });
 
 test("etiquetas por git ls-remote: la anotada vale por su commit (^{}), las de otro nombre se ignoran", () => {

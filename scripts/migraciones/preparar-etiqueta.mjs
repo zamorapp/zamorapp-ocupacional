@@ -4,7 +4,7 @@
 // Después: commit, `git tag <etiqueta>` y `git push origin <etiqueta>`. El aplicador de la PC toma la etiqueta más nueva.
 import fs from "node:fs";
 import path from "node:path";
-import { ARCHIVO, ETIQUETA, MANIFIESTO, leerManifiesto, sha256 } from "./aprobadas.mjs";
+import { ARCHIVO, ETIQUETA, MANIFIESTO, leerManifiesto, leerMigracion, sha256 } from "./aprobadas.mjs";
 
 const args = process.argv.slice(2);
 const opcion = args.find((a) => a.startsWith("--linea-base-hasta="));
@@ -18,7 +18,7 @@ const migraciones = pares.map((p) => {
   const i = p.indexOf("=");
   const archivo = p.slice(0, i), descripcion = p.slice(i + 1).trim();
   if (!ARCHIVO.test(archivo)) throw new Error(`nombre no válido: ${archivo}`);
-  return { archivo, sha256: sha256(fs.readFileSync(path.join("supabase/migrations", archivo), "utf8")), descripcion };
+  return { archivo, sha256: sha256(leerMigracion(path.join("supabase/migrations", archivo))), descripcion };
 });
 const texto = JSON.stringify({ etiqueta, aprobado, ...(linea_base_hasta ? { linea_base_hasta } : {}), migraciones }, null, 2) + "\n";
 leerManifiesto(texto, etiqueta); // la misma validación que hará la PC
