@@ -28,7 +28,12 @@ Actualiza este archivo cada vez que algo se abra o se cierre.
 ## Limitaciones conocidas
 - Enfermería no edita atenciones (solo borrar en 24 h y volver a registrar). Las indicaciones no se editan (anular y emitir otra).
 - Los PDF que exigen la sesión de Cesar (`/imprimir/lote`) solo los genera él.
-- La prueba `scripts/pruebas/aplicar-migraciones.test.mjs` falla en `main` por un SHA viejo en `supabase/migraciones-aprobadas.json` (quedó de la etiqueta del 05-nov): pendiente regenerar el manifiesto con `scripts/migraciones/preparar-etiqueta.mjs` y su etiqueta.
+
+## Auditoría del 19-nov (tarde)
+- **Producción sin errores reales en 7 días** (Vercel): solo un aviso de obsolescencia de Node (`url.parse`) en `/api/avisos/campana`, 6 veces desde el 30-oct; migrar a WHATWG URL cuando se toque ese archivo.
+- **Datos**: 3.854 trabajadores activos; **400 sin teléfono** (10 %: por eso a veces el botón de WhatsApp no enlaza; con el PR del botón queda cubierto el flujo, y se puede completar la nómina de teléfonos poco a poco). Paraclínicos «{}»: **0** en la base (el arreglo del PR #398 es preventivo). Sin citas huérfanas ni cédulas duplicadas. Solicitudes de registro por revisar: 0. Cobros emitidos sin pagar: 1.
+- **Código**: `tsc` y `build` en verde; eslint: 0 errores, 89 avisos viejos (variables sin usar y similares; limpiar de a poco al tocar cada archivo). Pruebas de scripts: 197 pasan, 0 fallan, 10 omitidas (la falla vieja del manifiesto SHA ya no aparece).
+- **Administrativo**: cuentas por cobrar YA existe (Facturación: notas emitidas sin pagar por empresa y antigüedad, con abonos parciales y su referencia). **Cuentas por pagar NO existe**: propuesta de módulo nuevo (acreedor, concepto, monto, vencimiento, pagos con número de operación), espejo de cobros. Esperando el sí de Cesar.
 
 ## Puerta para agentes
 - Llave «kimi» encendida (consulta y crea + las 3 casillas), vence el 18-dic-2026. Su valor vive solo en `C:\Users\58412\Documents\zamorApp\puerta-agentes.txt` de la PC de Cesar (nunca en el repo ni en el chat). Probada el 18-nov con la acción «resumen».
