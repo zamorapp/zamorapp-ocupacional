@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, MessageCircle, Stethoscope, Ticket, UserCheck, UserX, X } from "lucide-react";
-import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
+import { BellRing, CalendarCheck2, CheckCircle2, Clock, Loader2, Stethoscope, Ticket, UserCheck, UserX, X } from "lucide-react";
+import { fechaLarga, llenar } from "@/lib/mensajes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Cita, EstadoCita } from "@/lib/citas";
@@ -12,6 +12,7 @@ import { iniciarConsulta } from "./acciones";
 import { cambiarEstadoCita } from "./citas-acciones";
 import { confirmar } from "@/components/app/confirmar";
 import { BotonPosponer } from "./posponer";
+import { BotonWhatsAppCita } from "./whatsapp-cita";
 import { ahora as horaReal } from "@/lib/fecha";
 
 // Tiempo de espera: normal, aviso desde 20 min y alerta desde 40 min
@@ -58,8 +59,8 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const alertas = useMemo(() => new Set(conAlerta), [claveAlertas]);
   // Recordatorio de cita por WhatsApp (se abre en el WhatsApp del usuario, listo para enviar)
-  const recordatorio = (c: Cita) =>
-    enlaceWhatsApp(c.telefono, llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio }));
+  const textoRecordatorio = (c: Cita) =>
+    llenar(mensaje.plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio: mensaje.servicio });
   const [ocupado, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => horaReal());
@@ -120,9 +121,7 @@ export function ColaAtencion({ citas, esHoy, mensaje, pendientes = {}, conAlerta
           {citados.map((c) => (
             <Fila key={c.id} c={c} arrastrable={esHoy} detalle={c.consultaId ? <span className="ml-1.5 rounded-full bg-primary/10 px-2 py-px text-[11px] font-semibold whitespace-nowrap text-primary">Borrador guardado</span> : undefined}>
               {esHoy && <Button size="sm" variant="outline" className="max-sm:min-h-11" onClick={() => estado(c.id, "en_espera")}><UserCheck /> Llegó</Button>}
-              <Button size="icon" variant="ghost" className="size-8 max-sm:size-11 text-ok-texto" asChild title={numeroWhatsApp(c.telefono) ? "Recordar la cita por WhatsApp" : "Recordar por WhatsApp (sin teléfono registrado: elige el contacto)"}>
-                <a href={recordatorio(c)} target="_blank" rel="noreferrer" aria-label="Recordar por WhatsApp"><MessageCircle /></a>
-              </Button>
+              <BotonWhatsAppCita telefono={c.telefono} trabajadorId={c.trabajadorId} paciente={c.paciente} texto={textoRecordatorio(c)} titulo="Recordar la cita por WhatsApp" />
               {/* Comprobante de cita para el trabajador: fecha, hora, lugar e indicaciones, con el membrete del servicio */}
               <Button size="icon" variant="ghost" className="size-8 max-sm:size-11" asChild title="Comprobante de cita (imprimir o PDF)">
                 <Link href={`/imprimir/cita/${c.id}`} target="_blank" aria-label="Comprobante de cita"><Ticket /></Link>
