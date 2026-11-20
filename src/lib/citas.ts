@@ -110,20 +110,20 @@ export async function listarCitas(desde: string, hasta = desde): Promise<Cita[]>
 // que pidieron las empresas por el portal desde hoy. Misma regla que cuenta inicio_conteos; todas las empresas.
 export type CitaPorConfirmar = {
   id: string; fecha: string; hora: string | null; tipo: "provisional" | "solicitada"; paciente: string; cedula: string;
-  telefono: string | null; empresa: string; cargo: string | null; motivo: string | null; observacion: string | null;
+  telefono: string | null; empresa: string; cargo: string | null; motivo: string | null; observacion: string | null; trabajadorId: string;
 };
 export async function listarPorConfirmar(): Promise<CitaPorConfirmar[]> {
   if (!supabaseConfigurado) return [];
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("citas")
-    .select("id, fecha, hora, estado, observacion, nota_empresa, trabajadores(nombres, apellidos, cedula, telefono, puestos(nombre)), empresas(razon_social), motivo:lista_items(nombre)")
+    .select("id, fecha, hora, estado, observacion, nota_empresa, trabajador_id, trabajadores(nombres, apellidos, cedula, telefono, puestos(nombre)), empresas(razon_social), motivo:lista_items(nombre)")
     .or(`and(estado.eq.citado,por_confirmar.eq.true),and(estado.eq.solicitada,fecha.gte.${hoyCaracas()})`)
     .order("fecha")
     .order("hora", { nullsFirst: false })
     .limit(500);
   if (error) throw error;
-  type FilaPC = { id: string; fecha: string; hora: string | null; estado: EstadoCita; observacion: string | null; nota_empresa: string | null;
+  type FilaPC = { id: string; fecha: string; hora: string | null; estado: EstadoCita; observacion: string | null; nota_empresa: string | null; trabajador_id: string;
     trabajadores: { nombres: string; apellidos: string; cedula: string; telefono: string | null; puestos: { nombre: string } | null } | null;
     empresas: { razon_social: string } | null; motivo: { nombre: string } | null };
   return ((data ?? []) as unknown as FilaPC[]).map((c) => ({
@@ -138,6 +138,7 @@ export async function listarPorConfirmar(): Promise<CitaPorConfirmar[]> {
     cargo: c.trabajadores?.puestos?.nombre ?? null,
     motivo: c.motivo?.nombre ?? null,
     observacion: c.nota_empresa ?? c.observacion,
+    trabajadorId: c.trabajador_id,
   }));
 }
 

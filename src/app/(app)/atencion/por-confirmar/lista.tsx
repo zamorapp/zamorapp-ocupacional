@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarCheck2, CalendarClock, CalendarX2, Loader2, MessageCircle, Trash2 } from "lucide-react";
+import { CalendarCheck2, CalendarClock, CalendarX2, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FranjaDeshacerLocal } from "@/components/app/franja-deshacer-local";
 import type { CitaPorConfirmar } from "@/lib/citas";
-import { enlaceWhatsApp, fechaLarga, llenar, numeroWhatsApp } from "@/lib/mensajes";
+import { fechaLarga, llenar } from "@/lib/mensajes";
 import { cn } from "@/lib/utils";
 import { cambiarFechaCitaPendiente, confirmarCitaPendiente, deshacerEliminarCita, eliminarCitaPendiente } from "../citas-acciones";
+import { BotonWhatsAppCita } from "../whatsapp-cita";
 
 const DIA = new Intl.DateTimeFormat("es-VE", { weekday: "short", timeZone: "UTC" });
 const MES = new Intl.DateTimeFormat("es-VE", { month: "short", timeZone: "UTC" });
@@ -64,7 +65,7 @@ export function ListaPorConfirmar({ citas, hoy, servicio, plantilla }: { citas: 
     setError(null); setCambiando(null); setAviso(`Nueva fecha para ${c.paciente}: ${fechaLarga(String(datos.get("fecha")))}. Sigue por confirmar.`);
   });
 
-  const mensaje = (c: CitaPorConfirmar) => enlaceWhatsApp(c.telefono, llenar(plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio }));
+  const textoMensaje = (c: CitaPorConfirmar) => llenar(plantilla, { nombre: c.paciente, cedula: c.cedula, fecha: fechaLarga(c.fecha), hora: c.hora ?? "la hora acordada", motivo: c.motivo, empresa: c.empresa, servicio });
 
   return (
     <div className="space-y-3">
@@ -120,9 +121,7 @@ export function ListaPorConfirmar({ citas, hoy, servicio, plantilla }: { citas: 
                     {(vencio || c.tipo === "provisional") && cambiando !== c.id && (
                       <Button size="sm" variant="outline" disabled={ocupado} onClick={() => setCambiando(c.id)} className="max-sm:min-h-11"><CalendarClock /> Cambiar fecha</Button>
                     )}
-                    <Button size="sm" variant="outline" className="text-ok-texto max-sm:min-h-11" asChild title={numeroWhatsApp(c.telefono) ? "Escribirle por WhatsApp" : "Sin teléfono registrado: elige el contacto"}>
-                      <a href={mensaje(c)} target="_blank" rel="noreferrer"><MessageCircle /> WhatsApp</a>
-                    </Button>
+                    <BotonWhatsAppCita telefono={c.telefono} trabajadorId={c.trabajadorId} paciente={c.paciente} texto={textoMensaje(c)} titulo="Escribirle por WhatsApp" variante="boton" />
                     <Button size="sm" variant="outline" disabled={ocupado} onClick={() => eliminar(c)} className="text-destructive max-sm:min-h-11"><Trash2 /> Eliminar</Button>
                   </div>
                 </li>
