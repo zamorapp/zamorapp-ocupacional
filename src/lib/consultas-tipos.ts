@@ -13,7 +13,9 @@ export type Paraclinico = {
 };
 export type Diagnostico = { cie10: string; descripcion: string; sistema: string; origen: Origen; principal: boolean };
 export type Medicamento = { medicina: string; concentracion?: string; presentacion: string; dosis: string; frecuencia: string; duracion: string; via: string; observacion?: string; notaFarmacia?: string };
-export type Interconsulta = { especialidad: string; motivo: string };
+// especialista: elegido del registro de la organización (migración 20261030971000); nombre y dirección quedan
+// copiados en la consulta: las cartas ya emitidas no cambian si después se edita el registro
+export type Interconsulta = { especialidad: string; motivo: string; especialista?: { id: string; nombre: string; direccion: string | null } };
 // resultado: código de la lista «Resultados de reubicación» (efectiva, negada, en trámite); vacío = en trámite
 export type Reubicacion = { activa: boolean; tipo: "temporal" | "definitiva"; puestoActual: string; puestoPropuesto: string; desde: string; hasta: string; motivo: string; restricciones: string; resultado: string };
 export type InformeLibre = { titulo: string; dirigidoA: string; cuerpo: string };

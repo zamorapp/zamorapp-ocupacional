@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { historialConsulta, listarVersiones, obtenerConsulta } from "@/lib/consultas";
 import { plantillasDeOrg } from "@/lib/plantillas-servidor";
+import { listarEspecialistas } from "@/lib/especialistas";
 import { opciones } from "@/lib/listas";
 import { obtenerSesion } from "@/lib/sesion";
 import { listarAdjuntos } from "@/lib/adjuntos";
@@ -42,7 +43,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
   const demo = !supabaseConfigurado;
   // Todo en dos ramas paralelas: lo que depende de la organización (sesión → listas, plantillas, datos) y lo que
   // depende del trabajador (consulta → historial, adjuntos). Antes eran 6 esperas en fila; ahora la más larga es 3.
-  const porOrg = obtenerSesion().then((sesion) => Promise.all([sesion, opciones(sesion.orgId, LISTAS), plantillasDeOrg(sesion.orgId), datosOrganizacion()]));
+  const porOrg = obtenerSesion().then((sesion) => Promise.all([sesion, opciones(sesion.orgId, LISTAS), plantillasDeOrg(sesion.orgId), datosOrganizacion(), listarEspecialistas()]));
   const porTrabajador = obtenerConsulta(id).then((consulta) => Promise.all([
     consulta,
     !consulta || demo ? { mediciones: [], reposos: [], discapacidadRegistrada: false } : historialConsulta(consulta.trabajador.id, id),
@@ -51,7 +52,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
     // Consulta a distancia (telemedicina): lo de la llamada y su espera en la sala; RLS: solo personal clínico
     !consulta || demo ? { tele: null, sala: null, telefonoFicha: null } : teleconsultaDe(id, consulta.trabajador.id),
   ]));
-  const [[sesion, listas, plantillas, org], [consulta, historial, listaAdjuntos, alertas, distanciaDatos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
+  const [[sesion, listas, plantillas, org, especialistas], [consulta, historial, listaAdjuntos, alertas, distanciaDatos], versiones, contacto, declaraciones, siguiente] = await Promise.all([
     porOrg,
     porTrabajador,
     demo ? [] : listarVersiones(id),
@@ -105,7 +106,7 @@ export default async function Consulta({ params, searchParams }: { params: Promi
       )}
       {/* Con la caché de 30 s, volver a esta consulta nunca abre el editor con lo de antes de guardar */}
       <FrescoAlVolver generada={`${consulta.datos.id}-${ahora()}`} cargando={<Cargando />}>
-        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} duplicada={duplicada === "1"} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada}
+        <EditorConsulta inicial={consulta.datos} trabajador={consulta.trabajador} medico={consulta.medico} firmadaEnSame={consulta.firmadaEnSame} listas={listas} adjuntos={adjuntos} envio={envio} puedeFirmar={puedeFirmar} versiones={versiones} historial={historial} plantillas={plantillas} nueva={consulta.nueva} pasoInicial={paso} duplicada={duplicada === "1"} declaraciones={declaraciones} siguiente={siguiente} hoy={hoyCaracas()} registrada={consulta.registrada} especialistas={especialistas}
           puedeCambiarFecha={["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")} diasAvisoFecha={org.ajustes.dias_aviso_fecha_futura ?? 90}
           alertas={sesion.clinico ? alertas : []} puedeRevisarAlertas={sesion.clinico && ["medico", "gerente_medico", "administrador"].includes(sesion.rol ?? "")}
           puedeEliminar={!sesion.demo && sesion.clinico && sesion.rol === "administrador"}

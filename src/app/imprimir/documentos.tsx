@@ -610,7 +610,15 @@ export function Referencia({ d }: { d: DatosDocumento }) {
           <Membrete d={d} />
           <Titulo d={d} prefijo={`RF${i + 1}`} sub={r.especialidad}>Referencia médica</Titulo>
           <DatosPaciente d={d} completo={false} />
-          <p className="mb-3 text-[13px]">Estimado(a) colega de <b>{r.especialidad}</b>:</p>
+          {/* El saludo nombra al especialista del registro cuando se eligió (Cesar, 19-nov): «Especialista en …» */}
+          {r.especialista?.nombre ? (
+            <>
+              <p className="mb-1 text-[13px]">Estimado(a) colega Dr(a). <b>{r.especialista.nombre}</b>, Especialista en <b>{r.especialidad}</b>:</p>
+              {r.especialista.direccion && <p className="mb-3 text-[12px] text-doc-tenue">Consultorio: {r.especialista.direccion}</p>}
+            </>
+          ) : (
+            <p className="mb-3 text-[13px]">Estimado(a) colega, Especialista en <b>{r.especialidad}</b>:</p>
+          )}
           <p className="mb-4 text-[13px] leading-relaxed">
             Remito a <b>{d.trabajador.nombre}</b>, C.I. {d.trabajador.cedula}{d.trabajador.edad !== null && `, de ${d.trabajador.edad} años`}{esParticular(d.empresa) ? "" : `, trabajador(a) de ${d.empresa.razon_social}`}, para su evaluación y conducta.
           </p>
