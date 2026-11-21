@@ -1,18 +1,18 @@
-# Pendientes (corte: 19-nov-2026, tarde)
+# Pendientes (corte: 21-nov-2026)
 
 Actualiza este archivo cada vez que algo se abra o se cierre.
 
 ## Último publicado
-- Web en `main` bf01dbbb (tanda 22, 19-nov) + escritorio **0.1.528**: #398 paraclínicos «{}» o null ya no tumban el panel ni la consulta (rehecho de la vieja #97; frase de Cesar: «sí paraclínicos»).
-- Tanda 21 (19-nov, solo prueba, sin versión del escritorio): #397 el casillero del CI de Windows arreglado de raíz (CI verde).
-- Tanda 20 (19-nov): web en `main` 52a77981 + escritorio **0.1.526**: #395 depuración en una sola llamada (migración 970) y #396 tarjeta de aviso con «Revisar»/«Ignorar»; arreglo del CI Linux (onnxruntime CUDA 404).
+- Web en `main` 8329d0ca (tanda 24, 20-nov): **#400 registro de especialistas para las referencias** (migración 971, aplicada y verificada en producción antes de fusionar; frase de Cesar: «sí especialistas»). Pantalla en Configuración › Especialistas, selector en Interconsultas, carta «Especialista en …» con su consultorio.
+- Tanda 23 (20-nov): #399 WhatsApp de la agenda pide el número al momento si la ficha no tiene teléfono (frase: «sí teléfono»); escritorio **0.1.529**.
+- Tanda 22 (19-nov): #398 paraclínicos «{}» (frase: «sí paraclínicos»); escritorio **0.1.528**.
 - Migraciones en el repo hasta `20261030970000`; 966/968/969 verificadas el 18-nov y 970000 aplicada y verificada en producción el 19-nov (registro en `schema_migrations`, función con 2 argumentos, anon sin permiso y authenticated con permiso).
 
 ## En curso
 - **Funciones nuevas de la puerta para agentes** (pedidas por Cesar el 18-nov; modelo confirmado el 19-nov): **semi-automatización** — el agente crea/prepara, Cesar aprueba (visualiza) y solo se ejecuta con su sí; si dice «hágalo todo completo», el agente lo deja listo completo solo para que él lo visualice. En diseño: anular/cambiar/posponer citas **de a una, con su aprobación cada vez**; constancias en borrador; leer el registro de accidentes; consulta e historia en borrador bajo su tutela; notas de cobro con tasa BCV del día de la factura y texto fijo de pago (confirmado); envío de correos con archivos solo aprobados uno por uno; mover trabajador de empresa solo con su aprobación; análisis de vigilancia más natural, a su estilo. Primera tanda en construcción: constancias en borrador + notas de cobro.
 - **«Perfil normal» (definición de Cesar, 18-nov)**: persona evaluada sin condiciones patológicas, en buenas condiciones generales, examen físico y funcional sin alteraciones en todas sus esferas; en cualquier evaluación ocupacional sale con las recomendaciones normales/idóneas para un trabajador. Si hay alguna condición, Cesar dicta el diagnóstico, las medidas y los perfiles que apliquen; si un perfil no existe, él indica cómo crearlo y el agente puede analizar y recomendar.
-- **Botones de WhatsApp sin teléfono en la ficha (19-nov)**: hoy, si el trabajador no tiene teléfono, el botón abre el selector de contactos vacío y confunde (caso real: un paciente en espera sin número en la ficha; se le guardó por SQL y ya enlaza). Propuesta aprobada por Cesar («que se aplique también para otras personas enlazadas»): que el botón pida el número al momento y ofrezca guardarlo en la ficha. Falta hacer el PR.
-- **Registro de médicos especialistas para referencias (pedido el 19-nov)**: stock de especialistas con nombre y apellido, especialidad, dirección (si la tiene) y contacto; al hacer una referencia salen el nombre, la especialidad y la dirección del especialista, más todo el desarrollo de la referencia. En diseño (migración nueva + pantalla de registro + integración con la referencia).
+- **Botones de WhatsApp sin teléfono en la ficha (19-nov)**: RESUELTO (tanda 23, PR #399): si no hay teléfono, el botón pide el número al momento y ofrece guardarlo en la ficha. Queda pendiente completar la nómina de teléfonos poco a poco (400 activos sin teléfono según la auditoría del 19-nov; con el botón se hace solo al usarlo).
+- **Registro de médicos especialistas para referencias (pedido el 19-nov)**: PUBLICADO (tanda 24, PR #400, migración 971 en producción). Stock con nombre y apellido, especialidad, dirección (si la tiene) y contacto; la referencia sale «Especialista en …» a su nombre con su consultorio.
 
 ## Esperando a Cesar (manual)
 - Firmar las evaluaciones pendientes de una empresa y sacar su PDF con la fecha de impresión que pidió el cliente.
