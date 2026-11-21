@@ -29,7 +29,7 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce(public.mi_rol(p_org) in ('administrador', 'gerente_medico', 'recepcion'), false)
 $$;
 grant execute on function public.puede_gestionar_especialistas(uuid) to authenticated;
-revoke execute on function public.puede_gestionar_especialistas(uuid) from anon;
+revoke execute on function public.puede_gestionar_especialistas(uuid) from public, anon;
 
 create policy especialistas_editar on public.especialistas for all
   using (public.puede_gestionar_especialistas(org_id)) with check (public.puede_gestionar_especialistas(org_id));
