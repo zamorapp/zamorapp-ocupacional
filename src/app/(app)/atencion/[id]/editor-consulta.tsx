@@ -26,6 +26,7 @@ import {
   type Origen,
   taAlterada,
 } from "@/lib/consultas-tipos";
+import { nombreCompleto, type Especialista } from "@/lib/especialistas-tipos";
 import type { Item } from "@/lib/listas";
 import { CAMPOS_RECIPE, type CampoRecipe, concentracionEnNombre, faltantesMedicinas } from "@/lib/recipe";
 import { ESTILO_APTITUD, type Aptitud } from "@/lib/pacientes";
@@ -112,6 +113,7 @@ type Props = {
   puedeRevisarAlertas?: boolean; // médico, gerente médico o administrador (lo exige la base)
   puedeEliminar?: boolean; // administrador con acceso clínico: «Eliminar consulta» (va a la Papelera, con Deshacer)
   notaRiesgos?: string; // nota legal debajo de «Riesgos del puesto» (Configuración › Organización)
+  especialistas?: Especialista[]; // registro de especialistas para las interconsultas (Configuración › Especialistas)
 };
 
 // Reposo: 24 h = 1 día (el mismo día), 48 h = 2 días… Los días cuentan desde «Desde» hasta «Hasta», ambos incluidos
@@ -299,7 +301,7 @@ const numeroSigno = (v?: string) => {
 // Atajo visible solo en pantallas grandes (en el celular no hay teclado)
 const ATAJO_FIRMAR = <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[11px] font-normal opacity-80 lg:inline">Ctrl + Enter</kbd>;
 
-export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, duplicada = false, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false, notaRiesgos }: Props) {
+export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = null, listas, adjuntos, envio, puedeFirmar, versiones, historial, plantillas, nueva, pasoInicial, duplicada = false, declaraciones, siguiente = null, hoy, registrada, puedeCambiarFecha, diasAvisoFecha, alertas: alertasIniciales = [], puedeRevisarAlertas = false, puedeEliminar = false, notaRiesgos, especialistas = [] }: Props) {
   const router = useRouter();
   // Consulta nueva con motivo ya elegido (p. ej. desde la cita): se precarga la plantilla de ese motivo
   const plantillaInicial = nueva && inicial.estado === "borrador" ? plantillaPara(plantillas, listas, inicial.motivoId) : null;
@@ -1484,10 +1486,21 @@ export function EditorConsulta({ inicial, trabajador, medico, firmadaEnSame = nu
             <Seccion titulo="Interconsultas" accion={<Button type="button" size="sm" variant="outline" onClick={() => set("interconsultas", [...d.interconsultas, { especialidad: "", motivo: "" }])}><Plus /> Agregar</Button>}>
               {d.interconsultas.length === 0 && <p className="text-sm text-muted-foreground">Sin interconsultas.</p>}
               {d.interconsultas.map((x, i) => (
-                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
-                  <select value={x.especialidad} onChange={(e) => set("interconsultas", d.interconsultas.map((y, j) => (j === i ? { ...y, especialidad: e.target.value } : y)))} className={cn(SELECT, "h-9")}>
+                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
+                  <select value={x.especialidad} onChange={(e) => set("interconsultas", d.interconsultas.map((y, j) => (j === i ? { ...y, especialidad: e.target.value, especialista: undefined } : y)))} className={cn(SELECT, "h-9")}>
                     <option value="">Especialidad</option>
                     {listas.especialidad.map((s) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                  </select>
+                  {/* Especialista del registro (opcional): la carta sale a su nombre con su consultorio (Cesar, 19-nov) */}
+                  <select value={x.especialista?.id ?? ""} onChange={(e) => {
+                    const esp = especialistas.find((s) => s.id === e.target.value);
+                    set("interconsultas", d.interconsultas.map((y, j) => (j === i ? { ...y, especialista: esp ? { id: esp.id, nombre: nombreCompleto(esp), direccion: esp.direccion } : undefined, ...(esp ? { especialidad: esp.especialidad } : {}) } : y)));
+                  }} className={cn(SELECT, "h-9")} title="Especialista del registro (Configuración › Especialistas)" aria-label="Especialista del registro">
+                    <option value="">Especialista (opcional)</option>
+                    {especialistas.map((s) => <option key={s.id} value={s.id}>{nombreCompleto(s)} · {s.especialidad}</option>)}
+                    {x.especialista && !especialistas.some((s) => s.id === x.especialista!.id) && (
+                      <option value={x.especialista.id}>{x.especialista.nombre} (ya no está en el registro)</option>
+                    )}
                   </select>
                   <Input value={x.motivo} placeholder="Motivo de la referencia" className="h-9" onChange={(e) => set("interconsultas", d.interconsultas.map((y, j) => (j === i ? { ...y, motivo: e.target.value } : y)))} />
                   <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => set("interconsultas", d.interconsultas.filter((_, j) => j !== i))}><Trash2 className="size-4" /></button>

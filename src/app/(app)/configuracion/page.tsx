@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Bot, Briefcase, CalendarCog, Building, ClipboardList, DatabaseBackup, Fingerprint, FolderInput, HeartPulse, Landmark, Laptop, ListChecks, type LucideIcon, ShieldCheck, Sparkles, Tags, Trash2, UserCog, Users, Wand2 } from "lucide-react";
+import { ArrowRight, Bot, Briefcase, CalendarCog, Building, ClipboardList, DatabaseBackup, Fingerprint, FolderInput, HeartPulse, Landmark, Laptop, ListChecks, type LucideIcon, ShieldCheck, Sparkles, Stethoscope, Tags, Trash2, UserCog, Users, Wand2 } from "lucide-react";
 import { obtenerSesion } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -21,6 +21,7 @@ const BLOQUES: Bloque[] = [
       { href: "/configuracion/clinica", titulo: "Ajustes clínicos", texto: "Asistente en 3 pasos: elige la empresa, la evaluación y qué paraclínicos, examen y recomendaciones se precargan.", icono: Wand2 },
       { href: "/configuracion/plantillas", titulo: "Plantillas de examen", texto: "Por motivo de consulta: examen normal, recomendaciones, vigencia y la aptitud del botón «Perfil normal».", icono: ClipboardList },
       { href: "/configuracion/listas", titulo: "Listas configurables", texto: "Motivos, aptitud, paraclínicos, medicinas, recomendaciones y todos los maestros.", icono: ListChecks },
+      { href: "/configuracion/especialistas", titulo: "Especialistas", texto: "Los médicos a quienes refieres pacientes: nombre, especialidad, consultorio y contacto. La carta de referencia sale a su nombre.", icono: Stethoscope },
       { href: "/configuracion/horario", titulo: "Disponibilidad para citas", texto: "Horario semanal con cupos y días u horas bloqueadas: RR. HH. solo pide en horas libres.", icono: CalendarCog },
     ],
   },
