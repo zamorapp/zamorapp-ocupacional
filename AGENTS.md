@@ -18,6 +18,7 @@ Lee este archivo completo antes de tocar nada. Después lee, en este orden, lo q
 | [docs/credenciales.md](docs/credenciales.md) | Dónde vive cada clave (sin valores), vencimientos, cuentas |
 | [docs/reglas-y-errores.md](docs/reglas-y-errores.md) | Reglas fijas del dueño y errores que ya pasaron con su regla |
 | [docs/pendientes.md](docs/pendientes.md) | Lo abierto a la fecha del último corte |
+| [docs/punto-de-partida.md](docs/punto-de-partida.md) | Estado actual verificado y recetas de cada procedimiento (leer después de este archivo; se actualiza con cada tanda) |
 | [docs/migrar-de-agente.md](docs/migrar-de-agente.md) | Cómo retoma el trabajo un agente nuevo en otro sistema |
 
 ## Reglas que no se negocian (resumen; detalle en docs/reglas-y-errores.md)
