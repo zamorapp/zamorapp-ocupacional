@@ -25,6 +25,9 @@
 ## Vercel → Project → Settings → Environment Variables
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (públicas), `VAPID_PRIVADA` (+ pública) para avisos push, `GMAIL_USUARIO`, `GMAIL_CLAVE_APP` para correo.
 
+## Supabase → Authentication → Emails → SMTP Settings
+SMTP personalizado ENCENDIDO (24-nov-2026): los correos de confirmación de cuenta salen por el mismo Gmail de la app (`smtp.gmail.com`, puerto 465, remitente «OcupaVida Salud Ocupacional»). Se configuró porque los correos de Supabase (remitente compartido) no llegaban a dominios corporativos. La clave es una contraseña de aplicación NUEVA de la cuenta de Gmail («Supabase zamorApp», creada el 24-nov en myaccount.google.com/apppasswords); la de la app (en Vercel) es otra y sigue igual. Si falla el envío de correos de autenticación: revisar en Logs → Auth el error; 535 = credenciales (regenerar la clave de aplicación y pegarla de nuevo en el campo Password).
+
 ## PC de Cesar
 - `.env.local` del repo en la PC: solo URL y llave anónima (sin `service_role`).
 - `%USERPROFILE%\.zamorapp\`: aplicador de migraciones, scripts de respaldo, marcas de la última restauración.

@@ -1,4 +1,4 @@
-# Punto de partida (estado verificado: 21-nov-2026)
+# Punto de partida (estado verificado: 24-nov-2026)
 
 > **Para qué es esto**: la lectura rápida para empezar a trabajar sin releer todo el portal, el chat y el código.
 > Aquí está el estado actual verificado y las recetas de cada procedimiento. **Se actualiza con cada tanda publicada** (misma disciplina que `pendientes.md`). Si algo aquí no cuadra con la realidad, la realidad manda: verificar con los comandos de abajo y corregir este archivo.
@@ -14,8 +14,10 @@
 - Suite RLS local: 269 pruebas OK (técnica abajo, «Verificar la base»).
 - Auditoría del 19-nov: producción sin errores reales en 7 días; 3.854 trabajadores activos, 400 sin teléfono; datos sanos (sin duplicados ni huérfanos).
 
-## Lo último que se hizo (21-nov)
+## Lo último que se hizo (24-nov)
 
+- **SMTP propio en Supabase Auth** (correos de confirmación ya salen por el Gmail de la app; antes no llegaban a dominios corporativos como el de GVALVE). Configurado en el panel: Authentication › Emails › SMTP Settings. Aprendizaje: el remitente de la app es el Gmail personal de Cesar (no el de la organización); la clave va SIN espacios pegada en el campo Password; verificación real: `curl -X POST <URL>/auth/v1/recover -d '{"email":...}'` con la anon key debe dar HTTP 200 `{}`; el error 535 = credenciales rechazadas.
+- Agenda de una paciente de GVALVE depurada por SQL (una cita duplicada cancelada; la que tenía la consulta abierta quedó a las 8:00 como pidió RRHH).
 - **Registro de especialistas** (tanda 24, PR #400): Configuración › Especialistas; la interconsulta elige especialista y la carta sale «Especialista en …» con su consultorio. Migración 971 en producción.
 - **WhatsApp de la agenda pide el número si no hay teléfono** (tanda 23, PR #399).
 - **Paraclínicos «{}»** ya no tumban el panel (tanda 22, PR #398).
