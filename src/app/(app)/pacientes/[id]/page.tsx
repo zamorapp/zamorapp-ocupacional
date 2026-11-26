@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { textoLateralidad } from "@/lib/lateralidad";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, HeartPulse, Printer, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, BellRing, CalendarClock, HeartPulse, Pencil, Printer, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +56,7 @@ import { atencionesDeTrabajador } from "@/lib/enfermeria";
 import { ListaAtenciones } from "../../enfermeria/lista-atenciones";
 import { lineaDeTiempo, MARCAS_DEMO, marcasDeConsultas, type MarcaTiempo } from "@/lib/linea-tiempo";
 import { LineaTiempo } from "./linea-tiempo";
+import { puedeEditarFichaPersonal } from "@/lib/ficha-personal";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -189,6 +190,11 @@ export default async function FichaPaciente({ params }: Props) {
             </div>
           )}
           <div className="flex w-full flex-wrap gap-2 xl:w-auto">
+            {conBase && puedeEditarFichaPersonal(sesion.rol) && (
+              <Button variant="outline" asChild className="flex-1 xl:flex-none">
+                <Link href={`/pacientes/${t.id}/editar`}><Pencil /> Editar datos personales</Link>
+              </Button>
+            )}
             {/* RR. HH. envía estudios al expediente; solo los ve el personal de salud (entregar_estudio) */}
             {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (
               <EnviarEstudio orgId={sesion.orgId} trabajadorId={t.id} nombre={`${t.nombres} ${t.apellidos}`} catalogo={estudiosRrhh} />

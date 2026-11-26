@@ -9,6 +9,8 @@ import { lateralidadValida, normalizarLateralidad } from "@/lib/lateralidad";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { FilaImportada } from "@/lib/importar";
+import { normalizarCedula } from "@/lib/importar";
+import { cambiosFichaPersonal, COLUMNAS_FICHA_PERSONAL, puedeEditarFichaPersonal, type DatosFichaPersonal } from "@/lib/ficha-personal";
 import { resolverCatalogos, resolverTiposPaciente } from "@/lib/catalogos-trabajador";
 
 // existente: la cédula ya es de un trabajador inactivo o egresado (la pantalla ofrece abrir su ficha para reingresarlo)
@@ -16,9 +18,34 @@ export type Resultado = { ok: boolean; mensaje: string; id?: string; existente?:
 
 const texto = (d: FormData, k: string) => String(d.get(k) ?? "").trim() || null;
 
-function normalizarCedula(v: string) {
-  const m = v.toUpperCase().replace(/[.\s]/g, "").match(/^([VEP])?-?(\d{5,9})$/);
-  return m ? `${m[1] ?? "V"}-${m[2]}` : null;
+export async function guardarFichaPersonal(id: string, version: number, datos: FormData): Promise<Resultado> {
+  const sesion = await obtenerSesion();
+  if (sesion.demo || !sesion.orgId || !puedeEditarFichaPersonal(sesion.rol)) {
+    return { ok: false, mensaje: "Tu cuenta no puede editar datos personales." };
+  }
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) || !Number.isSafeInteger(version) || version < 1) {
+    return { ok: false, mensaje: "Ficha no válida. Vuelve a abrirla." };
+  }
+  const supabase = await crearClienteServidor();
+  const { data, error: lectura } = await supabase.from("trabajadores").select(COLUMNAS_FICHA_PERSONAL)
+    .eq("id", id).eq("org_id", sesion.orgId).maybeSingle();
+  if (lectura || !data) return { ok: false, mensaje: "No se pudo leer la ficha. Revisa el acceso e intenta de nuevo." };
+  const actual = data as unknown as DatosFichaPersonal;
+  const desactualizada = { ok: false, mensaje: "La ficha cambió mientras la editabas. Vuelve a abrirla para ver los datos actuales." };
+  if (actual.version !== version) return desactualizada;
+  const revision = cambiosFichaPersonal(datos, actual, hoyCaracas());
+  if (!revision.ok) return revision;
+  if (!Object.keys(revision.cambios).length) return { ok: true, mensaje: "Los datos ya están al día.", id };
+  // Conteo exacto sin devolver una fila con columnas clínicas restringidas.
+  const { count, error } = await supabase.from("trabajadores").update(revision.cambios, { count: "exact" })
+    .eq("id", id).eq("org_id", sesion.orgId).eq("version", version);
+  if (error?.code === "23505") return { ok: false, mensaje: "Ya existe un trabajador con esa cédula en la organización." };
+  if (error?.code === "42501") return { ok: false, mensaje: "Tu cuenta no tiene permiso para editar esta ficha." };
+  if (error) return { ok: false, mensaje: "No se pudieron guardar los datos. Intenta de nuevo." };
+  if (count !== 1) return desactualizada;
+  olvidar("");
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Datos personales actualizados.", id };
 }
 
 // Dependencias o departamentos de una empresa, para sugerirlas al registrar a un trabajador
