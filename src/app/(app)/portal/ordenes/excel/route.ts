@@ -4,6 +4,9 @@ import { datosOrganizacion } from "@/lib/organizacion";
 import { puedePortal } from "@/lib/permisos-portal";
 import { obtenerSesion } from "@/lib/sesion";
 import { rangoMes, relacionMensual, resumenRelacion } from "@/lib/ordenes";
+import { registrarActividadRRHH } from "@/lib/actividad-rrhh";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +15,13 @@ const nombreArchivo = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").
 
 // Excel de la relación del mes: mismas filas que la pantalla, con fechas reales para filtrar y cruzar con la factura
 export async function GET(req: Request) {
-  if (!puedePortal(await obtenerSesion(), "relacion")) return new Response("Sin permiso para ver los atendidos del mes", { status: 403 });
+  const sesion = await obtenerSesion();
+  if (["trabajador", "supervisor", "delegado_prevencion"].includes(sesion.rol ?? "") || !puedePortal(sesion, "relacion")) {
+    return new Response("Sin permiso para ver los atendidos del mes", { status: 403 });
+  }
   const q = Object.fromEntries(new URL(req.url).searchParams);
   const empresas = soloEmpresas(await listarEmpresas(true));
-  const empresa = empresas.find((e) => e.id === q.empresa) ?? (empresas.length === 1 ? empresas[0] : null);
+  const empresa = q.empresa ? empresas.find((e) => e.id === q.empresa) : empresas.length === 1 ? empresas[0] : null;
   if (!empresa) return new Response("Elige la empresa", { status: 400 });
   const { mes, desde, hasta } = rangoMes(q.mes);
   const [filas, org] = await Promise.all([relacionMensual(empresa.id, desde, hasta), datosOrganizacion()]);
@@ -35,6 +41,10 @@ export async function GET(req: Request) {
     ] as Row),
   ];
   const buffer = await writeXlsxFile([{ data: datos, sheet: "Relación", columns: [12, 30, 14, 22, 26, 10, 12, 14, 14].map((width) => ({ width })), stickyRowsCount: 6 }]).toBuffer();
+  if (sesion.rol === "gerente_empresa" && req.method === "GET") {
+    const supabase = await crearClienteServidor();
+    after(() => registrarActividadRRHH(supabase, "relacion_entregada", empresa.id, mes));
+  }
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

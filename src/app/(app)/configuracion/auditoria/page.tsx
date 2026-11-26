@@ -38,6 +38,9 @@ export default async function Auditoria({ searchParams }: { searchParams: Promis
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Auditoría</h1>
         <p className="text-muted-foreground">Quién abrió cada historia clínica y qué se creó, cambió o borró, con el equipo de origen. Los registros no se pueden editar ni borrar.</p>
+        {["administrador", "gerente_medico"].includes(sesion.rol ?? "") && (
+          <Button variant="outline" className="mt-3" asChild><Link href="/actividad-rrhh">Actividad de RR. HH.</Link></Button>
+        )}
       </div>
 
       {!permitido ? (

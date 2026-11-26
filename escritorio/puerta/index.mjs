@@ -60,8 +60,7 @@ async function principal() {
   // Primero el puerto: si lo retiene una puerta anterior, su base también sigue viva y hay que esperarla (o cerrarla)
   // antes de arrancar la base de esta
   await asegurarPuerto(CONFIG.puertoPuerta, { registro });
-  await motor.iniciar();
-  await nube.comprobar();
+  await motor.iniciar({ comprobarNube: () => nube.comprobar() });
   nube.reloj.arranque(nube.enLinea); // arranques seguidos sin nube: parte del plazo sin conexión
   // La app trae grabada la dirección de la puerta: este puerto es fijo (ver puerto.mjs)
   const puerto = CONFIG.puertoPuerta;

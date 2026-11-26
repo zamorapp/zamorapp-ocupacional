@@ -61,11 +61,13 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // (miembros_con_correo lee correos de auth.users, que la copia no trae: con internet siempre va a la nube)
   // estado_respaldo y limpieza_estado leen tablas que la copia no trae (respaldos, limpieza): en local salían vacías y el
   // Inicio decía «Aún no hay respaldos registrados» en rojo en cada apertura (Cesar 06-nov)
+  const ACTIVIDAD_NUBE = new Set(["/rest/v1/actividad_rrhh", "/rest/v1/rpc/evaluaciones_firmadas_rrhh",
+    "/rest/v1/rpc/registrar_actividad_rrhh", "/rest/v1/rpc/entregar_constancia_rrhh"]);
   const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo",
     "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado",
     // Puerta para agentes: las llaves y su registro viven solo en la nube (la copia no los trae). Sin internet la
     // copia responde vacío con «local: true» y la pantalla dice que requiere internet
-    "/rest/v1/rpc/agentes_estado"];
+    "/rest/v1/rpc/agentes_estado", ...ACTIVIDAD_NUBE];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
   // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía
@@ -933,6 +935,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           await adjuntos.alBorrar(req, crudo, res.statusCode);
           return;
         }
+        if (ACTIVIDAD_NUBE.has(ruta)) return responder(res, 503, { code: "offline", message: "La actividad de RR. HH. y sus documentos requieren internet" });
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
         // Constancias sin internet (config.mjs): la copia valida con las reglas de la base y queda para subir después
         const constancia = req.method === "POST" ? /^\/rest\/v1\/rpc\/([a-z_]+)$/.exec(ruta)?.[1] : null;
