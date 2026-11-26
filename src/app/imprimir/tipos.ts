@@ -1,5 +1,5 @@
 // Documentos de una consulta que se imprimen por /imprimir/<tipo>/<consulta> (y en la prueba de impresión)
-import { Certificado, Constancia, ConstanciaAtencion, OrdenAtencion, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, Referencia, Reposo, Reubicacion } from "./documentos";
+import { Certificado, Constancia, ConstanciaAtencion, OrdenAtencion, Informe, InformeLibre, InformeTrabajador, Orden, Preoperatoria, Recipe, RecomendacionesLaborales, Referencia, Reposo, Reubicacion } from "./documentos";
 import { ControlTension, PlanAlimentacion } from "./indicaciones";
 import { Bienestar } from "./bienestar";
 
@@ -14,6 +14,7 @@ export const TIPOS = {
   certificado: { titulo: "Certificado de salud", Componente: Certificado },
   referencia: { titulo: "Referencia médica", Componente: Referencia },
   reubicacion: { titulo: "Reubicación laboral", Componente: Reubicacion },
+  "recomendaciones-laborales": { titulo: "Recomendaciones y limitaciones laborales", Componente: RecomendacionesLaborales },
   libre: { titulo: "Informe libre", Componente: InformeLibre },
   atencion: { titulo: "Constancia de atención médica", Componente: ConstanciaAtencion },
   oam: { titulo: "Orden de atención médica ocupacional", Componente: OrdenAtencion },

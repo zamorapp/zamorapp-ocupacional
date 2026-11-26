@@ -4,6 +4,7 @@
 // Un envío = un enlace con los documentos que el médico marca. Los clínicos (clinico: true) exigen la consulta firmada y
 // piden al abrirlos los 4 últimos dígitos de la cédula; las hojas educativas no.
 import { telefonoWhatsApp } from "@/lib/envios-tipos";
+import type { DatosConsulta } from "@/lib/consultas-tipos";
 
 export const DOCS_TRABAJADOR = {
   recipe: { nombre: "récipe e indicaciones", corto: "Tratamiento (récipe)", clinico: true },
@@ -13,12 +14,22 @@ export const DOCS_TRABAJADOR = {
   reposo: { nombre: "reposo médico", corto: "Reposo médico", clinico: true },
   orden: { nombre: "orden de exámenes", corto: "Orden de exámenes", clinico: true },
   referencia: { nombre: "referencia médica", corto: "Referencia", clinico: true },
+  libre: { nombre: "informe médico personalizado", corto: "Informe médico personalizado", clinico: true },
+  "recomendaciones-laborales": { nombre: "recomendaciones y limitaciones laborales", corto: "Recomendaciones y limitaciones laborales", clinico: true },
+  reubicacion: { nombre: "recomendación de reubicación laboral", corto: "Reubicación laboral", clinico: true },
   "control-ta": { nombre: "hoja de control de la tensión arterial", corto: "Control de tensión", clinico: false },
   dieta: { nombre: "plan de alimentación", corto: "Plan de alimentación", clinico: false },
   bienestar: { nombre: "hoja de bienestar y pausas activas", corto: "Bienestar y pausas activas", clinico: false },
 } as const;
 export type DocTrabajador = keyof typeof DOCS_TRABAJADOR;
 export const esDocTrabajador = (t: string): t is DocTrabajador => Object.hasOwn(DOCS_TRABAJADOR, t);
+
+export function recomendacionesLaborales(d: Pick<DatosConsulta, "aptitud" | "recomendacionesTrabajador" | "reubicacion">) {
+  const recomendaciones = [...new Set([d.recomendacionesTrabajador.trim(), d.aptitud.observacion.trim()].filter(Boolean))];
+  const limitaciones = [...new Set(d.aptitud.limitaciones.map((l) => l.trim()).filter(Boolean))];
+  const medidas = d.reubicacion.activa ? d.reubicacion.restricciones.trim() : "";
+  return { recomendaciones, limitaciones, medidas, tieneContenido: Boolean(recomendaciones.length || limitaciones.length || medidas) };
+}
 
 export const DIAS_ENLACE_TRABAJADOR = 7;
 

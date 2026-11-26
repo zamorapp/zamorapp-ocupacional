@@ -15,6 +15,7 @@ import type { Aptitud } from "@/lib/pacientes";
 import { sumarDias } from "@/lib/fecha";
 import { sinCodigo, textoDiagnostico } from "@/lib/diagnostico-texto";
 import { CERTIFICACION_PARTICULAR, esParticular } from "@/lib/particulares";
+import { recomendacionesLaborales } from "@/lib/whatsapp-trabajador";
 import {
   Bloque, BloqueRiesgos, CasillaSello, DatosPaciente, Ficha, fechaCorta, fechaLarga, FirmaMedico, Firmas, FirmaTrabajador, folio, Hoja, hora12, imagenesMedico, Lista, Membrete, Pie, Titulo, Veredicto,
 } from "./componentes";
@@ -684,6 +685,23 @@ export function Reubicacion({ d }: { d: DatosDocumento }) {
         <FirmaTrabajador d={d} />
         <FirmaMedico d={d} etiqueta="Médico ocupacional" />
       </Firmas>
+      <Pie d={d} />
+    </Hoja>
+  );
+}
+
+export function RecomendacionesLaborales({ d }: { d: DatosDocumento }) {
+  const { recomendaciones, limitaciones, medidas, tieneContenido } = recomendacionesLaborales(d.datos);
+  if (!tieneContenido) return <Hoja media><p>Esta consulta no tiene recomendaciones ni limitaciones laborales registradas.</p></Hoja>;
+  return (
+    <Hoja>
+      <Membrete d={d} />
+      <Titulo d={d} prefijo="RL">Recomendaciones y limitaciones laborales</Titulo>
+      <DatosPaciente d={d} completo={false} />
+      {recomendaciones.length > 0 && <Bloque titulo="Recomendaciones para el trabajo"><Lista texto={recomendaciones.join("\n")} /></Bloque>}
+      {limitaciones.length > 0 && <Bloque titulo="Limitaciones ocupacionales"><Lista texto={limitaciones.join("\n")} /></Bloque>}
+      {medidas && <Bloque titulo="Medidas ocupacionales indicadas"><Lista texto={medidas} /></Bloque>}
+      <Firmas><span /><FirmaMedico d={d} etiqueta="Médico ocupacional" /></Firmas>
       <Pie d={d} />
     </Hoja>
   );
