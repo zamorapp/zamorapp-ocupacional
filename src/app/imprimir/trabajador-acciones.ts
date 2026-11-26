@@ -16,6 +16,7 @@ import {
   inicioFrases,
   LISTA_FRASES,
   mensajeTrabajador,
+  recomendacionesLaborales,
   telefonoTrabajador,
   textoWhatsApp,
   type DocTrabajador,
@@ -62,7 +63,10 @@ async function disponibles(consultaId: string): Promise<Partial<Record<DocTrabaj
   if (!d.aptitud.clasificacion) faltan.constancia = "sin elegibilidad";
   if (!d.reposo.activo) faltan.reposo = "sin reposo";
   if (!d.paraclinicos.length) faltan.orden = "sin exámenes";
-  if (!d.interconsultas.length) faltan.referencia = "sin referencia";
+  if (!d.interconsultas.some((x) => x.especialidad?.trim())) faltan.referencia = "sin referencia";
+  if (!d.informeLibre.cuerpo.trim()) faltan.libre = "sin informe personalizado";
+  if (!d.reubicacion.activa) faltan.reubicacion = "sin reubicación indicada";
+  if (!recomendacionesLaborales(d).tieneContenido) faltan["recomendaciones-laborales"] = "sin medidas ni recomendaciones registradas";
   return faltan;
 }
 

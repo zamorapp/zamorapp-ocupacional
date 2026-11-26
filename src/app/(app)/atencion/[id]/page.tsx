@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EnviarTrabajador } from "@/app/imprimir/enviar-trabajador";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -96,9 +97,14 @@ export default async function Consulta({ params, searchParams }: { params: Promi
   const adjuntos = sesion.demo || !sesion.orgId || !listaAdjuntos ? null : { orgId: sesion.orgId, lista: listaAdjuntos };
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Atención médica
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> Atención médica
+        </Link>
+        {!sesion.demo && sesion.clinico && consulta.datos.estado === "firmada" && (
+          <EnviarTrabajador consultaId={id} servicio={org.nombre} />
+        )}
+      </div>
       {sesion.clinico && (
         <ConsultaADistancia consultaId={consulta.datos.id} paciente={consulta.trabajador.nombre} telefonoFicha={distanciaDatos.telefonoFicha}
           inicial={distanciaDatos.tele} salaInicial={distanciaDatos.sala} firmada={consulta.datos.estado === "firmada"} abrirAlCargar={distancia === "1"}

@@ -31,10 +31,10 @@ const guardarLocal = (k: string, v: string) => { try { localStorage.setItem(k, v
 
 // «WhatsApp al trabajador» en la barra de un documento personal: el médico marca qué documentos de la consulta puede
 // descargar el trabajador y le llega UN enlace de 7 días con esos documentos. Cada hoja sale como la dejó en pantalla.
-export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: string; tipo: DocTrabajador; servicio: string }) {
+export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: string; tipo?: DocTrabajador; servicio: string }) {
   const [abierto, setAbierto] = useState(false);
   const [datos, setDatos] = useState<DatosWhatsAppTrabajador | null>(null);
-  const [marcados, setMarcados] = useState<Set<DocTrabajador>>(new Set([tipo]));
+  const [marcados, setMarcados] = useState<Set<DocTrabajador>>(() => new Set(tipo ? [tipo] : []));
   const [telefono, setTelefono] = useState("");
   const [guardar, setGuardar] = useState(false);
   const [revisar, setRevisar] = useState(false); // el aviso del celular sale al salir del campo o al enviar, no mientras escribe
@@ -49,6 +49,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
 
   // Esta hoja recuerda sus opciones (esquemas, temas, cambios) para cuando se envíe junto con otras
   useEffect(() => {
+    if (!tipo) return;
     const guardarAhora = () => guardarLocal(claveOpciones(consultaId, tipo), window.location.search);
     guardarAhora();
     window.addEventListener("popstate", guardarAhora);
@@ -121,7 +122,9 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
   return (
     <Dialog open={abierto} onOpenChange={abrir} hayCambios={resultado?.ok ? false : undefined}>
       <DialogTrigger asChild>
-        <Button variant="outline" data-accion="whatsapp-trabajador" aria-label="WhatsApp al trabajador" title="WhatsApp al trabajador"><MessageCircle /> <span className="hidden sm:inline">WhatsApp al trabajador</span></Button>
+        <Button variant="outline" data-accion="whatsapp-trabajador" aria-label={tipo ? "WhatsApp al trabajador" : "Enviar documentos al paciente"} title={tipo ? "WhatsApp al trabajador" : "Enviar documentos al paciente"}>
+          <MessageCircle /> {tipo ? <span className="hidden sm:inline">WhatsApp al trabajador</span> : "Enviar documentos al paciente"}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -147,7 +150,7 @@ export function EnviarTrabajador({ consultaId, tipo, servicio }: { consultaId: s
                     <label key={d} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", bloqueado ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50", activo && !bloqueado && "border-primary bg-primary/5")}>
                       <input type="checkbox" className="size-4 accent-primary" checked={activo && !bloqueado} disabled={bloqueado} onChange={() => alternar(d)} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate">{DOCS_TRABAJADOR[d].corto}</span>
+                        <span className="block break-words">{DOCS_TRABAJADOR[d].corto}</span>
                         {motivo || (DOCS_TRABAJADOR[d].clinico && !listo.firmada) ? (
                           <span className="block text-xs text-muted-foreground">{motivo ?? "firma la consulta"}</span>
                         ) : activo && !DOCS_TRABAJADOR[d].clinico && !vistas.has(d) ? (
