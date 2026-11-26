@@ -30,6 +30,7 @@ import { NuevaEvaluacion } from "../../ergonomia/nueva-evaluacion";
 import { ROLES_ERGONOMIA } from "@/lib/ergonomia";
 import { programasDeEmpresa } from "@/lib/vigilancia-programas";
 import { ROLES_PROGRAMAS } from "@/lib/agentes/roles";
+import { ROLES_VIGILANCIA_PROYECTOS } from "@/lib/vigilancia-proyectos";
 import { ProgramasVigilancia } from "./programas";
 
 export const metadata: Metadata = { title: "Empresa" };
@@ -76,6 +77,9 @@ export default async function EmpresaDetalle({ params, searchParams }: { params:
         </div>
         {/* En el teléfono los botones van debajo del título, a todo el ancho (no le quitan espacio al nombre) */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {!sesion.demo && !empresa.esParticular && ROLES_VIGILANCIA_PROYECTOS.includes(sesion.rol ?? "") && (
+            <Button variant="outline" asChild><Link href={`/empresas/${id}/vigilancia-proyectos`} prefetch={false}>Vigilancia por proyecto</Link></Button>
+          )}
           {esAdmin && <InvitarRrhh empresaId={id} empresa={empresa.razonSocial} contactos={contactosWa} />}
           {depura && <BotonDepurarNomina empresaId={id} empresa={empresa.razonSocial} enNomina={empresa.trabajadores} revision={revision} contactos={contactosWa} abrir={(await searchParams).depurar === "1"} />}
           {esAdmin && <FormEmpresa habilitado empresa={empresa} dependencias={dependencias.map((d) => d.nombre)} />}
