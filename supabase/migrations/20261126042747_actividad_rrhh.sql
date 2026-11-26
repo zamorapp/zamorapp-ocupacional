@@ -23,8 +23,10 @@ alter table public.actividad_rrhh enable row level security;
 revoke all on public.actividad_rrhh from public, anon, authenticated;
 grant select (id, org_id, empresa_id, actor_nombre, tipo, cantidad, fecha) on public.actividad_rrhh to authenticated;
 create policy actividad_rrhh_leer on public.actividad_rrhh for select to authenticated
-  using (public.mi_rol(org_id) in ('administrador', 'gerente_medico')
-         and public.puede_ver_empresa(org_id, empresa_id));
+  using (org_id = any ((select public.orgs_con('{administrador,gerente_medico}', p_sin_limite => true))::uuid[])
+         or (org_id::text || empresa_id::text) = any (
+           (select public.pares_limitados('{administrador,gerente_medico}'))::text[]
+         ));
 
 create function actividad_privada.rrhh_empresa(p_org uuid, p_empresa uuid)
 returns boolean language sql stable set search_path = '' as $$
