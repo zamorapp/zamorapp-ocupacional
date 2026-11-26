@@ -514,6 +514,7 @@ export const MANUAL: TemaManual[] = [
       "Una llave por plataforma: así apagas una sin afectar a las demás y el registro te dice cuál hizo cada cosa.",
       "El registro se guarda un año y se limpia solo (Configuración › Limpieza).",
       "Con «Vigilancia y reportes» el agente ve solo cifras agrupadas, nunca nombres ni diagnósticos de una persona, y no ve precios. Lo que propone se borra solo a los 30 días si no lo revisas.",
+      "Para guardar un informe PDF en borrador, abre Empresas › ficha › Vigilancia por proyecto. Indica el contrato, año y trimestre. Para revisarlo después, busca el contrato y pulsa «Abrir PDF». Requiere internet.",
       "Los programas de vigilancia (riesgo, a quién cubre, exámenes y cada cuántos meses, metas) se crean y corrigen a mano en Empresas › ficha › Programas de vigilancia.",
     ],
     claves: "agente agentes vigilancia programa propuesta borrador informe claude chatgpt gemini ia inteligencia artificial robot llave conector mcp api automatizar",
