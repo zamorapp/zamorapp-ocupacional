@@ -17,7 +17,7 @@ create table public.actividad_rrhh (
   fecha timestamptz not null default public.ahora(),
   unique (org_id, empresa_id, tipo, clave)
 );
-create index actividad_rrhh_empresa_fecha on public.actividad_rrhh (org_id, empresa_id, fecha desc);
+create index actividad_rrhh_empresa_fecha on public.actividad_rrhh (empresa_id, fecha desc);
 create index actividad_rrhh_org_fecha on public.actividad_rrhh (org_id, fecha desc);
 alter table public.actividad_rrhh enable row level security;
 revoke all on public.actividad_rrhh from public, anon, authenticated;
