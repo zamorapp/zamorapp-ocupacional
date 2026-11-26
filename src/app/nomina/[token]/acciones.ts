@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { DISPOSITIVO, MOTIVOS_SALIDA, TOKEN_DEMO_NOMINA, TOKEN_DEPURACION, galletaNomina, type Agregado, type MotivoSalida, type VistaDepuracion } from "@/lib/depurar-nomina";
 import { clienteAnonimo } from "@/lib/supabase/anonimo";
+import { crearClienteServidor } from "@/lib/supabase/server";
 
 // RR. HH. sin cuenta. La única puerta son las funciones de la base, que validan en cada llamada el enlace (vigente, no
 // anulado, no confirmado), el aparato amarrado (secreto en una galleta httpOnly que el navegador nunca ve) y que la
@@ -18,14 +19,17 @@ async function dispositivo(token: string) {
   return DISPOSITIVO.test(v) ? v : null;
 }
 
-async function llamar(fn: string, token: string, args: Record<string, unknown>): Promise<R> {
-  const supabase = clienteAnonimo();
+async function llamar(fn: string, token: string, args: Record<string, unknown>, portal: boolean): Promise<R> {
+  const supabase = portal ? await crearClienteServidor() : clienteAnonimo();
   // Vista de muestra sin Supabase: responde como si guardara (no hay dónde)
   if (!supabase) return token === TOKEN_DEMO_NOMINA ? { ok: true, mensaje: "" } : SIN_SERVICIO;
-  const disp = await dispositivo(token);
-  if (!disp) return { ok: false, mensaje: "Abra de nuevo el enlace y escriba su teléfono." };
+  const disp = portal ? null : await dispositivo(token);
+  if (!portal && !disp) return { ok: false, mensaje: "Abra de nuevo el enlace y escriba su teléfono." };
   const { data, error } = await supabase.rpc(fn, { p_token: token, p_dispositivo: disp, ...args });
   if (error) return SIN_RED;
+  if (portal && data !== "ok" && String(data).startsWith("El enlace venció")) {
+    return { ok: false, mensaje: "No se pudo guardar. Vuelve a abrir la revisión para comprobar si sigue vigente o ya fue enviada." };
+  }
   return data === "ok" ? { ok: true, mensaje: "" } : { ok: false, mensaje: String(data ?? "No se guardó.") };
 }
 
@@ -54,39 +58,39 @@ export async function abrir(token: string, telefono: string): Promise<R & { qued
   return { ok: false, mensaje: "El enlace venció o ya no está activo." };
 }
 
-export async function marcar(token: string, trabajador: string, estado: "si" | "no" | null, motivo: MotivoSalida | null): Promise<R> {
+export async function marcar(token: string, trabajador: string, estado: "si" | "no" | null, motivo: MotivoSalida | null, portal = false): Promise<R> {
   if (!TOKEN_DEPURACION.test(token) || !UUID.test(trabajador)) return { ok: false, mensaje: "Enlace no válido." };
   if (estado !== null && estado !== "si" && estado !== "no") return { ok: false, mensaje: "Marca no válida." };
   if (motivo !== null && !MOTIVOS_SALIDA.includes(motivo)) return { ok: false, mensaje: "Motivo no válido." };
-  return llamar("marcar_depuracion_nomina", token, { p_trabajador: trabajador, p_estado: estado, p_motivo: estado === "no" ? motivo : null });
+  return llamar("marcar_depuracion_nomina", token, { p_trabajador: trabajador, p_estado: estado, p_motivo: estado === "no" ? motivo : null }, portal);
 }
 
-export async function marcarResto(token: string): Promise<R> {
+export async function marcarResto(token: string, portal = false): Promise<R> {
   if (!TOKEN_DEPURACION.test(token)) return { ok: false, mensaje: "Enlace no válido." };
-  return llamar("marcar_resto_depuracion_nomina", token, {});
+  return llamar("marcar_resto_depuracion_nomina", token, {}, portal);
 }
 
 // Devuelve la lista de agregados como quedó en la base (con su número, para poder quitarlos)
-export async function agregar(token: string, datos: { nombres: string; apellidos: string; cedula: string; cargo: string; trampa?: string }): Promise<R & { agregados?: Agregado[] }> {
+export async function agregar(token: string, datos: { nombres: string; apellidos: string; cedula: string; cargo: string; trampa?: string }, portal = false): Promise<R & { agregados?: Agregado[] }> {
   if (!TOKEN_DEPURACION.test(token)) return { ok: false, mensaje: "Enlace no válido." };
   // Campo trampa invisible: solo un robot lo llena
   if (datos.trampa) return { ok: true, mensaje: "" };
   const t = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
   const r = await llamar("agregar_depuracion_nomina", token, {
     p_nombres: t(datos.nombres, 80), p_apellidos: t(datos.apellidos, 80), p_cedula: t(datos.cedula, 20) || null, p_cargo: t(datos.cargo, 80) || null,
-  });
-  const supabase = clienteAnonimo();
+  }, portal);
+  const supabase = portal ? await crearClienteServidor() : clienteAnonimo();
   if (!r.ok || !supabase) return r;
-  const { data } = await supabase.rpc("ver_depuracion_nomina", { p_token: token, p_dispositivo: await dispositivo(token) });
+  const { data } = await supabase.rpc("ver_depuracion_nomina", { p_token: token, p_dispositivo: portal ? null : await dispositivo(token) });
   return { ...r, agregados: (data as VistaDepuracion | null)?.agregados ?? [] };
 }
 
-export async function quitar(token: string, id: string): Promise<R> {
+export async function quitar(token: string, id: string, portal = false): Promise<R> {
   if (!TOKEN_DEPURACION.test(token) || !UUID.test(id)) return { ok: false, mensaje: "Enlace no válido." };
-  return llamar("quitar_agregado_depuracion_nomina", token, { p_id: id });
+  return llamar("quitar_agregado_depuracion_nomina", token, { p_id: id }, portal);
 }
 
-export async function enviar(token: string): Promise<R> {
+export async function enviar(token: string, portal = false): Promise<R> {
   if (!TOKEN_DEPURACION.test(token)) return { ok: false, mensaje: "Enlace no válido." };
-  return llamar("enviar_depuracion_nomina", token, {});
+  return llamar("enviar_depuracion_nomina", token, {}, portal);
 }

@@ -101,6 +101,7 @@ export async function confirmarDepuracion(empresaId: string, id: string, inactiv
   const rev = await revisionDepuracion(empresaId);
   if (!rev || rev.id !== id) return { ok: false, mensaje: "La revisión cambió. Recarga la página." };
   if (rev.estado === "aplicado" || rev.estado === "anulado") return { ok: false, mensaje: "Esta revisión ya se cerró." };
+  if (rev.desde_portal && !rev.enviado_en) return { ok: false, mensaje: "RR. HH. todavía no ha enviado la revisión." };
 
   const elegidos = new Set(inactivar);
   const salen = rev.no_estan.filter((n) => n.en_nomina && elegidos.has(n.id));
@@ -112,9 +113,14 @@ export async function confirmarDepuracion(empresaId: string, id: string, inactiv
       fila: i + 1, cedula: cedulaNomina(a.cedula) ?? a.cedula!, valida: Boolean(cedulaNomina(a.cedula)), sigue: true, avisos: [],
       datos: { nombres: a.nombres, apellidos: a.apellidos, ...(a.cargo ? { cargo: a.cargo } : {}) },
     }));
-  if (!salen.length && !nuevos.length) return { ok: false, mensaje: "No hay nada marcado para confirmar." };
-
   const supabase = await crearClienteServidor();
+  if (!salen.length && !nuevos.length) {
+    if (!rev.desde_portal) return { ok: false, mensaje: "No hay nada marcado para confirmar." };
+    const { error } = await supabase.rpc("cerrar_depuracion_nomina", { p_id: id, p_lote: null });
+    if (error) return { ok: false, mensaje: "No se pudo cerrar la revisión. Vuelve a cargar la página." };
+    revalidatePath(`/empresas/${empresaId}`);
+    return { ok: true, mensaje: "Revisión cerrada sin cambios en la nómina." };
+  }
   let lote: string | null = null;
   let inactivados = 0;
   let agregados = 0;

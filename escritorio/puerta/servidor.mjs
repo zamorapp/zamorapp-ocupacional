@@ -63,11 +63,14 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   // Inicio decía «Aún no hay respaldos registrados» en rojo en cada apertura (Cesar 06-nov)
   const ACTIVIDAD_NUBE = new Set(["/rest/v1/actividad_rrhh", "/rest/v1/rpc/evaluaciones_firmadas_rrhh",
     "/rest/v1/rpc/registrar_actividad_rrhh", "/rest/v1/rpc/entregar_constancia_rrhh"]);
+  const NOMINA_NUBE = new Set(["nomina_portal", "ver_depuracion_nomina", "marcar_depuracion_nomina",
+    "marcar_resto_depuracion_nomina", "agregar_depuracion_nomina", "quitar_agregado_depuracion_nomina",
+    "enviar_depuracion_nomina"].map((nombre) => `/rest/v1/rpc/${nombre}`));
   const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo",
     "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado",
     // Puerta para agentes: las llaves y su registro viven solo en la nube (la copia no los trae). Sin internet la
     // copia responde vacío con «local: true» y la pantalla dice que requiere internet
-    "/rest/v1/rpc/agentes_estado", ...ACTIVIDAD_NUBE];
+    "/rest/v1/rpc/agentes_estado", ...ACTIVIDAD_NUBE, ...NOMINA_NUBE];
   const faltaSegundoPaso = (quien) => exigeDosPasos(quien.u) && quien.aal === "aal1";
   // Qué hay en la copia: las tablas que sincronizan y los catálogos, más las vistas que solo usan esas tablas.
   // Una lectura que toque algo que la copia no trae (p. ej. accesos) va a la nube: así ninguna pantalla sale vacía
@@ -936,6 +939,7 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
           return;
         }
         if (ACTIVIDAD_NUBE.has(ruta)) return responder(res, 503, { code: "offline", message: "La actividad de RR. HH. y sus documentos requieren internet" });
+        if (NOMINA_NUBE.has(ruta)) return responder(res, 503, { code: "offline", message: "La revisión de nómina requiere internet" });
         if (ruta.startsWith("/storage/v1/")) return responder(res, 503, { statusCode: "503", error: "offline", message: "Los archivos adjuntos requieren internet" });
         // Constancias sin internet (config.mjs): la copia valida con las reglas de la base y queda para subir después
         const constancia = req.method === "POST" ? /^\/rest\/v1\/rpc\/([a-z_]+)$/.exec(ruta)?.[1] : null;

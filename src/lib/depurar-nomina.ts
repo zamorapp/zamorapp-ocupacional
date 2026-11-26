@@ -13,6 +13,10 @@ export type MotivoSalida = (typeof MOTIVOS_SALIDA)[number];
 export type Marca = { e: "si" | "no"; m?: MotivoSalida };
 export type Agregado = { id: string; nombres: string; apellidos: string; cedula?: string; cargo?: string };
 
+export type EstadoNominaPortal =
+  | { estado: "borrador"; token: string; vence: string }
+  | { estado: "disponible" | "enviada" | "enlace_servicio" };
+
 /** Lo que ve RR. HH. */
 export type VistaDepuracion = {
   estado: "vigente" | "vencido" | "anulado" | "aplicado";
@@ -31,6 +35,7 @@ export type VistaDepuracion = {
 /** Lo que ve Cesar para confirmar. */
 export type RevisionDepuracion = {
   id: string;
+  desde_portal: boolean;
   token: string | null;
   estado: VistaDepuracion["estado"];
   creado_en: string;

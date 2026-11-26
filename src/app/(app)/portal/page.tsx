@@ -98,6 +98,9 @@ export default async function Portal() {
         </div>
         {/* Celular: «Solicitar cita» primero y a todo el ancho; las demás en dos columnas parejas */}
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap [&_a]:max-sm:w-full [&>*]:max-sm:min-w-0 max-sm:[&_button]:w-full">
+          {sesion.rol === "gerente_empresa" && !sesion.demo && puedePortal(sesion, "nomina") && (
+            <Button variant="outline" asChild><Link href="/portal/nomina"><ClipboardList /> Actualizar nómina</Link></Button>
+          )}
           {gestiona && <Button variant="outline" asChild><Link href="/pacientes/importar"><FileSpreadsheet /> Cargar nómina</Link></Button>}
           <Button variant="outline" asChild><Link href="/pacientes"><UserPlus /> Trabajadores</Link></Button>
           {gestiona && <AnotarVacaciones />}

@@ -61,6 +61,8 @@ export const RPC_SIN_ESPERA = new Set([
   "papelera_vista_previa", "registrar_acceso", "registrar_lectura_laboratorio", "registrar_firma_pdf",
   "crear_llave_agente", "revocar_llave_agente", "agentes_llave_documentos", // puerta para agentes: llaves que la copia no trae
   "ignorar_aparato_sin_acuse", // campanita: suscripciones_push no está en la copia (20261030946000)
+  "nomina_portal", "marcar_depuracion_nomina", "marcar_resto_depuracion_nomina",
+  "agregar_depuracion_nomina", "quitar_agregado_depuracion_nomina", "enviar_depuracion_nomina", // revisiones de nómina solo en la nube
 ]);
 
 // Funciones de la base que solo leen: se pueden usar sin conexión contra la copia local.
