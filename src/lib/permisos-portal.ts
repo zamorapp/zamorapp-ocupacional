@@ -7,6 +7,7 @@ export const PERMISOS_PORTAL = [
   { clave: "citas", corto: "Pedir consultas", titulo: "Solicitar consultas", detalle: "Pide citas; cada pedido sale con su orden de evaluación" },
   { clave: "relacion", corto: "Atendidos del mes", titulo: "Ver los atendidos del mes", detalle: "Órdenes, relación mensual y Excel para cotejar la factura" },
   { clave: "descargas", corto: "Descargas", titulo: "Descargar documentos", detalle: "Documentos de las solicitudes e informes de la empresa" },
+  { clave: "nomina", corto: "Nómina", titulo: "Proponer actualizaciones de nómina", detalle: "Crea un enlace del portal y envía altas y salidas al servicio médico para revisión" },
 ] as const;
 
 export type PermisoPortal = (typeof PERMISOS_PORTAL)[number]["clave"];

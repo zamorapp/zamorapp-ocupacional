@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Loader2, Lock, Plus, Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,8 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 
 // Cada toque se guarda al momento (optimista: si falla, vuelve atrás y dice por qué). Nada se aplica a la nómina:
 // es una propuesta que el servicio médico confirma.
-export function ListaNomina({ token, vista }: { token: string; vista: VistaDepuracion }) {
+export function ListaNomina({ token, vista, portal = false }: { token: string; vista: VistaDepuracion; portal?: boolean }) {
+  const router = useRouter();
   const [marcas, setMarcas] = useState<Record<string, Marca>>(vista.respuestas ?? {});
   const [agregados, setAgregados] = useState<Agregado[]>(vista.agregados ?? []);
   // «Marcar los que quedan» pide un segundo toque: cambia muchos de una vez
@@ -66,7 +68,7 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
     void guardar(
       () => setMarcas((m) => { const c = { ...m }; if (nueva) c[id] = nueva; else delete c[id]; return c; }),
       () => setMarcas((m) => { const c = { ...m }; if (antes) c[id] = antes; else delete c[id]; return c; }),
-      () => marcar(token, id, nueva?.e ?? null, null),
+      () => marcar(token, id, nueva?.e ?? null, null, portal),
     );
   }
 
@@ -76,7 +78,7 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
     void guardar(
       () => setMarcas((x) => ({ ...x, [id]: { e: "no", ...(nuevo ? { m: nuevo } : {}) } })),
       () => setMarcas((x) => ({ ...x, [id]: antes })),
-      () => marcar(token, id, "no", nuevo ?? null),
+      () => marcar(token, id, "no", nuevo ?? null, portal),
     );
   }
 
@@ -85,13 +87,13 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
     void guardar(
       () => setMarcas((m) => { const c = { ...m }; for (const t of vista.trabajadores) if (!c[t.id]) c[t.id] = { e: "si" }; return c; }),
       () => setMarcas(antes),
-      () => marcarResto(token),
+      () => marcarResto(token, portal),
     );
   }
 
   function quitarAgregado(id: string) {
     const antes = agregados;
-    void guardar(() => setAgregados((a) => a.filter((x) => x.id !== id)), () => setAgregados(antes), () => quitar(token, id));
+    void guardar(() => setAgregados((a) => a.filter((x) => x.id !== id)), () => setAgregados(antes), () => quitar(token, id, portal));
   }
 
   function enviarForm(ev: React.FormEvent) {
@@ -99,7 +101,7 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
     setErrorForm("");
     if (form.nombres.trim().length < 2 || form.apellidos.trim().length < 2) { setErrorForm("Escriba nombres y apellidos."); return; }
     iniciarAgregar(async () => {
-      const r = await agregar(token, form);
+      const r = await agregar(token, form, portal);
       if (!r.ok) { setErrorForm(r.mensaje); return; }
       if (r.agregados) setAgregados(r.agregados);
       else setAgregados((a) => [...a, { id: crypto.randomUUID(), nombres: form.nombres.trim(), apellidos: form.apellidos.trim(), cedula: form.cedula.replace(/\D/g, "") || undefined, cargo: form.cargo.trim() || undefined }]);
@@ -230,16 +232,23 @@ export function ListaNomina({ token, vista }: { token: string; vista: VistaDepur
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 px-4 py-3 backdrop-blur">
+      <div className={cn("fixed inset-x-0 z-10 border-t bg-background/95 px-4 py-3 backdrop-blur",
+        portal ? "bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 lg:left-64" : "bottom-0")}>
         <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center">
           <p className="flex-1 text-xs text-muted-foreground" aria-live="polite">
             {error ? <span className="font-medium text-alerta-texto">{error}</span>
               : guardando ? <span className="inline-flex items-center gap-1"><Loader2 className="size-3.5 animate-spin" /> Guardando…</span>
-              : enviado ? <span className="inline-flex items-center gap-1 font-medium text-ok-texto"><Check className="size-3.5" /> Enviado. Puede corregir hasta que venza el enlace.</span>
+              : enviado ? <span className="inline-flex items-center gap-1 font-medium text-ok-texto"><Check className="size-3.5" /> {portal ? "Enviado al servicio médico para revisión." : "Enviado. Puede corregir hasta que venza el enlace."}</span>
               : <span className="inline-flex items-center gap-1"><Check className="size-3.5 text-ok-texto" /> Guardado. Puede corregir hasta que venza el enlace.</span>}
           </p>
-          <Button className="h-11 sm:min-w-56" disabled={enviando || guardando > 0}
-            onClick={() => iniciarEnvio(async () => { const r = await enviar(token); if (r.ok) { setEnviado(true); setError(""); } else setError(r.mensaje); })}>
+          <Button className="h-11 sm:min-w-56" disabled={enviando || guardando > 0 || agregando || (portal && enviado)}
+            onClick={() => iniciarEnvio(async () => {
+              const r = await enviar(token, portal);
+              if (!r.ok) { setError(r.mensaje); return; }
+              setEnviado(true);
+              setError("");
+              if (portal) router.refresh();
+            })}>
             {enviando ? <Loader2 className="animate-spin" /> : <Send />} {enviado ? "Enviar de nuevo" : `Enviar a ${nombreServicio}`}
           </Button>
         </div>

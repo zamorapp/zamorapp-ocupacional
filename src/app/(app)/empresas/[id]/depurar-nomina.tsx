@@ -48,7 +48,9 @@ export function BotonDepurarNomina({ empresaId, empresa, enNomina, revision, con
             Le llega un enlace con los {enNomina} trabajadores registrados de {empresa}: marca quién ya no está y agrega a quien falta. No necesita cuenta. Nada cambia hasta que tú confirmes.
           </DialogDescription>
         </DialogHeader>
-        <FormEnlace key={clave} empresaId={empresaId} empresa={empresa} revision={revision} contactos={contactos} />
+        {revision?.desde_portal && (revision.estado === "vigente" || (revision.estado === "vencido" && revision.enviado_en))
+          ? <p className="text-sm">Esta empresa ya tiene una actualización iniciada desde el portal de RR. HH. Puedes ver su estado en esta ficha.</p>
+          : <FormEnlace key={clave} empresaId={empresaId} empresa={empresa} revision={revision} contactos={contactos} />}
       </DialogContent>
     </Dialog>
   );
@@ -151,7 +153,8 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
   const [quitar, setQuitar] = useState<Set<string>>(() => new Set(r.no_estan.filter((n) => n.en_nomina).map((n) => n.id)));
   const [sumar, setSumar] = useState<Set<string>>(() => new Set(r.agregados.filter((a) => a.cedula && !a.registrado).map((a) => a.id)));
   const conRespuestas = Boolean(r.no_estan.length || r.agregados.length || r.siguen);
-  const pendientesRevision = vigente || (r.estado === "vencido" && conRespuestas);
+  const enviadaPortal = r.desde_portal && Boolean(r.enviado_en) && (vigente || r.estado === "vencido");
+  const pendientesRevision = vigente || (r.estado === "vencido" && (conRespuestas || enviadaPortal));
   const confirmadoHoy = r.estado === "aplicado" && r.lote_id && r.aplicado_en && hoyCaracas(r.aplicado_en) === hoyCaracas();
 
   const liberar = () => iniciar(async () => {
@@ -173,8 +176,9 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
     const nS = r.agregados.filter((a) => sumar.has(a.id) && a.cedula && !a.registrado).length;
     const ok = await confirmar({
       titulo: `¿Confirmar lo que indicó RR. HH.?`,
-      texto: [nQ && `Se inactivan ${nQ} ${nQ === 1 ? "trabajador" : "trabajadores"} (no se borra nada: quedan fuera de las estadísticas y los vencimientos).`,
-        nS && `Se agregan ${nS} a la nómina.`, "Puedes deshacerlo hoy mismo. El enlace de RR. HH. se cierra."].filter(Boolean).join(" "),
+      texto: !nQ && !nS ? "La revisión se cerrará sin cambiar la nómina."
+        : [nQ && `Se inactivan ${nQ} ${nQ === 1 ? "trabajador" : "trabajadores"} (no se borra nada: quedan fuera de las estadísticas y los vencimientos).`,
+          nS && `Se agregan ${nS} a la nómina.`, "Puedes deshacerlo hoy mismo. El enlace de RR. HH. se cierra."].filter(Boolean).join(" "),
       accion: "Confirmar",
     });
     if (!ok) return;
@@ -203,16 +207,17 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Depuración de nómina con RR. HH.</h2>
           <p className="text-sm text-muted-foreground">
-            {vigente ? <>Enlace para <b className="text-foreground">{quien}</b> <span className="whitespace-nowrap">(teléfono …{r.telefono_fin})</span>, activo hasta el {venceTexto(r.vence)}. </> : r.estado === "vencido" ? <>El enlace de {quien} venció. </> : null}
-            {r.bloqueado ? <b className="text-alerta-texto">Bloqueado por intentos con otro teléfono. </b>
+            {r.desde_portal ? <>Iniciada desde el portal por <b className="text-foreground">{quien}</b>. {vigente && !r.enviado_en && "RR. HH. está preparando la revisión. "}</>
+              : vigente ? <>Enlace para <b className="text-foreground">{quien}</b> <span className="whitespace-nowrap">(teléfono …{r.telefono_fin})</span>, activo hasta el {venceTexto(r.vence)}. </> : r.estado === "vencido" ? <>El enlace de {quien} venció. </> : null}
+            {!r.desde_portal && (r.bloqueado ? <b className="text-alerta-texto">Bloqueado por intentos con otro teléfono. </b>
               : vigente && !r.abierto_en ? "Todavía no lo abre. "
-              : vigente && r.abierto_en ? <>Lo abrió el {dma(hoyCaracas(r.abierto_en))}. </> : null}
+              : vigente && r.abierto_en ? <>Lo abrió el {dma(hoyCaracas(r.abierto_en))}. </> : null)}
             {r.enviado_en && r.estado !== "aplicado" && <b className="text-ok-texto">Ya lo envió ({dma(hoyCaracas(r.enviado_en))}).</b>}
           </p>
         </div>
-        {vigente && (
+        {(vigente || enviadaPortal) && (
           <div className="flex flex-wrap gap-2">
-            {(r.abierto_en || r.bloqueado) && <Button variant="outline" size="sm" onClick={liberar} disabled={pendiente || sinInternet}><Smartphone /> {r.bloqueado ? "Desbloquear" : "Permitir otro teléfono"}</Button>}
+            {!r.desde_portal && (r.abierto_en || r.bloqueado) && <Button variant="outline" size="sm" onClick={liberar} disabled={pendiente || sinInternet}><Smartphone /> {r.bloqueado ? "Desbloquear" : "Permitir otro teléfono"}</Button>}
             <Button variant="ghost" size="sm" className="text-alerta-texto" onClick={anular} disabled={pendiente}><XCircle /> Anular</Button>
           </div>
         )}
@@ -223,7 +228,7 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
       {aviso && <p className={cn("mt-3 rounded-md px-3 py-2 text-sm", aviso.ok ? "bg-ok/10 text-ok-texto" : "bg-alerta/10 text-alerta-texto")} role="status">{aviso.texto}</p>}
 
       {/* Lo que propuso RR. HH. */}
-      {pendientesRevision && conRespuestas && (
+      {(enviadaPortal || (!r.desde_portal && pendientesRevision && conRespuestas)) && (
         <div className="mt-4 space-y-4">
           <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             <Cifra n={r.en_nomina} t="En la nómina" />
@@ -306,8 +311,9 @@ export function DepurarNomina({ empresaId, revision }: { empresaId: string; revi
               {r.en_nomina - r.siguen - r.no_estan.length > 0 && `RR. HH. dejó ${r.en_nomina - r.siguen - r.no_estan.length} sin revisar: no se tocan. `}
               Nada cambia hasta que confirmes.
             </p>
-            <Button onClick={confirmarTodo} disabled={pendiente || sinInternet || (!quitar.size && !sumar.size)}>
-              {pendiente ? <Loader2 className="animate-spin" /> : <Check />} Confirmar ({r.no_estan.filter((n) => n.en_nomina && quitar.has(n.id)).length} inactivar · {r.agregados.filter((a) => sumar.has(a.id) && a.cedula && !a.registrado).length} agregar)
+            <Button onClick={confirmarTodo} disabled={pendiente || sinInternet || (!enviadaPortal && !quitar.size && !sumar.size)}>
+              {pendiente ? <Loader2 className="animate-spin" /> : <Check />}
+              {enviadaPortal && !quitar.size && !sumar.size ? "Cerrar sin cambios" : `Confirmar (${r.no_estan.filter((n) => n.en_nomina && quitar.has(n.id)).length} inactivar · ${r.agregados.filter((a) => sumar.has(a.id) && a.cedula && !a.registrado).length} agregar)`}
             </Button>
           </div>
         </div>
