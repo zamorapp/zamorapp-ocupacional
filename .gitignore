@@ -43,6 +43,7 @@ next-env.d.ts
 !.env.example
 
 /.next-build/
+/.next-prueba/
 /.next-prod/
 /.next-esc*/
 .vercel
@@ -60,3 +61,6 @@ escritorio/src-tauri/ajustes-ci.json
 /public/ocr/
 # Abrir audio (Whisper): se copia de node_modules al compilar (src/build/recursos-voz.mjs)
 /public/voz/
+
+# Metadatos y vinculación local de la CLI de Supabase
+/supabase/.temp/

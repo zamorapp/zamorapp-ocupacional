@@ -28,9 +28,13 @@ select 'sin sesión el usuario impersonado no queda puesto (debe 1): ' || (auth.
 reset role;
 insert into public.notificaciones (id, org_id, usuario_id, titulo, texto, enlace) values
  ('17000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a2', 'Estudio recibido de RR. HH.', 'Prueba 170 nueva', '/pacientes/x');
+-- Fija un latido de hace un segundo con el reloj de esta transacción, aunque la preparación de la prueba haya tardado.
+begin;
+update public.avisos_push_latido set ultima = public.ahora() - interval '1 second';
 set role anon;
 select 'llamada en bucle: frenada (debe 0): ' || count(*) from public.avisos_campana_para_celular(repeat('k', 40));
 reset role;
+commit;
 update public.avisos_push_latido set ultima = public.ahora() - interval '2 minutes';
 set role anon;
 create temp table r170b as select * from public.avisos_campana_para_celular(repeat('k', 40));

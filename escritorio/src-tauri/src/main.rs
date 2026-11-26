@@ -922,12 +922,18 @@ fn main() {
             if let Some(puerto) = puerto_depuracion() {
                 constructor = constructor.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={puerto}"));
             }
+            let inicio_webview = Instant::now();
             let principal = constructor.build()?;
+            anotar(&format!("arranque: ventana WebView2 creada en {} ms", inicio_webview.elapsed().as_millis()));
+            let inicio_microfono = Instant::now();
             microfono::quitar_rechazo_guardado(&principal);
+            anotar(&format!("arranque: permiso de micrófono solicitado en {} ms", inicio_microfono.elapsed().as_millis()));
             let manejador = app.handle().clone();
             std::thread::spawn(move || {
                 let ventana = manejador.get_webview_window("principal").expect("ventana principal");
+                let inicio_perfil = Instant::now();
                 limpiar_perfil_si_cambio(&ventana, &recursos);
+                anotar(&format!("arranque: perfil del navegador preparado en {} ms", inicio_perfil.elapsed().as_millis()));
                 let para_avance = ventana.clone();
                 let avance = move |pct: u32, texto: &str| {
                     let texto = serde_json::to_string(texto).unwrap_or_else(|_| "\"\"".into());

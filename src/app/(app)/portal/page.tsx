@@ -28,6 +28,8 @@ import { datosOrganizacion } from "@/lib/organizacion";
 import { listarPsicosocialesEmpresa } from "@/lib/psicosocial-datos";
 import { ordenesDeCitas } from "@/lib/ordenes";
 import { listarRiesgosEmpresa } from "@/lib/riesgos-datos";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { Suspense } from "react";
 
 export const metadata: Metadata = { title: "Portal" };
 export const dynamic = "force-dynamic";
@@ -102,6 +104,9 @@ export default async function Portal() {
           {pideCitas && <div className="col-span-2 max-sm:order-first sm:contents"><SolicitarCita motivos={listas.motivo_consulta.map((m) => ({ id: m.id, nombre: m.nombre }))} manana={sumarDias(hoy, 1)} empresas={empresas.map((e) => ({ id: e.id, nombre: e.razonSocial }))} empresaActiva={empresa?.id ?? null} /></div>}
         </div>
       </div>
+      {sesion.rol === "gerente_empresa" && !sesion.demo && sesion.orgId && (
+        <Suspense fallback={null}><EvaluacionesFirmadas org={sesion.orgId} empresa={activa} descargas={descarga} /></Suspense>
+      )}
 
       {!sesion.demo && <Bienvenida servicio={org.nombre} />}
 
@@ -239,7 +244,7 @@ export default async function Portal() {
                     <div className="line-clamp-2 text-xs text-muted-foreground">{s.soloSalud ? "Respuesta con datos médicos: la recibe el personal de salud de la empresa." : s.respuesta ? `Respuesta: ${s.respuesta}` : s.detalle}</div>
                     <Pasos pasos={pasosSolicitud(s)} className="mt-0.5" />
                   </div>
-                  {s.documento && !s.soloSalud && descarga && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}`} target="_blank" rel="noreferrer"><Download /> Documento</a></Button>}
+                  {s.documento && !s.soloSalud && descarga && <Button variant="outline" size="sm" asChild><a href={`/api/solicitudes/${s.id}?descargar=1`}><Download /> Descargar documento</a></Button>}
                   <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ETIQUETA_SOLICITUD[s.estado].clase)}>{ETIQUETA_SOLICITUD[s.estado].texto}</span>
                 </li>
               ))}
@@ -248,5 +253,37 @@ export default async function Portal() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+async function EvaluacionesFirmadas({ org, empresa, descargas }: { org: string; empresa: string | null; descargas: boolean }) {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("evaluaciones_firmadas_rrhh", {
+    p_org: org, ...(empresa ? { p_empresa: empresa } : {}),
+  }, { get: true });
+  const filas = data as { consulta_id: string; trabajador: string; fecha: string; constancia_lista: boolean }[] | null;
+  return (
+    <Card id="evaluaciones-firmadas" className="scroll-mt-24">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="size-5 text-primary" /> Evaluaciones firmadas</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? <p role="status" className="text-sm text-muted-foreground">Para consultar las evaluaciones firmadas hace falta conexión.</p>
+          : filas?.length ? <ul className="divide-y">
+            {filas.map((f) => (
+              <li key={f.consulta_id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <div>
+                  <p className="font-medium">{f.trabajador}</p>
+                  <p className="text-sm text-muted-foreground">{fecha(f.fecha)} · Consulta firmada</p>
+                </div>
+                {descargas && (f.constancia_lista
+                  ? <Button size="sm" variant="outline" asChild><a href={`/api/portal/constancias/${f.consulta_id}`}><Download /> Descargar constancia</a></Button>
+                  : <span className="text-sm text-muted-foreground">Constancia aún no disponible</span>)}
+              </li>
+            ))}
+          </ul> : <p className="text-sm text-muted-foreground">No hay evaluaciones firmadas en los últimos 30 días.</p>}
+        {descargas && <a className="mt-3 inline-block text-sm text-primary underline" href="#solicitudes">Otros documentos en Solicitudes</a>}
+      </CardContent>
+    </Card>
   );
 }

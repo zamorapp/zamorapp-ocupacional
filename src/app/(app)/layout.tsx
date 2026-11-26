@@ -18,6 +18,8 @@ import { esRolEmpresa } from "@/lib/sesion-roles";
 import { resumenTiempos } from "@/lib/tiempos";
 import { ETIQUETA_PARTICULAR } from "@/lib/particulares";
 import { scriptVistaMenu } from "@/lib/vista-menu";
+import { registrarActividadRRHH } from "@/lib/actividad-rrhh";
+import { crearClienteServidor } from "@/lib/supabase/server";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const [sesion, empresas, activa, cabeceras] = await Promise.all([obtenerSesion(), listarEmpresas(true), empresaActivaId(), headers()]);
@@ -29,6 +31,15 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   // Al terminar de responder, una línea «[tiempo]» por pantalla en los registros del servidor (D1 de la auditoría)
   after(() => console.log(resumenTiempos(ruta || "/")));
   if (portal && ruta && !RUTAS_EMPRESA.some((r) => ruta === r || ruta.startsWith(r + "/"))) redirect("/portal");
+  if (!sesion.demo && sesion.rol === "gerente_empresa" && !cabeceras.has("next-router-prefetch")
+      && cabeceras.get("purpose") !== "prefetch" && !cabeceras.get("sec-purpose")?.includes("prefetch")) {
+    const propias = empresas.filter((e) => !e.esParticular);
+    const empresa = propias.find((e) => e.id === activa) ?? (!activa && propias.length === 1 ? propias[0] : null);
+    if (empresa) {
+      const supabase = await crearClienteServidor();
+      after(() => registrarActividadRRHH(supabase, "ingreso", empresa.id));
+    }
+  }
 
   const usuario = {
     nombre: sesion.nombre,

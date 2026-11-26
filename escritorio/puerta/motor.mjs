@@ -43,7 +43,7 @@ export class Motor {
     this.registro?.(`[avance] ${pct} % ${texto} (${(performance.now() / 1000).toFixed(1)} s)`);
   }
 
-  async iniciar() {
+  async iniciar({ comprobarNube } = {}) {
     this.puertoBase = await puertoLibre(CONFIG.puertoBase);
     await this.#iniciarPostgres();
     this.avance(20, "Preparando las tablas");
@@ -54,7 +54,8 @@ export class Motor {
     await this.limpiarBloquesAjenos();
     // Se elige con la base ya escuchando: si 54329 estaba ocupado y la base tomó 54330, PostgREST no lo pisa
     this.puertoPostgrest = await puertoLibre(CONFIG.puertoPostgrest);
-    await this.#iniciarPostgrest();
+    // Con la base preparada y la restauración terminada, las dos comprobaciones son independientes.
+    await Promise.all([this.#iniciarPostgrest(), comprobarNube?.()]);
     this.avance(98, "Abriendo zamorApp");
   }
 
