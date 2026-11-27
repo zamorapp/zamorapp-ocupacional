@@ -1,5 +1,6 @@
 // Respaldo de los archivos de zamorApp (adjuntos y solicitudes del Storage) en la PC y en Google Drive.
 // Uso: DATABASE_URL="postgresql://..." node scripts/respaldo-archivos.mjs <carpeta> [<carpeta2> ...]
+// Para incorporar archivos previos a la última copia, pasar --desde-inicio antes de las carpetas.
 // Sin llaves nuevas: con la clave de la base deja un pase de un solo uso (10 min) y la función respaldo-archivos de
 // Supabase devuelve enlaces firmados de lectura. Copia incremental: solo baja lo nuevo o cambiado desde la última vez.
 // Los archivos quedan en <carpeta>/archivos/<bucket>/<ruta>; nunca se borran del respaldo aunque se borren en la nube.
@@ -10,7 +11,9 @@ import path from "node:path";
 import pg from "pg";
 import { configuracion } from "./conexion-segura.mjs";
 
-const carpetas = process.argv.slice(2).map((c) => path.join(c, "archivos"));
+const argumentos = process.argv.slice(2);
+const revisarDesdeInicio = argumentos[0] === "--desde-inicio";
+const carpetas = argumentos.slice(revisarDesdeInicio ? 1 : 0).map((c) => path.join(c, "archivos"));
 if (!carpetas.length) throw new Error("Indica al menos una carpeta de destino");
 const url = process.env.DATABASE_URL ?? "";
 const funcion = process.env.RESPALDO_FUNCION_URL ?? urlFuncion(url);
@@ -23,7 +26,7 @@ let archivos = [];
 try {
   const pase = crypto.randomBytes(32).toString("hex");
   await conBase((c) => c.query("insert into public.pases_respaldo (huella) values ($1)", [crypto.createHash("sha256").update(pase).digest("hex")]));
-  const r = await fetch(funcion, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pase, desde: indice.hasta }),
+  const r = await fetch(funcion, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pase, desde: revisarDesdeInicio ? null : indice.hasta }),
     signal: AbortSignal.timeout(60_000) });
   const cuerpo = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`la función respondió ${r.status}: ${cuerpo.error ?? ""}`);
@@ -54,7 +57,10 @@ for (const a of archivos) {
   }
 }
 // Solo se avanza la fecha si todo bajó: lo que falló se vuelve a pedir la próxima vez
-if (!errores.length && archivos.length) indice.hasta = archivos.map((a) => a.cambiado).sort().at(-1);
+if (!errores.length && archivos.length) {
+  const masReciente = archivos.map((a) => a.cambiado).sort().at(-1);
+  if (!indice.hasta || Date.parse(masReciente) > Date.parse(indice.hasta)) indice.hasta = masReciente;
+}
 fs.mkdirSync(carpetas[0], { recursive: true });
 fs.writeFileSync(indiceRuta, JSON.stringify(indice));
 

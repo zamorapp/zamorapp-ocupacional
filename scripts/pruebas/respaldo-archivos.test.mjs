@@ -55,10 +55,10 @@ function correr(funcion, carpetas) {
   });
 }
 
-async function subir(nombre, texto, hace = "0 minutes") {
+async function subir(nombre, texto, hace = "0 minutes", bucket = "adjuntos") {
   contenidos.set(nombre, texto);
-  await sql(`insert into storage.objects (bucket_id, name, updated_at, metadata) values ('adjuntos', $1, now() - $3::interval, jsonb_build_object('size', $2::int))`,
-    [nombre, Buffer.byteLength(texto), hace]);
+  await sql(`insert into storage.objects (bucket_id, name, updated_at, metadata) values ($4, $1, now() - $3::interval, jsonb_build_object('size', $2::int))`,
+    [nombre, Buffer.byteLength(texto), hace, bucket]);
 }
 
 test("baja solo lo nuevo, lo copia a Drive, nunca sale de la carpeta y no reutiliza pases", { skip: !BASE && "falta RESPALDO_PRUEBA_DB" }, async () => {
@@ -78,14 +78,21 @@ test("baja solo lo nuevo, lo copia a Drive, nunca sale de la carpeta y no reutil
     assert.equal(fs.readFileSync(path.join(pc, "archivos/adjuntos/prueba/org/t1/examen.pdf"), "utf8"), "PDF-1");
     assert.equal(fs.readFileSync(path.join(drive, "archivos/adjuntos/prueba/org/t1/firma.png"), "utf8"), "PNG-22");
 
-    // Segunda vez: nada nuevo; luego uno nuevo, uno dañado y uno con una ruta que intenta salir de la carpeta
+    // Un depósito incorporado después puede tener archivos anteriores al cursor.
+    await subir("prueba/org/empresa/CTR--2026-T1.pdf", "VIGILANCIA", "3 hours", "vigilancia-proyectos");
     r = await correr(f.url, [pc, drive]);
     assert.match(r.salida, /0 nuevos o cambiados, 2 en total/);
+    r = await correr(f.url, ["--desde-inicio", pc, drive]);
+    assert.equal(r.codigo, 0, r.salida);
+    assert.match(r.salida, /1 nuevos o cambiados, 3 en total, 1 copiados a Drive/);
+    assert.equal(fs.readFileSync(path.join(drive, "archivos/vigilancia-proyectos/prueba/org/empresa/CTR--2026-T1.pdf"), "utf8"), "VIGILANCIA");
+
+    // Luego uno nuevo, uno dañado y uno con una ruta que intenta salir de la carpeta.
     await subir("prueba/org/t2/nuevo.pdf", "NUEVO");
     await subir("prueba/org/t2/danado.pdf", "COMPLETO");
     await subir("prueba/../../fuera.txt", "MALO");
     r = await correr(f.url, [pc]);
-    assert.match(r.salida, /Archivos \(aviso\): 1 nuevos o cambiados, 3 en total/);
+    assert.match(r.salida, /Archivos \(aviso\): 1 nuevos o cambiados, 4 en total/);
     assert.match(r.salida, /danado\.pdf: tamaño 1 en vez de 8/);
     assert.match(r.salida, /fuera\.txt: ruta no permitida/);
     assert.match(r.salida, /quedaron solo en la PC/);
