@@ -22,13 +22,15 @@ jobs:
     steps:
       - name: Enviar avisos nuevos
         run: |
-          curl -sS --max-time 60 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/avisos/campana"
+          curl --fail -sS --max-time 60 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/avisos/campana"
       # Constancias automáticas a RR. HH.: la base decide a qué empresa ya le toca su correo del día (una vez al día)
       - name: Correo diario de constancias
+        if: ${{ !cancelled() }}
         run: |
-          curl -sS --max-time 70 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/envios/constancias-dia"
+          curl --fail -sS --max-time 70 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/envios/constancias-dia"
       # Tasa BCV (respaldo del cron diario de Vercel): solo va al BCV si falta; si no, responde «al día».
       # Si falla, la tasa se puede escribir a mano en Facturación.
       - name: Tasa BCV
+        if: ${{ !cancelled() }}
         run: |
           curl -sS --max-time 45 -w "\nHTTP %{http_code} · %{time_total}s\n" "https://zamorapp-ocupacional.vercel.app/api/tasa-bcv" || true
