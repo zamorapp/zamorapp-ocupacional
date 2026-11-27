@@ -21,7 +21,7 @@ import { versionesHojas } from "@/lib/hojas-version-servidor";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 
-type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string; rev?: string }> };
+type Props = { params: Promise<{ tipo: string; id: string }>; searchParams: Promise<{ dx?: string; sin?: string; copia?: string; dias?: string; plan?: string; tema?: string; dieta?: string; c?: string; rev?: string; borrador?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tipo } = await params;
@@ -44,16 +44,25 @@ export default async function Imprimir({ params, searchParams }: Props) {
   if (!t) notFound();
   const base = await obtenerDocumento(id);
   if (!base) notFound();
+  const sesion = await obtenerSesion();
+  if (consulta.borrador !== undefined) {
+    if (tipo !== "constancia" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(consulta.borrador) ||
+        !sesion.orgId || !sesion.clinico || base.datos.estado !== "firmada" || !base.datos.aptitud.clasificacion) notFound();
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase.from("agentes_borradores").select("id")
+      .eq("id", consulta.borrador).eq("org_id", sesion.orgId).eq("tipo", "constancia").eq("estado", "emitido")
+      .eq("revisado_por", sesion.usuarioId).eq("consulta_id", id).eq("consulta_revision", base.datos.revision).maybeSingle();
+    if (!data) notFound();
+  }
   const d = { ...base, impreso: { ...base.impreso, mostrarRevision: revisionDeUrl(rev) }, sin: opcionesDeUrl(sin), copia: copiaDeUrl(copia, base.org.ajustes) };
   const faltan = tipo === "recipe" ? faltantesRecipe(d) : [];
-  const sesion = await obtenerSesion();
   // Dieta y bienestar: la versión propia del servicio, con los cambios de esta consulta encima
   const versiones = tipo === "dieta" || tipo === "bienestar" ? await versionesHojas(await crearClienteServidor()) : null;
-  const trabajador = esDocTrabajador(tipo) && sesion.clinico && !sesion.demo ? { consultaId: id, tipo, servicio: d.org.nombre || sesion.organizacion } : null;
+  const trabajador = !consulta.borrador && esDocTrabajador(tipo) && sesion.clinico && !sesion.demo ? { consultaId: id, tipo, servicio: d.org.nombre || sesion.organizacion } : null;
 
   return (
     <div className="min-h-dvh bg-neutral-100 print:bg-white">
-      <BarraImpresion volver={`/atencion/${id}`} titulo={`${t.titulo} · ${d.trabajador.nombre}`} bloqueado={faltan.length > 0} trabajador={trabajador} />
+      <BarraImpresion volver={consulta.borrador ? "/borradores" : `/atencion/${id}`} titulo={`${t.titulo} · ${d.trabajador.nombre}`} bloqueado={faltan.length > 0} trabajador={trabajador} />
       {faltan.length > 0 ? (
         <CompletarRecipe {...await datosCompletarRecipe(d)} />
       ) : (

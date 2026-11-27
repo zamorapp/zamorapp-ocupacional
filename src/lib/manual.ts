@@ -499,6 +499,8 @@ export const MANUAL: TemaManual[] = [
       "Solo si tu agente tiene una casilla aparte para la llave, abre «Mi agente tiene una casilla aparte para la llave» y copia la dirección sin llave y la llave. En Claude esa dirección sola da «Problema de conexión».",
       "En tu agente abre Conectores, elige agregar un conector personalizado, pega lo que copiaste y guarda.",
       "Pídele: «muéstrame el resumen de zamorApp». Si responde, quedó conectado.",
+      "Para una constancia de aptitud, usa una llave «Consultar y crear» con documentos activos. Pide el borrador indicando el trabajador y la fecha exacta de la consulta firmada. En Borradores del agente, revisa la empresa, la fecha y la aptitud. Pulsa «Aprobar y abrir constancia» para abrirla e imprimirla.",
+      "Para reprogramar o cancelar una cita pendiente, pide al agente una cita a la vez. En Borradores del agente, compara los datos actuales con el cambio propuesto. Si hay avisos de horario, revísalos antes de aprobar. Cada decisión requiere internet y la cuenta que creó la llave.",
       "Para cortar el acceso, pulsa «Apagar» en la llave: deja de servir al instante. Lo que el agente creó se queda.",
       "En «Registro», con Desde y Hasta, ves cada cosa que hizo cada llave: qué, cuándo, en qué empresa y si fue un ensayo.",
       "Reportes: con la misma casilla, pídele por ejemplo «sácame la relación de pacientes atendidos de la empresa X en octubre» o «las estadísticas por médico del trimestre». Te los trae sin diagnósticos ni aptitudes; para verlos completos, ábrelos tú en Reportes.",

@@ -51,7 +51,7 @@ export function BarraLateral({ organizacion, titular, portal = false, alNavegar 
       <nav aria-label="Secciones" className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {grupos.map(({ titulo, secciones: lista }, i) => (
           <div key={titulo} className={cn(i > 0 && "mt-3")}>
-            {titulo && <h2 className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground/80">{titulo}</h2>}
+            {titulo && <h2 className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground">{titulo}</h2>}
             <ul className="space-y-0.5">
               {lista.map((s) => (
                 <li key={s.href}>{enlace(s)}</li>
