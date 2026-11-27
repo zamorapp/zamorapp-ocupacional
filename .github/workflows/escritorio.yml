@@ -348,12 +348,17 @@ jobs:
           # -ui: además registra la PC (si hace falta) y entra por la ventana real hasta ver el panel
           # -imprimir: además abre el informe de vigilancia en su ventana, lo guarda en PDF y abre el diálogo de impresoras
           # -doble: con el programa ya abierto se abre otra copia: debe cerrarse sola y traer al frente la abierta
-          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false, [bool]$imprimir = $false, [bool]$doble = $false) {
+          function Abrir([string]$que, [bool]$cors = $false, [bool]$ui = $false, [bool]$imprimir = $false, [bool]$doble = $false, [string]$medir = "") {
             $exe = Get-ChildItem $script:dir.FullName -Filter *.exe | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
             $inicio = Get-Date
             $proc = Start-Process $exe.FullName -PassThru
             $ok = $false
             try {
+              if ($medir) {
+                $desdeMs = ([DateTimeOffset]$inicio).ToUnixTimeMilliseconds()
+                node escritorio/pruebas/medir-arranque.mjs $desdeMs $medir | ForEach-Object { Write-Host "   $_" }
+                if ($LASTEXITCODE) { throw "No se pudo usar la ventana de inicio en modo $medir" }
+              }
               for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
                 Start-Sleep 2
                 if ($proc.HasExited) { break }
@@ -471,7 +476,19 @@ jobs:
 
           # 3) Se abre y cierra 6 veces seguidas: todas deben arrancar (una falla intermitente no pasa)
           $fallas = 0
-          for ($n = 1; $n -le 6; $n++) { if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6) ($n -eq 6) ($n -eq 2))) { $fallas++ } }
+          $marcaCaida = "$env:ZAMORAPP_NUBE_MARCA_MIGRADA.caida"
+          for ($n = 1; $n -le 6; $n++) {
+            $medir = switch ($n) { 3 { "en-linea" }; 4 { "sin-conexion" }; default { "" } }
+            try {
+              if ($medir -eq "sin-conexion") {
+                Set-Content -LiteralPath $marcaCaida -Value "corte antes de abrir"
+                Start-Sleep -Milliseconds 500
+              }
+              if (-not (Abrir "apertura $n de 6" ($n -eq 1) ($n -eq 1 -or $n -eq 6) ($n -eq 6) ($n -eq 2) $medir)) { $fallas++ }
+            } finally {
+              if ($medir -eq "sin-conexion") { Remove-Item -LiteralPath $marcaCaida -Force }
+            }
+          }
           Write-Host "== Relanzamientos de PostgREST registrados:"; Select-String -Path "$registros/datos/puerta.log" -Pattern "se cerró|se vuelve a lanzar" -ErrorAction SilentlyContinue | ForEach-Object Line
           if ($fallas) { throw "El programa instalado no arrancó en $fallas de 6 aperturas" }
 

@@ -60,7 +60,10 @@ async function principal() {
   // Primero el puerto: si lo retiene una puerta anterior, su base también sigue viva y hay que esperarla (o cerrarla)
   // antes de arrancar la base de esta
   await asegurarPuerto(CONFIG.puertoPuerta, { registro });
-  await motor.iniciar({ comprobarNube: () => nube.comprobar() });
+  // La comprobación de red no depende de PostgreSQL. La puerta espera ambos resultados
+  // antes de decidir cómo arranca el reloj y de atender a la aplicación.
+  await Promise.all([nube.comprobar(), motor.iniciar()]);
+  motor.avance(98, "Abriendo zamorApp");
   nube.reloj.arranque(nube.enLinea); // arranques seguidos sin nube: parte del plazo sin conexión
   // La app trae grabada la dirección de la puerta: este puerto es fijo (ver puerto.mjs)
   const puerto = CONFIG.puertoPuerta;
