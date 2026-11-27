@@ -2,6 +2,7 @@
 // con las migraciones reales. Requiere: PG_BIN (initdb/pg_ctl), NUBE_DB (base de supabase/pruebas/correr.sh)
 // y no correr como root (PostgreSQL no lo permite). En Windows, ZAMORAPP_POSTGREST apunta al PostgREST real.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -2203,13 +2204,24 @@ test("si PostgREST se cae, se vuelve a lanzar solo (también si cae al arrancar)
 });
 
 // Una base que quedó viva de una sesión anterior (cierre a la fuerza o versión instalada encima) no impide abrir
-test("si quedó abierta la base de una sesión anterior, el programa igual arranca", { skip: omitir }, async () => {
+test("al arrancar, restaura el respaldo pendiente aunque haya quedado abierta la base anterior", { skip: omitir, timeout: 180_000 }, async () => {
   const { Motor } = await import("../puerta/motor.mjs");
+  const archivo = path.join(datos, "restaurar-al-arrancar.dump");
+  const pgDump = path.join(CONFIG.pgBin, process.platform === "win32" ? "pg_dump.exe" : "pg_dump");
+  await enLocalReplica("update public.trabajadores set telefono = '0414-RESPALDO-ARRANQUE' where id = $1", [TRAB]);
+  execFileSync(pgDump, ["--format=custom", "--no-owner", "--file", archivo, "--dbname", motor.url()], { windowsHide: true, timeout: 30_000 });
+  await enLocalReplica("update public.trabajadores set telefono = '0414-DESPUES' where id = $1", [TRAB]);
+  estado.d.restaurar = { archivo, origen: "respaldo-de-prueba.zamorapp", pedido: nubeObj.reloj.iso() };
+  estado.guardar();
   const otro = new Motor(estado); // la base de "motor" sigue viva, como tras un cierre a la fuerza
   try {
     await otro.iniciar();
     const r = await fetch(`http://127.0.0.1:${otro.puertoPostgrest}/`);
     assert.ok(r.status < 500);
+    const [restaurado] = await enBase(otro.url(), "select telefono from public.trabajadores where id = $1", [TRAB]);
+    assert.equal(restaurado.telefono, "0414-RESPALDO-ARRANQUE");
+    assert.equal(estado.d.restaurar, null);
+    assert.equal(fs.existsSync(archivo), false);
   } finally {
     otro.detener();
     motor.deteniendo = true;
