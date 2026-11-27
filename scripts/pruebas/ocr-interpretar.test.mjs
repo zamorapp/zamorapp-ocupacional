@@ -2,7 +2,7 @@
 // Uso: node --test scripts/pruebas/ocr-interpretar.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { identidad, interpretar, normalizarCedula, sinonimosDe } from "../../src/lib/ocr/interpretar.ts";
+import { agruparPorPaciente, cedulaLote, identidad, interpretar, normalizarCedula, sinonimosDe } from "../../src/lib/ocr/interpretar.ts";
 
 const CATALOGO = [
   { id: "hb", nombre: "Hemoglobina", grupo: "Hematología", sinonimos: ["HGB"], unidad: "g/dL", max: 16 },
@@ -74,4 +74,22 @@ test("errores típicos de foto: barra leída como I y C.I. leída como C.l.", ()
   assert.equal(r.filas[0].unidad, "/mm3");
   assert.equal(r.filas[1].unidad, "/mm3");
   assert.ok(!r.filas[0].dudas.some((d) => d.startsWith("Unidad")));
+});
+
+test("separa páginas sin cédula, vacías, dudosas y con dos identidades", () => {
+  const grupos = agruparPorPaciente([
+    L("Paciente: Prueba Uno   C.I.: V-12.345.678", 99, 1),
+    L("Hemoglobina 14 g/dL", 99, 2),
+    L("C.I.: E-12.345.678", 99, 4),
+    L("C.I.: V-12.345.678    C.I.: E-12.345.678", 99, 5),
+    L("C.I.: V-12.345.679", 99, 6),
+    L("C.I.: V-12.345.679", 99, 7),
+    L("C.I.: V-12.345.679", 65, 8),
+  ], [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(grupos.map((g) => [g.paginas, g.cedula, g.conflicto]), [
+    [[1], "V12345678", false], [[2], "", false], [[3], "", false],
+    [[4], "E12345678", false], [[5], "", true], [[6, 7], "V12345679", false], [[8], "", false],
+  ]);
+  assert.equal(cedulaLote("V. 12.345.678"), "V12345678");
+  assert.equal(cedulaLote("dato 12.345.678"), "");
 });

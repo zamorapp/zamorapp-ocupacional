@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { soloMias } from "@/lib/panel-rol";
-import { BookOpen, CalendarCog, History, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { BookOpen, CalendarCog, History, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, ScanText, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { MasAcciones } from "@/components/app/mas-acciones";
@@ -103,9 +103,11 @@ export default async function Atencion({ searchParams }: { searchParams: Promise
           <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></Button>
           <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></Button>
           {!sesion.demo && <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></Button>}
+          {sesion.clinico && sesion.rol !== "enfermeria" && !sesion.demo && <Button variant="outline" className="max-sm:hidden" asChild><Link href="/atencion/resultados-lote"><ScanText /> Resultados por lote</Link></Button>}
           <MasAcciones>
             <DropdownMenuItem asChild><Link href="/configuracion/horario"><CalendarCog /> Disponibilidad</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/atencion/citas-lote"><FileSpreadsheet /> Citas por lote</Link></DropdownMenuItem>
+            {sesion.clinico && sesion.rol !== "enfermeria" && !sesion.demo && <DropdownMenuItem asChild><Link href="/atencion/resultados-lote"><ScanText /> Resultados por lote</Link></DropdownMenuItem>}
             <DropdownMenuItem asChild><Link href="/atencion/hojas"><BookOpen /> Hojas para el paciente</Link></DropdownMenuItem>
             {!sesion.demo && <DropdownMenuItem asChild><Link href="/atencion/enlaces"><History /> Historial de enlaces</Link></DropdownMenuItem>}
           </MasAcciones>

@@ -26,6 +26,8 @@ type Props = {
   // editar: se agregan exámenes nuevos; resultados (consulta cerrada): solo los ya solicitados
   puedeAgregar: boolean;
   onRegistrar: (r: Registro) => void;
+  maxPaginas?: number;
+  registrarLote?: (r: Registro, identidad: { cedula: string; coincide: boolean; ignorada: boolean }) => Promise<void>;
   onCerrar: () => void;
 };
 
@@ -37,7 +39,7 @@ const ESTILO_NIVEL = {
 };
 
 /** Lee el informe del laboratorio, propone los resultados y espera la confirmación del médico para registrarlos. */
-export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo, sexo, paciente, puedeAgregar, onRegistrar, onCerrar }: Props) {
+export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo, sexo, paciente, puedeAgregar, onRegistrar, maxPaginas, registrarLote, onCerrar }: Props) {
   const examenes = useMemo<ExamenCatalogo[]>(() => catalogo.map((i) => {
     const dx = defExamen(i.datos, i.nombre, i.grupo);
     return { id: i.id, nombre: i.nombre, grupo: i.grupo, sinonimos: sinonimosDe(i.datos), unidad: dx.unidad, max: rango(dx, sexo).max };
@@ -62,7 +64,7 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
       try {
         const r = await fetch(archivo.url, { signal: c.signal });
         if (!r.ok) throw new Error("No se pudo abrir el archivo. Vuelve a intentarlo.");
-        const leido = await leerResultado(await r.blob(), archivo.tipo, { avance: setAvance, senal: c.signal });
+        const leido = await leerResultado(await r.blob(), archivo.tipo, { avance: setAvance, senal: c.signal, maxPaginas });
         const { cabecera: cab, filas: fs } = interpretar(leido.lineas, examenes);
         setLineas(leido.lineas);
         setPaginas(leido.paginas);
@@ -112,6 +114,18 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
       if (i >= 0) lista[i] = { ...lista[i], ...cambio };
       else if (puedeAgregar && f.examenId) lista.push({ id: f.examenId, nombre: cat?.nombre ?? f.examen, grupo: cat?.grupo ?? null, resultado: "", ...cambio });
     }
+    const registro = { paraclinicos: lista, examenes: [...new Set(incluidas.map((f) => f.examenId!))] };
+    if (registrarLote) {
+      try {
+        await registrarLote(registro, { cedula: cabecera.cedula.slice(0, 20), coincide: id.nivel === "ok", ignorada });
+        onRegistrar(registro);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudieron guardar los resultados.");
+      } finally {
+        setRegistrando(false);
+      }
+      return;
+    }
     // Bitácora: cada lectura registrada y, si se ignoró, la cédula que se leyó
     const e = await Promise.resolve().then(() => crearClienteNavegador().rpc("registrar_lectura_laboratorio", {
       p_consulta: consultaId, p_adjunto: archivo.id, p_cedula_leida: cabecera.cedula ? cabecera.cedula.slice(0, 20) : null,
@@ -119,14 +133,14 @@ export function LectorLaboratorio({ archivo, consultaId, paraclinicos, catalogo,
     })).then((r) => r.error, (x: Error) => x);
     setRegistrando(false);
     if (e) return setError(e.message || "No se pudo registrar. Revisa la conexión y vuelve a intentarlo.");
-    onRegistrar({ paraclinicos: lista, examenes: [...new Set(incluidas.map((f) => f.examenId!))] });
+    onRegistrar(registro);
   };
 
   const pagina = (n: number) => paginas.find((p) => p.pagina === n);
   const lineaResaltada = resaltada !== null ? lineas[resaltada] : null;
 
   return (
-    <Dialog open onOpenChange={(abierto) => { if (!abierto) { control.current?.abort(); onCerrar(); } }}>
+    <Dialog open onOpenChange={(abierto) => { if (!abierto && !registrando) { control.current?.abort(); onCerrar(); } }}>
       <DialogContent className="grid h-[94dvh] w-[96vw] max-w-7xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-7xl">
         <div className="border-b px-4 py-3 pr-12">
           <DialogTitle className="flex items-center gap-2 text-base"><ScanText className="size-5 text-primary" /> Leer resultados · {archivo.nombre}</DialogTitle>

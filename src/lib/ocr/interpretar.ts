@@ -138,6 +138,42 @@ export function leerCabecera(lineas: Linea[]): Cabecera {
   return cab;
 }
 
+export type GrupoPaciente = { paginas: number[]; cedula: string; nombre: string; conflicto: boolean };
+
+export function cedulaLote(valor: string): string {
+  const m = valor.trim().match(/^([VE])?\s*[-.]?\s*(\d(?:[. ]?\d){5,8})$/i);
+  return m ? (m[1]?.toUpperCase() ?? "") + normalizarCedula(m[2]) : "";
+}
+
+export function agruparPorPaciente(lineas: Linea[], paginas: number[]): GrupoPaciente[] {
+  const grupos: GrupoPaciente[] = [];
+  for (const pagina of paginas) {
+    const propias = lineas.filter((l) => l.pagina === pagina).map((l) => ({ ...l, pagina: 1 }));
+    const cedulas = new Set<string>();
+    let lecturaClara = false;
+    for (const l of propias) {
+      const marcas = /(?:\bc[eé]dula(?:\s+de\s+identidad)?|\bc\.?\s?[il1|]\.?|\bidentidad)\s*[:#.]?\s*([VE]\s*[-.]?\s*)?(\d{1,3}[.\s]\d{3}[.\s]\d{3}|\d{6,9})(?!\d|[.]\d)/gi;
+      for (const m of l.texto.matchAll(marcas)) {
+        const cedula = cedulaLote((m[1] ?? "") + m[2]);
+        if (cedula) {
+          cedulas.add(cedula);
+          lecturaClara ||= l.confianza >= CONFIANZA_MINIMA;
+        }
+      }
+    }
+    const conflicto = cedulas.size > 1;
+    const cedula = conflicto || !lecturaClara ? "" : [...cedulas][0] ?? "";
+    const nombre = conflicto ? "" : leerCabecera(propias).nombre;
+    const anterior = grupos.at(-1);
+    if (cedula && anterior?.cedula === cedula && normalizar(anterior.nombre) === normalizar(nombre)) {
+      anterior.paginas.push(pagina);
+    } else {
+      grupos.push({ paginas: [pagina], cedula, nombre, conflicto });
+    }
+  }
+  return grupos;
+}
+
 export function interpretar(lineas: Linea[], catalogo: ExamenCatalogo[]): Lectura {
   const filas: FilaLeida[] = [];
   const vistos = new Set<string>();

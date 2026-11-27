@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, FileSpreadsheet, Loader2, Search, Stethoscope, Users } from "lucide-react";
+import { ChevronRight, FileSpreadsheet, Loader2, PhoneOff, Search, Stethoscope, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +45,7 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
     });
   };
   const [busqueda, setBusqueda] = useState(busquedaInicial);
+  const [sinTelefono, setSinTelefono] = useState(false);
   const [empresa, setEmpresa] = useState(TODAS);
   const [estado, setEstado] = useState<EstadoTrabajador | typeof TODAS>(TODAS);
   // Con miles de trabajadores se muestran por tandas para que la búsqueda sea instantánea
@@ -60,9 +61,10 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
         (empresa === TODAS || t.empresa === empresa) &&
         // «Todos» deja fuera a los inactivos (ya no están en la empresa): se ven eligiendo «Inactivo»
         (estado === TODAS ? t.estado !== "inactivo" : t.estado === estado) &&
+        (!sinTelefono || !t.telefono?.trim()) &&
         (!q || normalizar(`${t.cedula} ${t.nombres} ${t.apellidos} ${t.cargo} ${t.historia}`).includes(q)),
     );
-  }, [trabajadores, busqueda, empresa, estado]);
+  }, [trabajadores, busqueda, empresa, estado, sinTelefono]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -111,6 +113,10 @@ export function ListaPacientes({ trabajadores, busquedaInicial, nuevo, depurar, 
             {Object.entries(ETIQUETA_ESTADO).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button type="button" variant={sinTelefono ? "secondary" : "outline"} aria-pressed={sinTelefono}
+          className="h-11" onClick={() => { setSinTelefono((v) => !v); setMostrar(100); setMostrarMovil(25); }}>
+          <PhoneOff /> Sin teléfono
+        </Button>
       </div>
 
       <Card className="overflow-hidden py-0">

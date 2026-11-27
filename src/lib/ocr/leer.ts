@@ -6,12 +6,13 @@ import type { Linea } from "@/lib/ocr/interpretar";
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 export const MAX_PAGINAS = 20;
+export const MAX_PAGINAS_LOTE = 40;
 const LADO_MAXIMO = 2400;
 
 export type Avance = { texto: string; paso: number; total: number };
 export type Pagina = { pagina: number; imagen: string; ancho: number; alto: number }; // imagen: objectURL para el visor
 
-type Opciones = { avance: (a: Avance) => void; senal: AbortSignal };
+type Opciones = { avance: (a: Avance) => void; senal: AbortSignal; maxPaginas?: number };
 
 class Cancelado extends Error {
   constructor() { super("Lectura cancelada."); }
@@ -86,7 +87,8 @@ async function leerPdf(archivo: Blob, o: Opciones) {
   pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await archivo.arrayBuffer()), isEvalSupported: false }).promise;
   try {
-    if (doc.numPages > MAX_PAGINAS) throw new Error(`El PDF tiene ${doc.numPages} páginas; el lector acepta hasta ${MAX_PAGINAS}.`);
+    const tope = o.maxPaginas ?? MAX_PAGINAS;
+    if (doc.numPages > tope) throw new Error(`El PDF tiene ${doc.numPages} páginas; el lector acepta hasta ${tope}.`);
     const lineas: Linea[] = [];
     const paginas: Pagina[] = [];
     let lector: Awaited<ReturnType<typeof crearLector>> | null = null;
@@ -128,6 +130,9 @@ async function leerPdf(archivo: Blob, o: Opciones) {
         }
         pag.cleanup();
       }
+    } catch (e) {
+      paginas.forEach((p) => URL.revokeObjectURL(p.imagen));
+      throw e;
     } finally {
       await lector?.cerrar();
     }
@@ -160,4 +165,17 @@ export async function leerResultado(archivo: Blob, tipo: string, o: Opciones): P
     if (o.senal.aborted) throw new Cancelado();
     throw e;
   }
+}
+
+export async function extraerPaginas(archivo: Blob, paginas: number[]): Promise<Blob> {
+  const { PDFDocument } = await import("pdf-lib");
+  const origen = await PDFDocument.load(await archivo.arrayBuffer());
+  if (!paginas.length || new Set(paginas).size !== paginas.length ||
+      paginas.some((p) => !Number.isInteger(p) || p < 1 || p > origen.getPageCount())) {
+    throw new Error("La selección de hojas del PDF no es válida.");
+  }
+  const destino = await PDFDocument.create();
+  const hojas = await destino.copyPages(origen, paginas.map((pagina) => pagina - 1));
+  for (const hoja of hojas) destino.addPage(hoja);
+  return new Blob([new Uint8Array(await destino.save())], { type: "application/pdf" });
 }
