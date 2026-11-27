@@ -105,6 +105,9 @@ async function unMensaje(m: Rpc, llave: string): Promise<object | null> {
 export async function atenderMcp(cuerpo: unknown, llave: string): Promise<{ estado: number; json?: unknown }> {
   if (Array.isArray(cuerpo)) {
     if (!cuerpo.length || cuerpo.length > 20) return { estado: 400, json: { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Lote no válido" } } };
+    if (cuerpo.length > 1 && cuerpo.some((m) => m?.method === "tools/call" && m?.params?.name === "preparar_cambio_cita")) {
+      return { estado: 400, json: { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Envía la preparación de una cita como una llamada individual." } } };
+    }
     const sal = [];
     for (const m of cuerpo) { const r = await unMensaje(m as Rpc, llave); if (r) sal.push(r); }
     return sal.length ? { estado: 200, json: sal } : { estado: 202 };

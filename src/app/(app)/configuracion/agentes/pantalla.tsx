@@ -425,7 +425,7 @@ function CasillaDocumentos({ llave }: { llave: Llave }) {
         <span className="min-w-0">
           <span className="flex items-center gap-2 text-sm font-medium">Prepara récipes y órdenes {ocupado ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}</span>
           <span className="block text-sm text-muted-foreground">
-            Deja borradores de récipe u orden de exámenes con lo que le dictes. Tú los revisas en «Borradores del agente», los emites con tu firma y sello, y los envías tú.
+            Deja borradores de récipes, órdenes y constancias de aptitud. Las constancias salen de consultas firmadas y las aprueba quien creó la llave, en «Borradores del agente».
           </span>
         </span>
       </label>

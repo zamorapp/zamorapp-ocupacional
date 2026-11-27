@@ -25,6 +25,7 @@ import { esRolEmpresa } from "@/lib/sesion-roles";
 import { OfertaAvisosCelular } from "@/components/app/avisos-celular";
 import { ultimosAtendidos } from "@/lib/ultimos-atendidos";
 import { contarBorradores, revisaBorradores } from "@/lib/agentes/borradores";
+import { contarCambiosCitas, revisaCambiosCitas } from "@/lib/agentes/cambios-citas";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ export default async function Panel() {
       <Suspense fallback={<Esqueleto filas={1} alto="h-[4.5rem]" columnas="sm:grid-cols-3" titulo />}><Tareas sesion={sesion} /></Suspense>
 
       {/* Lo que preparó el agente (récipes y órdenes): solo aparece si hay algo por revisar */}
-      {revisaBorradores(sesion) && <Suspense fallback={null}><BorradoresAgente /></Suspense>}
+      {(revisaBorradores(sesion) || revisaCambiosCitas(sesion)) && <Suspense fallback={null}><BorradoresAgente sesion={sesion} /></Suspense>}
 
       {/* Últimos atendidos de todas las empresas: a un toque, sin buscar (solo personal de salud) */}
       {sesion.clinico && !sesion.demo && <Suspense fallback={<div role="status" aria-label="Cargando los últimos atendidos" className="h-48 animate-pulse rounded-xl border bg-muted/40" />}><UltimosAtendidos /></Suspense>}
@@ -190,9 +191,12 @@ async function Tareas({ sesion }: { sesion: Sesion }) {
   );
 }
 
-// Misma regla que la lista de /borradores (por revisar, RLS del médico): el número abre exactamente esa lista
-async function BorradoresAgente() {
-  const n = await contarBorradores();
+async function BorradoresAgente({ sesion }: { sesion: Awaited<ReturnType<typeof obtenerSesion>> }) {
+  const [documentos, citas] = await Promise.all([
+    revisaBorradores(sesion) ? contarBorradores() : 0,
+    revisaCambiosCitas(sesion) ? contarCambiosCitas(sesion) : 0,
+  ]);
+  const n = documentos + citas;
   if (!n) return null;
   return (
     <Link href="/borradores" data-tarjeta="borradores-agente"
@@ -201,7 +205,7 @@ async function BorradoresAgente() {
       <span className="text-3xl font-semibold tabular-nums">{n}</span>
       <span className="min-w-0 flex-1">
         <span className="block font-medium">Borradores del agente</span>
-        <span className="block text-xs text-muted-foreground">Récipes y órdenes por revisar y emitir</span>
+        <span className="block text-xs text-muted-foreground">Documentos y cambios de agenda por revisar</span>
       </span>
       <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5" />
     </Link>
