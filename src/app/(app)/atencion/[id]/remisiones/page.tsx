@@ -5,16 +5,25 @@ import { ArrowLeft } from "lucide-react";
 import { obtenerConsulta } from "@/lib/consultas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { AltaRemision, MovimientosRemision, type Remision } from "./remisiones";
+import { AltaRemision, MovimientosRemision, type CorreoRemision, type Remision } from "./remisiones";
 
 export const metadata: Metadata = { title: "Remisiones a prestadores" };
 
 export default async function Pagina({ params }: { params: Promise<{ id: string }> }) {
   const [sesion, { id }] = await Promise.all([obtenerSesion(), params]);
   if (sesion.demo || !sesion.clinico || sesion.rol === "enfermeria") notFound();
-  const consulta = await obtenerConsulta(id);
+  const supabase = await crearClienteServidor();
+  const [consulta, { data, error }, { data: correos }, { data: prestadores }] = await Promise.all([
+    obtenerConsulta(id),
+    supabase.rpc("listar_remisiones_examenes", { p_consulta: id }),
+    supabase.rpc("estado_correo_remisiones", { p_consulta: id }),
+    (async () => {
+      const { data: fila } = await supabase.from("consultas").select("org_id").eq("id", id).maybeSingle();
+      return fila?.org_id ? supabase.from("prestadores_examenes").select("id,nombre,correo").eq("org_id", fila.org_id).eq("activo", true).order("nombre") : { data: [] };
+    })(),
+  ]);
   if (!consulta) notFound();
-  const { data, error } = await (await crearClienteServidor()).rpc("listar_remisiones_examenes", { p_consulta: id });
+  const correoPorOrden = new Map<string, CorreoRemision>(((correos ?? []) as CorreoRemision[]).map((fila) => [fila.id, fila]));
   const examenes = consulta.datos.paraclinicos.map(({ id: examenId, nombre }) => ({ id: examenId, nombre }));
 
   return (
@@ -30,8 +39,8 @@ export default async function Pagina({ params }: { params: Promise<{ id: string 
         <>
           {consulta.datos.estado === "borrador"
             ? <p className="text-sm text-muted-foreground">Cierra la consulta para preparar una remisión.</p>
-            : examenes.length > 0 && <AltaRemision consulta={id} examenes={examenes} />}
-          {(data as Remision[] ?? []).map((r) => <MovimientosRemision key={r.id} consulta={id} remision={r} />)}
+            : examenes.length > 0 && <AltaRemision consulta={id} examenes={examenes} prestadores={prestadores ?? []} />}
+          {(data as Remision[] ?? []).map((r) => <MovimientosRemision key={r.id} consulta={id} remision={r} correo={correoPorOrden.get(r.id)} />)}
         </>
       )}
     </div>
