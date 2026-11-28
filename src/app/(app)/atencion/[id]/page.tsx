@@ -101,6 +101,9 @@ export default async function Consulta({ params, searchParams }: { params: Promi
         <Link href="/atencion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Atención médica
         </Link>
+        {!sesion.demo && sesion.clinico && consulta.datos.estado !== "borrador" && consulta.datos.paraclinicos.length > 0 && (
+          <Link href={"/atencion/" + id + "/remisiones"} className="text-sm font-medium text-primary hover:underline">Remisiones a prestadores</Link>
+        )}
         {!sesion.demo && sesion.clinico && consulta.datos.estado === "firmada" && (
           <EnviarTrabajador consultaId={id} servicio={org.nombre} />
         )}
