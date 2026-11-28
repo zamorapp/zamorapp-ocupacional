@@ -56,6 +56,7 @@ const BLOQUES: Bloque[] = [
 
 // Puerta para agentes (Claude, ChatGPT, Gemini…): solo el administrador
 const AGENTES: Opcion = { href: "/configuracion/agentes", titulo: "Puerta para agentes", texto: "Deja que Claude u otro agente cree empresas, presupuestos, trabajadores y citas por ti. Tú la enciendes con una llave, la apagas con un clic y ves todo lo que hizo.", icono: Bot };
+const PRESTADORES: Opcion = { href: "/configuracion/prestadores", titulo: "Prestadores de exámenes", texto: "Directorio y correos autorizados para enviar órdenes.", icono: ClipboardList };
 
 // Cargos repetidos de todas las empresas: solo el administrador
 const CARGOS: Opcion = { href: "/configuracion/cargos", titulo: "Unir cargos", texto: "Junta el mismo cargo escrito de varias formas (mayúsculas, acentos, abreviaturas) en todas las empresas.", icono: Briefcase };
@@ -71,8 +72,9 @@ const PAPELERA: Opcion = { href: "/configuracion/papelera", titulo: "Papelera", 
 export default async function Configuracion() {
   const sesion = await obtenerSesion();
   const gerencia = sesion.rol === "administrador" || sesion.rol === "gerente_medico";
+  const opcionesClinicas = [ENFERMERIA, ...(sesion.clinico ? [PRESTADORES] : [])];
   const mantenimiento = [...(sesion.rol === "administrador" ? [CARGOS] : []), ...(sesion.rol === "administrador" ? [LIMPIEZA] : []), ...(sesion.rol === "administrador" && sesion.clinico ? [PAPELERA] : []), ...(gerencia && sesion.clinico ? [ESCANEADOS] : [])];
-  const bloques: Bloque[] = [...BLOQUES.map((b, i) => (i === 0 && gerencia ? { ...b, opciones: [...b.opciones, ENFERMERIA] } : i === 3 && sesion.rol === "administrador" ? { ...b, opciones: [...b.opciones, AGENTES] } : b)), ...(mantenimiento.length ? [{ titulo: "Mantenimiento", texto: "Limpieza, papelera y arreglos, solo para la gerencia", opciones: mantenimiento }] : [])];
+  const bloques: Bloque[] = [...BLOQUES.map((b, i) => (i === 0 && gerencia ? { ...b, opciones: [...b.opciones, ...opcionesClinicas] } : i === 3 && sesion.rol === "administrador" ? { ...b, opciones: [...b.opciones, AGENTES] } : b)), ...(mantenimiento.length ? [{ titulo: "Mantenimiento", texto: "Limpieza, papelera y arreglos, solo para la gerencia", opciones: mantenimiento }] : [])];
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div>

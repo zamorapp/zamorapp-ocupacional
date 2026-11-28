@@ -66,8 +66,9 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
   const NOMINA_NUBE = new Set(["nomina_portal", "ver_depuracion_nomina", "marcar_depuracion_nomina",
     "marcar_resto_depuracion_nomina", "agregar_depuracion_nomina", "quitar_agregado_depuracion_nomina",
     "enviar_depuracion_nomina"].map((nombre) => `/rest/v1/rpc/${nombre}`));
-  const REMISIONES_NUBE = new Set(["listar_remisiones_examenes", "preparar_remision_examenes", "anotar_remision_examenes"]
-    .map((rpc) => "/rest/v1/rpc/" + rpc));
+  const REMISIONES_NUBE = new Set(["listar_remisiones_examenes", "preparar_remision_examenes", "anotar_remision_examenes",
+    "preparar_remision_directorio", "estado_correo_remisiones"].map((rpc) => "/rest/v1/rpc/" + rpc));
+  REMISIONES_NUBE.add("/rest/v1/prestadores_examenes");
   const SIEMPRE_NUBE = ["/rest/v1/rpc/requiere_dos_pasos", "/rest/v1/rpc/falta_segundo_paso", "/rest/v1/rpc/miembros_con_correo",
     "/rest/v1/rpc/estado_respaldo", "/rest/v1/rpc/limpieza_estado",
     // Puerta para agentes: las llaves y su registro viven solo en la nube (la copia no los trae). Sin internet la
@@ -823,6 +824,23 @@ export function crearPuerta({ estado, nube, motor, replica, bandeja = null, cola
         // La fila se guardó en la PC: primero sube la bandeja, así la web ya la encuentra
         if (bandeja && await nube.confirmar()) await bandeja.subir().catch(() => {});
         return responder(res, 200, await cola.despachar(quien.uid, json()?.ids));
+      }
+      if (ruta === "/zamorapp/correo-prestador" && req.method === "POST") {
+        const quien = usuarioDe(req);
+        if (!quien) return responder(res, 401, { mensaje: "Sesión vencida." });
+        const token = await nube.confirmar() ? await nube.token(quien.uid) : null;
+        if (!token) return responder(res, 503, { mensaje: "El envío a prestadores requiere conexión." });
+        try {
+          const r = await fetch(WEB + "/api/envios/prestadores", {
+            method: "POST", redirect: "error", signal: AbortSignal.timeout(65_000),
+            headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+            body: JSON.stringify(json()),
+          });
+          const datos = await r.json();
+          return responder(res, r.status, { mensaje: datos.mensaje });
+        } catch {
+          return responder(res, 502, { mensaje: "No se pudo confirmar el envío. Actualiza el estado antes de continuar." });
+        }
       }
       // Subir ya lo guardado en la PC, para lo que la nube necesita en el acto (p. ej. el enlace de WhatsApp apunta a
       // un envío que debe existir allá). Sin internet responde 503 «requiere internet»; devuelve las filas que aún esperan.

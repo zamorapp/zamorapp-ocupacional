@@ -6,6 +6,7 @@
 - Manual alternativo desde la PC: `scripts/publicar-vercel.ps1` (requiere `npx vercel login`).
 - Cron de Vercel: `/api/tasa-bcv` diario.
 - Variables de entorno: en el panel de Vercel (ver credenciales.md).
+- Para habilitar el correo a prestadores, configura el correo saliente y la variable de servidor `ZAMORAPP_PRESTADORES_SERVICE_ROLE` de Supabase en Vercel. Activa `ZAMORAPP_ENVIO_PRESTADORES=1` después de validar el directorio y el envío de prueba. Escritorio usa la nube con la sesión del usuario.
 
 ## Base (Supabase)
 - Proyecto `xgsoryzvyrsddgkxkzeb`. Las migraciones de `supabase/migrations/` son la fuente de verdad.
