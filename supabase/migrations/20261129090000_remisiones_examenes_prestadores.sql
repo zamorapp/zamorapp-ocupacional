@@ -11,6 +11,7 @@ create table clinico.remisiones_examenes (
   check ((enviada_en is null) = (enviada_por is null))
 );
 create index remisiones_examenes_consulta on clinico.remisiones_examenes(consulta_id, creada_en desc);
+create index remisiones_examenes_org on clinico.remisiones_examenes(org_id);
 
 create table clinico.remisiones_examenes_detalle (
   remision_id uuid not null references clinico.remisiones_examenes(id) on delete cascade,
@@ -28,7 +29,8 @@ revoke all on clinico.remisiones_examenes, clinico.remisiones_examenes_detalle f
 grant select on clinico.remisiones_examenes, clinico.remisiones_examenes_detalle to authenticated;
 
 create policy remisiones_examenes_leer on clinico.remisiones_examenes for select to authenticated
-  using (public.es_clinico(org_id) and public.ve_consulta(org_id, consulta_id));
+  using (org_id = any ((select public.orgs_con(p_clinico => true))::uuid[])
+    and public.ve_consulta(org_id, consulta_id));
 create policy remisiones_examenes_detalle_leer on clinico.remisiones_examenes_detalle for select to authenticated
   using (exists (select 1 from clinico.remisiones_examenes r where r.id = remisiones_examenes_detalle.remision_id));
 
